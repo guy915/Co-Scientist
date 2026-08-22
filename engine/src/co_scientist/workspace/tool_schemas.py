@@ -18,6 +18,7 @@ READ_FILE = "read_file"
 WRITE_FILE = "write_file"
 LIST_FILES = "list_files"
 POLL_COMMAND = "poll_command"
+READ_SKILL = "read_skill"
 
 # How long `run_command` waits before handing back a session id instead
 # of a result. Short: the point is that a long command keeps running, so
@@ -245,6 +246,48 @@ def poll_command_schema() -> dict[str, Any]:
                 "type": "object",
                 "properties": _poll_properties(),
                 "required": ["session_id"],
+            },
+        },
+    }
+
+
+def read_skill_schema(names: tuple[str, ...]) -> dict[str, Any]:
+    """Builds the OpenAI schema for reading one skill's instructions.
+
+    The catalogue is enumerated in the parameter rather than described in
+    prose, so a name the model invents is rejected by the provider's own
+    schema validation instead of costing a turn and an error message.
+
+    Args:
+        names: Every skill name currently available.
+
+    Returns:
+        The tool definition.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": READ_SKILL,
+            "description": (
+                "Read one science skill's full instructions: what it can "
+                "do, the exact commands to run, and the mistakes to "
+                "avoid. Call this before using a skill -- the catalogue "
+                "gives you only a one-line summary of each. The "
+                "instructions tell you which script to run; run it with "
+                "run_command. Each document is long and every later turn "
+                "re-sends it, so read one skill and use it before "
+                "considering another."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": list(names),
+                        "description": "The skill name from the catalogue.",
+                    }
+                },
+                "required": ["name"],
             },
         },
     }

@@ -51,6 +51,7 @@ from co_scientist.llm import (
 )
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import load_prompt
+from co_scientist.skills import available_skills, catalogue_section
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_review_workspace
 from co_scientist.workspace.tool_schemas import RUN_COMMAND
@@ -128,6 +129,21 @@ MAX_SIMULATION_TURNS = 14
 # its face value.
 SIMULATION_TOKEN_BUDGET = 45_000
 
+# What the same simulation may spend when skills are installed. The 45k
+# above was measured on a loop whose transcript held only the model's own
+# program and its output; a skill document is 200-430 lines of
+# instructions that every subsequent turn re-sends. The first live run
+# with skills spent its whole budget in three iterations -- five
+# documents read before a single command ran -- and produced no model at
+# all, which is the expensive failure this budget exists to avoid.
+#
+# The uplift funds roughly two documents and leaves the working turns
+# intact. It is not the fix on its own: the prompt and the tool
+# description tell the model to read one skill and act on it, because a
+# budget large enough for indiscriminate reading is large enough to spend
+# an entire review reading.
+SIMULATION_SKILLS_TOKEN_BUDGET = 75_000
+
 # Longest observation kept. Capped here, at the one place observations are
 # produced, so the same bound reaches both readers: the review prompt,
 # whose every other section is bounded, and the stored result, which rides
@@ -135,6 +151,46 @@ SIMULATION_TOKEN_BUDGET = 45_000
 # uncapped field in either is the tool loop's whole output budget --
 # thousands of tokens of prose -- landing somewhere sized for a paragraph.
 MAX_OBSERVATION_CHARS = 12000
+
+
+_NO_NETWORK_NOTE = (
+    " There is no network access and nothing outside this directory is "
+    "reachable, so use only the standard library."
+)
+
+_SKILLS_NOTE_TEMPLATE = """ Nothing outside this directory is writable, and \
+the standard library is what your own programs have. This workspace does have \
+network access, and it is there for one reason: the **science skills** below, \
+which are installed on this machine and query real scientific databases.
+
+{catalogue}
+
+Call `read_skill` with one of those names to get its full instructions -- what \
+it can do, the exact command to run, and the mistakes to avoid -- then run \
+that command with `run_command`. The one-line summaries above are not enough \
+to use a skill correctly; read it first. Have each script write to a file and \
+read back the fields you need, rather than printing everything.
+
+Read **one** skill and use it before considering another. Each document is \
+hundreds of lines that every later turn re-sends, so reading several before \
+running anything spends the budget you need for the model itself. You are here \
+to simulate a mechanism, not to survey the databases: look something up only \
+when a specific number your model turns on is one you would otherwise \
+invent."""
+
+
+def _environment_note() -> str:
+    """Returns the paragraph describing what this workspace can reach.
+
+    A model told it has no network will not try to look a constant up,
+    and a model told it has skills it does not have spends turns
+    discovering that. Both halves of the sentence therefore follow the
+    same fact the tool schemas follow -- whether a catalogue exists.
+    """
+    catalogue = catalogue_section()
+    if not catalogue:
+        return _NO_NETWORK_NOTE
+    return _SKILLS_NOTE_TEMPLATE.format(catalogue=catalogue)
 
 
 def _tool_provider(
@@ -147,8 +203,16 @@ def _tool_provider(
     ``run_command`` there rather than offering a tool every call would
     refuse, and a simulation that cannot run anything has nothing to
     add to the review.
+
+    The workspace is opened with the network only where skills exist to
+    use it. A simulation writes its own model and runs it, which needs
+    nothing outside the directory; the network is bought for the skills
+    and paid for in the one place that can tell whether any are
+    installed.
     """
-    session = open_review_workspace(run_id, hypothesis_id)
+    session = open_review_workspace(
+        run_id, hypothesis_id, network_allowed=bool(available_skills())
+    )
     schemas = workspace_tool_schemas(session.policy)
     if not any(
         schema.get("function", {}).get("name") == RUN_COMMAND
@@ -244,11 +308,16 @@ def _simulation_loop(
         re-send -- see the two constants for why one ceiling is not
         enough.
     """
+    budget = (
+        SIMULATION_SKILLS_TOKEN_BUDGET
+        if available_skills()
+        else SIMULATION_TOKEN_BUDGET
+    )
     return ToolLoop(
         tools=schemas,
         executor=provider.execute_tool_call,
         max_iterations=MAX_SIMULATION_TURNS,
-        max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
+        max_prompt_tokens=budget,
     )
 
 
@@ -264,6 +333,7 @@ async def _observe(
         {
             "research_goal": state["research_goal"],
             "hypothesis_text": hypothesis.text,
+            "environment_note": _environment_note(),
         },
     )
     try:

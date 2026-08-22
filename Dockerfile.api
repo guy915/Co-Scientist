@@ -57,7 +57,18 @@ ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 # which runs in this process, so the api image is the one that needs them --
 # not the MCP image.
 COPY vendor/science-skills/ ./vendor/science-skills/
-ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
+
+# COSCIENTIST_SKILLS_DIR is deliberately NOT set yet, and it is the only
+# gate: the engine's catalogue is empty unless it points somewhere, so
+# the bundle ships inert and one line turns it on. It stays off until the
+# cost is measured over more than one hypothesis. What a live run showed
+# (2026-08-22, deepseek-v4-flash, one mechanism): with skills the
+# simulation reviewer does reach for them and does get real data back --
+# one skill read, a Europe PMC search run, its JSON read -- but it spent
+# 85k prompt tokens over 9 turns doing it and never wrote the model, so
+# the review degraded to no observation at all. A skill's own attribution
+# ritual cost four of those turns on its own. Enabling this before that
+# is fixed makes simulation reviews worse, not better.
 
 # The skills declare their dependencies as PEP 723 inline metadata and their
 # SKILL.md files say to invoke them with `uv run`, which resolves those

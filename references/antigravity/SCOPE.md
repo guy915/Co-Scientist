@@ -97,6 +97,41 @@ Three of the decisions below are answered and no longer open:
   ClinVar, dbSNP and the E-utilities skills inherit usable rate limits with no
   new configuration.
 
+## Measured, on the first live run with skills
+
+One mechanism, `deepseek-v4-flash`, 2026-08-22, through the real simulation
+review. Two runs, before and after the first round of fixes.
+
+| | Before | After |
+| --- | --- | --- |
+| Skill documents read before acting | 5 | 1 |
+| Skill scripts invoked | 2 (both empty — no credentials) | 3 (real Europe PMC results) |
+| Turns used | 3 | 9 |
+| Prompt tokens re-sent | 50,668 | 84,951 |
+| Observation produced | none | none |
+
+**The agent reaches for skills readily and gets real data back.** What it does
+not do yet is leave itself room to write the model: both runs exhausted the
+loop and degraded to no observation, which is worse than the mental simulation
+they replaced. Three causes, all measured rather than guessed:
+
+1. **A skill document is re-sent every turn.** 200–430 lines each, and the 45k
+   budget was measured on a loop whose transcript held only the model's own
+   program. Raised to 75k for skill-enabled loops, which was not enough.
+2. **Greed.** Five documents before a single command. The tool description and
+   the prompt now say to read one skill and use it; that worked — one document
+   on the second run.
+3. **A skill's own attribution ritual cost four turns.** Europe PMC's
+   `SKILL.md` requires writing a `LICENSE_NOTIFICATION.txt` before any query,
+   and the model spent `ls`, `mkdir`, `pwd` and `write_file` on it. That is the
+   licence obligation in `SKILL_LICENSES.md` arriving as a turn cost.
+
+So the mechanism is right and the budget is not settled. Skills therefore ship
+**inert**: the api image carries the bundle and the interpreter but does not
+set `COSCIENTIST_SKILLS_DIR`, which is the single gate the engine reads. One
+line turns them on, once the cost is measured over more than one hypothesis —
+n=1 settles nothing here.
+
 ## Decisions stage 2 must resolve
 
 1. **Where the catalogue is injected, and how big it is.** 34 name+description

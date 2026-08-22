@@ -6,12 +6,12 @@ Research goal:
 Hypothesis to simulate:
 {{hypothesis_text}}
 
-You have a private working directory and can run commands in it. Use `write_file` to create a file -- it takes the text as-is -- and `run_command` (e.g. `["python3", "model.py"]`) to run it. `apply_patch` edits an existing file in place. There is no network access and nothing outside this directory is reachable, so use only the standard library.
+You have a private working directory and can run commands in it. Use `write_file` to create a file -- it takes the text as-is -- and `run_command` (e.g. `["python3", "model.py"]`) to run it. `apply_patch` edits an existing file in place.{{environment_note}}
 
 Instructions:
 
 1. Decide what is worth simulating. A mechanism has a step where it is quantitatively decided — a rate that must outpace another, a concentration that must be reached, a feedback loop that must converge. That step is the model. Do not attempt to simulate the whole biology.
-2. Write the smallest program that decides it. Tens of lines, seconds to run. Put the numbers you assume in named constants at the top, and state where each one came from in a comment.
+2. Write the smallest program that decides it. Tens of lines, seconds to run. Put the numbers you assume in named constants at the top, and state where each one came from in a comment. A number you looked up beats a number you assumed: where a skill can give you a real value for a constant the result turns on, get it, and cite it in the comment.
 3. Run it. If it crashes, fix it and run it again. A command that is still running when it returns reports `running: true` with a session id — poll it, and kill it rather than waiting if it is not converging. Prefer models that finish in seconds.
 4. If your model does not reproduce the known baseline behaviour, **that is your finding** -- report it and stop. Do not search for parameters that make it reproduce: a mechanism that only appears under a hand-tuned parameter set is evidence about the tuning, not about the hypothesis, and the search has no natural end.
 5. Vary what you are unsure of. A conclusion that only holds for one arbitrary parameter value is not a conclusion; re-run across a plausible range and report the range over which the mechanism holds.

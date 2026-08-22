@@ -29,6 +29,7 @@ would put an implicit shell behind every call and make
 longer happens.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -39,6 +40,12 @@ from co_scientist.sandbox import (
     SandboxPolicy,
     is_known_safe,
     sandbox_backend,
+)
+from co_scientist.skills import (
+    available_skills,
+    is_skill_invocation,
+    read_skill_document,
+    skill_environment,
 )
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
@@ -70,12 +77,14 @@ from co_scientist.workspace.tool_schemas import (
     LIST_FILES,
     POLL_COMMAND,
     READ_FILE,
+    READ_SKILL,
     RUN_COMMAND,
     WRITE_FILE,
     apply_patch_schema,
     list_files_schema,
     poll_command_schema,
     read_file_schema,
+    read_skill_schema,
     run_command_schema,
     write_file_schema,
 )
@@ -95,6 +104,9 @@ declare_local_tool(LIST_FILES, WorkspaceSession.READ_FILE_EFFECTS)
 # Polling touches a live process -- it can write to its stdin and end
 # it -- so it is a barrier for the same reason starting one is.
 declare_local_tool(POLL_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
+# Reading a skill's instructions is reading a file off the image: no
+# barrier, so it batches concurrently with the other reads in a turn.
+declare_local_tool(READ_SKILL, WorkspaceSession.READ_FILE_EFFECTS)
 
 # Policies whose confinement is somebody else's job: EXTERNAL means the
 # caller placed the boundary outside this process, DANGER_FULL_ACCESS
@@ -135,6 +147,15 @@ def workspace_tool_schemas(policy: SandboxPolicy) -> list[dict[str, Any]]:
         read_file_schema(),
         list_files_schema(),
     ]
+    # Offered only where a skill could actually be used: the catalogue
+    # is empty unless COSCIENTIST_SKILLS_DIR is set, which the api image
+    # does and a checkout, a test and a CI job do not -- so this costs
+    # nothing anywhere skills are not installed. Gated on commands too,
+    # because instructions whose every step is a command are worse than
+    # useless to a model that cannot run one.
+    skills = available_skills() if can_run_commands(policy) else ()
+    if skills:
+        schemas.append(read_skill_schema(tuple(s.name for s in skills)))
     if can_run_commands(policy):
         schemas.insert(0, run_command_schema())
         schemas.insert(1, poll_command_schema())
@@ -235,8 +256,16 @@ async def _handle_run_command(
     work and the output it had already produced.
     """
     argv = _require_argv(args)
+    # Credentials reach a vendored skill script and nothing else. The
+    # same workspace runs model-written programs against a network that
+    # is open precisely so skills can use it, so a key in the shared
+    # environment is a key any generated program could read and send on.
+    env_extra = skill_environment() if is_skill_invocation(argv) else None
     session = await context.session.sessions.start(
-        argv, policy=context.session.policy, cwd=context.session.root
+        argv,
+        policy=context.session.policy,
+        cwd=context.session.root,
+        env_extra=env_extra,
     )
     await session.wait_for(_resolve_yield(args))
     payload = _session_payload(context, session.read())
@@ -287,6 +316,29 @@ async def _handle_poll_command(
     return _session_payload(context, session.read(cursor))
 
 
+async def _handle_read_skill(
+    context: "_ToolContext", args: dict[str, Any]
+) -> dict[str, Any]:
+    """Returns one skill's instructions.
+
+    Not passed through the output recorder: this is a file baked into the
+    image, not something a command produced, so there is no secret of
+    ours in it to redact and no budget of the model's to spend
+    truncating it.
+    """
+    del context
+    name = args.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise WorkspaceToolInputError("name must be a non-empty string")
+    document = await asyncio.to_thread(read_skill_document, name)
+    if document is None:
+        available = ", ".join(skill.name for skill in available_skills())
+        raise WorkspaceToolInputError(
+            f"no skill named {name!r}; available skills: {available}"
+        )
+    return {"name": name, "instructions": document}
+
+
 _HANDLERS = {
     RUN_COMMAND: _handle_run_command,
     POLL_COMMAND: _handle_poll_command,
@@ -294,6 +346,7 @@ _HANDLERS = {
     READ_FILE: _handle_read_file,
     WRITE_FILE: _handle_write_file,
     LIST_FILES: _handle_list_files,
+    READ_SKILL: _handle_read_skill,
 }
 
 
