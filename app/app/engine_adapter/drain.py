@@ -92,6 +92,7 @@ from app.engine_adapter.drain_report_inputs import (
     grounding_counts,
     retrieval_degradation,
     safety_counts,
+    skills_used,
 )
 from app.engine_adapter.drain_research import (
     _persist_retrieval_calls as _persist_retrieval_calls,
@@ -242,6 +243,7 @@ def _build_drain_result(
             ),
             "degraded_sections": degraded_sections(final_state),
             "retrieval_degradation": retrieval_degradation(final_state),
+            "skills_used": skills_used(final_state),
         },
         safety_counts=safety_counts(screening_result),
         grounding_counts=grounding_counts(

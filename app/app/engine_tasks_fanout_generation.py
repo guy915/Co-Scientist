@@ -383,6 +383,7 @@ async def execute_generation_strategy(
     """Execute one generation strategy against a read-only plan checkpoint."""
     from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.skills import scoped_skill_usage
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="generation strategy"
@@ -396,7 +397,10 @@ async def execute_generation_strategy(
     # A debate task is one debate of the strategy's parallel batch; the
     # batch total defaults to the pre-E14 shape (a lone debate with no
     # siblings to diverge from) when the input predates the wiring.
-    with scoped_telemetry("generate") as telemetry:
+    with (
+        scoped_telemetry("generate") as telemetry,
+        scoped_skill_usage() as skills,
+    ):
         hypotheses, transcripts, llm_calls = await _run_generation_strategy(
             state,
             strategy,
@@ -414,5 +418,9 @@ async def execute_generation_strategy(
         "transcripts": transcripts,
         "llm_calls": llm_calls,
         "model_usage": telemetry.snapshot(),
+        # Which third-party data sources this strategy's science-skill
+        # commands reached, so the report can attribute them; see
+        # co_scientist.skills.usage. Empty on every run without skills.
+        "skills_used": skills.snapshot(),
         "checkpoint_seq": expected_seq,
     }

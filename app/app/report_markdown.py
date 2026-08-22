@@ -415,6 +415,7 @@ class ReportMarkdownInputs:
     research_overview: dict[str, Any] | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
+    skills_used: dict[str, int] | None = None
 
 
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
@@ -441,7 +442,36 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     lines.extend(
         render_research_overview_markdown(inputs.research_overview or {})
     )
+    lines += _render_data_source_notice(inputs.skills_used or {})
     return "\n".join(lines)
+
+
+def _render_data_source_notice(skills_used: dict[str, int]) -> list[str]:
+    """Name the third-party databases this run queried, and their terms.
+
+    Not a result -- an attribution the run owes. The science skills reach
+    sources whose terms are separate from the bundle's Apache licence,
+    and most of them require the user be notified of those terms. The
+    harness satisfies the skills' own literal condition by seeding a
+    notice file into the workspace, but a workspace is deleted and
+    reaches nobody; this is the surface a person reads. Only the sources
+    actually queried are named, because a blanket list of everything
+    installed would attribute work to databases the run never touched.
+    """
+    if not skills_used:
+        return []
+    named = ", ".join(sorted(skills_used))
+    return [
+        "",
+        "## Data sources",
+        "",
+        f"This run queried the following third-party sources: {named}. "
+        "Their terms of use are separate from this system's licence and "
+        "are listed per source in `vendor/science-skills/"
+        "SKILL_LICENSES.md`. Review them before relying on or "
+        "redistributing these results.",
+        "",
+    ]
 
 
 def _render_report_header(

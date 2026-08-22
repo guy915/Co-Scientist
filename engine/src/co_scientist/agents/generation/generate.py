@@ -9,6 +9,7 @@ from typing import Any
 
 from co_scientist.agents.generation.coordinator import generate_hypotheses
 from co_scientist.models import MetricDeltas, create_metrics_update
+from co_scientist.skills import scoped_skill_usage
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,14 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     # hypotheses, debate_transcripts, hypothesis_count, and message. Any
     # failure inside the coordinator propagates as an exception rather than
     # a partial result.
-    result = await generate_hypotheses(state)
+    # The science skills the drafting pass invokes are counted here
+    # rather than returned through the coordinator: the invocation
+    # happens inside a workspace tool handler and the number is wanted at
+    # this node boundary, which is what the scope exists for. The durable
+    # path scopes its own (engine_tasks_fanout_generation.py), since it
+    # runs each strategy as a separate task and never enters this node.
+    with scoped_skill_usage() as skills:
+        result = await generate_hypotheses(state)
 
     # Add metrics. The coordinator always returns hypothesis_count (or
     # raises). create_metrics_update wraps it as a metrics delta;
@@ -51,7 +59,10 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     # max_llm_calls never saw this node's real spend).
     metrics = create_metrics_update(
         hypothesis_count=result["hypothesis_count"],
-        deltas=MetricDeltas(llm_calls=result.get("llm_call_count", 0)),
+        deltas=MetricDeltas(
+            llm_calls=result.get("llm_call_count", 0),
+            skills_used=skills.snapshot(),
+        ),
     )
     result["metrics"] = metrics
 

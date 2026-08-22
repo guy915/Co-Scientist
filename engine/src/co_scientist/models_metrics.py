@@ -7,6 +7,7 @@ unaffected.
 """
 
 import dataclasses
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -54,6 +55,15 @@ class ExecutionMetrics:
     # rather than written per call (AGENTS.md: a per-call database row or
     # persisted log record starves the single SQLite writer).
     model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Science skill name -> times a node invoked it, summed across the
+    # run. Recorded because the skills reach third-party databases whose
+    # terms are separate from the bundle's licence and most of which
+    # require the user be notified of them; a notice seeded into a
+    # temporary workspace reaches nobody, so the run's report attributes
+    # the sources it actually used and this is how they get there. Empty
+    # on every run that used no skill, which is every run without
+    # COSCIENTIST_SKILLS_DIR.
+    skills_used: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for checkpoint transport (all fields are plain data)."""
@@ -149,6 +159,16 @@ def _merge_model_usage(
     return merged
 
 
+def _merge_counts(
+    existing: dict[str, int], new: dict[str, int]
+) -> dict[str, int]:
+    """Sums two name-to-count maps into a new dict."""
+    merged = dict(existing)
+    for name, count in new.items():
+        merged[name] = merged.get(name, 0) + count
+    return merged
+
+
 def merge_metrics(
     existing: ExecutionMetrics, new: ExecutionMetrics
 ) -> ExecutionMetrics:
@@ -186,6 +206,7 @@ def merge_metrics(
         else existing.total_time,
         phase_times=merged_phase_times,
         model_usage=_merge_model_usage(existing.model_usage, new.model_usage),
+        skills_used=_merge_counts(existing.skills_used, new.skills_used),
     )
 
     return merged
@@ -203,12 +224,15 @@ class MetricDeltas:
         tournaments: Tournament rounds run by this node.
         evolutions: Evolutions produced by this node.
         llm_calls: LLM calls made by this node.
+        skills_used: science skill invocations this node made, by skill
+            name.
     """
 
     reviews: int = 0
     tournaments: int = 0
     evolutions: int = 0
     llm_calls: int = 0
+    skills_used: Mapping[str, int] = field(default_factory=dict)
 
 
 def create_metrics_update(
@@ -248,6 +272,7 @@ def create_metrics_update(
         total_time=total_time if total_time is not None else 0.0,
         phase_times=phase_times if phase_times is not None else {},
         model_usage=model_usage if model_usage is not None else {},
+        skills_used=dict(d.skills_used),
     )
 
 

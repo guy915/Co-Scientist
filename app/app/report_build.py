@@ -54,6 +54,11 @@ class ReportRequest(NamedTuple):
             None on a run that retrieved normally. Unlike a degraded
             section this leaves no trace in the output, so a reader has
             no way to infer it from the report itself.
+        skills_used: Science skill name -> invocations the run made.
+            The skills reach third-party databases whose terms are
+            separate from the bundle's licence and most of which require
+            the user be notified of them, so the report names the ones
+            this run actually used. Empty on a run that used none.
         execution_time: Wall-clock seconds the run took, when measured.
         summary: Optional summary paragraph for the markdown header.
         db_path: Optional override for the SQLite database path.
@@ -67,6 +72,7 @@ class ReportRequest(NamedTuple):
     research_overview: dict[str, Any] | None = None
     degraded_sections: list[str] | None = None
     retrieval_degradation: dict[str, Any] | None = None
+    skills_used: dict[str, int] | None = None
     execution_time: float | None = None
     summary: str | None = None
     db_path: str | None = None
@@ -148,6 +154,7 @@ def _render_report_content_markdown(
             research_overview=req.research_overview,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
+            skills_used=req.skills_used,
         )
     )
 
@@ -234,6 +241,7 @@ def _attach_run_conditions(
     """
     payload["degraded_sections"] = list(req.degraded_sections or [])
     payload["retrieval_degradation"] = req.retrieval_degradation
+    payload["skills_used"] = dict(req.skills_used or {})
     # Every review row the drain persisted, so the report carries the
     # initial, deep-verification, and mature-cascade reviews to the reader
     # (audit E1); the ideas view reads the same rows from /reviews.

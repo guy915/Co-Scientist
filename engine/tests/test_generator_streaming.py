@@ -158,6 +158,7 @@ def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
         "total_time": 6.5,
         "phase_times": {"generate": 1.25},
         "model_usage": {},
+        "skills_used": {},
     }
 
 

@@ -279,6 +279,9 @@ class _GenerationItems:
             item (finding L3).
         model_usage: Per-(phase, model) telemetry folded from every
             completed strategy item's captured usage.
+        skills_used: Science skill name -> invocations, summed across
+            every completed strategy item. Carries the third-party data
+            sources the run has to attribute in its report.
     """
 
     buckets: dict[str, list[Any]]
@@ -286,6 +289,7 @@ class _GenerationItems:
     failed: int
     llm_calls: int = 0
     model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    skills_used: dict[str, int] = field(default_factory=dict)
 
 
 def _collect_generation_results(
@@ -305,6 +309,7 @@ def _collect_generation_results(
     failed = 0
     llm_calls = 0
     usage_snapshots: list[dict[str, Any]] = []
+    skills_used: dict[str, int] = {}
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="generation strategy")
         if item.status != "completed" or not item.result:
@@ -318,12 +323,15 @@ def _collect_generation_results(
         transcripts.extend(item.result.get("transcripts", []))
         llm_calls += int(item.result.get("llm_calls", 0))
         usage_snapshots.append(item.result.get("model_usage") or {})
+        for name, uses in (item.result.get("skills_used") or {}).items():
+            skills_used[name] = skills_used.get(name, 0) + int(uses)
     return _GenerationItems(
         buckets,
         transcripts,
         failed,
         llm_calls,
         merge_usage_snapshots(usage_snapshots),
+        skills_used,
     )
 
 
@@ -360,7 +368,10 @@ async def _generation_aggregate_update(
     # uses for a call count that is real but not exhaustive.
     update["metrics"] = create_metrics_update(
         hypothesis_count=update["hypothesis_count"],
-        deltas=MetricDeltas(llm_calls=update.get("llm_call_count", 0)),
+        deltas=MetricDeltas(
+            llm_calls=update.get("llm_call_count", 0),
+            skills_used=items.skills_used,
+        ),
         model_usage=items.model_usage,
     )
     if items.failed:

@@ -26,7 +26,11 @@ from __future__ import annotations
 import os
 import pathlib
 
-from co_scientist.skills.catalog import skills_directory, skills_python
+from co_scientist.skills.catalog import (
+    available_skills,
+    skills_directory,
+    skills_python,
+)
 
 # What a skill reads, and every host variable that may already hold it,
 # in order of preference. The skill's own name comes first so an
@@ -75,13 +79,34 @@ def is_skill_invocation(argv: list[str]) -> bool:
         True when the first element is the skills interpreter and some
         later element resolves inside the skills directory.
     """
+    return invoked_skill(argv) is not None
+
+
+def invoked_skill(argv: list[str]) -> str | None:
+    """Names the skill an argv runs a script of, or None.
+
+    Attribution needs the name, not the fact: the third-party terms a
+    run has to disclose are per source, and a run that queried STRING
+    owes STRING's notice and nobody else's.
+
+    Args:
+        argv: The command as the model asked for it.
+
+    Returns:
+        The skill's declared name, or None when this is not a skill
+        invocation -- which includes a model-written program handed to
+        the same interpreter, and a command that merely reads a skill.
+    """
     directory = skills_directory()
     if directory is None or not argv:
-        return False
+        return None
     if pathlib.Path(argv[0]).name != pathlib.Path(skills_python()).name:
-        return False
-    root = directory.resolve()
-    return any(_is_within(argument, root) for argument in argv[1:])
+        return None
+    for skill in available_skills():
+        root = skill.directory.resolve()
+        if any(_is_within(argument, root) for argument in argv[1:]):
+            return skill.name
+    return None
 
 
 def _is_within(argument: str, root: pathlib.Path) -> bool:

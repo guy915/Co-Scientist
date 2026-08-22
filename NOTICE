@@ -37,11 +37,12 @@ Licensed under the Apache License, Version 2.0 (code) and CC-BY 4.0
     separate from this license and not granted by it. Those terms are
     listed per source in vendor/science-skills/SKILL_LICENSES.md, and
     most skills additionally require that the user be notified of them
-    before use; the harness writes that notice into each workspace
-    (engine/src/co_scientist/skills/licences.py). Surfacing it to the
-    reader of a run is tracked in references/antigravity/SCOPE.md and
-    must land before skills are enabled in a deployment other people
-    use.
+    before use. The harness writes that notice into each workspace
+    (engine/src/co_scientist/skills/licences.py), which satisfies the
+    condition the skills themselves state but reaches nobody, since the
+    workspace is deleted. It therefore also counts the sources each run
+    actually queried (engine/src/co_scientist/skills/usage.py) and names
+    them, with a pointer to their terms, in the run's report.
 
   A copy of the Apache License, Version 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0

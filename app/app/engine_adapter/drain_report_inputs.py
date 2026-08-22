@@ -45,6 +45,27 @@ def retrieval_degradation(
     return degradation if isinstance(degradation, dict) else None
 
 
+def skills_used(final_state: dict[str, Any]) -> dict[str, int]:
+    """Return the science skills the run invoked, by name and count.
+
+    Carried because the skills query third-party databases whose terms
+    are separate from the bundle's licence, and most of those sources
+    require that the user be notified of them. The harness writes that
+    notice into the workspace the skill runs in, which is deleted; the
+    report is the only surface that reaches a person, and it can only
+    name the sources the run actually used if the run counted them.
+    Empty on every run that invoked no skill, which is every run without
+    ``COSCIENTIST_SKILLS_DIR``.
+    """
+    metrics = final_state.get("metrics")
+    used = getattr(metrics, "skills_used", None)
+    if used is None and isinstance(metrics, dict):
+        used = metrics.get("skills_used")
+    if not isinstance(used, dict):
+        return {}
+    return {str(name): int(count) for name, count in used.items()}
+
+
 def grounding_counts(
     grounding_result: Any, grounding_candidates: list[dict[str, Any]]
 ) -> dict[str, int]:
