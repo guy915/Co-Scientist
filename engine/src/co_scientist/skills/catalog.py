@@ -42,6 +42,10 @@ _FALLBACK_SKILLS_PYTHON = "python3"
 # hostile file cannot flood the transcript, not to trim a real skill.
 MAX_SKILL_DOCUMENT_CHARS = 60_000
 
+# How much of a description reaches the catalogue. See
+# `catalogue_section` for the measurement behind it.
+MAX_SUMMARY_CHARS = 160
+
 _DOCUMENT_NAME = "SKILL.md"
 
 
@@ -179,8 +183,37 @@ def find_skill(name: str) -> Skill | None:
     return None
 
 
+def _routing_summary(description: str) -> str:
+    """Reduces a description to the part that decides whether to read it.
+
+    Upstream descriptions run two to five sentences: what the skill is
+    for, then when not to use it and which sibling to use instead. All
+    of it is useful once, and the first sentence is what a routing
+    decision actually turns on -- so the rest is bought back by the
+    document, which the model reads before using the skill anyway.
+
+    Args:
+        description: The skill's full description.
+
+    Returns:
+        Its first sentence, hard-capped.
+    """
+    head = description.split(". ", 1)[0].rstrip(".")
+    return (
+        f"{head[: MAX_SUMMARY_CHARS - 1]}\u2026"
+        if (len(head) > MAX_SUMMARY_CHARS)
+        else f"{head}."
+    )
+
+
 def catalogue_section() -> str:
     """Renders the catalogue for a prompt.
+
+    Every line is re-sent on every turn of a tool loop, so this is a
+    per-turn tax paid by a decision made once. Measured on a live
+    simulation review: full descriptions cost ~2.4k tokens a turn, which
+    over ten turns is a quarter of the loop's whole prompt budget --
+    more than every tool result in it put together. Hence the summary.
 
     Returns:
         One line per skill, or an empty string when there are none -- so
@@ -190,7 +223,10 @@ def catalogue_section() -> str:
     skills = available_skills()
     if not skills:
         return ""
-    lines = [f"- {skill.name}: {skill.description}" for skill in skills]
+    lines = [
+        f"- {skill.name}: {_routing_summary(skill.description)}"
+        for skill in skills
+    ]
     return "\n".join(lines)
 
 

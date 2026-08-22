@@ -27,6 +27,21 @@ raises spends its whole retry budget on the durable path, which leaves
 the hypothesis with no simulation review at all rather than a mental
 one.
 
+**Skills are wired here and measured negative here.** This node can
+offer the vendored science skills, and should not be the one that does.
+Three mechanisms, twice each, against the same runs without them: the
+baseline produced an observation six times out of six, and the
+skill-enabled arm four out of six, two of those a hundred-character
+stub. The skill-enabled runs were also *faster*, which is the tell --
+they are not running out of room, they finish early with nothing to
+report, because a reviewer given databases spends its turns querying
+them instead of building the model it exists to build. Removing the two
+real overheads (the catalogue's per-turn cost, the bundle's licence
+toll) did not change it, which is what rules out budget as the
+explanation. Skills stay off unless `COSCIENTIST_SKILLS_DIR` is set,
+and the next consumer should be one whose task *is* retrieval. See
+`references/antigravity/SCOPE.md`.
+
 **Whether it ran is recorded by the caller, not the model.** A verdict
 reached by running code and one reached by imagining it are different
 kinds of claim, and asking the model to self-report which it did makes
@@ -51,7 +66,11 @@ from co_scientist.llm import (
 )
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import load_prompt
-from co_scientist.skills import available_skills, catalogue_section
+from co_scientist.skills import (
+    available_skills,
+    catalogue_section,
+    seed_licence_notices,
+)
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_review_workspace
 from co_scientist.workspace.tool_schemas import RUN_COMMAND
@@ -171,6 +190,9 @@ that command with `run_command`. The one-line summaries above are not enough \
 to use a skill correctly; read it first. Have each script write to a file and \
 read back the fields you need, rather than printing everything.
 
+The licence notices these skills ask for are already written in \
+`.licenses/`, so skip that step entirely and do not check for them.
+
 Read **one** skill and use it before considering another. Each document is \
 hundreds of lines that every later turn re-sends, so reading several before \
 running anything spends the budget you need for the model itself. You are here \
@@ -213,6 +235,11 @@ def _tool_provider(
     session = open_review_workspace(
         run_id, hypothesis_id, network_allowed=bool(available_skills())
     )
+    # 35 of the 38 skills refuse to work until their licence notice
+    # exists in the workspace, and every review gets a fresh workspace,
+    # so the model was paying that toll on first use of every skill --
+    # measured at four turns of fourteen. Seeding it costs nothing here.
+    seed_licence_notices(session.root)
     schemas = workspace_tool_schemas(session.policy)
     if not any(
         schema.get("function", {}).get("name") == RUN_COMMAND

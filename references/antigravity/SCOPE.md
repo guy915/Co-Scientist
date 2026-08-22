@@ -97,40 +97,73 @@ Three of the decisions below are answered and no longer open:
   ClinVar, dbSNP and the E-utilities skills inherit usable rate limits with no
   new configuration.
 
-## Measured, on the first live run with skills
+## Measured: skills on vs off, through the real simulation review
 
-One mechanism, `deepseek-v4-flash`, 2026-08-22, through the real simulation
-review. Two runs, before and after the first round of fixes.
+Three mechanisms, `deepseek-v4-flash` via OpenRouter, 2026-08-22. Run twice:
+once as first wired, once after removing the two overheads found in the first
+round (the per-turn catalogue tax and the licence toll below).
 
-| | Before | After |
-| --- | --- | --- |
-| Skill documents read before acting | 5 | 1 |
-| Skill scripts invoked | 2 (both empty — no credentials) | 3 (real Europe PMC results) |
-| Turns used | 3 | 9 |
-| Prompt tokens re-sent | 50,668 | 84,951 |
-| Observation produced | none | none |
+| Mechanism | Skills off | Skills on, round 1 | Skills on, round 2 |
+| --- | --- | --- | --- |
+| WEE1/MEK synthetic lethality | 4,856 / 3,788 | **371** | **5,197** |
+| SGLT2 in HFpEF | 4,837 / 5,195 | **8,105** | **111** |
+| EGFR/MET resistance | 4,133 / 5,359 | **none** | **none** |
+| Observations produced | **6/6** | 2/3 | 2/3 |
+| Mean observation | 4,694 chars | 2,825 | 1,769 |
+| Mean tool calls | 5.2 | 9.7 | 8.3 |
+| Mean seconds | 131 | 47 | 59 |
 
-**The agent reaches for skills readily and gets real data back.** What it does
-not do yet is leave itself room to write the model: both runs exhausted the
-loop and degraded to no observation, which is worse than the mental simulation
-they replaced. Three causes, all measured rather than guessed:
+**The overhead fixes did not change the outcome, and that is the finding.**
+Both rounds land at 2/3 with the same bimodal shape: one observation better
+than baseline, one reduced to a hundred-character stub, one lost entirely.
+Across six skill-enabled runs, four produced an observation and two of those
+four were stubs. The baseline produced six of six, every one of them
+substantial.
 
-1. **A skill document is re-sent every turn.** 200–430 lines each, and the 45k
-   budget was measured on a loop whose transcript held only the model's own
-   program. Raised to 75k for skill-enabled loops, which was not enough.
-2. **Greed.** Five documents before a single command. The tool description and
-   the prompt now say to read one skill and use it; that worked — one document
-   on the second run.
-3. **A skill's own attribution ritual cost four turns.** Europe PMC's
-   `SKILL.md` requires writing a `LICENSE_NOTIFICATION.txt` before any query,
-   and the model spent `ls`, `mkdir`, `pwd` and `write_file` on it. That is the
-   licence obligation in `SKILL_LICENSES.md` arriving as a turn cost.
+Note the direction of the time column. Skill-enabled runs are *faster* — 59s
+against 131s — while producing less. They are not running out of room; they
+are finishing early with nothing to say.
 
-So the mechanism is right and the budget is not settled. Skills therefore ship
-**inert**: the api image carries the bundle and the interpreter but does not
-set `COSCIENTIST_SKILLS_DIR`, which is the single gate the engine reads. One
-line turns them on, once the cost is measured over more than one hypothesis —
-n=1 settles nothing here.
+**So the problem is not budget, and the first consumer was the wrong one.**
+The simulation review exists to build a model of a mechanism and run it. Given
+databases, the reviewer spends its turns querying them and then has no model
+to report — retrieval substitutes for simulation rather than grounding it.
+That is a role conflict, not a cost one, and no amount of budget fixes it.
+The simulation review was chosen because it already owned a confined workspace
+and a bounded tool loop: convenience, not fit.
+
+Skills therefore stay **inert** — the api image ships the bundle and the
+interpreter but does not set `COSCIENTIST_SKILLS_DIR`, the single gate the
+engine reads. The mechanism itself measured sound and is reusable as-is; what
+needs to change is which agent gets it. The next integration belongs where
+looking something up *is* the task rather than a distraction from it: the
+literature review's research loop, or draft generation.
+
+### The two overheads, removed regardless
+
+Both were real, both are fixed, and both would have bitten any consumer:
+
+1. **The catalogue was a per-turn tax.** 38 full descriptions re-sent on every
+   turn of the loop — measured at ~2.4k tokens a turn, more than every tool
+   result in the loop put together (17k chars across ten calls). Trimmed to
+   routing sentences: 12,079 to 5,155 chars, 57% off every turn.
+2. **35 of the 38 skills demand a licence notice before they will work.** Each
+   requires `.licenses/<skill>_LICENSE.txt` to exist in the workspace root, and
+   every review opens a fresh workspace, so it never pre-existed: the model
+   paid `ls`, `mkdir`, `pwd` and `write_file` — four turns of fourteen — on
+   first use of every skill. `skills/licences.py` seeds them at workspace open,
+   which is also the more faithful reading of the obligation, since the harness
+   writes the notice every time and a model writes it when it remembers.
+
+Neither trades quality for cost; both give turns back. That they did not change
+the outcome is what rules out the budget explanation.
+
+### Still open
+
+The licence obligation is *not* discharged by a file in a workspace that is
+deleted — that reaches nobody. The duty is to tell a human, which means the
+run's report. `skills.notified_sources()` exists for that surface; the report
+plumbing does not.
 
 ## Decisions stage 2 must resolve
 

@@ -24,13 +24,19 @@ from co_scientist.skills.credentials import (
     is_skill_invocation,
     skill_environment,
 )
+from co_scientist.skills.licences import (
+    notified_sources,
+    seed_licence_notices,
+)
 
 __all__ = [
     "Skill",
     "available_skills",
     "catalogue_section",
     "is_skill_invocation",
+    "notified_sources",
     "read_skill_document",
+    "seed_licence_notices",
     "skill_environment",
     "skills_directory",
 ]
