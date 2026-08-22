@@ -444,8 +444,10 @@ def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
     observation spent 50-130k prompt tokens, and the nine that reached the
     14-turn ceiling -- and so produced nothing, since reaching it is what
     failing means -- spent 190-266k, 1.81M between them and 24% of the
-    run's entire input. The ceiling here sits between those two bands,
-    which the generic backstop deliberately does not.
+    run's entire input. The ceiling here is tighter than the generic
+    backstop because a simulation's spend has actually been measured:
+    a sweep of seven budgets found nothing above 45k that any observation
+    was better for (see the constant's own comment).
     """
     from co_scientist.agents.reflection.simulation_execution import (
         MAX_SIMULATION_TURNS,
@@ -454,6 +456,8 @@ def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
     from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
     assert SIMULATION_TOKEN_BUDGET < DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-    # Above every success measured, below every exhaustion measured.
-    assert 130_000 < SIMULATION_TOKEN_BUDGET < 190_000
+    # Enough for the six-to-eight turns the useful work takes, and for
+    # some simulations to still finish rather than be harvested; below
+    # the range where more turns stopped buying a better observation.
+    assert 30_000 <= SIMULATION_TOKEN_BUDGET <= 60_000
     assert MAX_SIMULATION_TURNS == 14

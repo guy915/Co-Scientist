@@ -93,11 +93,40 @@ MAX_SIMULATION_TURNS = 14
 # this number. The loop now drops the file writes a later write
 # superseded (`llm_tool_transcript.elide_superseded_writes`), which is
 # most of what a converging simulation re-sends -- 59% of one traced
-# transcript, and 37% off its total spend -- so the same work fits well
-# inside the same budget. And reaching the ceiling anyway now harvests a
-# partial observation instead of raising, so this bounds what a
-# simulation costs without deciding whether it produces anything.
-SIMULATION_TOKEN_BUDGET = 150_000
+# transcript, and 37% off its total spend. And reaching the ceiling
+# anyway now harvests a partial observation instead of raising, so this
+# bounds what a simulation costs without deciding whether it produces
+# anything.
+#
+# With both of those in place the number could be measured rather than
+# guessed. Seven budgets from 15k to 150k, four mechanisms each, at the
+# turn ceiling above (deepseek-v4-flash, 2026-08-22), scored by checking
+# every number in the observation against the tool output that was
+# supposed to have produced it -- a model cut off under budget pressure
+# has every reason to report work it did not finish, and only the
+# transcript can tell a reported number from an invented one:
+#
+#     budget    turns    $/sim   grounded   numbers   chars
+#     15,000      3.8   0.0025        97%        57   4,489
+#     45,000      8.8   0.0049        98%        56   4,949
+#     90,000      9.5   0.0070        99%        53   4,739
+#    150,000     13.8   0.0078        93%        54   5,222
+#
+# Nothing improves above this. Ten more turns and three times the cost
+# buy no more grounded numbers and no longer an observation -- 150k
+# scored *lowest* on grounding, since a longer investigation has more
+# places to lose track of which number came from where. The useful work
+# is done in six to eight turns, and 45k is the last budget at which any
+# simulation still finishes on its own rather than being harvested,
+# which is the margin worth keeping for hypotheses harder than the four
+# measured. 30k measured just as well here and would save a further
+# fifth, at the cost of every simulation being cut off.
+#
+# Denominated in `transcript_tokens`, which estimates from character
+# count and does not see the tool schemas resent every turn: measured
+# against the provider's own accounting this budget bills around 2.5x
+# its face value.
+SIMULATION_TOKEN_BUDGET = 45_000
 
 # Longest observation kept. Capped here, at the one place observations are
 # produced, so the same bound reaches both readers: the review prompt,

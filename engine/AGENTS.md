@@ -71,9 +71,18 @@ loop that had written a model, run it and read its numbers raised, and
 the review fell back to imagining the mechanism it had just measured. It
 now buys one closing turn with the tools withheld
 (`llm_tool_loop._harvest_partial_answer`), so the ceiling degrades the
-observation instead of deleting it. `SIMULATION_TOKEN_BUDGET` stays as
-the backstop it was meant to be rather than the thing simulations die
-on.
+observation instead of deleting it.
+
+With both in place `SIMULATION_TOKEN_BUDGET` could be **measured rather
+than guessed**, and it moved from 150k to 45k. Seven budgets from 15k to
+150k over four mechanisms, each observation scored by checking its
+numbers against the tool output meant to have produced them, found
+nothing above 45k worth paying for: ten more turns and three times the
+cost bought no more grounded numbers and no longer an observation, and
+the 150k arm scored *lowest* on grounding. The useful work is done in
+six to eight turns. Note the constant is denominated in
+`transcript_tokens`, a character-count estimate blind to the tool
+schemas resent every turn, so it bills around 2.5x its face value.
 
 Each review gets its **own** workspace
 (`open_review_workspace(run_id, hypothesis_id)`) because review items fan out
