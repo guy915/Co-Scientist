@@ -380,7 +380,16 @@ async def _run_generation_strategy(
 async def execute_generation_strategy(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Execute one generation strategy against a read-only plan checkpoint."""
+    """Execute one generation strategy against a read-only plan checkpoint.
+
+    A debate task is one debate of the strategy's parallel batch; the
+    batch total defaults to the pre-E14 shape (a lone debate with no
+    siblings to diverge from) when the input predates the wiring.
+
+    ``skills_used`` is which third-party data sources this strategy's
+    science-skill commands reached, so the report can attribute them;
+    see ``co_scientist.skills.usage``. Empty without skills installed.
+    """
     from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.llm_telemetry import scoped_telemetry
     from co_scientist.skills import scoped_skill_usage
@@ -390,27 +399,21 @@ async def execute_generation_strategy(
     )
     strategy = str(task.inputs["strategy"])
     count = int(task.inputs["count"])
-    reference_index = ReferenceIndex(
-        text=str(task.inputs.get("reference_text") or ""),
-        sources=dict(task.inputs.get("reference_sources") or {}),
+    inputs = _StrategyRunInputs(
+        reference_index=ReferenceIndex(
+            text=str(task.inputs.get("reference_text") or ""),
+            sources=dict(task.inputs.get("reference_sources") or {}),
+        ),
+        literature=task.inputs.get("literature"),
+        debate_index=int(task.inputs.get("strategy_index") or 0),
+        debate_total=int(task.inputs.get("debate_total") or count),
     )
-    # A debate task is one debate of the strategy's parallel batch; the
-    # batch total defaults to the pre-E14 shape (a lone debate with no
-    # siblings to diverge from) when the input predates the wiring.
     with (
         scoped_telemetry("generate") as telemetry,
         scoped_skill_usage() as skills,
     ):
         hypotheses, transcripts, llm_calls = await _run_generation_strategy(
-            state,
-            strategy,
-            count,
-            _StrategyRunInputs(
-                reference_index=reference_index,
-                literature=task.inputs.get("literature"),
-                debate_index=int(task.inputs.get("strategy_index") or 0),
-                debate_total=int(task.inputs.get("debate_total") or count),
-            ),
+            state, strategy, count, inputs
         )
     return {
         "strategy": strategy,
@@ -418,9 +421,6 @@ async def execute_generation_strategy(
         "transcripts": transcripts,
         "llm_calls": llm_calls,
         "model_usage": telemetry.snapshot(),
-        # Which third-party data sources this strategy's science-skill
-        # commands reached, so the report can attribute them; see
-        # co_scientist.skills.usage. Empty on every run without skills.
         "skills_used": skills.snapshot(),
         "checkpoint_seq": expected_seq,
     }

@@ -340,7 +340,14 @@ async def _generation_aggregate_update(
     state: dict[str, Any],
     items: _GenerationItems,
 ) -> dict[str, Any]:
-    """Finalize the combined generation strategies into a state update."""
+    """Finalize the combined generation strategies into a state update.
+
+    Finding L3: every completed strategy item already reports its real
+    ``llm_calls`` (``engine_tasks_fanout_generation``); a failed and
+    isolated item contributes none, which under-reports by exactly the
+    calls that item spent before failing -- the same convention the
+    engine side uses for a count that is real but not exhaustive.
+    """
     from co_scientist.agents.generation.coordinator import _finalize_generation
     from co_scientist.agents.generation.coordinator_results import (
         GenerationResults,
@@ -351,21 +358,18 @@ async def _generation_aggregate_update(
     from co_scientist.models import MetricDeltas, create_metrics_update
 
     buckets = items.buckets
-    counts = GenerationCounts(**task.inputs["counts"])
-    results = GenerationResults(
-        tools_hypotheses=buckets["tools"],
-        debate_with_lit_hypotheses=buckets["debate_lit"],
-        debate_only_hypotheses=buckets["debate_only"],
-        assumptions_hypotheses=buckets["assumptions"],
-        debate_transcripts=items.transcripts,
-        llm_call_count=items.llm_calls,
+    update: dict[str, Any] = await _finalize_generation(
+        state,
+        GenerationCounts(**task.inputs["counts"]),
+        GenerationResults(
+            tools_hypotheses=buckets["tools"],
+            debate_with_lit_hypotheses=buckets["debate_lit"],
+            debate_only_hypotheses=buckets["debate_only"],
+            assumptions_hypotheses=buckets["assumptions"],
+            debate_transcripts=items.transcripts,
+            llm_call_count=items.llm_calls,
+        ),
     )
-    update: dict[str, Any] = await _finalize_generation(state, counts, results)
-    # finding L3: every completed strategy item already reports its real
-    # llm_calls (engine_tasks_fanout_generation.py); a failed/isolated item
-    # contributes none, which under-reports by exactly the calls that item
-    # actually spent before failing -- the same convention the engine side
-    # uses for a call count that is real but not exhaustive.
     update["metrics"] = create_metrics_update(
         hypothesis_count=update["hypothesis_count"],
         deltas=MetricDeltas(
