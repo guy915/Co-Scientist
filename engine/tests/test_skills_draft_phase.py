@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.generation.literature_tools import draft_skills
+from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.skills import catalog
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_draft_workspace
@@ -58,7 +59,7 @@ def test_no_skills_leaves_the_phase_exactly_as_it_was(
     assert attached.provider is provider
     assert attached.tools == _MCP_TOOLS
     assert attached.section == ""
-    assert attached.extra_iterations == 0
+    assert attached.max_prompt_tokens == DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
 
 def test_a_run_without_an_id_drafts_without_skills(
@@ -107,7 +108,10 @@ def test_skills_attach_beside_the_search_tools(
     }
     assert READ_SKILL in names
     assert "search_pubmed" in names
-    assert attached.extra_iterations > 0
+    # Turns are not what binds this loop -- live passes stop six or
+    # seven turns into a thirteen-turn budget, on the transcript
+    # backstop. Funding skills with more turns buys nothing.
+    assert attached.max_prompt_tokens > DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
 
 def test_the_prompt_section_carries_summaries_not_full_descriptions(

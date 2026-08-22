@@ -57,6 +57,7 @@ from co_scientist.llm import (
     call_llm_with_tools,
 )
 from co_scientist.llm_json import parse_tool_loop_json
+from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
@@ -75,6 +76,10 @@ class _DraftCall:
         executor: Tracked tool executor for the draft phase.
         count: Number of hypotheses being drafted.
         max_iterations: Iteration budget for the tool-calling loop.
+        max_prompt_tokens: Ceiling on the transcript the loop re-sends.
+            Raised only where the science skills attached, whose
+            catalogue and documents are what a live pass actually runs
+            out of room for.
     """
 
     prompt: str
@@ -82,6 +87,7 @@ class _DraftCall:
     executor: Any
     count: int
     max_iterations: int
+    max_prompt_tokens: int = DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
 
 def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
@@ -199,6 +205,7 @@ async def _call_draft_llm_with_tools(
             tools=call.openai_tools,
             executor=call.executor,
             max_iterations=call.max_iterations,
+            max_prompt_tokens=call.max_prompt_tokens,
         ),
         options=LLMCallOptions(
             use_cache=False,
@@ -329,11 +336,8 @@ def _prepare_draft_call(
     # arguments untouched where they are not.
     skills = attach_skills(state, provider, openai_tools)
 
-    max_iterations = (
-        _compute_draft_iteration_budget(
-            count, is_expansion=is_research_expansion(state)
-        )
-        + skills.extra_iterations
+    max_iterations = _compute_draft_iteration_budget(
+        count, is_expansion=is_research_expansion(state)
     )
 
     prompt = _invoke_draft_prompt_builder(
@@ -386,6 +390,7 @@ async def _run_draft_pipeline(
             executor=draft_tracked_executor,
             count=count,
             max_iterations=max_iterations,
+            max_prompt_tokens=skills.max_prompt_tokens,
         ),
     )
 

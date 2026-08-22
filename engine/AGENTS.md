@@ -216,6 +216,65 @@ Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisRevie
 
 The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `engine_adapter/opts.py::_resolve_tool_calling_generation_toggle` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/WEB_SEARCH.md`.
 
+**The drafting pass can query databases, not just read papers.**
+`vendor/science-skills/` is Google DeepMind's Science Skills bundle -- 38
+directories, each a `SKILL.md` of operational judgement plus a Python CLI
+that queries one scientific resource (UniProt, STRING, ClinVar, gnomAD,
+ChEMBL, ClinicalTrials, AlphaGenome, ...). `skills/catalog.py` reads it into
+a one-line-per-skill catalogue for the prompt and returns a full document
+only when the model calls `read_skill`; the scripts then run through the
+workspace's ordinary `run_command`, confined like any other command, which
+is why this needed no second execution path. The interpreter is baked at
+image build (`COSCIENTIST_SKILLS_PYTHON`) because `uv` cannot run inside the
+sandbox at all -- its cache contains a `.git` directory and `.git` is in
+`PROTECTED_METADATA_NAMES`. Three things about it are load-bearing.
+
+**Which agent gets them is decided per consumer, not per deployment.**
+`WorkspaceSession.skills_enabled` defaults off and `workspace_tool_schemas`
+takes it explicitly. The skills were wired into the simulation review first
+and measured *negative* there over eighteen runs -- a reviewer that engaged
+a skill produced an observation 5 times in 7 against baseline's 9 in 9, at
+40% the length -- because that node's job is to build a model of a mechanism
+and run it, and retrieval competes with that. The drafting pass
+(`literature_tools/draft_skills.py`) is where retrieval *is* the job, and it
+drafts a whole cycle's hypotheses in one tool loop, so the cost is per cycle
+rather than the per-hypothesis multiplicity behind the 299-call incident.
+Deep verification and evolution grounding are deferred for exactly that
+reason. A single environment variable as the gate would have re-armed the
+review the moment the bundle was installed for drafting.
+
+**Disclosure is two levels deep.** 20 of the 38 skills give the overview in
+`SKILL.md` and the command syntax in `references/*.md`. Serving only the
+first level does not make the model stop -- it guesses, and a live pass
+reached STRING's CLI with no subcommand for exit 2. `read_skill` therefore
+takes an optional path inside the skill, resolved and checked to be within
+it. The same preamble also tells the model there is no user to ask, because
+several skills instruct it to stop and ask one.
+
+**Offering them is not requesting them, and turns are not what they cost.**
+With a descriptive prompt section the drafting pass ignored the surface
+entirely across three mechanisms while paying 6.2k prompt characters a turn
+for it; a directive instruction to check one entity against a database
+before finalising is what produced use. Funding that with extra *turns* --
+the obvious move -- buys nothing, because this loop has never been
+turn-bound: for four hypotheses the iteration budget is 13 and live passes
+stop at six or seven on the 300k transcript backstop, having re-sent ~307k.
+The catalogue is ~1.6k tokens on every turn and a skill document another
+~3k on every turn after it is read, so `DRAFT_SKILLS_TOKEN_BUDGET` raises
+the transcript ceiling instead, leaving the pass the same number of
+*working* turns rather than trading drafting for lookups.
+Two overheads are removed for any consumer: the catalogue is summarised to
+routing sentences (12,079 to 5,155 chars, since every line is re-sent every
+turn), and `skills/licences.py` seeds the `.licenses/` notices 35 of the 38
+skills demand before they will work, which cost a live loop four turns of
+fourteen. Credentials reach a vendored skill script and nothing else
+(`skills/credentials.py`) -- the same workspace runs model-written programs
+against an open network.
+
+Inert without `COSCIENTIST_SKILLS_DIR`, which a checkout, a test and a CI job
+do not set. Full history and the measurements in
+`references/antigravity/SCOPE.md`.
+
 **Per-run tool disabling is reconciled once, at registry load.** Connector toggles reach the engine as `HypothesisGenerator(disable_tools=[...])` (built in `app/app/engine_adapter/opts.py`), which `generator/run_setup.py` passes on as `ToolRegistry(disabled_tools=...)`. `registry._apply_disabled_tools` flips `enabled = False` on the tool *and* on every workflow `search_source` backed by it, covering every way a tool can be off — the `disabled_tools` argument, a YAML `enabled: false`, or a source naming a tool that does not exist. That one pass is load-bearing: the multi-source pipeline selects on `SearchSourceConfig.enabled` alone and never consults the tool's own flag, so a source left enabled over a dead tool keeps being searched. The Phase 2 searches in `literature_review/search.py` therefore trust `workflow.get_enabled_search_sources()` and deliberately do not re-check the registry — a second filter there was removed once the registry covered every case, so new gating belongs at the registry, not at the call site. `engine/tests/test_config_registry.py` pins the reconciliation.
 
 **Evidence budget and `reserved_slots`.** Multi-source search fills its budget through `literature_review/search_budget.py::select_within_budget`, not by truncating the ranked list. Retrieval score rewards source quality, citation count, and recency — axes a local corpus can lack entirely rather than score poorly on, so it sorts below every indexed paper however well it matches. Such a source claims guaranteed places via `reserved_slots` in its `SearchSourceConfig`; reserved places are filled best-first within the source, never padded, never over budget.

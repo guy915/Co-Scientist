@@ -135,12 +135,15 @@ are consistently *faster* than baseline while producing less. They are not
 running out of room — they finish early with nothing to say.
 
 **So the first consumer was the wrong one**, chosen because it already owned a
-confined workspace and a bounded tool loop: convenience, not fit. Skills stay
-**inert** — the api image ships the bundle and the interpreter but does not set
-`COSCIENTIST_SKILLS_DIR`, the single gate the engine reads. The mechanism
+confined workspace and a bounded tool loop: convenience, not fit. The mechanism
 measured sound and is reusable unchanged; the next integration belongs where
-looking something up *is* the task: the literature review's research loop, or
-draft generation.
+looking something up *is* the task.
+
+That result also changed the gate. `COSCIENTIST_SKILLS_DIR` alone is a
+deployment-wide switch, so installing the bundle for a consumer it helps would
+have silently re-armed the one it hurts. `WorkspaceSession.skills_enabled` now
+carries the decision per consumer and defaults off, and the simulation review
+opens a plain workspace — no network, no skills, no licence seeding.
 
 The round-3 prompt ordering is kept regardless. Retrieval as a refinement of a
 result rather than a precondition for one is the better instruction with or
@@ -172,6 +175,67 @@ The licence obligation is *not* discharged by a file in a workspace that is
 deleted — that reaches nobody. The duty is to tell a human, which means the
 run's report. `skills.notified_sources()` exists for that surface; the report
 plumbing does not.
+
+## How the published system uses the same resources
+
+The user's premise for the next step was that the official Co-Scientist uses
+this bundle. It does not, as far as any public source says: Science Skills and
+Co-Scientist are sibling items in the same Gemini for Science collection —
+"Science Skills in Google Antigravity and three Google Labs prototypes" — and
+nothing states that one consumes the other. `tech-stack-findings.md` reached
+the same reading independently, calling the bundle "adjacent to Co-Scientist
+rather than a confirmed part of the original prototype".
+
+What the papers *do* document is where the same databases are reached, and
+that is the pattern worth copying. Both papers put tool use in three places
+and nowhere else:
+
+| Where | What it does | Source |
+| --- | --- | --- |
+| Generation agent | Literature exploration via web search; for constrained-space goals, "domain-specific tools, such as open databases, to constrain searches and generate hypotheses" | §3.1, §3.5 |
+| Reflection — **full** review | External tools and web search for correctness and novelty. The **initial** review is explicitly stated to use none | §3.2 |
+| Improvement | "during the generation, review, and improvement of hypotheses" | §3.5 |
+
+The worked example is the same shape: a proposed OCT4 sequence verified against
+UniProt, then handed to AlphaFold, whose feedback refined the hypothesis on the
+next iteration. Retrieval refines a proposal; it is not the proposal.
+
+**So the consumer is the drafting pass** (`literature_tools/draft.py`), which
+is Generation's literature exploration in this codebase. Two properties decide
+it. Retrieval is the task there rather than a competitor to it — the property
+whose absence killed the simulation review. And the pass drafts a whole
+cycle's hypotheses in one tool loop, so cost is per cycle, not per hypothesis.
+
+Deferred for that second reason: the deep-verification and evolution-grounding
+callers, which reach retrieval through `_retrieve_probe_evidence` and run per
+hypothesis per cycle — the exact shape of the 299-call incident. They are the
+paper's places 2 and 3, and they are correct in principle; they are a cost
+decision, not a design one.
+
+## What the drafting pass found on first contact
+
+**The bundle's disclosure is two levels deep and ours was one.** 20 of the 38
+skills give the overview in `SKILL.md` and put the actual command syntax in
+`references/*.md`, told to the model as "read the following reference files
+based on the user's request". Serving only the first level left it holding a
+document that names a file it cannot open — and it does not stop, it guesses:
+a live pass reached STRING's CLI with no subcommand and got exit 2 back.
+`read_skill` now takes an optional path inside the skill, resolved and checked
+to be within it.
+
+**Several skills instruct the model to stop and ask the user.** STRING's is
+explicit — "You MUST NOT guess or assume a species ... you MUST stop and ask"
+— which in an autonomous run stops it in front of nobody. The `read_skill`
+preamble now says there is no user, and to choose, state the choice and carry
+on.
+
+**Offering the skills is not enough to get them used.** With a descriptive
+prompt section the drafting pass ignored the surface entirely across three
+mechanisms — zero `read_skill` calls — while paying 6.2k prompt characters for
+it on every turn. A directive instruction ("check one entity against a
+database before you finalise") is what produced actual use. Availability is
+not a request, which the tool-calling generation toggle already says about the
+MCP tools; it holds for skills too.
 
 ## Decisions stage 2 must resolve
 

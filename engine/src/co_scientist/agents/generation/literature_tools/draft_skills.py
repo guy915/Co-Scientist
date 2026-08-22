@@ -33,6 +33,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.skills import (
     catalogue_section,
     seed_licence_notices,
@@ -46,10 +47,20 @@ from co_scientist.workspace.tool_schemas import READ_SKILL
 
 logger = logging.getLogger(__name__)
 
-# Reading a skill, running its script and reading the output back is
-# about three turns. Two skills is the advertised ceiling, so the loop
-# gets the turns for two without taking them from the drafting.
-DRAFT_SKILLS_EXTRA_ITERATIONS = 6
+# What a drafting pass may re-send once skills are in the transcript.
+#
+# Turns are not what binds this loop. For four hypotheses the iteration
+# budget is 13 (`get_draft_max_iterations`), and live runs stop at six or
+# seven -- on the token backstop, having re-sent ~307k. So funding the
+# skills with extra turns, which is the obvious move, buys nothing: the
+# turns were already there and unreachable.
+#
+# What they actually cost is transcript. The catalogue is ~1.6k tokens on
+# every turn, and a skill document another ~3k on every turn after it is
+# read. Two documents plus the catalogue over seven turns is roughly the
+# 60k added here, which keeps the pass the same number of *working* turns
+# it had before rather than trading drafting for lookups.
+DRAFT_SKILLS_TOKEN_BUDGET = 360_000
 
 _SECTION = """
 
@@ -97,12 +108,6 @@ def skills_section() -> str:
 class DraftSkills:
     """The tool surface and prompt text one drafting pass was given.
 
-    The loop's transcript ceiling is deliberately not among these. It is
-    already ``DEFAULT_TOOL_LOOP_TOKEN_BUDGET``, a loose backstop rather
-    than a measured figure, and skills only ever add to what a pass
-    re-sends -- so a number invented here could only shorten the loop it
-    is meant to fund. Measure the skills path first, then set one.
-
     Attributes:
         provider: The provider to execute tool calls against -- the
             workspace one when skills attached, otherwise the MCP
@@ -110,13 +115,15 @@ class DraftSkills:
         tools: The schemas to offer, merged.
         section: Prompt text describing the skills, empty when none
             were attached.
-        extra_iterations: Turns added to fund reading and running them.
+        max_prompt_tokens: What the loop may re-send in total. Left on
+            the default backstop for a pass without skills, which is
+            what it has always had.
     """
 
     provider: Any
     tools: list[Any] = field(default_factory=list)
     section: str = ""
-    extra_iterations: int = 0
+    max_prompt_tokens: int = DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
 
 def attach_skills(
@@ -168,5 +175,5 @@ def attach_skills(
         workspace,
         workspace.merge_tools(tools),
         skills_section(),
-        DRAFT_SKILLS_EXTRA_ITERATIONS,
+        DRAFT_SKILLS_TOKEN_BUDGET,
     )
