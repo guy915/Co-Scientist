@@ -106,6 +106,40 @@ def test_skills_are_withheld_where_commands_are(
     assert READ_SKILL not in names
 
 
+def test_the_command_tool_describes_the_network_it_actually_has(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The description tracks the policy rather than a fixed sentence.
+
+    Telling a model the workspace "cannot reach the network" while the
+    session permits egress contradicts the instruction it is acting on:
+    every science skill is a remote query, and an attempt described as
+    impossible is one no model has a reason to make.
+    """
+    # A confined policy is the one whose sentence can differ, and it is
+    # offered only where a backend exists -- which CI's host lacks.
+    monkeypatch.setattr(
+        "co_scientist.workspace.tools.sandbox_backend", lambda: object()
+    )
+    offline = SandboxPolicy(kind=SandboxKind.WORKSPACE_WRITE)
+    online = SandboxPolicy(
+        kind=SandboxKind.WORKSPACE_WRITE, network_allowed=True
+    )
+
+    assert "not reach the network" in _command_description(offline)
+    assert "not reach the network" not in _command_description(online)
+
+
+def _command_description(policy: SandboxPolicy) -> str:
+    """Returns the run_command description offered under a policy."""
+    (schema,) = [
+        schema
+        for schema in workspace_tool_schemas(policy)
+        if schema["function"]["name"] == RUN_COMMAND
+    ]
+    return str(schema["function"]["description"])
+
+
 def test_the_simulation_review_stays_offline_with_skills_installed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:

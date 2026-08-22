@@ -169,7 +169,9 @@ def workspace_tool_schemas(
     if skills:
         schemas.append(read_skill_schema(tuple(s.name for s in skills)))
     if can_run_commands(policy):
-        schemas.insert(0, run_command_schema())
+        schemas.insert(
+            0, run_command_schema(network_allowed=policy.allows_network)
+        )
         schemas.insert(1, poll_command_schema())
     else:
         logger.warning(

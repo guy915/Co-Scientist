@@ -120,6 +120,33 @@ def test_document_carries_the_invocation_the_file_does_not(
     )
 
 
+def test_the_document_says_where_output_may_be_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """The preamble names the one writable directory.
+
+    Every script in the bundle defaults to file output rather than
+    stdout -- that is one of its own authoring rules -- so the first
+    correct invocation still dies unless the model knows the workspace
+    is the only place it may write. A live drafting pass built a
+    well-formed STRING query with ``--output /tmp/string_mapped.tsv``
+    and lost it to ``PermissionError: Operation not permitted``, having
+    already spent the API call.
+    """
+    _write_skill(
+        tmp_path,
+        "string",
+        "name: string-database\ndescription: Networks.",
+        body="Write results with --output.",
+    )
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+
+    document = catalog.read_skill_document("string-database")
+
+    assert document is not None
+    assert "/tmp/results.json is refused" in document
+
+
 def test_unknown_skill_reads_as_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:

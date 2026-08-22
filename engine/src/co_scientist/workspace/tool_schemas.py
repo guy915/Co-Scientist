@@ -37,8 +37,21 @@ _YIELD_SECONDS = {
 }
 
 
-def run_command_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for the command-execution tool."""
+def run_command_schema(*, network_allowed: bool = False) -> dict[str, Any]:
+    """Builds the OpenAI schema for the command-execution tool.
+
+    The network sentence has to track the session's actual policy. A
+    workspace that permits egress while the description says it cannot
+    reach the network contradicts the very instruction the caller is
+    acting on -- the science skills exist to query remote databases,
+    and a model told the attempt is impossible has no reason to make
+    it.
+    """
+    reach = (
+        "reach the network only through the commands you are asked to run"
+        if network_allowed
+        else "not reach the network"
+    )
     return {
         "type": "function",
         "function": {
@@ -47,7 +60,7 @@ def run_command_schema() -> dict[str, Any]:
                 "Run a command inside the run's isolated workspace. The "
                 "command is confined by the operating system: it can read "
                 "the filesystem, write only inside the workspace, and "
-                "cannot reach the network. No shell is involved unless you "
+                f"can {reach}. No shell is involved unless you "
                 "ask for one -- pass "
                 '["bash", "-lc", "..."] to use pipes, redirection or '
                 "environment assignment. Output is captured and truncated "
