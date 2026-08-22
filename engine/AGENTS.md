@@ -268,12 +268,34 @@ routing sentences (12,079 to 5,155 chars, since every line is re-sent every
 turn), and `skills/licences.py` seeds the `.licenses/` notices 35 of the 38
 skills demand before they will work, which cost a live loop four turns of
 fourteen. Credentials reach a vendored skill script and nothing else
-(`skills/credentials.py`) -- the same workspace runs model-written programs
-against an open network.
+(`skills/credentials.py::invoked_skill`, which also names the source for
+attribution) -- the same workspace runs model-written programs against an open
+network.
 
-Inert without `COSCIENTIST_SKILLS_DIR`, which a checkout, a test and a CI job
-do not set. Full history and the measurements in
-`references/antigravity/SCOPE.md`.
+Two instructions the model needs and cannot infer: skill scripts write their
+result to a file rather than stdout, so the `read_skill` preamble names the
+workspace as the only writable directory (a live pass lost a well-formed
+STRING query to `--output /tmp/...`, after paying for the API call); and
+`run_command`'s description follows `SandboxPolicy.allows_network` rather than
+stating flatly that there is none, since the drafting workspace has egress and
+a model told otherwise never tries.
+
+**The sources a run queries are attributed to its reader.** `skills/usage.py`
+is a `scoped_telemetry`-shaped context variable -- the invocation happens in a
+tool handler and the count is wanted at the node boundary, and each durable
+run's cohort has its own loop, so a module-level total would mix runs. It
+rides `ExecutionMetrics.skills_used` through the ordinary reducer, scoped by
+`generate_node` on the streaming path and per strategy task on the durable
+one, into a report section naming only what was actually queried. This is what
+discharges the third-party licence notices; the `.licenses/` file the skills
+themselves ask for is written into a directory that is then deleted.
+
+The run-level gate needs nothing new: the drafting pass only runs at all
+when `enable_tool_calling_generation` is set, which the app asks for by tier
+on `extended`/`ultra`, so the skills inherit that gate rather than adding a
+second one to keep in step. Inert without `COSCIENTIST_SKILLS_DIR`, which a
+checkout, a test and a CI job do not set. Full history and the measurements
+in `references/antigravity/SCOPE.md`.
 
 **Per-run tool disabling is reconciled once, at registry load.** Connector toggles reach the engine as `HypothesisGenerator(disable_tools=[...])` (built in `app/app/engine_adapter/opts.py`), which `generator/run_setup.py` passes on as `ToolRegistry(disabled_tools=...)`. `registry._apply_disabled_tools` flips `enabled = False` on the tool *and* on every workflow `search_source` backed by it, covering every way a tool can be off — the `disabled_tools` argument, a YAML `enabled: false`, or a source naming a tool that does not exist. That one pass is load-bearing: the multi-source pipeline selects on `SearchSourceConfig.enabled` alone and never consults the tool's own flag, so a source left enabled over a dead tool keeps being searched. The Phase 2 searches in `literature_review/search.py` therefore trust `workflow.get_enabled_search_sources()` and deliberately do not re-check the registry — a second filter there was removed once the registry covered every case, so new gating belongs at the registry, not at the call site. `engine/tests/test_config_registry.py` pins the reconciliation.
 

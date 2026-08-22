@@ -169,12 +169,18 @@ Both were real, both are fixed, and both would have bitten any consumer:
 Neither trades quality for cost; both give turns back. That they did not change
 the outcome is what rules out the budget explanation.
 
-### Still open
+### Resolved: the licence obligation now reaches a human
 
-The licence obligation is *not* discharged by a file in a workspace that is
-deleted — that reaches nobody. The duty is to tell a human, which means the
-run's report. `skills.notified_sources()` exists for that surface; the report
-plumbing does not.
+A file in a deleted workspace discharges the condition the skills state and
+tells nobody. The duty is to tell a human, which means the run's report, and
+the plumbing for that now exists: `skills/usage.py` is a scoped tally in the
+shape `llm_telemetry.scoped_telemetry` established, `credentials.invoked_skill`
+names the source an argv reaches (`run_command` being one tool name over all of
+them), and it rides `ExecutionMetrics.skills_used` through the ordinary
+per-node reducer to a "Data sources" section. Only the sources actually
+queried are named — a blanket list of the installed catalogue would attribute
+the run's work to databases it never reached — and a run that queried none
+gets no section at all.
 
 ## How the published system uses the same resources
 
@@ -237,6 +243,41 @@ database before you finalise") is what produced actual use. Availability is
 not a request, which the tool-calling generation toggle already says about the
 MCP tools; it holds for skills too.
 
+**A skill's first correct command still failed, twice over.** Two
+instructions were missing and both are invisible from the code. Every
+script in the bundle writes its result to a file rather than stdout --
+its own authoring rule, so a large response cannot be lost to output
+truncation -- and nothing said where that file may go: a live pass built
+a well-formed STRING query with `--output /tmp/string_mapped_hfpef.tsv`
+and lost it to `PermissionError`, having already made the API call.
+Separately, `run_command`'s description stated flatly that the command
+"cannot reach the network", which is true of the review workspace and
+false of the drafting one; a model told the attempt is impossible has no
+reason to make it. Measured over three goals x four hypotheses:
+successful skill commands went 0 of 1 before the fixes to 2 of 3 after,
+and one of those was a self-correction -- UniProt refused
+`organism:9606` with its own error body and the model rewrote the query.
+
+**The lookup does reach the hypothesis.** The clearest instance: a run
+read STRING's `SKILL.md`, then `references/interactions.md`, ran
+`string_cli.py partners --identifiers SLC9A1 --species 9606 --limit 15
+--output nhe1_partners.tsv`, read the file back, and two of its four
+hypotheses then argued from it -- "STRING database analysis confirms
+that SLC9A1 (NHE1) strongly interacts with MAPK3, PRKACA, CALM3, and
+ROCK1 (combined scores 0.94-0.99), providing a structural basis for the
+RSK signaling axis". That is a gap argued from a record rather than from
+what someone wrote up, which is the whole reason the drafting pass was
+chosen as the consumer.
+
+**The drafting loop is transcript-bound with or without skills, and that
+caps how often this happens.** Both arms stop on the token backstop at
+five to seven of a thirteen-turn budget, so roughly half the goals read
+a skill and never get to run its command. Raising the budget from 300k
+to 360k did not change that -- the loop simply spends the extra on more
+literature calls. The ceiling is the eight to twelve `search_pubmed`
+results in the transcript, not the skills, and narrowing it is separate
+work.
+
 ## Decisions stage 2 must resolve
 
 1. **Where the catalogue is injected, and how big it is.** 34 name+description
@@ -280,11 +321,14 @@ MCP tools; it holds for skills too.
 5. **Which sources become first-class tools**, ordered by what this
    deployment's audience needs — systems-biology runs against the SBI corpus —
    rather than by the 2026-06-21 roadmap's original ordering.
-6. **How a skill is gated per run.** Every other source obeys `disable_tools`
-   and the audience/connector toggles (`app/app/engine_adapter/opts.py`). A
-   skill surface that sits beside that model rather than inside it is a
-   second gate to keep in step, and the one that gets forgotten is the one
-   that leaks.
+6. ~~How a skill is gated per run.~~ **Answered by the choice of consumer.**
+   The drafting pass only runs when `enable_tool_calling_generation` is set,
+   which `engine_adapter/opts.py` asks for by tier on `extended`/`ultra`, so
+   the skills inherit the existing run-level gate rather than adding a second
+   one. `disable_tools` still governs the MCP half of the merged surface
+   unchanged, and `WorkspaceSession.skills_enabled` decides the skills half
+   per consumer. What remains genuinely open is whether a *user-facing*
+   toggle is wanted; there is none today.
 7. **Whether `paper_corpus_fetch` and the group's papers become a skill.** The
    bundle's meta-skill exists to turn a lab's own workflow into a reusable
    skill; this lab's methods document is already written and already injected.
