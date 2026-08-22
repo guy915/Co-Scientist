@@ -78,13 +78,25 @@ MAX_SIMULATION_TURNS = 14
 # ceiling above cannot bound this on its own: a turn re-sends the whole
 # transcript, so the fourteenth costs several times the first and total
 # spend grows with the square of the turn count. Measured on a live
-# extended run, the two separate cleanly -- the items that produced an
+# extended run, the two separated cleanly -- the items that produced an
 # observation spent 50-130k prompt tokens, and the nine that reached the
 # turn ceiling and therefore produced nothing spent 190-266k, between
 # them 1.81M tokens, 44% of comprehensive reflection and 24% of the run's
-# entire input. 150k sits above every success measured and below every
-# failure, so this ends the runaway case a turn count cannot see while
-# leaving a converging simulation the room the comment above argues for.
+# entire input.
+#
+# This is a backstop and should stay one. A number this close to what
+# the work costs decides the outcome rather than catching a runaway, and
+# briefly did: with the loop discarding its work at the ceiling, every
+# observed failure landed between 132k and 150k -- they were simulations
+# that would have finished, priced out one or two turns from the end.
+# Both halves of that are fixed where they belong rather than by moving
+# this number. The loop now drops the file writes a later write
+# superseded (`llm_tool_transcript.elide_superseded_writes`), which is
+# most of what a converging simulation re-sends -- 59% of one traced
+# transcript, and 37% off its total spend -- so the same work fits well
+# inside the same budget. And reaching the ceiling anyway now harvests a
+# partial observation instead of raising, so this bounds what a
+# simulation costs without deciding whether it produces anything.
 SIMULATION_TOKEN_BUDGET = 150_000
 
 # Longest observation kept. Capped here, at the one place observations are
@@ -240,8 +252,9 @@ async def _observe(
             ),
         )
     except Exception as exc:
-        # Including an exhausted turn budget: a loop that never settled
-        # has no observation to report, and the mental simulation is a
+        # Rare now that the loop harvests a partial answer at its
+        # ceilings rather than raising at them: what reaches here is a
+        # loop whose closing turn failed too. The mental simulation is a
         # complete review on its own.
         logger.warning(
             "simulation execution failed for %s: %s", hypothesis.id, exc

@@ -34,16 +34,18 @@ from co_scientist.llm_request import (
 )
 from co_scientist.llm_telemetry import record_cache_result
 from co_scientist.llm_tool_iteration import (
-    _execute_tool_calls as _execute_tool_calls,
+    _answer_without_tools,
+    _run_iteration_logged,
 )
 from co_scientist.llm_tool_iteration import (
-    _run_iteration_logged,
+    _execute_tool_calls as _execute_tool_calls,
 )
 from co_scientist.llm_tool_iteration import (
     _run_tool_call_iteration as _run_tool_call_iteration,
 )
 from co_scientist.llm_tool_policy import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
+    _turns_remaining,
     transcript_tokens,
 )
 from co_scientist.llm_tool_policy import (
@@ -65,6 +67,7 @@ from co_scientist.llm_tool_transcript import (
     _message_to_history_dict as _message_to_history_dict,
 )
 from co_scientist.llm_tool_transcript import (
+    elide_superseded_writes,
     normalize_tool_transcript,
 )
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
@@ -183,7 +186,12 @@ def _finalize_tool_loop_success(
 
 
 def _raise_budget_exhausted(loop: "ToolLoop") -> NoReturn:
-    """Ends a loop that never produced a final answer.
+    """Ends a loop that produced no answer, not even a closing one.
+
+    Rare by construction: reaching a ceiling now buys a turn with the
+    tools withheld first, and a model that has been working for a dozen
+    turns has something to say when asked. This is what remains -- a
+    loop whose closing turn failed or came back empty.
 
     Args:
         loop: The loop, for the ceilings to name in the message.
@@ -257,6 +265,61 @@ def _handoff_due(
     return not handed_off and spent >= _handoff_spend(loop.max_prompt_tokens)
 
 
+def _drop_dead_context(messages: list[dict[str, Any]]) -> None:
+    """Removes the text of file writes a later write has overwritten.
+
+    Run at the top of every turn rather than at send time, so that the
+    transcript the budget is counted against, the one sent to the
+    provider, and the one handed back to the caller are the same object.
+    Counting tokens the request will not carry is how a loop dies owing
+    a budget it never spent.
+    """
+    elided = elide_superseded_writes(messages)
+    if elided:
+        logger.debug("elided %s superseded file write(s)", elided)
+
+
+async def _harvest_partial_answer(
+    request: LLMCacheRequest,
+    messages: list[dict[str, Any]],
+    loop: "ToolLoop",
+) -> tuple[str, list[dict[str, Any]]]:
+    """Ends an out-of-room loop with an answer rather than with nothing.
+
+    Reaching a ceiling used to raise, which threw away every token the
+    loop had spent: a simulation that had written a model, run it and
+    seen its numbers returned no observation at all, and the review fell
+    back to imagining the mechanism it had just measured. The work is
+    already paid for, so the loop buys one more turn with the tools
+    withheld and reports what the model made of it.
+
+    Deliberately not cached. This is the degraded outcome, and a cache
+    that replayed it would hand a later run a partial answer as though
+    the loop had finished.
+
+    Args:
+        request: The request whose model and sampling the closing turn
+            reuses.
+        messages: The conversation the loop accumulated.
+        loop: The loop, for the ceilings to name if this fails too.
+
+    Returns:
+        The closing answer and the transcript that produced it.
+
+    Raises:
+        RuntimeError: If even the closing turn gave no answer.
+    """
+    answer = await _answer_without_tools(messages, request)
+    if not answer:
+        _raise_budget_exhausted(loop)
+    logger.info(
+        "Tool call loop ran out of room; harvested a %s-character partial"
+        " answer",
+        len(answer),
+    )
+    return answer, messages
+
+
 async def _run_tool_call_loop(
     request: LLMCacheRequest,
     messages: list[dict[str, Any]],
@@ -276,11 +339,17 @@ async def _run_tool_call_loop(
 
     Near either bound a one-shot wrap-up turn is injected (see
     ``_handoff_iteration``) so the model can land a partial answer instead
-    of being cut off mid-investigation. The hard caps remain as the
-    backstop -- the handoff makes reaching them rarer, not impossible.
+    of being cut off mid-investigation. Reaching a bound anyway is not a
+    total loss: the loop buys one closing turn with the tools withheld
+    (``_harvest_partial_answer``) rather than discarding everything it
+    already paid for.
+
+    Each turn first drops the file writes a later write superseded, which
+    is dead weight the transcript would otherwise re-send forever.
 
     Raises:
-        RuntimeError: If either ceiling is exhausted without a response.
+        RuntimeError: If a ceiling is reached *and* the closing turn
+            answers nothing either.
     """
     max_iterations = loop.max_iterations
     handoff_at = _handoff_iteration(max_iterations)
@@ -290,12 +359,17 @@ async def _run_tool_call_loop(
         logger.debug(
             "llm tool call iteration %s/%s", iteration + 1, max_iterations
         )
+        _drop_dead_context(messages)
         spent += transcript_tokens(messages)
         if _spend_exhausted(spent, loop, iteration):
-            break
+            return await _harvest_partial_answer(request, messages, loop)
         if _handoff_due(iteration, handoff_at, spent, loop, handed_off):
             handed_off = True
-            messages.append(_handoff_message(max_iterations - iteration))
+            messages.append(
+                _handoff_message(
+                    _turns_remaining(iteration, spent, loop, messages)
+                )
+            )
         done, final_content = await _run_iteration_logged(
             messages, request, tool_executor, iteration
         )
@@ -306,7 +380,7 @@ async def _run_tool_call_loop(
                 cache, request, final_content, messages
             )
 
-    _raise_budget_exhausted(loop)
+    return await _harvest_partial_answer(request, messages, loop)
 
 
 async def _prepare_tool_call(
@@ -355,7 +429,10 @@ class ToolLoop:
             actually bounds cost: a turn re-sends the whole transcript, so
             spend grows with the square of the turn count and a turn count
             alone cannot say what a loop will cost. Whichever ceiling is
-            reached first ends the loop.
+            reached first ends the loop -- and ending it buys one closing
+            turn beyond this figure, which is one transcript's worth of
+            overshoot in exchange for the loop returning what it spent
+            the rest of the budget learning.
         tool_contract: Optional resolved configuration behind ``tools`` --
             e.g. a tool registry's enabled sources and endpoints -- that can
             change how a tool call behaves without changing the schema

@@ -100,6 +100,35 @@ def _handoff_spend(max_prompt_tokens: int) -> int:
     return int(max_prompt_tokens * _HANDOFF_FRACTION)
 
 
+def _turns_remaining(
+    iteration: int, spent: int, loop: "ToolLoop", messages: list[dict[str, Any]]
+) -> int:
+    """How many more turns this loop can actually afford, both ceilings.
+
+    The turn ceiling alone overstates it whenever spend is the binding
+    constraint, and the wrap-up message is a promise about how much room
+    is left: telling a model eleven turns remain when the budget affords
+    two is how a loop ends mid-step having been warned. So the spend
+    ceiling is converted into turns at the transcript's current size --
+    the next turn costs at least what this one did, growing -- and the
+    smaller of the two is what the model is told.
+
+    Args:
+        iteration: The 0-based turn about to run.
+        spent: Prompt tokens re-sent so far, this turn included.
+        loop: The loop carrying both ceilings.
+        messages: The conversation as it will next be sent.
+
+    Returns:
+        Turns remaining, never below one -- the turn being warned on is
+        itself still available.
+    """
+    by_turns = loop.max_iterations - iteration
+    per_turn = max(transcript_tokens(messages), 1)
+    by_spend = (loop.max_prompt_tokens - spent) // per_turn
+    return max(1, min(by_turns, by_spend))
+
+
 def _handoff_message(remaining: int) -> dict[str, Any]:
     """Builds the one-shot wrap-up turn injected near the loop's bound."""
     return {
@@ -111,6 +140,30 @@ def _handoff_message(remaining: int) -> dict[str, Any]:
             "give your final answer, reporting what you established and "
             "what remains uncertain. A partial answer that says what is "
             "missing is far more useful than being cut off mid-step."
+        ),
+    }
+
+
+def closing_message() -> dict[str, Any]:
+    """The turn that ends a loop, asking for the answer and nothing else.
+
+    Stripping the tools is not on its own enough. Sent the transcript as
+    it stands, a model mid-investigation carries on narrating it: the
+    first closing turn measured came back with "let me check one more
+    detail... I'll quickly verify a couple of points", which is a
+    sentence about work it can no longer do rather than a report of the
+    work it did. So the closing turn says the tools are gone, that this
+    is the last turn, and that describing a next step is not an answer.
+    """
+    return {
+        "role": "user",
+        "content": (
+            "Your tools are no longer available and this is your final"
+            " turn. Do not describe what you would do next and do not"
+            " propose further steps -- neither is possible now. Write"
+            " your answer from what you have already established:"
+            " what you did, the actual numbers you saw, what they imply,"
+            " and what is still uncertain because you ran out of room."
         ),
     }
 

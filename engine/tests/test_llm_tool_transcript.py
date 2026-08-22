@@ -1,4 +1,4 @@
-"""Repairing a tool transcript cut off mid-turn.
+"""Repairing a tool transcript cut off mid-turn, and pruning a dead one.
 
 The loop appends the assistant's message and then its results, so an
 interruption between the two leaves a conversation the provider rejects
@@ -13,6 +13,7 @@ from typing import Any
 
 from co_scientist.llm_tool_transcript import (
     ABORTED_RESULT,
+    elide_superseded_writes,
     normalize_tool_transcript,
 )
 
@@ -107,3 +108,77 @@ def test_the_input_list_is_not_modified() -> None:
     messages = [_assistant("a")]
     normalize_tool_transcript(messages)
     assert len(messages) == 1
+
+
+def _write(call_id: str, path: str, content: str) -> dict[str, Any]:
+    """An assistant turn writing one file whole."""
+    return {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": call_id,
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "arguments": json.dumps({"path": path, "content": content}),
+                },
+            }
+        ],
+    }
+
+
+def test_an_overwritten_file_stops_being_resent() -> None:
+    # The measured cost: one simulation rewrote its model five times and
+    # 59% of its transcript was versions of that file that no longer
+    # existed, re-sent by every turn after each one.
+    messages = [
+        _write("a", "model.py", "first" * 400),
+        _write("b", "model.py", "second" * 400),
+    ]
+    assert elide_superseded_writes(messages) == 1
+    first = messages[0]["tool_calls"][0]["function"]["arguments"]
+    assert "first" not in first
+    assert "superseded" in first
+    assert "second" in messages[1]["tool_calls"][0]["function"]["arguments"]
+
+
+def test_the_call_stays_answerable_after_its_text_goes() -> None:
+    # Only the arguments go. The id and name stay, because the provider
+    # rejects a transcript whose calls and results do not pair up.
+    messages = [_write("a", "model.py", "x"), _write("b", "model.py", "y")]
+    elide_superseded_writes(messages)
+    call = messages[0]["tool_calls"][0]
+    assert call["id"] == "a"
+    assert call["function"]["name"] == "write_file"
+    assert json.loads(call["function"]["arguments"])["path"] == "model.py"
+
+
+def test_a_different_file_is_not_superseded() -> None:
+    messages = [_write("a", "model.py", "keep"), _write("b", "plot.py", "y")]
+    assert elide_superseded_writes(messages) == 0
+    assert "keep" in messages[0]["tool_calls"][0]["function"]["arguments"]
+
+
+def test_a_patch_is_left_alone() -> None:
+    # A patch is an edit relative to the file it lands on, so an earlier
+    # one is not superseded by a later one in any sense worth relying on.
+    patch = {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": "a",
+                "function": {"name": "apply_patch", "arguments": "*** patch"},
+            }
+        ],
+    }
+    assert elide_superseded_writes([patch, dict(patch)]) == 0
+
+
+def test_a_loop_with_no_writes_is_untouched() -> None:
+    # Every literature loop, which is why this is safe to run on all of
+    # them: no write tool is offered, so there is nothing to elide.
+    messages = [{"role": "user", "content": "go"}, _assistant("a")]
+    before = json.dumps(messages)
+    assert elide_superseded_writes(messages) == 0
+    assert json.dumps(messages) == before

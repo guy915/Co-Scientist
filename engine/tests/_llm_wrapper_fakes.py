@@ -105,13 +105,18 @@ def make_tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
 
 
 def patch_acompletion(
-    monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[SimpleNamespace],
+    recorder: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     """Patch ``litellm.acompletion`` to return queued responses in order.
 
     Args:
         monkeypatch: The pytest monkeypatch fixture.
         responses: Completion namespaces to return on successive calls.
+        recorder: Appended the keyword arguments of each call, for tests
+            asserting on what was actually sent rather than on what came
+            back.
 
     Returns:
         A mutable dict whose ``"calls"`` key counts how many times the fake ran.
@@ -119,8 +124,10 @@ def patch_acompletion(
     state = {"calls": 0}
     queue = iter(responses)
 
-    async def fake_acompletion(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
         state["calls"] += 1
+        if recorder is not None:
+            recorder.append(kwargs)
         return next(queue)
 
     monkeypatch.setattr(

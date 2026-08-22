@@ -6,7 +6,7 @@ Research goal:
 Hypothesis to simulate:
 {{hypothesis_text}}
 
-You have a private working directory and can run commands in it. Use `run_command` (e.g. `["python3", "model.py"]`) and `apply_patch` to write files. There is no network access and nothing outside this directory is reachable, so use only the standard library.
+You have a private working directory and can run commands in it. Use `write_file` to create a file -- it takes the text as-is -- and `run_command` (e.g. `["python3", "model.py"]`) to run it. `apply_patch` edits an existing file in place. There is no network access and nothing outside this directory is reachable, so use only the standard library.
 
 Instructions:
 

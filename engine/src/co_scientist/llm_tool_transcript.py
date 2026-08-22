@@ -35,6 +35,8 @@ import json
 import logging
 from typing import Any
 
+from co_scientist.workspace.tool_schemas import WRITE_FILE
+
 logger = logging.getLogger(__name__)
 
 # What a call gets when its result never arrived. Deliberately says the
@@ -171,3 +173,79 @@ def normalize_tool_transcript(
             continue
         repaired.extend(_with_results(message, answered))
     return repaired
+
+
+# What a superseded write's arguments are replaced by. Names the path so
+# the model can still see *that* it wrote the file and go read it, and
+# says why the text is gone, so an absence reads as bookkeeping rather
+# than as the write having failed.
+_SUPERSEDED_NOTE = (
+    "superseded by a later write to this path; the file on disk holds the"
+    " current text, read it if you need it"
+)
+
+
+def _written_path(call: dict[str, Any]) -> str | None:
+    """The path a tool call writes whole, or None if it writes nothing.
+
+    Only ``write_file`` qualifies. A patch is an edit *relative to* the
+    file it lands on, so an earlier one is not superseded by a later one
+    in any sense a reader could rely on -- and patches are small.
+
+    Args:
+        call: One entry from an assistant message's ``tool_calls``.
+
+    Returns:
+        The path, or None when this call is not a whole-file write or
+        its arguments cannot be read.
+    """
+    function = call.get("function") or {}
+    if function.get("name") != WRITE_FILE:
+        return None
+    try:
+        arguments = json.loads(function.get("arguments") or "{}")
+    except (TypeError, ValueError):
+        return None
+    path = arguments.get("path")
+    return path if isinstance(path, str) else None
+
+
+def elide_superseded_writes(messages: list[dict[str, Any]]) -> int:
+    """Drops the text of every file write a later write overwrote.
+
+    A tool loop re-sends its whole transcript every turn, so a program
+    the model rewrote five times is five full copies of that program in
+    every subsequent request -- and four of them describe a file that no
+    longer exists in that form. Measured on one simulation that rewrote
+    its model five times: 59% of the transcript was superseded program
+    text, and dropping it cut the loop's total prompt spend by 37%,
+    a fraction that grows with the turn count because each dead copy is
+    re-sent by every turn after it.
+
+    Only the *arguments* of the write go; the call keeps its id and name
+    and its paired tool result is untouched, because the provider
+    rejects a transcript whose calls and results do not pair up. What
+    the model loses is text it can read back off disk, which is why this
+    is bookkeeping rather than a loss of context.
+
+    Args:
+        messages: The running conversation, mutated in place.
+
+    Returns:
+        How many writes were elided, for the caller to log.
+    """
+    latest: dict[str, dict[str, Any]] = {}
+    elided = 0
+    for message in messages:
+        for call in message.get("tool_calls") or ():
+            path = _written_path(call)
+            if path is None:
+                continue
+            previous = latest.get(path)
+            if previous is not None:
+                previous["arguments"] = json.dumps(
+                    {"path": path, "note": _SUPERSEDED_NOTE}
+                )
+                elided += 1
+            latest[path] = call["function"]
+    return elided

@@ -56,12 +56,24 @@ command. Measured cost, four mechanisms through the real path concurrently
 (`deepseek-v4-flash`, 2026-08-20): **231s wall clock for all four**, against
 824s if they had run one after another -- so the pool multiplies *tokens*,
 not wall clock, as long as the review fan-out actually runs concurrently.
-Three of the four finished in 6-8 turns and ~150s. The fourth exhausted the
-14-turn ceiling and returned nothing, and that is the expensive outcome
-rather than a cheap one: it spent 291k prompt tokens against the ~104k a
-successful one spends, because every turn resends the whole transcript. Budget
-~150k prompt tokens per hypothesis and assume roughly one in four pays double
-for no observation.
+
+What a simulation costs is decided by two things, and neither is the
+turn count. **A tool loop re-sends its whole transcript every turn**, so
+what accumulates in that transcript is re-bought by every turn after it;
+the model writes its program by rewriting the file whole, and a
+transcript traced turn by turn (2026-08-22) was **59% versions of one
+program that no longer existed**, five rewrites of ~8k characters each.
+`llm_tool_transcript.elide_superseded_writes` drops the text of a write a
+later write to the same path replaced -- the file on disk still holds it
+-- which cut that loop's total prompt spend by 37%, a fraction that grows
+with the turn count. **And reaching a ceiling used to return nothing**: a
+loop that had written a model, run it and read its numbers raised, and
+the review fell back to imagining the mechanism it had just measured. It
+now buys one closing turn with the tools withheld
+(`llm_tool_loop._harvest_partial_answer`), so the ceiling degrades the
+observation instead of deleting it. `SIMULATION_TOKEN_BUDGET` stays as
+the backstop it was meant to be rather than the thing simulations die
+on.
 
 Each review gets its **own** workspace
 (`open_review_workspace(run_id, hypothesis_id)`) because review items fan out

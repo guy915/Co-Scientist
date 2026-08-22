@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 from co_scientist.cache import LLMCacheRequest
@@ -33,6 +34,7 @@ from co_scientist.llm_request import (
     _apply_timeout,
 )
 from co_scientist.llm_response import _extract_completion_content
+from co_scientist.llm_tool_policy import closing_message
 from co_scientist.llm_tool_transcript import (
     _message_to_history_dict,
     normalize_tool_transcript,
@@ -242,3 +244,38 @@ async def _run_iteration_logged(
     return await _run_tool_call_iteration(
         messages, request, tool_executor, iteration
     )
+
+
+async def _answer_without_tools(
+    messages: list[dict[str, Any]],
+    request: LLMCacheRequest,
+) -> str | None:
+    """Asks for a final answer with the tools taken away.
+
+    The closing turn of a loop that ran out of room. Withholding the
+    tools is what makes it closing: a model still holding them spends
+    the turn calling one, which is precisely the state the loop is
+    ending because it can no longer afford. With none offered the only
+    move left is prose, so the work the loop already paid for comes back
+    as an answer instead of being discarded.
+
+    Args:
+        messages: The conversation as it stands, left unmodified -- the
+            caller owns what the transcript records.
+        request: The request whose model and sampling this reuses.
+
+    Returns:
+        The model's closing answer, or None if it could not give one,
+        which leaves the caller to fail the loop as it did before.
+    """
+    closing = replace(request, tools=[])
+    args = _build_tool_loop_completion_args(
+        [*messages, closing_message()], closing
+    )
+    args.pop("tools", None)
+    try:
+        response = await _acompletion_within_timeout(args, request.model_name)
+        return _extract_completion_content(response, request.model_name)
+    except Exception as exc:
+        logger.warning("Could not harvest a final answer: %s", exc)
+        return None
