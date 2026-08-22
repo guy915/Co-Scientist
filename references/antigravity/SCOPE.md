@@ -254,9 +254,14 @@ Separately, `run_command`'s description stated flatly that the command
 "cannot reach the network", which is true of the review workspace and
 false of the drafting one; a model told the attempt is impossible has no
 reason to make it. Measured over three goals x four hypotheses:
-successful skill commands went 0 of 1 before the fixes to 2 of 3 after,
-and one of those was a self-correction -- UniProt refused
-`organism:9606` with its own error body and the model rewrote the query.
+successful skill commands went 0 of 7 across two rounds before the
+fixes, to 2 of 3 with a general rule about output paths, to **4 of 4
+with no failures at all** once the instruction contradicted the examples
+by name -- 27 of the 38 documents write `--output /tmp/out.json` in
+every example, and a general rule beside a dozen concrete
+counter-examples loses. Self-correction works when the source explains
+itself: UniProt refused `organism:9606` with its own error body and the
+model rewrote the query and got MET back.
 
 **The lookup does reach the hypothesis.** The clearest instance: a run
 read STRING's `SKILL.md`, then `references/interactions.md`, ran

@@ -310,10 +310,11 @@ def read_skill_document(name: str, path: str | None = None) -> str | None:
         "ask a question, choose the most reasonable answer, say which "
         "you chose, and carry on.\n"
         "Write results to a file with the script's own output option "
-        "wherever it has one, then read the fields you need. Give that "
-        "option a bare relative filename such as `results.json`: the "
-        "workspace is the only writable directory, so an absolute path "
-        "like /tmp/results.json is refused and the script dies having "
-        "already spent its API call.\n\n"
+        "wherever it has one, then read the fields you need. Every "
+        "`--output /tmp/...` below is wrong here: the workspace is the "
+        "only writable directory, so replace the whole path with a bare "
+        "relative filename such as `results.json`. An absolute path is "
+        "refused and the script dies having already spent its API "
+        "call.\n\n"
     )
     return (preamble + text)[:MAX_SKILL_DOCUMENT_CHARS]

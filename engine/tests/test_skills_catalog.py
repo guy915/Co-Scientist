@@ -131,7 +131,12 @@ def test_the_document_says_where_output_may_be_written(
     is the only place it may write. A live drafting pass built a
     well-formed STRING query with ``--output /tmp/string_mapped.tsv``
     and lost it to ``PermissionError: Operation not permitted``, having
-    already spent the API call.
+    already spent the API call. The instruction has to contradict the
+    examples specifically rather than state the rule generally: 27 of
+    the 38 vendored documents write ``--output /tmp/out.json`` in every
+    example, and a model handed a general rule beside a dozen concrete
+    counter-examples copies the examples -- which one did, twice, before
+    correcting itself on the third attempt.
     """
     _write_skill(
         tmp_path,
@@ -144,7 +149,7 @@ def test_the_document_says_where_output_may_be_written(
     document = catalog.read_skill_document("string-database")
 
     assert document is not None
-    assert "/tmp/results.json is refused" in document
+    assert "Every `--output /tmp/...` below is wrong here" in document
 
 
 def test_unknown_skill_reads_as_absent(
