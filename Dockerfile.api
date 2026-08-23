@@ -52,7 +52,7 @@ COPY corpus/ ./corpus/
 ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
 # The vendored Google DeepMind Science Skills bundle, pinned in
-# vendor/science-skills (see references/antigravity/MANIFEST.md for the
+# vendor/science-skills (the NOTICE at the repo root records the upstream
 # revision). The engine executes these scripts inside a confined workspace,
 # which runs in this process, so the api image is the one that needs them --
 # not the MCP image.

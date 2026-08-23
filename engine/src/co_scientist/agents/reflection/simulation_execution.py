@@ -48,7 +48,7 @@ skills, and that is this node's decision rather than the deployment's:
 installing the bundle for the consumer it does help -- hypothesis
 drafting, where retrieval *is* the task, in
 ``agents/generation/literature_tools/draft_skills.py`` -- cannot
-silently re-arm this one. See `references/antigravity/SCOPE.md`.
+silently re-arm this one. See `engine/AGENTS.md`.
 
 **Whether it ran is recorded by the caller, not the model.** A verdict
 reached by running code and one reached by imagining it are different

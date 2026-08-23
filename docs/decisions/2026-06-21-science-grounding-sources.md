@@ -1,9 +1,9 @@
 # ADR: Science grounding sources (OpenAlex + catalog)
 
 **Status:** Accepted · 2026-06-21
-**Drains reference:** `references/peripheral/antigravity-science-skills/`
-(the bundle has since been vendored to `vendor/science-skills/` and the
-reference copy deleted — see `references/antigravity/`)
+**Drains reference:** the bundle has since been vendored to
+`vendor/science-skills/`; its scoping and analysis material is deleted and
+lives in git history.
 
 > **Partially superseded, 2026-08-22.** Decision 1 below ("do not port the
 > skills wholesale") rested on the format having nowhere to run here. The
@@ -11,7 +11,19 @@ reference copy deleted — see `references/antigravity/`)
 > execution, so that leg no longer holds and the bundle is now vendored and
 > executed. Decision 2 (build OpenAlex) and the roadmap in decision 3 stand,
 > and the "Co-Scientist is the main character" constraint still governs how
-> much of the bundle is reachable. See `references/antigravity/SCOPE.md`.
+> much of the bundle is reachable — 32 of the 38 skills are offered, to the
+> hypothesis-drafting pass only, on `extended` and `ultra` runs. The mechanism
+> and the measurements are in `engine/AGENTS.md`; the deployment shape is in
+> `docs/DEPLOYMENT.md`.
+>
+> **What the 2026-08 cycle did not build:** the second half of its own
+> direction, which was to promote a few high-value sources from skills to
+> first-class MCP tools every run gets by default. The skills reach them only
+> on the two deep tiers and only when the drafting model chooses to. Decision
+> 3's roadmap below is still the list to pick from, and the constraint on it
+> is unchanged: grounding breadth that serves hypothesis generation, not 36
+> integrations. Note the trap this ADR already records — a tool absent from
+> the default `config/tools.yaml` is shelfware, as the 8 INDRA tools are.
 
 Records what we take from the Antigravity science-skills bundle (Google
 DeepMind) — a collection of ~36 skills wrapping science databases (PubMed,

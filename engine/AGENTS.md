@@ -272,13 +272,42 @@ fourteen. Credentials reach a vendored skill script and nothing else
 attribution) -- the same workspace runs model-written programs against an open
 network.
 
-Two instructions the model needs and cannot infer: skill scripts write their
-result to a file rather than stdout, so the `read_skill` preamble names the
-workspace as the only writable directory (a live pass lost a well-formed
-STRING query to `--output /tmp/...`, after paying for the API call); and
-`run_command`'s description follows `SandboxPolicy.allows_network` rather than
-stating flatly that there is none, since the drafting workspace has egress and
-a model told otherwise never tries.
+**Every defect that stopped this working was a missing instruction, not
+missing code.** The mechanism was complete and correct and produced zero
+successful skill commands over two measurement rounds; three sentences in the
+`read_skill` preamble and the `run_command` description took it to 4 of 4.
+Skill scripts write their result to a file rather than stdout, and nothing
+said where: a live pass lost a well-formed STRING query to
+`--output /tmp/...` after paying for the API call. `run_command`'s
+description stated flatly that there was no network, which is true of the
+review workspace and false of the drafting one -- a model told the attempt is
+impossible never makes it, so the sentence now follows
+`SandboxPolicy.allows_network`. And the general rule about output paths only
+got to 2 of 3: 27 of the 38 documents write `--output /tmp/out.json` in
+*every* example, and a rule stated generally loses to a dozen concrete
+counter-examples, so the preamble contradicts the pattern by name. Measured
+over three research goals x four hypotheses on the production model: 0 of 7,
+then 2 of 3, then 4 of 4.
+
+**What it buys, in one instance.** A drafting pass read STRING's `SKILL.md`,
+then `references/interactions.md`, ran `string_cli.py partners --identifiers
+SLC9A1 --species 9606`, read the file back, and two of its four hypotheses
+argued from the result -- "STRING database analysis confirms that SLC9A1
+(NHE1) strongly interacts with MAPK3, PRKACA, CALM3, and ROCK1 (combined
+scores 0.94-0.99)". A gap argued from a record rather than from what someone
+wrote up. The ceiling on how often that happens is not the skills: the
+drafting loop stops on its transcript backstop at five to seven of thirteen
+turns with or without them, so about half of goals read a skill and never run
+its command, and the transcript is filled by literature results.
+
+**The catalogue withholds what it cannot run** (`_withholding_reason`), for
+the same reason `run_command` is withheld with no sandbox backend: reading a
+skill costs a turn and then several thousand tokens re-sent on every turn
+after. Six of the 38 go -- four ship no script at all (`pymol` needs a binary,
+`uv` and `credentials` describe setup the harness has already done and the
+preamble contradicts, `workflow_skill_creator` authors skills rather than
+using one) and two declare a 695 MB closure the image omits. 32 are offered,
+and installing a package is all it takes to make its skill reappear.
 
 **The sources a run queries are attributed to its reader.** `skills/usage.py`
 is a `scoped_telemetry`-shaped context variable -- the invocation happens in a
@@ -294,8 +323,10 @@ The run-level gate needs nothing new: the drafting pass only runs at all
 when `enable_tool_calling_generation` is set, which the app asks for by tier
 on `extended`/`ultra`, so the skills inherit that gate rather than adding a
 second one to keep in step. Inert without `COSCIENTIST_SKILLS_DIR`, which a
-checkout, a test and a CI job do not set. Full history and the measurements
-in `references/antigravity/SCOPE.md`.
+checkout, a test and a CI job do not set -- which is also the whole offline
+story, since an empty catalogue offers no skill tool and runs exactly as the
+engine did before skills existed. Provenance and upstream revision: the
+`NOTICE` at the repo root.
 
 **Per-run tool disabling is reconciled once, at registry load.** Connector toggles reach the engine as `HypothesisGenerator(disable_tools=[...])` (built in `app/app/engine_adapter/opts.py`), which `generator/run_setup.py` passes on as `ToolRegistry(disabled_tools=...)`. `registry._apply_disabled_tools` flips `enabled = False` on the tool *and* on every workflow `search_source` backed by it, covering every way a tool can be off — the `disabled_tools` argument, a YAML `enabled: false`, or a source naming a tool that does not exist. That one pass is load-bearing: the multi-source pipeline selects on `SearchSourceConfig.enabled` alone and never consults the tool's own flag, so a source left enabled over a dead tool keeps being searched. The Phase 2 searches in `literature_review/search.py` therefore trust `workflow.get_enabled_search_sources()` and deliberately do not re-check the registry — a second filter there was removed once the registry covered every case, so new gating belongs at the registry, not at the call site. `engine/tests/test_config_registry.py` pins the reconciliation.
 
