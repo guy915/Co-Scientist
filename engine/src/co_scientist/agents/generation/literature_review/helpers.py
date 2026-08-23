@@ -140,10 +140,10 @@ from co_scientist.agents.generation.literature_review.search_support import (
     _determine_multi_source_query_type as _determine_multi_source_query_type,
 )
 from co_scientist.agents.generation.literature_review.search_support import (
-    _extract_results_path as _extract_results_path,
+    _duplicate_owner_id as _duplicate_owner_id,
 )
 from co_scientist.agents.generation.literature_review.search_support import (
-    _is_duplicate_title as _is_duplicate_title,
+    _extract_results_path as _extract_results_path,
 )
 from co_scientist.agents.generation.literature_review.search_support import (
     _multi_source_type_if_applicable as _multi_source_type_if_applicable,

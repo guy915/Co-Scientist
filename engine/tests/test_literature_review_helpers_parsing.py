@@ -241,7 +241,15 @@ def test_merge_search_results_no_dedup_keeps_duplicates() -> None:
 
 
 def test_merge_search_results_ranks_quality_and_flags_retractions() -> None:
-    """Merged retrieval is best-first and exposes correction status."""
+    """A single source's own order survives; a retracted paper sorts last.
+
+    Fusion is rank-based (Reciprocal Rank Fusion), not score-based, so a
+    single source degenerates to exactly its own insertion order --
+    "weak" outranks "strong" here only because the source itself
+    returned it first, regardless of either paper's citation count or
+    year. Retraction is the one thing that overrides rank: it always
+    sorts last, whatever position the source gave it.
+    """
     source_results = [
         (
             "openalex",
@@ -268,11 +276,88 @@ def test_merge_search_results_ranks_quality_and_flags_retractions() -> None:
 
     merged, _ = helpers.merge_search_results(source_results)
 
-    assert list(merged) == ["strong", "weak", "retracted"]
-    assert (
-        merged["strong"]["retrieval_score"] > merged["weak"]["retrieval_score"]
-    )
+    assert list(merged) == ["weak", "strong", "retracted"]
     assert merged["retracted"]["correction_status"] == "retracted"
+
+
+def test_merge_search_results_lets_a_metadata_poor_source_compete() -> None:
+    """A source's own rank-1 result places near the top of the fused pool.
+
+    Regression for the additive scorer this replaces: a source
+    contributing no ``cited_by_count``/``year`` was capped at the
+    "anything else" quality floor, which the semantic pass's normalizer
+    then floors to exactly 0.0 -- so that source's best result could never
+    outrank a citation-rich source's, however highly its own search
+    ranked it. Reciprocal rank fusion scores by each source's own rank
+    order instead, so a source's rank-1 result competes on rank alone,
+    not on metadata it structurally cannot carry.
+    """
+    rich_source: dict[str, dict[str, Any]] = {
+        f"op{i}": {
+            "title": f"Openalex paper {i}",
+            "source": "openalex",
+            "cited_by_count": 500,
+            "year": 2020,
+        }
+        for i in range(1, 7)
+    }
+    source_results = [
+        ("openalex_tool", rich_source),
+        ("web_tool", {"web1": {"title": "Web paper", "source": "web"}}),
+    ]
+
+    merged, _ = helpers.merge_search_results(source_results)
+
+    assert list(merged).index("web1") <= 2
+
+
+def test_merge_search_results_accumulates_cross_source_agreement() -> None:
+    """A paper both sources rank outranks one only source ranks slightly higher.
+
+    Regression for the dedup branch: folding a duplicate title into its
+    earlier entry must still let the duplicate's own rank contribute to
+    that entry's fused score, the same as if it were a distinct paper
+    RRF happened to score identically. The old code's dedup branch hit
+    ``continue`` before the accumulation line ever ran, so a paper found
+    by two sources silently kept only the first source's contribution --
+    exactly the cross-source agreement RRF exists to reward.
+
+    Every item here carries no ``source``/``_source_name`` tag, so every
+    position score uses the same default weight (1.0) and the math is
+    verifiable by hand: position 0 scores 1/(0+2)=0.5, position 1 scores
+    1/(1+2)=0.3333. "shared" sits at position 1 in both source lists
+    (0.3333 + 0.3333 = 0.6667 once folded); "solo" sits at position 0 in
+    one list only (0.5) -- a strictly better rank in its own source, but
+    the paper only one source ever saw.
+    """
+    source_results = [
+        (
+            "source_a_tool",
+            {
+                "solo": {"title": "Solo Paper"},
+                "shared_a": {"title": "Shared Paper", "note": "from A"},
+                "filler_a": {"title": "Filler A"},
+            },
+        ),
+        (
+            "source_b_tool",
+            {
+                "other_b": {"title": "Other B"},
+                "shared_b": {"title": "Shared Paper", "note": "from B"},
+                "filler_b": {"title": "Filler B"},
+            },
+        ),
+    ]
+
+    merged, source_map = helpers.merge_search_results(source_results)
+
+    assert list(merged).index("shared_a") < list(merged).index("solo")
+    # The folded duplicate contributes its rank but not its own entry:
+    # the surviving id keeps the first-seen source's metadata and
+    # provenance, never overwritten by the later duplicate.
+    assert "shared_b" not in merged
+    assert merged["shared_a"]["note"] == "from A"
+    assert source_map["shared_a"] == "source_a_tool"
 
 
 # =============================================================================

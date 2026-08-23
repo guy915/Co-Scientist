@@ -24,37 +24,35 @@ def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_normalize_lexical_clamps_to_documented_range() -> None:
-    """The lexical heuristic's raw range (1.5-5.0) maps onto [0, 1]."""
-    assert relevance.normalize_lexical(1.5) == 0.0
-    assert relevance.normalize_lexical(5.0) == 1.0
-    assert relevance.normalize_lexical(3.25) == 0.5
-    # Out-of-documented-range inputs (e.g. floating point noise) still clamp
-    # rather than producing a score outside [0, 1].
+    """The RRF-fused rank score, already on [0, 1], passes through clamped."""
     assert relevance.normalize_lexical(0.0) == 0.0
-    assert relevance.normalize_lexical(10.0) == 1.0
+    assert relevance.normalize_lexical(1.0) == 1.0
+    assert relevance.normalize_lexical(0.5) == 0.5
+    # Out-of-range inputs (e.g. floating point noise) still clamp rather
+    # than producing a score outside [0, 1].
+    assert relevance.normalize_lexical(-0.2) == 0.0
+    assert relevance.normalize_lexical(1.5) == 1.0
 
 
 def test_combine_hybrid_score_without_semantic_is_lexical_only() -> None:
     """An unjudged candidate's score is the normalized lexical score alone."""
-    assert relevance.combine_hybrid_score(3.25, None) == 0.5
+    assert relevance.combine_hybrid_score(0.5, None) == 0.5
 
 
 def test_combine_hybrid_score_averages_lexical_and_semantic() -> None:
     """A judged candidate's score is the documented 50/50 blend."""
-    # lexical=3.25 normalizes to 0.5; semantic=1.0 -> (0.5 + 1.0) / 2 = 0.75.
-    assert relevance.combine_hybrid_score(3.25, 1.0) == 0.75
-    # lexical=1.5 normalizes to 0.0; semantic=0.0 -> 0.0.
-    assert relevance.combine_hybrid_score(1.5, 0.0) == 0.0
+    assert relevance.combine_hybrid_score(0.5, 1.0) == 0.75
+    assert relevance.combine_hybrid_score(0.0, 0.0) == 0.0
 
 
 def test_combine_hybrid_score_clamps_out_of_range_semantic() -> None:
     """A malformed model response outside [0, 1] does not skew the blend."""
     assert relevance.combine_hybrid_score(
-        3.25, 4.0
-    ) == relevance.combine_hybrid_score(3.25, 1.0)
+        0.5, 4.0
+    ) == relevance.combine_hybrid_score(0.5, 1.0)
     assert relevance.combine_hybrid_score(
-        3.25, -2.0
-    ) == relevance.combine_hybrid_score(3.25, 0.0)
+        0.5, -2.0
+    ) == relevance.combine_hybrid_score(0.5, 0.0)
 
 
 def test_semantic_pool_size_is_bounded() -> None:
@@ -84,8 +82,8 @@ def _candidate(title: str, lexical_score: float) -> dict[str, object]:
 async def test_apply_semantic_relevance_stamps_every_candidate() -> None:
     """Every candidate gets a normalized score and version, judged or not."""
     ranked = {
-        "p1": _candidate("Paper One", 5.0),
-        "p2": _candidate("Paper Two", 1.5),
+        "p1": _candidate("Paper One", 1.0),
+        "p2": _candidate("Paper Two", 0.0),
     }
     result = await relevance.apply_semantic_relevance(
         ranked,
@@ -106,7 +104,7 @@ async def test_apply_semantic_relevance_skips_pool_without_goal() -> None:
     persisted score is on the same [0, 1] scale whether or not the
     semantic pass ran.
     """
-    ranked = {"p1": _candidate("Paper One", 5.0)}
+    ranked = {"p1": _candidate("Paper One", 1.0)}
     result = await relevance.apply_semantic_relevance(
         ranked,
         research_goal="",
@@ -123,16 +121,16 @@ async def test_apply_semantic_relevance_preserves_lexical_differentiation() -> (
     """A better-lexical candidate still scores higher after the semantic pass.
 
     Regression guard: ``_stamp_hybrid_score`` must read each candidate's
-    original raw lexical score, not the already-normalized value its own
+    original raw lexical score, not the already-combined value its own
     first (baseline) pass wrote back onto the same metadata dict -- an
-    earlier version of this function fed that normalized value into
-    :func:`combine_hybrid_score` a second time, which -- being far below
-    ``_LEXICAL_MIN`` -- always clamps to 0.0, so every candidate collapsed
-    onto the exact same score regardless of its real lexical quality.
+    earlier version of this function fed that combined value into
+    :func:`combine_hybrid_score` a second time, silently double-weighting
+    the semantic term so every candidate collapsed onto the exact same
+    score regardless of its real lexical quality.
     """
     ranked = {
-        "best": _candidate("Best lexical", 5.0),
-        "worst": _candidate("Worst lexical", 1.5),
+        "best": _candidate("Best lexical", 1.0),
+        "worst": _candidate("Worst lexical", 0.0),
     }
     result = await relevance.apply_semantic_relevance(
         ranked,
@@ -149,18 +147,18 @@ async def test_apply_semantic_relevance_preserves_lexical_differentiation() -> (
     # so any observed difference in the final score comes only from the
     # lexical half.
     assert result["best"]["retrieval_score"] == relevance.combine_hybrid_score(
-        5.0, 1.0
+        1.0, 1.0
     )
     assert result["worst"]["retrieval_score"] == relevance.combine_hybrid_score(
-        1.5, 1.0
+        0.0, 1.0
     )
 
 
 async def test_apply_semantic_relevance_bounds_pool_by_budget() -> None:
     """Candidates outside the over-fetched pool stay lexical-only."""
     ranked = {
-        "best": _candidate("Best", 5.0),
-        "worst": _candidate("Worst", 1.5),
+        "best": _candidate("Best", 1.0),
+        "worst": _candidate("Worst", 0.0),
     }
     result = await relevance.apply_semantic_relevance(
         ranked,
@@ -180,8 +178,8 @@ async def test_apply_semantic_relevance_bounds_pool_by_budget() -> None:
 async def test_apply_semantic_relevance_is_deterministic() -> None:
     """The same candidates and goal score identically on repeated runs."""
     ranked = {
-        "p1": _candidate("Paper One", 4.0),
-        "p2": _candidate("Paper Two", 2.0),
+        "p1": _candidate("Paper One", 0.8),
+        "p2": _candidate("Paper Two", 0.4),
     }
     first = await relevance.apply_semantic_relevance(
         {k: dict(v) for k, v in ranked.items()},
