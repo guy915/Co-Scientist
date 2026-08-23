@@ -300,6 +300,19 @@ drafting loop stops on its transcript backstop at five to seven of thirteen
 turns with or without them, so about half of goals read a skill and never run
 its command, and the transcript is filled by literature results.
 
+**Three of the sources are also first-class tools, on every run.** The
+skills are gated: `extended`/`ultra` only, and only when the drafting model
+chooses to reach for one. So the three it reached for on its own --
+interaction networks, pathway membership, target association -- are
+additionally declared in the *default* `config/tools.yaml` as
+`search_string_interactions`, `search_reactome_pathways` and
+`search_open_targets` (`mcp_server/tools/systems_biology.py`), wired into
+literature-review enrichment and reflection. They are entity-keyed, not
+free-text, which is why they sit on those paths rather than among the
+literature search sources. Declaring them in the default config is the
+load-bearing part: a tool declared only in an example is unreachable in
+production, which is what the 8 INDRA CoGex tools still are.
+
 **The catalogue withholds what it cannot run** (`_withholding_reason`), for
 the same reason `run_command` is withheld with no sandbox backend: reading a
 skill costs a turn and then several thousand tokens re-sent on every turn

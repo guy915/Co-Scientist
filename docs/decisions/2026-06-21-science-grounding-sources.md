@@ -16,14 +16,19 @@ lives in git history.
 > and the measurements are in `engine/AGENTS.md`; the deployment shape is in
 > `docs/DEPLOYMENT.md`.
 >
-> **What the 2026-08 cycle did not build:** the second half of its own
-> direction, which was to promote a few high-value sources from skills to
-> first-class MCP tools every run gets by default. The skills reach them only
-> on the two deep tiers and only when the drafting model chooses to. Decision
-> 3's roadmap below is still the list to pick from, and the constraint on it
-> is unchanged: grounding breadth that serves hypothesis generation, not 36
-> integrations. Note the trap this ADR already records — a tool absent from
-> the default `config/tools.yaml` is shelfware, as the 8 INDRA tools are.
+> **Decision 3's roadmap is now partly built.** Three sources are
+> first-class MCP tools declared in the *default* `config/tools.yaml` —
+> `search_string_interactions` (interaction networks),
+> `search_reactome_pathways` (curated pathway membership) and
+> `search_open_targets` (target–disease association and tractability) — wired
+> into `literature_review.context_enrichment_tools` and
+> `reflection.search_tools`, so every run reaches them regardless of tier.
+> They were chosen because a drafting model handed the whole 32-skill
+> catalogue reached for exactly these, and because this deployment's audience
+> is systems biology. Declaring them in the default config rather than an
+> example is the point: this ADR's own trap is that a tool absent from it is
+> shelfware, as the 8 INDRA tools still are. Still unbuilt from the roadmap:
+> bioRxiv/medRxiv, Europe PMC, Ensembl, gnomAD, ClinicalTrials.gov.
 
 Records what we take from the Antigravity science-skills bundle (Google
 DeepMind) — a collection of ~36 skills wrapping science databases (PubMed,

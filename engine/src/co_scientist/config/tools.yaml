@@ -258,6 +258,73 @@ tools:
         Use `search_uniprot` to verify protein names, gene mappings,
         organisms, and reviewed functional annotations.
 
+    # Systems-biology grounding: what a protein interacts with, which
+    # pathways it sits in, and what its target is already associated with.
+    # Entity-keyed rather than free-text, so they are wired as context
+    # enrichment and reflection tools rather than as literature search
+    # sources -- they answer questions about a named gene or protein, not
+    # "find me papers about X".
+    #
+    # These are the sources the drafting model reached for on its own when
+    # it was given the whole 32-skill catalogue to choose from, which is
+    # what makes them worth promoting to tools every run gets rather than
+    # leaving them behind a deep-tier gate and a model's choice.
+    string_interactions:
+      server: "default_pubmed"
+      mcp_tool_name: "search_string_interactions"
+      display_name: "STRING Interactions"
+      description: "Find the proteins a gene or protein is linked to"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_string_interactions` to find a protein's interaction
+        partners before asserting a mechanism runs through one. Each
+        partner carries a combined score plus separate experimental,
+        database, co-expression and text-mining scores -- a link supported
+        only by text mining is weaker evidence than one with experimental
+        support, so cite which.
+
+    reactome_pathways:
+      server: "default_pubmed"
+      mcp_tool_name: "search_reactome_pathways"
+      display_name: "Reactome Pathways"
+      description: "List the curated pathways a gene or protein is part of"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_reactome_pathways` to place a protein in its curated
+        pathway context, and to check that two proteins you are connecting
+        actually share one.
+
+    open_targets:
+      server: "default_pubmed"
+      mcp_tool_name: "search_open_targets"
+      display_name: "Open Targets"
+      description: "Check target-disease associations and druggability"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_open_targets` to check whether a target is already
+        associated with the disease you are proposing it for, and whether
+        it is tractable at all. An association score near zero for the
+        indication is a real finding about the proposal, not a missing
+        record.
+
     # General web search (only registered when the MCP server has a
     # provider key; absent tools are skipped by the workflow whitelist)
     web_search:
@@ -393,6 +460,9 @@ workflows:
     context_enrichment_tools:
       - "chembl_search"
       - "uniprot_search"
+      - "string_interactions"
+      - "reactome_pathways"
+      - "open_targets"
     availability_check: "check_pubmed"
 
   # Draft generation phase - quick metadata searches for ideation.
@@ -431,6 +501,9 @@ workflows:
       - "openalex_search"
       - "chembl_search"
       - "uniprot_search"
+      - "string_interactions"
+      - "reactome_pathways"
+      - "open_targets"
       - "paper_corpus_fetch"
 
 # Global Settings

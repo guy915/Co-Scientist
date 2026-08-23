@@ -64,6 +64,11 @@ from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
     search_pubmed,
 )
+from mcp_server.tools.systems_biology import (
+    search_open_targets,
+    search_reactome_pathways,
+    search_string_interactions,
+)
 from mcp_server.tools.web import read_url, search_web
 from mcp_server.tools.web.providers import resolve_provider
 
@@ -104,6 +109,9 @@ _MCP_TOOLS = (
     (read_url, "read_url"),
     (search_chembl, "search_chembl"),
     (search_uniprot, "search_uniprot"),
+    (search_string_interactions, "search_string_interactions"),
+    (search_reactome_pathways, "search_reactome_pathways"),
+    (search_open_targets, "search_open_targets"),
     (query_gene_disease_network, "query_gene_disease_network"),
     (query_gene_codependents, "query_gene_codependents"),
     (query_drug_info, "query_drug_info"),
