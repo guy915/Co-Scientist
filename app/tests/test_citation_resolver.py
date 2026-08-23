@@ -285,3 +285,74 @@ def test_resolve_many_preserves_input_order() -> None:
 
 def test_resolve_many_empty_input_makes_no_calls() -> None:
     assert citation_resolver.resolve_many([]) == []
+
+
+# --- offline retraction-set check (second, independent check) -----------
+
+
+def test_offline_retracted_doi_short_circuits_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A DOI in the offline set resolves RETRACTED without a network call."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        citation_resolver.retraction_set,
+        "is_known_retracted",
+        lambda doi: doi == "10.1000/offline-flagged",
+    )
+    monkeypatch.setattr(
+        citation_resolver, "_reachable", _recording_reachable(calls)
+    )
+
+    verdict = citation_resolver.resolve_one(
+        doi="10.1000/offline-flagged", pmid="", url="", retracted=False
+    )
+
+    assert verdict is Resolvability.RETRACTED
+    assert calls == []
+
+
+def test_doi_absent_from_offline_set_still_resolves_normally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A DOI absent from the offline set still resolves normally.
+
+    It falls through to the live dereference check.
+    """
+    monkeypatch.setattr(
+        citation_resolver.retraction_set,
+        "is_known_retracted",
+        lambda doi: False,
+    )
+    monkeypatch.setattr(
+        citation_resolver, "_reachable", lambda client, url: True
+    )
+
+    verdict = citation_resolver.resolve_one(
+        doi="10.1000/clean", pmid="", url="", retracted=False
+    )
+
+    assert verdict is Resolvability.RESOLVABLE
+
+
+def test_source_flagged_retraction_never_consults_the_offline_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The source-flag fast path stays first.
+
+    The offline set is only ever a fallback for what the source did not
+    already catch.
+    """
+
+    def _fail_if_called(doi: str) -> bool:
+        raise AssertionError("offline retraction set consulted needlessly")
+
+    monkeypatch.setattr(
+        citation_resolver.retraction_set, "is_known_retracted", _fail_if_called
+    )
+
+    verdict = citation_resolver.resolve_one(
+        doi="10.1000/already-flagged", pmid="", url="", retracted=True
+    )
+
+    assert verdict is Resolvability.RETRACTED

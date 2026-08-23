@@ -20,6 +20,36 @@ Licensed under the Apache License, Version 2.0.
 -------------------------------------------------------------------------
 
 -------------------------------------------------------------------------
+Retraction Watch Database
+https://gitlab.com/crossref/retraction-watch-data
+Collected by Retraction Watch (The Center for Scientific Integrity);
+distributed by Crossref.
+
+  app/app/data/retractions.txt.gz
+
+    A derived extract, not a copy: only the retraction and original-paper
+    DOI of every row whose RetractionNature is "Retraction", normalized,
+    deduplicated and sorted -- none of the dataset's other columns
+    (titles, authors, institutions, reasons) are retained or shipped.
+    Rebuilt from the upstream CSV by app/dev/refresh_retractions.py; the
+    extract committed here was generated 2026-08-23.
+
+    Used by app/app/retraction_set.py as a second, independent retraction
+    check in app/app/citation_resolver.py, alongside whatever the source
+    (PubMed/OpenAlex) already flags -- retraction propagation between
+    indexes can lag by months.
+
+    Neither Crossref's documentation nor the upstream repository states a
+    licence for this data; Crossref describes it only as "publicly
+    available". Shipping bare DOIs rather than the dataset is a
+    deliberate response to that silence: a DOI is a factual identifier,
+    and the dataset's expressive content -- its titles, reasons,
+    authors and institutions -- is what we do not redistribute. Anyone
+    extending this to carry more than identifiers should settle the
+    terms with Crossref first.
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
 Science Skills (Google DeepMind)
 https://github.com/google-deepmind/science-skills
 Licensed under the Apache License, Version 2.0 (code) and CC-BY 4.0

@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
+from app import retraction_set
 from app.claims_gate import Resolvability
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,13 @@ def _resolve_with_client(
     return Resolvability.RESOLVABLE if found else Resolvability.UNRESOLVABLE
 
 
+def _resolve_doi(doi: str, client: httpx.Client | None) -> Resolvability:
+    """Resolve a DOI: offline retraction set first, then a live dereference."""
+    if retraction_set.is_known_retracted(doi):
+        return Resolvability.RETRACTED
+    return _resolve_with_client(client, lambda c: _reachable(c, _doi_url(doi)))
+
+
 def resolve_one(
     *,
     doi: str,
@@ -109,12 +117,16 @@ def resolve_one(
 ) -> Resolvability:
     """Dereference one evidence identifier against the live web.
 
-    Retraction is decided from metadata alone -- there is nothing to
-    dereference that would reverse it. A DOI is preferred over a PMID
-    (resolves through its own registry regardless of which URL the source
-    attached), a PMID over a bare source-supplied URL, and everything else
-    is judged by actually resolving the identifier, never by inspecting
-    whether a URL string happens to be non-empty.
+    Retraction is decided first from metadata (the source already flagged
+    it), then, for a DOI the source did not flag, from a second and
+    independent offline check (see ``app.retraction_set``) -- source
+    databases can take months to propagate a retraction, so this is the
+    only defense against one they have not (yet) caught. Neither check
+    dereferences anything. A DOI is preferred over a PMID (resolves
+    through its own registry regardless of which URL the source attached),
+    a PMID over a bare source-supplied URL, and everything else is judged
+    by actually resolving the identifier, never by inspecting whether a URL
+    string happens to be non-empty.
 
     Args:
         doi: The article's DOI, or empty.
@@ -125,15 +137,14 @@ def resolve_one(
         client: Optional client to reuse (single-threaded callers only).
 
     Returns:
-        RETRACTED without any network call when ``retracted`` is set,
-        otherwise RESOLVABLE or UNRESOLVABLE from the live check.
+        RETRACTED without any network call when ``retracted`` is set or the
+        DOI is in the offline retraction set, otherwise RESOLVABLE or
+        UNRESOLVABLE from the live check.
     """
     if retracted:
         return Resolvability.RETRACTED
     if doi:
-        return _resolve_with_client(
-            client, lambda c: _reachable(c, _doi_url(doi))
-        )
+        return _resolve_doi(doi, client)
     if pmid:
         return _resolve_with_client(client, lambda c: _pmid_found(c, pmid))
     if url:
