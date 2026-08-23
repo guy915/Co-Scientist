@@ -119,6 +119,36 @@ def _resolve_simulation_execution(
     return True
 
 
+def _resolve_overview_review(opts: dict[str, Any], model_name: str) -> bool:
+    """Decides whether the terminal research overview is accuracy-reviewed.
+
+    Opt-in, like ``_resolve_simulation_execution`` and for the same
+    reason: it is extra LLM calls on top of the terminal synthesis, and
+    the app asks for it on the deep tiers only. The offline backend
+    forces it off regardless of the request -- it answers every
+    schema-constrained call deterministically, so a review of that
+    output would check nothing real and only add calls.
+
+    Args:
+        opts: The caller's run options.
+        model_name: The supervisor model name for this run.
+
+    Returns:
+        Whether the research-overview node may run its review/revise
+        cycle over the drafted overview.
+    """
+    requested = opts.get("enable_overview_review")
+    if not requested:
+        return False
+    if is_offline_model(model_name):
+        logger.warning(
+            "enable_overview_review=True but the offline backend is "
+            "active - the research overview will publish unreviewed"
+        )
+        return False
+    return True
+
+
 def _resolve_local_corpus_dir(opts: dict[str, Any], registry: Any) -> str:
     """Resolve the group's corpus directory for this run, or "" for none.
 

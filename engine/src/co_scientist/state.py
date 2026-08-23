@@ -432,6 +432,14 @@ class WorkflowState(TypedDict):
     where no sandbox backend can confine a command.
     """
 
+    enable_overview_review: bool | None
+    """Let the terminal research overview be checked for scientific
+    accuracy against this run's own material before it publishes
+    (default False). A request, not a guarantee: the engine refuses it
+    for the offline backend the same way ``enable_simulation_execution``
+    does.
+    """
+
     research_tier: str | None
     """Tier whose ceilings the literature review researches under, "" for
     none. An opaque label to the engine (``research_adapter.budget``).

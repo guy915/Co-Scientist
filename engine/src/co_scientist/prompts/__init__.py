@@ -67,9 +67,13 @@ from co_scientist.prompts.loading import (
     substitute_variables,
 )
 from co_scientist.prompts.planning import (
+    OverviewReviewMaterial,
+    OverviewRevisionRequest,
     SupervisorPromptInputs,
     get_meta_review_prompt,
     get_research_overview_prompt,
+    get_research_overview_review_prompt,
+    get_research_overview_revise_prompt,
     get_supervisor_prompt,
 )
 from co_scientist.prompts.ranking import (
@@ -88,6 +92,8 @@ __all__ = [
     "DebatePromptRequest",
     "DraftPromptRequest",
     "LiteratureQueryInputs",
+    "OverviewReviewMaterial",
+    "OverviewRevisionRequest",
     "PromptRunContext",
     "RankingSide",
     "SupervisorPromptInputs",
@@ -116,6 +122,8 @@ __all__ = [
     "get_ranking_prompt",
     "get_reflection_prompt",
     "get_research_overview_prompt",
+    "get_research_overview_review_prompt",
+    "get_research_overview_revise_prompt",
     "get_review_batch_prompt",
     "get_review_prompt",
     "get_supervisor_prompt",

@@ -169,6 +169,27 @@ def _resolve_simulation_execution_toggle(cfg: dict[str, Any]) -> bool:
     return normalize_run_tier(cfg.get("tier")) in _SIMULATION_EXECUTION_TIERS
 
 
+# Tiers whose compute envelope funds an accuracy review of the terminal
+# research overview. The same reasoning as the executed simulation review
+# above: extra LLM calls on top of a call every run already pays for, so
+# the deep tiers only.
+_OVERVIEW_REVIEW_TIERS: frozenset[str] = frozenset({"extended", "ultra"})
+
+
+def _resolve_overview_review_toggle(cfg: dict[str, Any]) -> bool:
+    """Decide whether this run's research overview is accuracy-reviewed.
+
+    Args:
+        cfg: The run's resolved config; ``resolved_run_config`` guarantees
+            a normalized ``tier``.
+
+    Returns:
+        True only for the deep tiers. A ceiling, not a guarantee: the
+        engine refuses it for the offline backend.
+    """
+    return normalize_run_tier(cfg.get("tier")) in _OVERVIEW_REVIEW_TIERS
+
+
 def _lab_constraints_for_run(
     cfg: dict[str, Any], db_path: str | None
 ) -> list[str]:
@@ -227,10 +248,10 @@ def _apply_private_sources(
 def _apply_capability_opts(
     initial_opts: dict[str, Any], cfg: dict[str, Any]
 ) -> None:
-    """Set the four opts that decide how much depth a run may buy.
+    """Set the five opts that decide how much depth a run may buy.
 
-    Three are resolved to a yes or no here, because the engine treats
-    each as a request it may still refuse. The fourth is the tier itself,
+    Four are resolved to a yes or no here, because the engine treats
+    each as a request it may still refuse. The fifth is the tier itself,
     passed verbatim: which tiers fund the literature review's
     deep-research phase is stated once, in the engine's
     ``research_adapter``, and a second copy of that list on this side is
@@ -244,6 +265,9 @@ def _apply_capability_opts(
     )
     initial_opts["enable_simulation_execution"] = (
         _resolve_simulation_execution_toggle(cfg)
+    )
+    initial_opts["enable_overview_review"] = _resolve_overview_review_toggle(
+        cfg
     )
     initial_opts["research_tier"] = normalize_run_tier(cfg.get("tier"))
 

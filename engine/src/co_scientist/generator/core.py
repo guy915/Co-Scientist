@@ -38,6 +38,7 @@ from co_scientist.generator.run_setup import (
     _resolve_dev_isolation_flag,
     _resolve_dev_mode_flag,
     _resolve_local_corpus_dir,
+    _resolve_overview_review,
     _resolve_research_tier,
     _resolve_run_identity,
     _resolve_simulation_execution,
@@ -285,6 +286,9 @@ class HypothesisGenerator(
             ),
             enable_simulation_execution=_resolve_simulation_execution(
                 opts, self.model_name
+            ),
+            enable_overview_review=_resolve_overview_review(
+                opts, self.supervisor_model_name
             ),
             research_tier=_resolve_research_tier(
                 opts, mcp_available, bool(local_corpus_dir)

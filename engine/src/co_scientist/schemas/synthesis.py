@@ -140,3 +140,66 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
         }
     ),
 }
+# Research-overview review schema
+# Shapes the "research_overview_review" prompt output, consumed by
+# agents/meta_review/research_overview_review.py. A verdict over the
+# already-drafted overview above: accept it as-is, or list specific,
+# located accuracy problems for the reviser to fix. Deliberately does not
+# echo the drafted passage back -- a schema that echoes its input scales
+# output with input and truncates identically on every retry (the same
+# trap proximity clustering hit; see proximity_dedup._match_cluster_member).
+# Each note instead names the section or claim it concerns.
+RESEARCH_OVERVIEW_REVIEW_SCHEMA: dict[str, Any] = {
+    "name": "research_overview_review",
+    "schema": obj(
+        {
+            "accept": {
+                "type": "boolean",
+                "description": (
+                    "True only when every claim in the drafted overview "
+                    "is supported by the listed hypotheses and evidence, "
+                    "with no contradiction and no overstated confidence. "
+                    "False for a genuine accuracy problem -- never for "
+                    "tone, style, or length."
+                ),
+            },
+            "notes": {
+                "type": "array",
+                "maxItems": 6,
+                "items": obj(
+                    {
+                        "location": {
+                            "type": "string",
+                            "description": (
+                                "The section or claim this note concerns "
+                                "(e.g. 'overview.summary', 'aims[2]', or "
+                                "a knowledge-base topic's title) -- never "
+                                "the passage text itself."
+                            ),
+                        },
+                        "issue": {
+                            "type": "string",
+                            "description": (
+                                "The specific accuracy problem: an "
+                                "unsupported claim, a contradiction with "
+                                "a listed hypothesis, overstated "
+                                "confidence the material does not carry, "
+                                "or a cited evidence_id that does not "
+                                "support what it is cited for."
+                            ),
+                        },
+                        "evidence_id": {
+                            "type": "string",
+                            "description": (
+                                "The evidence_id involved, when the issue "
+                                "concerns a citation."
+                            ),
+                        },
+                    },
+                    optional=("evidence_id",),
+                ),
+            },
+        },
+        optional=("notes",),
+    ),
+}

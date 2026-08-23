@@ -10,6 +10,12 @@ from co_scientist.agents.meta_review.research_overview_contacts import (
     _format_or_placeholder,
     _validate_research_contacts,
 )
+from co_scientist.agents.meta_review.research_overview_review import (
+    OverviewReviewContext as OverviewReviewContext,
+)
+from co_scientist.agents.meta_review.research_overview_review import (
+    review_research_overview as review_research_overview,
+)
 from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
@@ -49,6 +55,11 @@ _MAX_KNOWLEDGE_BASE_TOPICS: Final = 8
 
 _EVIDENCE_ABSTRACT_CHARS: Final = 3000
 """Per-source abstract budget in the evidence corpus."""
+
+_UNREVIEWED_OVERVIEW: Final = {"reviewed": False, "rounds": 0}
+"""Stamped on ``overview_review`` when this run did not fund a review, or
+the review loop failed and the drafted overview published unchanged.
+"""
 
 
 async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
@@ -91,7 +102,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_RESEARCH_OVERVIEW_START,
     )
 
-    research_overview = await _synthesize_research_overview(
+    research_overview, llm_calls = await _synthesize_research_overview(
         state, summary, contact_candidates, evidence_corpus
     )
 
@@ -102,7 +113,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
     )
     logger.info("Research overview complete")
-    return _build_research_overview_result(research_overview)
+    return _build_research_overview_result(research_overview, llm_calls)
 
 
 def _publishable_hypotheses(
@@ -156,12 +167,14 @@ async def _synthesize_research_overview(
     summary: str,
     contact_candidates: dict[str, dict[str, Any]],
     evidence_corpus: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], int]:
     """Builds the research-overview prompt, calls the LLM, and formats it.
 
-    Uses the supervisor model (strategic synthesis, not a worker task);
-    meta_review and the durable run guidance steer it toward the same
-    strategic themes used elsewhere in the workflow.
+    When this run funds it, the raw response is checked for
+    scientific accuracy against its own material before validation
+    formats it -- a revision replaces the whole raw response, so
+    grounding validation must run once, last, on whatever the review
+    loop settles on.
 
     Args:
         state: Current workflow state.
@@ -170,10 +183,37 @@ async def _synthesize_research_overview(
         evidence_corpus: Analyzed sources keyed by a stable evidence id.
 
     Returns:
-        "overview" and "nih_specific_aims" dicts, each defaulting to empty
-        so consumers always see a well-formed research_overview shape.
+        Tuple of (the formatted research_overview dict, LLM calls spent).
+        "overview" and "nih_specific_aims" default to empty so consumers
+        always see a well-formed research_overview shape.
     """
-    prompt, schema = get_research_overview_prompt(
+    prompt, schema = _build_synthesis_prompt(
+        state, summary, contact_candidates, evidence_corpus
+    )
+    response = await _call_research_overview_llm(state, prompt, schema)
+    response, review_meta, review_calls = await _maybe_review_overview(
+        state, summary, contact_candidates, evidence_corpus, response
+    )
+    formatted = _format_research_overview_response(
+        response, contact_candidates, evidence_corpus
+    )
+    formatted["overview_review"] = review_meta
+    return formatted, 1 + review_calls
+
+
+def _build_synthesis_prompt(
+    state: WorkflowState,
+    summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+) -> tuple[str, dict[str, Any] | None]:
+    """Builds the initial research-overview synthesis prompt and schema.
+
+    Uses the supervisor model (strategic synthesis, not a worker task);
+    meta_review and the durable run guidance steer it toward the same
+    strategic themes used elsewhere in the workflow.
+    """
+    return get_research_overview_prompt(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
         contact_candidates=_format_contact_candidates(contact_candidates),
@@ -185,10 +225,47 @@ async def _synthesize_research_overview(
             run_focus_guidance=state.get("run_focus_guidance"),
         ),
     )
-    response = await _call_research_overview_llm(state, prompt, schema)
-    return _format_research_overview_response(
-        response, contact_candidates, evidence_corpus
+
+
+async def _maybe_review_overview(
+    state: WorkflowState,
+    summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+    response: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], int]:
+    """Runs the accuracy review/revise cycle when this run funds it.
+
+    Skipped entirely where the run never requested it (the fast tiers,
+    and the offline backend regardless of request -- both settled
+    upstream in run_setup, so this only reads the resolved flag).
+    Degrades to the original draft on any failure: a report that fails
+    to publish is worse than one carrying a noted weakness, the same
+    principle ``_validate_knowledge_base`` follows for a malformed
+    citation.
+
+    Returns:
+        Tuple of (final raw response, review metadata, LLM calls spent
+        reviewing -- 0 when skipped or degraded).
+    """
+    if not state.get("enable_overview_review"):
+        return response, dict(_UNREVIEWED_OVERVIEW), 0
+    context = OverviewReviewContext(
+        state=state,
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        contact_candidates_text=_format_contact_candidates(contact_candidates),
+        evidence_corpus_text=_format_evidence_corpus(evidence_corpus),
     )
+    try:
+        return await review_research_overview(context, response)
+    except Exception:
+        logger.error(
+            "Research overview review failed; publishing the drafted "
+            "overview unchanged",
+            exc_info=True,
+        )
+        return response, dict(_UNREVIEWED_OVERVIEW), 0
 
 
 async def _call_research_overview_llm(
@@ -358,20 +435,22 @@ def _validate_knowledge_base(
 
 
 def _build_research_overview_result(
-    research_overview: dict[str, Any],
+    research_overview: dict[str, Any], llm_calls: int = 1
 ) -> dict[str, Any]:
     """Assembles the research_overview_node return dict.
 
     Args:
         research_overview: Assembled research_overview dict.
+        llm_calls: LLM calls this node spent -- the synthesis call plus
+            any accuracy-review/revise rounds.
 
     Returns:
         Dict with updated state fields (research_overview, metrics,
         messages).
     """
-    # Only the delta (one LLM call) is passed here; merge_metrics (models.py)
-    # adds it to the existing cumulative totals in state.
-    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
+    # Only the delta is passed here; merge_metrics (models.py) adds it to
+    # the existing cumulative totals in state.
+    metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
     # research_overview has no reducer annotation in state.py, so this is a
     # plain overwrite -- appropriate since this node runs once, terminally.
     return {

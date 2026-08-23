@@ -6,6 +6,7 @@ overview and an NIH Specific Aims page. These tests monkeypatch
 assert that the parsed overview and aims are returned in the state delta.
 """
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -17,7 +18,7 @@ from tests._state import make_article, make_hypothesis, make_state
 
 # A grounded LLM response: one contact and one knowledge-base topic trace back
 # to the analyzed source, and one of each is invented and must be dropped.
-_OVERVIEW_RESPONSE = {
+_OVERVIEW_RESPONSE: dict[str, Any] = {
     "overview": {
         "summary": "S",
         "research_directions": [
@@ -371,3 +372,103 @@ def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
     ro._format_evidence_corpus(corpus)
 
     assert next(iter(corpus.values()))["abstract"] == abstract
+
+
+# --- Accuracy review wiring (enable_overview_review) ---
+#
+# The review/revise cycle itself is pinned in
+# test_research_overview_review.py against the LLM boundary. These pin
+# the node's wiring: the tier gate, the published-prose swap on a
+# revision, and the never-fail-the-run degradation on any loop failure.
+
+
+def _base_state(**overrides: Any) -> Any:
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis", elo_rating=1700
+    )
+    return make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=_grounded_articles(),
+        **overrides,
+    )
+
+
+async def test_review_disabled_by_default_skips_the_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No ``enable_overview_review`` flag means the loop never runs."""
+    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", synth)
+    loop = AsyncMock(side_effect=AssertionError("loop must not run"))
+    monkeypatch.setattr(ro, "review_research_overview", loop)
+
+    out = await ro.research_overview_node(_base_state())
+
+    loop.assert_not_awaited()
+    assert out["research_overview"]["overview_review"] == {
+        "reviewed": False,
+        "rounds": 0,
+    }
+    assert out["metrics"].llm_calls == 1
+
+
+async def test_a_review_round_changes_the_published_overview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A revision the loop returns is what actually publishes."""
+    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", synth)
+    revised = {
+        **_OVERVIEW_RESPONSE,
+        "overview": {
+            **_OVERVIEW_RESPONSE["overview"],
+            "summary": "Corrected, hedged summary.",
+        },
+    }
+    loop = AsyncMock(return_value=(revised, {"reviewed": True, "rounds": 1}, 3))
+    monkeypatch.setattr(ro, "review_research_overview", loop)
+
+    out = await ro.research_overview_node(
+        _base_state(enable_overview_review=True)
+    )
+
+    loop.assert_awaited_once()
+    assert (
+        out["research_overview"]["overview"]["summary"]
+        == "Corrected, hedged summary."
+    )
+    assert out["research_overview"]["overview_review"] == {
+        "reviewed": True,
+        "rounds": 1,
+    }
+    # One synthesis call plus the three the loop reports spending.
+    assert out["metrics"].llm_calls == 4
+
+
+async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A report that fails to publish is worse than one that is unreviewed.
+
+    Any exception in the review loop must degrade to the drafted overview
+    exactly as synthesized -- never raise out of the node.
+    """
+    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", synth)
+    loop = AsyncMock(side_effect=RuntimeError("provider exploded"))
+    monkeypatch.setattr(ro, "review_research_overview", loop)
+
+    out = await ro.research_overview_node(
+        _base_state(enable_overview_review=True)
+    )
+
+    loop.assert_awaited_once()
+    assert out["research_overview"]["overview"]["summary"] == "S"
+    assert out["research_overview"]["overview_review"] == {
+        "reviewed": False,
+        "rounds": 0,
+    }
+    assert out["metrics"].llm_calls == 1

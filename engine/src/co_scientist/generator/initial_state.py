@@ -77,6 +77,12 @@ class RunCapabilities:
             enabled for this run.
         dev_mode: Whether dev mode (reduced literature budget) is enabled for
             this run.
+        enable_overview_review: Whether the terminal research overview
+            is checked for scientific accuracy against this run's own
+            material before it publishes. Resolved upstream (see
+            ``run_setup._resolve_overview_review``): opt-in, and
+            refused for the offline backend the same way
+            ``enable_simulation_execution`` is.
         research_tier: Which tier's ceilings the literature review's deep
             research runs under, or "" for none. Resolved upstream (see
             ``run_setup._resolve_research_tier``): opt-in, and refused
@@ -93,6 +99,7 @@ class RunCapabilities:
     pubmed_available: bool = False
     enable_tool_calling_generation: bool = False
     enable_simulation_execution: bool = False
+    enable_overview_review: bool = False
     dev_test_lit_tools_isolation: bool = False
     dev_mode: bool = False
     research_tier: str = ""
@@ -168,6 +175,7 @@ def _initial_run_identity_fields(
             capabilities.dev_test_lit_tools_isolation
         ),
         "dev_mode": capabilities.dev_mode,
+        "enable_overview_review": capabilities.enable_overview_review,
         "research_tier": capabilities.research_tier,
         "local_corpus_dir": capabilities.local_corpus_dir,
     }

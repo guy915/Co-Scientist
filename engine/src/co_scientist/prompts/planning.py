@@ -99,6 +99,98 @@ def get_research_overview_prompt(
     )
 
 
+@dataclass(frozen=True)
+class OverviewReviewMaterial:
+    """Run material the overview reviewer and reviser both check against.
+
+    Bundled into one object (like ``SupervisorPromptInputs`` below)
+    because the review and revise builders share every field but the
+    drafted text itself, and each stays under the five-parameter limit
+    this way.
+
+    Attributes:
+        research_goal: The run's research goal.
+        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
+        evidence_corpus: Analyzed sources, pre-formatted.
+    """
+
+    research_goal: str
+    hypotheses_summary: str
+    evidence_corpus: str
+
+
+def get_research_overview_review_prompt(
+    material: OverviewReviewMaterial,
+    drafted_overview: str,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the research-overview accuracy-review prompt and schema.
+
+    Args:
+        material: Research goal, hypothesis summary, and evidence corpus
+            the drafted overview is checked against.
+        drafted_overview: The drafted overview, pre-formatted for review.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    return _build_prompt(
+        "research_overview_review",
+        {
+            "research_goal": material.research_goal,
+            "hypotheses_summary": material.hypotheses_summary,
+            "evidence_corpus": material.evidence_corpus,
+            "drafted_overview": drafted_overview,
+        },
+        include_domain=False,
+    )
+
+
+@dataclass(frozen=True)
+class OverviewRevisionRequest:
+    """Inputs for regenerating an overview after a rejected review.
+
+    Attributes:
+        material: The same run material the review was checked against.
+        contact_candidates: Verified literature authors, pre-formatted.
+        drafted_overview: The rejected draft, pre-formatted for revision.
+        review_notes: The reviewer's located notes, pre-formatted.
+    """
+
+    material: OverviewReviewMaterial
+    contact_candidates: str
+    drafted_overview: str
+    review_notes: str
+
+
+def get_research_overview_revise_prompt(
+    request: OverviewRevisionRequest,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the research-overview revision prompt and schema.
+
+    Args:
+        request: The rejected draft, the reviewer's notes, and the run
+            material to revise it against.
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None) --
+        the schema matches ``get_research_overview_prompt``'s, since the
+        reviser regenerates the whole overview rather than a diff.
+    """
+    material = request.material
+    return _build_prompt(
+        "research_overview_revise",
+        {
+            "research_goal": material.research_goal,
+            "hypotheses_summary": material.hypotheses_summary,
+            "contact_candidates": request.contact_candidates,
+            "evidence_corpus": material.evidence_corpus,
+            "drafted_overview": request.drafted_overview,
+            "review_notes": request.review_notes,
+        },
+        include_domain=False,
+    )
+
+
 def _format_lit_review_description(
     mcp_available: bool, pubmed_available: bool
 ) -> str:

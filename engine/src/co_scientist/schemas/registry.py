@@ -47,6 +47,7 @@ from co_scientist.schemas.review import (
 )
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
+    RESEARCH_OVERVIEW_REVIEW_SCHEMA,
     RESEARCH_OVERVIEW_SCHEMA,
 )
 
@@ -80,6 +81,10 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "reflection_observations": REFLECTION_SCHEMA,
     "deep_verification": DEEP_VERIFICATION_SCHEMA,
     "research_overview": RESEARCH_OVERVIEW_SCHEMA,
+    "research_overview_review": RESEARCH_OVERVIEW_REVIEW_SCHEMA,
+    # The reviser regenerates the whole overview, so it shares the
+    # synthesis schema rather than defining a second copy of the shape.
+    "research_overview_revise": RESEARCH_OVERVIEW_SCHEMA,
     "supervisor": SUPERVISOR_SCHEMA,
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
     "literature_review_relevance": LITERATURE_RELEVANCE_SCHEMA,
