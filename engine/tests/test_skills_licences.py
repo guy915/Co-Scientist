@@ -40,7 +40,10 @@ def _clear_cache() -> object:
 
 def _install(root: pathlib.Path, name: str, template: str) -> None:
     """Writes one skill whose SKILL.md follows the given template."""
-    (root / name).mkdir(parents=True)
+    (root / name / "scripts").mkdir(parents=True)
+    # A skill with no script is withheld from the catalogue, so a
+    # fixture without one would test that rule instead of this file's.
+    (root / name / "scripts" / "cli.py").write_text("", encoding="utf-8")
     (root / name / "SKILL.md").write_text(
         template.format(name=name), encoding="utf-8"
     )

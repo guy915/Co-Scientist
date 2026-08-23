@@ -154,6 +154,12 @@ def _installed_distributions() -> frozenset[str] | None:
     )
 
 
+def _runnable_scripts(directory: pathlib.Path) -> list[pathlib.Path]:
+    """Returns the skill's executable scripts, newest-sorted for stability."""
+    scripts = directory / "scripts"
+    return sorted(scripts.glob("*.py")) if scripts.is_dir() else []
+
+
 def _unmet_dependencies(directory: pathlib.Path) -> set[str]:
     """Returns the skill's declared dependencies that are not installed.
 
@@ -208,23 +214,39 @@ def _load_skill(directory: pathlib.Path) -> Skill | None:
     description = " ".join(str(front.get("description") or "").split())
     if not name or not description:
         return None
-    # A skill whose dependencies are absent is withheld rather than
-    # offered and failed at run time, for the same reason ``run_command``
-    # is withheld without a sandbox backend: reading one costs a turn and
-    # then several thousand tokens re-sent on every turn after it, and
-    # the model cannot act on the ImportError it would get back. Two of
-    # the vendored skills are this case in the api image, whose skills
-    # interpreter deliberately omits a 695 MB dependency closure.
-    unmet = _unmet_dependencies(directory)
-    if unmet:
-        logger.info(
-            "Skill %r withheld: %s not installed for %s",
-            name,
-            ", ".join(sorted(unmet)),
-            skills_python(),
-        )
+    withheld = _withholding_reason(directory)
+    if withheld is not None:
+        logger.info("Skill %r withheld: %s", name, withheld)
         return None
     return Skill(name=name, description=description, directory=directory)
+
+
+def _withholding_reason(directory: pathlib.Path) -> str | None:
+    """Says why this skill cannot be used here, or None if it can.
+
+    Withheld rather than offered and failed at call time, for the same
+    reason ``run_command`` is withheld when no sandbox backend exists:
+    reading a skill costs a turn and then several thousand tokens
+    re-sent on every turn after it, and neither failure below is one the
+    model can act on.
+
+    Two cases, six of the vendored 38 skills between them. A skill with
+    no script has nothing to run at all -- every step of a skill's
+    instructions is a command, so prose alone is a dead end. None of
+    those four is a data source: PyMOL needs a binary this image has no
+    reason to carry, ``uv`` and ``credentials`` describe setup the
+    harness has already done and whose instructions the ``read_skill``
+    preamble explicitly overrides, and ``workflow_skill_creator`` authors
+    new skills rather than using one. The other two declare a 695 MB
+    dependency closure this image deliberately omits, so their scripts
+    could only ever raise ImportError.
+    """
+    if not _runnable_scripts(directory):
+        return "no runnable script"
+    unmet = _unmet_dependencies(directory)
+    if unmet:
+        return f"{', '.join(sorted(unmet))} not installed for {skills_python()}"
+    return None
 
 
 @functools.cache

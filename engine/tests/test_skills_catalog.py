@@ -31,11 +31,23 @@ def _clear_cache() -> object:
 
 
 def _write_skill(
-    root: pathlib.Path, folder: str, front: str, body: str = "Body."
+    root: pathlib.Path,
+    folder: str,
+    front: str,
+    body: str = "Body.",
+    *,
+    runnable: bool = True,
 ) -> pathlib.Path:
-    """Creates one skill directory with the given frontmatter."""
+    """Creates one skill directory with the given frontmatter.
+
+    Runnable by default: a skill with no script is withheld from the
+    catalogue, so a fixture without one would silently test that rule
+    instead of whatever it meant to test.
+    """
     directory = root / folder
     (directory / "scripts").mkdir(parents=True)
+    if runnable:
+        (directory / "scripts" / "cli.py").write_text("", encoding="utf-8")
     (directory / "SKILL.md").write_text(
         f"---\n{front}\n---\n\n{body}\n", encoding="utf-8"
     )
@@ -117,6 +129,31 @@ def _venv(root: pathlib.Path, *installed: str) -> str:
         (site / f"{name}-1.0.dist-info").mkdir()
     (root / "bin").mkdir()
     return str(root / "bin" / "python")
+
+
+def test_a_skill_with_nothing_to_run_is_withheld(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """Prose with no script is a dead end, so it is not offered.
+
+    Every step of a skill's instructions is a command. Four of the 38
+    vendored skills ship no script, and none is a data source: PyMOL
+    needs a binary the image has no reason to carry, ``uv`` and
+    ``credentials`` describe setup the harness has already done, and
+    ``workflow_skill_creator`` authors new skills rather than using one.
+    """
+    skills = tmp_path / "skills"
+    _write_skill(
+        skills, "pymol", "name: pymol\ndescription: Renders.", runnable=False
+    )
+    _write_skill(skills, "string", "name: string-database\ndescription: Nets.")
+    _write_script(skills / "string", '#   "polite-http",\n')
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
+    monkeypatch.setenv(
+        catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
+    )
+
+    assert [s.name for s in catalog.available_skills()] == ["string-database"]
 
 
 def test_a_skill_its_interpreter_cannot_run_is_withheld(
@@ -250,6 +287,10 @@ def test_a_reference_file_is_reachable_by_path(
     against STRING's CLI, for exit code 2.
     """
     (tmp_path / "string" / "references").mkdir(parents=True)
+    (tmp_path / "string" / "scripts").mkdir(parents=True)
+    (tmp_path / "string" / "scripts" / "cli.py").write_text(
+        "", encoding="utf-8"
+    )
     (tmp_path / "string" / "SKILL.md").write_text(
         "---\nname: string\ndescription: Queries STRING.\n---\n\n"
         "See references/interactions.md.\n",
@@ -272,7 +313,7 @@ def test_a_path_cannot_escape_the_skill(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     """The model chooses this path, so it is checked rather than trusted."""
-    (tmp_path / "string").mkdir(parents=True)
+    (tmp_path / "string" / "scripts").mkdir(parents=True)
     (tmp_path / "string" / "SKILL.md").write_text(
         "---\nname: string\ndescription: Queries STRING.\n---\n\nBody.\n",
         encoding="utf-8",

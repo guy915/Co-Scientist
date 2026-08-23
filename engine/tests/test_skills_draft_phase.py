@@ -26,6 +26,9 @@ def _clear_cache() -> object:
 def _install_skill(root: pathlib.Path, name: str, description: str) -> None:
     """Writes one usable skill into a directory."""
     (root / name / "scripts").mkdir(parents=True)
+    # A skill with no script is withheld from the catalogue, so a
+    # fixture without one would test that rule instead of this file's.
+    (root / name / "scripts" / "cli.py").write_text("", encoding="utf-8")
     (root / name / "SKILL.md").write_text(
         f"---\nname: {name}\ndescription: {description}\n---\n\nBody.\n",
         encoding="utf-8",
