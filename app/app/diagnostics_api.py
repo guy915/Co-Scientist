@@ -10,9 +10,16 @@ import hmac
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app import diagnostics, discovery_spec, engine_adapter, paper_corpus
+from app import (
+    diagnostics,
+    discovery_spec,
+    engine_adapter,
+    ops_metrics,
+    paper_corpus,
+)
 from app.config import settings
 from app.notifications import email_notifications_configured
 from app.run_modes import (
@@ -306,6 +313,29 @@ async def health(request: Request, response: Response) -> HealthResponse:
             for name, check in checks.items()
         },
     )
+
+
+@router.get("/metrics", tags=["metrics"])
+async def metrics_endpoint(request: Request) -> Response:
+    """Prometheus exposition-format metrics for aggregate operator queries.
+
+    Answers "how many runs failed today", "is p95 node latency drifting",
+    "are tasks piling up" without querying SQLite by hand -- runs by
+    status, tasks by status, failed-task retry-budget exhaustion, and
+    per-task-type latency, all derived read-only from the store rather
+    than an in-process counter (see ``app.ops_metrics``). Cached for
+    ``settings.metrics_cache_ttl_seconds`` so a scrape storm costs one
+    query pass.
+
+    Operator-gated like ``/docs``: this has no product-UI consumer and
+    exposes cross-tenant aggregate counts, so a non-operator caller gets
+    a 404 rather than a 401/403, which would confirm the route exists.
+    See ``_is_operator``.
+    """
+    if not _is_operator(request):
+        return JSONResponse({"detail": "not found"}, status_code=404)
+    text = ops_metrics.metrics_text_cached()
+    return Response(content=text, media_type=ops_metrics.CONTENT_TYPE_LATEST)
 
 
 @router.get("/config", response_model=ConfigResponse, tags=["config"])

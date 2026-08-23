@@ -139,6 +139,13 @@ class Settings(BaseSettings):
     # free space, and the process can still serve reads off a full disk.
     health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
 
+    # /metrics: how long a rendered Prometheus exposition-text snapshot is
+    # reused before the next scrape re-queries the store. Same bound-and-
+    # cache shape as /health and /status above -- Prometheus's default
+    # scrape interval is 15s, so a few seconds keeps a scrape storm cheap
+    # without staling the numbers meaningfully between real scrapes.
+    metrics_cache_ttl_seconds: float = 5.0
+
     # Optional SMTP transport for scientist-requested completion notices.
     smtp_host: str = ""
     smtp_port: int = 587
