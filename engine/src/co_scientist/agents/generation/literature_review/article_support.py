@@ -13,6 +13,7 @@ from typing import Any, cast
 from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
     PROMPT_PAPER_MAX_CHARS,
+    strip_citation_markers,
     truncate_for_prompt,
 )
 from co_scientist.models import Article, phase_message
@@ -257,13 +258,20 @@ def get_papers_with_content(
 def get_paper_content_for_analysis(
     metadata: dict[str, Any], max_chars: int = PROMPT_PAPER_MAX_CHARS
 ) -> str:
-    """Get paper content for analysis, with truncation if needed."""
+    """Get paper content for analysis, with truncation if needed.
+
+    Strips the source paper's own inline citation markers (this is the
+    metadata dict, never the stored ``Article`` -- the marker never
+    existed anywhere but this prompt copy). Stripped after truncation,
+    not before, so the regex runs over a bounded string; a marker split
+    by the cut simply fails to match, which is harmless.
+    """
     # Fulltext is preferred; abstract is the fallback when fulltext wasn't
     # fetched (mirrors the policy in get_papers_with_content).
     content = str(metadata.get("fulltext") or metadata.get("abstract") or "")
     if len(content) > max_chars:
         logger.debug("Truncating paper content to %s chars", max_chars)
-    return truncate_for_prompt(content, max_chars)
+    return strip_citation_markers(truncate_for_prompt(content, max_chars))
 
 
 # =============================================================================

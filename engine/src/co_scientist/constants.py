@@ -4,6 +4,7 @@ Centralizes magic numbers and configuration values for better maintainability.
 """
 
 import hashlib
+import re
 from typing import Final
 
 # Every ``max_tokens`` budget -- the answer bases, the thinking floor that
@@ -363,6 +364,47 @@ def truncate_for_prompt(
         characters followed by the truncation marker.
     """
     return truncate(text, max_chars, _PROMPT_TRUNCATION_MARKER)
+
+
+# Author-year shapes copied verbatim from paper-qa's strip_citations
+# (Apache-2.0; src/paperqa/utils.py), which is also the source of the
+# leftover-double-space behavior pinned in the tests. The bracket
+# alternative is this codebase's own addition, for the numeric markers
+# ("[12]", "[3,4]") that PubMed/Europe PMC abstracts use and paper-qa's
+# regex does not cover. Requiring every bracket character to be a digit,
+# comma, dash or space is what keeps it from ever matching our own
+# "[C<n>]" reference keys -- a letter anywhere inside disqualifies the
+# whole bracket.
+_CITATION_MARKER_RE = re.compile(
+    r"\b[\w\-]+\set\sal\.\s\([0-9]{4}\)"
+    r"|\((?:[^)]*?[a-zA-Z][^)]*?[0-9]{4}[^)]*?)\)"
+    r"|\[[0-9]+(?:\s*[,\u2013-]\s*[0-9]+)*\]",
+    re.MULTILINE,
+)
+
+
+def strip_citation_markers(text: str) -> str:
+    """Removes a retrieved paper's own inline citation markers.
+
+    Retrieved abstracts and fulltext carry the *source* paper's own
+    citations inline -- "(Smith et al. 2019)", "[12]" -- and a model
+    drafting from that text can copy one into its own prose: a
+    real-looking reference attached to a claim the cited source never
+    made. This strips those markers before the text enters a prompt.
+
+    Never call this on text before it is stored (an ``Article``, the
+    database): a reader following a citation into the source needs the
+    source as published, and citation classification compares claims
+    against the real abstract. Only the prompt-bound copy is stripped.
+
+    Args:
+        text: Paper text (fulltext or abstract) destined for a prompt.
+
+    Returns:
+        The text with author-year and numeric-bracket citation markers
+        removed. Our own ``[C<n>]`` reference keys are never matched.
+    """
+    return _CITATION_MARKER_RE.sub("", text)
 
 
 def corpus_slug(research_goal: str) -> str:

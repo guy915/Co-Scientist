@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
+    strip_citation_markers,
     truncate_for_prompt,
 )
 from co_scientist.llm import call_llm_json
@@ -170,14 +171,20 @@ class LlmResearchModel:
 
 
 def _numbered(documents: Sequence[Document]) -> str:
-    """Render the documents the way the extraction schema indexes them."""
+    """Render the documents the way the extraction schema indexes them.
+
+    Strips each document's own inline citation markers from this prompt
+    copy (``document.text`` itself is untouched) -- left in, the
+    extraction model can copy one into a reported finding as if it were
+    its own.
+    """
     blocks = []
     for index, document in enumerate(documents):
         kind = "full text" if document.full_text else "abstract only"
-        blocks.append(
-            f"[{index}] {document.hit.title} ({kind})\n"
-            f"{truncate_for_prompt(document.text, _DOCUMENT_MAX_CHARS)}"
+        text = strip_citation_markers(
+            truncate_for_prompt(document.text, _DOCUMENT_MAX_CHARS)
         )
+        blocks.append(f"[{index}] {document.hit.title} ({kind})\n{text}")
     return "\n\n".join(blocks)
 
 

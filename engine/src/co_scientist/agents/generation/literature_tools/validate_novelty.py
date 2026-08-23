@@ -18,6 +18,7 @@ from co_scientist.agents.generation.literature_tools.validate_search import (
 )
 from co_scientist.constants import (
     GENERATE_LIT_TOOL_MAX_PAPERS,
+    strip_citation_markers,
     truncate_for_prompt,
 )
 from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
@@ -54,6 +55,11 @@ def _build_novelty_analysis_prompt(
 ) -> str:
     """Build the per-paper novelty-analysis prompt, truncating long fulltext.
 
+    Strips the candidate paper's own inline citation markers from the
+    prompt copy (``metadata`` itself, standing in for a stored record,
+    is left untouched) -- left in, the novelty-verdict model can copy
+    one into its own reasoning.
+
     Args:
         hypothesis_text: text of the draft hypothesis being validated.
         metadata: paper metadata dict (title/authors/year/fulltext).
@@ -61,12 +67,15 @@ def _build_novelty_analysis_prompt(
     Returns:
         The assembled novelty-analysis prompt text.
     """
+    fulltext = strip_citation_markers(
+        truncate_for_prompt(metadata.get("fulltext", ""))
+    )
     return get_hypothesis_novelty_analysis_prompt(
         hypothesis_text=hypothesis_text,
         title=metadata.get("title", "Unknown"),
         authors=metadata.get("authors", []),
         year=metadata.get("year"),
-        fulltext=truncate_for_prompt(metadata.get("fulltext", "")),
+        fulltext=fulltext,
     )
 
 

@@ -166,6 +166,32 @@ def test_get_content_no_truncation_under_limit() -> None:
     assert out == text
 
 
+def test_get_content_strips_citation_markers() -> None:
+    """The source paper's own citation markers do not reach the prompt.
+
+    Left in, a drafting model can copy one into its own prose -- a
+    real-looking reference attached to a claim the cited source never
+    made.
+    """
+    meta = {"fulltext": "This was shown before (Smith et al. 2019) [12]."}
+    out = helpers.get_paper_content_for_analysis(meta)
+    assert "(Smith et al. 2019)" not in out
+    assert "[12]" not in out
+
+
+def test_get_content_leaves_stored_metadata_unchanged() -> None:
+    """Stripping is for the prompt copy only, never for storage.
+
+    ``metadata`` stands in for what an ``Article`` is built from; a
+    reader following a citation into the source needs the source as
+    published.
+    """
+    original = "This was shown before (Smith et al. 2019) [12]."
+    meta = {"fulltext": original}
+    helpers.get_paper_content_for_analysis(meta)
+    assert meta["fulltext"] == original
+
+
 # =============================================================================
 # parse_mcp_query_result
 # =============================================================================

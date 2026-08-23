@@ -269,6 +269,26 @@ async def test_findings_are_bound_by_index_not_by_echoed_text(
     assert extraction.follow_ups == ("what about Y?",)
 
 
+async def test_extraction_prompt_strips_citation_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A read document's own citations do not reach the extraction prompt.
+
+    Left in, the extraction model can copy one into a reported finding --
+    a real-looking reference attached to a claim the cited source never
+    made.
+    """
+    model, fake = _model(monkeypatch, {"findings": [], "follow_ups": []})
+    original = "This confirms prior work (Smith et al. 2019) [12]."
+    documents = [_document("doc-a", text=original)]
+
+    await model.extract(question="why X?", documents=documents)
+
+    assert "(Smith et al. 2019)" not in fake.prompts[0]
+    assert "[12]" not in fake.prompts[0]
+    assert documents[0].text == original
+
+
 async def test_a_finding_that_names_no_real_document_is_dropped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

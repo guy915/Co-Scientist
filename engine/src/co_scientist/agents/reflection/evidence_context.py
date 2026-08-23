@@ -29,6 +29,7 @@ articles; retrieval and the LLM calls stay in the calling nodes.
 import dataclasses
 from typing import Any
 
+from co_scientist.constants import strip_citation_markers
 from co_scientist.models import Article
 
 # One public source's slice of an evidence block. An abstract is a summary
@@ -108,8 +109,14 @@ def _article_excerpt(article: Article) -> str:
     Falls back to fulltext when the abstract is empty: an article can be
     analyzed on either field, so reading only the abstract drops a source
     that has content, silently.
+
+    Strips the source's own inline citation markers -- left in, a review
+    or verification model can copy one into its own prose. Not applied to
+    ``_private_sections``: a scientist-supplied source's citations are
+    its own intentional content, not another paper's contamination.
     """
-    return (article.abstract or article.content or "")[:PUBLIC_SNIPPET_CHARS]
+    excerpt = (article.abstract or article.content or "")[:PUBLIC_SNIPPET_CHARS]
+    return strip_citation_markers(excerpt)
 
 
 def _head(items: list[Any], cap: int | None) -> list[Any]:

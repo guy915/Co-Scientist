@@ -143,3 +143,54 @@ def test_private_sources_get_a_wider_slice_than_public_ones() -> None:
 
     assert display[:2500] in review
     assert display[:2500] in verification
+
+
+def test_public_article_citation_markers_are_stripped() -> None:
+    """A source's own citations do not reach either reflection prompt.
+
+    Left in, a review or verification model can copy one into its own
+    prose -- a real-looking reference attached to a claim the cited
+    source never made.
+    """
+    abstract = "This confirms prior work (Smith et al. 2019) [12]."
+    state = make_state(
+        articles=[
+            make_article(
+                "Cited paper", abstract=abstract, used_in_analysis=True
+            )
+        ]
+    )
+
+    review = cr._build_domain_context(state, None)
+    verification = dv._verification_evidence_context(state)
+
+    for context in (review, verification):
+        assert "(Smith et al. 2019)" not in context
+        assert "[12]" not in context
+
+
+def test_private_source_citation_markers_are_kept() -> None:
+    """A scientist-supplied source's own citations are not contamination.
+
+    Unlike a retrieved paper's markers, these are the scientist's
+    intentional content, not text a model could mistake for its own.
+    """
+    display = "See our finding (Doe et al. 2020) for the full protocol."
+    state = make_state(context_enrichment_sources=[{"display": display}])
+
+    verification = dv._verification_evidence_context(state)
+
+    assert "(Doe et al. 2020)" in verification
+
+
+def test_building_context_leaves_the_article_abstract_unchanged() -> None:
+    """Stripping is for the prompt copy only, never for storage."""
+    original = "This confirms prior work (Smith et al. 2019) [12]."
+    article = make_article(
+        "Cited paper", abstract=original, used_in_analysis=True
+    )
+    state = make_state(articles=[article])
+
+    dv._verification_evidence_context(state)
+
+    assert article.abstract == original

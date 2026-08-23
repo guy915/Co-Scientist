@@ -325,3 +325,49 @@ def test_evidence_corpus_interleaves_sources() -> None:
     # Best-first order is preserved within each source.
     pubmed_titles = [e["title"] for e in ordered if e["source"] == "pubmed"]
     assert pubmed_titles == ["P1", "P2", "P3"]
+
+
+def test_evidence_corpus_prompt_strips_citation_markers() -> None:
+    """A source's own citations do not reach the synthesis prompt.
+
+    Left in, the synthesis model can copy one into the research overview
+    it writes -- a real-looking reference attached to a claim the cited
+    source never made.
+    """
+    abstract = "This confirms prior work (Smith et al. 2019) [12]."
+    articles = [
+        make_article(
+            title="P1",
+            source="pubmed",
+            abstract=abstract,
+            used_in_analysis=True,
+        )
+    ]
+
+    corpus = ro._build_evidence_corpus(articles)
+    formatted = ro._format_evidence_corpus(corpus)
+
+    assert "(Smith et al. 2019)" not in formatted
+    assert "[12]" not in formatted
+
+
+def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
+    """The corpus dict must keep the abstract as retrieved.
+
+    It is reused to attach source metadata to the knowledge-base topics
+    the report ships, so stripping belongs to the prompt formatter alone.
+    """
+    abstract = "This confirms prior work (Smith et al. 2019) [12]."
+    articles = [
+        make_article(
+            title="P1",
+            source="pubmed",
+            abstract=abstract,
+            used_in_analysis=True,
+        )
+    ]
+
+    corpus = ro._build_evidence_corpus(articles)
+    ro._format_evidence_corpus(corpus)
+
+    assert next(iter(corpus.values()))["abstract"] == abstract

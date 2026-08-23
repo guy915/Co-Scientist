@@ -16,6 +16,7 @@ from co_scientist.constants import (
     PROGRESS_RESEARCH_OVERVIEW_START,
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
+    strip_citation_markers,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -281,9 +282,24 @@ def _build_evidence_corpus(
 
 
 def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
-    """Format bounded analyzed evidence for cross-source synthesis."""
+    """Format bounded analyzed evidence for cross-source synthesis.
+
+    Strips each source's own inline citation markers from the prompt
+    copy only. ``corpus`` itself is left untouched -- it is reused
+    verbatim to attach source metadata to the synthesis LLM's cited
+    topics (``_validate_knowledge_base``), which is the evidence
+    excerpt the finished report ships, and that must stay the abstract
+    as retrieved.
+    """
+    for_prompt = {
+        evidence_id: {
+            **record,
+            "abstract": strip_citation_markers(record["abstract"]),
+        }
+        for evidence_id, record in corpus.items()
+    }
     return _format_or_placeholder(
-        corpus,
+        for_prompt,
         (
             "- {evidence_id}: title={title}; source={source}; "
             "source_id={source_id}; abstract={abstract}"
