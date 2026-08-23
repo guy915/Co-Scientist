@@ -100,6 +100,11 @@ COLLECTION_COMMANDS = (
         (("id",), ("hypothesis_id",), ("label",), ("claim",)),
         "list claim-level entailment edges",
     ),
+    CollectionCommand(
+        "tasks",
+        (("id",), ("task_type",), ("status",), ("attempt",), ("error",)),
+        "list durable tasks with retry-attempt history",
+    ),
 )
 
 
@@ -148,6 +153,7 @@ handle_safety = COLLECTION_HANDLERS["safety"]
 handle_matches = COLLECTION_HANDLERS["matches"]
 handle_proximity = COLLECTION_HANDLERS["proximity"]
 handle_claim_evidence = COLLECTION_HANDLERS["claim-evidence"]
+handle_tasks = COLLECTION_HANDLERS["tasks"]
 
 
 def handle_metrics(args: argparse.Namespace, client: ApiClient) -> int:

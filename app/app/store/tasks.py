@@ -76,6 +76,12 @@ class ScientificTask:
     updated_at: float
     started_at: float | None
     completed_at: float | None
+    # Bounded history of failed attempts only -- see _record_failed_attempt.
+    # A row written before attempts_json existed reads back as (), the
+    # only state such a row could represent.
+    attempts: tuple[dict[str, Any], ...] = ()
+    # When the current lease's attempt was claimed; see schema_tasks.py.
+    attempt_started_at: float | None = None
 
 
 def _decode(row: sqlite3.Row) -> ScientificTask:
@@ -101,6 +107,8 @@ def _decode(row: sqlite3.Row) -> ScientificTask:
         updated_at=float(row["updated_at"]),
         started_at=row["started_at"],
         completed_at=row["completed_at"],
+        attempts=tuple(json.loads(row["attempts_json"])),
+        attempt_started_at=row["attempt_started_at"],
     )
 
 
@@ -361,9 +369,9 @@ def _try_lease_task(
     changed = conn.execute(
         "UPDATE scientific_tasks SET status='leased', "
         "attempt=attempt+1, lease_owner=?, lease_expires_at=?, "
-        "started_at=COALESCE("
-        "started_at, ?), updated_at=? WHERE id=? AND status='queued'",
-        (worker_id, expires, now, now, task.id),
+        "started_at=COALESCE(started_at, ?), attempt_started_at=?, "
+        "updated_at=? WHERE id=? AND status='queued'",
+        (worker_id, expires, now, now, now, task.id),
     ).rowcount
     if not changed:
         return None
@@ -445,6 +453,50 @@ def renew_task_lease(
     return bool(changed)
 
 
+# The largest max_attempts any caller in this codebase configures is 3
+# (the NewTask default; report_notify.py's own retry task uses it too).
+# Capped well above that for headroom against a future caller raising its
+# own budget, while still bounding this column's size on a hot table.
+_MAX_STORED_ATTEMPTS = 10
+
+# A traceback-carrying error can be arbitrarily large, and this column is
+# decoded on every task read -- cap per-attempt storage the same way
+# store/events.py caps its own free-text fields.
+_ATTEMPT_ERROR_MAX_CHARS = 2000
+
+
+def _record_failed_attempt(
+    task: ScientificTask,
+    worker_id: str,
+    error: str,
+    retryable: bool,
+    now: float,
+) -> str:
+    """Append this attempt's failure to the task's bounded history.
+
+    ``task.attempt_started_at`` is set once per lease, at claim time
+    (``_try_lease_task``) -- deliberately not ``task.updated_at``, which
+    a long attempt's heartbeat renewal (``renew_task_lease``) also bumps,
+    and would otherwise report only the most recent renewal as the
+    attempt's start for exactly the slow failures this history exists to
+    diagnose.
+
+    Returns:
+        The updated ``attempts_json`` value, capped at
+        :data:`_MAX_STORED_ATTEMPTS` entries, newest last.
+    """
+    record = {
+        "attempt": task.attempt,
+        "error": error[:_ATTEMPT_ERROR_MAX_CHARS],
+        "retryable": retryable,
+        "worker": worker_id,
+        "started_at": task.attempt_started_at,
+        "ended_at": now,
+    }
+    attempts = [*task.attempts, record][-_MAX_STORED_ATTEMPTS:]
+    return json.dumps(attempts)
+
+
 def fail_task(
     task_id: str,
     worker_id: str,
@@ -473,10 +525,21 @@ def fail_task(
         retry_left = retryable and task.attempt < task.max_attempts
         status = "queued" if retry_left else "failed"
         now = _now()
+        attempts_json = _record_failed_attempt(
+            task, worker_id, error, retryable, now
+        )
         conn.execute(
-            "UPDATE scientific_tasks SET status=?, error=?, lease_owner=NULL, "
-            "lease_expires_at=NULL, completed_at=?, updated_at=? WHERE id=?",
-            (status, error, now if status == "failed" else None, now, task_id),
+            "UPDATE scientific_tasks SET status=?, error=?, "
+            "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
+            "completed_at=?, updated_at=? WHERE id=?",
+            (
+                status,
+                error,
+                attempts_json,
+                now if status == "failed" else None,
+                now,
+                task_id,
+            ),
         )
         if status == "failed":
             _settle_run_for_failed_task(

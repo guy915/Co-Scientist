@@ -28,6 +28,20 @@ CREATE TABLE IF NOT EXISTS scientific_tasks (
     lease_expires_at REAL,
     result_json TEXT,
     error TEXT,
+    -- Bounded history of *failed* attempts only (a success is already
+    -- captured by result_json): JSON array, newest last, capped at
+    -- store.tasks._MAX_STORED_ATTEMPTS entries. Lets a stalled task be
+    -- diagnosed instead of only showing the most recent error, which
+    -- used to overwrite every earlier attempt's.
+    attempts_json TEXT NOT NULL DEFAULT '[]',
+    -- When the *current* lease's attempt was claimed -- set once per
+    -- lease, alongside `attempt`, in _try_lease_task. Deliberately not
+    -- `updated_at`: a long attempt's heartbeat renews its lease through
+    -- renew_task_lease, which bumps updated_at on every renewal, so
+    -- reading that column as an attempt's start would report only its
+    -- most recent renewal for exactly the slow failures this history
+    -- exists to diagnose.
+    attempt_started_at REAL,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     started_at REAL,

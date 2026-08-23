@@ -3,9 +3,9 @@
 Split out of ``app.runs`` (which re-exports every name here and mounts
 ``router`` on its own, so the served route set is unchanged): the
 per-run collection getters (hypotheses, evidence, matches, proximity,
-reviews, safety, citations, metrics, logs, claim-evidence), the safety
-adjudication endpoint that operates on those decisions, and the report
-payload/Markdown reads.
+reviews, safety, tasks, citations, metrics, logs, claim-evidence), the
+safety adjudication endpoint that operates on those decisions, and the
+report payload/Markdown reads.
 """
 
 from __future__ import annotations
@@ -148,6 +148,34 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     """Return the run's intake/final safety-gate decisions."""
     _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
+
+
+def _task_payload(task: Any) -> dict[str, Any]:
+    """Shape one durable task for the diagnostics surface.
+
+    Carries the retry-attempt history (``ScientificTask.attempts``) so a
+    stalled run can be told apart -- a doomed request re-sent identically
+    versus a genuine transient -- without reading the database by hand.
+    """
+    return {
+        "id": task.id,
+        "task_type": task.task_type,
+        "status": task.status,
+        "attempt": task.attempt,
+        "max_attempts": task.max_attempts,
+        "error": task.error,
+        "attempts": list(task.attempts),
+        "created_at": task.created_at,
+        "started_at": task.started_at,
+        "completed_at": task.completed_at,
+    }
+
+
+@router.get("/{run_id}/tasks")
+async def get_tasks(run_id: str) -> dict[str, Any]:
+    """Return the run's durable tasks, including retry-attempt history."""
+    _require_run(run_id)
+    return {"tasks": [_task_payload(t) for t in store.list_tasks(run_id)]}
 
 
 async def _apply_adjudication_lifecycle(

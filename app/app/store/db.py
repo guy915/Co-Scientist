@@ -455,6 +455,25 @@ def _drop_column_if_present(
     return True
 
 
+def _migrate_task_attempts_history(conn: sqlite3.Connection) -> None:
+    """Add the per-failed-attempt history column to scientific_tasks.
+
+    A volume created before this column existed has none, so
+    ``store.tasks._decode`` must never see it missing -- the default
+    backfills every pre-existing row to an empty history rather than
+    NULL, which is what "no failures recorded yet" actually means for a
+    row written before this migration ever ran.
+    """
+    _add_column_if_missing(
+        conn, "scientific_tasks", "attempts_json", "TEXT NOT NULL DEFAULT '[]'"
+    )
+    # Nullable: NULL on a row that has never been leased under the new
+    # code, and _try_lease_task sets it fresh on every claim thereafter.
+    _add_column_if_missing(
+        conn, "scientific_tasks", "attempt_started_at", "REAL"
+    )
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -468,6 +487,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_evidence_retrieval_scoring_columns(conn)
     _migrate_evidence_retrieval_call_id(conn)
     _migrate_variant_archive_columns(conn)
+    _migrate_task_attempts_history(conn)
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:

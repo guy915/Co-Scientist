@@ -183,6 +183,7 @@ def test_read_collection_text_and_json(
         ("matches", "matches"),
         ("proximity", "proximity"),
         ("claim-evidence", "claim_evidence"),
+        ("tasks", "tasks"),
     ],
 )
 def test_new_read_collections_json(

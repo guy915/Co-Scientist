@@ -74,6 +74,9 @@ from app.cli.runs_collections_cmd import (
 from app.cli.runs_collections_cmd import (
     handle_safety as handle_safety,
 )
+from app.cli.runs_collections_cmd import (
+    handle_tasks as handle_tasks,
+)
 from app.cli.runs_stream_cmd import (
     WATCH_RECONNECT_ATTEMPTS as WATCH_RECONNECT_ATTEMPTS,
 )
