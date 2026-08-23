@@ -93,6 +93,11 @@ class _ReportData(NamedTuple):
     evidence: list[dict[str, Any]]
     match_count: int
     reviews: list[dict[str, Any]]
+    # Searches the deep-research loop recorded for this run, keyed by
+    # run_id alone -- extended/ultra tiers only, empty on every other
+    # run. Nothing new is written for the report; this reads what
+    # ``retrieval_calls`` already has.
+    retrieval_calls: list[dict[str, Any]]
 
 
 class _BuiltReport(NamedTuple):
@@ -155,6 +160,7 @@ def _render_report_content_markdown(
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,
+            retrieval_calls=data.retrieval_calls,
         )
     )
 
@@ -188,6 +194,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
         # verification, and the mature cascade's distinctly labeled
         # full/simulation/recurrent results (audit E1).
         reviews=store.list_reviews(run_id, db_path=db_path),
+        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
     )
 
 

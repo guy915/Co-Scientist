@@ -59,6 +59,16 @@ from app.report_markdown_overview import (
 from app.report_markdown_overview import (
     render_research_overview_markdown as render_research_overview_markdown,
 )
+
+# The data-sources section (skill attribution + literature-search summary)
+# moved to its own module to keep this one within the size cap; both names
+# are re-exported so this module's namespace keeps resolving.
+from app.report_markdown_sources import (
+    _render_data_source_notice as _render_data_source_notice,
+)
+from app.report_markdown_sources import (
+    _render_data_sources_section as _render_data_sources_section,
+)
 from app.text_utils import hypothesis_statement, hypothesis_title
 
 
@@ -416,6 +426,7 @@ class ReportMarkdownInputs:
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
+    retrieval_calls: list[dict[str, Any]] | None = None
 
 
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
@@ -442,36 +453,10 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     lines.extend(
         render_research_overview_markdown(inputs.research_overview or {})
     )
-    lines += _render_data_source_notice(inputs.skills_used or {})
+    lines += _render_data_sources_section(
+        inputs.skills_used or {}, inputs.retrieval_calls or []
+    )
     return "\n".join(lines)
-
-
-def _render_data_source_notice(skills_used: dict[str, int]) -> list[str]:
-    """Name the third-party databases this run queried, and their terms.
-
-    Not a result -- an attribution the run owes. The science skills reach
-    sources whose terms are separate from the bundle's Apache licence,
-    and most of them require the user be notified of those terms. The
-    harness satisfies the skills' own literal condition by seeding a
-    notice file into the workspace, but a workspace is deleted and
-    reaches nobody; this is the surface a person reads. Only the sources
-    actually queried are named, because a blanket list of everything
-    installed would attribute work to databases the run never touched.
-    """
-    if not skills_used:
-        return []
-    named = ", ".join(sorted(skills_used))
-    return [
-        "",
-        "## Data sources",
-        "",
-        f"This run queried the following third-party sources: {named}. "
-        "Their terms of use are separate from this system's licence and "
-        "are listed per source in `vendor/science-skills/"
-        "SKILL_LICENSES.md`. Review them before relying on or "
-        "redistributing these results.",
-        "",
-    ]
 
 
 def _render_report_header(
