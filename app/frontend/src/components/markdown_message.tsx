@@ -1,6 +1,13 @@
-import type {ComponentPropsWithoutRef, ReactNode} from 'react';
+import {memo, type ComponentPropsWithoutRef, type ReactNode} from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {splitMarkdownIntoBlocks} from './markdown_split';
+
+// Stable identity across renders: react-markdown treats a fresh array
+// literal as a config change and would otherwise be no worse off (memo
+// blocks the re-render before it matters), but a shared constant is what a
+// later reader expects to see.
+const REMARK_PLUGINS = [remarkGfm];
 
 /**
  * Renders one assistant message's markdown.
@@ -143,7 +150,38 @@ function MarkdownHeading({children}: {children: ReactNode}) {
 }
 
 /**
+ * One top-level block's exact source slice, rendered through its own
+ * react-markdown instance. Memoized on `raw` (React.memo's default shallow
+ * compare, since it is the only prop): a streamed message re-sends every
+ * earlier block's slice unchanged on every fragment, so this is what turns
+ * repeated whole-message reparsing into "only the growing last block does
+ * any work". Keyed by the caller's array index, not by `raw` -- two blocks
+ * with identical text (e.g. two blank list items) would otherwise collide.
+ */
+const MarkdownBlock = memo(({raw}: {raw: string}) => (
+  <Markdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
+    {raw}
+  </Markdown>
+));
+
+/**
  * Renders `content` as markdown.
+ *
+ * Split into top-level blocks and rendered as one react-markdown instance
+ * per block (see markdown_split.ts) rather than one instance for the whole
+ * string. A streamed reply grows one fragment at a time, so a single
+ * instance reparses the entire source on every fragment; per-block splitting
+ * bounds each reparse to the still-growing final block, and memoizes every
+ * earlier block against its now-unchanging slice.
+ *
+ * react-markdown renders its top-level nodes as bare siblings with no
+ * wrapping element (that is why this module supplies the outer `div` at
+ * all), and `MarkdownBlock` does the same, so splitting does not introduce
+ * extra DOM nodes between blocks: the `<p>`, `<ul>`, `<table>`, ... elements
+ * from every block still land as direct siblings of that one `div`, in
+ * document order. That is what keeps `BLOCK`'s `first:`/`last:` selectors
+ * correct after splitting -- they are DOM-tree facts, not React-tree facts,
+ * and the DOM tree is unchanged.
  *
  * @param content The message's markdown source.
  * @param className Optional wrapper classes, for the surface's own type size.
@@ -157,8 +195,13 @@ export function MarkdownMessage({
 }) {
   return (
     // `whitespace-normal` is load-bearing, not tidying: react-markdown emits
-    // a literal newline text node between adjacent block elements, so under
-    // pre-wrap every paragraph boundary paints a full extra line. This
+    // a literal newline text node between adjacent block elements when a
+    // message renders as one instance (the whole-message fallback below, for
+    // HTML/definitions), so under pre-wrap every paragraph boundary would
+    // paint a full extra line. Per-block splitting sidesteps this for the
+    // common case -- each block's own instance has nothing after its single
+    // node to leave a trailing newline -- but content isn't known ahead of
+    // time to take that path, so the defense stays unconditional. This
     // defends against pre-wrap *inherited* from an ancestor, where an
     // explicit value on this element always wins. It does not defend against
     // a competing whitespace class arriving through `className`, since two
@@ -174,9 +217,13 @@ export function MarkdownMessage({
     <div
       className={`min-w-0 break-words whitespace-normal [&_li_p]:my-0 ${className}`}
     >
-      <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
-        {content}
-      </Markdown>
+      {splitMarkdownIntoBlocks(content).map((raw, index) => (
+        // Keyed by position, not by `raw`: streaming only ever appends to
+        // the final block, so every earlier index stays stable, and keying
+        // by text would collide two blocks with identical content (e.g. two
+        // blank list items).
+        <MarkdownBlock key={index} raw={raw} />
+      ))}
     </div>
   );
 }
