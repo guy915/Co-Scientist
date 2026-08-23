@@ -67,6 +67,7 @@ from co_scientist.llm_tool_transcript import (
     _message_to_history_dict as _message_to_history_dict,
 )
 from co_scientist.llm_tool_transcript import (
+    elide_repeated_papers,
     elide_superseded_writes,
     normalize_tool_transcript,
 )
@@ -277,6 +278,9 @@ def _drop_dead_context(messages: list[dict[str, Any]]) -> None:
     elided = elide_superseded_writes(messages)
     if elided:
         logger.debug("elided %s superseded file write(s)", elided)
+    repeats = elide_repeated_papers(messages)
+    if repeats:
+        logger.debug("elided %s repeated paper record(s)", repeats)
 
 
 async def _harvest_partial_answer(

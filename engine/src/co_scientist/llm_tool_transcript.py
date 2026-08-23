@@ -249,3 +249,105 @@ def elide_superseded_writes(messages: list[dict[str, Any]]) -> int:
                 elided += 1
             latest[path] = call["function"]
     return elided
+
+
+# The fields a paper record is identified by, in preference order. Every
+# search tool on this host stamps at least one of them.
+_PAPER_ID_FIELDS = ("source_id", "pmid", "doi", "nct_id", "url")
+
+# The heavy fields worth eliding on a repeat. Identity stays -- a record
+# the model can no longer name is a record it can no longer cite.
+_PAPER_BODY_FIELDS = ("abstract", "abstractText", "content", "fulltext")
+
+_REPEAT_NOTE = (
+    "Elided: this record was returned in full by an earlier search in "
+    "this same conversation. Scroll back for its text."
+)
+
+
+def _paper_identity(record: dict[str, Any]) -> str | None:
+    """Returns the stable id a paper record carries, or None."""
+    for field in _PAPER_ID_FIELDS:
+        value = record.get(field)
+        if isinstance(value, str) and value:
+            return f"{field}:{value}"
+    return None
+
+
+def _elide_repeat(record: dict[str, Any]) -> bool:
+    """Strips a repeated record's body, keeping what identifies it."""
+    elided = False
+    for field in _PAPER_BODY_FIELDS:
+        if record.get(field):
+            record[field] = _REPEAT_NOTE
+            elided = True
+    return elided
+
+
+def _walk_records(node: Any, seen: set[str]) -> int:
+    """Elides repeated paper bodies anywhere under ``node``.
+
+    Shape-agnostic on purpose: PubMed returns a dict keyed by id, the
+    other sources return a ``records`` list, and a future tool will
+    return a third thing. Recognising a paper by its own fields rather
+    than by the envelope around it means a new source is covered the day
+    it is added instead of the day someone remembers this function.
+    """
+    if isinstance(node, list):
+        return sum(_walk_records(item, seen) for item in node)
+    if not isinstance(node, dict):
+        return 0
+    identity = _paper_identity(node)
+    if identity is not None and any(
+        node.get(field) for field in _PAPER_BODY_FIELDS
+    ):
+        if identity in seen:
+            return 1 if _elide_repeat(node) else 0
+        seen.add(identity)
+        return 0
+    return sum(_walk_records(value, seen) for value in node.values())
+
+
+def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
+    """Drops the text of every paper an earlier search already returned.
+
+    A drafting loop searches the literature eight or nine times against
+    one goal, and the searches overlap heavily: measured on a live pass,
+    94 records came back carrying 61 distinct papers, so **35% were
+    abstracts the transcript already held**. Each repeat is ~2.1k
+    characters, and the loop re-sends its whole transcript every turn,
+    so a duplicate arriving on turn two is paid for by every turn after
+    it. That matters here more than anywhere else: literature results
+    are 96% of this loop's transcript, and the loop stops on its token
+    ceiling at five to seven of thirteen turns.
+
+    Identity is kept and only the body goes, so a citation still
+    resolves and the model can still see that the search matched -- what
+    it loses is a second copy of text sitting a few thousand tokens
+    earlier in the same conversation.
+
+    Args:
+        messages: The running conversation, mutated in place.
+
+    Returns:
+        How many repeated records were elided, for the caller to log.
+    """
+    seen: set[str] = set()
+    return sum(_elide_in_message(message, seen) for message in messages)
+
+
+def _elide_in_message(message: dict[str, Any], seen: set[str]) -> int:
+    """Elides repeated paper bodies in one tool result, in place."""
+    if message.get("role") != "tool":
+        return 0
+    content = message.get("content")
+    if not isinstance(content, str) or not content.startswith(("{", "[")):
+        return 0
+    try:
+        payload = json.loads(content)
+    except ValueError:
+        return 0
+    dropped = _walk_records(payload, seen)
+    if dropped:
+        message["content"] = json.dumps(payload)
+    return dropped

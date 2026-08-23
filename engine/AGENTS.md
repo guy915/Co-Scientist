@@ -295,10 +295,16 @@ SLC9A1 --species 9606`, read the file back, and two of its four hypotheses
 argued from the result -- "STRING database analysis confirms that SLC9A1
 (NHE1) strongly interacts with MAPK3, PRKACA, CALM3, and ROCK1 (combined
 scores 0.94-0.99)". A gap argued from a record rather than from what someone
-wrote up. The ceiling on how often that happens is not the skills: the
-drafting loop stops on its transcript backstop at five to seven of thirteen
-turns with or without them, so about half of goals read a skill and never run
-its command, and the transcript is filled by literature results.
+wrote up. The ceiling on how often that happens was never the skills.
+Measured on a live drafting pass, `search_pubmed` results are **96% of the
+loop's transcript** (282k of 295k characters over 9 searches) and the skills
+4%, which is why the loop stops on its token backstop at five to seven of
+thirteen turns. Of those results 35% were papers an earlier search in the
+same transcript had already returned -- 94 records carrying 61 distinct
+papers -- so `elide_repeated_papers` drops a repeat's abstract while keeping
+its identity, exactly as `elide_superseded_writes` does for rewritten files.
+Measured against the same goal and ceiling afterwards: 16 searches and 9
+model turns rather than 8 and 6.
 
 **Three of the sources are also first-class tools, on every run.** The
 skills are gated: `extended`/`ultra` only, and only when the drafting model
