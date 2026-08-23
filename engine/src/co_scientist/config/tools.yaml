@@ -258,6 +258,71 @@ tools:
         Use `search_uniprot` to verify protein names, gene mappings,
         organisms, and reviewed functional annotations.
 
+    # Europe PMC indexes PubMed's corpus plus preprints, so it widens
+    # coverage rather than duplicating pubmed_fulltext -- and it is the
+    # only route to preprint *search*: bioRxiv's own API lists papers by
+    # posting date and cannot be queried by subject at all.
+    europepmc_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_europepmc"
+      display_name: "Europe PMC"
+      description: "Search papers and preprints across Europe PMC"
+      category: "search"
+      source_type: "literature"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        query: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_europepmc` for broad literature coverage. Each record
+        carries `is_preprint`; a preprint is weaker support than a peer-
+        reviewed paper, so say which you are citing.
+
+    # Deliberately separate from europepmc_search rather than a flag on
+    # it: a novelty claim is most often wrong about the last eighteen
+    # months, which is exactly the window that lives on preprint servers,
+    # and the validation path needs to search that window on purpose.
+    preprint_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_preprints"
+      display_name: "Preprints (bioRxiv/medRxiv)"
+      description: "Search preprint servers for work not yet peer reviewed"
+      category: "search"
+      source_type: "literature"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        query: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_preprints` before claiming something is unexplored:
+        the most recent work in a fast-moving field is usually a preprint,
+        and it is invisible to a peer-reviewed-only search. Everything it
+        returns is unreviewed, and a hypothesis resting on one must say so.
+
+    # Registered trials, including the terminated and withdrawn ones that
+    # were never written up. A gap argued from papers alone is a gap in
+    # what somebody published; this is what a registry adds to that.
+    clinical_trials:
+      server: "default_pubmed"
+      mcp_tool_name: "search_clinical_trials"
+      display_name: "ClinicalTrials.gov"
+      description: "Find registered trials of an intervention or condition"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        query: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_clinical_trials` before asserting a combination or
+        intervention has not been tried in people. Read `status` and
+        `why_stopped`: a terminated trial is a finding about the approach,
+        and it is the case least likely to appear in the literature.
+
     # Systems-biology grounding: what a protein interacts with, which
     # pathways it sits in, and what its target is already associated with.
     # Entity-keyed rather than free-text, so they are wired as context
@@ -324,6 +389,41 @@ tools:
         it is tractable at all. An association score near zero for the
         indication is a real finding about the proposal, not a missing
         record.
+
+    ensembl_gene:
+      server: "default_pubmed"
+      mcp_tool_name: "search_ensembl_gene"
+      display_name: "Ensembl Gene"
+      description: "Resolve a gene symbol to its canonical Ensembl record"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_ensembl_gene` to pin a gene symbol to a stable
+        identifier, locus and biotype before building on it -- symbols are
+        reused and renamed, identifiers are not.
+
+    gnomad_constraint:
+      server: "default_pubmed"
+      mcp_tool_name: "search_gnomad_constraint"
+      display_name: "gnomAD Constraint"
+      description: "Check how strongly a gene is depleted of damaging variation"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_gnomad_constraint` to check whether losing a gene is
+        tolerated in humans -- direct population evidence a paper rarely
+        states. Read the record's `interpretation` field for which
+        direction each number runs in before citing one.
 
     # General web search (only registered when the MCP server has a
     # provider key; absent tools are skipped by the workflow whitelist)
@@ -444,6 +544,12 @@ workflows:
       - tool: "openalex_search"
         papers_per_query: 4
         enabled: true
+      # Widens coverage rather than duplicating PubMed: Europe PMC indexes
+      # PubMed's corpus plus preprints, and cross-source deduplication
+      # below collapses the overlap by DOI.
+      - tool: "europepmc_search"
+        papers_per_query: 3
+        enabled: true
       # Web search runs alongside the academic sources so grey literature,
       # news, and very recent developments can reach a hypothesis. It is
       # weighted lower than the peer-reviewed sources on purpose, and its
@@ -463,6 +569,9 @@ workflows:
       - "string_interactions"
       - "reactome_pathways"
       - "open_targets"
+      - "ensembl_gene"
+      - "gnomad_constraint"
+      - "clinical_trials"
     availability_check: "check_pubmed"
 
   # Draft generation phase - quick metadata searches for ideation.
@@ -490,6 +599,10 @@ workflows:
     search_tools:
       - "pubmed_fulltext"
       - "openalex_search"
+      # A novelty claim is most often wrong about the last eighteen
+      # months, which is the window that lives on preprint servers and is
+      # invisible to a peer-reviewed-only search.
+      - "preprint_search"
       - "paper_corpus_fetch"
 
   # Reflection phase - entity-based evidence lookup against knowledge-graph
@@ -504,6 +617,9 @@ workflows:
       - "string_interactions"
       - "reactome_pathways"
       - "open_targets"
+      - "ensembl_gene"
+      - "gnomad_constraint"
+      - "clinical_trials"
       - "paper_corpus_fetch"
 
 # Global Settings

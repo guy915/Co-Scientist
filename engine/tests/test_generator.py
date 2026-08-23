@@ -104,6 +104,7 @@ def test_lazy_state_is_unset_before_first_run() -> None:
     ] == [
         "pubmed_fulltext",
         "openalex_search",
+        "europepmc_search",
         "web_search",
     ]
 

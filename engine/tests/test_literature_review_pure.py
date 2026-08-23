@@ -120,6 +120,7 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
     assert [source["tool"] for source in workflow["search_sources"]] == [
         "pubmed_fulltext",
         "openalex_search",
+        "europepmc_search",
         "web_search",
     ]
     assert legacy != multi_source

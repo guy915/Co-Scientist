@@ -183,7 +183,12 @@ def test_the_shipped_sources_reserve_no_slots() -> None:
         source.tool: source.reserved_slots
         for source in workflow.get_enabled_search_sources()
     }
-    assert set(reserved) == {"pubmed_fulltext", "openalex_search", "web_search"}
+    assert set(reserved) == {
+        "pubmed_fulltext",
+        "openalex_search",
+        "europepmc_search",
+        "web_search",
+    }
     assert all(slots == 0 for slots in reserved.values())
 
 

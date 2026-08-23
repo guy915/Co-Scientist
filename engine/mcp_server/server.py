@@ -41,6 +41,11 @@ from mcp_server.auth_middleware import (
 )
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools.biomedical_databases import search_chembl, search_uniprot
+from mcp_server.tools.clinical_trials import search_clinical_trials
+from mcp_server.tools.genomics_databases import (
+    search_ensembl_gene,
+    search_gnomad_constraint,
+)
 from mcp_server.tools.indra_cogex import (
     query_causal_subnetwork,
     query_clinical_trials,
@@ -50,6 +55,10 @@ from mcp_server.tools.indra_cogex import (
     query_mechanistic_statements,
     query_pathways,
     run_enrichment_analysis,
+)
+from mcp_server.tools.lit_review.europepmc_search import (
+    search_europepmc,
+    search_preprints,
 )
 from mcp_server.tools.lit_review.openalex_search import search_openalex
 from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
@@ -112,6 +121,11 @@ _MCP_TOOLS = (
     (search_string_interactions, "search_string_interactions"),
     (search_reactome_pathways, "search_reactome_pathways"),
     (search_open_targets, "search_open_targets"),
+    (search_europepmc, "search_europepmc"),
+    (search_preprints, "search_preprints"),
+    (search_ensembl_gene, "search_ensembl_gene"),
+    (search_gnomad_constraint, "search_gnomad_constraint"),
+    (search_clinical_trials, "search_clinical_trials"),
     (query_gene_disease_network, "query_gene_disease_network"),
     (query_gene_codependents, "query_gene_codependents"),
     (query_drug_info, "query_drug_info"),
