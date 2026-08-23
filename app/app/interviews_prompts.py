@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from co_scientist.llm_json_lists import coerce_json_list
+
 from app import paper_corpus, store
 from app.audience import audience_chat_context
 from app.config import settings
@@ -282,10 +284,17 @@ def _system_prompt(interview: dict[str, Any]) -> str:
 
 
 def _clean_list(raw: Any) -> list[str]:
-    """Normalize a model- or user-produced list into non-empty strings."""
-    if not isinstance(raw, list):
-        return []
-    return [str(value).strip() for value in raw if str(value).strip()]
+    """Normalize a model- or user-produced list into non-empty strings.
+
+    The interview turn carries no schema (a plain trailing JSON block), so
+    a single item can plausibly arrive as a bare string rather than
+    wrapped in a one-element list; ``coerce_json_list`` recovers that
+    shape rather than silently stranding the interview on a real answer.
+    """
+    result: list[str] = coerce_json_list(
+        raw, element="str", site="interviews.field_list"
+    )
+    return result
 
 
 def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:

@@ -128,6 +128,37 @@ def test_hallucinated_quote_downgraded(
     assert result.supporting_passages == ()
 
 
+def test_supporting_as_single_object_not_wrapped_in_list_still_locates_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A "supporting" object, not wrapped in a list, still yields a span.
+
+    ``json_object`` mode (no schema enforcement) lets a model plausibly
+    write the single supporting citation directly rather than wrapping it
+    in a one-element array; the entailment call must recover it rather
+    than silently treating the claim as having no supporting evidence.
+    """
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"label": "supports", "supporting": '
+            '{"evidence_id": "ev-1", "quote": "reduces tumor growth"}, '
+            '"contradicting": []}'
+        ),
+    )
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    result = assess_claim(
+        "Kinase X inhibition reduces tumor growth.",
+        [_PASSAGE],
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
+    assert result.label is EntailmentLabel.SUPPORTS
+    span = result.supporting_passages[0]
+    assert span.evidence_id == "ev-1"
+    assert span.quote == "reduces tumor growth"
+
+
 def test_provider_error_falls_back_to_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

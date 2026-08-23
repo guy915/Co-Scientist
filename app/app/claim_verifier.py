@@ -28,6 +28,8 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+from co_scientist.llm_json_lists import coerce_json_list
+
 from app.claims import (
     Assessor,
     AssessorDraft,
@@ -89,14 +91,16 @@ def _render_passages(passages: Sequence[EvidencePassage]) -> str:
     )
 
 
-def _coerce_pairs(items: Any) -> tuple[tuple[str, str], ...]:
-    """Coerce a parsed ``[{evidence_id, quote}]`` list to (id, quote) pairs."""
+def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
+    """Coerce a parsed ``[{evidence_id, quote}]``-shaped value to pairs.
+
+    ``response_format={"type": "json_object"}`` carries no schema
+    enforcement, so a single citation can plausibly arrive as a bare
+    object rather than wrapped in a one-element list; ``coerce_json_list``
+    recovers that shape before the per-item dict fields are read.
+    """
     pairs: list[tuple[str, str]] = []
-    if not isinstance(items, list):
-        return ()
-    for item in items:
-        if not isinstance(item, dict):
-            continue
+    for item in coerce_json_list(items, element="dict", site=site):
         evidence_id = str(item.get("evidence_id") or "")
         quote = str(item.get("quote") or "")
         if evidence_id and quote:
@@ -123,8 +127,12 @@ def _parse_draft(content: str) -> AssessorDraft | None:
         return None
     return AssessorDraft(
         label=label,
-        supporting=_coerce_pairs(data.get("supporting")),
-        contradicting=_coerce_pairs(data.get("contradicting")),
+        supporting=_coerce_pairs(
+            data.get("supporting"), "claim_verifier.supporting"
+        ),
+        contradicting=_coerce_pairs(
+            data.get("contradicting"), "claim_verifier.contradicting"
+        ),
     )
 
 

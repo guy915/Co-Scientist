@@ -162,6 +162,30 @@ async def test_draft_repairs_trailing_comma(
     assert result == [{"text": "repaired hypothesis"}]
 
 
+async def test_draft_single_dict_not_wrapped_in_list_is_recovered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A single draft object (not wrapped in a list) still parses.
+
+    A model asked to draft one hypothesis can plausibly write the single
+    object directly rather than wrapping it in a one-element array; the
+    draft-parsing seam is schema-less (a tool-calling loop's freeform
+    final turn), so this must be recovered rather than silently dropped.
+    """
+    _disable_registry(monkeypatch)
+    single_draft = {"text": "unwrapped hypothesis", "gap_reasoning": "gap"}
+    _stub_draft_llm(monkeypatch, json.dumps({"drafts": single_draft}))
+
+    result, _draft_calls = await draft_hypotheses(
+        state=make_state(),
+        count=1,
+        mcp_client=FakeCallToolClient({}),
+        tool_registry=None,
+    )
+
+    assert result == [single_draft]
+
+
 async def test_draft_missing_drafts_key_defaults_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -272,6 +296,40 @@ async def test_validate_builds_literature_tools_hypotheses(
     assert result[1].literature_grounding is None
     # No reference index -> citation_map stays empty.
     assert result[0].citation_map == {}
+
+
+async def test_validate_single_hypothesis_not_wrapped_in_list_is_recovered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A synthesis batch of one can plausibly return a bare object.
+
+    Mirrors the draft-phase recovery test: the synthesis pass shares the
+    same schema-less ``parse_tool_loop_json`` seam, so a single hypothesis
+    object under ``"hypotheses"`` (not wrapped in a list) must still be
+    assembled rather than silently dropped.
+    """
+    _disable_registry(monkeypatch)
+    single_hypothesis = {
+        "hypothesis": "unwrapped hypothesis",
+        "explanation": "fits",
+        "experiment": "assay",
+    }
+
+    async def fake(**_: Any) -> tuple[str, list[Any]]:
+        return json.dumps({"hypotheses": single_hypothesis}), []
+
+    monkeypatch.setattr(validate_mod, "call_llm_with_tools", fake)
+    drafts = [{"text": "draft one", "gap_reasoning": "gap a"}]
+
+    result, _validate_calls = await validate_hypotheses(
+        state=make_state(),
+        draft_hypotheses=drafts,
+        mcp_client=FakeCallToolClient({}),
+        tool_registry=None,
+    )
+
+    assert len(result) == 1
+    assert result[0].text == "unwrapped hypothesis"
 
 
 _PRIOR_ALPHA_PAPERS: dict[str, Any] = {

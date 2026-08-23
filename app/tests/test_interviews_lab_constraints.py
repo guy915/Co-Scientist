@@ -123,6 +123,25 @@ def test_normalized_fields_defaults_lab_constraints_to_empty() -> None:
     assert fields["lab_constraints"] == []
 
 
+def test_normalized_fields_recovers_a_bare_string_focus_area() -> None:
+    """A single focus area, not wrapped in a list, is still recovered.
+
+    The interview turn carries no schema (a plain trailing JSON block), so
+    a model naming exactly one focus area can plausibly write it as a bare
+    string; dropping it silently would strand the interview on a real
+    answer the scientist already gave.
+    """
+    fields = _normalized_fields(
+        {
+            "research_challenge": "a challenge",
+            "focus_area": "a single focus",
+            "preferences": [],
+            "title": None,
+        }
+    )
+    assert fields["focus_area"] == ["a single focus"]
+
+
 def test_scripted_fallback_completes_without_the_field(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -110,6 +110,22 @@ def test_the_flags_are_silent_on_ordinary_research() -> None:
     assert decision.requires_review is False
 
 
+def test_a_bare_string_risk_domain_is_still_recovered() -> None:
+    """A single domain reported as a bare string, not a list, still counts.
+
+    ``response_format={"type": "json_object"}`` carries no schema
+    enforcement, so a model naming exactly one risk domain can plausibly
+    write it as a string rather than a one-element list; that must not
+    read as "the model reported no domains".
+    """
+    decision = _decision(
+        category="allowed",
+        risk_domains="dual_use_concern",
+    )
+
+    assert decision.risk_domains == ["dual_use_concern"]
+
+
 def test_a_domain_the_model_also_named_is_listed_once() -> None:
     """Two findings of the same risk read as two findings."""
     decision = _decision(

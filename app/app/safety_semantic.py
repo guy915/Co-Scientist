@@ -13,6 +13,8 @@ import json
 import logging
 from typing import Any
 
+from co_scientist.llm_json_lists import coerce_json_list
+
 from app.config import (
     deepseek_thinking_kwargs,
     thinking_safe_max_tokens,
@@ -181,9 +183,13 @@ def _merge_risk_domains(
     Returns:
         The domains in first-seen order.
     """
-    reported = parsed.get("risk_domains")
-    merged = (
-        [str(item) for item in reported] if isinstance(reported, list) else []
+    # response_format={"type": "json_object"} carries no schema
+    # enforcement, so a single domain can plausibly arrive as a bare
+    # string rather than a one-element list.
+    merged: list[str] = coerce_json_list(
+        parsed.get("risk_domains"),
+        element="str",
+        site="safety_semantic.risk_domains",
     )
     merged.extend(domain for domain in flagged if domain not in merged)
     return merged

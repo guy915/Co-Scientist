@@ -18,6 +18,9 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.exceptions import ResponseParseError
+from co_scientist.llm_json_lists import (
+    coerce_json_list as coerce_json_list,
+)
 from co_scientist.llm_json_repair import (
     _MAJOR_JSON_REPAIR_STRATEGIES as _MAJOR_JSON_REPAIR_STRATEGIES,
 )
@@ -90,7 +93,10 @@ def parse_tool_loop_json(
 
     Returns:
         The parsed ``list_key`` list, or an empty list when the key is
-        absent from an otherwise-parseable response.
+        absent from an otherwise-parseable response. No schema constrains
+        this call (it is the tool-calling loop's freeform final turn), so
+        the value at ``list_key`` is coerced through ``coerce_json_list``
+        rather than trusted to already be a list.
 
     Raises:
         ResponseParseError: If the response cannot be parsed even after
@@ -123,8 +129,12 @@ def parse_tool_loop_json(
             phase_label,
         )
 
-    parsed: list[Any] = response_data.get(list_key, [])
-    return parsed
+    return coerce_json_list(
+        response_data.get(list_key),
+        keys=(list_key, "items"),
+        element="dict",
+        site=phase_label,
+    )
 
 
 def validate_json_schema(
