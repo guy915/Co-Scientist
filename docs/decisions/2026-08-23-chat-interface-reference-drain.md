@@ -133,6 +133,19 @@ user-visible, needs the owner's sign-off. **learn** = recorded, not acted on.
 | C7 | Artifact side panel opened by detecting a closing code fence, needing no special model syntax | open-webui `ContentRenderer.svelte` (read-only licence — reimplement from the idea) | learn |
 | C8 | Progressive row mounting instead of virtualization: below forty messages mount everything; above, mount sixteen rows around the anchor and widen in chunks of thirty-two inside `startTransition`. Nothing unmounts | LibreChat `useProgressiveRowMount.tsx` (MIT) | learn — **none of the three shells virtualize the chat list**, so our plain `.map()` is the industry default rather than a gap |
 
+### Product proposals from the reference's own thesis
+
+These three do not come from a codebase; they are what the survey argues a
+research-conversation product must do, checked against what we ship. They were
+promised as proposals when this work was scoped, and are recorded here so none
+is lost.
+
+| # | Finding | State today | Verdict |
+| --- | --- | --- | --- |
+| P1 | **The conversation continues after the run.** The composer disables the moment a run starts, so the thread ends there | `POST /api/runs/{id}/messages/ask` is fully built — it persists the question, gathers run context, streams, handles BYOK, falls back offline and persists the answer with its sources — and has **zero frontend callers**. Audit row D4 | **propose** — the document's whole thesis, and frontend-only. *Note for whoever builds it:* the existing `disabled={Boolean(startedSession)}` lock is not an oversight, it is the fix for audit row A17. A post-run composer must route to `askRunQuestion`, never to interview turns |
+| P2 | **Approve or edit the plan in the thread.** The survey's wireframe has an explicit "user edits or approves?" gate | No interview-progress rail; the only in-flight signal is "Thinking…" (audit row A1). Plan fields are read-only and `editInterviewFields` is exported with no caller (audit row A3) | **propose** |
+| P3 | **Say which sources were actually consulted** | `retrieval_calls` records question, query and source per search, but only on `extended`/`ultra`, and it has no endpoint and no frontend type. The ordinary MCP literature path records nothing | **propose** — the proportionate fix mirrors `skills_used` into the report's "Data sources"; audit row A5 ("do not stream raw reasoning") is closed as a deliberate choice and stays closed |
+
 ### Agent-to-UI protocol
 
 | # | Finding | Located in | Verdict |
@@ -271,7 +284,16 @@ synchronous, in-memory, no durability.
   of the four categories, after the coding harness (`ffe49d50`), deep research
   (`b461f5ca`) and the science skills (`1398298d`, `65c28899`).
 - Two live literature-search defects are fixed, with tests.
-- Nine findings are cleared to build without further sign-off; eight await the
-  owner's decision because they change what a reader sees.
+- **Six** findings are cleared to build without further sign-off: R3, D2, D3,
+  C1, O1, O2.
+- **Twelve** await the owner's decision, because each changes what a reader sees.
+  Thirteen entries above carry the *propose* verdict — D1, R1, R2, R4, C2, C3,
+  C6, U1, U2, U4, P1, P2, P3 — of which C6 and U1 are one decision (tool-call
+  rendering), giving twelve. **Eight were put to the owner directly**: D1, P1,
+  C3, R2, R1, P3, R4, and C6/U1. The remaining four — **P2** (approve or edit
+  the plan mid-interview), **C2** (code-block highlighting), **U2** (interrupt as
+  a run outcome) and **U4** (typed activity icons on progress events) — are
+  recorded here and were not raised, on the judgement that eight decisions is
+  already a long ask. Raising them is a sentence away.
 - The clone directory outside the repository can be deleted at any time; every
   mechanism worth keeping is named above with the file it lives in.
