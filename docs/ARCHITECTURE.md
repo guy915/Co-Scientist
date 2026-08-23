@@ -18,7 +18,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   *                  -> NotFoundPage                               |
 |                                                                    |
 | useChatSession (chat timeline, steering + Q&A)                     |
-| useRunStream  (EventSource on /api/runs/:id/events)                |
+| useRunStream  (fetch + SSE reader on /api/runs/:id/events)         |
 | src/api/runs.ts  (typed client for every backend endpoint)         |
 +------------------------------+-------------------------------------+
                                |
@@ -131,8 +131,16 @@ like a Redux store of fetched entities. On mount it:
 
 1. Calls `getRun(id)` for status + summary counts.
 2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getClaimEvidence / getSafety / getReport` in parallel.
-3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
-4. The chat workspace polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
+3. Streams `/api/runs/{id}/events?after=0`, which replays every event since the run
+   started and then tails live. Not an `EventSource`: the browser API cannot set
+   request headers, and the stream is authenticated (`Authorization` for a
+   researcher session, `X-Client-ID` otherwise), so it is a `fetch` whose body is
+   read by the frame reader in `src/api/runs_http.ts::readSseFrames`.
+4. Two run-scoped endpoints are built on the backend and have **no frontend
+   caller**: `POST /api/runs/{id}/messages/ask` (streaming Q&A — client function
+   `askRunQuestion` exists, nothing calls it; audit row D4) and
+   `POST /api/runs/{id}/messages` (scientist steering — `sendRunSteering`, likewise
+   uncalled). The chat workspace does not poll messages.
 
 This means a hard refresh, a backend restart, or a new browser session all
 produce the same *content* — every run/hypothesis/report view is always
