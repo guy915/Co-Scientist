@@ -44,7 +44,8 @@ def test_a_repeat_keeps_its_identity_and_loses_its_body() -> None:
     fresh = next(p for p in second if p["source_id"] == "333")
     # Identity survives, so a citation still resolves.
     assert repeat["title"] == "Paper 222"
-    assert "earlier search" in repeat["abstract"]
+    assert "abstract" not in repeat
+    assert "re-fetch" in repeat["elided"]
     assert fresh["abstract"] == "A long abstract."
 
 

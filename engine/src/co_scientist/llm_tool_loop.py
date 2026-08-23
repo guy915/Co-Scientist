@@ -67,6 +67,7 @@ from co_scientist.llm_tool_transcript import (
     _message_to_history_dict as _message_to_history_dict,
 )
 from co_scientist.llm_tool_transcript import (
+    elide_aged_evidence,
     elide_repeated_papers,
     elide_superseded_writes,
     normalize_tool_transcript,
@@ -267,7 +268,19 @@ def _handoff_due(
 
 
 def _drop_dead_context(messages: list[dict[str, Any]]) -> None:
-    """Removes the text of file writes a later write has overwritten.
+    """Removes what the transcript is re-sending for nothing.
+
+    Three passes, in this order because the third reads what the second
+    leaves behind: superseded file writes, then evidence old enough that
+    the model has finished with it, then a paper two searches both
+    returned. Ageing must run before deduplication -- an aged record is
+    a stub, and a deduplication pass that counted stubs as copies would
+    elide the live copy against one, leaving no text at all (see
+    ``llm_tool_transcript._is_note``).
+
+    Together they are what keeps a loop's cost roughly linear in its
+    turns instead of quadratic, which is the difference between a loop
+    that finishes and one that stops on its token ceiling.
 
     Run at the top of every turn rather than at send time, so that the
     transcript the budget is counted against, the one sent to the
@@ -278,6 +291,9 @@ def _drop_dead_context(messages: list[dict[str, Any]]) -> None:
     elided = elide_superseded_writes(messages)
     if elided:
         logger.debug("elided %s superseded file write(s)", elided)
+    aged = elide_aged_evidence(messages)
+    if aged:
+        logger.debug("elided %s aged evidence result(s)", aged)
     repeats = elide_repeated_papers(messages)
     if repeats:
         logger.debug("elided %s repeated paper record(s)", repeats)

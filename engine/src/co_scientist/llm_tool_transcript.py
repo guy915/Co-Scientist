@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from co_scientist.workspace.tool_schemas import WRITE_FILE
@@ -255,14 +256,51 @@ def elide_superseded_writes(messages: list[dict[str, Any]]) -> int:
 # search tool on this host stamps at least one of them.
 _PAPER_ID_FIELDS = ("source_id", "pmid", "doi", "nct_id", "url")
 
-# The heavy fields worth eliding on a repeat. Identity stays -- a record
-# the model can no longer name is a record it can no longer cite.
+# The heavy fields that make a record worth eliding at all. A record
+# carrying none of them is already small, and is left alone -- which is
+# what keeps this off the entity lookups, whose whole payload is the
+# answer.
 _PAPER_BODY_FIELDS = ("abstract", "abstractText", "content", "fulltext")
 
-_REPEAT_NOTE = (
-    "Elided: this record was returned in full by an earlier search in "
-    "this same conversation. Scroll back for its text."
+# What survives elision: enough to cite the record and to judge the
+# citation, and nothing else. Author lists are the expensive half of
+# what remains once the abstract is gone -- ~200 characters against a
+# ~120-character title -- and a draft cites a paper by id.
+_ELIDED_MARKER = "elided"
+_KEPT_FIELDS = (
+    *_PAPER_ID_FIELDS,
+    "title",
+    "year",
+    "journal",
+    "is_preprint",
+    _ELIDED_MARKER,
 )
+
+# What an elided record says about itself. One note, for both reasons a
+# record loses its text, because the model can act on them identically:
+# it had this record, the text is not in front of it now, and the way
+# back is the id. Deliberately *not* "scroll back for it" -- true of a
+# duplicate whose original is still in the transcript, and false the
+# moment that original ages out in turn.
+_ELIDED_NOTE = "full text elided; re-fetch by id if you need it"
+
+# Tools whose whole result is a document the model read once and can ask
+# for again. Their payload is one string rather than records, so there is
+# nothing inside it worth keeping: the call that produced it stays in the
+# transcript, and that is what names the page or the paper.
+_REFETCHABLE_TEXT_TOOLS = ("read_url", "fetch_paper")
+
+_ELIDED_TEXT = json.dumps(
+    "Elided: you read this in full earlier in this conversation. Call the"
+    " same tool again with the same arguments if you need it back."
+)
+
+# Searches whose results the transcript carries whole. A record has to
+# arrive in full -- a gap is judged from an abstract, not from a title
+# -- and it has to stay long enough for the model to act on it. Beyond
+# that it has been read and either used or passed over, while every
+# later turn goes on paying for it.
+RECENT_SEARCH_TURNS = 2
 
 
 def _paper_identity(record: dict[str, Any]) -> str | None:
@@ -274,18 +312,28 @@ def _paper_identity(record: dict[str, Any]) -> str | None:
     return None
 
 
-def _elide_repeat(record: dict[str, Any]) -> bool:
-    """Strips a repeated record's body, keeping what identifies it."""
-    elided = False
-    for field in _PAPER_BODY_FIELDS:
-        if record.get(field):
-            record[field] = _REPEAT_NOTE
-            elided = True
-    return elided
+def _has_body(record: dict[str, Any]) -> bool:
+    """Whether this record still carries text worth re-sending.
+
+    Load-bearing beyond the obvious. An elided record has no body field
+    left at all, so it reads as nothing to elide -- which is what stops
+    the duplicate pass from treating an already-elided copy as the
+    original and eliding the live copy against it, leaving a transcript
+    that holds the paper nowhere and says so nowhere either.
+    """
+    return any(record.get(field) for field in _PAPER_BODY_FIELDS)
 
 
-def _walk_records(node: Any, seen: set[str]) -> int:
-    """Elides repeated paper bodies anywhere under ``node``.
+def _elide_record(record: dict[str, Any]) -> int:
+    """Cuts one record down to what a citation needs, in place."""
+    for key in [key for key in record if key not in _KEPT_FIELDS]:
+        del record[key]
+    record[_ELIDED_MARKER] = _ELIDED_NOTE
+    return 1
+
+
+def _walk_papers(node: Any, visit: Callable[[dict[str, Any]], int]) -> int:
+    """Applies ``visit`` to every paper record anywhere under ``node``.
 
     Shape-agnostic on purpose: PubMed returns a dict keyed by id, the
     other sources return a ``records`` list, and a future tool will
@@ -294,18 +342,31 @@ def _walk_records(node: Any, seen: set[str]) -> int:
     it is added instead of the day someone remembers this function.
     """
     if isinstance(node, list):
-        return sum(_walk_records(item, seen) for item in node)
+        return sum(_walk_papers(item, visit) for item in node)
     if not isinstance(node, dict):
         return 0
-    identity = _paper_identity(node)
-    if identity is not None and any(
-        node.get(field) for field in _PAPER_BODY_FIELDS
-    ):
-        if identity in seen:
-            return 1 if _elide_repeat(node) else 0
-        seen.add(identity)
+    if _paper_identity(node) is not None and _has_body(node):
+        return visit(node)
+    return sum(_walk_papers(value, visit) for value in node.values())
+
+
+def _rewrite_tool_result(
+    message: dict[str, Any], transform: Callable[[Any], int]
+) -> int:
+    """Applies ``transform`` to one tool result's payload, in place."""
+    if message.get("role") != "tool":
         return 0
-    return sum(_walk_records(value, seen) for value in node.values())
+    content = message.get("content")
+    if not isinstance(content, str) or not content.startswith(("{", "[")):
+        return 0
+    try:
+        payload = json.loads(content)
+    except ValueError:
+        return 0
+    changed = transform(payload)
+    if changed:
+        message["content"] = json.dumps(payload)
+    return changed
 
 
 def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
@@ -318,13 +379,12 @@ def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
     characters, and the loop re-sends its whole transcript every turn,
     so a duplicate arriving on turn two is paid for by every turn after
     it. That matters here more than anywhere else: literature results
-    are 96% of this loop's transcript, and the loop stops on its token
-    ceiling at five to seven of thirteen turns.
+    are 96% of this loop's transcript.
 
-    Identity is kept and only the body goes, so a citation still
-    resolves and the model can still see that the search matched -- what
-    it loses is a second copy of text sitting a few thousand tokens
-    earlier in the same conversation.
+    Runs *after* ``elide_aged_papers`` (see ``_has_body``): an elided
+    record is no longer a copy of anything, so a paper found again long
+    after its first sighting keeps its new copy instead of being elided
+    against a stub of the old one.
 
     Args:
         messages: The running conversation, mutated in place.
@@ -333,21 +393,94 @@ def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
         How many repeated records were elided, for the caller to log.
     """
     seen: set[str] = set()
-    return sum(_elide_in_message(message, seen) for message in messages)
+
+    def visit(record: dict[str, Any]) -> int:
+        identity = str(_paper_identity(record))
+        if identity in seen:
+            return _elide_record(record)
+        seen.add(identity)
+        return 0
+
+    return sum(
+        _rewrite_tool_result(
+            message, lambda payload: _walk_papers(payload, visit)
+        )
+        for message in messages
+    )
 
 
-def _elide_in_message(message: dict[str, Any], seen: set[str]) -> int:
-    """Elides repeated paper bodies in one tool result, in place."""
-    if message.get("role") != "tool":
+def _aged_before(messages: list[dict[str, Any]], turns: int) -> int:
+    """Index where the most recent ``turns`` search turns begin.
+
+    Args:
+        messages: The running conversation.
+        turns: How many recent assistant turns to leave whole.
+
+    Returns:
+        The exclusive end of the aged region, or 0 while the
+        conversation is still shorter than the window.
+    """
+    assistants = [
+        index
+        for index, message in enumerate(messages)
+        if message.get("role") == "assistant"
+    ]
+    if len(assistants) < turns:
+        return 0
+    return assistants[-turns]
+
+
+def _elide_text_result(message: dict[str, Any]) -> int:
+    """Drops the text of one aged document result, in place.
+
+    Kept separate from the record walk because these results have no
+    structure to preserve -- a fetched page is one string, and what makes
+    it findable again is the call above it, not a field inside it.
+    """
+    if message.get("name") not in _REFETCHABLE_TEXT_TOOLS:
         return 0
     content = message.get("content")
-    if not isinstance(content, str) or not content.startswith(("{", "[")):
+    if not isinstance(content, str) or content == _ELIDED_TEXT:
         return 0
-    try:
-        payload = json.loads(content)
-    except ValueError:
+    message["content"] = _ELIDED_TEXT
+    return 1
+
+
+def _elide_aged_message(message: dict[str, Any]) -> int:
+    """Elides every kind of aged evidence in one tool result."""
+    if message.get("role") != "tool":
         return 0
-    dropped = _walk_records(payload, seen)
-    if dropped:
-        message["content"] = json.dumps(payload)
-    return dropped
+    return _rewrite_tool_result(
+        message, lambda payload: _walk_papers(payload, _elide_record)
+    ) + _elide_text_result(message)
+
+
+def elide_aged_evidence(
+    messages: list[dict[str, Any]], turns: int = RECENT_SEARCH_TURNS
+) -> int:
+    """Drops the text of evidence the model finished with turns ago.
+
+    Deduplicating repeats bounds how often one paper is carried; it does
+    not bound how many distinct papers pile up. Every search adds ~10
+    records of ~2.1k characters that the transcript then re-sends on
+    every later turn, so a loop's total prompt spend grows with the
+    *square* of the searches it runs. That is what ended the drafting
+    loop: it stopped on its token ceiling at six or seven of thirteen
+    turns, having re-sent the same abstracts a dozen times, rather than
+    stopping because it had finished.
+
+    Elision is not truncation. Evidence arrives whole and stays whole
+    while the model decides what to do with it; only afterwards is it
+    cut to what a draft cites it by, or -- for a page or a paper fetched
+    whole -- to the call that can fetch it again.
+
+    Args:
+        messages: The running conversation, mutated in place.
+        turns: How many of the most recent assistant turns keep their
+            results whole.
+
+    Returns:
+        How many results were elided, for the caller to log.
+    """
+    cutoff = _aged_before(messages, turns)
+    return sum(_elide_aged_message(message) for message in messages[:cutoff])
