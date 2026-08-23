@@ -259,11 +259,13 @@ def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
         "screened",
         "blocked",
         "eligible",
+        "activity",
     }
     assert by_type["safety.hypothesis"] == {
         "screened": 1,
         "blocked": 0,
         "eligible": 1,
+        "activity": "safety",
     }
     # "assessed" and "grounded" are distinct: a blocked hypothesis was still
     # assessed, so reporting the assessed total as "grounded" double-counts
@@ -273,16 +275,20 @@ def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
         "grounded",
         "blocked",
         "eligible",
+        "activity",
     }
     assert by_type["citation.grounding"] == {
         "assessed": 1,
         "grounded": 1,
         "blocked": 0,
         "eligible": 1,
+        "activity": "other",
     }
     # No citation_map on the hypothesis, so every state count is zero, but the
-    # full citation-state vocabulary is present in the audit payload.
-    citation_audit = by_type["citation_audit"]
+    # full citation-state vocabulary is present in the audit payload; the
+    # discriminator is the one non-count key.
+    citation_audit = dict(by_type["citation_audit"])
+    assert citation_audit.pop("activity") == "other"
     assert citation_audit
     assert all(isinstance(v, int) for v in citation_audit.values())
 

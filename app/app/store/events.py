@@ -22,6 +22,7 @@ import sqlite3
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
+from app.store.event_activity import activity_for_event
 
 _stage_logger = logging.getLogger("app.run_stage")
 
@@ -110,6 +111,10 @@ def _append_event(
     reconnecting with ``?after=`` (both indexed lookups; the scalar ``MAX(a,
     b)`` picks the higher floor).
     """
+    # The activity discriminator is computed once here -- the single seam
+    # every event write passes through -- and merged into the payload
+    # rather than a new column, so replay/SSE/the schema are untouched.
+    payload = {**payload, "activity": activity_for_event(type_, payload)}
     row = conn.execute(
         "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) "
         "VALUES (?, 1 + MAX("

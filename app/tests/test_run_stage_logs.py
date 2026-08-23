@@ -43,7 +43,7 @@ def test_append_event_logs_a_compact_stage_record(
         )
     records = _stage_records(caplog)
     assert len(records) == 1
-    assert records[0].getMessage() == "generate count=4"
+    assert records[0].getMessage() == "generate count=4 activity=drafting"
     # Run-scoped so `cosci logs --run <id>` and the run-scoped endpoint
     # pick it up even outside a run_log_context.
     assert getattr(records[0], "run_id", None) == run_id
@@ -102,8 +102,10 @@ def test_stage_record_keeps_useful_scalars(
             db_path=isolated_db,
         )
     messages = [r.getMessage() for r in _stage_records(caplog)]
-    assert messages[0] == "safety.intake stage=intake decision=allow"
-    assert messages[1] == "ranking iteration=2 matches=3"
+    assert messages[0] == (
+        "safety.intake stage=intake decision=allow activity=safety"
+    )
+    assert messages[1] == "ranking iteration=2 matches=3 activity=tournament"
 
 
 def test_events_written_inside_transactions_are_logged(

@@ -353,7 +353,7 @@ def test_events_endpoint_serves_json_snapshot_when_stream_false(
     events = res.json()["events"]
     assert [e["type"] for e in events] == ["lifecycle", "status"]
     assert events[0]["seq"] == 1
-    assert events[1]["payload"] == {"status": "running"}
+    assert events[1]["payload"] == {"status": "running", "activity": "other"}
 
     after = client.get(f"/api/runs/{run.id}/events?stream=false&after=1")
     assert [e["seq"] for e in after.json()["events"]] == [2]

@@ -28,6 +28,30 @@ export type RunFocus =
 export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
 
 /**
+ * Closed-vocabulary discriminator carried as `payload.activity` on every
+ * run event (the SSE stream's `StreamEvent.payload` and the `/events`
+ * snapshot alike). Mirrors `app.store.event_activity.ACTIVITY_VALUES` on
+ * the backend, computed once there from the engine's node/agent table
+ * rather than left for each consumer to infer from the event's `type` or
+ * free-text stage name. `'other'` is the catch-all: any event kind (or a
+ * future engine node) this vocabulary does not name lands there instead
+ * of being absent, so a client switching on it always has a case to hit.
+ * Optional because events persisted before this field existed, and replayed
+ * across a resumed run, carry no `activity` key at all.
+ */
+export type RunEventActivity =
+  | 'planning'
+  | 'literature_search'
+  | 'drafting'
+  | 'review'
+  | 'tournament'
+  | 'evolution'
+  | 'deduplication'
+  | 'safety'
+  | 'synthesis'
+  | 'other';
+
+/**
  * Self-declared audience riding on run, interview, and Q&A requests.
  * Honor system, no server verification.
  */
