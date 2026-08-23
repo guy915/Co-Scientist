@@ -378,8 +378,8 @@ def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
     abstracts the transcript already held**. Each repeat is ~2.1k
     characters, and the loop re-sends its whole transcript every turn,
     so a duplicate arriving on turn two is paid for by every turn after
-    it. That matters here more than anywhere else: literature results
-    are 96% of this loop's transcript.
+    It mattered here more than anywhere else: before anything was
+    elided, literature results were 96% of this loop's transcript.
 
     Runs *after* ``elide_aged_papers`` (see ``_has_body``): an elided
     record is no longer a copy of anything, so a paper found again long
@@ -465,9 +465,11 @@ def elide_aged_evidence(
     records of ~2.1k characters that the transcript then re-sends on
     every later turn, so a loop's total prompt spend grows with the
     *square* of the searches it runs. That is what ended the drafting
-    loop: it stopped on its token ceiling at six or seven of thirteen
-    turns, having re-sent the same abstracts a dozen times, rather than
-    stopping because it had finished.
+    loop: measured over three research goals, all three stopped on the
+    token ceiling at seven to eleven of thirteen turns, with per-turn
+    spend climbing monotonically to 45k, 61k and 72k tokens. Ageing
+    flattens that curve, and the same three goals then run to their turn
+    budget at 296k-363k total.
 
     Elision is not truncation. Evidence arrives whole and stays whole
     while the model decides what to do with it; only afterwards is it

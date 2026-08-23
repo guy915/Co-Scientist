@@ -256,13 +256,14 @@ With a descriptive prompt section the drafting pass ignored the surface
 entirely across three mechanisms while paying 6.2k prompt characters a turn
 for it; a directive instruction to check one entity against a database
 before finalising is what produced use. Funding that with extra *turns* --
-the obvious move -- buys nothing, because this loop has never been
-turn-bound: for four hypotheses the iteration budget is 13 and live passes
-stop at six or seven on the 300k transcript backstop, having re-sent ~307k.
+the obvious move -- bought nothing, because until transcript ageing landed
+this loop was never turn-bound: for four hypotheses the iteration budget is
+13 and live passes stopped at seven to eleven on the transcript backstop.
 The catalogue is ~1.6k tokens on every turn and a skill document another
-~3k on every turn after it is read, so `DRAFT_SKILLS_TOKEN_BUDGET` raises
-the transcript ceiling instead, leaving the pass the same number of
-*working* turns rather than trading drafting for lookups.
+~3k on every turn after it is read -- a quarter of a finished pass's last
+transcript, measured -- so `DRAFT_SKILLS_TOKEN_BUDGET` raises the transcript
+ceiling instead, leaving the pass the same number of *working* turns rather
+than trading drafting for lookups.
 Two overheads are removed for any consumer: the catalogue is summarised to
 routing sentences (12,079 to 5,155 chars, since every line is re-sent every
 turn), and `skills/licences.py` seeds the `.licenses/` notices 35 of the 38
@@ -296,15 +297,36 @@ argued from the result -- "STRING database analysis confirms that SLC9A1
 (NHE1) strongly interacts with MAPK3, PRKACA, CALM3, and ROCK1 (combined
 scores 0.94-0.99)". A gap argued from a record rather than from what someone
 wrote up. The ceiling on how often that happens was never the skills.
-Measured on a live drafting pass, `search_pubmed` results are **96% of the
+Measured on a live drafting pass, `search_pubmed` results were **96% of the
 loop's transcript** (282k of 295k characters over 9 searches) and the skills
-4%, which is why the loop stops on its token backstop at five to seven of
-thirteen turns. Of those results 35% were papers an earlier search in the
-same transcript had already returned -- 94 records carrying 61 distinct
-papers -- so `elide_repeated_papers` drops a repeat's abstract while keeping
-its identity, exactly as `elide_superseded_writes` does for rewritten files.
-Measured against the same goal and ceiling afterwards: 16 searches and 9
-model turns rather than 8 and 6.
+4%, which is why the loop used to stop on its token backstop rather than on
+having finished. Two elisions fixed that, both in `llm_tool_transcript` and
+both applied at `llm_tool_loop._drop_dead_context`, so every tool loop
+inherits them. `elide_repeated_papers` drops a paper an earlier search in
+the same transcript already returned -- 35% of records on that pass, 94
+carrying 61 distinct papers. `elide_aged_evidence` is the one that removes
+the growth: a record stays whole for two more assistant turns, long enough
+for the model to judge a gap from its abstract, and is then cut to what a
+draft cites it by, while a page or paper fetched whole (`read_url`,
+`fetch_paper`) is cut to the call that can fetch it again. **Order is
+load-bearing** and pinned by a test -- ageing runs first, because an elided
+record is no longer a copy of anything, and reversed the two eliders between
+them delete every copy of a paper found again after its first sighting aged
+out.
+
+Measured over three research goals x four hypotheses, before and after: all
+three passes used to stop on the token ceiling at seven to eleven of
+thirteen turns with per-turn spend climbing monotonically to 45k, 61k and
+72k tokens; afterwards per-turn spend is flat and the same goals run to
+their turn budget at 296k-363k total. Every arm produced 4 of 4 drafts, all
+4 literature-sourced -- including the ceiling-hit ones, since reaching a
+bound buys a closing turn rather than discarding the pass. What remains in a
+finished pass's last transcript is 37% search results, 25% skill documents,
+13% prompt, 9% echoed reasoning; nothing there grows with the turn count.
+A stopping rule in the draft prompt was tried against the same three goals
+and reverted: it produced one natural finish in three, did not reduce
+searching, and drafts came back 14% shorter, which is the one thing that
+phase is tuned for.
 
 **Three of the sources are also first-class tools, on every run.** The
 skills are gated: `extended`/`ultra` only, and only when the drafting model

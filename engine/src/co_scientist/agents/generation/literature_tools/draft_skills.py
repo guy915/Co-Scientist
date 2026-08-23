@@ -49,17 +49,23 @@ logger = logging.getLogger(__name__)
 
 # What a drafting pass may re-send once skills are in the transcript.
 #
-# Turns are not what binds this loop. For four hypotheses the iteration
-# budget is 13 (`get_draft_max_iterations`), and live runs stop at six or
-# seven -- on the token backstop, having re-sent ~307k. So funding the
-# skills with extra turns, which is the obvious move, buys nothing: the
-# turns were already there and unreachable.
+# Turns are not what binds this loop, and funding the skills with extra
+# turns -- the obvious move -- buys nothing: for four hypotheses the
+# iteration budget is 13 (`get_draft_max_iterations`), and before
+# transcript ageing existed a live pass never reached it, stopping on
+# the token backstop at seven to eleven turns.
 #
-# What they actually cost is transcript. The catalogue is ~1.6k tokens on
-# every turn, and a skill document another ~3k on every turn after it is
-# read. Two documents plus the catalogue over seven turns is roughly the
-# 60k added here, which keeps the pass the same number of *working* turns
-# it had before rather than trading drafting for lookups.
+# What skills actually cost is transcript. The catalogue is ~1.6k tokens
+# on every turn, and a skill document another ~3k on every turn after it
+# is read -- a quarter of a finished pass's last transcript, measured.
+# Two documents plus the catalogue over a full pass is roughly the 60k
+# added here, which keeps the pass the same number of *working* turns it
+# had before rather than trading drafting for lookups.
+#
+# Since `llm_tool_transcript.elide_aged_evidence` this ceiling is a
+# backstop rather than the thing that ends the pass: spend per turn no
+# longer grows with the searches run, so thirteen turns cost ~300k and
+# healthy passes finish inside it.
 DRAFT_SKILLS_TOKEN_BUDGET = 360_000
 
 _SECTION = """
