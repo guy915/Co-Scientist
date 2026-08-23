@@ -19,6 +19,7 @@ import functools
 import logging
 import os
 import pathlib
+import re
 from dataclasses import dataclass
 
 import yaml
@@ -117,6 +118,74 @@ def _parse_frontmatter(text: str) -> dict[str, object] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+# One skill's PEP 723 inline metadata block, and one dependency line
+# inside it. The bundle declares dependencies per script this way rather
+# than in a manifest, so this is the only place they are written down.
+_METADATA_BLOCK = re.compile(r"# /// script(.*?)# ///", re.S)
+_DEPENDENCY = re.compile(r'^#\s*"([A-Za-z0-9._-]+)')
+
+
+def _normalised(name: str) -> str:
+    """Returns a distribution name in PEP 503 comparison form."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+@functools.cache
+def _installed_distributions() -> frozenset[str] | None:
+    """Returns what the skills interpreter can import, or None if unknown.
+
+    Read from the interpreter's own ``site-packages`` rather than by
+    running it, since this is consulted while building a catalogue that
+    a tool loop reads on every turn. None means the layout was not
+    recognisable, which is deliberately distinct from "nothing is
+    installed": an unknown environment must not silently empty the
+    catalogue.
+    """
+    interpreter = pathlib.Path(skills_python())
+    if not interpreter.is_absolute():
+        return None
+    roots = list((interpreter.parent.parent / "lib").glob("*/site-packages"))
+    if not roots:
+        return None
+    return frozenset(
+        _normalised(entry.name.split("-")[0])
+        for root in roots
+        for entry in root.glob("*.dist-info")
+    )
+
+
+def _unmet_dependencies(directory: pathlib.Path) -> set[str]:
+    """Returns the skill's declared dependencies that are not installed.
+
+    Empty whenever the installed set is unknown, so an unrecognised
+    environment offers every skill exactly as before this check existed.
+    """
+    installed = _installed_distributions()
+    if installed is None:
+        return set()
+    scripts = directory / "scripts"
+    sources = sorted(scripts.glob("*.py")) if scripts.is_dir() else []
+    declared = (
+        set().union(*(_declared_in(s) for s in sources)) if sources else set()
+    )
+    return declared - installed
+
+
+def _declared_in(script: pathlib.Path) -> set[str]:
+    """Returns the dependencies one script's metadata block declares."""
+    try:
+        text = script.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    block = _METADATA_BLOCK.search(text)
+    if block is None:
+        return set()
+    found = (
+        _DEPENDENCY.match(line.strip()) for line in block.group(1).splitlines()
+    )
+    return {_normalised(m.group(1)) for m in found if m is not None}
+
+
 def _load_skill(directory: pathlib.Path) -> Skill | None:
     """Reads one skill directory into a catalogue entry.
 
@@ -138,6 +207,22 @@ def _load_skill(directory: pathlib.Path) -> Skill | None:
     name = str(front.get("name") or "").strip()
     description = " ".join(str(front.get("description") or "").split())
     if not name or not description:
+        return None
+    # A skill whose dependencies are absent is withheld rather than
+    # offered and failed at run time, for the same reason ``run_command``
+    # is withheld without a sandbox backend: reading one costs a turn and
+    # then several thousand tokens re-sent on every turn after it, and
+    # the model cannot act on the ImportError it would get back. Two of
+    # the vendored skills are this case in the api image, whose skills
+    # interpreter deliberately omits a 695 MB dependency closure.
+    unmet = _unmet_dependencies(directory)
+    if unmet:
+        logger.info(
+            "Skill %r withheld: %s not installed for %s",
+            name,
+            ", ".join(sorted(unmet)),
+            skills_python(),
+        )
         return None
     return Skill(name=name, description=description, directory=directory)
 

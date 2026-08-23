@@ -116,7 +116,10 @@ ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
 # service whose deploy healthcheck allows a 60s start period and which pulls
 # this image on every deploy. Those skills are therefore not installed, and
 # enabling them is a separate, explicit image decision rather than a cost
-# every deploy pays by default.
+# every deploy pays by default. The catalogue notices: a skill whose
+# declared dependencies are absent from this interpreter is withheld from
+# the model rather than offered and failed at run time, so installing
+# those packages later is all it takes to make the skills appear.
 RUN python -m venv /app/skills-venv \
     && /app/skills-venv/bin/pip install --no-cache-dir --quiet \
         polite-http python-dotenv

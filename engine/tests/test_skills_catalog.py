@@ -10,6 +10,14 @@ from co_scientist.skills import catalog
 
 
 @pytest.fixture(autouse=True)
+def _clear_distribution_cache() -> object:
+    """Drops the interpreter's installed-package scan around every test."""
+    catalog._installed_distributions.cache_clear()
+    yield
+    catalog._installed_distributions.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _clear_cache() -> object:
     """Drops the process-wide catalogue around every test.
 
@@ -91,6 +99,73 @@ def test_unusable_frontmatter_is_skipped_not_defaulted(
     _write_skill(tmp_path, "broken", front)
     monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
     assert catalog.available_skills() == ()
+
+
+def _write_script(directory: pathlib.Path, deps: str) -> None:
+    """Writes one script declaring the given PEP 723 dependencies."""
+    (directory / "scripts" / "cli.py").write_text(
+        f"# /// script\n# dependencies = [\n{deps}# ]\n# ///\n",
+        encoding="utf-8",
+    )
+
+
+def _venv(root: pathlib.Path, *installed: str) -> str:
+    """Builds a venv-shaped tree and returns its interpreter path."""
+    site = root / "lib" / "python3.12" / "site-packages"
+    site.mkdir(parents=True)
+    for name in installed:
+        (site / f"{name}-1.0.dist-info").mkdir()
+    (root / "bin").mkdir()
+    return str(root / "bin" / "python")
+
+
+def test_a_skill_its_interpreter_cannot_run_is_withheld(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """An uninstallable skill is not offered at all.
+
+    Same reason ``run_command`` is withheld without a sandbox backend.
+    Reading one costs a turn and then several thousand tokens re-sent on
+    every turn after it, and the ImportError it returns is not something
+    the model can act on. Two of the 38 vendored skills are this case in
+    the api image, whose interpreter deliberately omits a 695 MB
+    dependency closure.
+    """
+    skills = tmp_path / "skills"
+    _write_skill(
+        skills, "alphagenome", "name: alphagenome\ndescription: Variants."
+    )
+    _write_script(skills / "alphagenome", '#   "alphagenome",\n#   "jax",\n')
+    _write_skill(
+        skills, "string", "name: string-database\ndescription: Networks."
+    )
+    _write_script(skills / "string", '#   "polite-http",\n')
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
+    monkeypatch.setenv(
+        catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
+    )
+
+    assert [s.name for s in catalog.available_skills()] == ["string-database"]
+
+
+def test_an_unrecognised_interpreter_withholds_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """Not knowing what is installed offers everything, as before.
+
+    "Unknown" must stay distinct from "nothing is installed": a layout
+    this cannot read would otherwise empty the catalogue silently, which
+    looks identical to the bundle not being installed at all.
+    """
+    skills = tmp_path / "skills"
+    _write_skill(
+        skills, "alphagenome", "name: alphagenome\ndescription: Variants."
+    )
+    _write_script(skills / "alphagenome", '#   "alphagenome",\n')
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
+    monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, "python3")
+
+    assert [s.name for s in catalog.available_skills()] == ["alphagenome"]
 
 
 def test_document_carries_the_invocation_the_file_does_not(
