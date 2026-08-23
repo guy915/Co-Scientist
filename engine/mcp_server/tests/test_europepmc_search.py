@@ -91,3 +91,40 @@ async def test_a_failed_request_degrades_instead_of_raising(
     result = await tool("PKMYT1")  # type: ignore[operator]
 
     assert result == {"source": source, "query": "PKMYT1", "records": []}
+
+
+async def test_every_record_carries_a_stable_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Records are keyed by their identifier once they reach the engine.
+
+    The engine re-keys a list-shaped response by each record's own id so
+    a paper found by two queries collapses to one entry. Europe PMC's
+    own ``source``/``id`` pair is the only field present on every record
+    -- a DOI is absent from plenty of preprints -- so without it the
+    re-key falls back to list position and results from the second query
+    overwrite the first's.
+    """
+    stub_responses(monkeypatch, _payload())
+
+    result = await europepmc_search.search_europepmc("pkmyt1", max_results=1)
+
+    assert result["records"][0]["source_id"] == "MED/42387642"
+
+
+async def test_citation_count_uses_the_name_the_ranker_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retrieval ranking rewards citations under one name only.
+
+    ``search_support._retrieval_score`` reads ``cited_by_count`` -- the
+    name OpenAlex already emits. A record carrying the same number under
+    a different key scores zero on that axis, so a heavily cited Europe
+    PMC paper ranks alongside an uncited one and below every PubMed hit,
+    without anything failing.
+    """
+    stub_responses(monkeypatch, _payload())
+
+    result = await europepmc_search.search_europepmc("pkmyt1", max_results=1)
+
+    assert result["records"][0]["cited_by_count"] == 3

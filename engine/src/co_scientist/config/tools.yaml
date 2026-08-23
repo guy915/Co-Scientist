@@ -271,6 +271,23 @@ tools:
       source_type: "literature"
       enabled: true
       effects: ["read", "network"]
+      # Europe PMC answers with an envelope -- {source, query, records} --
+      # not the {paper_id: metadata} map the pipeline consumes. Without
+      # results_path naming "records", those three envelope keys are taken
+      # for paper ids: every real record is dropped and the merge step is
+      # handed a bare string where it expects metadata.
+      response_format:
+        type: "json"
+        results_path: "records"
+        is_dict: false
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "source_id"
+          source: "'europepmc'"
       parameter_mapping:
         query: "query"
         limit: "max_results"
@@ -292,6 +309,22 @@ tools:
       source_type: "literature"
       enabled: true
       effects: ["read", "network"]
+      # Same envelope as europepmc_search above, and the same consequence
+      # if it goes unnamed -- here it fails silently rather than loudly,
+      # since the validation path skips a titleless article instead of
+      # raising, so every preprint query would report nothing found.
+      response_format:
+        type: "json"
+        results_path: "records"
+        is_dict: false
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "source_id"
+          source: "'preprints'"
       parameter_mapping:
         query: "query"
         limit: "max_results"

@@ -36,7 +36,13 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
     """Normalizes one Europe PMC result into a flat paper record."""
     doi = result.get("doi")
     pmid = result.get("pmid")
+    # Europe PMC's own source/id pair, which every record carries -- a DOI
+    # does not survive plenty of preprints. The engine re-keys a
+    # list-shaped response by this field, and without it two queries'
+    # results collide on list position and overwrite each other.
+    record_id = f"{result.get('source', 'MED')}/{result.get('id')}"
     return {
+        "source_id": record_id,
         "title": result.get("title"),
         "abstract": result.get("abstractText"),
         "year": result.get("pubYear"),
@@ -51,12 +57,11 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
         # a detail of the record: a preprint supporting a claim is a
         # weaker citation and the model has to be able to say so.
         "is_preprint": result.get("source") == "PPR",
-        "citation_count": result.get("citedByCount"),
+        "cited_by_count": result.get("citedByCount"),
         "url": (
             f"https://doi.org/{doi}"
             if doi
-            else f"https://europepmc.org/article/"
-            f"{result.get('source', 'MED')}/{result.get('id')}"
+            else f"https://europepmc.org/article/{record_id}"
         ),
     }
 

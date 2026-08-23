@@ -147,3 +147,96 @@ def test_yaml_disabled_or_missing_tool_disables_its_search_source(
     assert [s.tool for s in workflow.get_enabled_search_sources()] == [
         "alpha_search",
     ]
+
+
+def test_europepmc_results_normalize_into_individual_papers() -> None:
+    """Europe PMC's envelope must be unwrapped into one entry per record.
+
+    The tool returns ``{"source": ..., "query": ..., "records": [...]}``
+    rather than the ``{paper_id: metadata}`` map the pipeline expects.
+    Without a response_format that names ``records``, the three envelope
+    keys are themselves taken for paper ids -- so every real record is
+    discarded and ``merge_search_results`` is handed a string where it
+    expects metadata, raising ``AttributeError`` out of Phase 2 and
+    failing the whole literature review node with its retry budget spent
+    on the identical failure.
+    """
+    from co_scientist.agents.generation.literature_review.search_support import (  # noqa: E501
+        merge_search_results,
+        normalize_search_response,
+    )
+    from co_scientist.config import ToolRegistry
+
+    tool_config = ToolRegistry().get_tool("europepmc_search")
+    assert tool_config is not None
+    envelope = {
+        "source": "Europe PMC",
+        "query": "NHE1 in cancer",
+        "records": [
+            {
+                "source_id": "MED/42387642",
+                "title": "PKMYT1 in Cancer",
+                "abstract": "PKMYT1 has emerged as a target.",
+                "year": "2026",
+                "cited_by_count": 3,
+                "is_preprint": False,
+                "url": "https://doi.org/10.1002/gcc.70151",
+            },
+            {
+                "source_id": "PPR/1234567",
+                "title": "NHE1 regulation of tumour pH",
+                "abstract": "A preprint on pH regulation.",
+                "year": "2026",
+                "cited_by_count": 0,
+                "is_preprint": True,
+                "url": "https://europepmc.org/article/PPR/1234567",
+            },
+        ],
+    }
+
+    normalized = normalize_search_response(envelope, tool_config)
+
+    assert set(normalized) == {"MED/42387642", "PPR/1234567"}
+    assert normalized["MED/42387642"]["title"] == "PKMYT1 in Cancer"
+
+    merged, _ = merge_search_results(
+        [("europepmc_search", normalized)], deduplicate=True
+    )
+    assert len(merged) == 2
+
+
+def test_preprint_search_results_parse_into_articles() -> None:
+    """The novelty fallback must actually yield articles, not silently none.
+
+    ``preprint_search`` shares Europe PMC's envelope shape. Without a
+    response_format naming ``records`` the parser walks the envelope's own
+    keys, finds no title on any of them, and drops every one -- so the
+    validation path's last academic source reports zero preprints for
+    every query and a novelty claim about the last eighteen months goes
+    unchecked. It fails silently rather than loudly because this path
+    skips a malformed article instead of raising.
+    """
+    from co_scientist.config import ToolRegistry
+    from co_scientist.tools.response_parser import ResponseParser
+
+    tool_config = ToolRegistry().get_tool("preprint_search")
+    assert tool_config is not None
+    envelope = {
+        "source": "Preprints",
+        "query": "NHE1 in cancer",
+        "records": [
+            {
+                "source_id": "PPR/1234567",
+                "title": "NHE1 regulation of tumour pH",
+                "abstract": "A preprint on pH regulation.",
+                "year": "2026",
+                "url": "https://europepmc.org/article/PPR/1234567",
+            }
+        ],
+    }
+
+    articles = ResponseParser(tool_config).parse_to_articles(envelope)
+
+    assert [article.title for article in articles] == [
+        "NHE1 regulation of tumour pH"
+    ]
