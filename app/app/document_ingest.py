@@ -124,7 +124,7 @@ def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
     if normalized_type in _TEXT_TYPES:
         return _extract_text_document(data, normalized_type)
     if normalized_type == "application/pdf":
-        return _extract_pdf(data), "pypdf-layout+tesseract-fallback-v2"
+        return _extract_pdf(data), "pypdf-layout+tesseract-fallback-v3"
     if normalized_type in _IMAGE_TYPES:
         return _extract_image_ocr(data), "tesseract-cli-v1"
     raise ValueError(
@@ -198,23 +198,53 @@ def _extract_pdf(data: bytes) -> str:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
             raise ValueError("encrypted PDFs are not supported")
-        pages = [
-            _extract_pdf_page(index, page)
-            for index, page in enumerate(reader.pages, start=1)
-        ]
+        pages = list(reader.pages)
+        page_texts = [_extract_pdf_page_text(page) for page in pages]
     except ValueError:
         raise
     except Exception as exc:
         raise ValueError("PDF could not be parsed") from exc
-    return "\n\n".join(pages)
+
+    page_texts = _apply_heading_markup(reader, pages, page_texts)
+    sections = [
+        _assemble_pdf_page(index, page, text)
+        for index, (page, text) in enumerate(
+            zip(pages, page_texts, strict=True), start=1
+        )
+    ]
+    return "\n\n".join(sections)
 
 
-def _extract_pdf_page(index: int, page: Any) -> str:
-    """Extract one PDF page's text plus OCR for its embedded figures."""
+def _extract_pdf_page_text(page: Any) -> str:
+    """Extract one PDF page's own text, preserving its visual layout."""
     try:
-        text = page.extract_text(extraction_mode="layout") or ""
+        return page.extract_text(extraction_mode="layout") or ""
     except TypeError:
-        text = page.extract_text() or ""
+        return page.extract_text() or ""
+
+
+def _apply_heading_markup(
+    reader: Any, pages: list[Any], page_texts: list[str]
+) -> list[str]:
+    """Infer section headings and mark them up, never failing the upload.
+
+    Heading inference reads the PDF's own outline and re-extracts each
+    page's text through a second, styling-aware pass -- either of which
+    can legitimately raise on a document (or, in tests, a stubbed
+    ``pypdf`` reader) that does not support it. A document the scientist
+    handed us is worth more than its headings, so any failure here falls
+    back to the plain per-page text already extracted above.
+    """
+    try:
+        from app.pdf_headings import apply_heading_markup
+
+        return apply_heading_markup(reader, pages, page_texts)
+    except Exception:
+        return page_texts
+
+
+def _assemble_pdf_page(index: int, page: Any, text: str) -> str:
+    """Join one page's (possibly heading-marked) text with its figure OCR."""
     figure_sections = _extract_pdf_page_figures(index, page)
     page_parts = [f"[Page {index}]", text, *figure_sections]
     return "\n".join(part for part in page_parts if part)
