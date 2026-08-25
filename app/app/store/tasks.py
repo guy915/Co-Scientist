@@ -1,10 +1,20 @@
 """Durable scientific task queue with leases and idempotent completion.
 
+The row <-> dataclass mapping (``ScientificTask``, ``_decode``) lives in
+``app.store.tasks_model``, split out so ``app.store.tasks_attempts`` can
+decode a task row without importing back from this module. The
+lease-outcome writes for a completed or renewed task, and the bounded
+failed-attempt history bookkeeping, live in ``app.store.tasks_attempts``.
+``fail_task`` itself stays here: it also calls
+``_settle_run_for_failed_task``, and a test monkeypatches that name on
+this module to verify the whole write is transactional, which only holds
+while the call site resolving it lives here too.
+
 The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
 live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
-probes live in ``app.store.tasks_probes``; both are re-exported here so
-the module namespace is unchanged.
+probes live in ``app.store.tasks_probes``. Every name from all four
+sibling modules is re-exported here so the module namespace is unchanged.
 """
 
 from __future__ import annotations
@@ -20,6 +30,20 @@ from app.store.db import _now, _use_conn, connect, transaction
 from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
 )
+from app.store.tasks_attempts import (
+    _ATTEMPT_ERROR_MAX_CHARS as _ATTEMPT_ERROR_MAX_CHARS,
+)
+from app.store.tasks_attempts import (
+    _MAX_STORED_ATTEMPTS as _MAX_STORED_ATTEMPTS,
+)
+from app.store.tasks_attempts import (
+    _persist_failed_attempt as _persist_failed_attempt,
+)
+from app.store.tasks_attempts import (
+    _record_failed_attempt as _record_failed_attempt,
+)
+from app.store.tasks_attempts import complete_task as complete_task
+from app.store.tasks_attempts import renew_task_lease as renew_task_lease
 from app.store.tasks_lifecycle import (
     abandon_dead_leases as abandon_dead_leases,
 )
@@ -36,6 +60,8 @@ from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
+from app.store.tasks_model import ScientificTask as ScientificTask
+from app.store.tasks_model import _decode as _decode
 from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
 )
@@ -50,66 +76,6 @@ from app.store.tasks_probes import has_task_of_type as has_task_of_type
 from app.store.tasks_probes import (
     queue_health_snapshot as queue_health_snapshot,
 )
-
-
-@dataclasses.dataclass(frozen=True)
-class ScientificTask:
-    """One durable unit of specialist work."""
-
-    id: str
-    run_id: str
-    task_type: str
-    status: str
-    priority: int
-    inputs: dict[str, Any]
-    dependencies: tuple[str, ...]
-    provenance: dict[str, Any]
-    idempotency_key: str
-    budget: dict[str, Any]
-    attempt: int
-    max_attempts: int
-    lease_owner: str | None
-    lease_expires_at: float | None
-    result: dict[str, Any] | None
-    error: str | None
-    created_at: float
-    updated_at: float
-    started_at: float | None
-    completed_at: float | None
-    # Bounded history of failed attempts only -- see _record_failed_attempt.
-    # A row written before attempts_json existed reads back as (), the
-    # only state such a row could represent.
-    attempts: tuple[dict[str, Any], ...] = ()
-    # When the current lease's attempt was claimed; see schema_tasks.py.
-    attempt_started_at: float | None = None
-
-
-def _decode(row: sqlite3.Row) -> ScientificTask:
-    """Decode a SQLite task row into its typed representation."""
-    return ScientificTask(
-        id=str(row["id"]),
-        run_id=str(row["run_id"]),
-        task_type=str(row["task_type"]),
-        status=str(row["status"]),
-        priority=int(row["priority"]),
-        inputs=json.loads(row["inputs_json"]),
-        dependencies=tuple(json.loads(row["dependencies_json"])),
-        provenance=json.loads(row["provenance_json"]),
-        idempotency_key=str(row["idempotency_key"]),
-        budget=json.loads(row["budget_json"]),
-        attempt=int(row["attempt"]),
-        max_attempts=int(row["max_attempts"]),
-        lease_owner=row["lease_owner"],
-        lease_expires_at=row["lease_expires_at"],
-        result=json.loads(row["result_json"]) if row["result_json"] else None,
-        error=row["error"],
-        created_at=float(row["created_at"]),
-        updated_at=float(row["updated_at"]),
-        started_at=row["started_at"],
-        completed_at=row["completed_at"],
-        attempts=tuple(json.loads(row["attempts_json"])),
-        attempt_started_at=row["attempt_started_at"],
-    )
 
 
 def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
@@ -407,96 +373,6 @@ def claim_task(
     return None
 
 
-def complete_task(
-    task_id: str,
-    worker_id: str,
-    result: Mapping[str, Any],
-    *,
-    db_path: str | None = None,
-) -> bool:
-    """Complete a currently owned lease exactly once."""
-    now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
-            "UPDATE scientific_tasks SET status='completed', result_json=?, "
-            "error=NULL, lease_owner=NULL, lease_expires_at=NULL, "
-            "completed_at=?, updated_at=? WHERE id=? AND status='leased' "
-            "AND lease_owner=?",
-            (
-                json.dumps(dict(result), sort_keys=True),
-                now,
-                now,
-                task_id,
-                worker_id,
-            ),
-        ).rowcount
-    return bool(changed)
-
-
-def renew_task_lease(
-    task_id: str,
-    worker_id: str,
-    lease_seconds: float,
-    *,
-    db_path: str | None = None,
-) -> bool:
-    """Extend an owned lease so long scientific work cannot be redelivered."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
-    now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
-            "UPDATE scientific_tasks SET lease_expires_at=?, updated_at=? "
-            "WHERE id=? AND status='leased' AND lease_owner=?",
-            (now + lease_seconds, now, task_id, worker_id),
-        ).rowcount
-    return bool(changed)
-
-
-# The largest max_attempts any caller in this codebase configures is 3
-# (the NewTask default; report_notify.py's own retry task uses it too).
-# Capped well above that for headroom against a future caller raising its
-# own budget, while still bounding this column's size on a hot table.
-_MAX_STORED_ATTEMPTS = 10
-
-# A traceback-carrying error can be arbitrarily large, and this column is
-# decoded on every task read -- cap per-attempt storage the same way
-# store/events.py caps its own free-text fields.
-_ATTEMPT_ERROR_MAX_CHARS = 2000
-
-
-def _record_failed_attempt(
-    task: ScientificTask,
-    worker_id: str,
-    error: str,
-    retryable: bool,
-    now: float,
-) -> str:
-    """Append this attempt's failure to the task's bounded history.
-
-    ``task.attempt_started_at`` is set once per lease, at claim time
-    (``_try_lease_task``) -- deliberately not ``task.updated_at``, which
-    a long attempt's heartbeat renewal (``renew_task_lease``) also bumps,
-    and would otherwise report only the most recent renewal as the
-    attempt's start for exactly the slow failures this history exists to
-    diagnose.
-
-    Returns:
-        The updated ``attempts_json`` value, capped at
-        :data:`_MAX_STORED_ATTEMPTS` entries, newest last.
-    """
-    record = {
-        "attempt": task.attempt,
-        "error": error[:_ATTEMPT_ERROR_MAX_CHARS],
-        "retryable": retryable,
-        "worker": worker_id,
-        "started_at": task.attempt_started_at,
-        "ended_at": now,
-    }
-    attempts = [*task.attempts, record][-_MAX_STORED_ATTEMPTS:]
-    return json.dumps(attempts)
-
-
 def fail_task(
     task_id: str,
     worker_id: str,
@@ -522,24 +398,8 @@ def fail_task(
         if row is None:
             return False
         task = _decode(row)
-        retry_left = retryable and task.attempt < task.max_attempts
-        status = "queued" if retry_left else "failed"
-        now = _now()
-        attempts_json = _record_failed_attempt(
-            task, worker_id, error, retryable, now
-        )
-        conn.execute(
-            "UPDATE scientific_tasks SET status=?, error=?, "
-            "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
-            "completed_at=?, updated_at=? WHERE id=?",
-            (
-                status,
-                error,
-                attempts_json,
-                now if status == "failed" else None,
-                now,
-                task_id,
-            ),
+        status = _persist_failed_attempt(
+            conn, task, worker_id, error, retryable
         )
         if status == "failed":
             _settle_run_for_failed_task(
