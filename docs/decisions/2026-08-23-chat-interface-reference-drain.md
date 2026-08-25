@@ -297,3 +297,44 @@ synchronous, in-memory, no durability.
   already a long ask. Raising them is a sentence away.
 - The clone directory outside the repository can be deleted at any time; every
   mechanism worth keeping is named above with the file it lives in.
+
+## Outcome — all eighteen built (2026-08-25)
+
+Every finding above was approved and is on `main`. Four were built to a
+different shape than the row that proposed them, and the reasons are recorded
+here rather than only in the commits, because in three of the four the
+proposal's own premise turned out to be wrong.
+
+- **U2 — no generic interrupt framework was built.** The row's premise, "we
+  have no human-in-the-loop", is false. A complete one already exists and is
+  specific to safety: a hold parks the boundary task rather than completing it,
+  leaves a `requires_review` decision, and approval releases the parked
+  boundary through the resume path. What was missing was that a run waiting on
+  a person was indistinguishable from one someone had paused, and that
+  `adjudicate` had no caller in the frontend at all — so a held run could only
+  be released by hand. Both are now closed (`awaiting_decision_count` on the
+  run payload, plus approve/reject with a confirmation step). A second
+  mechanism with one consumer would have been an interface with a single
+  implementation.
+
+- **C6/U1 — no per-tool-call events.** The proposal's `{toolCallId, name,
+  args, output}` shape has no counterpart in our data: run events are node and
+  task lifecycle records, and one event row per MCP call would put that write
+  on the single SQLite writer this system is already bottlenecked on. The card
+  was built on the typed `activity` discriminator U4 added, with consecutive
+  same-activity events collapsed into one counted, expandable group.
+
+- **C3 — no dedicated abort endpoint.** The row asked for one "rather than
+  relying on the closed connection". A client disconnect already reaches the
+  generator; what it did not do was pass the cancellation on to the detached
+  task it had started. One `finally` was the whole server-side fix.
+
+- **P2 — no interview-progress rail.** Only the read-only-fields half (A3) was
+  built. The rail is a separate visual invention that was not specified.
+
+Two further notes for whoever picks this up next. The `D3` re-extraction
+covered the fourteen papers we hold original PDFs for, out of roughly fifty
+corpus files carrying full text — the rest have no PDF on this machine and are
+unchanged. And the ranking defect this study found (`_retrieval_score` flooring
+every web result) is fixed by rank fusion, which registers as a new retriever
+method rather than redefining the existing one.
