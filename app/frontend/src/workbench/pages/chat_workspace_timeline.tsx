@@ -248,6 +248,7 @@ function draftSpecCardNode({
           completionEmail: email,
         })
       }
+      onFieldsChange={patch => updateDraftSpec(setDraft, patch)}
       onCancel={handleCancelDraftSpec}
       onEdit={() => handleEditPlan(draft.spec)}
       onRetry={() => handleRetryDraftSpec()}
@@ -333,6 +334,7 @@ function confirmedSpecTimelineItems({
           onFocusChange={() => undefined}
           onTierChange={() => undefined}
           onNotificationChange={() => undefined}
+          onFieldsChange={() => undefined}
           onCancel={() => undefined}
           onEdit={() => handleEditPlan(confirmed.spec)}
           onRetry={() => {

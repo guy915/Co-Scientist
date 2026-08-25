@@ -219,7 +219,7 @@ it('wires composer and spec actions to the session handlers', async () => {
     spec: {...spec, tier: 'ultra'},
   });
 
-  fireEvent.click(screen.getByLabelText('Edit research plan'));
+  fireEvent.click(screen.getByLabelText('Revise with the Agent'));
   expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
 
   fireEvent.click(screen.getByLabelText('Retry response'));
@@ -248,7 +248,7 @@ it('renders read-only with edit/retry and inert no-ops', () => {
   expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
   expect(screen.getByText('Start research')).toBeDisabled();
 
-  fireEvent.click(screen.getByLabelText('Edit research plan'));
+  fireEvent.click(screen.getByLabelText('Revise with the Agent'));
   expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
 
   fireEvent.click(screen.getByLabelText('Retry response'));

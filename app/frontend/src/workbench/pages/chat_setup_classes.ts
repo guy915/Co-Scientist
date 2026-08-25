@@ -9,8 +9,9 @@
 // each variant composes from a base so the recipe lives in one place.
 
 // Muted, transparent, round icon button. Variants add a size and an optional
-// reference-* marker class.
-const MUTED_ICON_BUTTON =
+// reference-* marker class. Exported so the field editor's remove-entry
+// button (chat_timeline_run_spec_editor.tsx) can compose the same recipe.
+export const MUTED_ICON_BUTTON =
   'grid cursor-pointer place-items-center rounded-full border-0 ' +
   'bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover ' +
   'hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
@@ -274,3 +275,55 @@ export const STARTED_NEXT_BUTTON_CLASSES =
   'px-[1.2rem] font-semibold text-cosci-btn-outline-fg ' +
   'hover:bg-cosci-btn-outline-hover-bg ' +
   'focus-visible:bg-cosci-btn-outline-hover-bg';
+
+// In-place field editor (chat_timeline_run_spec_editor.tsx): the trigger
+// that swaps SpecSummary for the editable form, the form's field/list/error
+// chrome, and its Save/Cancel row (reuses SETUP_ACTIONS_CLASSES and the two
+// SETUP_*_BUTTON_CLASSES above, matching the Cancel/Start row's own style).
+export const SPEC_EDIT_TRIGGER_CLASSES =
+  'reference-spec-edit-trigger flex w-fit cursor-pointer items-center ' +
+  'gap-[0.35rem] rounded-full border-0 bg-transparent px-[0.2rem] ' +
+  'py-[0.3rem] text-[0.92rem] font-medium text-cosci-muted ' +
+  'hover:text-cosci-fg focus-visible:text-cosci-fg';
+
+export const SPEC_EDIT_TRIGGER_ICON_CLASSES = 'text-[1.05rem]';
+
+export const SPEC_EDIT_FORM_CLASSES =
+  'reference-spec-edit-form grid gap-[1.15rem]';
+
+export const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
+
+export const SPEC_EDIT_LABEL_CLASSES = 'text-[1.18rem] font-bold text-cosci-fg';
+
+// Shared bordered-control look for the goal textarea, title input, and each
+// list entry's text input.
+const SPEC_EDIT_CONTROL_BASE =
+  'w-full rounded-[0.65rem] border border-cosci-composer-border ' +
+  'bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base ' +
+  'text-cosci-composer-text outline-none focus-visible:border-cosci-fg';
+
+export const SPEC_EDIT_TEXTAREA_CLASSES =
+  SPEC_EDIT_CONTROL_BASE + ' min-h-[6rem] resize-y leading-[1.45]';
+
+export const SPEC_EDIT_INPUT_CLASSES = SPEC_EDIT_CONTROL_BASE;
+
+export const SPEC_EDIT_FIELDSET_CLASSES = 'm-0 grid gap-[0.6rem] border-0 p-0';
+
+export const SPEC_EDIT_LEGEND_CLASSES = SPEC_EDIT_LABEL_CLASSES;
+
+export const SPEC_EDIT_LIST_ROW_CLASSES = 'flex items-center gap-[0.5rem]';
+
+export const SPEC_EDIT_REMOVE_BUTTON_CLASSES =
+  'size-[2.1rem] shrink-0 ' + MUTED_ICON_BUTTON;
+
+export const SPEC_EDIT_REMOVE_ICON_CLASSES = 'text-[1.15rem]';
+
+export const SPEC_EDIT_ADD_BUTTON_CLASSES =
+  'reference-spec-edit-add flex w-fit cursor-pointer items-center ' +
+  'gap-[0.3rem] rounded-full border-0 bg-transparent px-[0.2rem] ' +
+  'py-[0.3rem] text-[0.9rem] font-medium text-cosci-muted ' +
+  'hover:text-cosci-fg focus-visible:text-cosci-fg';
+
+export const SPEC_EDIT_ADD_ICON_CLASSES = 'text-[1.05rem]';
+
+export const SPEC_EDIT_ERROR_CLASSES = 'm-0 text-[0.9rem]';

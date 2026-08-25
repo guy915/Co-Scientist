@@ -30,6 +30,56 @@ export function interviewToRunSpec(interview: Interview): InferredRunSpec {
   };
 }
 
+/**
+ * The plan card's in-place editor state: plain strings/arrays for the four
+ * fields the interview derives (goal, focus area, preferences, title).
+ * Kept distinct from `InferredRunSpec` because the editor's title is always
+ * a string (empty means unset), where the card's is `string | null`.
+ */
+export interface EditedSpecFields {
+  goal: string;
+  title: string;
+  attributes: string[];
+  requirements: string[];
+}
+
+/**
+ * Maps the editor's local field values onto the `PUT /fields` request
+ * shape. A blank title is sent as `null`, matching how an unedited card
+ * (never having set a title) already reads.
+ */
+export function buildInterviewFieldsPayload(
+  values: EditedSpecFields,
+): Interview['fields'] {
+  return {
+    research_challenge: values.goal,
+    focus_area: values.attributes,
+    preferences: values.requirements,
+    title: values.title.trim() ? values.title : null,
+  };
+}
+
+/**
+ * Maps a `PUT /fields` response back onto the run-spec field names, for
+ * merging into the draft/confirmed spec after a save. The server may not
+ * have stored the edit exactly as sent (it trims list entries), so the
+ * editor adopts this rather than assuming its own local values landed.
+ */
+export function applyEditedInterviewFields(
+  interview: Interview,
+): Pick<
+  InferredRunSpec,
+  'interviewId' | 'title' | 'goal' | 'attributes' | 'requirements'
+> {
+  return {
+    interviewId: interview.id,
+    title: interview.fields.title,
+    goal: interview.fields.research_challenge,
+    attributes: interview.fields.focus_area,
+    requirements: interview.fields.preferences,
+  };
+}
+
 /** One compute-tier choice in the run-setup picker. */
 export interface RunTierOption {
   id: RunTier;

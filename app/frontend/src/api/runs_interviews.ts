@@ -204,13 +204,19 @@ export async function getInterview(interviewId: string): Promise<Interview> {
   });
 }
 
-/** Persists scientist edits to the four verified fields. */
+/**
+ * Persists scientist edits to the four verified fields.
+ *
+ * The endpoint is PUT-only, so `jsonRequest`'s default POST method is
+ * overridden here the same way `streamInterviewTurn` overrides it for the
+ * turn-revision endpoints above.
+ */
 export async function editInterviewFields(
   interviewId: string,
   fields: Interview['fields'],
 ): Promise<Interview> {
-  return fetchJson(
-    `/api/interviews/${interviewId}/fields`,
-    jsonRequest(fields, true),
-  );
+  return fetchJson(`/api/interviews/${interviewId}/fields`, {
+    ...jsonRequest(fields, true),
+    method: 'PUT',
+  });
 }

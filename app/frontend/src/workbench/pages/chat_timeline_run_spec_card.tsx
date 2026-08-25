@@ -1,4 +1,3 @@
-import {type ReactNode} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
@@ -33,17 +32,13 @@ import {
   SETUP_PARAGRAPH_CLASSES,
   SETUP_PRIMARY_BUTTON_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
-  SPEC_DETAIL_CLASSES,
-  SPEC_GRID_CLASSES,
-  SPEC_LIST_CLASSES,
-  SPEC_ROW_CLASSES,
-  SPEC_TERM_CLASSES,
 } from './chat_setup_classes';
 import {FallbackTurnNotice} from './chat_timeline_bubble';
 import {
   MessageActionRow,
   responseActions,
 } from './chat_timeline_message_actions';
+import {SpecFieldsSection} from './chat_timeline_run_spec_editor';
 import {CompletionNotification} from './chat_timeline_run_spec_notification';
 
 // Props for RunSpecCard, named at module level per the destructured prop
@@ -70,6 +65,7 @@ interface RunSpecCardProps {
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
+  onFieldsChange: (patch: Partial<InferredRunSpec>) => void;
   onCancel: () => void;
   onEdit: () => void;
   onRetry: () => void;
@@ -122,6 +118,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
         onFocusChange={props.onFocusChange}
         onTierChange={props.onTierChange}
         onNotificationChange={props.onNotificationChange}
+        onFieldsChange={props.onFieldsChange}
         onCancel={props.onCancel}
         onStart={props.onStart}
       />
@@ -148,8 +145,8 @@ function PlanHeading({onEdit}: {onEdit: () => void}) {
           className: PLAN_EDIT_BUTTON_CLASSES,
           placement: 'top',
         })}
-        aria-label="Edit research plan"
-        data-tooltip="Edit research plan"
+        aria-label="Revise with the Agent"
+        data-tooltip="Revise with the Agent"
         onClick={onEdit}
       >
         <Icon
@@ -206,6 +203,7 @@ interface RunSpecDocumentProps {
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
+  onFieldsChange: (patch: Partial<InferredRunSpec>) => void;
   onCancel: () => void;
   onStart: () => void;
 }
@@ -220,6 +218,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
     onFocusChange,
     onTierChange,
     onNotificationChange,
+    onFieldsChange,
     onCancel,
     onStart,
   } = props;
@@ -228,7 +227,11 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
       <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
         {spec.title || conciseTitle(spec.goal)}
       </h3>
-      <SpecSummary spec={spec} />
+      <SpecFieldsSection
+        spec={spec}
+        locked={locked}
+        onFieldsChange={onFieldsChange}
+      />
       <SpecOptionGroups
         spec={spec}
         locked={locked}
@@ -248,18 +251,6 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
         canStart={isCompletionEmailValid(spec)}
       />
     </div>
-  );
-}
-
-// The exact four fields shown by Google's interview progress and setup flow.
-function SpecSummary({spec}: {spec: InferredRunSpec}) {
-  return (
-    <dl className={SPEC_GRID_CLASSES}>
-      <SpecRow label="Research Challenge">{spec.goal}</SpecRow>
-      <SpecList label="Focus Area" values={spec.attributes} />
-      <SpecList label="Preferences" values={spec.requirements} />
-      <SpecRow label="Title">{spec.title || 'Optional'}</SpecRow>
-    </dl>
   );
 }
 
@@ -327,30 +318,6 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus, spec.focus)}`,
     `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier, spec.tier)}`,
   ].join('\n');
-}
-
-// One term/detail row in the spec definition list (dt/dd pair).
-function SpecRow({label, children}: {label: string; children: ReactNode}) {
-  return (
-    <div className={SPEC_ROW_CLASSES}>
-      <dt className={SPEC_TERM_CLASSES}>{label}:</dt>
-      <dd className={SPEC_DETAIL_CLASSES}>{children}</dd>
-    </div>
-  );
-}
-
-// A spec row whose value is rendered as a bulleted list (Requirements/
-// Attributes/Criteria) rather than plain text (Goal).
-function SpecList({label, values}: {label: string; values: string[]}) {
-  return (
-    <SpecRow label={label}>
-      <ul className={SPEC_LIST_CLASSES}>
-        {values.map(value => (
-          <li key={value}>{value}</li>
-        ))}
-      </ul>
-    </SpecRow>
-  );
 }
 
 // One option in a RunOptionGroup (Focus or Tier).
