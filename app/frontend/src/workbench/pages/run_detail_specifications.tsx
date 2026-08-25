@@ -2,7 +2,6 @@ import {type ChangeEvent, useState} from 'react';
 import {
   type RunWithSummary,
   type SafetyDecision,
-  adjudicateSafety,
   isTerminalStatus,
   runGoal,
   uploadRunDocument,
@@ -13,6 +12,7 @@ import {
   ReportDocument,
   ReportList,
 } from './run_detail_document';
+import {errorMessage, SafetyReviewSection} from './run_detail_safety_review';
 
 const UPLOAD_LABEL_CLASSES =
   'mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border ' +
@@ -131,10 +131,6 @@ interface UploadCallbacks {
   onChanged: () => void;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 // Uploads the chosen file into the run's private corpus, reporting progress
 // and outcome through the given callbacks.
 async function uploadCorpusFile(
@@ -195,138 +191,6 @@ function PrivateCorpusUpload({
           {status}
         </p>
       )}
-    </section>
-  );
-}
-
-interface ResolveProps {
-  busy: boolean;
-  onResolve: (resolution: 'approved' | 'rejected') => void;
-}
-
-// The approve/reject controls for a decision still awaiting human review.
-function ResolveButtons({busy, onResolve}: ResolveProps) {
-  return (
-    <div className="flex gap-2">
-      <button
-        className="rounded-full border border-cosci-border px-4 py-2"
-        disabled={busy}
-        onClick={() => onResolve('approved')}
-        type="button"
-      >
-        Approve for research use
-      </button>
-      <button
-        className="rounded-full border border-cosci-border px-4 py-2"
-        disabled={busy}
-        onClick={() => onResolve('rejected')}
-        type="button"
-      >
-        Reject
-      </button>
-    </div>
-  );
-}
-
-// Display values derived from a safety decision: the human-readable category
-// when one was assigned, plus whether it still needs a human resolution. The
-// policy version and assessor are decision-internal plumbing and are not
-// surfaced here.
-function decisionDisplayValues(decision: SafetyDecision) {
-  return {
-    category: decision.category,
-    needsResolution: decision.requires_review && !decision.resolution,
-    // A hypothesis the engine's safety screen held out of the pool. It has
-    // no hypothesis row of its own, so its decision row is the one place a
-    // person can see the idea and adjudicate it.
-    heldHypothesis:
-      decision.stage === 'hypothesis' && decision.decision === 'hold',
-  };
-}
-
-// One safety decision: what was flagged and — when it still needs human
-// review — the approve/reject controls.
-function SafetyDecisionItem({
-  decision,
-  busy,
-  onResolve,
-}: ResolveProps & {decision: SafetyDecision}) {
-  const {category, needsResolution, heldHypothesis} =
-    decisionDisplayValues(decision);
-  return (
-    <div className="mb-5">
-      {heldHypothesis ? (
-        <p>
-          <strong>Held for review:</strong> {decision.reason}
-        </p>
-      ) : (
-        <p>
-          <strong>{decision.stage}:</strong>{' '}
-          {category ? `${category} — ${decision.reason}` : decision.reason}
-        </p>
-      )}
-      {decision.resolution ? <p>Resolution: {decision.resolution}</p> : null}
-      {needsResolution ? (
-        <ResolveButtons busy={busy} onResolve={onResolve} />
-      ) : null}
-    </div>
-  );
-}
-
-// The verdict of the final screen, which is what the audit reads as: one
-// per-run row appended after every hypothesis has been gated. Decisions
-// arrive oldest-first, so the last matching row is the current one.
-function finalDecision(decisions: SafetyDecision[]) {
-  const finals = decisions.filter(d => d.stage === 'final');
-  return finals.length ? finals[finals.length - 1] : null;
-}
-
-function SafetyReviewSection({
-  runId,
-  decisions,
-  onChanged,
-}: {
-  runId: string | undefined;
-  decisions: SafetyDecision[];
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = useState<number | null>(null);
-  // The audit is dominated by routine per-hypothesis claim-gate rows that say
-  // nothing about the run as a whole, so only the final verdict is shown.
-  // Decisions a human must adjudicate are the exception: they carry the
-  // approve/reject controls, and hiding them would strand the review.
-  const summary = finalDecision(decisions);
-  const reviewable = decisions.filter(
-    d => d.requires_review && d.id !== summary?.id,
-  );
-  if (!summary && !reviewable.length) return null;
-
-  async function resolve(
-    decision: SafetyDecision,
-    resolution: 'approved' | 'rejected',
-  ) {
-    if (!runId) return;
-    setBusy(decision.id);
-    try {
-      await adjudicateSafety(runId, decision.id, resolution);
-      onChanged();
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <section className="mt-8 border-t border-cosci-border pt-5">
-      <h3 className={REPORT_H3_CLASSES}>Safety audit</h3>
-      {summary ? <p className="mb-5">{summary.reason}</p> : null}
-      {reviewable.map(decision => (
-        <SafetyDecisionItem
-          key={decision.id}
-          decision={decision}
-          busy={busy === decision.id}
-          onResolve={resolution => void resolve(decision, resolution)}
-        />
-      ))}
     </section>
   );
 }

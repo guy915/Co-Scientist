@@ -13,6 +13,7 @@ every name, remaining the stable import and monkeypatch surface.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from fastapi import (
@@ -353,11 +354,30 @@ async def get_run(run_id: str) -> dict[str, Any]:
                 summary["evidence"], len(live_state.get("articles") or [])
             )
         progress = store.task_progress(run_id, conn=conn)
+        awaiting = _awaiting_decision_count(run, conn=conn)
     return {
         **run.to_dict(),
         "summary": summary,
         "execution_progress": progress,
+        "awaiting_decision_count": awaiting,
     }
+
+
+def _awaiting_decision_count(
+    run: store.RunRow, *, conn: sqlite3.Connection
+) -> int:
+    """Count unresolved reviewable safety decisions blocking this run.
+
+    Derived, not persisted: a run is "awaiting a person" exactly when it is
+    paused *and* carries an unresolved ``requires_review`` decision -- both
+    facts already live elsewhere (``runs.status``, ``safety_decisions``), so
+    adding a third status value here would just let them disagree. Gated on
+    ``paused`` first so every other run (the overwhelming majority) costs
+    this endpoint nothing beyond the status check already in hand.
+    """
+    if run.status != RunStatus.PAUSED.value:
+        return 0
+    return store.count_unresolved_review_decisions(run.id, conn=conn)
 
 
 async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:

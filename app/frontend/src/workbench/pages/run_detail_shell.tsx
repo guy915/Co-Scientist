@@ -395,6 +395,40 @@ export function ReportUngroundedNotice() {
   );
 }
 
+const AWAITING_DECISION_NOTICE_CLASSES =
+  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 ' +
+  'rounded-md bg-th-warning-container px-4 py-3 ' +
+  'text-th-on-warning-container max-[700px]:mt-5 ' +
+  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+
+/**
+ * Report-level notice that a paused run has one or more safety decisions
+ * still awaiting a person -- shown above every tab's content (not folded
+ * into the safety audit on Goal Details), because a run held at intake
+ * produces no ideas, no overview, nothing to show on any other tab: without
+ * this, the run just reads as empty rather than as waiting on a reviewer.
+ * Sized and spaced like ReportUngroundedNotice, which it sits alongside
+ * inside the same scrolling column (see RunDetailTabContent).
+ */
+export function AwaitingDecisionNotice({count}: {count: number}) {
+  if (count <= 0) return null;
+  const decisions = count === 1 ? 'decision' : 'decisions';
+  return (
+    <div role="note" className={AWAITING_DECISION_NOTICE_CLASSES}>
+      <Icon
+        aria-hidden="true"
+        name="warning"
+        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
+      />
+      <p className="m-0">
+        This run is paused, waiting on {count} safety {decisions} to be
+        reviewed. Resolve {count === 1 ? 'it' : 'them'} on the Goal Details tab
+        to let the run continue.
+      </p>
+    </div>
+  );
+}
+
 /** Loading placeholder shown between mount and the first successful fetch. */
 export function RunDetailSkeleton() {
   return (

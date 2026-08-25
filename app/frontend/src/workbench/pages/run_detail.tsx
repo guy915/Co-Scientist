@@ -17,6 +17,7 @@ import {DiscoveryReportView} from './run_detail_discovery_report';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
+  AwaitingDecisionNotice,
   isTerminalNonCompletedStatus,
   ReportErrorAlert,
   reportSectionLabel,
@@ -139,6 +140,12 @@ function terminalEndStateOf(run: RunWithSummary | null): {
 // still guessing at what it should paint.
 function isInitialLoading(data: RunDetailData): boolean {
   return !data.loaded && !data.error;
+}
+
+// Zero for an unloaded run, matching the field's own "not paused, or
+// nothing left to review" meaning of zero (see `Run.awaiting_decision_count`).
+function awaitingDecisionCount(data: RunDetailData): number {
+  return data.run?.awaiting_decision_count ?? 0;
 }
 
 // The conversation a run came from, when the rail knows of one.
@@ -329,8 +336,13 @@ function tabSection(
 
 // Active tab content for a loaded run. Keying <main> by activeTab remounts it
 // on tab switch, which also resets any per-tab local UI state (e.g.
-// IdeasTab's selection, LearningView's search query). The ungrounded notice
-// rides above every tab's content because it applies to the whole report.
+// IdeasTab's selection, LearningView's search query). The awaiting-decision
+// and ungrounded notices ride above every tab's content because both apply
+// to the whole report -- rendered inside this scrolling region rather than
+// as a sibling of it, since `.cosci-report-page`'s grid-rows template is
+// sized for a fixed set of siblings; an extra one lands in an unsized
+// implicit track and its content overflows that track's box (see the
+// AwaitingDecisionNotice/heading overlap this replaced).
 function RunDetailTabContent({
   activeTab,
   ideasViewKey,
@@ -342,6 +354,7 @@ function RunDetailTabContent({
       key={activeTab}
       aria-label={reportSectionLabel(activeTab)}
     >
+      <AwaitingDecisionNotice count={awaitingDecisionCount(data)} />
       {reportIsUngrounded(data) && <ReportUngroundedNotice />}
       {tabSection(activeTab, ideasViewKey, data)}
     </main>

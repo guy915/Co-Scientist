@@ -9,7 +9,11 @@ export type RunStatus =
   | 'completed'
   | 'failed'
   | 'blocked'
-  | 'cancelled';
+  | 'cancelled'
+  // Cooperatively paused, resumable from its last checkpoint. Also the
+  // status a run carries while a safety hold sits unresolved -- see
+  // `Run.awaiting_decision_count`, which tells the two apart.
+  | 'paused';
 
 /** Verified Hypothesis Generation run modes. */
 export type RunMode = 'standard' | 'advanced';
@@ -216,6 +220,16 @@ export interface Run {
    */
   variant_count?: number;
   best_fitness?: number | null;
+  /**
+   * How many of the run's safety decisions are held `paused` and still
+   * unresolved (`requires_review` with no `resolution` yet). Derived on
+   * every single-run read rather than persisted -- `status === 'paused'`
+   * alone cannot tell a run waiting on a person from a cooperatively
+   * paused one, and both read identically without this. Zero (not
+   * omitted) for a run that is not paused, or is paused with nothing left
+   * to review; served only by the single-run endpoint, not the run list.
+   */
+  awaiting_decision_count?: number;
   execution_progress?: {
     determinate: boolean;
     completed_tasks: number;

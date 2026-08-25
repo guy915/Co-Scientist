@@ -85,6 +85,7 @@ export {
   clientHeaders,
   exchangeAccessCode,
   fetchJson,
+  HttpError,
   jsonRequest,
   readSseFrames,
 } from './runs_http';

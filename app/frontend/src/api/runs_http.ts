@@ -46,6 +46,24 @@ export function byokHeaders(): Record<string, string> {
 }
 
 /**
+ * A fetch failure carrying the response's HTTP status, for the rare caller
+ * that must act on the status rather than just display the message (e.g.
+ * distinguishing a 409 "someone else already resolved this" from any other
+ * failure). Extends `Error` with the same message every other caller's
+ * `instanceof Error` / `.message` handling already expects, so this is a
+ * transparent upgrade of what `parseJson`/`assertOk` threw before.
+ */
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+/**
  * Builds the error message for a non-ok response: a clearer message for an
  * empty-bodied 500 (the API process itself is typically unreachable, e.g.
  * cold start or a proxy with no upstream, rather than a handled application
@@ -84,8 +102,9 @@ export async function parseJson<T>(
   if (!res.ok) {
     forgetSessionIfUnauthorized(res);
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(
+    throw new HttpError(
       responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+      res.status,
     );
   }
   return (await res.json()) as T;
@@ -104,8 +123,9 @@ export async function assertOk(
   if (res.ok) return;
   forgetSessionIfUnauthorized(res);
   const text = await res.text().catch(() => res.statusText);
-  throw new Error(
+  throw new HttpError(
     responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+    res.status,
   );
 }
 

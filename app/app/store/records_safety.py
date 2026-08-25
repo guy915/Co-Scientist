@@ -94,6 +94,28 @@ def list_safety_decisions(
     return out
 
 
+def count_unresolved_review_decisions(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Count a run's safety decisions still awaiting human review.
+
+    Seeks the run's rows via ``idx_safety_run(run_id, created_at)`` and
+    counts in SQL rather than decoding every row's JSON columns the way
+    ``list_safety_decisions`` does -- this runs on the ``GET /runs/{id}``
+    hot path, so it stays a single indexed COUNT rather than a full listing.
+    """
+    with _use_conn(conn, db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM safety_decisions WHERE run_id=? AND "
+            "requires_review=1 AND resolution IS NULL",
+            (run_id,),
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+
 def resolve_safety_decision(
     run_id: str,
     decision_id: int,

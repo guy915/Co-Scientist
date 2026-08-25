@@ -254,6 +254,48 @@ it('renders the cancelled end state without report tabs', async () => {
   expect(screen.queryByText('Run Specifications')).toBeNull();
 });
 
+// A run held at intake produces no ideas, so a reader on the Ideas tab must
+// still learn it is waiting on a person -- not just a reader who happens to
+// open Goal Details, where the safety audit itself lives. Also pins the DOM
+// shape behind a real overlap bug: `.cosci-report-page` is a CSS grid whose
+// grid-rows template is sized for a fixed set of direct children (titlebar,
+// tabs, body), so a banner rendered as a fourth sibling landed in an unsized
+// implicit track and its content overflowed into the heading below. jsdom
+// runs no layout engine, so a pixel/getBoundingClientRect assertion here
+// would compare fabricated zeros -- the verifiable regression check is that
+// the notice lives inside the scrolling content region (alongside
+// ReportUngroundedNotice) rather than beside it, so it never competes for a
+// grid track.
+it('shows the awaiting-decision notice on every tab, nested in the scroll region', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'paused',
+    awaiting_decision_count: 2,
+  });
+
+  renderAt('/runs/run-1/ideas');
+
+  const notice = await screen.findByRole('note');
+  expect(notice).toHaveTextContent(/waiting on 2 safety decisions/);
+  const page = document.querySelector('.cosci-report-page');
+  const scrollRegion = document.querySelector('.cosci-report-scroll');
+  expect(Array.from(page?.children ?? [])).not.toContain(notice);
+  expect(scrollRegion).toContainElement(notice);
+});
+
+it('omits the notice for a paused run with nothing left to review', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'paused',
+    awaiting_decision_count: 0,
+  });
+
+  renderAt('/runs/run-1/details');
+
+  await screen.findByText('Run Specifications');
+  expect(screen.queryByRole('note')).toBeNull();
+});
+
 // The report page grid is nested inside .ucs-page--report, an ancestor whose
 // own overflow: hidden was relaxed to allow horizontal scrolling (see
 // shell_surface.css) -- an unconditional overflow-hidden here would keep

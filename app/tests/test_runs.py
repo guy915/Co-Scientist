@@ -241,6 +241,80 @@ def test_held_hypothesis_adjudication_records_without_blocking(
     )
 
 
+def test_paused_run_with_unresolved_review_awaits_decision(
+    isolated_db: str,
+) -> None:
+    """A paused run with an unresolved review decision awaits a person."""
+    from app import store
+    from app.store import RunStatus
+
+    client = _client()
+    headers = {"X-Client-ID": "awaiting-1"}
+    run_id, _ = _run_with_held_decision(client, headers)
+    store.update_run_status(run_id, RunStatus.PAUSED)
+
+    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == 1
+
+
+def test_paused_run_without_unresolved_review_awaits_nothing(
+    isolated_db: str,
+) -> None:
+    """A paused run with nothing left to review is not awaiting a person."""
+    from app import store
+    from app.store import RunStatus
+
+    client = _client()
+    headers = {"X-Client-ID": "awaiting-2"}
+    run = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Explore a mundane pathway"},
+    ).json()
+    store.update_run_status(run["id"], RunStatus.PAUSED)
+
+    detail = client.get(f"/api/runs/{run['id']}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == 0
+
+
+def test_non_paused_run_with_unresolved_review_awaits_nothing(
+    isolated_db: str,
+) -> None:
+    """A run merely holding a decision, not paused, is not "awaiting"."""
+    client = _client()
+    headers = {"X-Client-ID": "awaiting-3"}
+    # _run_with_held_decision leaves the run in its created 'draft' status.
+    run_id, _ = _run_with_held_decision(client, headers)
+
+    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == 0
+
+
+def test_paused_run_with_resolved_review_awaits_nothing(
+    isolated_db: str,
+) -> None:
+    """A paused run whose only hold was already resolved awaits no one."""
+    from app import store
+    from app.store import RunStatus
+
+    client = _client()
+    headers = {"X-Client-ID": "awaiting-4"}
+    run_id, decision_id = _run_with_held_decision(client, headers)
+    client.post(
+        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
+        headers=headers,
+        json={"resolution": "approved"},
+    )
+    store.update_run_status(run_id, RunStatus.PAUSED)
+
+    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == 0
+
+
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
     client = _client()
     headers = {"X-Client-ID": "limit-test"}
