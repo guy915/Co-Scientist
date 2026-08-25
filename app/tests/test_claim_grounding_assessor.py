@@ -28,12 +28,46 @@ from tests._store_helpers import _add
 _SUPPORTED = "A dietary change improves cardiovascular outcomes in adults."
 
 
-def test_build_assessor_selects_by_mode() -> None:
-    """`build_assessor` returns the deterministic or LLM assessor by mode."""
+def _may_call_out(monkeypatch: Any) -> None:
+    """Put the process in the state where a provider call is permissible."""
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
+
+
+def test_build_assessor_selects_by_mode(monkeypatch: Any) -> None:
+    """`build_assessor` returns the deterministic or LLM assessor by mode.
+
+    Explicit about the process state because mode is no longer the only
+    input: an offline process takes the deterministic assessor whatever the
+    mode says, which the test below covers.
+    """
+    _may_call_out(monkeypatch)
+
     _, det_id = build_assessor("deterministic", "unused")
     assert det_id == "deterministic-v1"
     _, llm_id = build_assessor("llm", "deepseek/deepseek-chat")
     assert llm_id == "llm:deepseek/deepseek-chat"
+
+
+def test_offline_never_builds_the_assessor_that_calls_a_provider(
+    monkeypatch: Any,
+) -> None:
+    """Mode says "llm", the process is offline, and nothing is billed.
+
+    ``claim_assessor`` defaults to ``"llm"`` and this call site never passed
+    through the engine's offline router, so a run the whole system believed
+    was offline still sent one real provider call per claim group against
+    whatever credential was in the environment -- 177 of them in a single
+    offline ``make parity`` run. A credential is deliberately present here,
+    since its presence is exactly what made the leak spend money.
+    """
+    monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-would-have-been-billed")
+
+    _, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
+
+    assert assessor_id == "deterministic-v1"
 
 
 def _ev_completion(ev_id: str) -> Any:
@@ -85,6 +119,7 @@ def test_ground_with_llm_assessor_persists_provenance(
     """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
     import litellm
 
+    _may_call_out(monkeypatch)
     run, hyp_id, ev_id = _seed_llm_assessor(isolated_db)
     # The faked model cites the real evidence id so the span locates.
     monkeypatch.setattr(litellm, "completion", _ev_completion(ev_id))

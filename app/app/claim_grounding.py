@@ -82,8 +82,26 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
     deterministic default never pulls in the LLM path); anything else is the
     offline deterministic assessor. Used by the engine drain to honor
     ``settings.claim_assessor``.
+
+    An offline process takes the deterministic assessor whatever the mode
+    says. ``claim_assessor`` defaults to ``"llm"`` and this is an app-side
+    call site, so it never passed through the engine's offline router: a run
+    the whole system believed was offline still sent one real, billable
+    provider call per claim group, using whatever credential happened to be
+    in the environment. Measured at 177 calls in a single offline
+    ``make parity`` run, and invisible until the account ran out of credit --
+    the assessor falls back to the deterministic one on any provider error,
+    so the only symptom was that a suite which had been passing began
+    withholding every idea.
+
+    This is the same class of leak the run driver's own
+    ``configure_environment`` documents at another call site, which is why
+    the guard belongs here, at the seam every caller shares, rather than in
+    each of them.
     """
-    if mode == "llm":
+    from app.engine_adapter.provider import offline_mode
+
+    if mode == "llm" and not offline_mode():
         from app.claim_verifier import make_llm_assessor
 
         return make_llm_assessor(model)
