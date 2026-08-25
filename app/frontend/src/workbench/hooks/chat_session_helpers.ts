@@ -1,5 +1,6 @@
 import {type Dispatch, type SetStateAction} from 'react';
 import {makePrefixedId} from '@/lib/id';
+import {type QaSource} from '@/api/runs';
 import {DIAGNOSTIC_EVENT} from '../dom_events';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
 
@@ -44,6 +45,8 @@ export interface NewChatMessage {
   reasoning?: string;
   /** Epoch seconds; defaults to now. */
   createdAt?: number;
+  /** A run Q&A answer's evidence manifest; see `ChatEntry.sources`. */
+  sources?: QaSource[];
 }
 
 /**
@@ -65,6 +68,7 @@ export function appendChatMessage(
       role: message.role,
       content: message.content,
       reasoning: message.reasoning,
+      sources: message.sources,
       created_at: createdAt,
     },
   ]);

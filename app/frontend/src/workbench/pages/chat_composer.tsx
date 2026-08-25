@@ -47,19 +47,25 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * `busy` blocks submitting (the send button and Enter) and nothing else: the
  * textarea stays typeable and focused so the next message can be written
  * while the current one is still being answered. `disabled` locks the whole
- * composer — textarea, send, and the file/connector controls — once the
- * session has started a run and its interview is closed server-side; the
- * placeholder explains why, and only a session reset (new chat) re-enables
- * it. `large` selects the roomier home-stage sizing/layout. `autoFocus` takes
+ * composer — textarea, send, and the file/connector controls. No caller
+ * currently passes it: a started run used to reach for it once its
+ * interview closed server-side (A17), but the composer stays live for that
+ * case now -- submit routes to the run's own Q&A endpoint instead (see
+ * chat_session_handlers.ts's buildChatHandlers) -- so this stays a general
+ * lock capability with nothing standing behind it in production.
+ * `large` selects the roomier home-stage sizing/layout. `autoFocus` takes
  * focus on mount; set on the in-conversation composer, which replaces the
  * home-stage one when the first message is sent, since that swap unmounts
  * the focused textarea and would otherwise drop the caret to the body,
  * forcing a click to carry on typing. `connectors` carries each connector's
  * toggled state and change callback. `onSubmit` handles Enter or the send
  * button. `stoppable` swaps the send button for a Stop control while a turn
- * the scientist can interrupt is in flight (an interview turn; not the run
- * create+start round trip, which has nothing to abort this way) --
- * `onStop` is its handler.
+ * the scientist can interrupt is in flight (an interview turn or a run Q&A
+ * turn; not the run create+start round trip, which has nothing to abort
+ * this way) -- `onStop` is its handler. `placeholderOverride` replaces the
+ * computed label outright (used once a run has started: the composer stays
+ * live, asking the run rather than editing its setup, so neither the
+ * `setupDraftMode` nor the `disabled` copy fits).
  */
 export interface ComposerProps {
   input: string;
@@ -73,6 +79,7 @@ export interface ComposerProps {
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   stoppable?: boolean;
   onStop?: () => void;
+  placeholderOverride?: string;
 }
 
 // Every connector on, with no owner to write a change back to: the shape a
@@ -93,8 +100,9 @@ function composerOptions(props: ComposerProps) {
     setupDraftMode = false,
     autoFocus = false,
     connectors = DEFAULT_CONNECTORS,
+    placeholderOverride,
   } = props;
-  return {large, setupDraftMode, autoFocus, connectors};
+  return {large, setupDraftMode, autoFocus, connectors, placeholderOverride};
 }
 
 // Composer's <form onSubmit>: forwards the staged attachments' files to the
@@ -136,14 +144,19 @@ export function Composer(props: ComposerProps) {
     stoppable = false,
     onStop,
   } = props;
-  const {large, setupDraftMode, autoFocus, connectors} = composerOptions(props);
+  const {large, setupDraftMode, autoFocus, connectors, placeholderOverride} =
+    composerOptions(props);
   const state = useComposerState(input, large);
   // A session that starts while the connectors menu is open locks the whole
   // composer; close the menu so no dangling control survives the transition.
   useEffect(() => {
     if (disabled) state.setConnectorsOpen(false);
   }, [disabled, state.setConnectorsOpen]);
-  const referenceLabel = composerReferenceLabel(setupDraftMode, disabled);
+  const referenceLabel = composerReferenceLabel(
+    setupDraftMode,
+    disabled,
+    placeholderOverride,
+  );
   // There is nothing to send while the input is blank, and nothing to send it
   // to while the session is still answering — both gate submission only, and
   // the textarea is never disabled for them, so typing and focus survive. A
@@ -195,10 +208,16 @@ function composerFormClassName(
 }
 
 // The floating-label copy shown above the textarea: a locked composer states
-// why, otherwise "edit session details" wording while a draft/confirmed run
-// spec or started session is showing, else the initial call-to-action.
-function composerReferenceLabel(setupDraftMode: boolean, disabled: boolean) {
+// why, an explicit override (the run-started, still-live case) wins next,
+// otherwise "edit session details" wording while a draft/confirmed run spec
+// is showing, else the initial call-to-action.
+function composerReferenceLabel(
+  setupDraftMode: boolean,
+  disabled: boolean,
+  placeholderOverride?: string,
+) {
   if (disabled) return 'Session started — start a new chat';
+  if (placeholderOverride) return placeholderOverride;
   return setupDraftMode
     ? 'Type to edit session details'
     : 'Start a new research goal to begin';

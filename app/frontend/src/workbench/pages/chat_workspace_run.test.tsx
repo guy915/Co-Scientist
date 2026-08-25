@@ -248,35 +248,83 @@ it('opens the started run detail from the session card', async () => {
   });
 });
 
-it('locks the composer once the run starts and posts no further turns', async () => {
+it('keeps the composer live once the run starts, asking it instead of the interview', async () => {
   await driveToRunSpec();
   await startRunFromSpec();
 
-  // The interview the composer posts to is completed server-side once the
-  // run starts, so every affordance that would create another turn locks,
-  // and the placeholder says why.
+  // The interview is completed server-side once the run starts, but the
+  // composer itself stays usable -- it now asks the run, not the interview.
   const composer = screen.getByRole('textbox');
-  expect(composer).toBeDisabled();
-  expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: 'Files'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: 'Connectors'})).toBeDisabled();
+  expect(composer).toBeEnabled();
+  expect(screen.getByRole('button', {name: 'Files'})).toBeEnabled();
+  expect(screen.getByRole('button', {name: 'Connectors'})).toBeEnabled();
   expect(
-    screen.getByText('Session started — start a new chat'),
+    screen.getByText('Ask a question about this research session'),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText('Session started — start a new chat'),
+  ).not.toBeInTheDocument();
+
+  apiMock.askRunQuestion.mockResolvedValue(1);
+  fireEvent.change(composer, {
+    target: {value: 'Which hypothesis ranked highest?'},
+  });
+  fireEvent.submit(composer.closest('form')!);
+
+  await waitFor(() => {
+    expect(apiMock.askRunQuestion).toHaveBeenCalledWith(
+      'run-1',
+      'Which hypothesis ranked highest?',
+      expect.any(Object),
+      'general',
+      expect.any(AbortSignal),
+    );
+  });
+  // Never reaches the closed interview (A17).
+  expect(apiMock.addInterviewTurn).not.toHaveBeenCalled();
+});
+
+it('streams a run Q&A answer into a growing assistant bubble', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  let sinks: {onChunk?: (fragment: string) => void} = {};
+  let resolveAsk: (() => void) | undefined;
+  apiMock.askRunQuestion.mockImplementation(
+    (_id: string, _q: string, s: typeof sinks) =>
+      new Promise<number>(resolve => {
+        sinks = s;
+        resolveAsk = () => resolve(3);
+      }),
+  );
+
+  const composer = screen.getByRole('textbox');
+  fireEvent.change(composer, {target: {value: 'Why?'}});
+  fireEvent.submit(composer.closest('form')!);
+
+  expect(await screen.findByText('Why?')).toBeInTheDocument();
+  sinks.onChunk?.('Because ');
+  sinks.onChunk?.('the evidence supports it.');
+  expect(
+    await screen.findByText('Because the evidence supports it.'),
   ).toBeInTheDocument();
 
-  // Even a direct form submission (bypassing the disabled controls) never
-  // reaches the interview-turn API. Call counts are compared against the
-  // baseline because this suite's api mock accumulates calls across tests.
-  const interviewCalls = apiMock.createInterview.mock.calls.length;
-  fireEvent.submit(composer.closest('form')!);
-  expect(apiMock.addInterviewTurn).not.toHaveBeenCalled();
-  expect(apiMock.createInterview).toHaveBeenCalledTimes(interviewCalls);
+  resolveAsk?.();
+  // The growing draft settles into the durable answer bubble once the
+  // stream completes, rather than disappearing.
+  await waitFor(() => {
+    expect(
+      screen.getByText('Because the evidence supports it.'),
+    ).toBeInTheDocument();
+  });
 });
 
 it('re-enables the composer when a started session starts a new chat', async () => {
   await driveToRunSpec();
   await startRunFromSpec();
-  expect(screen.getByRole('textbox')).toBeDisabled();
+  expect(
+    screen.getByText('Ask a question about this research session'),
+  ).toBeInTheDocument();
 
   fireEvent.click(
     screen.getByRole('button', {

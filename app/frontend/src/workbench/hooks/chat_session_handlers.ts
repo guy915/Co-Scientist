@@ -23,6 +23,7 @@ import {
   retryAssistantMessage,
   retryDraftSpec,
 } from './chat_session_handlers_revise';
+import {submitRunQuestion} from './chat_session_handlers_qa';
 import {promoteDraftToRun} from './chat_session_start_run';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ChatSessionDeps, type HandlerDeps} from './chat_session_types';
@@ -144,10 +145,11 @@ async function handleSubmitOutcome(
 async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   deps.e.preventDefault();
   // A started run consumed the interview: the server completed it when the
-  // run was created, so it rejects further turns. The composer is disabled
-  // in the UI from the moment the start round trip succeeds; this guard
-  // keys off that same started-session state so no path posts another turn
-  // until the session resets to a new chat.
+  // run was created, so it rejects further turns. buildChatHandlers routes
+  // handleSubmit to submitRunQuestion instead the moment startedSession is
+  // set, so this function is never called in that state -- this guard is
+  // the second line of defense against ever reaching an interview endpoint
+  // post-start (audit row A17), not the primary one.
   if (deps.startedSession) return;
   const text = beginComposerTurn(deps);
   if (text === null) return;
@@ -316,8 +318,15 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
     handleRetryDraftSpec: () => retryDraftSpec(handlerDeps),
     handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
     handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
+    // A started run's interview is closed server-side, so submit routes to
+    // the run's own Q&A endpoint instead of ever posting another interview
+    // turn (A17). Read at call time (handlerDeps is the live view over the
+    // latest render's state -- see liveHandlerDeps), so this cannot drift
+    // behind a stale render.
     handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) =>
-      submitComposerMessage({e, files, ...handlerDeps}),
+      handlerDeps.startedSession
+        ? submitRunQuestion({e, ...handlerDeps})
+        : submitComposerMessage({e, files, ...handlerDeps}),
     handleStartRun: () => promoteDraftToRun(handlerDeps),
     handleStop: () => stopTurn(handlerDeps),
   };

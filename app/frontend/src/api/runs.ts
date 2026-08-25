@@ -4,6 +4,7 @@
 // callers keep importing everything from '@/api/runs':
 // - runs_http.ts: shared fetch/auth primitives
 // - runs_interviews.ts: the research-goal interview
+// - runs_qa.ts: grounded Q&A over a started run
 // - runs_collections.ts: per-run collections, reports, and shares
 
 import {mergeByIdNewestFirst} from '@/lib/merge';
@@ -42,7 +43,6 @@ import {
   fetchField,
   fetchJson,
   jsonRequest,
-  readSseFrames,
 } from './runs_http';
 // Re-export the run-domain types so callers can `import type {...} from
 // '@/api/runs'` alongside the API functions below, without a second import
@@ -62,11 +62,13 @@ export type {
   LegacyRunProfile,
   MatchRow,
   ProximityEdge,
+  QaSource,
   ReportShare,
   Review,
   Run,
   RunConfig,
   RunFocus,
+  RunMessage,
   RunMode,
   RunSetupConfig,
   RunStatus,
@@ -98,6 +100,8 @@ export {
   retryInterviewTurn,
 } from './runs_interviews';
 export type {InterviewSinks} from './runs_interviews';
+export {askRunQuestion, getRunMessages} from './runs_qa';
+export type {QaSinks} from './runs_qa';
 export {
   addScientistHypothesis,
   addScientistReview,
@@ -314,31 +318,6 @@ export async function deleteRun(
     method: 'DELETE',
     headers: clientHeaders(),
   });
-}
-
-/** Streams a grounded report-level or idea-level Agent answer to completion. */
-export async function askRunQuestion(
-  id: string,
-  question: string,
-  audience?: Audience,
-): Promise<string> {
-  const init = jsonRequest({question, audience}, true);
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
-    ...init,
-    headers: {
-      ...(init.headers as Record<string, string>),
-      ...byokHeaders(),
-    },
-  });
-  let answer = '';
-  interface AnswerFrame {
-    type: string;
-    content?: string;
-  }
-  for await (const frame of readSseFrames<AnswerFrame>(res)) {
-    if (frame.type === 'chunk') answer += frame.content || '';
-  }
-  return answer;
 }
 
 /** Queue scientist guidance for the next safe task boundary. */

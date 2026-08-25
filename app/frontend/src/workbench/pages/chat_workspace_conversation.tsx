@@ -186,13 +186,23 @@ interface ComposerSectionProps {
   connectors: ConnectorToggleProps;
 }
 
+// The placeholder shown once a run has started: the composer stays live
+// from here on, but it now asks the run rather than continuing the closed
+// interview -- deliberately distinct from the "edit session details"
+// setupDraftMode wording and from Composer's own disabled-state copy,
+// neither of which describes this state.
+const ASK_RUN_PLACEHOLDER = 'Ask a question about this research session';
+
 // Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
-// copy while a draft/confirmed spec or started session is in view, busy
-// blocks submits while starting, a started session locks the composer
-// outright — its interview is completed server-side, so the only way back to
-// a live composer is the session reset (new chat) — and the send button
-// becomes Stop while an interview turn (not the run start round trip,
-// which isStarting alone also covers) is in flight.
+// copy while a draft/confirmed spec is in view, busy blocks submits while
+// starting. A started session used to lock the composer outright once its
+// interview closed server-side (A17: it kept posting turns to a completed
+// interview). It no longer does -- handleSubmit itself routes a started
+// session's submit to the run's Q&A endpoint instead (see
+// chat_session_handlers.ts's buildChatHandlers), so the composer only swaps
+// its placeholder here. The send button becomes Stop while either an
+// interview turn or a run Q&A turn (not the run start round trip, which
+// isStarting alone also covers) is in flight.
 function ComposerSection(props: ComposerSectionProps) {
   const {
     input,
@@ -211,7 +221,7 @@ function ComposerSection(props: ComposerSectionProps) {
           setInput={setInput}
           setupDraftMode={props.setupDraftMode}
           busy={isStarting}
-          disabled={Boolean(startedSession)}
+          placeholderOverride={startedSession ? ASK_RUN_PLACEHOLDER : undefined}
           autoFocus
           connectors={props.connectors}
           onSubmit={handleSubmit}

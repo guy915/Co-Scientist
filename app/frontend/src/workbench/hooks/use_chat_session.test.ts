@@ -11,6 +11,7 @@ vi.mock('@/api/runs', async importActual => {
     ...actual,
     createInterview: vi.fn(),
     addInterviewTurn: vi.fn(),
+    askRunQuestion: vi.fn(),
     createRun: vi.fn(),
     startRun: vi.fn(),
     stageDocument: vi.fn(),
@@ -221,7 +222,7 @@ it('starting a run creates it and reloads history', async () => {
   expect(deps.reloadHistory).toHaveBeenCalled();
 });
 
-it('posts no further interview turns once the run has started', async () => {
+it('asks the run instead of posting further interview turns once started', async () => {
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-xyz',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
@@ -229,6 +230,7 @@ it('posts no further interview turns once the run has started', async () => {
     id: 'run-xyz',
     status: 'running',
   });
+  vi.mocked(runsApi.askRunQuestion).mockResolvedValue(9);
   const {result} = renderSession();
 
   act(() => result.current.setInput('Study liver fibrosis'));
@@ -249,10 +251,19 @@ it('posts no further interview turns once the run has started', async () => {
     await result.current.handleSubmit(submitEvent());
   });
 
-  // The turn never reaches the completed interview, nor starts a new one.
+  // The turn never reaches the completed interview, nor starts a new one --
+  // it asks the started run's own Q&A endpoint, adding a question and an
+  // answer bubble to the timeline.
   expect(runsApi.addInterviewTurn).not.toHaveBeenCalled();
   expect(runsApi.createInterview).toHaveBeenCalledOnce();
-  expect(result.current.messages).toHaveLength(messagesAfterStart);
+  expect(runsApi.askRunQuestion).toHaveBeenCalledWith(
+    'run-xyz',
+    'one more thing',
+    expect.any(Object),
+    undefined,
+    expect.any(AbortSignal),
+  );
+  expect(result.current.messages).toHaveLength(messagesAfterStart + 2);
 });
 
 it('resetting a started session reopens the composer for a new chat', async () => {

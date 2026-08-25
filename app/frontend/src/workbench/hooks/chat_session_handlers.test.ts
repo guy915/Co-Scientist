@@ -1,11 +1,16 @@
 import {expect, test, vi} from 'vitest';
 import {buildChatHandlers} from './chat_session_handlers';
 import {makeDeps, makeInterview} from './chat_session_handlers_test_support';
-import {addInterviewTurn, createInterview} from '@/api/runs';
+import {addInterviewTurn, askRunQuestion, createInterview} from '@/api/runs';
 
 vi.mock('@/api/runs', async importOriginal => {
   const actual = await importOriginal<typeof import('@/api/runs')>();
-  return {...actual, createInterview: vi.fn(), addInterviewTurn: vi.fn()};
+  return {
+    ...actual,
+    createInterview: vi.fn(),
+    addInterviewTurn: vi.fn(),
+    askRunQuestion: vi.fn(),
+  };
 });
 
 test('starts a model-driven interview with no local draft', async () => {
@@ -60,11 +65,12 @@ test('conducts the interview under the declared audience', async () => {
   );
 });
 
-test('posts no turn once a run has started', async () => {
-  // The started session is the state the start round trip actually writes;
-  // the composer is disabled in the UI and this guard keeps the handler
-  // aligned with it, so nothing reaches the completed interview.
+test('asks the run a question instead of posting to the closed interview', async () => {
+  // The started session is the state the start round trip actually writes.
+  // The interview it closed server-side must never see another turn (A17);
+  // submit routes to the run's own Q&A endpoint instead.
   vi.clearAllMocks();
+  vi.mocked(askRunQuestion).mockResolvedValue(1);
   const deps = makeDeps({
     input: 'one more thing',
     interview: makeInterview({status: 'completed'}),
@@ -77,8 +83,14 @@ test('posts no turn once a run has started', async () => {
 
   expect(addInterviewTurn).not.toHaveBeenCalled();
   expect(createInterview).not.toHaveBeenCalled();
-  expect(deps.setMessages).not.toHaveBeenCalled();
-  expect(deps.setInput).not.toHaveBeenCalled();
+  expect(askRunQuestion).toHaveBeenCalledWith(
+    'run-1',
+    'one more thing',
+    expect.any(Object),
+    undefined,
+    expect.any(AbortSignal),
+  );
+  expect(deps.setInput).toHaveBeenCalledWith('');
 });
 
 test('stages only a completed persisted interview derivation', async () => {

@@ -1,4 +1,5 @@
 import {useState, type ReactNode} from 'react';
+import {type QaSource} from '@/api/runs';
 import {
   CHAT_BUBBLE_ROW_CLASSES,
   CHAT_BUBBLE_USER_ROW_CLASSES,
@@ -45,6 +46,15 @@ export interface ChatEntry {
    */
   fallback?: boolean;
   created_at: number;
+  /**
+   * The evidence manifest backing a run Q&A answer, when it cited any
+   * sources (see `runs_qa.ts::askRunQuestion`'s `onSources` sink). Persisted
+   * on the entry so a reload keeps it, but nothing renders it yet -- there
+   * is no citation-chip surface designed for the chat timeline, and this
+   * codebase's existing reference lists (run_detail_learning_references.tsx)
+   * are built for a run's full evidence page, not a per-answer chat bubble.
+   */
+  sources?: QaSource[];
 }
 
 // The quiet marker copy for a fallback-authored turn: honest about what the

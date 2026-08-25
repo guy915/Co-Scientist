@@ -417,6 +417,42 @@ export interface SharedRun {
   run_mode?: RunMode;
 }
 
+/**
+ * One cited source in a Q&A answer's evidence manifest (see
+ * `app/qa_manifest.py::build_evidence_manifest`). `n` is the 1-based number
+ * the answer's own `[n]` markers refer to.
+ */
+export interface QaSource {
+  n: number;
+  evidence_id: string;
+  title: string;
+  url?: string | null;
+  source?: string | null;
+  year?: number | null;
+  state: string;
+  passage?: string | null;
+}
+
+/**
+ * One persisted message row for a run: scientist steering (`kind:
+ * "steering"`) or a grounded Q&A exchange (`kind: "qa"`, question and
+ * answer as separate rows). `GET /api/runs/{id}/messages` returns every
+ * kind in one chronological list; callers filter by `kind`.
+ */
+export interface RunMessage {
+  id: number;
+  run_id: string;
+  sender: 'user' | 'system';
+  content: string;
+  kind: string;
+  created_at: number;
+  applied: boolean;
+  // Present on a Q&A answer row when it cited any sources (see
+  // qa.py::_citation_meta); absent otherwise, including on the paired
+  // question row.
+  meta: {sources?: QaSource[]} | null;
+}
+
 /** Read-only data available through a public share capability. */
 export interface SharedGoalReport {
   share_id: string;

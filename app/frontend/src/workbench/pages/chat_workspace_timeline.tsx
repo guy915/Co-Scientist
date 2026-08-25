@@ -132,15 +132,21 @@ function AgentDraft({draft}: {draft: string}) {
 // It is the same disclosure the finished turn keeps, in its live state: one
 // control that stops counting and closes, rather than one control replaced by
 // another as the turn resolves.
+//
+// Interview-only: once a run has started, `isAwaitingAgent` covers a run
+// Q&A turn instead (see qaAnswerTimelineItems below), which has no
+// reasoning to disclose -- the interview stream carries a `reasoning`
+// frame, the run's Q&A stream does not (qa.py::stream_answer).
 function thinkingTimelineItems({
+  startedSession,
   isAwaitingAgent,
   agentReasoning,
   agentDraft,
 }: Pick<
   BuildTimelineItemsArgs,
-  'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
+  'startedSession' | 'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
 >): TimelineItem[] {
-  if (!isAwaitingAgent) return [];
+  if (startedSession || !isAwaitingAgent) return [];
   const items: TimelineItem[] = [
     {
       id: 'agent-thinking',
@@ -164,6 +170,31 @@ function thinkingTimelineItems({
     });
   }
   return items;
+}
+
+// The run Q&A answer as it streams in, growing in the same bubble style an
+// interview turn's live reply uses (AgentDraft) -- but with no "Thinking"
+// disclosure above it, since a Q&A turn never carries reasoning (see
+// thinkingTimelineItems). Renders nothing until the first chunk lands, so a
+// question in flight shows only the Stop control until there is prose to
+// grow.
+function qaAnswerTimelineItems({
+  startedSession,
+  isAwaitingAgent,
+  agentDraft,
+}: Pick<
+  BuildTimelineItemsArgs,
+  'startedSession' | 'isAwaitingAgent' | 'agentDraft'
+>): TimelineItem[] {
+  if (!startedSession || !isAwaitingAgent || !agentDraft) return [];
+  return [
+    {
+      id: 'qa-answer-draft',
+      at: Date.now() / 1000,
+      order: 46,
+      node: <AgentDraft draft={agentDraft} />,
+    },
+  ];
 }
 
 // Merges a partial spec edit into the pending draft, leaving a null draft
@@ -368,6 +399,7 @@ export function buildTimelineItems(
   const timelineItems: TimelineItem[] = [
     ...messageTimelineItems(args),
     ...thinkingTimelineItems(args),
+    ...qaAnswerTimelineItems(args),
     ...draftTimelineItems(args),
     ...confirmedSpecTimelineItems(args),
     ...startedTimelineItems(args),

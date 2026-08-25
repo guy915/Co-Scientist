@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
-import type {Run} from '@/api/runs';
+import type {ChatSummary, Run} from '@/api/runs';
 import {makeHypothesis, makeRun} from '@/test_fixtures';
 import {AudienceProvider, type Audience} from '../audience_context';
 import {ChatHistoryProvider} from '../hooks/chat_history_context';
@@ -35,12 +35,14 @@ const apiMock = vi.hoisted(() => {
   });
   return {
     addInterviewTurn: vi.fn(),
+    askRunQuestion: vi.fn(),
     createInterview: vi.fn(),
     createRun: vi.fn(),
     getHypotheses: vi.fn(),
     getInterview: vi.fn(),
+    getRunMessages: vi.fn(),
     listDemoRuns,
-    listInterviews: vi.fn(async () => []),
+    listInterviews: vi.fn(async (): Promise<ChatSummary[]> => []),
     listRuns,
     loadRunHistory,
     startRun: vi.fn(),
@@ -225,6 +227,7 @@ export function installChatWorkspaceMocks() {
     completed_at: 2,
   }));
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
+  apiMock.getRunMessages.mockResolvedValue([]);
   apiMock.listDemoRuns.mockResolvedValue([
     minimalRun({
       id: 'demo-ferroptosis',
