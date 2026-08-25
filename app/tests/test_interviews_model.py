@@ -7,11 +7,12 @@ block resolves to, and audience-context injection.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 
-from app import interviews
+from app import interviews, interviews_prompts
 from app.config import settings
 from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
 
@@ -156,3 +157,30 @@ async def test_interview_without_audience_is_unchanged(
     )
     assert "Systems Biology Ireland" not in system
     assert "paper_id" not in system
+
+
+def test_prompt_tolerates_two_consecutive_scientist_turns() -> None:
+    """The prompt builder accepts the shape a stopped turn leaves behind.
+
+    A cancelled turn (see interviews_stream._advance_stream) persists
+    nothing for the reply it never finished, so the transcript carries two
+    consecutive "user" turns once the scientist sends the next message.
+    The builder must not assume strict user/agent alternation.
+    """
+    interview = {
+        "id": "orphaned-turn",
+        "fields": {},
+        "turns": [
+            {"role": "user", "content": "Restore antibiotic susceptibility"},
+            {"role": "user", "content": "Prioritize efflux-pump regulation."},
+        ],
+    }
+    _model, messages = interviews_prompts._interview_request(interview)
+    context = json.loads(messages[1]["content"])
+    assert [t["role"] for t in context["transcript"]] == ["user", "user"]
+    assert context["transcript"][0]["content"] == (
+        "Restore antibiotic susceptibility"
+    )
+    assert context["transcript"][1]["content"] == (
+        "Prioritize efflux-pump regulation."
+    )

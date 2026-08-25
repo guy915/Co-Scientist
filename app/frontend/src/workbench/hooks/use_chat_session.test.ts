@@ -187,6 +187,7 @@ it('editing a message revises it in place, not via the composer', async () => {
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
+    expect.any(AbortSignal),
   );
   // The correction replaces the prompt where it stands; the composer stays
   // clear for the next thing the scientist wants to say.
@@ -289,6 +290,7 @@ it('resetting a started session reopens the composer for a new chat', async () =
     }),
     undefined,
     [],
+    expect.any(AbortSignal),
   );
 });
 
@@ -329,6 +331,7 @@ it('stages attached documents before the run is created', async () => {
     }),
     undefined,
     ['doc-1'],
+    expect.any(AbortSignal),
   );
 
   await act(async () => {

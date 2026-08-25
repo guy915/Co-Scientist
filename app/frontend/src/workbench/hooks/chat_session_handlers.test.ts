@@ -27,6 +27,7 @@ test('starts a model-driven interview with no local draft', async () => {
     }),
     undefined,
     [],
+    expect.any(AbortSignal),
   );
   expect(deps.setInterview).toHaveBeenCalledWith(interview);
   expect(deps.stageDraftSpec).not.toHaveBeenCalled();
@@ -55,6 +56,7 @@ test('conducts the interview under the declared audience', async () => {
     }),
     'sbi_ucd',
     [],
+    expect.any(AbortSignal),
   );
 });
 
@@ -105,6 +107,7 @@ test('stages only a completed persisted interview derivation', async () => {
       onProse: expect.any(Function),
     }),
     [],
+    expect.any(AbortSignal),
   );
   expect(deps.stageDraftSpec).toHaveBeenCalledWith(
     expect.objectContaining({

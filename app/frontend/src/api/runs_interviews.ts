@@ -66,17 +66,23 @@ function applyInterviewFrame(
  * @param sinks Where the turn's live reasoning and prose are relayed.
  * @param method HTTP method; the revision endpoints replace a turn rather
  *   than appending one, so one of them is a PUT.
+ * @param signal Aborts the turn: the fetch itself if not yet sent, or the
+ *   read loop below if the stream is already open. Both surface as a
+ *   `DOMException` named `AbortError`, which callers distinguish from a
+ *   real failure (see the composer's Stop control).
  */
 async function streamInterviewTurn(
   path: string,
   body: unknown,
   sinks: InterviewSinks = {},
   method = 'POST',
+  signal?: AbortSignal,
 ): Promise<Interview> {
   const init = jsonRequest(body, true);
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     method,
+    signal,
     headers: {
       ...(init.headers as Record<string, string>),
       ...byokHeaders(),
@@ -104,6 +110,7 @@ export async function createInterview(
   sinks?: InterviewSinks,
   audience?: Audience,
   documentIds: string[] = [],
+  signal?: AbortSignal,
 ): Promise<Interview> {
   return streamInterviewTurn(
     '/api/interviews',
@@ -113,6 +120,8 @@ export async function createInterview(
       document_ids: documentIds,
     },
     sinks,
+    'POST',
+    signal,
   );
 }
 
@@ -128,11 +137,14 @@ export async function addInterviewTurn(
   content: string,
   sinks?: InterviewSinks,
   documentIds: string[] = [],
+  signal?: AbortSignal,
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns`,
     {content, document_ids: documentIds},
     sinks,
+    'POST',
+    signal,
   );
 }
 
@@ -148,12 +160,14 @@ export async function editInterviewTurn(
   turnId: number,
   content: string,
   sinks?: InterviewSinks,
+  signal?: AbortSignal,
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns/${turnId}`,
     {content},
     sinks,
     'PUT',
+    signal,
   );
 }
 
@@ -162,11 +176,14 @@ export async function retryInterviewTurn(
   interviewId: string,
   turnId: number,
   sinks?: InterviewSinks,
+  signal?: AbortSignal,
 ): Promise<Interview> {
   return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns/${turnId}/retry`,
     {},
     sinks,
+    'POST',
+    signal,
   );
 }
 

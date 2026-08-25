@@ -1,4 +1,4 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useRef, useState} from 'react';
 import {type Interview, type StagedDocument} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {
@@ -85,6 +85,12 @@ function useComposerFlags() {
   // same way: the turn's durable text arrives with the resolved interview and
   // replaces this, so it is cleared at the start of each turn.
   const [agentDraft, setAgentDraft] = useState('');
+  // The in-flight turn's abort controller, so the composer's Stop control
+  // can cancel whichever call is running (composer submit or a revision)
+  // without the handler that started it having to hand back a reference.
+  // A ref, not state: aborting must not wait for a render, and no view
+  // reads this value directly.
+  const turnAbortRef = useRef<AbortController | null>(null);
   return {
     isStarting,
     setIsStarting,
@@ -94,6 +100,7 @@ function useComposerFlags() {
     setAgentReasoning,
     agentDraft,
     setAgentDraft,
+    turnAbortRef,
   };
 }
 
@@ -102,7 +109,7 @@ export function useComposerLog(clearSessionState: () => void) {
   const [input, setInput] = useState('');
   const flags = useComposerFlags();
   const {setIsStarting, setIsAwaitingAgent, setAgentReasoning} = flags;
-  const {setAgentDraft} = flags;
+  const {setAgentDraft, turnAbortRef} = flags;
   // Append-only log of user/assistant chat bubbles (spec cards are rendered
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -114,6 +121,10 @@ export function useComposerLog(clearSessionState: () => void) {
   // Full wipe back to the pristine composer, used by "New chat"; stable
   // identity so callers can hang effects off it.
   const resetSession = useCallback(() => {
+    // A turn left running into a reset would otherwise persist into a chat
+    // the scientist has already navigated away from.
+    turnAbortRef.current?.abort();
+    turnAbortRef.current = null;
     clearSessionState();
     setInput('');
     setIsStarting(false);
@@ -129,6 +140,7 @@ export function useComposerLog(clearSessionState: () => void) {
     setIsAwaitingAgent,
     setAgentReasoning,
     setAgentDraft,
+    turnAbortRef,
   ]);
 
   return {

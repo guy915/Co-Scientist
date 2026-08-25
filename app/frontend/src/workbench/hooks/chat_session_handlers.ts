@@ -2,8 +2,6 @@ import {type FormEvent} from 'react';
 import {
   addInterviewTurn,
   createInterview,
-  editInterviewTurn,
-  retryInterviewTurn,
   stageDocument,
   type Interview,
   type InterviewSinks,
@@ -11,11 +9,22 @@ import {
 } from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
-import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
+import {
+  applyAgentTurn,
+  beginTurnAbort,
+  describeSubmitError,
+  isAbortError,
+  recoverFromStoppedTurn,
+} from './chat_session_handlers_shared';
+import {
+  editUserMessage,
+  retryAssistantMessage,
+  retryDraftSpec,
+} from './chat_session_handlers_revise';
 import {promoteDraftToRun} from './chat_session_start_run';
-import {applyInterview, type TranscriptSink} from './chat_session_transcript';
+import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ChatSessionDeps, type HandlerDeps} from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 
@@ -38,36 +47,17 @@ type SubmitComposerDeps = Pick<
   | 'setIsAwaitingAgent'
   | 'setAgentReasoning'
   | 'setAgentDraft'
+  | 'turnAbortRef'
   | 'setPendingAttachments'
   | 'setDraft'
   | 'setConfirmed'
   | 'stageDraftSpec'
+  | 'clearSessionState'
+  | 'reloadHistory'
 > & {
   e: FormEvent<HTMLFormElement>;
   files: File[];
 };
-
-// Applies the Agent's reply for one interview turn to the chat log.
-//
-// The server's interview is the whole conversation, not a delta, so the log
-// is rebuilt from it rather than appended to. That is what gives every bubble
-// the durable turn id an edit or a retry addresses, and it means a turn that
-// removed earlier turns (a revision) needs no special handling here: they are
-// simply absent from the snapshot that came back.
-function applyAgentTurn(updated: Interview, deps: TranscriptSink): void {
-  applyInterview(deps, updated);
-  emitDiagnosticEvent(
-    updated.status === 'completed'
-      ? {
-          stage: 'LIFECYCLE',
-          payload: {event: 'interview_completed', interview_id: updated.id},
-        }
-      : {
-          stage: 'CHAT',
-          payload: {event: 'interview_advanced', interview_id: updated.id},
-        },
-  );
-}
 
 // Clears the composer for a new turn; returns the trimmed text, or null
 // when there is nothing to submit.
@@ -102,18 +92,50 @@ function startInterviewTurn(
   text: string,
   sinks: InterviewSinks,
   documentIds: string[],
+  signal: AbortSignal,
 ): Promise<Interview> {
   if (deps.interview) {
-    return addInterviewTurn(deps.interview.id, text, sinks, documentIds);
+    return addInterviewTurn(
+      deps.interview.id,
+      text,
+      sinks,
+      documentIds,
+      signal,
+    );
   }
-  return createInterview(text, sinks, deps.audience ?? undefined, documentIds);
+  return createInterview(
+    text,
+    sinks,
+    deps.audience ?? undefined,
+    documentIds,
+    signal,
+  );
 }
 
-// User-facing message for a failed interview turn.
-function describeSubmitError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : 'The Agent could not continue the interview.';
+// What submitComposerMessage's catch does with the round trip's outcome: a
+// real failure shows the error banner; a stop the scientist asked for
+// (AbortError) never does. Split out to keep the caller under the
+// complexity ceiling.
+async function handleSubmitOutcome(
+  deps: SubmitComposerDeps,
+  error: unknown,
+  isFirstTurn: boolean,
+  text: string,
+): Promise<void> {
+  if (!isAbortError(error)) {
+    deps.setError(describeSubmitError(error));
+    return;
+  }
+  if (isFirstTurn) {
+    // The interview id only arrives with the closing frame, so a stopped
+    // creation leaves nothing to resync against -- restore the composer and
+    // let the sidebar pick up the abandoned chat instead. Nothing is lost
+    // server-side; there is simply no id here to reach it by yet.
+    clearConversation(deps, text);
+    await deps.reloadHistory();
+    return;
+  }
+  await recoverFromStoppedTurn(deps, deps.interview?.id);
 }
 
 // Composer submit advances the durable Agent interview. The browser never
@@ -146,6 +168,7 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
       deps.setAgentDraft(current => current + fragment),
   };
   const isFirstTurn = deps.interview === null;
+  const signal = beginTurnAbort(deps);
   try {
     const staged = await stageTurnFiles(deps);
     const updated = await startInterviewTurn(
@@ -153,6 +176,7 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
       text,
       sinks,
       staged.map(document => document.id),
+      signal,
     );
     deps.setInterview(updated);
     // The chat exists server-side from here on: list it in the rail, and on
@@ -162,8 +186,9 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
     if (isFirstTurn) deps.onChatStarted(updated.id);
     applyAgentTurn(updated, deps);
   } catch (error) {
-    deps.setError(describeSubmitError(error));
+    await handleSubmitOutcome(deps, error, isFirstTurn, text);
   } finally {
+    deps.turnAbortRef.current = null;
     deps.setIsStarting(false);
     deps.setIsAwaitingAgent(false);
   }
@@ -260,132 +285,20 @@ async function copyMessagePrompt({
   });
 }
 
-// Drops the turns a revision invalidates so the transcript reads as the
-// correction immediately rather than after the round trip. `content` replaces
-// the target message (an edit); omitting it drops the target too (a retry).
-function truncateAtMessage(
-  messages: ChatEntry[],
-  target: ChatEntry,
-  content?: string,
-): ChatEntry[] {
-  const index = messages.findIndex(entry => entry.id === target.id);
-  if (index < 0) return messages;
-  const kept = messages.slice(0, index);
-  return content === undefined ? kept : [...kept, {...target, content}];
-}
-
-/**
- * Runs one interview revision and rebuilds the session from the conversation
- * it produced.
- *
- * Shared by editing a prompt and retrying an answer because both are the same
- * transaction: rewind the transcript to the turn in question, let the Agent
- * answer again, and adopt whatever conversation comes back. Neither is an
- * append, which is why neither can be expressed as another composer turn.
- */
-async function reviseInterviewTurn(
-  deps: HandlerDeps,
-  revise: (sinks: InterviewSinks) => Promise<Interview>,
-): Promise<void> {
-  deps.setError(null);
-  deps.setToast(null);
-  deps.setIsAwaitingAgent(true);
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
-  try {
-    const updated = await revise({
-      onReasoning: fragment =>
-        deps.setAgentReasoning(current => current + fragment),
-      onProse: fragment => deps.setAgentDraft(current => current + fragment),
-    });
-    applyAgentTurn(updated, deps);
-    announceChatsChanged();
-  } catch (error) {
-    deps.setError(describeSubmitError(error));
-  } finally {
-    deps.setIsAwaitingAgent(false);
-  }
-}
-
-// The durable turn a revision targets, or null when there is nothing to
-// revise: an optimistic bubble, a locally-authored line — or a session that
-// has already started a run. A started run locks the transcript it was
-// created from: the timeline hides edit/retry from that moment, and this
-// check (which both callers run before their optimistic truncation) keeps
-// the handlers aligned with it.
-function revisableTurn(
-  deps: HandlerDeps,
-  message: ChatEntry,
-): {interviewId: string; turnId: number} | null {
-  if (deps.startedSession) return null;
-  const interviewId = deps.interview?.id;
-  if (!interviewId || !message.turnId) return null;
-  return {interviewId, turnId: message.turnId};
-}
-
-// Rewrites a scientist prompt where it stands and re-answers from there.
-function editUserMessage(
-  deps: HandlerDeps,
-  message: ChatEntry,
-  content: string,
-): void {
-  const target = revisableTurn(deps, message);
-  const text = content.trim();
-  if (!target || !text) return;
-  deps.setMessages(current => truncateAtMessage(current, message, text));
-  void reviseInterviewTurn(deps, sinks =>
-    editInterviewTurn(target.interviewId, target.turnId, text, sinks),
-  );
-  emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'prompt_edited'}});
-}
-
-// Discards an Agent answer and asks for another in its place.
-function retryAssistantMessage(deps: HandlerDeps, message: ChatEntry): void {
-  const target = revisableTurn(deps, message);
-  if (!target) return;
-  deps.setMessages(current => truncateAtMessage(current, message));
-  void reviseInterviewTurn(deps, sinks =>
-    retryInterviewTurn(target.interviewId, target.turnId, sinks),
-  );
-  emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'response_retried'}});
-}
-
-// The durable turn a plan re-derivation targets, or null when the staged
-// plan carries no turn to retry.
-function draftRevisionTarget(deps: HandlerDeps): {
-  interviewId: string;
-  turnId: number;
-} | null {
-  const interviewId = deps.interview?.id;
-  const turnId = deps.draft?.turnId;
-  if (!interviewId || !turnId) return null;
-  return {interviewId, turnId};
-}
-
-// Re-derives the staged plan by retrying the Agent turn that produced it.
-// The plan is that turn's answer, so "retry" here means the same thing it
-// means on any other response; re-staging the spec already in hand looked
-// like a dead control because nothing about it could change.
-function retryDraftSpec(deps: HandlerDeps): void {
-  // Locked once a run has started; see revisableTurn. Rehydration can leave
-  // a draft staged alongside a started session, so the check is not redundant
-  // with the draft being null.
-  if (deps.startedSession) return;
-  const target = draftRevisionTarget(deps);
-  if (!target) return;
-  deps.setDraft(null);
-  void reviseInterviewTurn(deps, sinks =>
-    retryInterviewTurn(target.interviewId, target.turnId, sinks),
-  );
-  emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'plan_retried'}});
+// Cancels the turn currently in flight, if any. A no-op once the turn has
+// already resolved -- `turnAbortRef` is cleared in the same `finally` that
+// clears `isAwaitingAgent`, so there is never a stale controller to abort
+// by mistake.
+function stopTurn(deps: Pick<HandlerDeps, 'turnAbortRef'>): void {
+  deps.turnAbortRef.current?.abort();
 }
 
 /**
  * Builds the full wrapped-handler set from a `handlerDeps` bag: each handler
- * below either forwards to one of the module-level functions above or closes
- * directly over the one or two deps it needs. Takes no hooks itself (plain
- * function, not a sub-hook), so it can be called unconditionally from anywhere
- * in useChatSession's body.
+ * below either forwards to one of the module-level functions above (or from
+ * chat_session_handlers_revise.ts) or closes directly over the one or two
+ * deps it needs. Takes no hooks itself (plain function, not a sub-hook), so
+ * it can be called unconditionally from anywhere in useChatSession's body.
  *
  * Every handler reads `handlerDeps` properties at CALL time, never at build
  * time: useChatSession passes a live view over a ref (see liveHandlerDeps),
@@ -406,6 +319,7 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
     handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) =>
       submitComposerMessage({e, files, ...handlerDeps}),
     handleStartRun: () => promoteDraftToRun(handlerDeps),
+    handleStop: () => stopTurn(handlerDeps),
   };
 }
 
@@ -434,6 +348,7 @@ export function toHandlerDeps(
     setIsAwaitingAgent: composer.setIsAwaitingAgent,
     setAgentReasoning: composer.setAgentReasoning,
     setAgentDraft: composer.setAgentDraft,
+    turnAbortRef: composer.turnAbortRef,
     setMessages: composer.setMessages,
     setError: composer.setError,
     pendingAttachments: composer.pendingAttachments,

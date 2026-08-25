@@ -1,4 +1,4 @@
-import {type Dispatch, type SetStateAction} from 'react';
+import {type Dispatch, type RefObject, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
 import {type Interview, type StagedDocument} from '@/api/runs';
 import {type Audience} from '../audience_context';
@@ -102,6 +102,9 @@ export interface HandlerDeps {
   setIsAwaitingAgent: (value: boolean) => void;
   setAgentReasoning: Dispatch<SetStateAction<string>>;
   setAgentDraft: Dispatch<SetStateAction<string>>;
+  // The turn currently in flight, so the composer's Stop control can cancel
+  // it. Null between turns; see useComposerFlags.
+  turnAbortRef: RefObject<AbortController | null>;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setError: (message: string | null) => void;
   // Documents already staged through /api/documents for this session:

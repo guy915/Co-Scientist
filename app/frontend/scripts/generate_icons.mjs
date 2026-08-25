@@ -85,6 +85,9 @@ const ICONS = {
   // Share-node glyph — the goal-report titlebar's share-report action.
   share: 'share',
   stars: 'stars',
+  // Filled square — the composer's Stop control while a turn is in flight,
+  // matching the send glyph's filled treatment.
+  stop: 'stop-fill',
   summarize: 'summarize',
   warning: 'warning',
 };

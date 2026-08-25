@@ -99,8 +99,10 @@ export interface ConversationViewProps {
     | 'setInput'
     | 'error'
     | 'isStarting'
+    | 'isAwaitingAgent'
     | 'startedSession'
     | 'handleSubmit'
+    | 'handleStop'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
@@ -172,7 +174,13 @@ interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;
   session: Pick<
     ReturnType<typeof useChatSession>,
-    'input' | 'setInput' | 'isStarting' | 'startedSession' | 'handleSubmit'
+    | 'input'
+    | 'setInput'
+    | 'isStarting'
+    | 'isAwaitingAgent'
+    | 'startedSession'
+    | 'handleSubmit'
+    | 'handleStop'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
@@ -180,12 +188,21 @@ interface ComposerSectionProps {
 
 // Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
 // copy while a draft/confirmed spec or started session is in view, busy
-// blocks submits while starting, and a started session locks the composer
+// blocks submits while starting, a started session locks the composer
 // outright — its interview is completed server-side, so the only way back to
-// a live composer is the session reset (new chat).
+// a live composer is the session reset (new chat) — and the send button
+// becomes Stop while an interview turn (not the run start round trip,
+// which isStarting alone also covers) is in flight.
 function ComposerSection(props: ComposerSectionProps) {
-  const {input, setInput, isStarting, startedSession, handleSubmit} =
-    props.session;
+  const {
+    input,
+    setInput,
+    isStarting,
+    isAwaitingAgent,
+    startedSession,
+    handleSubmit,
+    handleStop,
+  } = props.session;
   return (
     <div ref={props.composerRef} className={CHAT_COMPOSER_CLASSES}>
       <div className={CHAT_COLUMN_CLASSES}>
@@ -198,6 +215,8 @@ function ComposerSection(props: ComposerSectionProps) {
           autoFocus
           connectors={props.connectors}
           onSubmit={handleSubmit}
+          stoppable={isAwaitingAgent}
+          onStop={handleStop}
         />
       </div>
     </div>

@@ -48,6 +48,7 @@ export function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     setIsAwaitingAgent: vi.fn(),
     setAgentReasoning: vi.fn(),
     setAgentDraft: vi.fn(),
+    turnAbortRef: {current: null},
     setMessages: vi.fn(),
     setError: vi.fn(),
     pendingAttachments: [],

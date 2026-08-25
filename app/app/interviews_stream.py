@@ -12,6 +12,7 @@ surface stay in ``app.interviews``; the provider call itself in
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -74,6 +75,15 @@ async def _advance_stream(
     task created inside inherits it), so the turn's model call -- and only
     it -- runs on the scientist's own key.
 
+    When the consumer stops iterating early -- Starlette cancels this on a
+    client disconnect, racing ``StreamingResponse`` against a disconnect
+    listener -- the ``finally`` below cancels the child task and awaits it
+    so the turn's model call does not run to completion unwatched. Nothing
+    is rolled back: the scientist's own turn was already persisted by the
+    route before this generator opened, and ``_advance`` only persists the
+    Agent's reply *after* the model call returns, so a cancel that lands
+    during the call simply leaves that reply unwritten.
+
     Args:
         interview_id: The interview to advance.
         byok: The request's credential, when one was sent.
@@ -99,15 +109,37 @@ async def _advance_stream(
         # nothing is dropped.
         task.add_done_callback(lambda _: queue.put_nowait(None))
 
-        while (fragment := await queue.get()) is not None:
-            kind, content = fragment
-            yield sse_frame({"type": kind, "content": content})
+        try:
+            while (fragment := await queue.get()) is not None:
+                kind, content = fragment
+                yield sse_frame({"type": kind, "content": content})
 
-        error_frame, updated = await _resolve_advance_task(task, interview_id)
-        if error_frame is not None:
-            yield error_frame
-            return
-        yield sse_frame({"type": "interview", "interview": updated})
+            error_frame, updated = await _resolve_advance_task(
+                task, interview_id
+            )
+            if error_frame is not None:
+                yield error_frame
+                return
+            yield sse_frame({"type": "interview", "interview": updated})
+        finally:
+            await _cancel_pending(task)
+
+
+async def _cancel_pending(task: asyncio.Task[dict[str, Any]]) -> None:
+    """Cancel ``task`` and await it, unless it has already finished.
+
+    A no-op on the normal-completion path -- the task is already done by
+    then. Reached instead when the generator stops early (see
+    ``_advance_stream``'s docstring): cancels the turn's model call rather
+    than letting it run on unwatched, and awaits it so the cancellation
+    finishes here instead of leaking a "Task was destroyed but it is
+    pending" warning once nothing references it any more.
+    """
+    if task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 async def _resolve_advance_task(

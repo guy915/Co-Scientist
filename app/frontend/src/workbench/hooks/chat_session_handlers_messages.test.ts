@@ -49,6 +49,7 @@ test('handleRetryMessage asks the Agent to answer that turn again', () => {
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
+    expect.any(AbortSignal),
   );
   // The rejected answer leaves the transcript rather than being duplicated
   // below itself, which is what "retry" appeared to do before.
@@ -112,6 +113,7 @@ test('handleEditMessage replaces the turn in place', () => {
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
+    expect.any(AbortSignal),
   );
   // The edited prompt stays where it was and the answer derived from the old
   // wording goes; the composer is left alone for the next thing to say.

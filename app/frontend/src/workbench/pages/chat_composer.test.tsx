@@ -142,6 +142,59 @@ test('ignores a programmatic form submission while disabled', () => {
   expect(onSubmit).not.toHaveBeenCalled();
 });
 
+test('shows a Stop control instead of Send while awaiting the agent', () => {
+  const onStop = vi.fn();
+  renderComposer({input: 'a goal', busy: true, stoppable: true, onStop});
+  expect(
+    screen.queryByRole('button', {name: /send|start|research/i}),
+  ).not.toBeInTheDocument();
+  const stop = screen.getByRole('button', {name: 'Stop'});
+  expect(stop).toBeEnabled();
+});
+
+test('Stop calls onStop and does not submit the form', () => {
+  const onStop = vi.fn();
+  const {onSubmit} = renderComposer({
+    input: 'a goal',
+    busy: true,
+    stoppable: true,
+    onStop,
+  });
+  fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
+  expect(onStop).toHaveBeenCalledOnce();
+  expect(onSubmit).not.toHaveBeenCalled();
+});
+
+test('Stop is a real button, not a submit control', () => {
+  renderComposer({
+    input: 'a goal',
+    busy: true,
+    stoppable: true,
+    onStop: vi.fn(),
+  });
+  expect(screen.getByRole('button', {name: 'Stop'})).toHaveAttribute(
+    'type',
+    'button',
+  );
+});
+
+test('shows Send, not Stop, once the turn resolves', () => {
+  const props = {
+    input: 'a goal',
+    setInput: vi.fn(),
+    busy: true,
+    stoppable: true,
+    onStop: vi.fn(),
+    onSubmit: vi.fn((e: {preventDefault: () => void}) => e.preventDefault()),
+  };
+  const {rerender} = render(<Composer {...props} />);
+  rerender(<Composer {...props} busy={false} stoppable={false} />);
+  expect(screen.queryByRole('button', {name: 'Stop'})).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {name: /send|start|research/i}),
+  ).toBeInTheDocument();
+});
+
 test('submits again once the session resets and re-enables it', () => {
   const props = {
     input: 'a goal',

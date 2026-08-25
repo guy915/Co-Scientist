@@ -48,6 +48,7 @@ test('handleRetryDraftSpec re-derives the plan from its own turn', () => {
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
+    expect.any(AbortSignal),
   );
   expect(deps.setDraft).toHaveBeenCalledWith(null);
 });

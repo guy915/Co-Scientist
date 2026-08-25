@@ -11,16 +11,12 @@ import {
 } from 'react';
 import {joinClasses} from '../classes';
 import {Icon} from '@/components/icon';
-import {tooltipClassNames} from '../tooltip';
 import {
-  COMPOSER_ACTIONS_CLASSES,
   COMPOSER_BASE_CLASSES,
   COMPOSER_LABEL_CLASSES,
   COMPOSER_LABEL_ICON_CLASSES,
   COMPOSER_LABEL_TEXT_CLASSES,
   COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
-  COMPOSER_SOURCE_ICON_CLASSES,
-  COMPOSER_SUBMIT_BUTTON_CLASSES,
   COMPOSER_TEXTAREA_CLASSES,
   HOME_COMPOSER_CLASSES,
   HOME_COMPOSER_TEXTAREA_CLASSES,
@@ -33,9 +29,9 @@ import {
 } from './chat_composer_attachments';
 import {
   type ConnectorToggleProps,
-  SourceControls,
   useConnectorsMenu,
 } from './chat_composer_connectors';
+import {ComposerFooter} from './chat_composer_footer';
 
 // Auto-grow caps (px) before the textarea starts scrolling: the roomier home
 // composer grows taller than the compact in-run/setup composer.
@@ -60,7 +56,10 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * the focused textarea and would otherwise drop the caret to the body,
  * forcing a click to carry on typing. `connectors` carries each connector's
  * toggled state and change callback. `onSubmit` handles Enter or the send
- * button.
+ * button. `stoppable` swaps the send button for a Stop control while a turn
+ * the scientist can interrupt is in flight (an interview turn; not the run
+ * create+start round trip, which has nothing to abort this way) --
+ * `onStop` is its handler.
  */
 export interface ComposerProps {
   input: string;
@@ -72,6 +71,8 @@ export interface ComposerProps {
   autoFocus?: boolean;
   connectors?: ConnectorToggleProps;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
+  stoppable?: boolean;
+  onStop?: () => void;
 }
 
 // Every connector on, with no owner to write a change back to: the shape a
@@ -126,7 +127,15 @@ function handleComposerFormSubmit(
  * compact composer overlaid on the in-conversation timeline.
  */
 export function Composer(props: ComposerProps) {
-  const {input, setInput, busy, disabled = false, onSubmit} = props;
+  const {
+    input,
+    setInput,
+    busy,
+    disabled = false,
+    onSubmit,
+    stoppable = false,
+    onStop,
+  } = props;
   const {large, setupDraftMode, autoFocus, connectors} = composerOptions(props);
   const state = useComposerState(input, large);
   // A session that starts while the connectors menu is open locks the whole
@@ -163,6 +172,8 @@ export function Composer(props: ComposerProps) {
         referenceLabel={referenceLabel}
         state={state}
         connectors={connectors}
+        stoppable={stoppable}
+        onStop={onStop}
       />
     </form>
   );
@@ -332,63 +343,6 @@ function ComposerTextareaField(props: ComposerTextareaFieldProps) {
   );
 }
 
-// Props for ComposerFooter, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
-interface ComposerFooterProps {
-  connectorsOpen: boolean;
-  onToggleConnectors: () => void;
-  sourceControlsRef: RefObject<HTMLDivElement | null>;
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
-  connectors: ConnectorToggleProps;
-  submitDisabled: boolean;
-  disabled: boolean;
-}
-
-// The footer controls row: the file/connector source controls plus the
-// submit button.
-function ComposerFooter(props: ComposerFooterProps) {
-  const {
-    connectorsOpen,
-    onToggleConnectors,
-    sourceControlsRef,
-    fileInputRef,
-    onFilesChanged,
-    connectors,
-    submitDisabled,
-    disabled,
-  } = props;
-  return (
-    <div className={COMPOSER_ACTIONS_CLASSES}>
-      <SourceControls
-        connectorsOpen={connectorsOpen}
-        onToggleConnectors={onToggleConnectors}
-        sourceControlsRef={sourceControlsRef}
-        fileInputRef={fileInputRef}
-        onFilesChanged={onFilesChanged}
-        connectors={connectors}
-        disabled={disabled}
-      />
-      <button
-        type="submit"
-        className={tooltipClassNames({
-          className: COMPOSER_SUBMIT_BUTTON_CLASSES,
-          placement: 'top',
-        })}
-        aria-label="Send"
-        data-tooltip="Submit"
-        disabled={submitDisabled}
-      >
-        <Icon
-          aria-hidden="true"
-          className={COMPOSER_SOURCE_ICON_CLASSES}
-          name="send"
-        />
-      </button>
-    </div>
-  );
-}
-
 // Props for ComposerBody, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
 interface ComposerBodyProps {
@@ -401,6 +355,8 @@ interface ComposerBodyProps {
   referenceLabel: string;
   state: ComposerState;
   connectors: ConnectorToggleProps;
+  stoppable: boolean;
+  onStop?: () => void;
 }
 
 // Composer's <form> children: the staged-attachments strip, the textarea
@@ -417,6 +373,8 @@ function ComposerBody(props: ComposerBodyProps) {
     referenceLabel,
     state,
     connectors,
+    stoppable,
+    onStop,
   } = props;
   return (
     <>
@@ -443,6 +401,8 @@ function ComposerBody(props: ComposerBodyProps) {
         connectors={connectors}
         submitDisabled={submitDisabled}
         disabled={disabled}
+        stoppable={stoppable}
+        onStop={onStop}
       />
     </>
   );
