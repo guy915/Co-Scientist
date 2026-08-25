@@ -12,6 +12,8 @@ import random
 import pytest
 
 from co_scientist.offline_content import (
+    _CRITIQUE_TEMPLATES,
+    _EXPERIMENT_TEMPLATES,
     _GENERATED_VOCABULARY,
     _goal_text,
     leaf_text,
@@ -78,26 +80,80 @@ def test_generated_text_is_never_mined_as_subject_matter() -> None:
     assert not set(terms) & _GENERATED_VOCABULARY
 
 
+def _openings(templates: tuple[str, ...]) -> set[str]:
+    """Every way a family can begin, for the fixed terms below."""
+    return {
+        f"{filled[:1].upper()}{filled[1:]}"
+        for template in templates
+        for a, b in (("resistance", "biofilms"), ("biofilms", "resistance"))
+        for filled in (template.format(term_a=a, term_b=b),)
+    }
+
+
 @pytest.mark.parametrize(
-    ("field", "expected"),
+    ("field", "family", "foreign"),
     [
-        ("experimental_context", "Titrate"),
-        ("constructive_feedback", "under-specified"),
+        ("experimental_context", _EXPERIMENT_TEMPLATES, _CRITIQUE_TEMPLATES),
+        ("constructive_feedback", _CRITIQUE_TEMPLATES, _EXPERIMENT_TEMPLATES),
     ],
     ids=["experiment_reads_as_a_protocol", "feedback_reads_as_a_critique"],
 )
 def test_leaves_vary_by_the_field_they_land_in(
-    field: str, expected: str
+    field: str, family: tuple[str, ...], foreign: tuple[str, ...]
 ) -> None:
     """One sentence shape across every field renders a run as filler.
 
     ``_fill_schema`` reaches a title, a mechanism and a reviewer's critique
     through the same code path, so the property name is what distinguishes
     them.
-    """
-    text = leaf_text(random.Random(1), 1, field, ("resistance", "biofilms"))
 
-    assert expected in text
+    Asserted as family membership over many draws rather than one phrase at
+    one seed. The single-phrase form passed only while that phrase's
+    template happened to be the one that seed selected, so widening a family
+    broke it without anything being wrong.
+    """
+    mine, theirs = _openings(family), _openings(foreign)
+
+    for seed in range(200):
+        text = leaf_text(
+            random.Random(seed), 1, field, ("resistance", "biofilms")
+        )
+        assert any(text.startswith(opening) for opening in mine), text
+        assert not any(text.startswith(opening) for opening in theirs), text
+
+
+def test_one_goal_yields_many_distinct_token_bags() -> None:
+    """A short goal must still give evolution room to differ from its peers.
+
+    The near-duplicate guard compares token *coverage*, so two sentences
+    built from the same template with the terms swapped are the same bag of
+    words and count as one. That made the reachable count
+    ``templates * C(terms, 2)``: measured at 9 bags for the three-term goal
+    below, 18 for a four-term goal and 30 for a five-term one. Each evolved
+    child is checked against up to fifteen peers, so it had a majority
+    chance of matching one and being discarded -- whole offline runs
+    finished with every child rejected and no lineage to show, which is
+    what a demo renders.
+
+    A short goal is the case that matters, because that is what demos use.
+    The floor sits well under what the clause pool actually delivers
+    (measured 460 here) so adding a template or a clause can never fail it,
+    while removing the independent draw would.
+    """
+    terms = subject_terms("Research Goal: cardiac fibrosis dynamics\n\n")
+    assert len(terms) == 3, terms
+
+    bags = {
+        frozenset(
+            leaf_text(random.Random(seed), 1, "hypothesis", terms)
+            .lower()
+            .replace(",", " ")
+            .split()
+        )
+        for seed in range(5000)
+    }
+
+    assert len(bags) > 300, len(bags)
 
 
 def test_identical_inputs_are_byte_identical() -> None:

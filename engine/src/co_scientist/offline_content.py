@@ -152,6 +152,8 @@ _TITLE_TEMPLATES = (
     "{term_a}-dependent control of {term_b}",
     "Rerouting {term_b} via {term_a}",
     "{term_a} as a rate-limiting constraint on {term_b}",
+    "{term_b} under sustained {term_a} load",
+    "Decoupling {term_a} from {term_b}",
 )
 
 _STATEMENT_TEMPLATES = (
@@ -162,6 +164,12 @@ _STATEMENT_TEMPLATES = (
     "rate-limiting once the upstream pool is depleted",
     "Perturbing {term_a} redirects flux away from {term_b}, and the "
     "effect persists after the initial stimulus is withdrawn",
+    "{term_b} is set by the residence time of {term_a}, so slowing "
+    "turnover raises the threshold at which the response appears",
+    "Two routes converge on {term_b}; closing the {term_a} route "
+    "unmasks the second rather than abolishing the output",
+    "The dependence of {term_b} on {term_a} inverts above a threshold, "
+    "which is why partial and full loss give opposite readouts",
 )
 
 _MECHANISM_TEMPLATES = (
@@ -171,6 +179,12 @@ _MECHANISM_TEMPLATES = (
     "changing total abundance",
     "The pathway routes through {term_a}; blocking it forces "
     "compensatory flux into {term_b}",
+    "{term_a} occupies the site {term_b} needs, so the two compete "
+    "rather than acting in series",
+    "Turnover of {term_a} sets how long {term_b} stays available, "
+    "making the timing of the perturbation decisive",
+    "A slow conformational step gates {term_a}, and {term_b} reports "
+    "that step rather than the binding event itself",
 )
 
 _EXPERIMENT_TEMPLATES = (
@@ -180,6 +194,12 @@ _EXPERIMENT_TEMPLATES = (
     "rescue arm to confirm on-target effect",
     "Measure {term_b} under {term_a} perturbation, with a discriminating "
     "negative control that should show no shift",
+    "Stage the {term_a} perturbation before and after the {term_b} "
+    "window, since order separates cause from correlate",
+    "Pair a chemical and a genetic route to {term_a}, and accept the "
+    "{term_b} result only where the two agree",
+    "Track {term_b} continuously through a single {term_a} pulse "
+    "instead of sampling endpoints",
 )
 
 _CRITIQUE_TEMPLATES = (
@@ -189,12 +209,63 @@ _CRITIQUE_TEMPLATES = (
     "framing of {term_a} is less explored",
     "The experiment tests {term_b} but not the {term_a} step it depends "
     "on, so a negative result would be hard to interpret",
+    "Two mechanisms predict this {term_b} result equally well, and "
+    "nothing here separates them from the {term_a} side",
+    "The {term_a} claim rests on one readout; a second, orthogonal "
+    "measure of {term_b} would carry most of the weight",
+    "Scope is the weakness rather than logic -- the {term_a} argument "
+    "holds only where {term_b} is already saturated",
 )
 
 _SUMMARY_TEMPLATES = (
     "Centres on {term_a} as the tractable handle on {term_b}",
     "A {term_a}-first account of {term_b}, testable in a single arm",
     "Argues {term_b} follows from {term_a} rather than the reverse",
+    "Treats {term_b} as the readout and {term_a} as the lever",
+    "Puts the decisive step between {term_a} and {term_b}",
+    "Separates the {term_a} contribution to {term_b} from its context",
+)
+
+# One of these is appended to every non-title leaf, and it is what keeps two
+# ideas in the same run from reading as the same idea.
+#
+# The near-duplicate guard compares *token coverage*, not strings, so
+# swapping term_a for term_b buys nothing -- the bag of words is identical.
+# The distinct-bag count was therefore only ``templates * C(terms, 2)``,
+# which is 18 for a four-term goal: each evolved child had a 58% chance of
+# matching a peer and being discarded, so a demo could finish showing no
+# evolved ideas at all. Multiplying by a clause drawn independently is what
+# lifts that space by an order of magnitude; ``test_offline_content.py``
+# pins the floor.
+#
+# The vocabulary is deliberately about study design rather than biology.
+# Every word here is excluded from term extraction below, so a clause
+# sharing a word with a research goal would delete that word from the
+# subject pool -- and shrinking the pool shrinks the very space this exists
+# to widen.
+_SCOPE_CLAUSES = (
+    "in vehicle-matched replicates",
+    "against a prespecified threshold",
+    "once the washout period is complete",
+    "at the low end of the titration",
+    "before the compensatory arm engages",
+    "with the readout blinded to condition",
+    "across independently prepared batches",
+    "holding the remaining variables fixed",
+    "in the regime where the assay stays linear",
+    "after the first exposure rather than the last",
+    "where the baseline drift is smallest",
+    "on the timescale the pathway actually turns over",
+    "using a second, orthogonal readout",
+    "with the confound removed by design",
+    "restricted to the responders",
+    "under the more conservative of two corrections",
+    "and the direction survives the sensitivity analysis",
+    "though the margin narrows in the replication arm",
+    "with the effect concentrated in the earliest window",
+    "which the pilot data already hint at",
+    "though a ceiling appears at the top dose",
+    "and nothing comparable is seen in the sham arm",
 )
 
 _FIELD_TEMPLATES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -248,6 +319,7 @@ _GENERATED_VOCABULARY = frozenset(
         *_CRITIQUE_TEMPLATES,
         *_SUMMARY_TEMPLATES,
         *_FALLBACK_TERMS,
+        *_SCOPE_CLAUSES,
     )
     for word in _WORD_RE.findall(template)
 )
@@ -344,8 +416,8 @@ def leaf_text(
             Two leaves can otherwise collide on the same template and terms,
             and ``state.deduplicate_hypotheses`` collapses hypotheses whose
             normalized text is equal -- so a run would silently lose ideas.
-            Titles carry it visibly (readers expect distinct headings);
-            elsewhere it only has to break ties.
+            Titles carry it visibly, because readers expect distinct
+            headings and a title is too short to hide a clause in.
         field: The property name being filled, or "" when unknown.
         terms: Subject vocabulary from :func:`subject_terms`.
 
@@ -361,4 +433,8 @@ def leaf_text(
     text = template.format(term_a=term_a, term_b=term_b)
     if templates is _TITLE_TEMPLATES:
         return f"{text[:1].upper()}{text[1:]} ({ordinal})"
-    return f"{text[:1].upper()}{text[1:]}."
+    # Drawn after the terms, so the clause varies independently of them --
+    # see _SCOPE_CLAUSES for why an independent draw is the whole point.
+    clause = _SCOPE_CLAUSES[rng.randrange(len(_SCOPE_CLAUSES))]
+    joiner = " " if clause.startswith("and ") else ", "
+    return f"{text[:1].upper()}{text[1:]}{joiner}{clause}."
