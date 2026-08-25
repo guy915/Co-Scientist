@@ -1,6 +1,16 @@
-import {memo, type ComponentPropsWithoutRef, type ReactNode} from 'react';
+import {
+  isValidElement,
+  memo,
+  useEffect,
+  useState,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from 'react';
 import Markdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
+import {Icon} from './icon';
+import {copyText} from '../lib/clipboard';
 import {splitMarkdownIntoBlocks} from './markdown_split';
 
 // Stable identity across renders: react-markdown treats a fresh array
@@ -8,6 +18,14 @@ import {splitMarkdownIntoBlocks} from './markdown_split';
 // blocks the re-render before it matters), but a shared constant is what a
 // later reader expects to see.
 const REMARK_PLUGINS = [remarkGfm];
+
+// rehype-highlight operates on the hast tree it is handed (spans with
+// `hljs-*` classes), never on a raw-HTML string, so it does not reopen the
+// rehype-raw hazard described below. Left at its default `languages: common`
+// (37 languages via lowlight) rather than `all` (~190) -- the point of a
+// subset, not full coverage, since every language it registers ships in the
+// bundle whether a reply ever uses it or not.
+const REHYPE_PLUGINS = [rehypeHighlight];
 
 /**
  * Renders one assistant message's markdown.
@@ -100,13 +118,7 @@ const COMPONENTS = {
       {children}
     </code>
   ),
-  pre: ({children}: Props<'pre'>) => (
-    <pre
-      className={`${BLOCK} my-3 overflow-x-auto rounded-md bg-cosci-hover p-3 text-sm`}
-    >
-      {children}
-    </pre>
-  ),
+  pre: MarkdownPre,
   // One heading style for every level: a chat turn is not a document, and
   // an h1 sized like one reads as shouting next to the message before it.
   h1: ({children}: Props<'h1'>) => (
@@ -149,6 +161,130 @@ function MarkdownHeading({children}: {children: ReactNode}) {
   return <p className={`${BLOCK} mt-3 mb-1.5 font-medium`}>{children}</p>;
 }
 
+/** The fence's language tag (`language-python` -> `python`), or none. */
+function fenceLanguage(className: string | undefined): string | null {
+  return /language-([\w-]+)/.exec(className ?? '')?.[1] ?? null;
+}
+
+/**
+ * A fenced block's literal source text, read back out of its highlighted
+ * markup. rehype-highlight wraps tokens in nested `<span>`s but never
+ * changes the text itself, so concatenating every string leaf reconstructs
+ * the original source exactly -- this is what the copy button sends to the
+ * clipboard, never the DOM's rendered (and re-selectable, but awkward to
+ * grab exactly) text.
+ */
+function highlightedText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map(highlightedText).join('');
+  }
+  if (isValidElement<{children?: ReactNode}>(node)) {
+    return highlightedText(node.props.children);
+  }
+  return '';
+}
+
+const COPIED_LABEL_MS = 2_000;
+
+const CODE_COPY_BUTTON_CLASSES =
+  'ml-auto grid size-6 shrink-0 cursor-pointer place-items-center ' +
+  'rounded-md border-0 bg-transparent p-0 text-cosci-muted ' +
+  'hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
+  'focus-visible:text-cosci-fg focus-visible:outline-none';
+
+/**
+ * Copies `text` on click and flips its own label to "Copied" for
+ * {@link COPIED_LABEL_MS}. Routed through the shared `copyText` helper
+ * (Clipboard API with an `execCommand` fallback) rather than calling
+ * `navigator.clipboard` directly, since that helper already swallows every
+ * failure -- a rejected or absent Clipboard API never reaches this
+ * component as a thrown error or an unhandled rejection.
+ */
+function CodeCopyButton({text}: {text: string}) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const id = window.setTimeout(() => setCopied(false), COPIED_LABEL_MS);
+    return () => window.clearTimeout(id);
+  }, [copied]);
+
+  return (
+    <button
+      type="button"
+      className={CODE_COPY_BUTTON_CLASSES}
+      aria-label={copied ? 'Copied' : 'Copy code'}
+      onClick={() => void copyText(text).then(() => setCopied(true))}
+    >
+      <Icon
+        aria-hidden="true"
+        name={copied ? 'check' : 'content_copy'}
+        className="text-[1rem]"
+      />
+    </button>
+  );
+}
+
+/** The chrome bar above a fenced block: its language (if named) and copy. */
+function CodeBlockHeader({
+  language,
+  text,
+}: {
+  language: string | null;
+  text: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-cosci-border px-3 py-1.5 text-xs text-cosci-muted">
+      {language && <span className="font-mono">{language}</span>}
+      <CodeCopyButton text={text} />
+    </div>
+  );
+}
+
+/**
+ * A fenced code block. react-markdown v10 dropped `code`'s `inline` prop, so
+ * this owns the block chrome (language label, copy button, the scrolling
+ * `pre`) itself rather than have `code` guess whether it is inline from its
+ * own props -- `code` above renders unmodified, and stays exclusively an
+ * inline-code renderer, because this component reads the fence's `<code>`
+ * child by its raw element props (`children` here is that unrendered
+ * element -- see `Props<'pre'>`) and re-emits a bare `<code>` from them
+ * instead of letting the `code` override run over block code too.
+ *
+ * The copy button lives in this header, above the scrolling `pre`, so it
+ * cannot slide off with the code (`overflow-x-auto` below only wraps the
+ * code line, never the header).
+ */
+function MarkdownPre({children}: Props<'pre'>) {
+  const codeElement = isValidElement<{
+    className?: string;
+    children?: ReactNode;
+  }>(children)
+    ? children
+    : null;
+  const {className, children: codeChildren} = codeElement?.props ?? {};
+  const language = fenceLanguage(className);
+
+  return (
+    <div
+      className={`${BLOCK} my-3 overflow-hidden rounded-md border border-cosci-border`}
+    >
+      <CodeBlockHeader
+        language={language}
+        text={highlightedText(codeChildren)}
+      />
+      <pre className="m-0 overflow-x-auto bg-cosci-hover p-3 text-sm">
+        <code className={className}>{codeChildren}</code>
+      </pre>
+    </div>
+  );
+}
+
 /**
  * One top-level block's exact source slice, rendered through its own
  * react-markdown instance. Memoized on `raw` (React.memo's default shallow
@@ -159,7 +295,11 @@ function MarkdownHeading({children}: {children: ReactNode}) {
  * with identical text (e.g. two blank list items) would otherwise collide.
  */
 const MarkdownBlock = memo(({raw}: {raw: string}) => (
-  <Markdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
+  <Markdown
+    remarkPlugins={REMARK_PLUGINS}
+    rehypePlugins={REHYPE_PLUGINS}
+    components={COMPONENTS}
+  >
     {raw}
   </Markdown>
 ));

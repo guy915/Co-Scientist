@@ -170,6 +170,20 @@
   /* Featured-node star. Deliberately outside the cluster/relationship hue
      families above, so it reads as "picked out" against any of them. */
   --proposal-featured: #c9970c;
+
+  /* Fenced-code syntax highlighting (rehype-highlight token classes, see
+     code_highlight.css). Fresh hex, not aliased to an existing --cosci-*
+     hue: --cosci-green in particular reads at 1.46:1 on the code block's
+     --cosci-hover background in light mode (measured), so the proposals-
+     graph greens and the run-step green are not safe to reuse here. Every
+     pair below is ≥4.5:1 against --cosci-hover in its own mode (measured
+     against #e9eef6 light / #282a2c dark). */
+  --cosci-code-comment: #5f6368;
+  --cosci-code-keyword: var(--cosci-blue);
+  --cosci-code-string: #146c2e;
+  --cosci-code-title: #7c3fa6;
+  --cosci-code-number: #9a5b16;
+  --cosci-code-attr: #a3294f;
 }
 
 :root[data-theme='dark'] {
@@ -248,4 +262,11 @@
   --proposal-tension: #f08279;
   --proposal-edge: #6b6f6e;
   --proposal-featured: #ffcf3d;
+
+  --cosci-code-comment: #9aa0a6;
+  --cosci-code-keyword: var(--cosci-blue);
+  --cosci-code-string: #7ee787;
+  --cosci-code-title: #d9a8ff;
+  --cosci-code-number: #ffb787;
+  --cosci-code-attr: #ff9eb0;
 }
