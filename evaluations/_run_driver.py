@@ -76,6 +76,21 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
     if not live:
         os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
+        # Forcing the flag is necessary but was not sufficient: it only
+        # reaches call sites that consult it, and a credential left in the
+        # environment is what any that do not will spend. Removing the
+        # credentials makes "offline" unspendable rather than merely
+        # intended. Matched by suffix instead of by a list, because the
+        # equivalent hand-kept list in app/tests/conftest.py had already
+        # fallen behind the app's own map once.
+        for name in [n for n in os.environ if n.endswith("_API_KEY")]:
+            del os.environ[name]
+        # Offline literature review returns generated passages, which the
+        # deterministic claim assessor cannot support a claim against, so
+        # every idea is withheld and the run ends blocked before reaching
+        # the report -- the stages an offline sweep exists to exercise. The
+        # app suite disables the node for the same reason.
+        os.environ["FORCE_LITERATURE_REVIEW"] = "0"
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
     os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
