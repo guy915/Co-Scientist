@@ -287,11 +287,6 @@ def _hypothesis_status(h: dict[str, Any]) -> str:
     return "active"
 
 
-def _is_rejected(h: dict[str, Any]) -> bool:
-    """Return whether a hypothesis was excluded from the tournament."""
-    return _hypothesis_status(h) != "active"
-
-
 def _mean_review_novelty(h: dict[str, Any]) -> float | None:
     """Mean of the reviewers' own novelty scores, or None if none scored it.
 
