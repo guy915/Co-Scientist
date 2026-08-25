@@ -70,9 +70,9 @@ function ProviderOption({
  * Provider chooser for the Settings dialog's Model section.
  *
  * A button plus an own-markup menu rather than a native `<select>`: the
- * native control stretched to the panel width and parked its arrow against
- * the far edge, a long reach from the value it belongs to, and its list is
- * drawn by the browser in its own style rather than by the workspace.
+ * native control's list is drawn by the browser in its own style rather than
+ * by the workspace, and cannot carry the check mark or the row treatment the
+ * rest of the dialog's menus use.
  *
  * @param provider The currently chosen provider.
  * @param onChange Called with the newly chosen provider (never with the one
