@@ -1,769 +1,108 @@
 # Cell state transition analysis identifies interventions thatimprove control of Mycobacterium tuberculosis infectionby susceptible macrophages
 
-Cell state transition analysis identifies interventions that
-improve control of Mycobacterium tuberculosis infection
-by susceptible macrophages
-Shivraj M. Yabaji1†, Oleksii S. Rukhlenko2†, Sujoy Chatterjee1, Bidisha Bhattacharya1,
-Emily Wood2, Marina Kasaikina1, Boris N. Kholodenko2,3,4*, Alexander A. Gimelbrant5*,
-rights reserved;
-License 4.0 (CC BY-NC).
-Understanding cell state transitions and purposefully controlling them to improve therapies is a longstanding
-challenge in biological research and medicine. Here, we identify a transcriptional signature that distinguishes
-activated macrophages from the tuberculosis (TB) susceptible and resistant mice. We then apply the cSTAR (cell
-state transition assessment and regulation) approach to data from screening–by–RNA sequencing to identify
-chemical perturbations that shift the transcriptional state of tumor necrosis factor (TNF)–activated TB-susceptible macrophages toward that of TB-resistant cells, i.e., prevents their aberrant activation without suppressing
-beneficial TNF responses. Last, we demonstrate that the compounds identified with this approach enhance the
-resistance of the TB-susceptible mouse macrophages to virulent Mycobacterium tuberculosis.
-Understanding cell state transitions and purposefully controlling
-them to improve therapies are longstanding challenges in biomedicine (1–6). Immunity to infections requires that immunocompetent
-cells acquire and maintain cell states that optimally oppose specific
-patterns of microbial pathogenesis (7). Successful pathogens,
-however, evolve mechanisms that allow them to induce cell states
-conducive to the pathogen’s survival and spread. The ability to
-identify distinct immune cell states and direct their transitions
-toward resistance-associated phenotypes is desirable for developing
-mechanistic immune therapies. Ideally, these interventions would
-take into consideration the individual host variation and stratify patients based on specific mechanisms of tuberculosis (TB) susceptibility of the genetic or environmental nature. To this end, recent
-studies used transcriptome analysis of peripheral blood and
-pathway analysis to identify aberrantly activated pathways in patients with TB and stratified them according to mechanistic endotypes, suggesting the potential for endotype-specific therapies (5, 6).
-An intracellular bacteria Mycobacterium tuberculosis (Mtb) coevolved with humans for millennia and arguably is the most successful human bacterial pathogen: It has infected an estimated
-quarter of the human population, although TB disease is observed
-only in a minority of the infected humans (8–10). In these susceptible individuals, the bacterial infection leads to the formation of
-extensive lung pathology and pathogen transmission via aerosols
-The National Emerging Infectious Diseases Laboratories (NEIDL), Boston University, Boston, MA, USA. 2Systems Biology Ireland, School of Medicine and Medical
-Science, University College Dublin, Belfield Dublin 4, Ireland. 3Conway Institute
-of Biomolecular and Biomedical Research, University College Dublin, Belfield
-Dublin 4, Ireland. 4Department of Pharmacology, Yale University School of Medicine, New Haven, CT, USA. 5Altius Institute for Biomedical Sciences, Seattle, WA,
-USA. 6Pulmonary Center, The Department of Medicine, Boston University School
-of Medicine, Boston, MA, USA. 7Department of Microbiology, Boston University
-School of Medicine, Boston, MA, USA.
-*Corresponding author. Email: boris.kholodenko@ucd.ie (B.K.); agimelbrant@
-altius.org (A.A.G.); ikramnik@bu.edu (I.K.)
-†These authors contributed equally to this work.
-(11–13). Mechanisms underlying differences between the resistant
-and susceptible hosts are promising targets for immunomodulatory,
-so-called host-directed therapies (14, 15). Therefore, this is an area
-of intensive investigation (16).
-Macrophages play central roles in host resistance to virulent Mtb
-via effector and immunoregulatory mechanisms, including pathogen recognition, engulfment, and killing, as well as production of
-soluble mediators. The activation of appropriate effector mechanisms by macrophages is orchestrated by pathogen-derived
-ligands, cytokines produced by T lymphocytes, and other
-immune and stromal cells within the inflammatory milieu.
-Ideally, these signals induce activated macrophage states optimal
-for the pathogen elimination (17). However, a number of the socalled intracellular pathogens survive inside macrophages and use
-them as a protected niche for the pathogen’s persistence and replication (18).
-Macrophage plasticity is exemplified by alternative activation
-states referred to as M1/M2 macrophage polarization. Canonically,
-these states are induced by cytokines: Tumor necrosis factor (TNF)
-and interferon-γ (IFN-γ) induce the M1, and interleukin-4 (IL-4)
-or IL-13 induces the M2 macrophage polarization (19). However,
-numerous observations provide evidence that this paradigm is insufficient to describe the entire palette of physiologically relevant
-macrophage states (20, 21). Although macrophages alternatively activated by IL-4 are, indeed, permissive for Mtb (22, 23), Mtb naturally induces T helper 1 T lymphocytes to produce M1-polarizing
-cytokines in both resistant and susceptible hosts in vivo, suggesting
-that M2-polarizing cytokines do not account for the differences in
-macrophage activation states associated with TB resistance and susceptibility (24, 25). Instead, hyperactivity of type I interferon (IFNI) pathway in myeloid cells has been associated with TB susceptibility in humans and in animal models (26, 27). Whether the IFN-I
-hyperactivity is a biomarker of a specific macrophage state (polarization phenotype) remains unknown. Delineating pathways that
-shape and maintain specific macrophage phenotypes causally
-linked to TB susceptibility should enable rational design of
-Identification of a transcriptional signature of TNF response
-of the Mtb-susceptible macrophages
-The naïve bone marrow–derived macrophages (BMDMs) obtained
-either from B6 (Mtb-resistant; R) or B6.Sst1S (Mtb-susceptible; S)
-mice were equally permissive for Mtb replication after in vitro infection (Fig. 1A). As expected, stimulation of the wild-type B6
-BMDMs with TNF before Mtb infection enhanced the bacterial
-control, as evidenced by reduced bacterial loads (Fig. 1, A and B,
-and fig. S1A). In contrast, the TNF stimulation of S macrophages
-did not enhance their ability to control Mtb. These observations
-are consistent with our previous findings that the sst1-mediated susceptibility to Mtb is mechanistically linked to an aberrant macrophage response to TNF, as evidenced by distinct transcriptional
-states of TNF-stimulated S and R macrophages (32).
-To identify transcriptional signature of macrophage susceptibility, we compared whole transcriptomes of these macrophages using
-RNA-seq. Both R and S macrophages responded to TNF stimulation with large changes in gene expression, clearly demonstrated
-by hierarchical clustering and principal components analysis
-(PCA) data analyses (Fig. 1C). When the whole transcriptome
-was analyzed, the effect of TNF far outweighed the effect of the
-sst1 genotype, and the biological samples were clustered by TNF
-concentration (Fig. 1C). However, a subset of genes was differentially expressed between TNF-stimulated B6 and B6.Sst1S
-BMDMs, indicating that a targeted transcriptional profile can distinguish responses of S and R BMDMs to TNF (Fig. 1D) and, possibly, identify perturbations that cause TNF-stimulated B6.Sst1S
-BMDMs to shift from the S to the R transcriptional state.
-For targeted expression profiling, we used a targeted RNA-seq
-approach, Screen sequencing (Screen-seq) (39), as outlined in
-Fig. 1E. First, we selected a set of 46 genes induced by TNF, including (i) genes with differential expression between B6 and B6.Sst1S
-macrophages, both those with known roles in IFN-I response and
-proteotoxic stress response (32) and those without such known
-roles; (ii) a set of genes equally induced by TNF in R and S
-BMDMs; and (iii) nonactivated control genes. A 46 gene set of
-primers was designed to work in multiplex polymerase chain reaction (PCR) followed by barcoding and sequencing, as described in
-Materials and Methods and Fig. 1E legend. Briefly, cells are grown,
-treated, and lysed in 96-well plates, with RNA isolated using magnetic beads. cDNA is synthesized using oligo(dT) primers carrying
-unique molecular identifiers (UMIs) (40) and a common tail. Barcoded multiplexed amplicons from individual wells are pooled, and
-Illumina adaptors are added for subsequent sequencing of the
-pooled library, with quantification of individual transcripts by
-UMI counting (see Materials and Methods for details).
-Next, we used the Screen-seq workflow to compare responses of
-B6 and B6.Sst1S BMDMs to increasing concentrations of TNF
-(Fig. 1F). Clustering macrophage responses using UMI counts
-from Screen-seq analysis recapitulated clustering of macrophage responses to TNF stimulation using the same 46 gene set obtained
-from the whole-genome RNA-seq data (Fig. 1D). Both methods
-consistently reproduced the sst1 genotype–specific clustering of
-macrophage responses to TNF at concentrations 10 and 50 ng/ml.
-We thus concluded that Screen-seq experimental and hierarchical clustering/PCA data analysis pipeline could successfully resolve
-R and S expression profiles detectable in the transcriptome-wide
-data. However, neither hierarchical clustering nor PCA analyses
-were sufficient to predict which small-molecule interventions
-could control the S-to-R macrophage state transition and thus increase their resistance to Mtb.
-Mapping transcriptional cell states in susceptible and
-To analyze the difference between TNF responses of R and S macrophages, we first applied basic, initial steps of cSTAR pipeline using
-the Screen-seq dataset of 46 gene responses (33). In the transcriptomics dataspace, we separated distinct macrophage states, using a
-supervised ML method, the support vectors machine (SVM). To visualize the results, we used PCA. Figure 2A shows the projections of
-the Screen-seq data points in a forty-six dimensional (46D) space
-into a 2D space of the first two principal components (PC1 and
-PC2). The black line dividing the R and S macrophage states is a
-interventions to correct them and avoid drugs that cause nonspecific immune suppression (28, 29).
-Previously, we used forward genetic analysis to dissect mechanisms of TB progression in a mouse model of pulmonary TB and
-mapped a genetic locus, sst1, that specifically controlled the formation of human-like necrotic TB lesions in the lungs (30, 31). Subsequently, we found that the sst1 locus controlled macrophage
-activation by TNF, a cytokine essential for anti-TB immunity and
-granuloma formation, although their TNF production was not impaired (32). During prolonged TNF stimulation, the sst1-susceptible macrophages develop escalating proteotoxic and oxidative stress
-and up-regulate the IFN-I pathway (33). Recently the sst1-encoded
-SP140 protein, which is not expressed in the sst1-susceptible macrophages, was shown to be the major determinant of the sst1-mediated susceptibility and IFN-I hyperactivity (34, 35), and its function
-was linked to maintaining heterochromatin silencing in activated
-macrophages (36, 37). This mechanism of action is consistent
-with a coordinated change of multiple immune and metabolic pathways in the sst1-susceptible macrophages during persistent TNF
-stimulation (38).
-In this proof-of-principle study using the mouse model, we attempted to correct the aberrant TNF response of the sst1-susceptible macrophages and, thus, improve their ability to control
-intracellular Mtb. First, we identified a differential gene expression
-signature distinguishing TNF response of TB-resistant (B6) and TBsusceptible (B6.Sst1S) macrophages. This gene expression signature
-consisting of 46 differentially expressed genes was used for testing
-effects of candidate compounds on TNF-stimulated B6.Sst1S macrophages. The gene expression analysis was performed in a
-medium-throughput format in 96-well plates using bar-coded
-pooled RNA sequencing (RNA-seq) for cost-efficient quantitative
-analysis of multiple mRNAs expression. To determine the effects
-of specific pathway perturbations on the macrophage susceptibility
-state, these multidimensional data were analyzed using basic initial
-steps of an explainable machine learning (ML) and dynamical analysis method, cell state transition assessment and regulation (cSTAR)
-(33). This approach has allowed us to identify specific states of macrophages in the transcriptomic space and quantify how drug perturbations affect the transitions between these states. Our findings
-suggested perturbations for switching from TB-susceptible to TBresistant transcriptional states, such that the susceptible macrophages showed improved control of Mtb.
-separating hyperplane built by the SVM in a 2D PCA space. Reflecting their biology, the macrophage expression states are similar
-without TNF exposure (Fig. 2A).
-Similar to the SVM, the first two PCA vectors, PC1 and PC2, separate the R and S macrophage states in the relatively low dimensional space of 46 genes. This is expected because the 46 gene signature
-has been selected to distinguish the responses of the R and S
+Cell state transition analysis identifies interventions that improve control of Mycobacterium tuberculosis infection by susceptible macrophages
+Shivraj M. Yabaji 1 † , Oleksii S. Rukhlenko 2 † , Sujoy Chatterjee 1 , Bidisha Bhattacharya 1 , Emily Wood 2 , Marina Kasaikina 1 , Boris N. Kholodenko 2,3,4 *, Alexander A. Gimelbrant 5 *, Igor Kramnik 1,6,7 *
+Understanding cell state transitions and purposefully controlling them to improve therapies is a longstanding challenge in biological research and medicine. Here, we identify a transcriptional signature that distinguishes activated macrophages from the tuberculosis (TB) susceptible and resistant mice. We then apply the cSTAR (cell state transition assessment and regulation) approach to data from screening - by - RNA sequencing to identify chemical perturbations that shift the transcriptional state of tumor necrosis factor (TNF) - activated TB-susceptible macrophages toward that of TB-resistant cells, i.e., prevents their aberrant activation without suppressing beneficial TNF responses. Last, we demonstrate that the compounds identified with this approach enhance the resistance of the TB-susceptible mouse macrophages to virulent Mycobacterium tuberculosis .
+Understanding cell state transitions and purposefully controlling them to improve therapies are longstanding challenges in biomedicine ( 1 - 6 ). Immunity to infections requires that immunocompetent cells acquire and maintain cell states that optimally oppose specific patterns of microbial pathogenesis ( 7 ). Successful pathogens, however, evolve mechanisms that allow them to induce cell states conducive to the pathogen ' s survival and spread. The ability to identify distinct immune cell states and direct their transitions toward resistance-associated phenotypes is desirable for developing mechanistic immune therapies. Ideally, these interventions would take into consideration the individual host variation and stratify patients based on specific mechanisms of tuberculosis (TB) susceptibility of the genetic or environmental nature. To this end, recent studies used transcriptome analysis of peripheral blood and pathway analysis to identify aberrantly activated pathways in patients with TB and stratified them according to mechanistic endotypes, suggesting the potential for endotype-specific therapies ( 5 , 6 ).
+An intracellular bacteria Mycobacterium tuberculosis (Mtb) coevolved with humans for millennia and arguably is the most successful human bacterial pathogen: It has infected an estimated quarter of the human population, although TB disease is observed only in a minority of the infected humans ( 8 - 10 ). In these susceptible individuals, the bacterial infection leads to the formation of extensive lung pathology and pathogen transmission via aerosols
+1 The National Emerging Infectious Diseases Laboratories (NEIDL), Boston University, Boston, MA, USA. 2 Systems Biology Ireland, School of Medicine and Medical Science, University College Dublin, Belfield Dublin 4, Ireland. 3 Conway Institute of Biomolecular and Biomedical Research, University College Dublin, Belfield Dublin 4, Ireland. 4 Department of Pharmacology, Yale University School of Medicine, New Haven, CT, USA. 5 Altius Institute for Biomedical Sciences, Seattle, WA, USA. 6 Pulmonary Center, The Department of Medicine, Boston University School of Medicine, Boston, MA, USA. 7 Department of Microbiology, Boston University School of Medicine, Boston, MA, USA.
+*Corresponding author. Email: boris.kholodenko@ucd.ie (B.K.); agimelbrant@ altius.org (A.A.G.); ikramnik@bu.edu (I.K.)
+† These authors contributed equally to this work.
+( 11 - 13 ). Mechanisms underlying differences between the resistant and susceptible hosts are promising targets for immunomodulatory, so-called host-directed therapies ( 14 , 15 ). Therefore, this is an area of intensive investigation ( 16 ).
+Macrophages play central roles in host resistance to virulent Mtb via effector and immunoregulatory mechanisms, including pathogen recognition, engulfment, and killing, as well as production of soluble mediators. The activation of appropriate effector mechanisms by macrophages is orchestrated by pathogen-derived ligands, cytokines produced by T lymphocytes, and other immune and stromal cells within the inflammatory milieu. Ideally, these signals induce activated macrophage states optimal for the pathogen elimination ( 17 ). However, a number of the socalled intracellular pathogens survive inside macrophages and use them as a protected niche for the pathogen ' s persistence and replication ( 18 ).
+Macrophage plasticity is exemplified by alternative activation states referred to as M1/M2 macrophage polarization. Canonically, these states are induced by cytokines: Tumor necrosis factor (TNF) and interferon-γ (IFN-γ) induce the M1, and interleukin-4 (IL-4) or IL-13 induces the M2 macrophage polarization ( 19 ). However, numerous observations provide evidence that this paradigm is insufficient to describe the entire palette of physiologically relevant macrophage states ( 20 , 21 ). Although macrophages alternatively activated by IL-4 are, indeed, permissive for Mtb ( 22 , 23 ), Mtb naturally induces T helper 1 T lymphocytes to produce M1-polarizing cytokines in both resistant and susceptible hosts in vivo, suggesting that M2-polarizing cytokines do not account for the differences in macrophage activation states associated with TB resistance and susceptibility ( 24 , 25 ). Instead, hyperactivity of type I interferon (IFNI) pathway in myeloid cells has been associated with TB susceptibility in humans and in animal models ( 26 , 27 ). Whether the IFN-I hyperactivity is a biomarker of a specific macrophage state (polarization phenotype) remains unknown. Delineating pathways that shape and maintain specific macrophage phenotypes causally linked to TB susceptibility should enable rational design of
+Copyright © 2023 The Authors, some rights reserved; exclusive licensee American Association for the Advancement of Science. No claim to original U.S. Government Works. Distributed under a Creative Commons Attribution NonCommercial License 4.0 (CC BY-NC).
+interventions to correct them and avoid drugs that cause nonspecific immune suppression ( 28 , 29 ).
+Previously, we used forward genetic analysis to dissect mechanisms of TB progression in a mouse model of pulmonary TB and mapped a genetic locus, sst1 , that specifically controlled the formation of human-like necrotic TB lesions in the lungs ( 30 , 31 ). Subsequently, we found that the sst1 locus controlled macrophage activation by TNF, a cytokine essential for anti-TB immunity and granuloma formation, although their TNF production was not impaired ( 32 ). During prolonged TNF stimulation, the sst1 -susceptible macrophages develop escalating proteotoxic and oxidative stress and up-regulate the IFN-I pathway ( 33 ). Recently the sst1 -encoded SP140 protein, which is not expressed in the sst1 -susceptible macrophages, was shown to be the major determinant of the sst1 -mediated susceptibility and IFN-I hyperactivity ( 34 , 35 ), and its function was linked to maintaining heterochromatin silencing in activated macrophages ( 36 , 37 ). This mechanism of action is consistent with a coordinated change of multiple immune and metabolic pathways in the sst1 -susceptible macrophages during persistent TNF stimulation ( 38 ).
+In this proof-of-principle study using the mouse model, we attempted to correct the aberrant TNF response of the sst1 -susceptible macrophages and, thus, improve their ability to control intracellular Mtb. First, we identified a differential gene expression signature distinguishing TNF response of TB-resistant (B6) and TBsusceptible (B6.Sst1S) macrophages. This gene expression signature consisting of 46 differentially expressed genes was used for testing effects of candidate compounds on TNF-stimulated B6.Sst1S macrophages. The gene expression analysis was performed in a medium-throughput format in 96-well plates using bar-coded pooled RNA sequencing (RNA-seq) for cost-efficient quantitative analysis of multiple mRNAs expression. To determine the effects of specific pathway perturbations on the macrophage susceptibility state, these multidimensional data were analyzed using basic initial steps of an explainable machine learning (ML) and dynamical analysis method, cell state transition assessment and regulation (cSTAR) ( 33 ). This approach has allowed us to identify specific states of macrophages in the transcriptomic space and quantify how drug perturbations affect the transitions between these states. Our findings suggested perturbations for switching from TB-susceptible to TBresistant transcriptional states, such that the susceptible macrophages showed improved control of Mtb.
+Identification of a transcriptional signature of TNF response of the Mtb-susceptible macrophages
+The naïve bone marrow - derived macrophages (BMDMs) obtained either from B6 (Mtb-resistant; R) or B6.Sst1S (Mtb-susceptible; S) mice were equally permissive for Mtb replication after in vitro infection (Fig. 1A). As expected, stimulation of the wild-type B6 BMDMs with TNF before Mtb infection enhanced the bacterial control, as evidenced by reduced bacterial loads (Fig. 1, A and B, and fig. S1A). In contrast, the TNF stimulation of S macrophages did not enhance their ability to control Mtb. These observations are consistent with our previous findings that the sst1 -mediated susceptibility to Mtb is mechanistically linked to an aberrant macrophage response to TNF, as evidenced by distinct transcriptional states of TNF-stimulated S and R macrophages ( 32 ).
+To identify transcriptional signature of macrophage susceptibility, we compared whole transcriptomes of these macrophages using RNA-seq. Both R and S macrophages responded to TNF stimulation with large changes in gene expression, clearly demonstrated by hierarchical clustering and principal components analysis (PCA) data analyses (Fig. 1C). When the whole transcriptome was analyzed, the effect of TNF far outweighed the effect of the sst1 genotype, and the biological samples were clustered by TNF concentration (Fig. 1C). However, a subset of genes was differentially expressed between TNF-stimulated B6 and B6.Sst1S BMDMs, indicating that a targeted transcriptional profile can distinguish responses of S and R BMDMs to TNF (Fig. 1D) and, possibly, identify perturbations that cause TNF-stimulated B6.Sst1S BMDMs to shift from the S to the R transcriptional state.
+For targeted expression profiling, we used a targeted RNA-seq approach, Screen sequencing (Screen-seq) ( 39 ), as outlined in Fig. 1E. First, we selected a set of 46 genes induced by TNF, including (i) genes with differential expression between B6 and B6.Sst1S macrophages, both those with known roles in IFN-I response and proteotoxic stress response ( 32 ) and those without such known roles; (ii) a set of genes equally induced by TNF in R and S BMDMs; and (iii) nonactivated control genes. A 46 gene set of primers was designed to work in multiplex polymerase chain reaction (PCR) followed by barcoding and sequencing, as described in Materials and Methods and Fig. 1E legend. Briefly, cells are grown, treated, and lysed in 96-well plates, with RNA isolated using magnetic beads. cDNA is synthesized using oligo(dT) primers carrying unique molecular identifiers (UMIs) ( 40 ) and a common tail. Barcoded multiplexed amplicons from individual wells are pooled, and Illumina adaptors are added for subsequent sequencing of the pooled library, with quantification of individual transcripts by UMI counting (see Materials and Methods for details).
+Next, we used the Screen-seq workflow to compare responses of B6 and B6.Sst1S BMDMs to increasing concentrations of TNF (Fig. 1F). Clustering macrophage responses using UMI counts from Screen-seq analysis recapitulated clustering of macrophage responses to TNF stimulation using the same 46 gene set obtained from the whole-genome RNA-seq data (Fig. 1D). Both methods consistently reproduced the sst1 genotype - specific clustering of macrophage responses to TNF at concentrations 10 and 50 ng/ml.
+We thus concluded that Screen-seq experimental and hierarchical clustering/PCA data analysis pipeline could successfully resolve R and S expression profiles detectable in the transcriptome-wide data. However, neither hierarchical clustering nor PCA analyses were sufficient to predict which small-molecule interventions could control the S-to-R macrophage state transition and thus increase their resistance to Mtb.
+Mapping transcriptional cell states in susceptible and resistant macrophages
+To analyze the difference between TNF responses of R and S macrophages, we first applied basic, initial steps of cSTAR pipeline using the Screen-seq dataset of 46 gene responses ( 33 ). In the transcriptomics dataspace, we separated distinct macrophage states, using a supervised ML method, the support vectors machine (SVM). To visualize the results, we used PCA. Figure 2A shows the projections of the Screen-seq data points in a forty-six dimensional (46D) space into a 2D space of the first two principal components (PC1 and PC2). The black line dividing the R and S macrophage states is a
 Fig. 1. Screen-seq defines Mtb-susceptible
-macrophages abnormal TNF response. (A) B6
-and B6.Sst1S BMDMs were exposed to TNF (10
-ng/ml), followed by Mtb infection. Mtb loads
-were determined by qualitative polymerase chain
-reaction (qPCR) on days 3 and 4 post-infection
-(p.i.). (B) Intracellular Mtb in TNF-treated BMDMs
-compared to untreated controls. B6.Sst1S BMDMs
-were infected with a reporter Mtb strain [SSB–
-green fluorescent protein (GFP), smyc’::mCherry]
-and imaged using confocal microscopy 5 days
-p.i.. (C) RNA-seq analysis of the B6 and B6.Sst1S
-macrophage transcriptome exposed to TNF (0, 2,
-10, and 50 ng/ml) for 18 hours. Polyadenylate
-RNA-seq libraries were prepared from two biological replicates per condition. Hierarchical
-clustering analysis of expression variation:
-heatmap (left) and dendrogram (middle). Right:
-PCA. P values in the dendrogram computed by
-multiscale bootstrap resampling. (D) sst1 genotype–specific response to TNF can be detected in
-the RNA-seq data from (C) using a subset of top
-300 genes differentially expressed between B6
-and B6.Sst1S BMDMs stimulated with TNF (10 ng/
-ml). Blue, B6; red, B6.Sst1S. (E) Screen-seq
-workflow: in-well cell lysis and RNA isolation; (1)
-Reverse transcription using oligo(dT) primers
-with unique molecular identifiers (UMIs; blue)
-and common adapter (orange). (2) Multiplex PCR
-using 46 gene-specific primers (black) and a
-common reverse primer that targets the oligo(dT)
-common adapter (orange) . (3) Well-encoding
-using primers targeting common adapters with
-unique barcode combinations (BC1 and BC2) for
-each well. All PCR products are pooled, Illumina
-sequencing adapters are added, and the pooled
-library is sequenced. Read 1 shows gene identity,
-read 2 contains UMI for counting individual cDNA
-molecules, and the barcodes BC1 and BC2 identify the original well. (F) RNA samples from RNAseq in (C) were subjected to Screen-seq with 46
-targeted genes (see table S1). Same order of
-panels as in (C) and (D). ns, not significant; au,
-arbitrary unit.
-macrophages, bringing the existing knowledge to unsupervised
-PCA. However, the PC2 vector does not determine the precise direction of the switch from the R state to the S state. Likewise, the
-PC1 vector cannot determine the direction of the changes in the
-transcriptomics patterns induced by the changes in the TNF
-doses. On the contrary, the cSTAR approach builds two state transition vectors (STVs) that direct desirable transitions between the S
-and R macrophage states in the original 46D gene space (see Materials and Methods). The first STV, abbreviated as the STVS_to_R, indicates a path to move TB-susceptible to TB-resistant states; the
-second STV (STVTNF) shows the direction of transcriptomic
-changes induced by increasing TNF concentrations. The PC
-vectors, the normal vectors to the separating line in the PC1-PC2
-space, and the STVs built in the original 46D dataspace all have different directions in the transcriptomics space (see Materials and
-Methods). As we will see below, the STVs help us quantitate the
-cell phenotype descriptors and open a way to normalize transcriptomic patterns of the S state directing them toward the R state.
-To understand how the difference in the genetic backgrounds
-and TNF doses affect macrophage states, we exploit two quantitative
-indicators of the corresponding phenotypic features: responses to
-TNF and TB resistance. These two phenotypic features are quantified by the dynamic phenotype descriptors (DPDs) scores
-Fig. 2. cSTAR analysis of targeted
-transcriptomics data. (A) PCA representation of Screen-seq data from B6
-(red) and B6.Sst1S susceptible (green)
-BMDMs stimulated with different
-doses of TNF for 24 hours: 2 ng/ml
-(circles), 10 ng/ml (triangles), 50 ng/ml
-(pluses), or unstimulated controls
-(squares). Black line represents the
-SVM-generated separating hyperplane
-in the PCA space. (B) Data in (A) are
-represented in the dynamic phenotype descriptors (DPDs) space. DPDTNF
-quantifies the separation of TNF responses, and DPDS_to_R quantifies the
-separation of resistant and susceptible
-phenotypes. Colors and symbols as in
-(A). Black dashed line represents projection of the SVM-generated separating hyperplane to DPD space. (C)
-Heatmap of targeted gene expression
-profiles (Screen-seq) of B6.Sst1S
-BMDMs after treatment with drugs for
-24 hours in the presence of TNF (10 ng/
-ml). Drugs listed on the x axis and in
-table S2. (D) PCA representation of
-perturbation Screen-seq data of B6
-(red) and B6.Sst1S susceptible mutant
-(green) BMDMs stimulated with
-different doses of TNF for 24 hours:
-Same colors and symbols as in (A).
-Black line represents the SVM-generated maximum margin hyperplane in
-the PCA space. Blue labels denote
-B6.Sst1S BMDMs treated with TNF (10
-ng/ml) and selected drugs (table S2).
-(E) DPD space representation of perturbation Screen-seq data. B6 (red) and
-B6.Sst1S (green) macrophages were
-treated with TNF [2 ng/ml (circles) and
-10 ng/ml (triangles)] for 24 hours or
-untreated (squares). Blue labels denote
-B6.Sst1S BMDMs treated with TNF (10
-ng/ml) and selected drugs (table S2).
-Black dashed line represents projection of SVM-generated separating hyperplane to DPD space. (F) Fold
-changes of the Stat1 and Ifrd1 gene
-expression in B6 (red) and B6.Sst1S
-BMDMs (green) treated with TNF [2 ng/
-ml (circles) or 10 ng/ml (triangles)].
-Blue labels denote B6.Sst1S BMDMs
-treated with TNF (10 ng/ml) and selected compounds: rocaglate, integrated stress response inhibitor (ISRIB), c-Jun N-terminal kinase, or extracellular signal–regulated kinase (ERK) inhibitors, as denoted.
-Use of Screen-seq dataset and cSTAR to identify
-perturbations normalizing the aberrant TNF response of
-We applied perturbations to the S macrophages treated with 10 ng
-of TNF and measured transcriptional responses of Screen-seq genes
-after 24 hours (Fig. 2, C and D). The small molecules for perturbations were selected on the basis of our previous findings (29, 32, 38)
-and included inhibitors of the IFN-I pathway [TANK-binding
-kinase 1 (TBK1) and interferon alpha and beta receptor 1
-(IFNAR1) blocking antibodies], inhibitors of the mitogen-activated
-protein kinases [p38, c-Jun N-terminal kinase (JNK), and extracellular signal–regulated kinase], PKR inhibitor, ROS scavenger butylated hydroxyanisole (BHA), Myc inhibitor, and inhibitors of
-transcription elongation (pTEFb inhibitor and JQ1). We also used
-a selective inhibitor of cap-dependent protein translation, synthetic
-rocaglate CMLD010536. Full list of perturbations is given in table
-S2. Each perturbation was tested in three independent
-samples (wells).
+macrophages abnormal TNF response. ( A ) B6 and B6.Sst1S BMDMs were exposed to TNF (10 ng/ml), followed by Mtb infection. Mtb loads were determined by qualitative polymerase chain reaction (qPCR) on days 3 and 4 post-infection (p.i.). ( B ) Intracellular Mtb in TNF-treated BMDMs compared to untreated controls. B6.Sst1S BMDMs were infected with a reporter Mtb strain [SSB - green fluorescent protein (GFP), smyc ' ::mCherry] and imaged using confocal microscopy 5 days p.i.. ( C ) RNA-seq analysis of the B6 and B6.Sst1S macrophage transcriptome exposed to TNF (0, 2, 10, and 50 ng/ml) for 18 hours. Polyadenylate RNA-seq libraries were prepared from two biological replicates per condition. Hierarchical clustering analysis of expression variation: heatmap (left) and dendrogram (middle). Right: PCA. P values in the dendrogram computed by multiscale bootstrap resampling. ( D ) sst1 genotype - specific response to TNF can be detected in the RNA-seq data from (C) using a subset of top 300 genes differentially expressed between B6 and B6.Sst1S BMDMs stimulated with TNF (10 ng/ ml). Blue, B6; red, B6.Sst1S. ( E ) Screen-seq workflow: in-well cell lysis and RNA isolation; (1) Reverse transcription using oligo(dT) primers with unique molecular identifiers (UMIs; blue) and common adapter (orange). (2) Multiplex PCR using 46 gene-specific primers (black) and a commonreverse primer that targets the oligo(dT) common adapter (orange) . (3) Well-encoding using primers targeting common adapters with unique barcode combinations (BC1 and BC2) for each well. All PCR products are pooled, Illumina sequencing adapters are added, and the pooled library is sequenced. Read 1 shows gene identity, read 2 contains UMI for counting individual cDNA molecules, and the barcodes BC1 and BC2 identify the original well. ( F ) RNA samples from RNAseq in (C) were subjected to Screen-seq with 46 targeted genes (see table S1). Same order of panels as in (C) and (D). ns, not significant; au, arbitrary unit.
+separating hyperplane built by the SVM in a 2D PCA space. Reflecting their biology, the macrophage expression states are similar without TNF exposure (Fig. 2A).
+Similar to the SVM, the first two PCAvectors, PC1 and PC2, separate the R and S macrophage states in the relatively low dimensional space of 46 genes. This is expected because the 46 gene signature has been selected to distinguish the responses of the R and S
+macrophages, bringing the existing knowledge to unsupervised PCA. However, the PC2 vector does not determine the precise direction of the switch from the R state to the S state. Likewise, the PC1 vector cannot determine the direction of the changes in the transcriptomics patterns induced by the changes in the TNF doses. On the contrary, the cSTAR approach builds two state transition vectors (STVs) that direct desirable transitions between the S
+Downloaded from https://www.science.org on February 03, 2026
+Fig. 2. cSTAR analysis of targeted transcriptomics data. ( A ) PCA representation of Screen-seq data from B6 (red) and B6.Sst1S susceptible (green) BMDMs stimulated with different doses of TNF for 24 hours: 2 ng/ml (circles), 10 ng/ml (triangles), 50 ng/ml (pluses), or unstimulated controls (squares). Black line represents the SVM-generated separating hyperplane in the PCA space. ( B ) Data in (A) are represented in the dynamic phenotype descriptors (DPDs) space. DPDTNF quantifies the separation of TNF responses, and DPDS_to_R quantifies the separation of resistant and susceptible phenotypes. Colors and symbols as in (A). Black dashed line represents projection of the SVM-generated separating hyperplane to DPD space. ( C ) Heatmap of targeted gene expression profiles (Screen-seq) of B6.Sst1S BMDMs after treatment with drugs for 24 hours in the presence of TNF (10 ng/ ml). Drugs listed on the x axis and in table S2. ( D ) PCA representation of perturbation Screen-seq data of B6 (red) and B6.Sst1S susceptible mutant (green) BMDMs stimulated with different doses of TNF for 24 hours: Same colors and symbols as in (A). Black line represents the SVM-generated maximum margin hyperplane in the PCA space. Blue labels denote B6.Sst1S BMDMs treated with TNF (10 ng/ml) and selected drugs (table S2). ( E ) DPD space representation of perturbation Screen-seq data. B6 (red) and B6.Sst1S (green) macrophages were treated with TNF [2 ng/ml (circles) and 10 ng/ml (triangles)] for 24 hours or untreated (squares). Blue labels denote B6.Sst1S BMDMs treated with TNF (10 ng/ml) and selected drugs (table S2). Black dashed line represents projection of SVM-generated separating hyperplane to DPD space. ( F ) Fold changes of the Stat1 and Ifrd1 gene expression in B6 (red) and B6.Sst1S BMDMs(green) treated with TNF [2 ng/ ml (circles) or 10 ng/ml (triangles)]. Blue labels denote B6.Sst1S BMDMs treated with TNF (10 ng/ml) and se-
+lected compounds: rocaglate, integrated stress response inhibitor (ISRIB), c-Jun N-terminal kinase, or extracellular signal - regulated kinase (ERK) inhibitors, as denoted.
+and R macrophage states in the original 46D gene space (see Materials and Methods). The first STV, abbreviated as the STVS_to_R, indicates a path to move TB-susceptible to TB-resistant states; the second STV (STVTNF) shows the direction of transcriptomic changes induced by increasing TNF concentrations. The PC vectors, the normal vectors to the separating line in the PC1-PC2 space, and the STVs built in the original 46D dataspace all have different directions in the transcriptomics space (see Materials and Methods). As we will see below, the STVs help us quantitate the cell phenotype descriptors and open a way to normalize transcriptomic patterns of the S state directing them toward the R state.
+To understand how the difference in the genetic backgrounds and TNF doses affect macrophage states, we exploit two quantitative indicators of the corresponding phenotypic features: responses to TNF and TB resistance. These two phenotypic features are quantified by the dynamic phenotype descriptors (DPDs) scores calculated as distances from the current macrophage states to the state separating hyperplanes along the STVTNF and the STVS_to_R, respectively (see Materials and Methods). Because the STVS_to_R directs from S to R states, the DPDS_to_R sign is positive at the R side of the separating border and negative on the S side. Likewise, the DPDTNF sign becomes positive for high TNF doses. Instructively, the two STVs are nearly orthogonal in the transcriptomics space (the angle between the STVTNF and the STVS_to_R is about 103°), thus separating sst1 -dependent (STVS_to_R) and sst1 -independent (STVTNF) effects of TNF on macrophage activation.
+Downloaded from https://www.science.org on February 03, 2026
+In Fig. 2B, we visualized macrophage transcriptomic patterns for distinct genetic backgrounds and different TNF doses in the space of these two DPDs. This visualization suggests that TNF doses at 10 ng/ml and higher substantially decrease the DPDS_to_R score for susceptible macrophages (cf. the data points for 10 and 50 ng) but only weakly decrease it for resistant cells. At 10 ng of TNF, the DPDS_to_R score is maximal for resistant macrophages. These results suggest the optimal TNF dose of about 10 ng, which maximizes the DPDS_to_R for resistant macrophages and does markedly decreases the DPDS_to_R for susceptible macrophages. This conclusion is consistent with higher Mtb loads in the S macrophages pretreated with TNF (10 ng/ml) as compared to R (Fig. 1, A and B). Therefore, in subsequent experiments, we were treating macrophages with 10 ng of TNF.
+Use of Screen-seq dataset and cSTAR to identify perturbations normalizing the aberrant TNF response of the S macrophages
+We applied perturbations to the S macrophages treated with 10 ng of TNF and measured transcriptional responses of Screen-seq genes after 24 hours (Fig. 2, C and D). The small molecules for perturbations were selected on the basis of our previous findings ( 29 , 32 , 38 ) and included inhibitors of the IFN-I pathway [TANK-binding kinase 1 (TBK1) and interferon alpha and beta receptor 1 (IFNAR1) blocking antibodies], inhibitors of the mitogen-activated protein kinases [p38, c-Jun N-terminal kinase (JNK), and extracellular signal - regulated kinase], PKR inhibitor, ROS scavenger butylated hydroxyanisole (BHA), Myc inhibitor, and inhibitors of transcription elongation (pTEFb inhibitor and JQ1). We also used a selective inhibitor of cap-dependent protein translation, synthetic rocaglate CMLD010536. Full list of perturbations is given in table S2. Each perturbation was tested in three independent samples (wells).
 Ranking drug perturbations by the STV and DPD
-Following perturbations, the changes in the DPD scores connect resulting multiple changes in the omics data with the change in the
-cell phenotype (41). Therefore, the drug perturbation outcomes
-were determined by the changes in the DPDS_to_R and DPDTNF
-scores. Figure 2E visualizes these outcomes. Table S3 presents the
-DPDS_to_R scores for S macrophages treated with 10 ng of TNF
-and different drugs and for R macrophages treated with 10 ng of
-TNF (the DPDS_to_R and DPDTNF scores calculated for all perturbations can be found in table S3).
-Each drug shifted TB-susceptible states toward TB-resistant
-states, judging by statistical significance, but only rocaglate treatments resulted in the crossing of the separating hyperplane (P ≈
-0.003 for the CMLD010536 high dose), thus converting the S into
-R state (table S3). The JNK and TBK inhibitors, a combination of
-p38 and Myc inhibitors, and integrated stress response (ISR)
-inhibitor (ISRIB) also led to substantial phenotype movements, although neither of these treatments converted the S phenotype into
-R phenotype at the doses used.
-Most of the applied drugs decreased the DPDTNF scores, which
-shows that the TNF response of macrophages was partially suppressed by these drugs (Fig. 2E). In particular, a treatment with rocaglamide A (RocA) moved the S transcriptomic patterns of
-macrophages stimulated with 10 ng of TNF toward the R patterns
-as evidenced by the increasing DPDS_to_R score, but it decreased the
-DPDTNF scores to the values characteristic for 2 ng of TNF. Treatments with ISRIB and a JNK inhibitor (JNKi) also increased the
-DPDS_to_R score, whereas the concurrent DPDTNF decrease was
-much lesser than that for synthetic rocaglate CMLD010536. We hypothesize that if a drug combination increases the DPDS_to_R score
-and simultaneously increases or, at least, does not strongly reduce
-the DPDTNF score, then it will synergistically improve transcriptomics state of susceptible macrophages.
-To test this conjecture, we analyzed the outcome of drug perturbations in more detail. In the transcriptomics dataspace, each drug
-perturbation is determined by a perturbation vector, which connects the data points after and before the perturbation. The perturbation vector shows the fold changes in each gene following a drug
-treatment. Considering the projection of the perturbation vector
-into the STV, we determine the contribution of each gene in the
-DPD change brought about by each drug. Ideally, a drug would activate the genes that are positive contributors to the STVS_to_R and
-suppress the negative contributors, thereby normalizing the transcriptome. All three drugs, CMLD010536, JNKi SP600125. and
-ISRIB, suppress Ch25h, Fzd7, Hspa1b, and Sh2d3c, which are negative STVS_to_R contributors (table S4) and activate different genes
-with positive contributions to the STVS_to_R. CMLD010536 strongly
-activates Ifrd1, while JNKi and ISRIB activate Stat1 and Gsdmd. This
-provides additional evidence for potential synergy between rocaglate CMLD010536 and JNKi (SP600125) or ISRIB (Fig. 2F).
-RNA-seq analysis of Mtb-infected B6.Sst1S macrophages
-treated with individual compounds and their combinations
-Because TNF treatment is beneficial to counteract Mtb infection in
-resistant macrophages (Fig. 1A), we hypothesized that a combination of rocaglate with ISRIB or JNKi should be advantageous for the
-transcriptome normalization in TNF-stimulated susceptible macrophages and, thus, improve their response to Mtb infection. To test
-our predictions, we performed an in-depth analysis of S macrophages treated with suggested drug combinations and infected
-with virulent Mtb. In these experiments, we used a less toxic
-plant–derived rocaglamide A (RocA) to substitute for synthetic rocaglates used previously (fig. S1, B to D).
-The S macrophages were stimulated with TNF and infected with
-Mtb, as above, and treated with RocA, ISRIB, JNKi SP600125, or
-their combination before and during the course of infection. We
-have chosen day 3 for the RNA-seq measurements because this is
-a critical point that determines the subsequent trajectory of the
-Mtb-macrophage interactions in our in vitro model (Fig. 1A).
-Whole-cell transcriptome patterns of the R and S macrophages
-stimulated with TNF were separated using the SVM and the
-entire RNA-seq data (accession number GSE115905). As described
-above, after building the STVS_to_R, we calculated the DPDS_to_R
-score for the Mtb-infected S macrophages under all conditions.
-To get mechanistic insights, we determined each gene contribution
-calculated as distances from the current macrophage states to the
-state separating hyperplanes along the STVTNF and the STVS_to_R,
-respectively (see Materials and Methods). Because the STVS_to_R
-directs from S to R states, the DPDS_to_R sign is positive at the R
-side of the separating border and negative on the S side. Likewise,
-the DPDTNF sign becomes positive for high TNF doses. Instructively, the two STVs are nearly orthogonal in the transcriptomics space
-(the angle between the STVTNF and the STVS_to_R is about 103°),
-thus separating sst1-dependent (STVS_to_R) and sst1-independent
-(STVTNF) effects of TNF on macrophage activation.
-In Fig. 2B, we visualized macrophage transcriptomic patterns for
-distinct genetic backgrounds and different TNF doses in the space
-of these two DPDs. This visualization suggests that TNF doses at 10
-ng/ml and higher substantially decrease the DPDS_to_R score for
-susceptible macrophages (cf. the data points for 10 and 50 ng) but
-only weakly decrease it for resistant cells. At 10 ng of TNF, the
-DPDS_to_R score is maximal for resistant macrophages. These
-results suggest the optimal TNF dose of about 10 ng, which maximizes the DPDS_to_R for resistant macrophages and does markedly
-decreases the DPDS_to_R for susceptible macrophages. This conclusion is consistent with higher Mtb loads in the S macrophages pretreated with TNF (10 ng/ml) as compared to R (Fig. 1, A and B).
-Therefore, in subsequent experiments, we were treating macrophages with 10 ng of TNF.
-the eukaryotic translation initiation factor 2A (eIF2α)-mediated ISR.
-In contrast, when we compared effects of RocA, a JNKi
-SP600125 and their combination, the DPDS_to_R scores demonstrated a substantial synergy between RocA and JNKi (Fig. 3E). Although in this combination the signaling pattern was mainly
-determined by the rocaglate, yet, the JNKi cotreatment further increased the DPDS_to_R score. The analysis of the JNKi-specific contribution to the DPDS_to_R score demonstrated the enhancement of
-the IL-1β, p38 signaling, and the oxidative stress response pathways
-(fig. S6). Thus, RocA and JNKi boost two essential mechanisms of
-host resistance to Mtb—(i) macrophage responses to IL-1 and (ii)
-the antioxidant defense in a synergistic manner. We hypothesized
-that this synergy would allow the use lower drug concentrations,
-thus avoiding potential toxicity and improving their therapeutic effects.
-Testing cSTAR predictions in S macrophages infected with
-To test combinatorial effects of compounds on Mtb-infected macrophages, we wanted to establish range of concentrations where individual compounds were biologically active and nontoxic during a
-5-day Mtb infection assay. Therefore, we compared effects of RocA
-at 2.5 to 10 nM on Mtb-infected macrophage survival and Mtb loads
-during 5 days post-infection (p.i.). We observed no cell loss at 2.5
-and 5 nM concentrations (Fig. 4A). To monitor the bacterial loads,
-we used quantitative PCR–based method for Mtb genome measurement (45) and found that increasing RocA concentration did not
-improve the bacterial control (Fig. 4B). To independently verify
-the effect of RocA at low concentration (3 nM) on Mtb control by
-S macrophages, we enumerated intracellular bacteria using confocal
-microscopy (Fig. 4, C and D).
-These data demonstrated that the RocA treatment significantly
-reduced the intracellular Mtb loads in TNF-stimulated B6.Sst1S
-macrophages and was not toxic during 5 days of the experiment
-(Fig. 4, A to D, and fig. S7A). The treatment of BMDMs with
-RocA at 1 nM showed dose-dependent increase of intracellular
-Mtb, as compared to 3 nM (fig. S7A). Therefore, to study potential
-synergy of RocA with ISRIB and JNKis, we used RocA at a suboptimal concentration (1 nM). Similarly, SP600125 at 1 μM concentration was sufficient to control the intracellular Mtb replication by
-itself (fig. S7, B to E). So, we used a combination of suboptimal doses
-of SP600125 (0.3 μM) and RocA (1 nM).
-The ISRIB concentration of 10 μM was used, which is a dose sufficient to inhibit the ISR based on our previous studies (32). Treatment with ISRIB alone slightly improved the S macrophage survival
-but did not improve their antimycobacterial activity (Fig. 4, E and
-F). Combining RocA with ISRIB also had no additional benefit in
-Mtb control, as compared to RocA alone (Fig. 4F), in agreement
-with the DPD score–based predictions (Fig. 3C). We tested 0.3, 1,
-and 3 μM concentrations of the JNKi SP600125. When JNKi was
-applied separately, the dose of 1 μM effectively reduced the Mtb
-load. Further dilution to 0.3 μM made its effect substantially
-weaker. This suboptimal concentration was selected for combining
-with suboptimal RocA dose of 1 nM. In contrast to a combination of
-RocA and ISRIB, a combination of RocA and JNKi SP600125 at suboptimal (32), low concentrations (1 nM and 0.3 μM, respectively)
-produced a cooperative effect without increased toxicity: 5 days
-p.i., the Mtb loads in macrophages treated with individual
-to the change in the DPDS_to_R score brought about by a single drug
-or a drug combination. These contributions are calculated as the
-projection of gene expression changes into the STVS_to_R and quantify how each gene promotes or reverses a transition of S to R states
-(see Materials and Methods for details). We analyzed these data
-using two different approaches. First, we selected names of the
-genes that explain 80% of the change in the DPDS_to_R score following a drug perturbation and used Gene Ontology, Kyoto Encyclopedia of Genes and Genomes, Reactome, and STRING databases to
-annotate them. Second, for these genes, we input the projections of
-their expression changes onto the STVS_to_R together with their
-names into gene set enrichment analysis (GSEA) (42) to obtain
-mechanistic insights into processes contributing to the TB resistance and susceptibility. Below, we present the results of this
-analysis.
-The changes in the DPDS_to_R suggest that TNF pretreatment
-might have an overall positive effect on S macrophages infected
-with Mtb: It decreased the expression of many genes, which are negative contributors to the DPDS_to_R score, and, hence, their suppression increased this score and partially normalized the transcriptome
-of Mtb-infected macrophages (Fig. 3A). The GSEA analysis suggested that TNF changed the IFN response to increase TB resistance,
-but TNF-induced changes in other genes contributed to the decrease of the DPDS_to_R, suppressing resistance. The latter included
-several chemokines and chemokine receptors, genes related to cell
-cycle (cyclins A2 and B2), and DNA replication (Fig. 3B). Although
-the overall change in the DPDS_to_R after TNF pretreatment showed
-a tendency toward resistance by the susceptible macrophages, this
-effect is insufficient to improve their ability to control Mtb (Fig. 1A).
-The RocA treatment led to marked changes of the entire transcriptome of TNF-stimulated and MTB-infected macrophages,
-unlike ISRIB and JNKi, effect of which is much more targeted
-(fig. S2). Relating multiple marked changes in the S macrophage
-transcriptome to the change in Mtb resistance using traditional bioinformatic methods, including Gene Ontology, PCA, and clustering, poses a challenge (figs. S2 and S3A). Yet, the DPD scores
-calculated using the STVs showed the resultant changes in the phenotype of S macrophages (fig. S3B). RocA pushed S macrophage
-state across the separating hyperplane (making the DPDS_to_R
-score positive; Fig. 3C). RocA up-regulated transcriptional targets
-of nuclear factor, erythroid derived 2, like 1 and 2 (NFE2L1/2),
-the antioxidant defense transcription factors (Fig. 3D). This effect
-of rocaglate, predicted by the DPDS_to_R shift, is consistent with our
-previous findings demonstrating that oxidative stress drives the aberrant TNF response in sst1-susceptible macrophages (32). Accordingly, we anticipate that strengthening antioxidant defense would
-contribute to the sst1-susceptible phenotype correction. This prediction has been experimentally validated, as described below.
-Treatment with the inhibitor of the integrated stress response
-(ISR) ISRIB (43) modulated the macrophage inflammatory and
-stress responses: The ISR genes, such as Chac1, were down-regulated by ISRIB, whereas the IL-1 and IFN pathways were up-regulated
-(figs. S4 and S5). The transcriptional responses of B6.Sst1S macrophages to the combination of rocaglate and ISRIB were similar to
-rocaglate alone and did not shift the DPDS_to_R score closer to the
-resistant state (Fig. 3C). Perhaps, the effect of ISRIB becomes negligible in combination with RocA, because rocaglates reduce protein
-translation and prevent the proteotoxic stress (44), thus preventing
-Fig. 3. Transcriptome responses of B6.Sst1S BMDMs to TNF and Mtb infection. B6.Sst1S BMDMs were stimulated with TNF (10 ng/ml), infected with Mtb, and, after
-phagocytosis, treated with candidate compounds for 3 days. The whole transcriptome analysis was performed using RNA-seq. (A) DPDS_to_R scores for B6.Sst1S BMDMs
-naïve or stimulated with 10 ng of TNF and infected with Mtb for 3 days. The separating hyperplane corresponds to the DPDS_to_R = 0. (B) Top GSEA Hallmark gene sets
-driving DPD score in response to TNF. The projections of the log fold gene expression changes into the STVS_to_R have been used as the GSEA input for the GSEA hallmark
-gene set. Positive normalized enrichment score (red) reflects improved Mtb resistance, and negative normalized enrichment score (blue) reflects impaired Mtb resistance.
-(C) DPDS_to_R scores of B6.Sst1S BMDMs stimulated with TNF (10 ng/ml) and infected with Mtb [same as in (A)] and, after phagocytosis, treated with RocA, ISRIB, and their
-combinations. The separating hyperplane corresponds to the DPDS_to_R = 0. Positive DPDS_to_R scores reflect the normalization of the B6.Sst1S BMDM transcriptome. (D)
-Top GSEA predicted transcription factors driving DPD changes by RocA. The GTRD gene set (predicted transcription factor binding sites) was used for GSEA. Normalized
-enrichment score reflects improved (red) or impaired (blue) Mtb resistance. (E) DPDS_to_R scores of B6.Sst1S BMDMs stimulated with 10 ng of TNF, infected with Mtb, and
-treated with RocA, JNKi SP600125, or their combination. The test compounds were added to the infected BMDMs after phagocytosis of Mtb. The separating hyperplane
-corresponds to the DPDS_to_R = 0, and positive DPDS_to_R scores demonstrate the normalization of the infected B6.Sst1S BMDM transcriptome.
-compounds increased as compared to days 1 and 3 p.i., whereas the
-bacterial loads in macrophages treated with both compounds increased substantially less (Fig. 4, G and H, and fig. S8).
-The increase in antioxidant stress resilience of susceptible
-macrophages by RocA treatment
-As revealed by cSTAR analysis, the RocA treatment up-regulated
-gene targets of antioxidant transcription factors NFE2L1/2, suggesting improvement in antioxidant defense. TNF stimulation and Mtb
-infection induced greater accumulation of lipid peroxidation (LPO)
-products, 4-hydroxynonenal (4-HNE) and malonaldehyde in
-B6.Sst1S BMDMs, as compared to B6. The RocA treatment reduced
-the 4-HNE accumulation induced by TNF treatment (Fig. 5A) and
-Mtb infection (Fig. 5, B and C). These data demonstrated that the
-rocaglate treatment corrected the deficient antioxidant response of
-B6.Sst1S macrophages and suggested that this effect may contribute
-to the observed improvement of Mtb control. To test this hypothesis, we treated Mtb-infected B6.Sst1S macrophages with edaravone,
-an antioxidant compound with different mechanism of action—a
-potent free radical scavenger (46). This treatment also reduced
-TNF-induced cell death and improved control of intracellular
-Mtb by the sst1-susceptible macrophages (fig. S9).
-Fig. 4. Effects of Rocaglates, ISRIB, and JNKi on BMDM survival and Mtb load.
-B6.Sst1S BMDMs were treated with TNF (10 ng/ml) for 16 hours and subsequently
-infected with Mtb at multiplicity of infection = 1 for 5 days. (A and B) Cell survival (A)
-and Mtb load (B) after BMDMs were treated with different concentrations of RocA
-after phagocytosis. Cell numbers were determined using Celigo automated cytometer. Mtb loads were calculated as fold change by using quantitative genomic PCR
-(see Materials and Methods) at indicated time points. (C and D) Intracellular MTB
-loads in cells treated with 3 nM RocA for 5 days. The cells were permeabilized with
-0.05% Triton X-100, and Mtb were stained using auramine-rhodamine and imaged by
-confocal microscopy. Scale bars, 50 μm. (D) Quantification of Mtb loads using ImageJ.
-(E and F) Cell survival (E) and Mtb load (F) after BMDMs were treated with RocA (1 nM),
-ISRIB (10 μM), or their combinations. Cell numbers were determined using Celigo
-automated cytometer. Mtb loads were calculated as fold change by using quantitative genomic PCR at indicated time points. (G and H) Cell survival (G) and Mtb loads
-(H) after BMDMs were treated with RocA (1 nM), SP600125 (0.3 μM), or their combination. Cell numbers were determined using Celigo automated cytometer. Mtb loads
-were calculated as fold change by using quantitative genomic PCR at indicated time
-points. The data represent the means ± SEM of four to five samples per experiment,
-representative of three independent experiments. The statistical significance was
-performed by two-way analysis of variance (ANOVA) using Bonferroni’s multiple
-comparison test (A and B and E to H) and two-tailed unpaired t test (C and D). Significant differences are indicated with asterisks (*P < 0.05, **P < 0.01, ***P < 0.001, and
-****P < 0.0001).
-To study rocaglate effects on the macrophage oxidative stress resilience further, we treated macrophages with sodium arsenate
-(SA)—a potent inducer of oxidative stress. First, we found SA concentrations that induce chronic stress and kill macrophages over a
-period of 16 to 18 hours in a concentration-dependent manner. The
-SA killing was not dependent on the macrophage sst1 allele or TNF
-stimulation (fig. S10A). Pretreatment of macrophages with 3 to 30
-nM RocA prevented the cell death induced by SA in both B6 and
-B6.Sst1S BMDMs, either naïve or TNF-stimulated (Fig. 5, D and
-E, and fig. S10B).
-To test whether rocaglate can prevent an iron-dependent cell
-death, ferroptosis, we treated B6.Sst1S BMDMs with two ferroptosis
-Fig. 5. Rocaglate increases oxidative stress resilience of macrophages. (A) RocA treatment (3 nM) reduces 4-HNE accumulation in TNF-stimulated B6.Sst1S BMDMs. 4HNE was quantified using specific antibody and automated microscopy (Operetta CLS High Content Analysis System). Untreated samples considered 100%. (B and C)
-RocA treatment (3 nM) reduced the 4-HNE accumulation in Mtb-infected B6.Sst1S BMDMs (4-HNE staining 5 days p.i.) Scale bars, 20 μm. Analysis using ImageJ. (D and E)
-RocA prevents cell death induced by SA in B6 and B6.Sst1S BMDMs. (D) BMDMs were pretreated with RocA (10 nM) for 4 hours and treated with SA (9 μM for 16 hours). Cell
-death was quantified by automated microscopy using Live-or-Dye staining. (E) Brightfield images of B6.Sst1.S BMDMs (×20 magnification). Scale bar, 200 μm. (F and G)
-Pretreatment of B6.Sst1S BMDMs with RocA (30 nM for 4 hours) prevents their death induced by GPX4 inhibitor RSL-3 added at 30 nM for 16 hours (F) and LPO inducer
-tert-butyl hydroperoxide (t-BuOOH) added at 30 μM for 16 hours (G). (H) Rocaglate treatment of B6.Sst1S BMDMs up-regulates the expression of NRF2 target genes. The
-data are representative of two biological replicas measured in triplicates using qRT-PCR. (I to K) RocA (3 nM) increases nuclear translocation of NRF2 in B6.Sst1S BMDMs
-stimulated with TNF (10 ng/ml, for 30 hours). Total and nuclear NRF2 levels were quantified using confocal microscopy (scale bars, 20 μm) and ImageJ analysis. The data
-represent the means ± SEM of four to five samples per experiment, representative of three independent experiments. For statistical tests, (B and C) one-way ANOVA with
-Dunnett’s multiple comparison test, (E and J and K) one-way ANOVA with Bonferroni correction, (G) two-tailed unpaired t test, and (H) two-way ANOVA with Bonferroni
-correction were used. Significant differences are indicated with asterisks (*P < 0.05, **P < 0.01, ***P < 0.001, and ****P < 0.0001).
-a cell DPD that quantifies phenotypic changes in response to
-various perturbations. Using cSTAR, we identified small molecules
-that partially normalized the aberrant TNF response of sst1-susceptible macrophages, i.e., moved it closer to the pattern of relatively
-Mtb-resistant wild-type macrophages, and calculated each gene’s
-contribution to the change in the DPD scores. These analyses also
-predicted synergistic effects of several candidate compounds.
-We confirmed these predicted transcriptional states in the
-context of macrophage infection with virulent Mtb using whole
-transcriptome RNA-seq for in-depth analysis of cell states of macrophages treated with the selected candidate compounds and their
-combinations. The cSTAR analysis of the bulk RNA-seq data demonstrated that RocA alone or in combinations with JNKi SP600125
-improved the transcriptional response of the TNF-stimulated TBsusceptible macrophages to Mtb infection. This analysis also revealed that the rocaglate treatment boosted the antioxidant
-pathway gene expression. The predicted transition between transcriptional states was also reflected in an improved control of the
-Mtb infection by the macrophages. We have experimentally validated the following: (i) The RocA treatment increased macrophage resilience to oxidative stress, and (ii) low concentrations of RocA and
-JNKi acted synergistically to improve the control of virulent Mtb by
-the TB-susceptible macrophages. Our findings indicate that targeting unresolving stress pathways associated with TB susceptibility is
-a promising strategy for host-directed TB therapies and provide
-candidates for the drug development.
-Although inflammation is a cornerstone of host resistance to infectious agents, during TB infection, an exuberant inflammation is
-often associated with tissue damage and inefficient immunity.
-The diversity and connectivity of inflammatory pathways,
-however, provide an opportunity for selectively targeting pathological modules associated with inflammatory damage while preserving and restoring the protective immunity to Mtb.
-This study outlines the design and implementation of a complete
-path from molecular characterization of macrophage transcriptional states to pharmaceutical interventions, an approach that is
-broadly applicable to diseases driven by pathological cell states.
-The key features of this strategy include (i) the use of primary
-cells from individuals representing resistant and susceptible phenotypes, (ii) focus on cell states rather than individual differentially
-expressed markers, (iii) analysis of multiple perturbations using
-cost-efficient targeted RNA-seq, and (iv) use of cSTAR to quantify
-effects of individual perturbations that shifted the transcriptional
-states in the desired direction. In addition, this analysis enabled
-the imputation of synergistic drug effects that allowed us to
-reduce drug concentrations, focusing on desirable cell state transitions and mitigating the rocaglate toxicity at higher concentrations
-(29). Ideally, this in vitro approach would predict bespoke interventions reducing pathological sequelae of dysregulated inflammation
-while enhancing protective modalities.
-To analyze the macrophage state transitions, we used a recently
-developed ML approach cSTAR (33). This computational method
-uses multi-omics datasets to describe cell state transitions and
-build a cell STV that indicates a path in a molecular dataspace to
-move a cell from one state to another state. Then, the STV computes
+Following perturbations, the changes in the DPD scores connect resulting multiple changes in the omics data with the change in the cell phenotype ( 41 ). Therefore, the drug perturbation outcomes were determined by the changes in the DPDS_to_R and DPDTNF scores. Figure 2E visualizes these outcomes. Table S3 presents the DPDS_to_R scores for S macrophages treated with 10 ng of TNF and different drugs and for R macrophages treated with 10 ng of TNF (the DPDS_to_R and DPDTNF scores calculated for all perturbations can be found in table S3).
+Each drug shifted TB-susceptible states toward TB-resistant states, judging by statistical significance, but only rocaglate treatments resulted in the crossing of the separating hyperplane ( P ≈ 0.003 for the CMLD010536 high dose), thus converting the S into R state (table S3). The JNK and TBK inhibitors, a combination of p38 and Myc inhibitors, and integrated stress response (ISR)
+inhibitor (ISRIB) also led to substantial phenotype movements, although neither of these treatments converted the S phenotype into R phenotype at the doses used.
+Most of the applied drugs decreased the DPDTNF scores, which shows that the TNF response of macrophages was partially suppressed by these drugs (Fig. 2E). In particular, a treatment with rocaglamide A (RocA) moved the S transcriptomic patterns of macrophages stimulated with 10 ng of TNF toward the R patterns as evidenced by the increasing DPDS_to_R score, but it decreased the DPDTNF scores to the values characteristic for 2 ng of TNF. Treatments with ISRIB and a JNK inhibitor (JNKi) also increased the DPDS_to_R score, whereas the concurrent DPDTNF decrease was much lesser than that for synthetic rocaglate CMLD010536. We hypothesize that if a drug combination increases the DPDS_to_R score and simultaneously increases or, at least, does not strongly reduce the DPDTNF score, then it will synergistically improve transcriptomics state of susceptible macrophages.
+To test this conjecture, we analyzed the outcome of drug perturbations in more detail. In the transcriptomics dataspace, each drug perturbation is determined by a perturbation vector, which connects the data points after and before the perturbation. The perturbation vector shows the fold changes in each gene following a drug treatment. Considering the projection of the perturbation vector into the STV, we determine the contribution of each gene in the DPD change brought about by each drug. Ideally, a drug would activate the genes that are positive contributors to the STVS_to_R and suppress the negative contributors, thereby normalizing the transcriptome. All three drugs, CMLD010536, JNKi SP600125. and ISRIB, suppress Ch25h , Fzd7 , Hspa1b , and Sh2d3c , which are negative STVS_to_R contributors (table S4) and activate different genes with positive contributions to the STVS_to_R. CMLD010536 strongly activates Ifrd1 , while JNKi and ISRIB activate Stat1 and Gsdmd . This provides additional evidence for potential synergy between rocaglate CMLD010536 and JNKi (SP600125) or ISRIB (Fig. 2F).
+RNA-seq analysis of Mtb-infected B6.Sst1S macrophages treated with individual compounds and their combinations
+Because TNF treatment is beneficial to counteract Mtb infection in resistant macrophages (Fig. 1A), we hypothesized that a combination of rocaglate with ISRIB or JNKi should be advantageous for the transcriptome normalization in TNF-stimulated susceptible macrophages and, thus, improve their response to Mtb infection. To test our predictions, we performed an in-depth analysis of S macrophages treated with suggested drug combinations and infected with virulent Mtb. In these experiments, we used a less toxic plant - derived rocaglamide A (RocA) to substitute for synthetic rocaglates used previously (fig. S1, B to D).
+The S macrophages were stimulated with TNF and infected with Mtb, as above, and treated with RocA, ISRIB, JNKi SP600125, or their combination before and during the course of infection. We have chosen day 3 for the RNA-seq measurements because this is a critical point that determines the subsequent trajectory of the Mtb-macrophage interactions in our in vitro model (Fig. 1A). Whole-cell transcriptome patterns of the R and S macrophages stimulated with TNF were separated using the SVM and the entire RNA-seq data (accession number GSE115905). As described above, after building the STVS_to_R, we calculated the DPDS_to_R score for the Mtb-infected S macrophages under all conditions. To get mechanistic insights, we determined each gene contribution to the change in the DPDS_to_R score brought about by a single drug or a drug combination. These contributions are calculated as the projection of gene expression changes into the STVS_to_R and quantify how each gene promotes or reverses a transition of S to R states (see Materials and Methods for details). We analyzed these data using two different approaches. First, we selected names of the genes that explain 80% of the change in the DPDS_to_R score following a drug perturbation and used Gene Ontology, Kyoto Encyclopedia of Genes and Genomes, Reactome, and STRING databases to annotate them. Second, for these genes, we input the projections of their expression changes onto the STVS_to_R together with their names into gene set enrichment analysis (GSEA) ( 42 ) to obtain mechanistic insights into processes contributing to the TB resistance and susceptibility. Below, we present the results of this analysis.
+The changes in the DPDS_to_R suggest that TNF pretreatment might have an overall positive effect on S macrophages infected with Mtb: It decreased the expression of many genes, which are negative contributors to the DPDS_to_R score, and, hence, their suppression increased this score and partially normalized the transcriptome of Mtb-infected macrophages (Fig. 3A). The GSEA analysis suggested that TNF changed the IFN response to increase TB resistance, but TNF-induced changes in other genes contributed to the decrease of the DPDS_to_R, suppressing resistance. The latter included several chemokines and chemokine receptors, genes related to cell cycle (cyclins A2 and B2), and DNA replication (Fig. 3B). Although the overall change in the DPDS_to_R after TNF pretreatment showed a tendency toward resistance by the susceptible macrophages, this effect is insufficient to improve their ability to control Mtb (Fig. 1A).
+The RocA treatment led to marked changes of the entire transcriptome of TNF-stimulated and MTB-infected macrophages, unlike ISRIB and JNKi, effect of which is much more targeted (fig. S2). Relating multiple marked changes in the S macrophage transcriptome to the change in Mtb resistance using traditional bioinformatic methods, including Gene Ontology, PCA, and clustering, poses a challenge (figs. S2 and S3A). Yet, the DPD scores calculated using the STVs showed the resultant changes in the phenotype of S macrophages (fig. S3B). RocA pushed S macrophage state across the separating hyperplane (making the DPDS_to_R score positive; Fig. 3C). RocA up-regulated transcriptional targets of nuclear factor, erythroid derived 2, like 1 and 2 (NFE2L1/2), the antioxidant defense transcription factors (Fig. 3D). This effect of rocaglate, predicted by the DPDS_to_R shift, is consistent with our previous findings demonstrating that oxidative stress drives the aberrant TNF response in sst1 -susceptible macrophages ( 32 ). Accordingly, we anticipate that strengthening antioxidant defense would contribute to the sst1 -susceptible phenotype correction. This prediction has been experimentally validated, as described below.
+Treatment with the inhibitor of the integrated stress response (ISR) ISRIB ( 43 ) modulated the macrophage inflammatory and stress responses: The ISR genes, such as Chac1 , were down-regulated by ISRIB, whereas the IL-1 and IFN pathways were up-regulated (figs. S4 and S5). The transcriptional responses of B6.Sst1S macrophages to the combination of rocaglate and ISRIB were similar to rocaglate alone and did not shift the DPDS_to_R score closer to the resistant state (Fig. 3C). Perhaps, the effect of ISRIB becomes negligible in combination with RocA, because rocaglates reduce protein translation and prevent the proteotoxic stress ( 44 ), thus preventing the eukaryotic translation initiation factor 2A (eIF2α)-mediated ISR.
+In contrast, when we compared effects of RocA, a JNKi SP600125 and their combination, the DPDS_to_R scores demonstrated a substantial synergy between RocA and JNKi (Fig. 3E). Although in this combination the signaling pattern was mainly determined by the rocaglate, yet, the JNKi cotreatment further increased the DPDS_to_R score. The analysis of the JNKi-specific contribution to the DPDS_to_R score demonstrated the enhancement of the IL-1β, p38 signaling, and the oxidative stress response pathways (fig. S6). Thus, RocA and JNKi boost two essential mechanisms of host resistance to Mtb - (i) macrophage responses to IL-1 and (ii) the antioxidant defense in a synergistic manner. We hypothesized that this synergy would allow the use lower drug concentrations, thus avoiding potential toxicity and improving their therapeutic effects.
+Testing cSTAR predictions in S macrophages infected with virulent Mtb
+To test combinatorial effects of compounds on Mtb-infected macrophages, we wanted to establish range of concentrations where individual compounds were biologically active and nontoxic during a 5-day Mtb infection assay. Therefore, we compared effects of RocA at 2.5 to 10 nM on Mtb-infected macrophage survival and Mtb loads during 5 days post-infection (p.i.). We observed no cell loss at 2.5 and 5 nM concentrations (Fig. 4A). To monitor the bacterial loads, we used quantitative PCR - based method for Mtb genome measurement ( 45 ) and found that increasing RocA concentration did not improve the bacterial control (Fig. 4B). To independently verify the effect of RocA at low concentration (3 nM) on Mtb control by S macrophages, we enumerated intracellular bacteria using confocal microscopy (Fig. 4, C and D).
+These data demonstrated that the RocA treatment significantly reduced the intracellular Mtb loads in TNF-stimulated B6.Sst1S macrophages and was not toxic during 5 days of the experiment (Fig. 4, A to D, and fig. S7A). The treatment of BMDMs with RocA at 1 nM showed dose-dependent increase of intracellular Mtb, as compared to 3 nM (fig. S7A). Therefore, to study potential synergy of RocA with ISRIB and JNKis, we used RocA at a suboptimal concentration (1 nM). Similarly, SP600125 at 1 μM concentration was sufficient to control the intracellular Mtb replication by itself (fig. S7, B to E). So, we used a combination of suboptimal doses of SP600125 (0.3 μM) and RocA (1 nM).
+The ISRIB concentration of 10 μM was used, which is a dose sufficient to inhibit the ISR based on our previous studies ( 32 ). Treatment with ISRIB alone slightly improved the S macrophage survival but did not improve their antimycobacterial activity (Fig. 4, E and F). Combining RocA with ISRIB also had no additional benefit in Mtb control, as compared to RocA alone (Fig. 4F), in agreement with the DPD score - based predictions (Fig. 3C). We tested 0.3, 1, and 3 μM concentrations of the JNKi SP600125. When JNKi was applied separately, the dose of 1 μM effectively reduced the Mtb load. Further dilution to 0.3 μM made its effect substantially weaker. This suboptimal concentration was selected for combining with suboptimal RocA dose of 1 nM. In contrast to a combination of RocA and ISRIB, a combination of RocA and JNKi SP600125 at suboptimal ( 32 ), low concentrations (1 nM and 0.3 μM, respectively) produced a cooperative effect without increased toxicity: 5 days p.i., the Mtb loads in macrophages treated with individual compounds increased as compared to days 1 and 3 p.i., whereas the bacterial loads in macrophages treated with both compounds increased substantially less (Fig. 4, G and H, and fig. S8).
+Fig. 3. Transcriptome responses of B6.Sst1S BMDMs to TNF and Mtb infection. B6.Sst1S BMDMs were stimulated with TNF (10 ng/ml), infected with Mtb, and, after phagocytosis, treated with candidate compounds for 3 days. The whole transcriptome analysis was performed using RNA-seq. ( A ) DPDS_to_R scores for B6.Sst1S BMDMs naïve or stimulated with 10 ng of TNF and infected with Mtb for 3 days. The separating hyperplane corresponds to the DPDS_to_R = 0. ( B ) Top GSEA Hallmark gene sets driving DPD score in response to TNF. The projections of the log fold gene expression changes into the STVS_to_R have been used as the GSEA input for the GSEA hallmark gene set. Positive normalized enrichment score (red) reflects improved Mtb resistance, and negative normalized enrichment score ( blue ) reflects impaired Mtb resistance. ( C ) DPDS_to_R scores of B6.Sst1S BMDMs stimulated with TNF (10 ng/ml) and infected with Mtb [same as in (A)] and, after phagocytosis, treated with RocA, ISRIB, and their combinations. The separating hyperplane corresponds to the DPDS_to_R = 0. Positive DPDS_to_R scores reflect the normalization of the B6.Sst1S BMDM transcriptome. ( D ) Top GSEA predicted transcription factors driving DPD changes by RocA. The GTRD gene set (predicted transcription factor binding sites) was used for GSEA. Normalized enrichment score reflects improved (red) or impaired (blue) Mtb resistance. ( E ) DPDS_to_R scores of B6.Sst1S BMDMs stimulated with 10 ng of TNF, infected with Mtb, and treated with RocA, JNKi SP600125, or their combination. The test compounds were added to the infected BMDMs after phagocytosis of Mtb. The separating hyperplane corresponds to the DPDS_to_R = 0, and positive DPDS_to_R scores demonstrate the normalization of the infected B6.Sst1S BMDM transcriptome.
+The increase in antioxidant stress resilience of susceptible macrophages by RocA treatment
+As revealed by cSTAR analysis, the RocA treatment up-regulated gene targets of antioxidant transcription factors NFE2L1/2, suggesting improvement in antioxidant defense. TNF stimulation and Mtb infection induced greater accumulation of lipid peroxidation (LPO) products, 4-hydroxynonenal (4-HNE) and malonaldehyde in B6.Sst1S BMDMs, as compared to B6. The RocA treatment reduced the 4-HNE accumulation induced by TNF treatment (Fig. 5A) and Mtb infection (Fig. 5, B and C). These data demonstrated that the rocaglate treatment corrected the deficient antioxidant response of B6.Sst1S macrophages and suggested that this effect may contribute to the observed improvement of Mtb control. To test this hypothesis, we treated Mtb-infected B6.Sst1S macrophages with edaravone, an antioxidant compound with different mechanism of action - a potent free radical scavenger ( 46 ). This treatment also reduced TNF-induced cell death and improved control of intracellular Mtb by the sst1 -susceptible macrophages (fig. S9).
+Fig. 4. Effects of Rocaglates, ISRIB, and JNKi on BMDM survival and Mtb load. B6.Sst1S BMDMs were treated with TNF (10 ng/ml) for 16 hours and subsequently infected with Mtb at multiplicity of infection = 1 for 5 days. ( A and B ) Cell survival (A) and Mtb load (B) after BMDMs were treated with different concentrations of RocA after phagocytosis. Cell numbers were determined using Celigo automated cytometer. Mtb loads were calculated as fold change by using quantitative genomic PCR (see Materials and Methods) at indicated time points. ( C and D ) Intracellular MTB loads in cells treated with 3 nM RocA for 5 days. The cells were permeabilized with 0.05% Triton X-100, and Mtb were stained using auramine-rhodamine and imaged by confocal microscopy. Scale bars, 50 μm. (D) Quantification of Mtb loads using ImageJ. ( E and F ) Cell survival (E) and Mtb load (F) after BMDMs were treated with RocA (1 nM), ISRIB (10 μM), or their combinations. Cell numbers were determined using Celigo automated cytometer. Mtb loads were calculated as fold change by using quantitative genomic PCR at indicated time points. ( G and H ) Cell survival (G) and Mtb loads (H) after BMDMs were treated with RocA (1 nM), SP600125 (0.3 μM), or their combination. Cell numbers were determined using Celigo automated cytometer. Mtb loads were calculated as fold change by using quantitative genomic PCR at indicated time points. The data represent the means ± SEM of four to five samples per experiment, representative of three independent experiments. The statistical significance was performed by two-way analysis of variance (ANOVA) using Bonferroni ' s multiple comparison test (A and B and E to H) and two-tailed unpaired t test (C and D). Significant differences are indicated with asterisks (* P <0.05, ** P <0.01, *** P <0.001, and **** P < 0.0001).
+To study rocaglate effects on the macrophage oxidative stress resilience further, we treated macrophages with sodium arsenate (SA) - a potent inducer of oxidative stress. First, we found SA concentrations that induce chronic stress and kill macrophages over a period of 16 to 18 hours in a concentration-dependent manner. The SA killing was not dependent on the macrophage sst1 allele or TNF stimulation (fig. S10A). Pretreatment of macrophages with 3 to 30 nM RocA prevented the cell death induced by SA in both B6 and B6.Sst1S BMDMs, either naïve or TNF-stimulated (Fig. 5, D and E, and fig. S10B).
+To test whether rocaglate can prevent an iron-dependent cell death, ferroptosis, we treated B6.Sst1S BMDMs with two ferroptosis
+Downloaded from https://www.science.org on February 03, 2026
+Fig. 5. Rocaglate increases oxidative stress resilience of macrophages. ( A ) RocA treatment (3 nM) reduces 4-HNE accumulation in TNF-stimulated B6.Sst1S BMDMs. 4HNE was quantified using specific antibody and automated microscopy (Operetta CLS High Content Analysis System). Untreated samples considered 100%. ( B and C ) RocA treatment (3 nM) reduced the 4-HNE accumulation in Mtb-infected B6.Sst1S BMDMs (4-HNE staining 5 days p.i.) Scale bars, 20 μm. Analysis using ImageJ. ( D and E ) RocA prevents cell death induced by SA in B6 and B6.Sst1S BMDMs. (D) BMDMs were pretreated with RocA (10 nM) for 4 hours and treated with SA (9 μM for 16 hours). Cell death was quantified by automated microscopy using Live-or-Dye staining. (E) Brightfield images of B6.Sst1.S BMDMs (×20 magnification). Scale bar, 200 μm. ( F and G ) Pretreatment of B6.Sst1S BMDMs with RocA (30 nM for 4 hours) prevents their death induced by GPX4 inhibitor RSL-3 added at 30 nM for 16 hours (F) and LPO inducer tert-butyl hydroperoxide (t-BuOOH) added at 30 μM for 16 hours (G). ( H ) Rocaglate treatment of B6.Sst1S BMDMs up-regulates the expression of NRF2 target genes. The data are representative of two biological replicas measured in triplicates using qRT-PCR. ( I to K ) RocA (3 nM) increases nuclear translocation of NRF2 in B6.Sst1S BMDMs stimulated with TNF (10 ng/ml, for 30 hours). Total and nuclear NRF2 levels were quantified using confocal microscopy (scale bars, 20 μm) and ImageJ analysis. The data represent the means ± SEM of four to five samples per experiment, representative of three independent experiments. For statistical tests, (B and C) one-way ANOVA with Dunnett ' s multiple comparison test, (E and J and K) one-way ANOVA with Bonferroni correction, (G) two-tailed unpaired t test, and (H) two-way ANOVA with Bonferroni correction were used. Significant differences are indicated with asterisks (* P < 0.05, ** P < 0.01, *** P < 0.001, and **** P < 0.0001).
+inducers with different mechanisms of action: a small-molecule inhibitor of Gpx4, RSL-3, and an LPO inducer tert -butyl hydroperoxide ( t -BuOOH). At selected concentrations, both compounds induced cell death. Pretreatment with RocA prevented ferroptosis in both cases (Fig. 5, F and G, and fig. S10C). The RSL-3 treatment induced cell death of either naïve or TNF-stimulated BMDMs, whereas the RocA pretreatment protected them equally well (fig. S10D).
+The treatment of macrophages with rocaglates for 24 hours significantly up-regulated the expression of antioxidant genes, which are known targets of NFE2L2 (NRF2): Catalase , thioredoxin interacting protein ( Txnip ), [NAD(P)H dehydrogenase, quinone 1] ( Nqo1 ) and HO-1 ( Hmox1 , heme oxygenase 1) (Fig. 5H). Accordingly, we observed that the rocaglate pretreatment also increased nuclear translocation of NRF2 (Fig. 5, I and K), although the total cellular content of NRF2 was not affected (Fig. 5J). This observation is consistent with our previous finding based on proteomics analysis that rocaglate selectively down-regulated KEAP1 protein - an E3 Ubiquitin ligase that targets NRF2 for degradation ( 29 ) and prevents its nuclear translocation. Our previous studies demonstrated that treatment with RocA induced the activation of stress kinase p38 and p38-mediated up-regulation of a key regulatory stress response protein SQSTM1/p62. In addition, rocaglates improve proteostasis by selectively inhibiting translation ( 47 ) and reducing protein overload. Thus, the up-regulation of the antioxidant response is an important aspect of a broad palette of beneficial effects of rocaglates on macrophage stress resilience.
+Although inflammation is a cornerstone of host resistance to infectious agents, during TB infection, an exuberant inflammation is often associated with tissue damage and inefficient immunity. The diversity and connectivity of inflammatory pathways, however, provide an opportunity for selectively targeting pathological modules associated with inflammatory damage while preserving and restoring the protective immunity to Mtb.
+This study outlines the design and implementation of a complete path from molecular characterization of macrophage transcriptional states to pharmaceutical interventions, an approach that is broadly applicable to diseases driven by pathological cell states. The key features of this strategy include (i) the use of primary cells from individuals representing resistant and susceptible phenotypes, (ii) focus on cell states rather than individual differentially expressed markers, (iii) analysis of multiple perturbations using cost-efficient targeted RNA-seq, and (iv) use of cSTAR to quantify effects of individual perturbations that shifted the transcriptional states in the desired direction. In addition, this analysis enabled the imputation of synergistic drug effects that allowed us to reduce drug concentrations, focusing on desirable cell state transitions and mitigating the rocaglate toxicity at higher concentrations ( 29 ). Ideally, this in vitro approach would predict bespoke interventions reducing pathological sequelae of dysregulated inflammation while enhancing protective modalities.
+To analyze the macrophage state transitions, we used a recently developed ML approach cSTAR ( 33 ). This computational method uses multi-omics datasets to describe cell state transitions and build a cell STV that indicates a path in a molecular dataspace to move a cell from one state to another state. Then, the STV computes a cell DPD that quantifies phenotypic changes in response to various perturbations. Using cSTAR, we identified small molecules that partially normalized the aberrant TNF response of sst1 -susceptible macrophages, i.e., moved it closer to the pattern of relatively Mtb-resistant wild-type macrophages, and calculated each gene ' s contribution to the change in the DPD scores. These analyses also predicted synergistic effects of several candidate compounds.
+We confirmed these predicted transcriptional states in the context of macrophage infection with virulent Mtb using whole transcriptome RNA-seq for in-depth analysis of cell states of macrophages treated with the selected candidate compounds and their combinations. The cSTAR analysis of the bulk RNA-seq data demonstrated that RocA alone or in combinations with JNKi SP600125 improved the transcriptional response of the TNF-stimulated TBsusceptible macrophages to Mtb infection. This analysis also revealed that the rocaglate treatment boosted the antioxidant pathway gene expression. The predicted transition between transcriptional states was also reflected in an improved control of the Mtb infection by the macrophages. We have experimentally validated the following: (i) The RocA treatment increased macrophage resilience to oxidative stress, and (ii) low concentrations of RocA and JNKi acted synergistically to improve the control of virulent Mtb by the TB-susceptible macrophages. Our findings indicate that targeting unresolving stress pathways associated with TB susceptibility is a promising strategy for host-directed TB therapies and provide candidates for the drug development.
 Experimental model and subject details
-C57BL/6J mice were obtained from the Jackson Laboratory (ME,
-USA). The B6J.C3-Sst1C3HeB/FejKrmn (B6.Sst1S) mice were developed in our laboratory (48) (available from MMRRC, stock no.
-043908-UNC). All experiments were performed with the full
-knowledge and approval of the animal ethics committee at Boston
-University (Institutional Animal Care and Use Committee protocol
-number PROTO201800218).
-Recombinant mouse TNF (catalog no. 315-01A) and IL-3 (catalog
-no. 213-13) were purchased from PeproTech. Fetal bovine serum
-(FBS) (catalog no. SH30396) for cell culture medium was obtained
-from HyClone. RocA (catalog no. HY-19356), SP600125 (catalog
-no. HY-12041), edaravone (catalog no. HY-B0099), and RSL-3
-(catalog no. HY-100218A) were purchased from MedChemExpress.
-ISRIB (catalog no. SML0843) and t-BuOOH (catalog no. 458139)
-were obtained from Sigma-Aldrich. 4-HNE– (catalog no.
-ab46545) and NRF2- (catalog no. 16396-1-AP) specific antibodies
-were purchased from Abcam and Proteintech, respectively. All the
-primers and probes used were purchased from Integrated DNA
-technology. Middlebrook 7H9 and 7H10 (MB7H9 and MB7H10)
-mycobacterial growth media were purchased from BD and prepared
-according to the manufacturers’ instructions.
-The wild-type Mtb H37Rv, Erdman [SSB–green fluorescent protein
-(GFP), smyc’::mCherry] (49) and Mycobacterium bovis Bacille
-Calmette-Guérin (BCG) Pasteur were grown at 37°C in MB7H9
-broth (BD Biosciences) or on MB7H10 agar plates (BD
-inducers with different mechanisms of action: a small-molecule inhibitor of Gpx4, RSL-3, and an LPO inducer tert-butyl hydroperoxide (t-BuOOH). At selected concentrations, both compounds
-induced cell death. Pretreatment with RocA prevented ferroptosis
-in both cases (Fig. 5, F and G, and fig. S10C). The RSL-3 treatment
-induced cell death of either naïve or TNF-stimulated BMDMs,
-whereas the RocA pretreatment protected them equally well
-(fig. S10D).
-The treatment of macrophages with rocaglates for 24 hours significantly up-regulated the expression of antioxidant genes, which
-are known targets of NFE2L2 (NRF2): Catalase, thioredoxin interacting protein (Txnip), [NAD(P)H dehydrogenase, quinone 1]
-(Nqo1) and HO-1 (Hmox1, heme oxygenase 1) (Fig. 5H). Accordingly, we observed that the rocaglate pretreatment also increased
-nuclear translocation of NRF2 (Fig. 5, I and K), although the total
-cellular content of NRF2 was not affected (Fig. 5J). This observation
-is consistent with our previous finding based on proteomics analysis
-that rocaglate selectively down-regulated KEAP1 protein—an E3
-Ubiquitin ligase that targets NRF2 for degradation (29) and prevents its nuclear translocation. Our previous studies demonstrated
-that treatment with RocA induced the activation of stress kinase p38
-and p38-mediated up-regulation of a key regulatory stress response
-protein SQSTM1/p62. In addition, rocaglates improve proteostasis
-by selectively inhibiting translation (47) and reducing protein overload. Thus, the up-regulation of the antioxidant response is an important aspect of a broad palette of beneficial effects of rocaglates on
-macrophage stress resilience.
-Biosciences), respectively. Both solid and liquid media contained
-glycerol [0.5% (v/v)] and Tween 80 (0.05%). The MB7H9 broth
-was enriched using 10% Middlebrook Albumin Dextrose Catalase
-Supplement (ADC), and the MB7H10 agar was enriched using
-with 10% Middlebrook Oleic Albumin Dextrose Catalase Supplement (OADC). Mtb Erdman (SSB-GFP, smyc’::mCherry) was cultured in the presence of hygromycin B (50 μg/ml).
-Macrophage infection and quantification of intracellular
-Single-cell suspensions of BCG and Mtb were prepared as described
-in detail previously (45). BMDMs were infected with the mycobacteria in tissue culture–treated 96-well plates at desired multiplicity
-of infection (MOI). The plates were centrifuged for 5 min at 200g
-and incubated at 37°C with 5% CO2 for 1 hour. Extracellular bacteria were inactivated by incubating the infected cell monolayers in
-medium containing amikacin (200 μg/ml) for 1 hour, BMDMs
-were washed three times with 1% PBS containing 2% FBS and incubated at 37°C with 5% CO2. The intracellular bacterial loads were
-determined 1, 3, and 5 days p.i. by a modified quantitative
-genomic PCR using Mtb and BCG-specific primer/probes as described (45).
+C57BL/6J mice were obtained from the Jackson Laboratory (ME, USA). The B6J.C3-Sst1C3HeB/FejKrmn (B6.Sst1S) mice were developed in our laboratory ( 48 ) (available from MMRRC, stock no. 043908-UNC). All experiments were performed with the full knowledge and approval of the animal ethics committee at Boston University (Institutional Animal Care and Use Committee protocol number PROTO201800218).
+Recombinant mouse TNF (catalog no. 315-01A) and IL-3 (catalog no. 213-13) were purchased from PeproTech. Fetal bovine serum (FBS) (catalog no. SH30396) for cell culture medium was obtained from HyClone. RocA (catalog no. HY-19356), SP600125 (catalog no. HY-12041), edaravone (catalog no. HY-B0099), and RSL-3 (catalog no. HY-100218A) were purchased from MedChemExpress. ISRIB (catalog no. SML0843) and t-BuOOH (catalog no. 458139) were obtained from Sigma-Aldrich. 4-HNE - (catalog no. ab46545) and NRF2- (catalog no. 16396-1-AP) specific antibodies were purchased from Abcam and Proteintech, respectively. All the primers and probes used were purchased from Integrated DNA technology. Middlebrook 7H9 and 7H10 (MB7H9 and MB7H10) mycobacterial growth media were purchased from BD and prepared according to the manufacturers ' instructions.
+The wild-type Mtb H37Rv, Erdman [SSB - green fluorescent protein (GFP), smyc ' ::mCherry] ( 49 ) and Mycobacterium bovis Bacille Calmette-Guérin (BCG) Pasteur were grown at 37°C in MB7H9 broth (BD Biosciences) or on MB7H10 agar plates (BD
+Biosciences), respectively. Both solid and liquid media contained glycerol [0.5% (v/v)] and Tween 80 (0.05%). The MB7H9 broth was enriched using 10% Middlebrook Albumin Dextrose Catalase Supplement (ADC), and the MB7H10 agar was enriched using with 10% Middlebrook Oleic Albumin Dextrose Catalase Supplement (OADC). Mtb Erdman (SSB-GFP, smyc ' ::mCherry) was cultured in the presence of hygromycin B (50 μg/ml).
+Isolation of mouse bone marrow and BMDM growth and differentiation were performed as previously described ( 45 ). For cell viability assays, BMDMs were incubated with Live-or-Dye 594/614 Fixable Viability Stain (Biotium) at a 1:1000 dilution in phosphate-buffered saline (PBS) containing 1% FBS for 30 min at 37°C. After staining, the samples were gently washed twice with 1% FBS in PBS and fixed with 4% paraformaldehyde for 30 min. The fixed monolayers were washed, and the nuclei were stained using Hoechst 33342. The percentages of total and dead cells were determined by automated microscopy using Celigo microplate cytometer (Nexcelom) or Operetta CLS High Content Analysis System (PerkinElmer).
+Macrophage infection and quantification of intracellular bacterial loads
+Single-cell suspensions of BCG and Mtb were prepared as described in detail previously ( 45 ). BMDMs were infected with the mycobacteria in tissue culture - treated 96-well plates at desired multiplicity of infection (MOI). The plates were centrifuged for 5 min at 200 g and incubated at 37°C with 5% CO2 for 1 hour. Extracellular bacteria were inactivated by incubating the infected cell monolayers in medium containing amikacin (200 μg/ml) for 1 hour, BMDMs were washed three times with 1% PBS containing 2% FBS and incubated at 37°C with 5% CO2. The intracellular bacterial loads were determined 1, 3, and 5 days p.i. by a modified quantitative genomic PCR using Mtb and BCG-specific primer/probes as described ( 45 ).
 Imaging of mycobacteria in infected macrophages
-The BMDMs were plated on cover slips placed in 24-well plates and
-infected with single-cell suspensions of Mtb as above. The cells were
-fixed and permeabilized using 0.05% Triton X-100 for 10 min and
-washed three times with 1X PBS for 5 min each. To visualize mycobacteria, the BMDM monolayers were stained using acid fast fluorescent staining with auramine O– rhodamine B at 37°C for 15 min,
-washed with 70% ethanol (three times for 1 min each), counterstained with Mayer’s hematoxylin solution (Sigma-Aldrich Inc.
-St. Louis, MO, USA) for 5 min, and washed with distilled water.
-The bluing solution was added for 5 min to convert hematoxylin
-into an insoluble blue. Excess solution was washed with distilled
-water, and then sections were dehydrated and mounted using Permount mounting medium.
-For imaging the fluorescent reporter expressing Mtb Erdman
-(SSB-GFP, smyc’::mCherry), BMDMs were plated in 96-well
-glass-bottom plate and infected with Erdman (SSB-GFP,
-smyc’::mCherry) at MOI = 1. Cells were fixed and stained the nuclei
-with Hoechst 33342.
-RNA isolation and quantitative PCR
-Total RNA was isolated using the RNeasy Plus Mini Kit (QIAGEN).
-cDNA synthesis was performed using the SuperScript II (Invitrogen). Quantitative real-time reverse transcription PCR (qRT-PCR)
-was performed with the GoTaq qPCR Mastermix (Promega) using
-the CFX-90 real-time PCR System (Bio-Rad). For calculating fold
-induction, the cycle threshold (Ct) of the test gene was normalized
-to the Ct of the internal control (18S) gene.
-Macrophages were prepared from freshly collected bone marrow as
-described [45]. The medium was substituted with the fresh medium
-supplemented with TNF at the indicated concentrations. Two biological replicates per condition were collected. The total RNA was
-extracted using Agilent Ampure Beads, and polyadenylate-enriched
-mRNA libraries were prepared for sequencing using standard Illumina protocol. Sequencing was performed at Novogene Inc. using
-the Illumina NextSeq 500 instrument. Data were processed using
-TopHat (v2.1.1) aligner against mm10 genome assembly, followed
-with cufflinks (v2.1.1), cuffmerge (v2.1.1), and cuffdiff (v2.1.1). The
-analyzed data have been deposited at Gene Expression Omnibus
-(accession number GSE115905 and GSE237582).
-Following methodology adapted from Gupta et al. (39), BMDM
-monolayers were prepared and treated in 96-well plates. The total
-RNA was extracted from cell monolayers using a magnetic bead–
-based protocol using Sera-Mag SpeedBeads (GE Healthcare). Isolated RNA was deoxyribonuclease (DNase)–treated with RQ1 DNase
-(Promega). The cDNA synthesis was performed within each well of
-a 96-well plate separately using EpiScript Reverse Transcriptase
-(Epicentre Biotechnologies) using UMI-tagged oligo(dT) primer
-with universal tail (table S1) using manufacturer’s instructions.
-Multiplex PCR was performed using Phusion U multiplex Master
-Mix (Thermo Fisher Scientific, F562L). The multiplex products
-were used as templates to the second PCR using Phusion High-Fidelity DNA Polymerase (New England Biolabs Inc., M0530L) that
-barcodes each well/perturbation separately. These reactions use
-primers that target the universal tails (UT1 and UT2) of the readouts amplified in the first multiplex PCR and add a six-nucleotide
-barcode, a seven-nucleotide spacer, and an Illumina primer dock.
-Isolation of mouse bone marrow and BMDM growth and differentiation were performed as previously described (45). For cell viability assays, BMDMs were incubated with Live-or-Dye 594/614
-Fixable Viability Stain (Biotium) at a 1:1000 dilution in phosphate-buffered saline (PBS) containing 1% FBS for 30 min at
-37°C. After staining, the samples were gently washed twice with
-1% FBS in PBS and fixed with 4% paraformaldehyde for 30 min.
-The fixed monolayers were washed, and the nuclei were stained
-using Hoechst 33342. The percentages of total and dead cells were
-determined by automated microscopy using Celigo microplate cytometer (Nexcelom) or Operetta CLS High Content Analysis
-System (PerkinElmer).
+The BMDMs were plated on cover slips placed in 24-well plates and infected with single-cell suspensions of Mtb as above. The cells were fixed and permeabilized using 0.05% Triton X-100 for 10 min and washed three times with 1X PBS for 5 min each. To visualize mycobacteria, the BMDM monolayers were stained using acid fast fluorescent staining with auramine O - rhodamine B at 37°C for 15 min, washed with 70% ethanol (three times for 1 min each), counterstained with Mayer ' s hematoxylin solution (Sigma-Aldrich Inc. St. Louis, MO, USA) for 5 min, and washed with distilled water. The bluing solution was added for 5 min to convert hematoxylin into an insoluble blue. Excess solution was washed with distilled water, and then sections were dehydrated and mounted using Permount mounting medium.
+For imaging the fluorescent reporter expressing Mtb Erdman (SSB-GFP, smyc ' ::mCherry), BMDMs were plated in 96-well glass-bottom plate and infected with Erdman (SSB-GFP, smyc ' ::mCherry) at MOI = 1. Cells were fixed and stained the nuclei with Hoechst 33342.
 Immunofluorescence microscopy
-BMDMs were fixed with 4% paraformaldehyde for 10 min at room
-temperature and washed twice with 1X PBS. The permeabilization
-of cell was performed with 0.05% Triton X-100 and then blocked for
-60 min with 1% bovine serum albumin (BSA) containing glycine
-(22.52 mg/ml) in PBST (PBS + 0.1% Tween 20). Cells were incubated with primary antibodies (NRF2- or 4-HNE–specific antibody)
-overnight at 4°C in 1% BSA, washed three times with 1X PBS for
-5 min, and incubated with Alexa Fluor 594–conjugated Goat antiRabbit IgG (H+L) secondary antibody (Invitrogen) in 1% BSA in
-dark for 1 hour. The cells were mounted using ProlongTM Gold
-antifade reagent (Thermo Fisher Scientific), and images were acquired using Leica SP5 confocal microscope. All images were processed using ImageJ software.
-Alternatively, cells were plated in 96-well glass-bottom plate
-(PerkinElmer), processed, and stained as above. After secondary antibody incubation, cells were directly imaged and analyzed using
-Operetta CLS High Content Analysis System (PerkinElmer).
+BMDMs were fixed with 4% paraformaldehyde for 10 min at room temperature and washed twice with 1X PBS. The permeabilization of cell was performed with 0.05% Triton X-100 and then blocked for 60 min with 1% bovine serum albumin (BSA) containing glycine (22.52 mg/ml) in PBST (PBS + 0.1% Tween 20). Cells were incubated with primary antibodies (NRF2- or 4-HNE - specific antibody) overnight at 4°C in 1% BSA, washed three times with 1X PBS for 5 min, and incubated with Alexa Fluor 594 - conjugated Goat antiRabbit IgG (H+L) secondary antibody (Invitrogen) in 1% BSA in dark for 1 hour. The cells were mounted using ProlongTM Gold antifade reagent (Thermo Fisher Scientific), and images were acquired using Leica SP5 confocal microscope. All images were processed using ImageJ software.
+Alternatively, cells were plated in 96-well glass-bottom plate (PerkinElmer), processed, and stained as above. After secondary antibody incubation, cells were directly imaged and analyzed using Operetta CLS High Content Analysis System (PerkinElmer).
+RNA isolation and quantitative PCR
+Total RNAwas isolated using the RNeasy Plus Mini Kit (QIAGEN). cDNA synthesis was performed using the SuperScript II (Invitrogen). Quantitative real-time reverse transcription PCR (qRT-PCR) was performed with the GoTaq qPCR Mastermix (Promega) using the CFX-90 real-time PCR System (Bio-Rad). For calculating fold induction, the cycle threshold (C t ) of the test gene was normalized to the C t of the internal control (18 S ) gene.
+Macrophages were prepared from freshly collected bone marrow as described [ 45 ]. The medium was substituted with the fresh medium supplemented with TNF at the indicated concentrations. Two biological replicates per condition were collected. The total RNA was extracted using Agilent Ampure Beads, and polyadenylate-enriched mRNA libraries were prepared for sequencing using standard Illumina protocol. Sequencing was performed at Novogene Inc. using the Illumina NextSeq 500 instrument. Data were processed using TopHat (v2.1.1) aligner against mm10 genome assembly, followed with cufflinks (v2.1.1), cuffmerge (v2.1.1), and cuffdiff (v2.1.1). The analyzed data have been deposited at Gene Expression Omnibus (accession number GSE115905 and GSE237582).
+Following methodology adapted from Gupta et al . ( 39 ), BMDM monolayers were prepared and treated in 96-well plates. The total RNA was extracted from cell monolayers using a magnetic bead - based protocol using Sera-Mag SpeedBeads (GE Healthcare). Isolated RNA was deoxyribonuclease (DNase) - treated with RQ1 DNase (Promega). The cDNA synthesis was performed within each well of a 96-well plate separately using EpiScript Reverse Transcriptase (Epicentre Biotechnologies) using UMI-tagged oligo(dT) primer with universal tail (table S1) using manufacturer ' s instructions. Multiplex PCR was performed using Phusion U multiplex Master Mix (Thermo Fisher Scientific, F562L). The multiplex products were used as templates to the second PCR using Phusion High-Fidelity DNA Polymerase (New England Biolabs Inc., M0530L) that barcodes each well/perturbation separately. These reactions use primers that target the universal tails (UT1 and UT2) of the readouts amplified in the first multiplex PCR and add a six-nucleotide barcode, a seven-nucleotide spacer, and an Illumina primer dock.
+Combinatorial barcoding was achieved by using a pair of unique forward and reverse primers, which tag each sample with a unique barcode combination. These barcode combinations allowed pooling of samples in the subsequent steps of the assay. Once pooled, the readout library was cleaned up using magnetic beads at a bead to sample ratio of 1.2 to get rid of primer dimer bands <150 base pairs in size. The sample was then carried over as a template into a third PCR reaction that added Illumina adapters.
+After Screen-seq libraries were prepared as described above, they were sequenced at the UMass Boston and Center for Cancer Systems Biology sequencing core on Illumina HiSeq 2500 and MiSeq, respectively, using four-color reagent kits. From the P7 adapter end, 65 nt were sequenced (read 1), including one of the two barcodes for encoding plate wells and the UMI. From the P5 adapter the remaining, 135 nt were sequenced (read 2), covering the second well-encoding barcode and the cDNA amplicon. Standard Illumina barcodes were used to distinguish individual plates within the overall pooled library, with demultiplexing before further processing. Reads were aligned using bowtie2 ( 50 ) against mm10 mouse genome assembly. The resulting BAM files were processed using custom Perl scripts to extract UMI-corrected counts for each gene and each well.
 Building the STVs and calculating the DPD scores
-We first determined fold changes in the targeted 46 RNA expression
-levels relative to the untreated control of TNF-treated B6 (R) and
-B6.Sst1S (S) macrophages. Each transcriptomics data point corresponds to a certain TNF dose for R or S macrophages, and these
-data can be perceived as points in the molecular data space of 46
-dimensions of selected genes. In this transcriptomics dataspace,
-we used SVM (51) to build two maximum margin hyperplanes
-that separate (i) the R and S macrophage states and (ii) transcriptomic patterns with no TNF and 50 ng of TNF treatment. The
-SVM with a linear kernel from the scikit-learn python library (52)
-was applied.
-Next (part IV), we applied the SVM to distinguish transcriptomic patterns and build the separating hyperplanes in the bulk RNA
-space of 4305 dimensions. We used previously acquired transcriptomics data (accession number GSE115905) of responses to TNF of
-the R and S macrophages. In this case, we have built two maximum
-margin hyperplanes (i) distinguishing R and S macrophage states
-and (ii) distinguishing responses to stimulation by low (2 ng) and
-high (50 ng) TNF doses. The directions of changes in the transcriptomic patterns that correspond to different cell phenotypic features,
-(i) S and R macrophage TB susceptibility states and (ii) responses to
-TNF, are given by the two STVs, the STVS_to_R and STVTNF, respectively. Each STV is a unit vector defined as a vector of unit length
-that is normal to the corresponding separating hyperplane (33).
+Wefirst determined fold changes in the targeted 46 RNA expression levels relative to the untreated control of TNF-treated B6 (R) and B6.Sst1S (S) macrophages. Each transcriptomics data point corresponds to a certain TNF dose for R or S macrophages, and these data can be perceived as points in the molecular data space of 46 dimensions of selected genes. In this transcriptomics dataspace, we used SVM ( 51 ) to build two maximum margin hyperplanes that separate (i) the R and S macrophage states and (ii) transcriptomic patterns with no TNF and 50 ng of TNF treatment. The SVM with a linear kernel from the scikit-learn python library ( 52 ) was applied.
+Next (part IV), we applied the SVM to distinguish transcriptomic patterns and build the separating hyperplanes in the bulk RNA space of 4305 dimensions. We used previously acquired transcriptomics data (accession number GSE115905) of responses to TNF of the R and S macrophages. In this case, we have built two maximum margin hyperplanes (i) distinguishing R and S macrophage states and (ii) distinguishing responses to stimulation by low (2 ng) and high (50 ng) TNF doses. The directions of changes in the transcriptomic patterns that correspond to different cell phenotypic features, (i) S and R macrophage TB susceptibility states and (ii) responses to TNF, are given by the two STVs, the STVS_to_R and STVTNF, respectively. Each STV is a unit vector defined as a vector of unit length that is normal to the corresponding separating hyperplane ( 33 ).
 The SVM-generated maximum margin hyperplane is defined as
-Here xs are points in the dataspace belonging to the separating
-hyperplane, ns is the STV vector, which is in this case is determined
-as a vector of unit legth normal to the separating hyperplane, and hs
-is an intercept constant provided by the SVM. Index “s” corresponds
-to different SVM-generated separating planes and is equal to either
-If the vector w~s ¼ ðαs ; βs Þ defines the normal to the separating
-plane built in the PC1-PC2 space, the vector ws in the original
-46D dataspace is determined using the following expression
-where PC1 and PC2 are vectors of PCs in the original 46D
-dataspace.
+Here x s are points in the dataspace belonging to the separating hyperplane, n s is the STV vector, which is in this case is determined as a vector of unit legth normal to the separating hyperplane, and h s is an intercept constant provided by the SVM. Index ' s ' corresponds to different SVM-generated separating planes and is equal to either ' TNF ' or ' S_to_R. '
+If the vector ~ w s ¼ ð α s ; β s Þ defines the normal to the separating plane built in the PC1-PC2 space, the vector w s in the original 46D dataspace is determined using the following expression
+where PC1 and PC2 are vectors of PCs in the original 46D dataspace.
 After building the STVs, cSTAR calculates quantitative indicators of cell phenotypic states termed DPDs using the following expression
-where DPDsi is the DPD score for the datapoint xi and ns, hs, and
-index “s” are defined in Eq. 1.
-The DPD scores (Eq. 3) describe the changes in the cell phenotypic features that would occur when the data point crosses on the
-separating hyperplanes. As Eq. 3 shows, the absolute value of the
-DPD score is determined by the Euclidean distances from the
-data point to the separating hyperplane, while the sign of the
-DPD score indicates if the direction of the data point movement
-to cross the hyperplane is parallel or antiparallel to the corresponding STV (33). The changes in the DPD scores following drug perturbations are readily calculated as the difference between the
-corresponding scores after and before the perturbation.
-Calculation of each gene contribution into the DPD scores
-To determine the contribution of each gene into the changes in the
-DPDS_to_R score following perturbations, we have calculated the
-projection of the log fold change in this gene expression to the
-STVS_to_R. Mathematically, this is the dot product of the gene
-change and the STV, and their sum over all genes yields the
-change in the DPD score. Then, we used the top 400 contributing
-genes, which account for more than 80% of the DPDS_to_R score
-change, to perform the enrichment analysis by the Gene Ontology
-and STRING databases. We also input all gene names and their contributions into the DPD score into GSEA. Notably, the standard use
-of GSEA (where the GSEA input is the normalized read counts or
-log fold changes of differentially expressed genes) would not
-provide information about a transition from the S to R macrophage
-states. This information is contained in the STVS_to_R. Therefore, we
-used the projections of the corresponding gene expression changes
-into the STVS_to_R as the GSEA input. Consequently, the normalized enrichment scores, which were generated by GSEA, now reflected how the changes in specific GSEA terms increased or
-decreased TB resistance of S macrophages.
+where DPD s i is the DPD score for the datapoint x i and n s , h s , and index ' s ' are defined in Eq. 1.
+The DPD scores (Eq. 3) describe the changes in the cell phenotypic features that would occur when the data point crosses on the separating hyperplanes. As Eq. 3 shows, the absolute value of the DPD score is determined by the Euclidean distances from the data point to the separating hyperplane, while the sign of the DPD score indicates if the direction of the data point movement to cross the hyperplane is parallel or antiparallel to the corresponding STV ( 33 ). The changes in the DPD scores following drug perturbations are readily calculated as the difference between the corresponding scores after and before the perturbation.
+Calculation of each gene contribution into the DPD scores and enrichment analyses
+To determine the contribution of each gene into the changes in the DPDS_to_R score following perturbations, we have calculated the projection of the log fold change in this gene expression to the STVS_to_R. Mathematically, this is the dot product of the gene change and the STV, and their sum over all genes yields the change in the DPD score. Then, we used the top 400 contributing genes, which account for more than 80% of the DPDS_to_R score change, to perform the enrichment analysis by the Gene Ontology and STRING databases. We also input all gene names and their contributions into the DPD score into GSEA. Notably, the standard use of GSEA (where the GSEA input is the normalized read counts or log fold changes of differentially expressed genes) would not provide information about a transition from the S to R macrophage states. This information is contained in the STVS_to_R. Therefore, we used the projections of the corresponding gene expression changes into the STVS_to_R as the GSEA input. Consequently, the normalized enrichment scores, which were generated by GSEA, now reflected how the changes in specific GSEA terms increased or decreased TB resistance of S macrophages.
 Quantification and statistical analysis
 The comparisons and statistical analysis were performed as indicated in each figure legend.
-For calculating the mean values and errors of the DPD scores,
-outliers were removed from datasets based on analysis of correlation
-matrices and PCA plots of raw counts. Batch correction was performed for samples measured at different passages and days. The
-SEM for the DPD scores was estimated using raw counts of gene
-expression data. The Python code of building STVs, calculating
-Combinatorial barcoding was achieved by using a pair of unique
-forward and reverse primers, which tag each sample with a
-unique barcode combination. These barcode combinations
-allowed pooling of samples in the subsequent steps of the assay.
-Once pooled, the readout library was cleaned up using magnetic
-beads at a bead to sample ratio of 1.2 to get rid of primer dimer
-bands <150 base pairs in size. The sample was then carried over
-as a template into a third PCR reaction that added Illumina
-adapters.
-After Screen-seq libraries were prepared as described above, they
-were sequenced at the UMass Boston and Center for Cancer
-Systems Biology sequencing core on Illumina HiSeq 2500 and
-MiSeq, respectively, using four-color reagent kits. From the P7
-adapter end, 65 nt were sequenced (read 1), including one of the
-two barcodes for encoding plate wells and the UMI. From the P5
-adapter the remaining, 135 nt were sequenced (read 2), covering
-the second well-encoding barcode and the cDNA amplicon. Standard Illumina barcodes were used to distinguish individual plates
-within the overall pooled library, with demultiplexing before
-further processing. Reads were aligned using bowtie2 (50) against
-mm10 mouse genome assembly. The resulting BAM files were processed using custom Perl scripts to extract UMI-corrected counts
-for each gene and each well.
-the DPD scores for TNF treatments and drug perturbations, and
-estimation of errors of DPD scores is provided in the python worksheet “DPD_analysis.ipynb.”
-To compare the multiple groups in the time course experiment
-or with two variables, a two-way analysis of variance (ANOVA) was
-used and corrected for multiple post hoc comparisons. The different
-comparisons used in our study include comparing all groups to each
-other, control to all the groups, or selected groups to each other. For
-comparisons of multiple groups with only one variable, we used a
-one-way ANOVA and corrected for multiple post hoc comparisons.
-For comparisons of two groups, two-tailed paired or unpaired t tests
-were used. Except for sequencing data, statistical analyses were performed in the GraphPad Prism 9 software. We considered that the P
-value ≤ 0.05 was statistically significant. *P < 0.05, **P < 0.01, ***P <
-0.001, and ****P < 0.0001.
-14. R. Guler, M. Ozturk, S. Sabeel, B. Motaung, S. P. Parihar, F. Thienemann, F. Brombacher,
-Targeting molecular inflammatory pathways in granuloma as host-directed therapies for
-tuberculosis. Front. Immunol. 12, 733853 (2021).
-15. M. R. Cronan, In the Thick of it: Formation of the tuberculous granuloma and its effects on
-host and therapeutic responses. Front. Immunol. 13, 820134 (2022).
-16. M. Raviglione, B. Marais, K. Floyd, K. Lönnroth, H. Getahun, G. B. Migliori, A. D. Harries,
-P. Nunn, C. Lienhardt, S. Graham, J. Chakaya, K. Weyer, S. Cole, S. H. Kaufmann, A. Zumla,
-Scaling up interventions to achieve global tuberculosis control: Progress and new developments. Lancet 379, 1902–1913 (2012).
-17. C. Geiß, E. Salas, J. Guevara-Coto, A. Régnier-Vigouroux, R. A. Mora-Rodríguez, Bistability in
-macrophage polarization and metabolic implications. Cells 11(3), 404 (2022).
-18. J. V. Price, R. E. Vance, The macrophage paradox. Immunity 41, 685–693 (2014).
-19. F. O. Martinez, S. Gordon, The M1 and M2 paradigm of macrophage activation: Time for
-reassessment. F1000Prime Rep. 6, 13 (2014).
-20. D. A. Hume, The many alternative faces of macrophage activation. Front. Immunol. 6,
-370 (2015).
+For calculating the mean values and errors of the DPD scores, outliers were removed from datasets based on analysis of correlation matrices and PCA plots of raw counts. Batch correction was performed for samples measured at different passages and days. The SEM for the DPD scores was estimated using raw counts of gene expression data. The Python code of building STVs, calculating the DPD scores for TNF treatments and drug perturbations, and estimation of errors of DPD scores is provided in the python worksheet ' DPD_analysis.ipynb. '
+To compare the multiple groups in the time course experiment or with two variables, a two-way analysis of variance (ANOVA) was used and corrected for multiple post hoc comparisons. The different comparisons used in our study include comparing all groups to each other, control to all the groups, or selected groups to each other. For comparisons of multiple groups with only one variable, we used a one-way ANOVA and corrected for multiple post hoc comparisons. For comparisons of two groups, two-tailed paired or unpaired t tests were used. Except for sequencing data, statistical analyses were performed in the GraphPad Prism 9 software. We considered that the P value ≤ 0.05 was statistically significant. * P < 0.05, ** P < 0.01, *** P < 0.001, and **** P < 0.0001.
 This PDF file includes:
-22. L. Heitmann, M. A. Dar, T. Schreiber, H. Erdmann, J. Behrends, A. N. J. McKenzie,
-F. Brombacher, S. Ehlers, C. Hölscher, The IL-13/IL-4Rα axis is involved in tuberculosis-associated pathology. J. Pathol. 234, 338–350 (2014).
-23. C. Hölscher, L. Heitmann, E. Owusu-Dabo, R. D. Horstmann, C. G. Meyer, S. Ehlers, T. Thye, A
-mutation in IL4RA Is associated with the degree of pathology in human TB patients. Mediators Inflamm. 2016, 4245028 (2016).
+Figs. S1 to S10 Tables S1 to S4

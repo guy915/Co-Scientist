@@ -1,312 +1,90 @@
 # A text-based computational framework for patient -specific modeling for classification of cancers
 
-A text-based computational framework for patient
--specific modeling for classification of cancers
-Hiroaki Imoto,
-Sawa Yamashiro,
-mokada@protein.osaka-u.ac.
-predicting potential drug
-Imoto et al., iScience 25,
-March 18, 2022 ª 2022 The
-Author(s).
-A text-based computational
-framework for patient -specific modeling
-for classification of cancers
-Hiroaki Imoto,1,3 Sawa Yamashiro,1,3 and Mariko Okada1,2,4,*
-Patient heterogeneity precludes cancer treatment and drug development; hence,
-development of methods for finding prognostic markers for individual treatment
-is urgently required. Here, we present Pasmopy (Patient-Specific Modeling in
-Python), a computational framework for stratification of patients using in silico
-signaling dynamics. Pasmopy converts texts and sentences on biochemical systems
-into an executable mathematical model. Using this framework, we built a model of
-the ErbB receptor signaling network, trained in cultured cell lines, and performed
-in silico simulation of 377 patients with breast cancer using The Cancer Genome Atlas
-(TCGA) transcriptome datasets. The temporal dynamics of Akt, extracellular signalregulated kinase (ERK), and c-Myc in each patient were able to accurately predict the
-difference in prognosis and sensitivity to kinase inhibitors in triple-negative breast
-cancer (TNBC). Our model applies to any type of signaling network and facilitates
-the network-based use of prognostic markers and prediction of drug response.
-Cancer is a heterogeneous disease in terms of mutation signatures, gene expression profiles, and response
-to drug treatments (Dagogo-Jack and Shaw, 2018). Innovations in sequencing, genome-wide measurements of mutations and transcriptomics profiles (Gusev et al., 2016; Ozaki et al., 2002) have brought
-more attention to inter-patient heterogeneity. Accordingly, different types of data-driven algorithms,
-such as machine learning methods (Kourou et al., 2015; Van’t Veer et al., 2002), have been developed to
-identify correlations between these gene signatures and clinical outcomes. Despite these efforts, the
-molecular mechanisms by which different genomic and transcriptomic profiles predict distinct patient-specific prognostic outcomes remain poorly understood.
-Mechanistic descriptions of biological network using ordinary differential equations (ODEs) is considered one of
-the promising approaches to uncover the regulatory mechanisms in biological systems (Clarke and Fisher, 2020;
-Kholodenko, 2006). Several attempts have focused on pan-cancer signaling networks to explore the mechanisms
-underlying heterogeneous responses in cancer (Fröhlich et al., 2018; Hass et al., 2017), by combining mechanistic
-modeling with transcriptome profiles obtained from the cancer cell lines (Barretina et al., 2012). In these studies,
-experimental data on signaling activities, cell growth, and drug response from more than 100 cell lines were used
-for model prediction, and training the model with the datasets allowed it to accurately predict cell-specific drug
-response from the untrained data (Fröhlich et al., 2018; Hass et al., 2017). Accordingly, these studies using cell line
-profiles suggest the potential of ‘‘patient-specific models’’ (Saez-Rodriguez and Blüthgen, 2020) that can determine personalized prognosis and drug response using the patient’s signaling and transcriptome profiles. However, there are several challenges to overcome. Although clinical transcriptome data are available from public databases, obtaining signaling activity from each patient is not feasible due to the difficulty of culturing cells from
-cancer tissues (Inoue et al., 2017; Whittle et al., 2015; Yoshida, 2020). Additionally, the drug responses predicted
-by patient-specific models cannot be immediately tested in living patients. In addition, as another fundamental
-issue, mathematical modeling usually requires specific mathematical expertise of users. To be able to apply mathematical modeling to patient data analysis, we need a simpler, readable format tool that many biologists can use
-for cancer classification.
-To resolve these problems, we developed a computational framework called Pasmopy (Patient-Specific
-Modeling in Python). Pasmopy enables the conversion of text describing biochemical reactions (such as
-Research, Osaka University,
-Suita, Osaka 565-0871, Japan
-2Center for Drug Design and
-Research, National Institutes
-of Biomedical Innovation,
-Health and Nutrition, Ibaraki,
-3These authors contributed
+A text-based computational framework for patient -specific modeling for classification of cancers
+Hiroaki Imoto, Sawa Yamashiro, Mariko Okada
+mokada@protein.osaka-u.ac. jp
+A text file describing biochemical systems is converted into an executable model
+Patient-specific models incorporate individual gene expression profiles
+In silico signaling dynamics can be utilized as prognostic biomarkers
+Personalized kinetic models are capable of predicting potential drug targets
+Imoto et al., iScience 25 , 103944
+March 18, 2022 ª 2022 The Author(s).
+https://doi.org/10.1016/ j.isci.2022.103944
+A text-based computational framework for patient -specific modeling for classification of cancers
+Hiroaki Imoto, 1,3 Sawa Yamashiro, 1,3 and Mariko Okada 1,2,4, *
+Patient heterogeneity precludes cancer treatment and drug development; hence, development of methods for finding prognostic markers for individual treatment is urgently required. Here, we present Pasmopy (Patient-Specific Modeling in Python), a computational framework for stratification of patients using in silico signaling dynamics. Pasmopy converts texts and sentences on biochemical systems into an executable mathematical model. Using this framework, we built a model of the ErbB receptor signaling network, trained in cultured cell lines, and performed in silico simulationof377patientswithbreastcancerusingTheCancerGenomeAtlas (TCGA) transcriptome datasets. The temporal dynamics of Akt, extracellular signalregulatedkinase(ERK),andc-Mycineachpatientwereabletoaccuratelypredictthe difference in prognosis and sensitivity to kinase inhibitors in triple-negative breast cancer (TNBC). Our model applies to any type of signaling network and facilitates the network-based use of prognostic markers and prediction of drug response.
+Cancer is a heterogeneous disease in terms of mutation signatures, gene expression profiles, and response to drug treatments (Dagogo-Jack and Shaw, 2018). Innovations in sequencing, genome-wide measurements of mutations and transcriptomics profiles (Gusev et al., 2016; Ozaki et al., 2002) have brought more attention to inter-patient heterogeneity. Accordingly, different types of data-driven algorithms, such as machine learning methods (Kourou et al., 2015; Van't Veer et al., 2002), have been developed to identify correlations between these gene signatures and clinical outcomes. Despite these efforts, the molecular mechanisms by which different genomic and transcriptomic profiles predict distinct patient-specific prognostic outcomes remain poorly understood.
+Mechanistic descriptions of biological network using ordinary differential equations (ODEs) is considered one of the promising approaches to uncover the regulatory mechanisms in biological systems (Clarke and Fisher, 2020; Kholodenko, 2006). Several attempts have focused on pan-cancer signaling networks to explore the mechanisms underlying heterogeneous responses in cancer (Fro ¨ hlich et al., 2018; Hass et al., 2017), by combining mechanistic modeling with transcriptome profiles obtained from the cancer cell lines (Barretina et al., 2012). In these studies, experimental data on signaling activities, cell growth, and drug response from more than 100 cell lines were used for model prediction, and training the model with the datasets allowed it to accurately predict cell-specific drug response from the untrained data (Fro ¨ hlich et al., 2018; Hass et al., 2017). Accordingly, these studies using cell line profiles suggest the potential of ''patient-specific models'' (Saez-Rodriguez and Blu ¨ thgen, 2020) that can determine personalized prognosis and drug response using the patient's signaling and transcriptome profiles. However, there are several challenges to overcome. Although clinical transcriptome data are available from public databases, obtaining signaling activity from each patient is not feasible due to the difficulty of culturing cells from cancer tissues (Inoue et al., 2017; Whittle et al., 2015; Yoshida, 2020). Additionally, the drug responses predicted by patient-specific models cannot be immediately tested in living patients. In addition, as another fundamental issue, mathematicalmodelingusuallyrequiresspecificmathematicalexpertiseofusers.Tobeabletoapplymathematical modeling to patient data analysis, we need a simpler, readable format tool that many biologists can use for cancer classification.
+To resolve these problems, we developed a computational framework called Pasmopy (Patient-Specific Modeling in Python). Pasmopy enables the conversion of text describing biochemical reactions (such as
+1 Institute for Protein Research, Osaka University, Suita, Osaka 565-0871, Japan
+2 Center for Drug Design and Research, National Institutes of Biomedical Innovation, Health and Nutrition, Ibaraki, Osaka 567-0085, Japan
+3 These authors contributed equally
 *Correspondence:
-mokada@protein.osaka-u.ac.
-https://doi.org/10.1016/j.isci.
-iScience 25, 103944, March 18, 2022 ª 2022 The Author(s).
-This is an open access article under the CC BY-NC-ND license (http://creativecommons.org/licenses/by-nc-nd/4.0/).
-association, phosphorylation, and degradation) in signaling networks into ordinary differential equation
-(ODE) models, without mathematical knowledge of users. It also offers several biologist-friendly functions,
-such as parameterization of patient models against the learning datasets obtained from cultured cell lines,
-individualization of mechanistic models by incorporating cell-line- or patient-specific gene expression
-data, prediction of patient prognosis based on simulation outputs, the ability to investigate the molecular
-mechanisms underlying patient outcomes, and the ability to identify potential drug targets for individual
-patients.
-Using this tool, we developed a personalized model of ErbB receptor signaling network. The model includes a series of biochemical reactions involved in ErbB receptor activation and c-Myc induction (Arteaga
-and Engelman, 2014; Xu et al., 2010). By combining 377 individual patient transcriptome datasets obtained
-from The Cancer Genome Atlas (TCGA) (Weinstein et al., 2013) and personalized models, we succeeded in
-classifying patients with triple-negative breast cancer (TNBC) into poor and better prognosis groups,
-based solely on in silico Akt, extracellular signal-regulated kinase (ERK), and c-Myc dynamics of each
-patient. Our models suggested that these subclusters can be classified by a simple metric: the epidermal
-growth factor receptor (EGFR / ErbB1) expression ratio to other ErbB receptor families. Further analysis of
-the models implied that patients with poorer prognoses are more resistant to treatments targeting the
-EGFR. We also confirmed that the same model could stratify patients with colon cancer (Muzny et al.,
-2012) based on predicted in silico signaling dynamics, indicating that these two cancers share common
-regulatory mechanisms in the signaling network that determine prognosis.
+mokada@protein.osaka-u.ac. jp
+https://doi.org/10.1016/j.isci. 2022.103944
+association, phosphorylation, and degradation) in signaling networks into ordinary differential equation (ODE) models, without mathematical knowledge of users. It also offers several biologist-friendly functions, such as parameterization of patient models against the learning datasets obtained from cultured cell lines, individualization of mechanistic models by incorporating cell-line- or patient-specific gene expression data, prediction of patient prognosis based on simulation outputs, the ability to investigate the molecular mechanisms underlying patient outcomes, and the ability to identify potential drug targets for individual patients.
+Using this tool, we developed a personalized model of ErbB receptor signaling network. The model includes a series of biochemical reactions involved in ErbB receptor activation and c-Myc induction (Arteaga and Engelman, 2014; Xu et al., 2010). By combining 377 individual patient transcriptome datasets obtained from The Cancer Genome Atlas (TCGA) (Weinstein et al., 2013) and personalized models, we succeeded in classifying patients with triple-negative breast cancer (TNBC) into poor and better prognosis groups, based solely on in silico Akt, extracellular signal-regulated kinase (ERK), and c-Myc dynamics of each patient. Our models suggested that these subclusters can be classified by a simple metric: the epidermal growth factor receptor (EGFR / ErbB1) expression ratio to other ErbB receptor families. Further analysis of the models implied that patients with poorer prognoses are more resistant to treatments targeting the EGFR. We also confirmed that the same model could stratify patients with colon cancer (Muzny et al., 2012) based on predicted in silico signaling dynamics, indicating that these two cancers share common regulatory mechanisms in the signaling network that determine prognosis.
 Development of Pasmopy: a scalable computational toolkit for patient-specific modeling
-The dynamics of signaling pathways play key roles in determining cell fate and cancer progression (Purvis
-and Lahav, 2013). Therefore, the experimental analysis of patient response data is primarily required for
-development of drugs targeting these pathways (Zhong et al., 2021). However, analyzing signaling
-dynamics using the patient tissues is generally difficult even using advanced techniques such as the
-patient-derived xenograft (PDX) model. This is due to the limitations of the current PDX models, including
-the inability to reconstitute human immune cell systems, low success rates, and a high cost to establish cell
-lines and maintain the original cell properties (Inoue et al., 2017; Whittle et al., 2015; Yoshida, 2020). To
-tackle this problem, we developed Pasmopy, a scalable toolkit for in silico patient-specific mathematical
-modeling (Figure 1). Pasmopy offers the following unique features: (i) construction of mechanistic models
-from texts and sentences of gene regulatory network without a knowledge of mathematical modeling
-(Figure 2A), (ii) personalization of the model using transcriptome data of each patient, (iii) prediction of
-patient outcome based on in silico signaling dynamics, e.g., amplitude, duration, and area under the curve
-(AUC), and (iv) sensitivity analysis for prediction of potential drug targets. Pasmopy currently contains a list
-of 14 reaction rules on gene regulation and biochemical reactions, including binding, dissociation,
-phosphorylation, transcription, translation, synthesis, degradation, and translocation, which can be
-automatically converted into kinetic equations (Figure 2B). New terminology of a reaction rule can also
-be added by users. Pasmopy is compatible with a Python framework for Modeling and Analysis of Signaling
-Systems (BioMASS) (Imoto et al., 2020), which allows parameterization and network analysis of large scale
-biological models, and more specialized for personalized modeling.
-In this study, we constructed a mathematical model of ErbB receptor signaling network (Birtwistle et al.,
-2007) and c-Myc induction (Lee et al., 2008) using this tool (Figure 2C). The model includes activation
-and dimerization of four ErbB receptors (ErbB1 / EGFR, ErbB2, ErbB3, and ErbB4), Ras-ERK cascade,
-and the Akt-PI3K pathway, which was adapted from the model of Birtwistle et al. (Birtwistle et al., 2007)
-and integrated the process of c-Myc induction and stabilization by ERK and Akt signals, which was newly
-constructed for this study. The resulting model has 319 rate equations, 228 species, and 648 parameters.
-Of the 648 parameters such as kinetic constants and weighting factors, 220 were estimated from
-phospho-proteins time-course data obtained from four breast cancer cell lines stimulated with epidermal
-growth factor (EGF) or heregulin (HRG) for up to 120 min (see below and STAR methods section).
+The dynamics of signaling pathways play key roles in determining cell fate and cancer progression (Purvis and Lahav, 2013). Therefore, the experimental analysis of patient response data is primarily required for development of drugs targeting these pathways (Zhong et al., 2021). However, analyzing signaling dynamics using the patient tissues is generally difficult even using advanced techniques such as the patient-derived xenograft (PDX) model. This is due to the limitations of the current PDX models, including the inability to reconstitute human immune cell systems, low success rates, and a high cost to establish cell lines and maintain the original cell properties (Inoue et al., 2017; Whittle et al., 2015; Yoshida, 2020). To tackle this problem, we developed Pasmopy, a scalable toolkit for in silico patient-specific mathematical modeling (Figure 1). Pasmopy offers the following unique features: (i) construction of mechanistic models from texts and sentences of gene regulatory network without a knowledge of mathematical modeling (Figure 2A), (ii) personalization of the model using transcriptome data of each patient, (iii) prediction of patient outcome based on in silico signaling dynamics, e.g., amplitude, duration, and area under the curve (AUC), and (iv) sensitivity analysis for prediction of potential drug targets. Pasmopy currently contains a list of 14 reaction rules on gene regulation and biochemical reactions, including binding, dissociation, phosphorylation, transcription, translation, synthesis, degradation, and translocation, which can be automatically converted into kinetic equations (Figure 2B). New terminology of a reaction rule can also be added by users. Pasmopy is compatible with a Python framework for Modeling and Analysis of Signaling Systems (BioMASS) (Imoto et al., 2020), which allows parameterization and network analysis of large scale biological models, and more specialized for personalized modeling.
+In this study, we constructed a mathematical model of ErbB receptor signaling network (Birtwistle et al., 2007) and c-Myc induction (Lee et al., 2008) using this tool (Figure 2C). The model includes activation and dimerization of four ErbB receptors (ErbB1 / EGFR, ErbB2, ErbB3, and ErbB4), Ras-ERK cascade, and the Akt-PI3K pathway, which was adapted from the model of Birtwistle et al. (Birtwistle et al., 2007) and integrated the process of c-Myc induction and stabilization by ERK and Akt signals, which was newly constructed for this study. The resulting model has 319 rate equations, 228 species, and 648 parameters. Of the 648 parameters such as kinetic constants and weighting factors, 220 were estimated from phospho-proteins time-course data obtained from four breast cancer cell lines stimulated with epidermal growth factor (EGF) or heregulin (HRG) for up to 120 min (see below and STAR methods section).
 Using transcriptomic data to personalize the mechanistic model
-Modeling biological systems usually requires initial abundances of chemical species in the model and
-kinetic parameters of the reaction. To determine the kinetic parameters of patient-specific models, we first
-assumed that the reaction parameters are unique to the molecular species involved in a reaction event and
+Modeling biological systems usually requires initial abundances of chemical species in the model and kinetic parameters of the reaction. To determine the kinetic parameters of patient-specific models, we first assumed that the reaction parameters are unique to the molecular species involved in a reaction event and high low A workflow for identifying cancer prognostic factors based on signaling dynamics from mechanistic modeling. A text file describing the biochemical reactions is converted into an executable model (1. Construction). The model parameters are trained on phospho-protein time-course data obtained from growth factor-stimulated cultured cell lines (2. Parameterization). The model is personalized by incorporating individual gene expression profiles (3. Personalization). The patients are classified based on in silico signaling responses from personalized simulations. In this study, the patient group with triplenegative breast cancer (TNBC) was further analyzed (bottom, right to left). Based on the examination of signaling properties, the patients with TNBC were classified into two subclusters by ErbB receptor expression ratios. Sensitivity analysis indicated that patients with higher EGFR expression ratios were less sensitive to EGFR inhibitors. This hypothesis was validated using drug-response data obtained from cancer cell lines.
 Figure 1. Overview of the workflow
-A workflow for identifying cancer prognostic factors based on signaling dynamics from mechanistic modeling. A text file describing the biochemical
-reactions is converted into an executable model (1. Construction). The model parameters are trained on phospho-protein time-course data obtained from
-growth factor-stimulated cultured cell lines (2. Parameterization). The model is personalized by incorporating individual gene expression profiles (3.
-Personalization). The patients are classified based on in silico signaling responses from personalized simulations. In this study, the patient group with triplenegative breast cancer (TNBC) was further analyzed (bottom, right to left). Based on the examination of signaling properties, the patients with TNBC were
-classified into two subclusters by ErbB receptor expression ratios. Sensitivity analysis indicated that patients with higher EGFR expression ratios were less
-sensitive to EGFR inhibitors. This hypothesis was validated using drug-response data obtained from cancer cell lines.
-remain the same even if gene mutations are present in the species. Instead, we assumed that such genomic
-mutations are reflected in the gene expression signatures. This assumption is empirically supported by
-expression quantitative trait loci (eQTLs) (Nica and Dermitzakis, 2013) analysis and transcriptome-wide
-association studies (TWAS) (Gusev et al., 2016) that links genomic mutations to gene expression signatures.
-Accordingly, unknown parameters of the model, that are common to all patients and cultured cell lines,
-were obtained by fitting the model to the phospho-protein time-course data obtained from the cultured
-cell lines.
-In brief, the ErbB network model was trained against the growth factor-stimulated time-course datasets of
-phosphorylated Akt, ERK, and c-Myc obtained from MCF-7, BT-474, SK-BR-3, and MDA-MB-231 cancer cell
-lines (which represent four breast cancer subtypes: Luminal A, Luminal B, HER2+, and triple-negative,
-respectively) along with their corresponding the Cancer Cell Line Encyclopedia (CCLE) (Barretina et al.,
-2012) transcriptome data, which are used for determining nonzero initial conditions (protein levels of the
-species) in the model (see below and gene list in Table S1) (Figure 2D). By minimizing the objective
-function, i.e., the residual sum of squares between simulation and experimental measurements, 30 good
-fitting parameter sets were obtained that reproduced experimental observations in these four breast
-cancer cell lines (Figure 2E). These 30 parameters were also used as kinetic parameters for the patient
-model.
-To personalize the model, individual TCGA transcriptome data were analyzed and used to infer the initial
-amount of nonzero species or maximal transcription rate for each patient model. Because we use the
-cultured cell line data to estimate the parameters of the model, we need to normalize the patient’s
+remain the same even if gene mutations are present in the species. Instead, we assumed that such genomic mutations are reflected in the gene expression signatures. This assumption is empirically supported by expression quantitative trait loci (eQTLs) (Nica and Dermitzakis, 2013) analysis and transcriptome-wide association studies (TWAS) (Gusev et al., 2016) that links genomic mutations to gene expression signatures. Accordingly, unknown parameters of the model, that are common to all patients and cultured cell lines, were obtained by fitting the model to the phospho-protein time-course data obtained from the cultured cell lines.
+In brief, the ErbB network model was trained against the growth factor-stimulated time-course datasets of phosphorylated Akt, ERK, and c-Myc obtained from MCF-7, BT-474, SK-BR-3, and MDA-MB-231 cancer cell lines (which represent four breast cancer subtypes: Luminal A, Luminal B, HER2+, and triple-negative, respectively) along with their corresponding the Cancer Cell Line Encyclopedia (CCLE) (Barretina et al., 2012) transcriptome data, which are used for determining nonzero initial conditions (protein levels of the species) in the model (see below and gene list in Table S1) (Figure 2D). By minimizing the objective function, i.e., the residual sum of squares between simulation and experimental measurements, 30 good fitting parameter sets were obtained that reproduced experimental observations in these four breast cancer cell lines (Figure 2E). These 30 parameters were also used as kinetic parameters for the patient model.
+To personalize the model, individual TCGA transcriptome data were analyzed and used to infer the initial amount of nonzero species or maximal transcription rate for each patient model. Because we use the cultured cell line data to estimate the parameters of the model, we need to normalize the patient's OPEN ACCESS
 Figure 2. Construction and parameterization of the mechanistic model
 (A) The strategy for implementing ordinary differential equations (ODEs) from the text descriptions of the biological events.
-(B) Representative biological events and words that can be converted into rate equations and ODEs.
-(C) Cancer signaling network and its conversion into an ODE model in this study.
-(D) The model parameter was trained on time-series Akt, ERK, and c-Myc phosphorylation levels obtained from four breast cancer cell lines: MCF-7, BT-474,
-SK-BR-3, and MDA-MB-231 stimulated with growth factors. The points (blue squares, EGF; orange triangles, HRG) denote experimental data, solid lines
-denote simulations, and shaded areas denote SD. For all panels, error bars denote SE for three independent experiments. (E) Objective function traces from
-30 optimization runs.
-transcriptome data to the data obtained from cultured cell lines for patient modeling. First, transcriptome profiles of 413 patients with breast cancer and 51 breast cancer cell lines were obtained from
-TCGA (Weinstein et al., 2013) and CCLE (Barretina et al., 2012), respectively, and their batch effects
-were removed using ComBat-seq (Zhang et al., 2020) (Figure S1). By performing this step, cell line
-transcriptomes could be merged with the patient transcriptomes and the parameters estimated from
-phospho-protein cell line data could also be used as patient parameters. Several samples were removed
-due to low total read counts of the sequence data (see STAR methods and Figure S1B), finally resulting in
-377 patient data for modeling (Table 1). To make the models patient-specific, the clinical transcriptomic
-data for 38 genes (see gene list in Table S1) were incorporated as the maximum transcription rate or the
-initial number of nonzero species in the model (see STAR methods). If the initial value of a model species
-is zero and its expression was induced by upstream signals, e.g., c-myc mRNA or dusp mRNA, maximal
-transcription rate was estimated from its own mRNA level. Unless otherwise stated, transcriptome data
-were used as the mRNA level to estimate the translated protein level. In this way, we computationally
-predicted the protein levels from their corresponding mRNA levels in TCGA. We confirmed that our
-simulated protein levels were reasonably consistent with the experimentally measured protein levels
-of four breast cancer subtypes in the Library of Integrated Network-based Cellular Signatures (LINCS)
-database (Niepel et al., 2013) (Figure S2).
+- (B) Representative biological events and words that can be converted into rate equations and ODEs.
+- (C) Cancer signaling network and its conversion into an ODE model in this study.
+- (D) The model parameter was trained on time-series Akt, ERK, and c-Myc phosphorylation levels obtained from four breast cancer cell lines: MCF-7, BT-474,
+SK-BR-3, and MDA-MB-231 stimulated with growth factors. The points (blue squares, EGF; orange triangles, HRG) denote experimental data, solid lines denote simulations, and shaded areas denote SD. For all panels, error bars denote SE for three independent experiments. (E) Objective function traces from 30 optimization runs.
+transcriptome data to the data obtained from cultured cell lines for patient modeling. First, transcriptome profiles of 413 patients with breast cancer and 51 breast cancer cell lines were obtained from TCGA (Weinstein et al., 2013) and CCLE (Barretina et al., 2012), respectively, and their batch effects were removed using ComBat-seq (Zhang et al., 2020) (Figure S1). By performing this step, cell line transcriptomes could be merged with the patient transcriptomes and the parameters estimated from phospho-protein cell line data could also be used as patient parameters. Several samples were removed due to low total read counts of the sequence data (see STAR methods and Figure S1B), finally resulting in 377 patient data for modeling (Table 1). To make the models patient-specific, the clinical transcriptomic data for 38 genes (see gene list in Table S1) were incorporated as the maximum transcription rate or the initial number of nonzero species in the model (see STAR methods). If the initial value of a model species is zero and its expression was induced by upstream signals, e.g., c-myc mRNA or dusp mRNA, maximal transcription rate was estimated from its own mRNA level. Unless otherwise stated, transcriptome data were used as the mRNA level to estimate the translated protein level. In this way, we computationally predicted the protein levels from their corresponding mRNA levels in TCGA. We confirmed that our simulated protein levels were reasonably consistent with the experimentally measured protein levels of four breast cancer subtypes in the Library of Integrated Network-based Cellular Signatures (LINCS) database (Niepel et al., 2013) (Figure S2).
 Stratification of patients with TNBC based on signaling dynamics
-After determining the model parameters, we performed numerical simulations to predict how each patient
-would respond to EGF and HRG stimulation in silico. We performed simulations for 377 patients, and
-extracted quantitative information, such as amplitude, duration, drop rate, and the cumulative response
-(see STAR methods for their definition), from the in silico dynamics of Akt, ERK, and c-Myc activation in
-each patient. This was followed by clustering of each patient based on dynamic features (Figure S3).
-Among these characteristics, we used amplitude, i.e., the maximum activation level for the classification
-of patients with breast cancer. Even though this dynamic feature cannot distinguish Luminal A and Luminal
-B subtypes, it could distinguish TNBC from other subtypes (Figure 3A). Notably, our network-based
-classifier divided the patients with TNBC into two clusters: cluster one and two for patients with poor
-and better prognoses, respectively (Figures 3B and 3C). A classical PAM50 classification method (Jiang
-et al., 2016; Koboldt et al., 2012; Nielsen et al., 2010), which is based on the expression signatures of 50
-genes, was suitable for subtype classification but not for the prediction of TNBC prognosis (Figures S4A
-and S4B).
-To identify crucial genes for distinguishing clusters 1 and 2, we checked 253 differentially expressed
-transcripts (see STAR methods for the criteria of gene selection). However, there was no clear trend
-between these two clusters (Figure S5). From this result, we concluded that dynamical modeling is
-more suitable for the stratification of patients with TNBC rather than the standard gene expression
-profiles, and in silico signaling dynamics of ErbB signaling network can be utilized as a prognostic marker
-for TNBC.
-Table 1. The criteria used for pre-processing TCGA-BRCA/CCLE-BREAST and TCGA-COAD/CCLE-BREAST samples
-Stage I, Stage IA, Stage IB,
-Stage II, Stage IIA, Stage IIB
-Stage I, Stage IA, Stage IB,
-Stage II, Stage IIA, Stage IIB
+After determining the model parameters, we performed numerical simulations to predict how each patient would respond to EGF and HRG stimulation in silico . We performed simulations for 377 patients, and extracted quantitative information, such as amplitude, duration, drop rate, and the cumulative response (see STAR methods for their definition), from the in silico dynamics of Akt, ERK, and c-Myc activation in each patient. This was followed by clustering of each patient based on dynamic features (Figure S3). Among these characteristics, we used amplitude, i.e., the maximum activation level for the classification of patients with breast cancer. Even though this dynamic feature cannot distinguish Luminal A and Luminal B subtypes, it could distinguish TNBC from other subtypes (Figure 3A). Notably, our network-based classifier divided the patients with TNBC into two clusters: cluster one and two for patients with poor and better prognoses, respectively (Figures 3B and 3C). A classical PAM50 classification method (Jiang et al., 2016; Koboldt et al., 2012; Nielsen et al., 2010), which is based on the expression signatures of 50 genes, was suitable for subtype classification but not for the prediction of TNBC prognosis (Figures S4A and S4B).
+To identify crucial genes for distinguishing clusters 1 and 2, we checked 253 differentially expressed transcripts (see STAR methods for the criteria of gene selection). However, there was no clear trend between these two clusters (Figure S5). From this result, we concluded that dynamical modeling is more suitable for the stratification of patients with TNBC rather than the standard gene expression profiles, and in silico signaling dynamics of ErbB signaling network can be utilized as a prognostic marker for TNBC.
+| Table 1. The criteria used for pre-processing TCGA-BRCA/CCLE-BREAST and TCGA-COAD/CCLE-BREAST samples   | Table 1. The criteria used for pre-processing TCGA-BRCA/CCLE-BREAST and TCGA-COAD/CCLE-BREAST samples   | Table 1. The criteria used for pre-processing TCGA-BRCA/CCLE-BREAST and TCGA-COAD/CCLE-BREAST samples   | Table 1. The criteria used for pre-processing TCGA-BRCA/CCLE-BREAST and TCGA-COAD/CCLE-BREAST samples   |
+|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| TCGA/CCLE                                                                                               | TCGA: Upper age limit                                                                                   | TCGA: Stages of cancer                                                                                  | Total read counts                                                                                       |
+| BRCA/BREAST                                                                                             | 59                                                                                                      | Stage I, Stage IA, Stage IB, Stage II, Stage IIA, Stage IIB                                             | Lower: 40,000,000 Upper: 140,000,000                                                                    |
+| COAD/BREAST                                                                                             | 79                                                                                                      | Stage I, Stage IA, Stage IB, Stage II, Stage IIA, Stage IIB                                             | Lower: 10,000,000 Upper: 160,000,000                                                                    |
 Figure 3. Stratification of patients with triple-negative breast cancer (TNBC) based on ErbB signaling dynamics
-(A) The patients are classified based on personalized simulations. The prognostic score for patients who deceased within n-1 to n years are donated by n, and
-patients who were alive after 20 years are denoted in yellow. The representative signal response characteristics were extracted from the topmost portion of
-each cluster. The blue and orange solid lines denote simulations with EGF and HRG stimulation, respectively. Shaded areas denote SD.
-(B and C) Kaplan-Meier survival curves of all patients for all clusters (B) and of patients with the basal-like subtype for clusters 1 and 2 (C).
-Furthermore, we performed undersampling and clustering analysis of the patients to determine the least
-number of samples required for stratification of TNBC. Initially, the number of patients was set to 30, with an
-increment of 20 in each step. We found that as the number exceeded 110, the patients with TNBC were
-classified into two clusters with differences in their prognosis being statistically significant (p < 0.05)
-(Figure S6). This shows the efficacy of this analytical method to classify patients with TNBC using relatively
-small number of samples.
+(A) The patients are classified based on personalized simulations. The prognostic score for patients who deceased within n-1 to n years are donated by n, and patients who were alive after 20 years are denoted in yellow. The representative signal response characteristics were extracted from the topmost portion of each cluster. The blue and orange solid lines denote simulations with EGF and HRG stimulation, respectively. Shaded areas denote SD. (B and C) Kaplan-Meier survival curves of all patients for all clusters (B) and of patients with the basal-like subtype for clusters 1 and 2 (C).
+Furthermore, we performed undersampling and clustering analysis of the patients to determine the least numberof samples required for stratification of TNBC. Initially, the number of patients was set to 30, with an increment of 20 in each step. We found that as the number exceeded 110, the patients with TNBC were classified into two clusters with differences in their prognosis being statistically significant (p < 0.05) (Figure S6). This shows the efficacy of this analytical method to classify patients with TNBC using relatively small number of samples.
 Identification of the mechanisms affecting patient prognosis
-Our clustering results showed that patients with TNBC displaying poor prognoses were associated with
-lower Akt, ERK, and c-Myc activities under HRG stimulation. Together with our model structure, we
-hypothesized that the signaling activity of HRG receptors (ErbB3, ErbB4, and their heterodimerization
-partner ErbB2) in this patient group could not efficiently transmit the downstream signal due to competitive
-interference from higher levels of EGFR. Consistent with this hypothesis, further analysis showed that the
-expression ratios of EGFR to the ErbB2, 3, and 4 receptors were higher in the poor prognosis group (Figure 4A). This result was also supported by the protein abundances predicted from our models (Figure S7).
-To further investigate the mechanisms that distinguish prognosis, we randomly sampled patients from
-each group and performed a sensitivity analysis, which examined how perturbations to the initial conditions
-(inferred from gene expression level) of the model species affected the c-Myc activity (model output). The
-result indicated that higher EGFR expression is associated with lower sensitivity to the EGFR inhibitors (Figure 4B). To test this hypothesis, we used CCLE drug response data (Barretina et al., 2012) for validation analysis. First, similar to patient-specific models, cell-line-specific models were constructed using their gene
-expression values and classified based on their dynamic features (Figure S8). Available breast cancer cell
-line data (n = 2 for both clusters 1 and 2) were not enough to satisfy the statistical tests. However, breast
-cancer cell lines in cluster 1 (relative EGFR expression level: high) seemed less sensitive to EGFR inhibitors
-than cluster 2 (relative EGFR expression level: low). To further validate this, we collected all types of cancer
-cell lines (n = 229) from CCLE, classified them in terms of ErbB receptor expression ratio, and analyzed drug
-sensitivity (Figure 4C). Drug efficacy and potency were quantified by the ‘‘activity area,’’ which was the area
-over the dose-response curve (Barretina et al., 2012). We found that cell lines with higher EGFR expression
-levels showed significantly lower sensitivity to EGFR inhibitors (erlotinib and lapatinib). There was no
-statistical significance for other inhibitors, such as MEK inhibitors (selumetinib and PD-0325901)
-(Figure 4D).
+Our clustering results showed that patients with TNBC displaying poor prognoses were associated with lower Akt, ERK, and c-Myc activities under HRG stimulation. Together with our model structure, we hypothesized that the signaling activity of HRG receptors (ErbB3, ErbB4, and their heterodimerization partner ErbB2) in this patient group could not efficiently transmit the downstream signal due to competitive interference from higher levels of EGFR. Consistent with this hypothesis, further analysis showed that the expression ratios of EGFR to the ErbB2, 3, and 4 receptors were higher in the poor prognosis group (Figure 4A). This result was also supported by the protein abundances predicted from our models (Figure S7). To further investigate the mechanisms that distinguish prognosis, we randomly sampled patients from each group and performed a sensitivity analysis, which examined how perturbations to the initial conditions (inferred from gene expression level) of the model species affected the c-Myc activity (model output). The result indicated that higher EGFR expression is associated with lower sensitivity to the EGFR inhibitors (Figure 4B). To test this hypothesis, we used CCLE drug response data (Barretina et al., 2012) for validation analysis. First, similar to patient-specific models, cell-line-specific models were constructed using their gene expression values and classified based on their dynamic features (Figure S8). Available breast cancer cell line data (n = 2 for both clusters 1 and 2) were not enough to satisfy the statistical tests. However, breast cancer cell lines in cluster 1 (relative EGFR expression level: high) seemed less sensitive to EGFR inhibitors than cluster 2 (relative EGFR expression level: low). To further validate this, we collected all types of cancer cell lines (n = 229) from CCLE, classified them in terms of ErbB receptor expression ratio, and analyzed drug sensitivity (Figure 4C). Drug efficacy and potency were quantified by the ''activity area,'' which was the area over the dose-response curve (Barretina et al., 2012). We found that cell lines with higher EGFR expression levels showed significantly lower sensitivity to EGFR inhibitors (erlotinib and lapatinib). There was no statistical significance for other inhibitors, such as MEK inhibitors (selumetinib and PD-0325901) (Figure 4D).
 Applying model-based stratification to other types of cancer
-We next tried if the same ErbB network model can stratify patients with different types of cancers. We
-selected colon cancer (Muzny et al., 2012), in which EGFR inhibitors are clinically used (Xie et al., 2020). After
-individualization of the ErbB network models by adding 189 individual transcriptomic datasets provided in
-TCGA database (TCGA-COAD), the models successfully classified their prognoses according to the argmax (the time at which the signal intensity reached the maximum) of c-Myc dynamics (Figures 5A–5C). Patients in cluster 4 showed poorer prognosis than other clusters even though their signaling dynamics were
-similar to those in cluster 3. To predict the mechanistic cause of the difference between clusters 3 and 4, we
-performed sensitivity analysis on time-integrated c-Myc response. The results of this analysis implied that in
-silico patients in cluster 4 showed lower sensitivity in EGFR (ErbB1) than those in cluster 3 (Figure 5), indicating that patients in this cluster may be more resistant to anti-EGFR treatments. In fact, a recent study
-found a significant correlation between c-MYC expression and anti-EGFR antibody resistance in metastatic
-colorectal cancer (Strippoli et al., 2020). Thus, our mathematical analysis potentially provides a mechanistic
-insight to explain the anti-EGFR therapy response of each patient.
-Identifying the prognostic factors and potential therapeutic drugs for individual patients is crucial for
-development of personalized medicine. Recent studies indicate that the temporal dynamics of signaling
-activities and transcription factors are critical for cell fate determination (Johnson and Toettcher, 2019;
+We next tried if the same ErbB network model can stratify patients with different types of cancers. We selected colon cancer (Muzny et al., 2012), in which EGFR inhibitors are clinically used (Xie et al., 2020). After individualization of the ErbB network models by adding 189 individual transcriptomic datasets provided in TCGA database (TCGA-COAD), the models successfully classified their prognoses according to the argmax (the time at which the signal intensity reached the maximum) of c-Myc dynamics (Figures 5A-5C). Patients in cluster 4 showed poorer prognosis than other clusters even though their signaling dynamics were similar to those in cluster 3. To predict the mechanistic cause of the difference between clusters 3 and 4, we performed sensitivity analysis on time-integrated c-Myc response. The results of this analysis implied that in silico patients in cluster 4 showed lower sensitivity in EGFR (ErbB1) than those in cluster 3 (Figure 5), indicating that patients in this cluster may be more resistant to anti-EGFR treatments. In fact, a recent study found a significant correlation between c-MYC expression and anti-EGFR antibody resistance in metastatic colorectal cancer (Strippoli et al., 2020). Thus, our mathematical analysis potentially provides a mechanistic insight to explain the anti-EGFR therapy response of each patient.
+Identifying the prognostic factors and potential therapeutic drugs for individual patients is crucial for development of personalized medicine. Recent studies indicate that the temporal dynamics of signaling activities and transcription factors are critical for cell fate determination (Johnson and Toettcher, 2019;
 Figure 4. ErbB receptor expression ratios are critical for determining drug sensitivity
-(A and B) Scatterplots of the epidermal growth factor receptor (EGFR) expression ratios to the sum of other ErbB receptor families: ERBB2, ERBB3, and
-ERBB4. Each dot represents one patient. (A) Purple and orange dots denote individual patients in clusters 1 and 2, respectively. (B) The corresponding
-response scores: the sum of the maximum level of three observables (pERK, pAkt, and pc-Myc) in response to HRG stimulation. Higher scores indicate a
-lower maximum level when stimulated with EGF.
+(A and B) Scatterplots of the epidermal growth factor receptor (EGFR) expression ratios to the sum of other ErbB receptor families: ERBB2, ERBB3, and ERBB4. Each dot represents one patient. (A) Purple and orange dots denote individual patients in clusters 1 and 2, respectively. (B) The corresponding response scores: the sum of the maximum level of three observables (pERK, pAkt, and pc-Myc) in response to HRG stimulation. Higher scores indicate a lower maximum level when stimulated with EGF.
 (C) Boxplots showing the ErbB receptor expression ratios in patients from clusters 1 and 2. The p value was calculated using the Brunner-Munzel test.
-(D) Sensitivity analysis of c-Myc activation on representative in silico patients with TNBC with high (upper panel) and low (lower panel) EGFR expression
-ratios.
-(E) The EGFR expression ratios to the sum of other ErbB receptor families in the cell lines provided in the CCLE. Based on the ratio, cell lines are classified into
-three groups, namely, ‘‘high’’: top 30, ‘‘low’’: bottom 30, and ‘‘middle’’: the other 169 cell lines.
-(F) Analysis of response profiles against anticancer drugs (MEK inhibitors: selumetinib, PD-0325901; EGFR inhibitors: erlotinib, lapatinib). The solid lines and
-shaded areas in dose-response curves denote the average and SD of relative viability of 30 cell lines in each cluster, respectively. The efficacy and potency of
-a drug are simultaneously quantified based on the ‘‘activity area’’ and the p values were calculated using the Brunner-Munzel test with a significance level of
-0.05.
-Manning et al., 2019; Purvis et al., 2012; Sasagawa et al., 2005). Fey et al. also indicated that JNK signaling
-metrics can be used as prognostic factors for neuroblastoma (Fey et al., 2015).
-Therefore, we hypothesized that signaling dynamics in individual patients with cancer can be used for
-classification and prediction of the prognosis and drug responses. To this end, we developed a scalable
-computational framework, Pasmopy, for patient-specific modeling and classification of cancers based on
-signaling dynamics. Besides developing these unique classification features, we used this framework to
-construct mechanistic models from texts describing biochemical reactions instead of formulating mathematical equations. In this study, we developed a model of ErbB receptor signaling network from text as
-a proof of concept. This method of building models will facilitate future studies investigating underlying
-mechanisms of various biological processes.
-Notably, we found that the selected gene panels used in our current ErbB model (Table S1) were not
-capable of classifying TNBC prognosis (Figures S9A and S9B), and they were not sufficient to identify
-the molecular mechanism (e.g., EGFR/ErbBs ratio) or drug response. EGFR overexpression has been
-reported in up to 78% of patients with TNBC (Park et al., 2014). We randomly sampled ‘‘in silico patients’’
-and performed sensitivity analyses, which surprisingly suggested that patients with higher EGFR expression ratios were less sensitive to EGFR inhibition. To test this model-based prediction, we used publicly
-available cell-line data and confirmed that cancer cell lines with higher EGFR expression ratios were less
-sensitive to anticancer drugs targeting EGFR, such as erlotinib and lapatinib. Thus, this framework not
-only allows us to classify patients but also provides potential mechanistic insight into the regulation of
-signaling pathways and drug resistance.
-Another advantage of our method is that it enables the computational analysis with a small number of data
-inputs. In this study, the model parameter was trained against experimental data consisting of four cell
-lines, three observables, two growth factors, and eight time-points. The number of our training datasets
-was much smaller than the one used in the earlier work (Fröhlich et al., 2018), in which datasets from 120
-cell lines treated with seven different drugs and up to nine concentrations of each were used to predict
-anticancer drug response in different cell lines. We confirmed that the model-predicted sensitive reactions
-in the ErbB network are highly conserved across 30 independent parameter sets. This indicates that
-parameter identifiability obtained from our modeling approach does not significantly affect the uncertainty
-of the model output.
-The models were personalized for each patient by incorporating individual gene expression data. Although
-similar approaches have been used in previous studies for JNK signaling (Fey et al., 2015) and HGF/Met
-signaling pathway to stratify patients with neuroblastoma (Jafarnejad et al., 2019), they needed to rescale
-the protein levels based on the fold changes in their mRNA levels in the tumor and healthy tissue. However,
-this scaling method narrows the potential use of mRNA information. We extended this method and used
-transcriptome data to infer the maximal translation rate of the corresponding proteins. This method allows
-us to develop larger models from genome-wide transcriptome datasets.
-Finally, we hypothesized that the critical molecular mechanism governing cancer prognosis might be
-shared, at least in part, by different types of cancers. This would explain why the same model (i.e., short
-term ErbB signaling dynamics within 120 min) can be used to classify patient prognosis in both breast
+(D) Sensitivity analysis of c-Myc activation on representative in silico patients with TNBC with high (upper panel) and low (lower panel) EGFR expression ratios.
+(E) The EGFR expression ratios to the sum of other ErbB receptor families in the cell lines provided in the CCLE. Based on the ratio, cell lines are classified into three groups, namely, ''high'': top 30, ''low'': bottom 30, and ''middle'': the other 169 cell lines.
+(F) Analysis of response profiles against anticancer drugs (MEK inhibitors: selumetinib, PD-0325901; EGFR inhibitors: erlotinib, lapatinib). The solid lines and shaded areas in dose-response curves denote the average and SD of relative viability of 30 cell lines in each cluster, respectively. The efficacy and potency of a drug are simultaneously quantified based on the ''activity area'' and the p values were calculated using the Brunner-Munzel test with a significance level of 0.05.
+Manning et al., 2019; Purvis et al., 2012; Sasagawa et al., 2005). Fey et al. also indicated that JNK signaling metrics can be used as prognostic factors for neuroblastoma (Fey et al., 2015).
+Therefore, we hypothesized that signaling dynamics in individual patients with cancer can be used for classification and prediction of the prognosis and drug responses. To this end, we developed a scalable computational framework, Pasmopy, for patient-specific modeling and classification of cancers based on signaling dynamics. Besides developing these unique classification features, we used this framework to construct mechanistic models from texts describing biochemical reactions instead of formulating mathematical equations. In this study, we developed a model of ErbB receptor signaling network from text as a proof of concept. This method of building models will facilitate future studies investigating underlying mechanisms of various biological processes.
+Notably, we found that the selected gene panels used in our current ErbB model (Table S1) were not capable of classifying TNBC prognosis (Figures S9A and S9B), and they were not sufficient to identify the molecular mechanism (e.g., EGFR/ErbBs ratio) or drug response. EGFR overexpression has been reported in up to 78% of patients with TNBC (Park et al., 2014). We randomly sampled '' in silico patients'' and performed sensitivity analyses, which surprisingly suggested that patients with higher EGFR expression ratios were less sensitive to EGFR inhibition. To test this model-based prediction, we used publicly available cell-line data and confirmed that cancer cell lines with higher EGFR expression ratios were less sensitive to anticancer drugs targeting EGFR, such as erlotinib and lapatinib. Thus, this framework not only allows us to classify patients but also provides potential mechanistic insight into the regulation of signaling pathways and drug resistance.
+Another advantage of our method is that it enables the computational analysis with a small number of data inputs. In this study, the model parameter was trained against experimental data consisting of four cell lines, three observables, two growth factors, and eight time-points. The number of our training datasets was much smaller than the one used in the earlier work (Fro ¨ hlich et al., 2018), in which datasets from 120 cell lines treated with seven different drugs and up to nine concentrations of each were used to predict anticancer drug response in different cell lines. We confirmed that the model-predicted sensitive reactions in the ErbB network are highly conserved across 30 independent parameter sets. This indicates that parameter identifiability obtained from our modeling approach does not significantly affect the uncertainty of the model output.
+The models were personalized for each patient by incorporating individual gene expression data. Although similar approaches have been used in previous studies for JNK signaling (Fey et al., 2015) and HGF/Met signaling pathway to stratify patients with neuroblastoma (Jafarnejad et al., 2019), they needed to rescale the protein levels based on the fold changes in their mRNA levels in the tumor and healthy tissue. However, this scaling method narrows the potential use of mRNA information. We extended this method and used transcriptome data to infer the maximal translation rate of the corresponding proteins. This method allows us to develop larger models from genome-wide transcriptome datasets.
+Finally, we hypothesized that the critical molecular mechanism governing cancer prognosis might be shared, at least in part, by different types of cancers. This would explain why the same model (i.e., short term ErbB signaling dynamics within 120 min) can be used to classify patient prognosis in both breast OPEN ACCESS
 Figure 5. Applying model-based patient stratification to colon cancer
-(A) A total of 189 patients were classified based on personalized simulations. The representative pc-Myc dynamics were extracted from the topmost portion
-of each cluster. The blue and orange solid lines denote simulations with EGF and HRG stimulation, respectively. Shaded areas denote SD. The metric
-‘‘argmax’’ denotes the time at which the simulated signal intensity reached the maximum.
+(A) A total of 189 patients were classified based on personalized simulations. The representative pc-Myc dynamics were extracted from the topmost portion of each cluster. The blue and orange solid lines denote simulations with EGF and HRG stimulation, respectively. Shaded areas denote SD. The metric ''argmax'' denotes the time at which the simulated signal intensity reached the maximum.
 (B) Kaplan-Meier survival curves of all patients for all clusters.
-(C) Boxplots showing individual argmax values in each cluster.
+- (C) Boxplots showing individual argmax values in each cluster.
 (D) Sensitivity analysis on the time-integrated response of EGF-induced pc-Myc for randomly sampled in silico patients in clusters 3 and 4.
-and colon cancers. Therefore, our study suggests that modeling approaches can be used to investigate the
-specificity and commonality of different types of cancer and evaluation of drug repositioning. In this study,
-we did not consider somatic mutations in the model. To support this, there was no clear trend on mutation
-types, at least for two TNBC clusters (Figure S10). However, gene mutations are tightly linked with
-treatment strategies in some types of cancer such as lung cancer (Collisson et al., 2014). Therefore,
-parameterization of mutational information to adapt the model to a wide range of cancer types can be
-done in future.
-This study focuses on the classification of patients with cancer based on the dynamics of ErbB receptor signaling
-pathways. However, we cannot exclude the possibility of other signaling pathways being involved in it. Our framework will be able to address these issues by expanding the network to include other receptors and players of cell
-cycle regulation, apoptotic pathways, or metabolic pathways. In the current study, we used the TCGA and CCLE
-datasets after normalization of TPM value of the transcripts. Therefore, users need to reconsider data normalization method when other methods such as microarrays or qRT-PCR are used.
+and colon cancers. Therefore, our study suggests that modeling approaches can be used to investigate the specificity and commonality of different types of cancer and evaluation of drug repositioning. In this study, we did not consider somatic mutations in the model. To support this, there was no clear trend on mutation types, at least for two TNBC clusters (Figure S10). However, gene mutations are tightly linked with treatment strategies in some types of cancer such as lung cancer (Collisson et al., 2014). Therefore, parameterization of mutational information to adapt the model to a wide range of cancer types can be done in future.
+This study focuses on the classification of patients with cancer based on the dynamics of ErbB receptor signaling pathways.However,wecannotexcludethepossibilityofothersignalingpathwaysbeinginvolvedinit.Ourframework will be able to address these issues by expanding the network to include other receptors and players of cell cycle regulation, apoptotic pathways, or metabolic pathways. In the current study, we used the TCGA and CCLE datasets after normalization of TPM value of the transcripts. Therefore, users need to reconsider data normalization method when other methods such as microarrays or qRT-PCR are used.
 Detailed methods are provided in the online version of this paper and include the following:
-B Data and code availability
-d EXPERIMENTAL MODELS AND SUBJECT DETAILS
-B Individualization of the mechanistic model
-B Data processing in transcriptomic data integration
-B Clustering breast cancer patients with gene expression level
-B Extraction of response characteristics
-B Drug response data analysis
-d QUANTIFICATION AND STATISTICAL ANALYSIS
+- d RESOURCE AVAILABILITY
+- B Materials availability
+- B Data and code availability
+- d EXPERIMENTAL MODELS AND SUBJECT DETAILS
+- B Individualization of the mechanistic model
+- B Data processing in transcriptomic data integration
+- B Clustering breast cancer patients with gene expression level
+- B Gene mutation analysis
+- B Extraction of response characteristics
+- B Drug response data analysis
+- d QUANTIFICATION AND STATISTICAL ANALYSIS
 Supplemental information can be found online at https://doi.org/10.1016/j.isci.2022.103944.
