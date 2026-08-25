@@ -139,6 +139,14 @@ def test_one_goal_yields_many_distinct_token_bags() -> None:
     The floor sits well under what the clause pool actually delivers
     (measured 460 here) so adding a template or a clause can never fail it,
     while removing the independent draw would.
+
+    The end-to-end effect is measured too, at 150 offline runs per arm of
+    this goal: the narrow space published no evolved idea in 10 of 150 runs
+    and the widened one in 0 of 150 (Fisher one-sided p = 0.0008). That
+    comparison is only valid with a cold LLM cache per arm -- run against
+    the shared one it reports no difference at all, because the second arm
+    is served the first arm's responses. ``tests/test_cache_isolation.py``
+    in the app suite is what keeps that from happening silently.
     """
     terms = subject_terms("Research Goal: cardiac fibrosis dynamics\n\n")
     assert len(terms) == 3, terms
