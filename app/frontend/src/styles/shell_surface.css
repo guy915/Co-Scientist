@@ -272,6 +272,72 @@
   stroke: currentColor;
 }
 
+/* Chat/Results switch for a session that has both (layout_session_switch.tsx).
+   The segmented recipe the Settings theme control already uses, sized for the
+   header bar. Sits in flow after the product lockup with margin-right:auto, so
+   the bar's space-between leaves it beside the lockup rather than pushing it
+   into the absolutely-positioned title and actions. */
+.ucs-session-switch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  margin-right: auto;
+  gap: 0.3rem;
+  border: 1px solid var(--cosci-border);
+  border-radius: 9999px;
+  background: var(--cosci-settings-segment-bg);
+  padding: 0.18rem;
+}
+
+.ucs-session-switch-side {
+  display: flex;
+  min-height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  color: var(--cosci-shell-icon);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding-inline: 0.85rem;
+  text-decoration: none;
+}
+
+:root[data-theme='dark'] .ucs-session-switch-side {
+  color: var(--cosci-muted);
+}
+
+/* Scoped to the inactive side so it never fights the selected pill below,
+   matching .ucs-theme-button's own hover rule. */
+.ucs-session-switch-side:not(.ucs-session-switch-side--active):hover,
+.ucs-session-switch-side:not(.ucs-session-switch-side--active):focus-visible {
+  background: var(--cosci-menu-row-hover);
+}
+
+/* Repeated under :root[data-theme='dark'] for the same reason the theme
+   segment repeats it: the dark color rule above would otherwise outrank this
+   one. The tokens themselves already flip per mode. */
+.ucs-session-switch-side--active,
+:root[data-theme='dark'] .ucs-session-switch-side--active {
+  background: var(--cosci-selected-row-bg);
+  color: var(--cosci-selected-row-fg);
+}
+
+.ucs-session-switch-icon {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+}
+
+/* The switch takes the title's place on a session route. The header bar has
+   room for the lockup, one centred title and the right-hand actions and no
+   more: with the switch added, a 760px-wide window painted the title straight
+   through both of them. Nothing is lost -- a run's title is already the
+   titlebar directly below, and a conversation's is the plan in the transcript.
+   A sibling selector rather than :has(), since the switch renders immediately
+   before the title. */
+.ucs-session-switch ~ .ucs-header-title {
+  display: none;
+}
+
 .ucs-header-title {
   /* Absolutely centered in the header bar, independent of the brand lockup
      (left) and the Logs actions (right, also absolute). Capped at a

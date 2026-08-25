@@ -1,6 +1,5 @@
 import {useParams} from 'react-router-dom';
 import {
-  type ChatSummary,
   discoveryReportPayload,
   isActiveStatus,
   primaryObjective,
@@ -8,7 +7,6 @@ import {
   type RunWithSummary,
   runGoal,
 } from '@/api/runs';
-import {useChatHistoryContext} from '@/workbench/hooks/chat_history_context';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
@@ -148,14 +146,6 @@ function awaitingDecisionCount(data: RunDetailData): number {
   return data.run?.awaiting_decision_count ?? 0;
 }
 
-// The conversation a run came from, when the rail knows of one.
-function chatIdForRun(
-  chats: readonly ChatSummary[],
-  id: string,
-): string | undefined {
-  return chats.find(chat => chat.run_id === id)?.id;
-}
-
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
@@ -165,9 +155,6 @@ export function RunDetail() {
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
   const data = useRunDetailData(id);
   const activity = useRunActivity(id, data);
-  // The conversation this run came from, so the titlebar's back arrow
-  // returns to it rather than to an empty workspace.
-  const {chats} = useChatHistoryContext();
 
   if (!id) return null;
 
@@ -176,14 +163,9 @@ export function RunDetail() {
   // exist or would present a partial run as finished.
   const showEndState = terminalEndStateOf(data.run) !== null;
   const showTabs = activity === 'inactive' && !showEndState;
-  const chatId = chatIdForRun(chats, id);
   return (
     <div className={reportPageClasses(showTabs)}>
-      <ReportTitlebar
-        title={data.title}
-        chatId={chatId}
-        activeTab={activeTab}
-      />
+      <ReportTitlebar title={data.title} activeTab={activeTab} />
 
       {showTabs && (
         <ReportTabNav

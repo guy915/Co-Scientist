@@ -52,6 +52,11 @@ const ICONS = {
   expand_less: 'keyboard_arrow_up',
   expand_more: 'keyboard_arrow_down',
   format_list_numbered: 'format_list_numbered',
+  // Two overlapping speech bubbles — the "Chat" side of the session switch,
+  // which pairs a conversation with the results it produced. Deliberately not
+  // the single 'chat' bubble, which reads as one message rather than a
+  // running transcript.
+  forum: 'forum',
   // Question-mark-in-a-circle — the reference settings menu's "Get help" row.
   help: 'help',
   // The recents clock-rewind glyph (clock face + counterclockwise arrow), not
@@ -62,6 +67,10 @@ const ICONS = {
   // Generation product renders in its agent glyph — not 'emoji_objects', which
   // adds a filament and radiating rays.
   lightbulb: 'lightbulb',
+  // Clipboard with a lab flask — the "Results" side of the session switch.
+  // The report tabs already spend 'summarize' on Research Overview, so the
+  // switch needs a glyph that names the whole report rather than one tab.
+  lab_profile: 'lab_profile',
   menu: 'menu',
   menu_book: 'menu_book',
   // Outlined brain — the settings menu's "Model" row. Reads as model/AI and

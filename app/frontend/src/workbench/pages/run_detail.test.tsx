@@ -73,7 +73,7 @@ beforeEach(() => {
   vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
 });
 
-it('sends the back arrow to the conversation this run came from', async () => {
+it('leaves the run for the workspace even when a chat started it', async () => {
   vi.mocked(runsApi.listInterviews).mockResolvedValue([
     {
       id: 'chat-7',
@@ -88,12 +88,14 @@ it('sends the back arrow to the conversation this run came from', async () => {
 
   renderAt('/runs/run-1/details');
 
-  // The rail sends a started session straight to its run, so this arrow is
-  // the only way back to the transcript — it must not land on an empty
-  // workspace, which is where every run used to send it.
-  expect(
-    await screen.findByRole('link', {name: 'Back to conversation'}),
-  ).toHaveAttribute('href', '/chats/chat-7');
+  // The session switch in the shell header is what returns to the
+  // transcript now (see SessionSwitch), so this arrow keeps one meaning on
+  // every run -- leave the run -- rather than changing destination based on
+  // whether a conversation happens to exist.
+  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
+    'href',
+    '/',
+  );
 });
 
 it('falls back to the workspace when no conversation started the run', async () => {

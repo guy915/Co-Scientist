@@ -130,43 +130,35 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
 // idea (?idea= on the ideas tab) wins: on mobile that detail view has no
 // back control of its own (see MobileIdeaView in ideas_tab.tsx), so this is
 // its only escape back to the ranked list short of the browser's own back
-// gesture. With no idea open, the control falls back to its original job of
-// leaving the run entirely -- the conversation it started from, or the
-// workspace.
+// gesture. With no idea open, the control means one thing on every run --
+// leave the run for the workspace. It used to divert to the conversation a
+// run came from, which is now the shell header's session switch's job (see
+// SessionSwitch): one arrow that changed destination depending on whether a
+// chat happened to exist made "back" unpredictable, and left a run started
+// outside a conversation with no way home at all.
 function reportBackTarget(
   id: string | undefined,
-  chatId: string | undefined,
   selectedIdeaId: string | null,
 ): {to: string; label: string} {
   if (id && selectedIdeaId) {
     return {to: tabPath(id, 'ideas'), label: 'Back to ranked ideas'};
   }
-  return {
-    to: chatId ? `/chats/${chatId}` : '/',
-    label: chatId ? 'Back to conversation' : 'Back',
-  };
+  return {to: '/', label: 'Back'};
 }
 
 /**
  * Titlebar: back link plus the run's (possibly domain-overridden) title.
  *
  * @param title The run's display title.
- * @param chatId The conversation this run was started from, when the rail
- *   knows of one. The rail sends such a session straight to its run, so
- *   this arrow is what keeps the transcript reachable; without a chat it
- *   falls back to the workspace, as it always did -- unless an idea is open
- *   (see reportBackTarget), in which case the arrow stays inside the run.
  * @param activeTab The currently active report tab, so the back control
  *   knows whether an `?idea=` param belongs to the ideas tab (and is thus a
  *   live detail selection) or is stale from a different tab.
  */
 export function ReportTitlebar({
   title,
-  chatId,
   activeTab,
 }: {
   title: string;
-  chatId?: string;
   activeTab?: TabName;
 }) {
   const {id} = useParams<{id: string}>();
@@ -179,7 +171,7 @@ export function ReportTitlebar({
   // who pressed Back to get out.
   const selectedIdeaId =
     isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
-  const back = reportBackTarget(id, chatId, selectedIdeaId);
+  const back = reportBackTarget(id, selectedIdeaId);
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
       <div className={REPORT_TITLE_LEFT_CLASSES}>
