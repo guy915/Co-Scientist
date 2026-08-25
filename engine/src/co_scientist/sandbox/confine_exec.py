@@ -27,6 +27,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 from co_scientist.sandbox import landlock, seccomp
 from co_scientist.sandbox.policy import SandboxKind, SandboxPolicy
@@ -38,7 +39,7 @@ EXIT_POLICY_REFUSED = 122
 EXIT_EXEC_FAILED = 123
 
 
-def _fail(code: int, message: str) -> None:
+def _fail(code: int, message: str) -> NoReturn:
     """Reports why the command will not run, and does not run it."""
     print(f"confine_exec: {message}", file=sys.stderr)
     raise SystemExit(code)
