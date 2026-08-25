@@ -1,27 +1,17 @@
 import {useMemo} from 'react';
-import {Icon, type IconName} from '@/components/icon';
-import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
+import type {StreamEvent} from '@/hooks/use_run_stream';
 import type {DiscoveryObjective} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {formatMeasured} from '@/lib/objectives';
-import {capitalizeTerm} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
-import {joinClasses} from '../classes';
 import {RunExecutionProgress} from './home_recents_run_steps';
+import {windowedActivityGroups} from './run_detail_activity';
+import {ActivityLog} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
 
-const IDLE_NOTE_CLASSES =
-  'mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5';
-const IDLE_DOT_CLASSES =
-  'size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted';
-const PULSE_RING_CLASSES =
-  'absolute inline-flex size-full animate-ping rounded-full bg-th-primary';
-const PULSE_DOT_CLASSES =
-  'relative inline-flex size-2.5 rounded-full bg-th-primary';
-const TIMELINE_RAIL_CLASSES =
-  'absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border';
-const TIMELINE_ROW_CLASSES =
-  'flex min-h-[2.125rem] items-center justify-between gap-3';
+// Cards shown in the activity log, not raw events -- see the comment on
+// the useMemo below for why the window moved to that unit.
+const ACTIVITY_WINDOW = 10;
 
 /**
  * Live view of an in-flight run: the execution-progress flow, the headline
@@ -123,13 +113,16 @@ export function ActiveRunView(props: ActiveRunViewProps) {
   const nowSeconds = useNowTick(1000);
   const elapsed = elapsedLabel(run, nowSeconds);
   // Memoized on the events so the per-second clock ticks above don't re-scan
-  // the whole event list just to advance timestamps.
-  const activity = useMemo(
+  // the whole event list just to advance timestamps. Windowed by GROUP, not
+  // raw event, so a long run of one activity (a tournament's many matches)
+  // collapses to one card instead of consuming the whole window itself --
+  // see windowedActivityGroups for why that reversal matters.
+  const activityGroups = useMemo(
     () =>
-      events
-        .filter(event => event.type !== 'status')
-        .slice(-10)
-        .reverse(),
+      windowedActivityGroups(
+        events.filter(event => event.type !== 'status'),
+        ACTIVITY_WINDOW,
+      ),
     [events],
   );
   return (
@@ -147,63 +140,12 @@ export function ActiveRunView(props: ActiveRunViewProps) {
         </div>
         <RunMetrics elapsed={elapsed} metrics={headlineMetrics(props)} />
         <ActivityLog
-          activity={activity}
+          groups={activityGroups}
           connection={run.stream_connection}
           nowSeconds={nowSeconds}
         />
       </section>
     </main>
-  );
-}
-
-// The streaming activity timeline, newest first, with an empty-state note
-// until the first event lands.
-function ActivityLog({
-  activity,
-  connection,
-  nowSeconds,
-}: {
-  activity: StreamEvent[];
-  connection: StreamConnectionState | undefined;
-  nowSeconds: number;
-}) {
-  return (
-    <section aria-label="Activity log">
-      <div className="flex items-center gap-2.5">
-        {connection === 'open' || connection === undefined ? (
-          <LivePulse />
-        ) : (
-          <StreamStatusDot connection={connection} />
-        )}
-        {/* `my-0`: an <h3>'s 1em user-agent block margin does not collapse
-            inside this flex row, so it survived as 16px of padding above
-            the heading. The section's own gap already spaces the cards
-            from this log, and that extra 16px landed on one side of them
-            only — 44px of white below the cards against 27px above. */}
-        <h3 className="my-0 text-base font-medium">Live activity</h3>
-        <StreamStatusNote connection={connection} />
-      </div>
-      {activity.length ? (
-        <ol className="mt-5">
-          {activity.map((event, index) => (
-            <ActivityItem
-              key={event.seq}
-              event={event}
-              isLatest={index === 0}
-              isLast={index === activity.length - 1}
-              now={nowSeconds}
-            />
-          ))}
-        </ol>
-      ) : (
-        <div className={IDLE_NOTE_CLASSES}>
-          <span className={IDLE_DOT_CLASSES} />
-          <p className="text-sm text-cosci-muted">
-            Warming up — the first steps will appear here in a moment.
-          </p>
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -215,279 +157,5 @@ function RunMetric({label, value}: {label: string; value: string}) {
           out of line with the label it belongs to. */}
       <dd className="mt-1 ms-0 text-xl font-medium">{value}</dd>
     </div>
-  );
-}
-
-// Title, icon, and accent tone for each phase of the live-activity timeline,
-// keyed by the base node name (the part before any dotted qualifier, e.g.
-// supervisor.plan). One table so a phase's presentation can't half-drift.
-interface ActivityMeta {
-  title: string;
-  icon: IconName;
-  tone: string;
-}
-
-// The safety screen surfaces under two phase names (the engine node
-// `safety_screen` and the dotted `safety.*` event kind); both render the same.
-const SAFETY_META: ActivityMeta = {
-  title: 'Safety screening',
-  icon: 'encrypted',
-  tone: 'text-th-warning',
-};
-
-const ACTIVITY_META: Record<string, ActivityMeta> = {
-  bootstrap: {
-    title: 'Initializing run',
-    icon: 'settings',
-    tone: 'text-cosci-muted',
-  },
-  created: {title: 'Run created', icon: 'check', tone: 'text-cosci-muted'},
-  queued: {title: 'Queued', icon: 'history', tone: 'text-cosci-muted'},
-  completed: {title: 'Run complete', icon: 'check', tone: 'text-th-success'},
-  supervisor: {
-    title: 'Planning strategy',
-    icon: 'assignment',
-    tone: 'text-th-primary',
-  },
-  orchestrator: {
-    title: 'Coordinating agents',
-    icon: 'assignment',
-    tone: 'text-th-primary',
-  },
-  literature_review: {
-    title: 'Reviewing literature',
-    icon: 'menu_book',
-    tone: 'text-cosci-teal',
-  },
-  generate: {
-    title: 'Generating hypotheses',
-    icon: 'lightbulb',
-    tone: 'text-th-primary',
-  },
-  reflection: {
-    title: 'Reflecting on ideas',
-    icon: 'neurology',
-    tone: 'text-th-success',
-  },
-  comprehensive_reflection: {
-    title: 'Deep reflection',
-    icon: 'neurology',
-    tone: 'text-th-success',
-  },
-  review: {
-    title: 'Reviewing hypotheses',
-    icon: 'rate_review',
-    tone: 'text-th-success',
-  },
-  deep_verification: {
-    title: 'Verifying assumptions',
-    icon: 'check',
-    tone: 'text-th-success',
-  },
-  ranking: {
-    title: 'Ranking tournament',
-    icon: 'emoji_events',
-    tone: 'text-th-warning',
-  },
-  meta_review: {
-    title: 'Synthesizing meta-review',
-    icon: 'summarize',
-    tone: 'text-th-primary',
-  },
-  research_overview: {
-    title: 'Building research overview',
-    icon: 'stars',
-    tone: 'text-th-primary',
-  },
-  evolve: {
-    title: 'Evolving hypotheses',
-    icon: 'edit_square',
-    tone: 'text-cosci-blue',
-  },
-  proximity: {
-    title: 'Mapping the idea landscape',
-    icon: 'chess',
-    tone: 'text-cosci-teal',
-  },
-  safety_screen: SAFETY_META,
-  safety: SAFETY_META,
-};
-
-// A payload field as a string, falling back to '' when it is absent.
-function payloadFieldOrEmpty(value: unknown): string {
-  return String(value ?? '');
-}
-
-// The phase a step represents. scientific_task events carry the engine node in
-// payload.task and lifecycle events carry it in payload.event; other kinds
-// (e.g. safety.intake) are named by their own dotted type.
-function activityPhase(event: StreamEvent): string {
-  if (event.type === 'scientific_task') {
-    return payloadFieldOrEmpty(event.payload.task);
-  }
-  if (event.type === 'lifecycle') {
-    return payloadFieldOrEmpty(event.payload.event);
-  }
-  return event.type.split('.')[0] ?? event.type;
-}
-
-// Meta for a phase, humanizing unknown phases from their node name with the
-// default icon/tone.
-function activityMeta(phase: string): ActivityMeta {
-  const known = ACTIVITY_META[phase];
-  if (known) return known;
-  const words = phase.replaceAll('_', ' ').replaceAll('.', ' ');
-  return {
-    title: capitalizeTerm(words),
-    icon: 'history',
-    tone: 'text-cosci-muted',
-  };
-}
-
-// A human detail line when the event carries one (a message or a safety
-// rationale). Phase-only steps render just their title and timestamp; the task
-// field is the phase itself, so it never doubles as the detail.
-function activityDetail(event: StreamEvent): string {
-  const detail = event.payload.message || event.payload.reason;
-  return detail ? String(detail) : '';
-}
-
-// Compact relative age of an event, e.g. "just now", "8s ago", "2m ago".
-function relativeTime(createdAt: number | undefined, now: number): string {
-  if (!createdAt) return '';
-  const seconds = Math.max(0, Math.round(now - createdAt));
-  if (seconds < 5) return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  return `${Math.round(seconds / 60)}m ago`;
-}
-
-// A small sonar dot signalling the feed is live.
-function LivePulse() {
-  return (
-    <span className="relative flex size-2.5" aria-hidden="true">
-      <span className={PULSE_RING_CLASSES} />
-      <span className={PULSE_DOT_CLASSES} />
-    </span>
-  );
-}
-
-// Labels for every transport state that is not a healthy open connection.
-// 'open' and a missing state (a stream double with no transport field)
-// render nothing — neither is a degraded condition to surface.
-const STREAM_STATUS_LABEL: Record<
-  Exclude<StreamConnectionState, 'open'>,
-  string
-> = {
-  connecting: 'Connecting...',
-  reconnecting: 'Reconnecting...',
-  disconnected: 'Stream disconnected',
-};
-
-// The pulse dot claims the feed is live, so a stream that is not open gets
-// this static marker in its place instead of passing as healthy.
-function StreamStatusDot({
-  connection,
-}: {
-  connection: Exclude<StreamConnectionState, 'open'>;
-}) {
-  return (
-    <span className="relative flex size-2.5" aria-hidden="true">
-      <span
-        className={joinClasses(
-          'inline-flex size-2.5 rounded-full',
-          connection === 'connecting' ? 'bg-cosci-muted' : 'bg-th-warning',
-        )}
-      />
-    </span>
-  );
-}
-
-// A quiet status line naming the stream's degraded transport state. It sits
-// in the activity header because that heading is the element claiming the
-// feed is live; role="status" lets assistive tech hear the change.
-function StreamStatusNote({
-  connection,
-}: {
-  connection: StreamConnectionState | undefined;
-}) {
-  if (connection === undefined || connection === 'open') return null;
-  return (
-    <span
-      role="status"
-      className={joinClasses(
-        'text-xs',
-        connection === 'connecting' ? 'text-cosci-muted' : 'text-th-warning',
-      )}
-    >
-      {STREAM_STATUS_LABEL[connection]}
-    </span>
-  );
-}
-
-// The phase icon disc on the connector rail; the latest step's disc is
-// filled and gently pulses so it reads as "happening now".
-function ActivityDisc({
-  icon,
-  tone,
-  isLatest,
-}: {
-  icon: IconName;
-  tone: string;
-  isLatest: boolean;
-}) {
-  return (
-    <span
-      className={joinClasses(
-        'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
-        'rounded-full',
-        isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
-      )}
-    >
-      <Icon
-        name={icon}
-        className={joinClasses(
-          'text-[1.15rem]',
-          isLatest ? 'text-th-primary-fg' : tone,
-        )}
-      />
-    </span>
-  );
-}
-
-// One node in the vertical activity timeline: a phase icon on the connector
-// rail, then the phase title, its detail, and how long ago it landed.
-function ActivityItem({
-  event,
-  isLatest,
-  isLast,
-  now,
-}: {
-  event: StreamEvent;
-  isLatest: boolean;
-  isLast: boolean;
-  now: number;
-}) {
-  const {title, icon, tone} = activityMeta(activityPhase(event));
-  const detail = activityDetail(event);
-  return (
-    <li className="relative flex gap-4 pb-6 last:pb-0">
-      {!isLast && <span aria-hidden="true" className={TIMELINE_RAIL_CLASSES} />}
-      <ActivityDisc icon={icon} tone={tone} isLatest={isLatest} />
-      <div className="min-w-0 flex-1">
-        {/* Sized to the disc and centred on its axis; both paragraphs zero
-            their own user-agent margins or the row drifts off-centre. */}
-        <div className={TIMELINE_ROW_CLASSES}>
-          <p className="my-0 truncate font-medium text-cosci-fg">{title}</p>
-          <span className="shrink-0 text-xs text-cosci-muted">
-            {relativeTime(event.created_at, now)}
-          </span>
-        </div>
-        {detail ? (
-          <p className="mb-0 mt-0.5 line-clamp-2 text-sm text-cosci-muted">
-            {detail}
-          </p>
-        ) : null}
-      </div>
-    </li>
   );
 }
