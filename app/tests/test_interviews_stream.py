@@ -97,6 +97,7 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
         await consumer
 
     after = store.get_interview(interview_id, db_path=isolated_db)
+    assert after is not None
     assert after == before
     assert [t["role"] for t in after["turns"]] == ["user", "user"]
 

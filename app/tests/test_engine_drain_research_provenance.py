@@ -63,7 +63,7 @@ def _ledger() -> dict[str, Any]:
         span="TGF-beta blockade reduced fibrosis.",
         call_id=_CALL.id,
     )
-    return result_to_dict(
+    ledger: dict[str, Any] = result_to_dict(
         ResearchResult(
             goal="reverse fibrosis",
             stances=(),
@@ -83,6 +83,7 @@ def _ledger() -> dict[str, Any]:
             levels_run=1,
         )
     )
+    return ledger
 
 
 def _final_state(*, researched: bool) -> dict[str, Any]:
@@ -196,7 +197,7 @@ _REVIEW_CALL = SearchCall(
 
 def _review_ledger() -> dict[str, Any]:
     """A second research request, from one hypothesis's own review."""
-    return result_to_dict(
+    ledger: dict[str, Any] = result_to_dict(
         ResearchResult(
             goal="reverse fibrosis",
             stances=(),
@@ -216,6 +217,7 @@ def _review_ledger() -> dict[str, Any]:
             levels_run=1,
         )
     )
+    return ledger
 
 
 def test_every_researcher_in_a_run_leaves_its_searches_on_record(

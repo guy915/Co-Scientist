@@ -306,7 +306,7 @@ lint:
 # Mirrors the CI typecheck job, which covers engine/ as well as app/ and
 # evaluations/.
 typecheck:
-	@cd "$(APP)" && "$(PY)" -m mypy app/
+	@cd "$(APP)" && "$(PY)" -m mypy .
 	@cd "$(ENGINE)" && "$(PY)" -m mypy .
 	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
 

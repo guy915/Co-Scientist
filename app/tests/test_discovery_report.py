@@ -20,6 +20,7 @@ import pytest
 
 from app import discovery_report, engine_tasks, store
 from app.engine_tasks_variants_schedule import enqueue_discovery_bootstrap
+from tests._store_helpers import _existing_report, _existing_run
 
 _GOOD = "import json\njson.dump({'score': 7.0}, open('metrics.json', 'w'))\n"
 _CRASHES = "raise RuntimeError('boom')\n"
@@ -84,14 +85,16 @@ async def test_a_finished_run_publishes_a_report(
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
 
-    assert store.get_run(run.id).status == "completed"
+    assert _existing_run(run.id).status == "completed"
     report = store.get_latest_report(run.id)
     assert report is not None
     payload = report["payload"]
     assert payload["report_kind"] == "discovery"
     assert payload["variant_count"] == 1
     assert payload["best_fitness"] == 7.0
-    assert "beat the baseline" in store.read_report_markdown(run.id)
+    markdown = store.read_report_markdown(run.id)
+    assert markdown is not None
+    assert "beat the baseline" in markdown
 
 
 @pytest.mark.asyncio
@@ -104,7 +107,7 @@ async def test_the_payload_borrows_no_hypothesis_counts(
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
 
-    payload = store.get_latest_report(run.id)["payload"]
+    payload = _existing_report(run.id)["payload"]
     for borrowed in (
         "hypothesis_count",
         "idea_count",
@@ -130,7 +133,7 @@ async def test_a_report_that_cannot_be_built_still_completes_the_run(
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
 
-    assert store.get_run(run.id).status == "completed"
+    assert _existing_run(run.id).status == "completed"
     assert store.get_latest_report(run.id) is None
 
 
@@ -221,7 +224,7 @@ async def test_a_failing_event_write_does_not_retry_the_finished_run(
     enqueue_discovery_bootstrap(run.id)
     await _drain(run.id)
 
-    assert store.get_run(run.id).status == "completed"
+    assert _existing_run(run.id).status == "completed"
     assert store.get_latest_report(run.id) is not None
 
 
@@ -236,6 +239,7 @@ async def test_failed_attempts_keep_their_place_in_the_report(
     await _drain(run.id)
 
     markdown = store.read_report_markdown(run.id)
+    assert markdown is not None
     assert "| 1 | seed | failed | — |" in markdown
     assert "No attempt produced a usable score." in markdown
 

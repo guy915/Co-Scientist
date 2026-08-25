@@ -190,7 +190,7 @@ jobs:
         run: python -m mypy .
       - name: Typecheck app
         working-directory: app
-        run: python -m mypy app/
+        run: python -m mypy .
       - name: Typecheck evaluations
         working-directory: evaluations
         run: python -m mypy .

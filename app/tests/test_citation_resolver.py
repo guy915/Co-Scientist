@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 import pytest
 
-from app import citation_resolver
+from app import citation_resolver, retraction_set
 from app.claims_gate import Resolvability
 
 
@@ -296,7 +296,7 @@ def test_offline_retracted_doi_short_circuits_before_network(
     """A DOI in the offline set resolves RETRACTED without a network call."""
     calls: list[str] = []
     monkeypatch.setattr(
-        citation_resolver.retraction_set,
+        retraction_set,
         "is_known_retracted",
         lambda doi: doi == "10.1000/offline-flagged",
     )
@@ -320,7 +320,7 @@ def test_doi_absent_from_offline_set_still_resolves_normally(
     It falls through to the live dereference check.
     """
     monkeypatch.setattr(
-        citation_resolver.retraction_set,
+        retraction_set,
         "is_known_retracted",
         lambda doi: False,
     )
@@ -347,9 +347,7 @@ def test_source_flagged_retraction_never_consults_the_offline_set(
     def _fail_if_called(doi: str) -> bool:
         raise AssertionError("offline retraction set consulted needlessly")
 
-    monkeypatch.setattr(
-        citation_resolver.retraction_set, "is_known_retracted", _fail_if_called
-    )
+    monkeypatch.setattr(retraction_set, "is_known_retracted", _fail_if_called)
 
     verdict = citation_resolver.resolve_one(
         doi="10.1000/already-flagged", pmid="", url="", retracted=True

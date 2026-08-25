@@ -19,6 +19,7 @@ from app import store
 from app.discovery_dataset import MAX_DATASET_BYTES, dataset_files
 from app.discovery_spec import DiscoverySpecError, evaluator_spec
 from tests._client import make_client as _client
+from tests._store_helpers import _existing_run
 
 
 def _spec(**overrides: Any) -> dict[str, Any]:
@@ -78,7 +79,7 @@ class TestCreation:
         response = _create(client, dataset={"d.csv": "a,b\n1,2\n"})
         assert response.status_code in (200, 201)
         run_id = response.json()["id"]
-        block = store.get_run(run_id).config["discovery"]
+        block = _existing_run(run_id).config["discovery"]
         assert "dataset" not in block
         assert block["dataset_paths"] == ["d.csv"]
 
@@ -104,7 +105,7 @@ class TestReachingTheProgram:
         self, client: TestClient
     ) -> None:
         run_id = _create(client, dataset={"d.csv": "a\n"}).json()["id"]
-        spec = evaluator_spec(store.get_run(run_id).config)
+        spec = evaluator_spec(_existing_run(run_id).config)
         assert spec.dataset_paths == ("d.csv",)
 
     def test_the_prompt_names_the_files_but_not_their_contents(self) -> None:
@@ -166,7 +167,7 @@ class TestReachingTheProgram:
         result = await evaluate_confined(
             session,
             EvaluationRequest(
-                spec=evaluator_spec(store.get_run(run_id).config),
+                spec=evaluator_spec(_existing_run(run_id).config),
                 files={"main.py": program},
             ),
         )

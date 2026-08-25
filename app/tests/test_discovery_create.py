@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests._client import make_client as _client
+from tests._store_helpers import _existing_report, _existing_run
 
 
 def _spec(**overrides: Any) -> dict[str, Any]:
@@ -126,10 +127,9 @@ async def test_an_api_created_run_reaches_the_discovery_loop(
 
     variants = store.list_code_variants(created["id"])
     assert [v["source"] for v in variants] == [_spec()["seed_source"]]
-    assert store.get_run(created["id"]).status == "completed"
+    assert _existing_run(created["id"]).status == "completed"
     assert (
-        store.get_latest_report(created["id"])["payload"]["report_kind"]
-        == "discovery"
+        _existing_report(created["id"])["payload"]["report_kind"] == "discovery"
     )
 
 

@@ -154,6 +154,16 @@ follow_imports = "skip"
 module = ["pypdf", "pypdf.*"]
 ignore_missing_imports = true
 
+# `exclude` stops mypy crawling dev/, but a test imports dev.corpus_ingest and
+# following an import ignores exclude -- which drags in docling, deliberately
+# not a dependency (it is the offline-only corpus re-extraction backend,
+# imported lazily there and never shipped). Skip across the boundary instead,
+# the same way co_scientist is treated above.
+[[tool.mypy.overrides]]
+module = ["dev.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

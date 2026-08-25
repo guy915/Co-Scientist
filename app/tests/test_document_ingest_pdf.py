@@ -87,7 +87,7 @@ def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
     This is the fail-soft floor -- heading inference must never change a
     document that gives it nothing to infer from.
     """
-    lines = [
+    lines: list[tuple[str, str, float, float, float]] = [
         ("A plain narrative paragraph about the assay.", "F1", 10, 50, 450),
         ("A second plain paragraph, same size.", "F1", 10, 50, 430),
     ]

@@ -37,7 +37,7 @@ def _families(text: str) -> dict[str, Any]:
 def _sample_value(family: Any, **labels: str) -> float | None:
     for sample in family.samples:
         if all(sample.labels.get(k) == v for k, v in labels.items()):
-            return sample.value
+            return float(sample.value)
     return None
 
 
