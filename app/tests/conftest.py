@@ -4,11 +4,43 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shutil
+import tempfile
 from collections.abc import Iterator
 
 import pytest
 
-from app.config import PROVIDER_CREDENTIAL_ENV
+# The engine's LLM cache is enabled by default and its directory resolves
+# relative to the working directory, so a suite run from app/ writes into
+# app/cache -- the same directory every previous run wrote into, gitignored,
+# so it never appears as working-tree state. It had reached 250,000 files and
+# 386 MB on this machine.
+#
+# That is a correctness problem, not just clutter. The cache is consulted
+# before the offline router, so a test can be served a response recorded by an
+# earlier run under different code, and a measurement comparing two versions
+# of generation silently compares one version with itself. That happened: an
+# A/B over 150 runs per arm showed no difference on the shared cache, and a
+# real one (10 failures against 0) once each arm had its own.
+#
+# This must run before ``app.config`` is imported, which is why it sits above
+# the import rather than in a fixture. ``Settings()`` is instantiated at that
+# module's import time and ``app.main`` later bridges the value it captured
+# back into the environment, so a directory chosen after the import is
+# overwritten by the default. ``setdefault`` leaves a deliberately exported
+# value alone, for debugging against a warm cache.
+_CACHE_DIR = tempfile.mkdtemp(prefix="coscientist-test-cache-")
+os.environ.setdefault("COSCIENTIST_CACHE_DIR", _CACHE_DIR)
+
+from app.config import PROVIDER_CREDENTIAL_ENV  # noqa: E402
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _discard_the_session_cache() -> Iterator[None]:
+    """Remove this session's LLM cache directory when the suite ends."""
+    yield
+    shutil.rmtree(_CACHE_DIR, ignore_errors=True)
+
 
 # Provider credentials LiteLLM/the engine may read from the environment. The
 # suite must be hermetic: a dev machine's real keys must never leak in and let
