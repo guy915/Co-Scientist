@@ -1,8 +1,6 @@
 import {useParams} from 'react-router-dom';
 import {
-  discoveryReportPayload,
   isActiveStatus,
-  primaryObjective,
   type RunStatus,
   type RunWithSummary,
   runGoal,
@@ -11,7 +9,6 @@ import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
-import {DiscoveryReportView} from './run_detail_discovery_report';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
@@ -29,8 +26,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {VariantsSection} from './run_detail_variants';
-import {normalizeTab, tabsForRun, type TabName} from '../run_tabs';
+import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 // max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
 // --report was given a horizontal-scroll fallback for content that shrinks
@@ -50,13 +46,6 @@ const REPORT_SCROLL_CLASSES =
 const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
-
-// Whether a run evolves programs rather than ideas. Read from the config
-// key that makes it one, so the nav cannot disagree with what the backend
-// actually scheduled.
-function isDiscoveryRun(run: RunWithSummary | null): boolean {
-  return run?.config?.discovery !== undefined;
-}
 
 // Whether the run is executing. 'unknown' is a real third state: until the
 // run row (or the shell's history) says otherwise, neither the results chrome
@@ -171,7 +160,7 @@ export function RunDetail() {
         <ReportTabNav
           activeTab={activeTab}
           onTabChange={onTabChange}
-          tabs={tabsForRun(isDiscoveryRun(data.run))}
+          tabs={TABS}
         />
       )}
 
@@ -223,31 +212,21 @@ function RunDetailBody({
   );
 }
 
-// The live view of an in-flight run, told what kind of run it is: a
-// discovery run counts attempts where a hypothesis run counts ideas.
+// The live view of an in-flight run.
 function LiveRunSection({data}: {data: RunDetailData}) {
   if (!data.run) return null;
   return (
     <ActiveRunView
       run={data.run}
       events={data.events}
-      isDiscovery={isDiscoveryRun(data.run)}
-      objective={primaryObjective(data.run.config?.discovery)}
       evidenceCount={Math.max(data.evidence.length, data.run.summary.evidence)}
       ideaCount={Math.max(data.hypotheses.length, data.run.summary.hypotheses)}
     />
   );
 }
 
-// The Overview tab body. A discovery run's report shares no field with a
-// hypothesis run's, so which one exists decides the view -- read off the
-// payload the backend actually wrote rather than off the run's config, so
-// the surface cannot claim a report shape that was never persisted.
+// The Overview tab body.
 function OverviewSection({data}: {data: RunDetailData}) {
-  const discovery = discoveryReportPayload(data.report);
-  if (discovery && data.report) {
-    return <DiscoveryReportView report={data.report} payload={discovery} />;
-  }
   return (
     <ResearchOverviewView
       run={data.run}
@@ -304,7 +283,6 @@ const TAB_SECTIONS: Record<
   ideas: (ideasViewKey, data) => (
     <IdeasSection ideasViewKey={ideasViewKey} data={data} />
   ),
-  variants: (_key, data) => <VariantsSection runId={data.run?.id ?? ''} />,
 };
 
 // The active tab's content section.

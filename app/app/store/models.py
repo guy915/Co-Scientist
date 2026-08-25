@@ -77,14 +77,6 @@ class RunRow:
     # ``ranking``), populated by ``list_runs`` to drive the live progress
     # indicator. None on single-run reads and runs with no stage events yet.
     latest_stage: str | None = None
-    # A discovery run's attempts and best score, populated by ``list_runs``
-    # the way top_elo/top_hypotheses are for a hypothesis run -- the two
-    # kinds of run have nothing in common to summarize, so a list card
-    # showing an empty ideas block reads as a run that produced nothing.
-    # 0/None on single-run reads and on a run with no variants; a best of
-    # None means nothing scored, which is not a score of zero.
-    variant_count: int = 0
-    best_fitness: float | None = None
     # LLM backend the run executed against: "offline" (deterministic router)
     # or "real". None on rows created before the column existed; the
     # ``run_used_offline`` helper falls back to the provider for those.
@@ -111,8 +103,6 @@ class RunRow:
             "top_elo": self.top_elo,
             "top_hypotheses": self.top_hypotheses,
             "latest_stage": self.latest_stage,
-            "variant_count": self.variant_count,
-            "best_fitness": self.best_fitness,
             "llm_backend": self.llm_backend,
         }
 

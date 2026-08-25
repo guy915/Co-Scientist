@@ -176,19 +176,10 @@ def _has_paused_engine_task(run_id: str) -> bool:
 def _is_resumable(run_id: str) -> bool:
     """Report whether anything durable exists for this run to resume from.
 
-    Three shapes, one question. A checkpoint restores a hypothesis run's
-    engine state; a paused engine task is a run the user stopped; and a
-    discovery run's progress lives in its variants and task rows rather
-    than in a checkpoint it never writes. Asking only the first two
-    refused a resume for the one kind of run whose state is entirely
-    durable -- and, because startup reconciliation asked the same
-    narrowed question, failed it on every restart.
+    Two shapes, one question. A checkpoint restores the run's engine
+    state; a paused engine task is a run the user stopped.
     """
-    return (
-        store.has_checkpoint(run_id)
-        or _has_paused_engine_task(run_id)
-        or store.has_resumable_discovery_work(run_id)
-    )
+    return store.has_checkpoint(run_id) or _has_paused_engine_task(run_id)
 
 
 @router.post("/{run_id}/resume")
@@ -198,8 +189,8 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     Requires something durable to resume from (see ``_is_resumable``). A
     true engine resume restores the persisted WorkflowState; a legacy
     (pre-flip) envelope checkpoint instead clears derived artifacts and
-    re-bootstraps the run from its goal/config (see ``_launch_resume``); a
-    discovery run re-enters its own task queue. A completed or
+    re-bootstraps the run from its goal/config (see ``_launch_resume``). A
+    completed or
     actively-running run cannot be resumed -- a *failed* one can, which is
     what makes this the recovery path for a run an earlier restart gave up
     on: failing a run never touched its task rows, so their retry budgets
@@ -250,36 +241,19 @@ def _prepare_resume_state(run_id: str) -> bool:
       or events nor trips the durable bootstrap's empty-checkpoint guard
       (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
       history).
-
-    A discovery run is a true resume for a third reason: it never writes a
-    checkpoint, so the narrow test read it as legacy and cleared its
-    derived data -- which deletes ``run_events``, and with them every
-    ``discovery`` event describing the variants that survive in
-    ``code_variants``. The run would come back with its search intact and
-    its narrative gone.
     """
     checkpoint = store.get_latest_checkpoint(run_id)
-    true_resume = (
-        engine_adapter.is_engine_checkpoint(checkpoint)
-        or _has_paused_engine_task(run_id)
-        or store.has_resumable_discovery_work(run_id)
-    )
+    true_resume = engine_adapter.is_engine_checkpoint(
+        checkpoint
+    ) or _has_paused_engine_task(run_id)
     if not true_resume:
         store.clear_run_derived_data(run_id)
         store.clear_checkpoints(run_id)
     return true_resume
 
 
-def _resume_detail(run_id: str, true_resume: bool) -> str:
-    """Name what the resume is actually re-entering from.
-
-    A discovery run gets its own wording rather than borrowing the
-    checkpoint one: it has no checkpoint, and an event stream that says
-    it resumed from a specialist checkpoint is a stream that lies about
-    the only durable thing the run has.
-    """
-    if store.has_resumable_discovery_work(run_id):
-        return "from durable task queue"
+def _resume_detail(true_resume: bool) -> str:
+    """Name what the resume is actually re-entering from."""
     return "from specialist checkpoint" if true_resume else "from checkpoint"
 
 
@@ -291,7 +265,7 @@ def _queue_resume_workflow(run_id: str, true_resume: bool) -> ScientificTask:
         "status",
         {
             "status": "resuming",
-            "detail": _resume_detail(run_id, true_resume),
+            "detail": _resume_detail(true_resume),
         },
     )
     queued = task_worker.enqueue_run_workflow(run_id, resume=true_resume)
@@ -358,9 +332,8 @@ async def resume_interrupted_runs(run_ids: list[str]) -> None:
     """Relaunch each resumable interrupted run at startup (Milestone 4).
 
     Called from the app lifespan after ``reconcile_interrupted_runs`` finds
-    runs left non-terminal by a restart with something durable to resume
-    from -- a checkpoint, or, for a discovery run, work still in its own
-    queue. Skips any run that has since completed.
+    runs left non-terminal by a restart with a checkpoint to resume from.
+    Skips any run that has since completed.
     """
     for run_id in run_ids:
         run = store.get_run(run_id)

@@ -27,11 +27,6 @@ export interface SystemStatus {
    * opt-in could only ever fail, so the plan card does not offer one.
    */
   email_notifications_available?: boolean;
-  /**
-   * Whether this deployment can confine model-authored code. False means
-   * a discovery run is refused at creation, so the way in is not offered.
-   */
-  code_execution_available?: boolean;
   probes: {mcp: ProbeStatus; pubmed: ProbeStatus; web_search?: ProbeStatus};
   mcp_server_url: string;
   // The engine is the only workflow provider now; 'mock' only ever appears

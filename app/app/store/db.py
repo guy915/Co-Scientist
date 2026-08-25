@@ -25,9 +25,6 @@ from app.store.db_migrations import (
     _add_column_if_missing as _add_column_if_missing,
 )
 from app.store.db_migrations import (
-    _drop_column_if_present as _drop_column_if_present,
-)
-from app.store.db_migrations import (
     _migrate_client_isolation as _migrate_client_isolation,
 )
 from app.store.db_migrations import (
@@ -59,9 +56,6 @@ from app.store.db_migrations import (
 )
 from app.store.db_migrations import (
     _migrate_task_attempts_history as _migrate_task_attempts_history,
-)
-from app.store.db_migrations import (
-    _migrate_variant_archive_columns as _migrate_variant_archive_columns,
 )
 from app.store.db_migrations import _run_migrations as _run_migrations
 from app.store.schema import SCHEMA as _SCHEMA

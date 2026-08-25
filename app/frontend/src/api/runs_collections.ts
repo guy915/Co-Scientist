@@ -13,7 +13,6 @@ import type {
   SafetyDecision,
   SharedGoalReport,
 } from './run_types';
-import type {CodeVariant, CodeVariantPage} from './discovery_types';
 import type {Report} from './report_types';
 import {
   API_BASE_URL,
@@ -47,35 +46,6 @@ function getRunList<T>(id: string, key: string): Promise<T[]> {
  */
 export function getHypotheses(id: string): Promise<Hypothesis[]> {
   return getRunList<Hypothesis>(id, 'hypotheses');
-}
-
-/**
- * Fetches a discovery run's code variants, in attempt order.
- *
- * @param id Run identifier.
- * @returns Every attempt the run made (failures included), the run's
- *   objectives, and how many archive niches it has reached.
- */
-export function getCodeVariants(id: string): Promise<CodeVariantPage> {
-  return fetchJson<CodeVariantPage>(`/api/runs/${id}/variants`, {
-    headers: clientHeaders(),
-  });
-}
-
-/**
- * Fetches one variant with its metrics, artifacts, and full source.
- *
- * @param id Run identifier.
- * @param variantId Variant identifier.
- * @returns The variant's detail record.
- */
-export function getCodeVariant(
-  id: string,
-  variantId: string,
-): Promise<CodeVariant> {
-  return fetchJson<CodeVariant>(`/api/runs/${id}/variants/${variantId}`, {
-    headers: clientHeaders(),
-  });
 }
 
 /**

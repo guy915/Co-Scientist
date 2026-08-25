@@ -251,30 +251,6 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _successor_task_type as _successor_task_type,
 )
-from app.engine_tasks_variants import (
-    VARIANT_AGGREGATE_TASK as VARIANT_AGGREGATE_TASK,
-)
-from app.engine_tasks_variants import (
-    VARIANT_EVALUATE_TASK as VARIANT_EVALUATE_TASK,
-)
-from app.engine_tasks_variants import (
-    VARIANT_PROPOSE_TASK as VARIANT_PROPOSE_TASK,
-)
-from app.engine_tasks_variants import (
-    execute_variant_aggregate as execute_variant_aggregate,
-)
-from app.engine_tasks_variants import (
-    execute_variant_evaluate as execute_variant_evaluate,
-)
-from app.engine_tasks_variants import (
-    execute_variant_propose as execute_variant_propose,
-)
-from app.engine_tasks_variants_schedule import (
-    bootstrap_discovery as bootstrap_discovery,
-)
-from app.engine_tasks_variants_schedule import (
-    is_discovery_run as is_discovery_run,
-)
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import (
@@ -358,14 +334,7 @@ async def _prepare_bootstrap_state(
 async def execute_bootstrap(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Safety-gate a run, prepare state, and enqueue its first task.
-
-    A discovery run diverges after the safety gate: it has no workflow
-    state and no Supervisor, so it is handed to the variant scheduler
-    instead. The gate itself is deliberately shared -- a run that
-    evolves programs is screened on the same terms as one that evolves
-    hypotheses, because the goal text is what is being screened.
-    """
+    """Safety-gate a run, prepare state, and enqueue its first task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
     withheld = await _screen_bootstrap_intake(run, emit, db_path)
@@ -374,8 +343,6 @@ async def execute_bootstrap(
     run = _require_run(task, db_path)  # the gate may have redacted the goal
 
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
-    if is_discovery_run(run.config):
-        return await bootstrap_discovery(run, emit, db_path)
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.
@@ -449,9 +416,6 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     GENERATION_AGGREGATE_TASK: execute_generation_aggregate,
     MATURE_REFLECTION_ITEM_TASK: execute_mature_reflection_item,
     MATURE_REFLECTION_AGGREGATE_TASK: execute_mature_reflection_aggregate,
-    VARIANT_PROPOSE_TASK: execute_variant_propose,
-    VARIANT_EVALUATE_TASK: execute_variant_evaluate,
-    VARIANT_AGGREGATE_TASK: execute_variant_aggregate,
     FINALIZE_TASK: execute_finalize,
 }
 

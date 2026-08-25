@@ -17,7 +17,6 @@ const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
   learning: {icon: 'menu_book', label: 'Learning'},
   overview: {icon: 'summarize', label: 'Research Overview'},
   ideas: {icon: 'lightbulb', label: 'All Ideas'},
-  variants: {icon: 'science', label: 'Variants'},
 };
 
 /**

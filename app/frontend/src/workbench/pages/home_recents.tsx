@@ -1,7 +1,6 @@
 import {Link} from 'react-router-dom';
-import {isActiveStatus, primaryObjective, type Run} from '@/api/runs';
+import {isActiveStatus, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {formatMeasured} from '@/lib/objectives';
 import {firstSentenceClause} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
@@ -252,7 +251,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         {isActiveRun ? (
           <RunStepFlow run={run} />
         ) : (
-          <RecentRunOutcome run={run} topIdeas={topIdeas} topScore={topScore} />
+          <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
         )}
       </Link>
     </li>
@@ -292,58 +291,6 @@ function WinningIdeasChips({topScore}: {topScore: number | null}) {
       )}
     </span>
   );
-}
-
-// The run's primary objective, needed to print its score in the units
-// it was measured in rather than as a sign-corrected negative.
-function discoveryObjective(run: Run) {
-  return primaryObjective(run.config?.discovery);
-}
-
-// What a finished discovery run produced. It has no ideas and no Elo,
-// so the ideas block rendered empty on its card -- indistinguishable
-// from a hypothesis run that produced nothing.
-function DiscoveryResults({run}: {run: Run}) {
-  const attempts = run.variant_count ?? 0;
-  const best = run.best_fitness ?? null;
-  return (
-    <span className={RECENT_CHIPS_CLASSES}>
-      <span className={RECENT_CHIP_CLASSES}>
-        <Icon
-          aria-hidden="true"
-          className={RECENT_CHIP_ICON_CLASSES}
-          name="science"
-        />
-        {attempts} {attempts === 1 ? 'attempt' : 'attempts'}
-      </span>
-      {best !== null && (
-        <span className={RECENT_CHIP_CLASSES}>
-          <Icon
-            aria-hidden="true"
-            className={RECENT_CHIP_ICON_CLASSES}
-            name="stars"
-          />
-          Best: {formatMeasured(best, discoveryObjective(run))}
-        </span>
-      )}
-    </span>
-  );
-}
-
-// Which summary a finished run's card shows. Read off the config key
-// that makes a run a discovery run, the same gate the tab nav uses, so
-// the two cannot disagree about what kind of run this is.
-function RecentRunOutcome({
-  run,
-  topIdeas,
-  topScore,
-}: {
-  run: Run;
-  topIdeas: string[];
-  topScore: number | null;
-}) {
-  if (run.config?.discovery) return <DiscoveryResults run={run} />;
-  return <RecentRunResults topIdeas={topIdeas} topScore={topScore} />;
 }
 
 function RecentRunResults({

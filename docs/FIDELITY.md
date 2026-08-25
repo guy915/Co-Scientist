@@ -90,22 +90,13 @@ These features are described in the published material but are not implemented h
     unimplemented is collaboration on top of that identity layer: no shared
     or team-owned runs, no per-project roles or permissions, no multiple
     researchers viewing or steering the same run together.
--   **The Literature Insights surface from the Google Labs product family.**
-    Hypothesis Generation and Computational Discovery are built; Literature
-    Insights is not. Computational Discovery here evolves a program against a
-    measured objective -- a seed program, an LLM-proposed patch per generation
-    under a named code operator, and a sandboxed cascade that turns each
-    variant into a score (`engine/src/co_scientist/agents/code_evolve/`,
-    `engine/src/co_scientist/code_eval/`, `app/app/engine_tasks_variants.py`).
-    It reuses the durable task queue rather than a second scheduler, so a
-    variant evaluation retries, resumes and cancels on the same terms as any
-    other task, and it searches through a MAP-Elites diversity archive over
-    behavioural niches with Pareto dominance across several objectives
-    (`agents/code_evolve/`, `code_eval/pareto.py`), with cells derived by
-    CVT-MAP-Elites over measured structural behaviour and a Pareto front
-    kept per cell (MOME). What remains different is the behaviour space
-    itself: features are hand-written rather than learned, so two
-    programs that differ only in algorithm can still share a cell.
+-   **The Literature Insights and Computational Discovery surfaces from the
+    Google Labs product family.** Hypothesis Generation is built; neither of
+    the other two is. Computational discovery was built here and then removed
+    (`docs/decisions/2026-08-26-remove-computational-discovery.md`): the
+    product generates and ranks hypotheses, and evolving a program against a
+    measured objective is a second product that shared only the task queue
+    with it.
 -   **PDF / LaTeX export.** Markdown + JSON only.
 -   **Vector / hybrid retrieval.** The store has no vector column; proximity
     clustering is instead driven by an LLM-graded similarity call

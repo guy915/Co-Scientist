@@ -147,9 +147,8 @@ def _already_claimable_task(
 ) -> ScientificTask | None:
     """The engine task a resume should land on, if one already exists.
 
-    Two ways there is one: the run was paused, and un-pausing returned
-    its work to the queue; or it is a discovery run a restart
-    interrupted, whose queue was never emptied in the first place.
+    There is one when the run was paused and un-pausing returned its
+    work to the queue.
     """
     if store.resume_run_tasks(run_id, db_path=db_path):
         unpaused = [
@@ -160,34 +159,7 @@ def _already_claimable_task(
         ]
         if unpaused:
             return unpaused[0]
-    return _interrupted_discovery_task(run_id, db_path)
-
-
-def _interrupted_discovery_task(
-    run_id: str, db_path: str | None
-) -> ScientificTask | None:
-    """The discovery work a restart left in the queue, if any.
-
-    A discovery run writes no checkpoint, so without this a resume falls
-    through to ``enqueue_bootstrap``. That is inert rather than harmful
-    -- generation zero's idempotency key already exists, so the enqueue
-    hands back the succeeded bootstrap row and creates nothing -- but it
-    means the resume reports landing on a task nobody can claim, which
-    is precisely the "wedged run" tell ``runs_lifecycle
-    ._queue_resume_workflow`` logs this task to expose. The work is
-    already in the queue; name it.
-    """
-    if not store.has_resumable_discovery_work(run_id, db_path=db_path):
-        return None
-    return next(
-        (
-            task
-            for task in store.list_tasks(run_id, db_path=db_path)
-            if task.status in ("queued", "leased")
-            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
-        ),
-        None,
-    )
+    return None
 
 
 def enqueue_run_workflow(
