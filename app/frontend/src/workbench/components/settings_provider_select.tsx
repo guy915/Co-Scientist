@@ -11,6 +11,30 @@ export const PROVIDER_LABELS: Record<ByokProvider, string> = {
   openrouter: 'OpenRouter',
 };
 
+/**
+ * Where each provider issues API keys, and the article its name takes in the
+ * hint under the key field.
+ *
+ * The article is stored rather than derived: a leading-vowel test is right
+ * for these five names and wrong for the next one that starts with a
+ * consonant sound. The name itself is not stored -- it comes from
+ * PROVIDER_LABELS above, so renaming a provider cannot leave the link
+ * calling it something else.
+ */
+export const PROVIDER_KEY_PAGES: Record<
+  ByokProvider,
+  {url: string; article: 'a' | 'an'}
+> = {
+  anthropic: {
+    url: 'https://platform.claude.com/settings/keys',
+    article: 'an',
+  },
+  deepseek: {url: 'https://platform.deepseek.com/api_keys', article: 'a'},
+  gemini: {url: 'https://aistudio.google.com/apikey', article: 'a'},
+  openai: {url: 'https://platform.openai.com/api-keys', article: 'an'},
+  openrouter: {url: 'https://openrouter.ai/settings/keys', article: 'an'},
+};
+
 const TRIGGER_ID = 'cosci-settings-provider';
 const LABEL_ID = 'cosci-settings-provider-label';
 

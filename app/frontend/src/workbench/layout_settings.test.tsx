@@ -99,6 +99,29 @@ it('persists the BYOK provider choice in the Model section', async () => {
   expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
 });
 
+it("links to every provider's own key page", async () => {
+  renderLayout();
+
+  fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
+  fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
+  await screen.findByRole('dialog', {name: 'Settings'});
+
+  // The default provider's link, and the link following a change of
+  // provider: a key page is only useful for the provider being keyed.
+  expect(
+    screen.getByRole('link', {name: /Get a DeepSeek API key/}),
+  ).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
+
+  fireEvent.click(screen.getByRole('button', {name: 'Provider'}));
+  fireEvent.click(screen.getByRole('menuitemradio', {name: 'Anthropic'}));
+  expect(
+    screen.getByRole('link', {name: /Get an Anthropic API key/}),
+  ).toHaveAttribute('href', 'https://platform.claude.com/settings/keys');
+
+  // The line about what the server does with the key is gone.
+  expect(screen.queryByText(/stores it encrypted/)).toBeNull();
+});
+
 it('closes the provider menu on Escape without closing Settings', async () => {
   renderLayout();
 

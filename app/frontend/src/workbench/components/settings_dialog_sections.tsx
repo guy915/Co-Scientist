@@ -4,6 +4,7 @@ import {useAudience} from '../audience_context';
 import {AUDIENCE_OPTIONS} from '../audience_content';
 import {type Mode} from '../theme_context';
 import {
+  PROVIDER_KEY_PAGES,
   PROVIDER_LABELS,
   ProviderSelect,
   ProviderSelectLabel,
@@ -125,26 +126,22 @@ export function AppearanceSection({
   );
 }
 
-// Hint under the key field: a key-source link for DeepSeek (the default),
-// plus what happens to the key once saved.
+// Hint under the key field: where to get a key from whichever provider is
+// selected. Every provider issues keys from its own console, so the link
+// follows the choice rather than standing for one of them.
 function ApiKeyHint({provider}: {provider: ByokProvider}) {
+  const {url, article} = PROVIDER_KEY_PAGES[provider];
   return (
     <p className="ucs-settings-field-hint">
-      {provider === 'deepseek' && (
-        <a
-          className="ucs-settings-field-link"
-          href="https://platform.deepseek.com/api_keys"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Get a DeepSeek API key
-          <Icon aria-hidden="true" name="open_in_new" />
-        </a>
-      )}
-      <span className="ucs-settings-hint-copy">
-        Sent with run requests; the server validates it and stores it encrypted
-        for that run only.
-      </span>
+      <a
+        className="ucs-settings-field-link"
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Get {article} {PROVIDER_LABELS[provider]} API key
+        <Icon aria-hidden="true" name="open_in_new" />
+      </a>
     </p>
   );
 }

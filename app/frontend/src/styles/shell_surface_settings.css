@@ -377,12 +377,6 @@
   font-size: 0.78rem;
 }
 
-/* Explanatory line in the key hint, stacked under the key-source link. */
-.ucs-settings-hint-copy {
-  display: block;
-  margin-top: 0.3rem;
-}
-
 .ucs-settings-field-link {
   display: inline-flex;
   align-items: center;
