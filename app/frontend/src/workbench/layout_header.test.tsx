@@ -22,6 +22,7 @@ function renderHeader(
           activePanel={activePanel}
           onTogglePanel={() => {}}
           logsControlRef={{current: null}}
+          session={null}
         />
       </AudienceProvider>
     </MemoryRouter>,

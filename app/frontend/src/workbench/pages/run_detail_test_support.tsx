@@ -30,11 +30,10 @@ export function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-// RunDetail seeds a run's activity from the shared run history (so a running
-// run does not flash the report chrome) and finds the conversation this run
-// came from in the chat history (so its back arrow returns there), so both
-// providers are part of its harness. Each fetch degrades to an empty list,
-// which is the "history says nothing about this run" case.
+// RunDetail seeds a run's activity from the shared run history, so a running
+// run does not flash the report chrome. The chat-history provider is here
+// because the page mounts inside it in the app; each fetch degrades to an
+// empty list, which is the "history says nothing about this run" case.
 export function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>

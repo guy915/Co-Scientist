@@ -279,20 +279,21 @@
   outline-offset: 0;
 }
 
-/* Provider chooser (settings_provider_select.tsx). Sized to its content
-   rather than the panel: a full-width control put the chevron a whole panel
-   away from the value it opens, which read as a rendering fault. The menu is
-   positioned off this wrapper so it opens directly under the trigger. */
+/* Provider chooser (settings_provider_select.tsx). Full panel width, matching
+   the API key field directly under it: the two are one stacked pair, and a
+   content-width trigger beside a full-width input read as a control that had
+   failed to lay out. The menu is positioned off this wrapper so it opens
+   directly under the trigger. */
 .ucs-provider-select {
   position: relative;
-  display: inline-grid;
-  justify-items: start;
+  display: grid;
+  width: 100%;
 }
 
 .ucs-provider-trigger {
   box-sizing: border-box;
-  display: inline-flex;
-  min-width: 10.5rem;
+  display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;

@@ -1,19 +1,14 @@
 import {useParams} from 'react-router-dom';
 import {
-  type ChatSummary,
-  discoveryReportPayload,
   isActiveStatus,
-  primaryObjective,
   type RunStatus,
   type RunWithSummary,
   runGoal,
 } from '@/api/runs';
-import {useChatHistoryContext} from '@/workbench/hooks/chat_history_context';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
-import {DiscoveryReportView} from './run_detail_discovery_report';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
@@ -31,8 +26,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {VariantsSection} from './run_detail_variants';
-import {normalizeTab, tabsForRun, type TabName} from '../run_tabs';
+import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 // max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
 // --report was given a horizontal-scroll fallback for content that shrinks
@@ -52,13 +46,6 @@ const REPORT_SCROLL_CLASSES =
 const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
-
-// Whether a run evolves programs rather than ideas. Read from the config
-// key that makes it one, so the nav cannot disagree with what the backend
-// actually scheduled.
-function isDiscoveryRun(run: RunWithSummary | null): boolean {
-  return run?.config?.discovery !== undefined;
-}
 
 // Whether the run is executing. 'unknown' is a real third state: until the
 // run row (or the shell's history) says otherwise, neither the results chrome
@@ -148,14 +135,6 @@ function awaitingDecisionCount(data: RunDetailData): number {
   return data.run?.awaiting_decision_count ?? 0;
 }
 
-// The conversation a run came from, when the rail knows of one.
-function chatIdForRun(
-  chats: readonly ChatSummary[],
-  id: string,
-): string | undefined {
-  return chats.find(chat => chat.run_id === id)?.id;
-}
-
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
@@ -165,9 +144,6 @@ export function RunDetail() {
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
   const data = useRunDetailData(id);
   const activity = useRunActivity(id, data);
-  // The conversation this run came from, so the titlebar's back arrow
-  // returns to it rather than to an empty workspace.
-  const {chats} = useChatHistoryContext();
 
   if (!id) return null;
 
@@ -176,20 +152,15 @@ export function RunDetail() {
   // exist or would present a partial run as finished.
   const showEndState = terminalEndStateOf(data.run) !== null;
   const showTabs = activity === 'inactive' && !showEndState;
-  const chatId = chatIdForRun(chats, id);
   return (
     <div className={reportPageClasses(showTabs)}>
-      <ReportTitlebar
-        title={data.title}
-        chatId={chatId}
-        activeTab={activeTab}
-      />
+      <ReportTitlebar title={data.title} activeTab={activeTab} />
 
       {showTabs && (
         <ReportTabNav
           activeTab={activeTab}
           onTabChange={onTabChange}
-          tabs={tabsForRun(isDiscoveryRun(data.run))}
+          tabs={TABS}
         />
       )}
 
@@ -241,31 +212,21 @@ function RunDetailBody({
   );
 }
 
-// The live view of an in-flight run, told what kind of run it is: a
-// discovery run counts attempts where a hypothesis run counts ideas.
+// The live view of an in-flight run.
 function LiveRunSection({data}: {data: RunDetailData}) {
   if (!data.run) return null;
   return (
     <ActiveRunView
       run={data.run}
       events={data.events}
-      isDiscovery={isDiscoveryRun(data.run)}
-      objective={primaryObjective(data.run.config?.discovery)}
       evidenceCount={Math.max(data.evidence.length, data.run.summary.evidence)}
       ideaCount={Math.max(data.hypotheses.length, data.run.summary.hypotheses)}
     />
   );
 }
 
-// The Overview tab body. A discovery run's report shares no field with a
-// hypothesis run's, so which one exists decides the view -- read off the
-// payload the backend actually wrote rather than off the run's config, so
-// the surface cannot claim a report shape that was never persisted.
+// The Overview tab body.
 function OverviewSection({data}: {data: RunDetailData}) {
-  const discovery = discoveryReportPayload(data.report);
-  if (discovery && data.report) {
-    return <DiscoveryReportView report={data.report} payload={discovery} />;
-  }
   return (
     <ResearchOverviewView
       run={data.run}
@@ -322,7 +283,6 @@ const TAB_SECTIONS: Record<
   ideas: (ideasViewKey, data) => (
     <IdeasSection ideasViewKey={ideasViewKey} data={data} />
   ),
-  variants: (_key, data) => <VariantsSection runId={data.run?.id ?? ''} />,
 };
 
 // The active tab's content section.

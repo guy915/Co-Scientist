@@ -1,8 +1,6 @@
 import {useMemo} from 'react';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import type {DiscoveryObjective} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
-import {formatMeasured} from '@/lib/objectives';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {RunExecutionProgress} from './home_recents_run_steps';
 import {windowedActivityGroups} from './run_detail_activity';
@@ -22,12 +20,6 @@ interface ActiveRunViewProps {
   events: StreamEvent[];
   evidenceCount: number;
   ideaCount: number;
-  // A discovery run evolves a program, so its headline numbers are
-  // attempts and best score rather than sources and ideas.
-  isDiscovery?: boolean;
-  // Its primary objective, needed to print the score in the units it
-  // was measured in rather than as a sign-corrected negative.
-  objective?: DiscoveryObjective;
 }
 
 // How long the run has been going, floored at zero to guard against clock
@@ -39,36 +31,7 @@ function elapsedLabel(run: RunWithStreamState, nowSeconds: number): string {
   return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
 
-/**
- * What a discovery run has done so far, read off its own events.
- *
- * From the events rather than a second fetch: the stream already
- * carries one record per evaluated variant, replayed from the start on
- * reload, so the numbers are exactly what the activity log below is
- * showing and cannot drift from it.
- *
- * @param events The run's event stream, live plus replay.
- * @returns The attempt count and the best score, sign-corrected values
- *   as stored; null when nothing has scored.
- */
-export function discoveryProgress(events: StreamEvent[]): {
-  attempts: number;
-  best: number | null;
-} {
-  const scores = events
-    .filter(event => event.type === 'discovery')
-    .map(event => (event.payload as {fitness?: number | null}).fitness)
-    .filter((value): value is number => typeof value === 'number');
-  return {
-    attempts: events.filter(event => event.type === 'discovery').length,
-    best: scores.length > 0 ? Math.max(...scores) : null,
-  };
-}
-
-// The headline metrics row. Which pair of numbers follows the elapsed
-// clock depends on what the run is doing: a discovery run has no
-// sources and no ideas, so the hypothesis labels sat at 0 for its whole
-// duration -- a live view that reads as a stalled one.
+// The headline metrics row.
 function RunMetrics({
   elapsed,
   metrics,
@@ -90,18 +53,11 @@ function RunMetrics({
   );
 }
 
-// The two run-kind-specific cards beside the clock.
+// The two cards beside the clock.
 function headlineMetrics(props: ActiveRunViewProps): [string, string][] {
-  if (!props.isDiscovery) {
-    return [
-      ['Sources Analyzed', String(props.evidenceCount)],
-      ['Ideas explored', String(props.ideaCount)],
-    ];
-  }
-  const {attempts, best} = discoveryProgress(props.events);
   return [
-    ['Attempts', String(attempts)],
-    ['Best score', formatMeasured(best, props.objective)],
+    ['Sources Analyzed', String(props.evidenceCount)],
+    ['Ideas explored', String(props.ideaCount)],
   ];
 }
 

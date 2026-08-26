@@ -8,6 +8,10 @@ import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
 import {NavRail, type ChatRailData} from './layout_nav_rail';
+import {
+  sessionSwitchData,
+  type SessionSwitchData,
+} from './layout_session_switch';
 
 // The value returned by useLayoutChrome, threaded through the components
 // below so each only needs the single prop rather than the whole fan-out.
@@ -199,6 +203,7 @@ interface ShellWorkspaceProps {
   chrome: LayoutChrome;
   startNewChat: () => void;
   headerTitle: string;
+  session: SessionSwitchData | null;
   workspaceClasses: string;
   pageClasses: string;
   children: ReactNode;
@@ -208,6 +213,7 @@ function ShellWorkspace({
   chrome,
   startNewChat,
   headerTitle,
+  session,
   workspaceClasses,
   pageClasses,
   children,
@@ -219,6 +225,7 @@ function ShellWorkspace({
         toggleNav={chrome.toggleNav}
         startNewChat={startNewChat}
         headerTitle={headerTitle}
+        session={session}
         activePanel={chrome.activePanel}
         onTogglePanel={chrome.togglePanel}
         logsControlRef={chrome.logsControlRef}
@@ -244,6 +251,9 @@ function useLayoutState() {
   const headerTitle = useHeaderTitle(titleContextKey);
   const {chats, showAllChats, toggleShowAllChats} = useChatHistory();
   const chrome = useLayoutChrome(location.pathname);
+  // Both halves of the session this route belongs to, so the header can
+  // offer the other one (see SessionSwitch).
+  const session = sessionSwitchData(chats, activeChatId, activeRunId);
   const shellClass = shellClassFor(isRunRoute, chrome.navOpen);
   const startNewChat = createStartNewChatHandler(chrome.setNavOpen);
 
@@ -259,6 +269,7 @@ function useLayoutState() {
       onToggleShowAllChats: toggleShowAllChats,
     },
     headerTitle,
+    session,
     workspaceClasses,
     pageClasses,
   };
@@ -283,6 +294,7 @@ export function Layout({children}: {children: ReactNode}) {
         chrome={state.chrome}
         startNewChat={state.startNewChat}
         headerTitle={state.headerTitle}
+        session={state.session}
         workspaceClasses={state.workspaceClasses}
         pageClasses={state.pageClasses}
       >

@@ -1,4 +1,3 @@
-import type {DiscoveryConfig} from './discovery_types';
 import type {Report} from './report_types';
 // Re-exported below so `run_types` stays the one wire-type import site,
 // and because ChatSummary and Interview reference each other's neighbours.
@@ -114,14 +113,10 @@ export interface RunConfig {
   tier?: RunTier;
   focus?: RunFocus;
   setup?: RunSetupConfig;
-  // Present only on a computational-discovery run. Its presence is what
-  // makes a run one, so the surface tests for the key rather than for a
-  // separate flag that could disagree with it.
-  discovery?: DiscoveryConfig;
   // RunSetupConfig is included alongside JsonValue because the `setup` key
   // above is typed as RunSetupConfig (not a plain JsonValue); the index
   // signature has to cover every declared property, including that one.
-  [key: string]: JsonValue | RunSetupConfig | DiscoveryConfig | undefined;
+  [key: string]: JsonValue | RunSetupConfig | undefined;
 }
 
 /** A hypothesis-generation run with its goal, config, and current status. */
@@ -162,17 +157,6 @@ export interface Run {
    * indicator. Absent/null on single-run reads and before the first stage.
    */
   latest_stage?: string | null;
-  /**
-   * A discovery run's attempts and best score, served by the run-list
-   * endpoint. What `top_elo`/`top_hypotheses` are for the other kind of
-   * run: the two share nothing worth summarizing, so a card showing an
-   * empty ideas block reads as a run that produced nothing rather than
-   * one that produced something else. `best_fitness` is null when
-   * nothing scored, which is not a score of zero, and is stored
-   * sign-corrected -- undo it with `formatMeasured`.
-   */
-  variant_count?: number;
-  best_fitness?: number | null;
   /**
    * How many of the run's safety decisions are held `paused` and still
    * unresolved (`requires_review` with no `resolution` yet). Derived on

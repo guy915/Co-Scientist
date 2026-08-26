@@ -2,7 +2,7 @@
 
 Split out of ``schema.py`` when that file reached its length ceiling, on
 the same per-surface pattern its other extracted modules follow
-(``schema_tasks``, ``schema_code_variants``, ...). These three tables are
+(``schema_tasks``, ``schema_knowledge_facts``, ...). These three tables are
 one surface -- the conversation that scopes a research goal, before any run
 exists -- and ``schema.py`` splices this back exactly where it stood, so an
 on-disk schema dump still reads in the order the tables were written in.
