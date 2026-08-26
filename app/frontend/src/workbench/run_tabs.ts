@@ -4,12 +4,7 @@
 // renders the tabs) and the global keyboard shortcuts (which cycle them).
 
 // Canonical tab route segments, in the order the nav bar renders them.
-export const TABS = [
-  'details',
-  'learning',
-  'overview',
-  'ideas',
-] as const;
+export const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 
 /** Canonical tab names for the goal-report surface's tab routes. */
 export type TabName = (typeof TABS)[number];
