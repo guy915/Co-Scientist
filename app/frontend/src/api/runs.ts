@@ -103,6 +103,8 @@ export {
 export type {InterviewSinks} from './runs_interviews';
 export {askRunQuestion, getRunMessages} from './runs_qa';
 export type {QaSinks} from './runs_qa';
+export {announceRunStart} from './runs_start';
+export type {StartAnnouncement, StartAnnouncementSinks} from './runs_start';
 export {
   addScientistHypothesis,
   addScientistReview,

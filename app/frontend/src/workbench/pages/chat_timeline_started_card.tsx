@@ -1,8 +1,8 @@
 import {Link} from 'react-router-dom';
+import {MarkdownMessage} from '@/components/markdown_message';
 import {TruncatedLabel} from '../components/truncated_label';
 import {
   STARTED_COPY_CLASSES,
-  STARTED_COPY_PARAGRAPH_CLASSES,
   STARTED_MESSAGE_CLASSES,
   STARTED_NEXT_BUTTON_CLASSES,
   STARTED_NEXT_CLASSES,
@@ -22,6 +22,47 @@ export interface StartedSession {
   id: string;
   title: string;
   at: number;
+  /**
+   * The Agent's reply to the scientist's start request, shown as the card's
+   * lead-in so a started run reads as one response rather than a card under
+   * a canned notice. Written by the model and streamed in as it arrives
+   * (see chat_session_start_run.ts), which is why it grows from empty.
+   */
+  intro?: string;
+  /** The chain of thought behind that reply, disclosed above the card. */
+  reasoning?: string;
+  /**
+   * True while the reply is still being written. It is what tells an empty
+   * `intro` that is still filling from one that never will, so the standby
+   * copy below does not flash in front of the model's own first sentence.
+   */
+  announcing?: boolean;
+}
+
+/**
+ * What the card says when no reply was written for it: a run started before
+ * this exchange existed and reopened since, a provider that could not be
+ * reached, or a turn the scientist stopped.
+ *
+ * The wording the card carried unconditionally until the Agent started
+ * answering for itself. It is the same substance the model is asked for
+ * (run under way; open it whenever, first ideas take a few minutes), because
+ * the run did start in every one of those cases and the scientist needs the
+ * same two facts about it.
+ */
+export const STARTED_SESSION_STANDBY_COPY =
+  'Your session has been started and Co-Scientist has started research!' +
+  '\n\n' +
+  'You can view and interact with your session at any time, but note that ' +
+  'it might take a few minutes for the first ideas to be ready to view.';
+
+// The lead-in text to render: the Agent's own reply, the standby copy once
+// it is settled that there will not be one, and nothing at all while the
+// reply is still on its way.
+function introCopy(session: StartedSession): string {
+  const written = session.intro?.trim();
+  if (written) return written;
+  return session.announcing ? '' : STARTED_SESSION_STANDBY_COPY;
 }
 
 /**
@@ -49,22 +90,22 @@ export function StartedSessionCard({
   href: string;
   onNewTopic: () => void;
 }) {
-  const responseText = formatStartedSessionResponse(session);
+  const intro = introCopy(session);
+  const responseText = formatStartedSessionResponse(session, intro);
 
   return (
     <section
       className={STARTED_MESSAGE_CLASSES}
       aria-label="Started research session"
     >
-      <div className={STARTED_COPY_CLASSES}>
-        <p className={STARTED_COPY_PARAGRAPH_CLASSES}>
-          Your session has been started and Co-Scientist has started research!
-        </p>
-        <p className={STARTED_COPY_PARAGRAPH_CLASSES}>
-          You can view and interact with your session at any time, but note that
-          it might take a few minutes for the first ideas to be ready to view.
-        </p>
-      </div>
+      {intro && (
+        <div className={STARTED_COPY_CLASSES}>
+          <MarkdownMessage
+            content={intro}
+            className="min-w-0 text-base leading-[1.45] text-cosci-fg"
+          />
+        </div>
+      )}
       <SessionLinkCard session={session} href={href} />
       <SessionNextActions href={href} onNewTopic={onNewTopic} />
       <MessageActionRow
@@ -136,16 +177,17 @@ function SessionNextActions({
 }
 
 // Renders the started-session card's content as a Markdown document, used
-// for the card's copy/download actions (see responseActions).
-function formatStartedSessionResponse(session: StartedSession): string {
+// for the card's copy/download actions (see responseActions). Carries the
+// reply actually on screen -- the Agent's own, or the standby copy -- rather
+// than a second wording of it that would drift from what was read.
+function formatStartedSessionResponse(
+  session: StartedSession,
+  intro: string,
+): string {
   return [
     `# ${session.title}`,
     '',
-    'Your session has been started and Co-Scientist has started research.',
-    '',
-    '## Status',
-    'You can view and interact with your session at any time, but note that ' +
-      'it might take a few minutes for the first ideas to be ready to view.',
+    intro || STARTED_SESSION_STANDBY_COPY,
     '',
     '* **Type:** Research session',
     '* **Action:** Open the session details when you want to inspect progress.',

@@ -1,10 +1,12 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
+  ANNOUNCEMENT_TEXT,
   apiMock,
   installChatWorkspaceMocks,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
+import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_started_card';
 
 beforeEach(() => {
   installChatWorkspaceMocks();
@@ -205,11 +207,17 @@ it('starts the durable run on confirmation', async () => {
   await startRunFromSpec();
 
   expect(screen.getByTestId('location')).toHaveTextContent('/');
-  expect(
-    await screen.findByText(
-      /Your session has been started and Co-Scientist has started research/,
-    ),
-  ).toBeInTheDocument();
+  // The Agent answers the scientist's own "Start research" turn, and the
+  // session card is attached under that answer -- the card carries no copy
+  // of its own for the live path to duplicate.
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(apiMock.announceRunStart).toHaveBeenCalledWith(
+    'run-1',
+    'Start research',
+    expect.anything(),
+    expect.anything(),
+  );
+  expect(screen.getAllByText('Start research').length).toBeGreaterThan(1);
   expect(
     screen.getByRole('heading', {name: 'Research plan'}),
   ).toBeInTheDocument();
@@ -233,6 +241,106 @@ it('starts the durable run on confirmation', async () => {
   expect(
     screen.queryByText('Mitochondrial feedback hypothesis'),
   ).not.toBeInTheDocument();
+});
+
+it('does not repeat the start exchange the live tab already shows', async () => {
+  // Starting a run persists the exchange server-side, and the chat gains a
+  // run_id in the same moment -- which is the moment the message rehydrator
+  // becomes able to fetch those rows. In the tab that just wrote them they
+  // are already on screen, so fetching them back appends a second copy of
+  // everything.
+  apiMock.listInterviews.mockResolvedValue([
+    {
+      id: 'interview-1',
+      title: 'Cold-stress glucose homeostasis',
+      challenge: 'Investigate glucose homeostasis.',
+      status: 'completed',
+      run_id: 'run-1',
+      created_at: 1,
+      updated_at: 3,
+    },
+  ]);
+  apiMock.getRunMessages.mockResolvedValue([
+    {
+      id: 8,
+      run_id: 'run-1',
+      sender: 'user',
+      content: 'Start research',
+      kind: 'start',
+      created_at: 8,
+      applied: false,
+      meta: null,
+    },
+    {
+      id: 9,
+      run_id: 'run-1',
+      sender: 'system',
+      content: ANNOUNCEMENT_TEXT,
+      kind: 'start',
+      created_at: 9,
+      applied: false,
+      meta: null,
+    },
+  ]);
+
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  // One prompt bubble (the plan card's Start control carries the same words,
+  // so buttons are excluded), and one copy of the reply.
+  await waitFor(() => {
+    expect(
+      screen
+        .getAllByText('Start research')
+        .filter(node => node.closest('button') === null),
+    ).toHaveLength(1);
+  });
+  expect(screen.getAllByText(ANNOUNCEMENT_TEXT)).toHaveLength(1);
+});
+
+it('falls back to the standby copy when no reply is written', async () => {
+  apiMock.announceRunStart.mockRejectedValue(new Error('provider down'));
+
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  // The run started; only its announcement did not. The card says the same
+  // two things the Agent would have, and no error is raised over it.
+  expect(
+    await screen.findByText(
+      /Your session has been started and Co-Scientist has started research/,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(STARTED_SESSION_STANDBY_COPY).toContain('a few minutes');
+});
+
+it('drops a half-written reply the scientist stopped', async () => {
+  // Stopping abandons the stream, and the server persists nothing for a
+  // reply it never finished -- so a reload of this chat shows the standby
+  // copy. Keeping the fragment on screen would make the live card and the
+  // reloaded one disagree, with half a sentence as the live version.
+  apiMock.announceRunStart.mockImplementation(
+    async (
+      _runId: string,
+      _prompt: string,
+      sinks: {onChunk?: (fragment: string) => void} = {},
+    ) => {
+      sinks.onChunk?.('Your session is un');
+      throw new DOMException('aborted', 'AbortError');
+    },
+  );
+
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  expect(
+    await screen.findByText(
+      /Your session has been started and Co-Scientist has started research/,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/Your session is un$/)).not.toBeInTheDocument();
 });
 
 it('opens the started run detail from the session card', async () => {

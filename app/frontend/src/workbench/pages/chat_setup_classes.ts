@@ -236,13 +236,13 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
   'hover:bg-cosci-btn-primary-hover ' +
   `focus-visible:bg-cosci-btn-primary-hover ${PILL_BUTTON_DISABLED}`;
 
-// StartedSessionCard's wrapper and its intro-copy paragraphs.
+// StartedSessionCard's wrapper and the block its lead-in is rendered into.
+// The lead-in is the Agent's own markdown reply now, so its paragraphs are
+// styled by MarkdownMessage rather than by a paragraph class of their own.
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-cosci-fg';
 
 export const STARTED_COPY_CLASSES = 'reference-started-copy grid gap-[0.1rem]';
-
-export const STARTED_COPY_PARAGRAPH_CLASSES = 'm-0 text-base leading-[1.45]';
 
 // The clickable colored session card (title/meta + "Open" affordance) linking
 // to the run's detail page.

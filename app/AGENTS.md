@@ -35,6 +35,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `paper_corpus.py` | SBI/UCD paper catalog access; offline corpus tooling (`corpus_ingest.py`, `build_catalog.py`, `harvest_group_pubmed.py`) lives in `app/dev/` |
 | `interviews.py` | `/api/interviews` — durable, model-driven research-goal interview |
 | `qa.py` | Grounded Q&A: offline answer + SSE streaming; evidence manifest and prompt assembly live in `qa_manifest.py`, re-exported from `app.qa` (`runs.py` owns HTTP) |
+| `run_start_announcement.py` | The Agent's streamed reply to "Start research", persisted with the prompt as the run's two `start`-kind message rows; falls back to fixed copy rather than erroring, since the run has already started |
 | `claims.py`, `claim_grounding.py`, `claim_verifier.py` | Atomic-claim extraction, per-claim entailment, publication gate → `claim_evidence` |
 | `hypothesis_safety.py`, `hypothesis_screening.py` | Pre-tournament per-hypothesis screening writing `safety_status` |
 | `human_input.py` | Scientist-authored hypotheses/reviews (`origin="scientist_manual"`), admitted through the same safety path |
@@ -70,6 +71,7 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`).
+- `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.
 - `POST /api/runs/{id}/hypotheses` / `/reviews` — scientist-authored input; passes the same per-hypothesis safety screen, persists with `origin=scientist_manual`, enqueues a continuation task.
 - `POST /api/runs/{id}/attachments`, `/attachments/upload`, `GET /attachments/search` — per-run private corpus (for a run that already exists; setup-time attachments go through `/api/documents` and ride in on `document_ids` at create).
 - `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.

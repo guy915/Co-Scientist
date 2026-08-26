@@ -462,9 +462,15 @@ export interface RunMessage {
   created_at: number;
   applied: boolean;
   // Present on a Q&A answer row when it cited any sources (see
-  // qa.py::_citation_meta); absent otherwise, including on the paired
-  // question row.
-  meta: {sources?: QaSource[]} | null;
+  // qa.py::_citation_meta), and on a `start` announcement carrying the
+  // thinking behind it or the marker that the deterministic copy stood in
+  // (see run_start_announcement.py::_persist_announcement); absent
+  // otherwise, including on either kind's paired question row.
+  meta: {
+    sources?: QaSource[];
+    reasoning?: string;
+    fallback?: boolean;
+  } | null;
 }
 
 /** Read-only data available through a public share capability. */

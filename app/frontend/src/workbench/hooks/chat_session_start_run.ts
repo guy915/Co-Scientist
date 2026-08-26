@@ -1,11 +1,24 @@
-import {cancelRun, createRun, startRun} from '@/api/runs';
+import {announceRunStart, cancelRun, createRun, startRun} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {readStoredAudience} from '../audience_context';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
+import {beginTurnAbort, isAbortError} from './chat_session_handlers_shared';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
+
+/**
+ * The scientist's own words for starting the run, sent as the turn the
+ * Agent's announcement replies to.
+ *
+ * The Start control is a shortcut for typing this and pressing send, so it
+ * posts the same prompt down the same path rather than decorating the
+ * timeline with a message nothing received. It is persisted server-side with
+ * the reply, which is also what keeps it on the timeline across a reload --
+ * the local-only bubble it replaces did not survive one.
+ */
+export const START_RESEARCH_PROMPT = 'Start research';
 
 // Builds the POST /api/runs payload from the confirmed spec plus the
 // connector toggles.
@@ -73,12 +86,14 @@ async function startOrSettle(runId: string, deps: SettleDeps): Promise<void> {
 // only carries diagnostics and error handling.
 async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   // Starting the run reads as the scientist sending the plan into the chat:
-  // post the request as a user turn, then let the open-session card below be
-  // the single response. The card carries its own "session started" copy, so a
-  // separate assistant acknowledgment bubble would just double the reply.
+  // post the request as a user turn, and let the Agent answer it (see
+  // announceStart below) with the session card attached beneath its reply,
+  // exactly as the completing interview turn answers with the plan card.
+  // Optimistic, like every other submit: the prompt is on screen before the
+  // round trip that persists it.
   appendChatMessage(deps.setMessages, {
     role: 'user',
-    content: 'Start research',
+    content: START_RESEARCH_PROMPT,
   });
   const created = await createRun(buildCreateRunPayload(deps));
   const session: StartedSession = {
@@ -104,12 +119,98 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   return session;
 }
 
+// Merges one streamed fragment of the announcement into the started session
+// on screen. A functional update, not a rebuild from a captured value: the
+// two channels interleave and both land while the card is already mounted.
+function appendAnnouncement(
+  setStartedSession: ExecuteStartDeps['setStartedSession'],
+  patch: 'intro' | 'reasoning',
+  fragment: string,
+): void {
+  setStartedSession(current =>
+    current
+      ? {...current, [patch]: (current[patch] ?? '') + fragment}
+      : current,
+  );
+}
+
+/**
+ * Asks the Agent to answer the scientist's start request, streaming its
+ * reply into the session card's lead-in as it is written.
+ *
+ * Never fails the start. The run is already running by the time this is
+ * called, so a provider that cannot be reached, or a reply the scientist
+ * stopped, leaves the card showing its standby copy (see
+ * STARTED_SESSION_STANDBY_COPY) rather than an error saying the run did not
+ * start. The server takes the same view and has no error frame at all.
+ */
+async function announceStart(
+  deps: ExecuteStartDeps & Pick<HandlerDeps, 'turnAbortRef'>,
+  runId: string,
+): Promise<void> {
+  deps.setStartedSession(current =>
+    current ? {...current, announcing: true} : current,
+  );
+  // The composer's Stop control keys off this, so a provider that hangs
+  // mid-announcement is escapable rather than minutes of blocked composer.
+  deps.setIsAwaitingAgent(true);
+  try {
+    const outcome = await announceRunStart(
+      runId,
+      START_RESEARCH_PROMPT,
+      {
+        onReasoning: fragment =>
+          appendAnnouncement(deps.setStartedSession, 'reasoning', fragment),
+        onChunk: fragment =>
+          appendAnnouncement(deps.setStartedSession, 'intro', fragment),
+      },
+      beginTurnAbort(deps),
+    );
+    emitDiagnosticEvent({
+      stage: 'CHAT',
+      runId,
+      payload: {
+        event: 'start_announced',
+        fallback: Boolean(outcome?.fallback),
+      },
+    });
+  } catch (error) {
+    const stopped = isAbortError(error);
+    emitDiagnosticEvent({
+      stage: 'CHAT',
+      runId,
+      payload: {
+        event: stopped
+          ? 'start_announcement_stopped'
+          : 'start_announcement_failed',
+      },
+    });
+    // A reply that ended early persisted nothing server-side, so reopening
+    // this chat shows the standby copy. Drop whatever fragment arrived so
+    // the card on screen says the same thing rather than keeping half a
+    // sentence the reload will not have.
+    deps.setStartedSession(current =>
+      current ? {...current, intro: undefined, reasoning: undefined} : current,
+    );
+  } finally {
+    deps.turnAbortRef.current = null;
+    // An empty intro settles to the standby copy the moment this clears.
+    deps.setStartedSession(current =>
+      current ? {...current, announcing: false} : current,
+    );
+    deps.setIsAwaitingAgent(false);
+  }
+}
+
 // Runs the create+start API round trip for a confirmed draft spec and applies
 // the resulting state transitions and diagnostic events. Takes every value and
 // setter it needs as an argument instead of closing over hook state (it calls
 // no hooks itself).
 async function startDraftRun(
-  deps: ExecuteStartDeps & {setError: (message: string) => void},
+  deps: ExecuteStartDeps &
+    Pick<HandlerDeps, 'turnAbortRef'> & {
+      setError: (message: string) => void;
+    },
 ): Promise<void> {
   const {setError} = deps;
   emitDiagnosticEvent({
@@ -123,6 +224,12 @@ async function startDraftRun(
       runId: session.id,
       payload: {event: 'start_queued', run_id: session.id},
     });
+    // Inside the same try, and inside promoteDraftToRun's `isStarting`
+    // window: a question submitted mid-announcement would route to the run's
+    // Q&A endpoint and write into the same session state this stream is
+    // filling. The Stop control reaches it through `turnAbortRef`, so a
+    // provider that hangs is not a composer blocked for minutes.
+    await announceStart(deps, session.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     setError(message);
