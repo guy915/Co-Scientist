@@ -116,6 +116,9 @@ async def test_reloading_the_registry_invalidates_the_graph(
 
     reloaded = generator._tool_registry
     assert reloaded is not None
+    # Read the reloaded registry before the identity checks below: comparing
+    # it with `is` against an untyped state value re-widens it to optional
+    # under mypy 2.x, and the read then reads as a possible None.
+    assert "pubmed" not in reloaded.get_enabled_tools()
     assert state["tool_registry"] is not first_registry
     assert state["tool_registry"] is reloaded
-    assert "pubmed" not in reloaded.get_enabled_tools()

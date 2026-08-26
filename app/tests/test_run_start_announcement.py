@@ -14,7 +14,6 @@ from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
-import httpx
 import pytest
 
 from app import engine_adapter, store
@@ -36,12 +35,15 @@ def _started_run_id() -> str:
     )
 
 
-def _announce(run_id: str, prompt: str = "Start research") -> httpx.Response:
-    """POST the announcement endpoint for ``run_id``."""
-    res: httpx.Response = _client().post(
+def _announce(run_id: str, prompt: str = "Start research") -> Any:
+    """POST the announcement endpoint for ``run_id``.
+
+    Returns ``Any``: TestClient's own httpx is vendored, so naming its
+    Response type here binds the test to a second, incompatible httpx.
+    """
+    return _client().post(
         f"/api/runs/{run_id}/messages/started", json={"prompt": prompt}
     )
-    return res
 
 
 def _start_rows(run_id: str) -> list[store.MessageRow]:
