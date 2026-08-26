@@ -9,6 +9,7 @@ fallback chain must actually ride on the request rather than existing only
 in a constant.
 """
 
+from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm_request import (
     CompletionShape,
     _build_completion_args,
@@ -45,19 +46,6 @@ def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
     assert "models" not in deepseek_thinking_extra_body(_MUSE)
 
 
-def test_ox_alpha_is_not_asked_to_reason() -> None:
-    """The primary spends no reasoning tokens, so it is not told to.
-
-    Measured over four live calls: ``reasoning_tokens`` came back 0 with
-    the reasoning parameter set. Asking anyway costs nothing in tokens but
-    lifts ``max_tokens`` to the thinking floor, which misreports the call's
-    budget everywhere the floor is read back as evidence a call reasoned.
-    """
-    body = deepseek_thinking_extra_body(_OX)
-
-    assert "reasoning" not in body
-
-
 def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
     """Not reasoning is a property of the model, never of the route."""
     body = deepseek_thinking_extra_body(_GLM)
@@ -91,8 +79,33 @@ def test_ox_alpha_is_downgraded_to_json_object() -> None:
     assert _supports_json_schema_response_format(_OX) is False
 
 
-def test_the_primary_does_not_get_the_thinking_token_floor() -> None:
-    """A call that will not reason keeps the budget its call site chose."""
+def test_the_primary_still_gets_the_thinking_token_floor() -> None:
+    """Reporting no reasoning tokens is not the same as spending none.
+
+    Ox Alpha returns ``reasoning_tokens=0`` on every call, which is what
+    first put ``reasons=False`` on it -- and denying it the floor was
+    wrong. Measured on a live express run: 24 calls went out at their call
+    sites' own 8000-token budget, came back with ``finish_reason="length"``
+    and empty content, and each one climbed the escalation ladder and was
+    re-sent. The budget is spent on something the API does not itemise, so
+    the only observable is the empty answer.
+
+    A ceiling is not a spend: raising it costs nothing on the calls that
+    answer briefly, and removes 24 wasted round-trips from the ones that
+    do not.
+    """
     args = _build_completion_args("prompt", _OX, 4000, 0.5, CompletionShape())
 
-    assert args["max_tokens"] == 4000
+    assert args["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+
+
+def test_the_primary_is_still_not_sent_the_reasoning_knob() -> None:
+    """Funding a budget and asking for reasoning are separate decisions.
+
+    They were one flag, which is how the floor came to be withheld: the
+    model does not take the reasoning knob, so it was recorded as not
+    reasoning, so it lost the budget too. The same shape as the
+    ``"deepseek"`` substring that gated four behaviours at once, one scale
+    down.
+    """
+    assert "reasoning" not in deepseek_thinking_extra_body(_OX)

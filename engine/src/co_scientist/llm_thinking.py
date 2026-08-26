@@ -93,18 +93,30 @@ _GATEWAY_PROVIDER: Final[dict[str, Any]] = {
 class GatewayModel:
     """What a gateway route needs to know about one model.
 
-    Both facts are properties of the model rather than of the route, and
-    neither is discoverable from its name -- which is why they are stated
-    here rather than inferred from a family substring. Inferring them is
-    what made a rival vendor's model run with no reasoning configured and
-    no price ceiling while looking exactly like a configured one.
+    Every fact here is a property of the model rather than of the route,
+    and none is discoverable from its name -- which is why they are stated
+    rather than inferred from a family substring. Inferring them is what
+    made a rival vendor's model run with no reasoning configured and no
+    price ceiling while looking exactly like a configured one. The two
+    reasoning fields are separate for the same reason one scale down: a
+    model can decline the parameter and still spend the budget.
 
     Attributes:
-        reasons: Whether the model spends a chain of thought against
-            ``max_tokens``. Only a model that does gets the reasoning knob
-            and the token floor that funds it; asking a model that does
-            not lifts its budget to the floor for nothing and misreports
-            what the call was sized for.
+        takes_reasoning_knob: Whether to send the gateway's ``reasoning``
+            parameter. A model that does not accept it gains nothing from
+            being asked.
+        spends_budget_thinking: Whether the model can consume its whole
+            ``max_tokens`` before writing any answer, and so needs
+            ``THINKING_FLOOR_MAX_TOKENS``. Deliberately separate from the
+            knob above, because the two came apart in production: Ox Alpha
+            reports ``reasoning_tokens=0`` and takes no reasoning
+            parameter, yet still returns ``finish_reason="length"`` with
+            empty content at an 8000-token budget -- it spends the
+            allowance on something the API does not itemise. Recording
+            that as "does not reason" cost 24 answerless round-trips in a
+            single express run, each one climbing the escalation ladder to
+            arrive at the budget this floor would have given it first.
+            When unsure, fund it: a ceiling is not a spend.
         fallbacks: Gateway-relative ids to try, in order, when this model
             is unavailable. The gateway walks the list itself, which is
             the only layer that can: a 429 from a saturated free pool is
@@ -112,7 +124,8 @@ class GatewayModel:
             same host again, and it is not a transport error either.
     """
 
-    reasons: bool
+    takes_reasoning_knob: bool
+    spends_budget_thinking: bool
     fallbacks: tuple[str, ...] = ()
 
 
@@ -130,12 +143,19 @@ class GatewayModel:
 # way this configuration spends money.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     "openrouter/stealth/ox-alpha": GatewayModel(
-        reasons=False,
+        takes_reasoning_knob=False,
+        spends_budget_thinking=True,
         fallbacks=("z-ai/glm-5.2:free", "meta/muse-spark-1.2"),
     ),
-    "openrouter/z-ai/glm-5.2:free": GatewayModel(reasons=True),
-    "openrouter/z-ai/glm-5.2": GatewayModel(reasons=True),
-    "openrouter/meta/muse-spark-1.2": GatewayModel(reasons=True),
+    "openrouter/z-ai/glm-5.2:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/z-ai/glm-5.2": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/meta/muse-spark-1.2": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
 }
 
 
@@ -234,7 +254,7 @@ def _declared_gateway_body(
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
     if declared.fallbacks:
         body["models"] = list(declared.fallbacks)
-    if not declared.reasons:
+    if not declared.takes_reasoning_knob:
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
@@ -244,25 +264,25 @@ def _declared_gateway_body(
 
 
 def model_reasons(model_name: str) -> bool:
-    """Whether this model spends a chain of thought against ``max_tokens``.
+    """Whether this model can spend its whole budget before answering.
 
-    The question the token floor actually asks. It used to be answered by
-    "does this model get a thinking body at all", which stopped being the
-    same question once a model needed gateway routing without reasoning:
-    that model would have had its budget lifted to the thinking floor to
-    fund a chain of thought it never writes.
+    The question the token floor actually asks, and deliberately not "does
+    it take the reasoning parameter". The two came apart in production: Ox
+    Alpha answers no to the second and yes to this one, and conflating them
+    withheld the floor from a model that needed it, costing 24 answerless
+    round-trips in one express run.
 
     Args:
         model_name: Model name in litellm format.
 
     Returns:
-        True for a declared gateway model that reasons, and for any
-        DeepSeek model, whose whole family does.
+        True for a declared gateway model that spends its budget thinking,
+        and for any DeepSeek model, whose whole family does.
     """
     lowered = model_name.lower()
     declared = _GATEWAY_MODELS.get(lowered)
     if declared is not None:
-        return declared.reasons
+        return declared.spends_budget_thinking
     return "deepseek" in lowered
 
 
