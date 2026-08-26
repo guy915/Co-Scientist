@@ -282,6 +282,19 @@
     padding-inline: 0.5rem;
   }
 
+  /* The bar keeps the session switch where it drops the title and actions:
+     with the run's back arrow now leaving the run entirely, this is the only
+     way back to a session's transcript on a phone. Its labels go, not the
+     control -- each side keeps its name through the link's aria-label, so the
+     icons stay announced. */
+  .ucs-session-switch-label {
+    display: none;
+  }
+
+  .ucs-session-switch-side {
+    padding-inline: 0.6rem;
+  }
+
   .ucs-nav-hamburger {
     display: inline-grid;
   }

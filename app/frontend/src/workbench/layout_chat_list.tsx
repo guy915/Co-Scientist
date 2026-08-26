@@ -53,8 +53,9 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
  * and the report once it lands, chosen by the run page itself. Reopening
  * the transcript instead put every session, running or long finished, back
  * at the same settled prompt and made the rail read as a list of drafts.
- * Only a chat that never started a run opens the conversation, and the
- * run's own back arrow returns there (see ReportTitlebar).
+ * Only a chat that never started a run opens the conversation; from the run,
+ * the header's Chat/Results switch is what returns to the transcript (see
+ * SessionSwitch).
  */
 function chatPath(chat: ChatSummary): string {
   return chat.run_id ? tabPath(chat.run_id, undefined) : `/chats/${chat.id}`;

@@ -64,7 +64,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 Diagnostics (in `main.py`): `GET /health`, `/config`, `/status` — `/status` reports MCP/PubMed/web-search availability.
 
 Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
-- `POST /api/runs` — create a draft run (a `discovery` object here makes it a computational-discovery run; the spec is validated on this call, so a malformed one is a 422); `GET /api/runs` — list runs; `GET /api/runs/demo`.
+- `POST /api/runs` — create a draft run; `GET /api/runs` — list runs; `GET /api/runs/demo`.
 - `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and the shared demo run is 403 since the ownership middleware exempts it); `POST /{id}/start`, `/cancel`, `/pause`, `/resume`. Pause marks the run's queued/leased `engine.*` tasks paused (404 if not active); resume requires a checkpoint or a paused engine task (409 otherwise).
 - `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
@@ -84,7 +84,7 @@ Additional routers mounted in `main.py`: `interviews`, `documents`, `shares`, `f
 
 **Persisted logs** (`logs_api.py` + `logging_setup.py` + `store/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
 
-- **Run stages**: every `run_events` row is mirrored into the log as a compact `app.run_stage` record (`store/events.py`), so a run's stage narrative — `lifecycle`, `safety.intake`, `supervisor.plan`, `literature_review`, `generate`, `reflection`, `proximity`, `ranking`, `evolve`, `meta_review`, `deep_verification`, `citation_audit`, `research_overview`, `discovery`, `report`, `status` — is readable from the Logs panel and `cosci logs --run <id>` rather than only over SSE. Payloads are summarized to `key=value` scalars and capped at 200 chars: ~21 stage records per run instead of full event bodies. Mirroring happens in the inner `_append_event`, so every event writer is covered, and it is best-effort — it can never fail an event write.
+- **Run stages**: every `run_events` row is mirrored into the log as a compact `app.run_stage` record (`store/events.py`), so a run's stage narrative — `lifecycle`, `safety.intake`, `supervisor.plan`, `literature_review`, `generate`, `reflection`, `proximity`, `ranking`, `evolve`, `meta_review`, `deep_verification`, `citation_audit`, `research_overview`, `report`, `status` — is readable from the Logs panel and `cosci logs --run <id>` rather than only over SSE. Payloads are summarized to `key=value` scalars and capped at 200 chars: ~21 stage records per run instead of full event bodies. Mirroring happens in the inner `_append_event`, so every event writer is covered, and it is best-effort — it can never fail an event write.
 - **What is captured**: every record reaching the Python root logger (app modules, `co_scientist` engine, store/database) *except* the per-call dependency chatter that `logging_setup.UNPERSISTED_LOGGERS` refuses to persist below WARNING, *plus* uvicorn's non-propagating `uvicorn`/`uvicorn.access` loggers, *plus* frontend records POSTed by the UI (namespaced `ui.*`: session diagnostics, route navigation, uncaught JS errors, unhandled rejections, React render errors, and interactions as `ui.interaction` — via `lib/ui_logging.ts`). Access records for `/api/logs` itself are filtered out so polling cannot grow the log.
 - **Hidden vs. never persisted — two different lists, both gated at WARNING.** The *read* path (`NOISE_LOGGERS` in `logs_api.py`) hides `uvicorn.access`, `ui.interaction`, and `ui.navigation` from the default view; those rows stay in the table and `verbose=1` / `cosci logs --all` shows them. The *capture* path (`UNPERSISTED_LOGGERS` in `logging_setup.py`: `httpx`, `httpcore`, `urllib3`, `litellm`, `openai`, `mcp.client`, `co_scientist.mcp_client`) **drops** sub-WARNING records before any row is written, so `--all` will never show per-LLM-call or per-HTTP-call lines — read those from stdout. WARNING+ always persists and always shows. The drop exists because each row is an open-write-close against the single SQLite writer; LiteLLM alone was 9,928 of 20,021 production rows, and that stream starved ordinary API writes until run creation failed with "database is locked". Stay on the default view; reach for `--all` only when debugging request- or interaction-level behavior.
 - **How**: a `QueueHandler` (run-id stamped) feeds a background `QueueListener` that writes rows and prunes to a cap; writes never block or raise into the caller. Settings: `log_capture_enabled` / `log_capture_level` / `log_capture_max_rows`. DEBUG records are only captured when the root logger also emits them (set `COSCIENTIST_DEBUG=true` plus `log_capture_level=DEBUG`).
@@ -103,12 +103,10 @@ Core loop:
 
 ```bash
 cosci runs create "goal" --tier express --start   # create (+ start in one step)
-cosci runs create "goal" --discovery spec.json --start   # evolve a program instead
 cosci runs wait <id>                              # poll until settled; exit code = outcome
 cosci runs report <id> --md                       # final report as Markdown
 ```
 
-- **`runs create --discovery PATH`** reads a JSON or YAML discovery spec (by suffix) and sends it as the request's `discovery` block — the only way to start a discovery run from a terminal.
 - **Commands**: `status`, `config`, `logs` (persisted backend logs: `--run`, `--level`, `--grep`, `--after-id`, `--limit`, `--follow`, `--interval`, `--clear`, `--all`); `runs list|demo|show|create|start|pause|resume|cancel|watch|wait|steer|ask|report` plus reads `hypotheses|evidence|reviews|citations|safety|matches|proximity|metrics|claim-evidence`.
 - **Exit codes**: `runs wait` encodes the outcome — 0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, 124 `--max-wait` exceeded; every command uses 130 for Ctrl-C and 141 for a broken pipe.
 - **Global flags** (per subcommand): `--api-url` (env `COSCIENTIST_API_URL`), `--client-id` (env `COSCIENTIST_CLIENT_ID` — run listings are scoped by this header, so use a consistent id), `--logs-token` (env `COSCIENTIST_LOGS_TOKEN`), `--timeout` (env `COSCIENTIST_TIMEOUT`), `--json` (raw API payloads), `--verbose` (request log on stderr).
@@ -160,53 +158,3 @@ Vite reads `VITE_API_BASE_URL`; when it is unset the api client falls back to **
 
 Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.sh` — **a different file** from the repo-root `Dockerfile.api` that Railway builds, and the two diverge (compose installs the engine at startup from the mount; Railway bakes it into the image), so container changes usually need applying to both. Both `api` and `mcp` mount `../corpus:/app/corpus:ro` and set `SBI_CORPUS_DIR`: the corpus lives at the repo root, outside either service's build context, so compose mounts it where the Railway images `COPY` it in.
 
-## Computational discovery
-
-A `discovery` key in a run's config makes it a discovery run: it evolves a
-program against a measured objective instead of generating hypotheses. It is
-set by `POST /api/runs` (a `discovery` object beside `research_goal`, validated
-at create time -- a malformed spec is a 422, never a run that fails identically
-on every variant), by `cosci runs create ... --discovery spec.json|yaml`, or from
-the workbench home ("Or evolve a program against a measured objective", which
-creates and starts in one action). `discovery.seed_from_run` carries an earlier
-run's archive elites forward as this run's starting programs, and is
-**ownership-checked at creation** -- it reads another run's whole source straight
-from the store, below the ownership middleware that guards every HTTP path to
-it, so an unowned id answers 404. `discovery.dataset` (`{path: text}`) is the
-read-only input a run's programs open: creation moves the bytes out of the
-config into `code_datasets` and leaves a `dataset_paths` manifest behind, and
-`discovery_execution.place_dataset` copies them into each variant's workspace
-before evaluation. Not in the variant's source, which the proposal agent
-rewrites; not in the config row, which every task reads; copied rather than
-shared, because concurrent evaluations in one directory is how two variants
-each run part of the other's code. That copy is what bounds it --
-`MAX_DATASET_BYTES` is 4 MiB because a run's disk is that times its variant
-count. `run_modes._OVERRIDE_HANDLERS` carries the key verbatim, without which
-the numeric override path drops the dict silently. A host with no confinement
-primitive cannot run any of this: `/status` reports `code_execution_available`,
-creation answers 503, and the evaluator raises `UnsupportedTaskError` rather
-than spending a retry budget on a refusal that repeats exactly.
-`execute_bootstrap` branches to `bootstrap_discovery` after the shared
-safety gate, and the loop runs as three durable task types
-(`engine.fanout.variant.propose|evaluate|aggregate`) over the
-`code_variants` tables. It has no Supervisor and no workflow checkpoint; the
-final aggregate publishes the report and marks the run completed. **Because it
-writes no checkpoint, resumability is a second, equal test**:
-`store.has_resumable_discovery_work` (a discovery block in the config plus one
-unfinished task) is what startup reconciliation, the `/resume` guard, the
-resume-mode choice and the resume enqueue all consult beside `has_checkpoint`.
-Without it the run whose state is *entirely* durable was the one a restart
-failed. A discovery run is a **true** resume, so its derived data is never
-cleared -- that would delete the `discovery` events narrating variants that
-survive in `code_variants`. Modules:
-`discovery_spec.py` (config -> `EvaluatorSpec` and archive descriptors, fails closed),
-`engine_tasks_variants.py` (the executors), `engine_tasks_variants_schedule.py`
-(what work exists), `discovery_report.py` (the report), `store/code_variants.py`.
-Parent selection delegates to the engine's MAP-Elites archive and the Pareto
-front rather than ranking by score. Each evaluated variant is appended as a
-`discovery` run event -- the loop emitted nothing before, so the live view
-was empty for a run's whole duration. The report carries `report_kind:
-"discovery"` and deliberately shares no field name with the hypothesis
-payload -- every count there is named for something this run does not have --
-and publishing is best effort, since the search is already durable by then.
-Full rationale in `docs/DISCOVERY.md`.

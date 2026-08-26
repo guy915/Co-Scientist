@@ -14,6 +14,7 @@ import {
   ShellPopover,
   type HeaderControlProps,
 } from './layout_primitives';
+import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
 
@@ -132,6 +133,8 @@ function ProductLockup({onNewChat}: {onNewChat: () => void}) {
  * @param onTogglePanel Opens/closes the given popover.
  * @param logsControlRef Anchor ref for outside-click dismissal of the Logs
  *   popover.
+ * @param session The session this route is one half of, switched between by
+ *   the Chat/Results control; null when there is no other half.
  */
 export function ShellHeader({
   navOpen,
@@ -141,6 +144,7 @@ export function ShellHeader({
   activePanel,
   onTogglePanel,
   logsControlRef,
+  session,
 }: {
   navOpen: boolean;
   toggleNav: () => void;
@@ -149,11 +153,13 @@ export function ShellHeader({
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
   logsControlRef: RefObject<HTMLDivElement | null>;
+  session: SessionSwitchData | null;
 }) {
   return (
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
       <ProductLockup onNewChat={startNewChat} />
+      <SessionSwitch session={session} />
       <div className={HEADER_TITLE_CLASSES}>
         {headerTitle && (
           <TruncatedLabel

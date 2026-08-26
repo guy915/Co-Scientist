@@ -1,11 +1,10 @@
 """Resolving a create-run request into what gets persisted.
 
 Everything between the request body and the DRAFT row: the
-bring-your-own-key credential, the goal interview it may have come from,
-the ownership check on an inherited discovery archive, and the run
-config those produce. Split from ``runs_crud`` so that module stays
-under the line ceiling; every name is re-exported there, which remains
-the import and monkeypatch surface.
+bring-your-own-key credential, the goal interview it may have come
+from, and the config those produce. Split from ``runs_crud`` so that
+module stays under the line ceiling; every name is re-exported there,
+which remains the import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -85,45 +84,6 @@ def _resolve_run_interview(
         }
     )
     return interview, req
-
-
-def _require_owned_seed_run(req: CreateRunRequest, caller: str) -> None:
-    """Refuses inheriting an archive from a run the caller does not own.
-
-    ``discovery.seed_from_run`` reads another run's variants -- their
-    whole source -- straight from the store, below the ownership
-    middleware that guards every HTTP path to them. Without this check
-    any run id is a way to read somebody else's programs back out of
-    your own run.
-
-    A 404 rather than a 403, matching how a non-owned run reads
-    everywhere else: whether it exists is itself not the caller's to
-    learn.
-
-    Raises:
-        HTTPException: 404 when the named run is missing or not the
-            caller's.
-    """
-    from app.discovery_spec import (
-        DISCOVERY_CONFIG_KEY,
-        DiscoverySpecError,
-        seed_from_run,
-    )
-
-    if req.discovery is None:
-        return
-    try:
-        previous = seed_from_run({DISCOVERY_CONFIG_KEY: req.discovery})
-    except DiscoverySpecError:
-        # Malformed rather than unauthorized. Left to the spec
-        # validation further down, whose message names the field; a 404
-        # here would report a missing run for what is a typo.
-        return
-    if previous is None:
-        return
-    run = store.get_run(previous)
-    if run is None or run.client_id != caller:
-        raise HTTPException(status_code=404, detail=f"no such run: {previous}")
 
 
 def _build_run_config(

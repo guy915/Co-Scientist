@@ -10,21 +10,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from app import paper_corpus
 from app.audience import AUDIENCE_PATTERN, audience_context
-from app.discovery_dataset import dataset_files, without_payload
-from app.discovery_spec import (
-    DISCOVERY_CONFIG_KEY,
-    DiscoverySpecError,
-    code_execution_backend,
-    evaluator_spec,
-    seed_from_run,
-    seed_source,
-)
-from app.discovery_spec import grid as discovery_grid
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_TIER_PATTERN,
@@ -75,14 +64,6 @@ class CreateRunRequest(BaseModel):
     # Self-declared audience (honor system). Only "sbi_ucd" changes behavior:
     # it injects lab context into planning. Persisted for provenance.
     audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
-    # Makes this a computational-discovery run: it evolves a program
-    # against a measured objective instead of generating hypotheses.
-    # Free-form here and validated by `discovery_spec`, which owns the
-    # shape -- a second schema in this file would be a copy to keep in
-    # step. Validation happens at create time on purpose: the spec is
-    # read once per variant, so a malformed one otherwise surfaces as
-    # hundreds of identically-failing evaluations rather than as a 422.
-    discovery: dict[str, Any] | None = None
 
 
 class StartRunRequest(BaseModel):
@@ -197,11 +178,6 @@ def _run_overrides_from_request(
     }
     if req.audience is not None:
         overrides["audience"] = req.audience
-    if req.discovery is not None:
-        # The dataset's bytes do not belong in the run row -- every task
-        # of every type reads it. `create_run` writes them to their own
-        # table; what the config keeps is the manifest.
-        overrides["discovery"] = without_payload(req.discovery)
     # Only explicitly-sent knobs become overrides; each (key, value) pair
     # is dropped when the request left the field unset.
     numeric_overrides: tuple[tuple[str, Any], ...] = (
@@ -219,70 +195,10 @@ def _run_overrides_from_request(
     return overrides
 
 
-def _require_code_execution() -> None:
-    """Refuses a discovery run this deployment could not execute.
-
-    A discovery run runs model-authored code, and the engine will not
-    run any of it unconfined. Without a confinement primitive every
-    variant is unrunnable, so accepting the run would spend a full
-    generation of proposal calls to arrive at a failure decided before
-    the first one.
-
-    A courtesy, not the guarantee: with a separate worker service the
-    host answering this request is not the host that evaluates, so this
-    can be wrong in either direction. `engine_tasks_variants` converts
-    the executing host's own refusal into a permanent task failure, and
-    that is what actually holds. Hence the 503 rather than a 422 -- the
-    request is fine and there is nothing in the spec to edit.
-
-    Raises:
-        HTTPException: 503 when this host offers no confinement.
-    """
-    if code_execution_backend() is None:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "this deployment cannot run sandboxed code, so it cannot "
-                "run a discovery run: no confinement backend is available "
-                "(Landlock needs Linux 5.13 or newer; failing that, "
-                "bubblewrap). Hypothesis-generation runs are unaffected."
-            ),
-        )
-
-
-def _validate_discovery_block(block: dict[str, Any] | None) -> None:
-    """Rejects a malformed discovery spec at create time.
-
-    Everything the loop reads is built here once so a bad spec is a 422
-    on the request that wrote it. Deferring costs far more than it saves:
-    `discovery_spec` raises on every read, so the run would start,
-    bootstrap, and fail identically on every variant with the malformed
-    key visible only in a task traceback.
-
-    Raises:
-        HTTPException: 422, carrying the spec error's own message.
-    """
-    if block is None:
-        return
-    _require_code_execution()
-    config = {DISCOVERY_CONFIG_KEY: block}
-    try:
-        evaluator_spec(config)
-        discovery_grid(config)
-        seed = seed_source(config)
-        seed_from_run(config)
-        dataset_files(block, frozenset(seed))
-    except DiscoverySpecError as exc:
-        raise HTTPException(
-            status_code=422, detail=f"invalid discovery spec: {exc}"
-        ) from exc
-
-
 def _build_create_run_config(
     req: CreateRunRequest,
 ) -> tuple[dict[str, Any], str, str]:
     """Resolve a create-run request into its (config, focus, tier) triple."""
-    _validate_discovery_block(req.discovery)
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
     # The audience's static context document, plus -- for the SBI/UCD audience

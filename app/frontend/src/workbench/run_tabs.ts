@@ -9,7 +9,6 @@ export const TABS = [
   'learning',
   'overview',
   'ideas',
-  'variants',
 ] as const;
 
 /** Canonical tab names for the goal-report surface's tab routes. */
@@ -25,7 +24,6 @@ const TAB_ALIASES: Record<string, TabName> = {
   summary: 'overview',
   report: 'overview',
   hypotheses: 'ideas',
-  programs: 'variants',
 };
 
 /**
@@ -47,26 +45,4 @@ export function normalizeTab(tab: string | undefined): TabName {
  */
 export function tabPath(id: string, tab: string | undefined): string {
   return `/runs/${id}/${normalizeTab(tab)}`;
-}
-
-// Tabs whose content a discovery run never produces. It generates no
-// hypotheses and gathers no literature, so both would render empty --
-// and an empty tab is indistinguishable from a broken one.
-const HYPOTHESIS_ONLY: readonly TabName[] = ['learning', 'ideas'];
-
-/**
- * The tabs a given run actually shows.
- *
- * The split runs both ways: "Variants" exists only for a
- * computational-discovery run, and the hypothesis tabs exist only for
- * the other kind. Gated on the config key that makes a run a discovery
- * run in the first place, so the nav cannot disagree with what the
- * backend scheduled.
- *
- * @param isDiscovery Whether the run evolves programs rather than ideas.
- * @returns The tabs to render, in nav order.
- */
-export function tabsForRun(isDiscovery: boolean): readonly TabName[] {
-  if (!isDiscovery) return TABS.filter(tab => tab !== 'variants');
-  return TABS.filter(tab => !HYPOTHESIS_ONLY.includes(tab));
 }

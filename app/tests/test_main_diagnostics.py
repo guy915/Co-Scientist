@@ -396,31 +396,3 @@ def test_startup_does_not_block_on_run_recovery(
     # Recovery was scheduled, not skipped.
     assert resumed.is_set()
     assert startup_seconds < 10
-
-
-def test_status_reports_whether_code_can_be_executed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Confinement is a host-kernel fact, unanswerable from the image.
-
-    Verifying a sandbox inside the built image on a developer's machine
-    tests that machine's kernel, not the one the image is deployed onto.
-    Without this field the only way to learn whether a deployment can
-    run a discovery run at all is to start one and watch every variant
-    fail, so it is public rather than an operator diagnostic.
-    """
-    import app.main as main_module
-
-    monkeypatch.setattr(
-        "app.discovery_spec.code_execution_backend", lambda: None
-    )
-    with TestClient(main_module.app) as client:
-        payload = client.get("/status").json()
-    assert payload["code_execution_available"] is False
-
-    monkeypatch.setattr(
-        "app.discovery_spec.code_execution_backend", lambda: "landlock"
-    )
-    with TestClient(main_module.app) as client:
-        payload = client.get("/status").json()
-    assert payload["code_execution_available"] is True

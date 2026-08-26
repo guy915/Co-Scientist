@@ -180,29 +180,14 @@ either -- research is seeded from assumptions a previous cycle marked
 uncertain or likely false, and those assumptions are deep verification's own
 output, so the loop it now reads from was already being pointed by it.
 
-**Computational discovery** is a second, separate product built on the same
-foundations, and is *not* a node in the hypothesis graph.
-`agents/code_evolve/` proposes one child program per generation as a V4A
-patch under a named code operator and picks parents from a MAP-Elites
-diversity archive (`archive.py` for MOME cells, `grid.py` for the
-fixed/adaptive/CVT strategies, `behaviour.py` for the structural
-features they niche by -- including `metric:*`, the one axis derived from
-what a program *computed* rather than from its text, which is what
-separates two programs sharing a shape since no static reading can --
-`fingerprint.py` for the hashed AST n-gram that separates two algorithms
-sharing a surface shape, `tessellation.py` for the frozen projection that
-keeps a cell meaning the same thing from one generation to the next while
-still growing cells and columns for behaviour it has never seen); `code_eval/` runs the resulting cascade
-and scores it against one or more objectives, keeping the extra ones
-separate via Pareto dominance (`pareto.py`) rather than summing them; `workspace/` and `sandbox/` confine every command --
-including ones that outlive the call that started them
+`workspace/` and `sandbox/` confine every command a node runs -- including
+ones that outlive the call that started them
 (`workspace/command_session.py`: `run_command` hands back a session id
 rather than killing a command at its deadline, `poll_command` continues
 it from a cursor, and `llm_tool_transcript.normalize_tool_transcript`
 turns a turn cut off mid-call into an explicit aborted result instead of
-a conversation the provider rejects). The app
-drives the loop as durable tasks rather than through LangGraph. See
-`docs/DISCOVERY.md`.
+a conversation the provider rejects). Reflection's simulation review and
+the drafting skills are what run inside them.
 
 Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/web-research/etc.).
 
