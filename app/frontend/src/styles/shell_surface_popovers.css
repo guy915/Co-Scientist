@@ -186,18 +186,6 @@
   line-height: 1.5;
 }
 
-.ucs-settings-toast {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  border-radius: 0.5rem;
-  background: var(--cosci-settings-toast-bg);
-  color: var(--cosci-settings-toast-fg);
-  font-size: 0.875rem;
-  padding: 0.85rem 1.5rem;
-  transform: translateX(-50%);
-}
-
 /* One sidebar treatment for every route — the chat rail must look
    identical on the home surface and inside a run (no home/report
    variants). */
