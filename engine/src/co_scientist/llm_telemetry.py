@@ -191,15 +191,25 @@ def _served_model_name(requested: str, response: Any) -> str:
         response: The raw response returned by ``litellm.acompletion``.
 
     Returns:
-        ``response.model`` when the provider named one, else ``requested``.
-        A gateway rewrites this field to the rung that actually served the
-        call, which is the only signal distinguishing a primary from its
-        fallback after the fact.
+        The served model carrying the route it was reached by, else
+        ``requested``. A gateway rewrites this field to the rung that
+        actually served the call -- the only signal distinguishing a
+        primary from its fallback after the fact -- but names it without
+        the route prefix, so ``openrouter/z-ai/glm-5.3-flash`` returns as
+        ``z-ai/glm-5.3-flash``. That matches no key in ``MODEL_PRICING``,
+        and taking it at face value prices every call at zero, which is
+        the same failure as reading the requested name and was measured
+        the same way: a live run of 53 calls, all $0.0000. The route is a
+        property of how the call was billed, so it is carried across from
+        the request; only the model half comes from the response.
     """
     served = getattr(response, "model", None)
-    if isinstance(served, str) and served:
-        return served
-    return requested
+    if not isinstance(served, str) or not served:
+        return requested
+    route, _, _ = requested.partition("/")
+    if route and requested != served and not served.startswith(f"{route}/"):
+        return f"{route}/{served}"
+    return served
 
 
 def record_completion_response(

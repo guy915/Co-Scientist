@@ -39,7 +39,9 @@ def test_cost_follows_the_model_that_answered(monkeypatch: Any) -> None:
 
     The free primary here costs nothing; the model that actually answered
     is priced. Attributing to the requested name reports zero for a call
-    that was billed, which is the failure this pins.
+    that was billed, which is the failure this pins. The fallback keeps
+    the route it was reached by, since a call served through a gateway is
+    billed as a gateway call whichever rung answered it.
     """
     from co_scientist import llm_telemetry
 
@@ -56,7 +58,7 @@ def test_cost_follows_the_model_that_answered(monkeypatch: Any) -> None:
         1.0,
     )
 
-    assert seen["model"] == "deepseek/deepseek-v4-pro"
+    assert seen["model"] == "openrouter/deepseek/deepseek-v4-pro"
     assert seen["stats"].cost_usd > 0
 
 
@@ -80,3 +82,60 @@ def test_a_response_naming_no_model_keeps_the_requested_name(
     record_completion_response("openai/gpt-4o", _Response(None), 1.0)
 
     assert seen["model"] == "openai/gpt-4o"
+
+
+def test_the_served_name_keeps_the_route_that_billed_it(
+    monkeypatch: Any,
+) -> None:
+    """A gateway names the model without the route prefix it was reached by.
+
+    ``openrouter/z-ai/glm-5.3-flash`` comes back as ``z-ai/glm-5.3-flash``,
+    which matches no key in ``MODEL_PRICING`` -- so reading the served name
+    naively prices every call at zero, reproducing the exact failure that
+    reading the requested name caused. Measured on a live run: 53 calls,
+    every one of them $0.0000.
+
+    The route is a property of how the call was billed, so it is carried
+    over from the request; only the model part comes from the response.
+    """
+    from co_scientist import llm_telemetry
+
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_telemetry,
+        "record_call",
+        lambda model, stats: seen.update(model=model, stats=stats),
+    )
+
+    record_completion_response(
+        "openrouter/z-ai/glm-5.3-flash",
+        _Response("z-ai/glm-5.3-flash"),
+        1.0,
+    )
+
+    assert seen["model"] == "openrouter/z-ai/glm-5.3-flash"
+    assert seen["stats"].cost_usd > 0
+
+
+def test_a_fallback_is_still_named_as_itself(monkeypatch: Any) -> None:
+    """Carrying the route must not collapse a fallback onto its primary.
+
+    The whole point of reading the served model is telling them apart, so
+    re-prefixing has to keep the model half the response reported.
+    """
+    from co_scientist import llm_telemetry
+
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_telemetry,
+        "record_call",
+        lambda model, stats: seen.update(model=model, stats=stats),
+    )
+
+    record_completion_response(
+        "openrouter/z-ai/glm-5.3-flash",
+        _Response("minimax/minimax-m3:free"),
+        1.0,
+    )
+
+    assert seen["model"] == "openrouter/minimax/minimax-m3:free"
