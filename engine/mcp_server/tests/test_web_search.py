@@ -9,9 +9,11 @@ from typing import Any
 import httpx
 import pytest
 from mcp_server.tests._httpx import stub_failure, stub_responses
+from mcp_server.tools.web import providers
 from mcp_server.tools.web.providers import (
     _brave_freshness,
     _clear_credential_error,
+    _record_credential_error,
     clean_snippet,
     normalize_brave,
     normalize_tavily,
@@ -231,7 +233,9 @@ async def test_search_web_clamps_max_results(
         return {}
 
     monkeypatch.setattr(
-        web_search_module, "resolve_provider", lambda: ("brave", _fake_search)
+        web_search_module,
+        "candidate_providers",
+        lambda: [("brave", _fake_search)],
     )
     await web_search_module.search_web("q", max_results=requested)
     assert captured["max_results"] == expected
@@ -251,7 +255,9 @@ async def test_search_web_floors_negative_recency(
         return {}
 
     monkeypatch.setattr(
-        web_search_module, "resolve_provider", lambda: ("brave", _fake_search)
+        web_search_module,
+        "candidate_providers",
+        lambda: [("brave", _fake_search)],
     )
     await web_search_module.search_web("q", recency_days=-10)
     assert captured["recency_days"] == 0
@@ -372,4 +378,159 @@ async def test_availability_check_is_false_without_a_key(
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    assert await check_web_search_available() is False
+
+
+# --- Falling back to the other provider ------------------------------------
+#
+# Two free allowances only add up if a refusal on one moves the search to the
+# other. Both halves matter: a provider that is out of credit must stop being
+# chosen, and a search that genuinely found nothing must NOT spend the other
+# provider's quota re-asking.
+
+
+@pytest.mark.parametrize("status", [432, 433])
+async def test_exhausted_credits_count_as_a_rejection(
+    monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    """Tavily answers 432/433 when the monthly credits are gone."""
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    stub_failure(monkeypatch, _status_error(status))
+
+    assert await search_tavily("anything", 5, 0) == {}
+
+    recorded = web_search_credential_error()
+    assert recorded is not None and recorded["status"] == status
+
+
+def test_resolve_provider_skips_a_refused_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With both keys set, a refused provider stops being the choice."""
+    monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    assert (resolved := resolve_provider()) is not None
+    assert resolved[0] == "brave"
+
+    _record_credential_error("brave", 402, "quota gone")
+
+    assert (resolved := resolve_provider()) is not None
+    assert resolved[0] == "tavily"
+
+
+def test_an_explicit_provider_is_skipped_once_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WEB_SEARCH_PROVIDER names a preference, not a provider to keep using."""
+    monkeypatch.setenv("WEB_SEARCH_PROVIDER", "tavily")
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    _record_credential_error("tavily", 432, "out of credits")
+
+    assert (resolved := resolve_provider()) is not None
+    assert resolved[0] == "brave"
+
+
+def test_the_preferred_provider_is_retried_when_all_are_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A record only clears on a success, so something must still be tried.
+
+    Otherwise a monthly reset is invisible: every provider stays marked
+    dead until the process restarts.
+    """
+    monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    _record_credential_error("brave", 402, "quota gone")
+    _record_credential_error("tavily", 432, "out of credits")
+
+    assert (resolved := resolve_provider()) is not None
+    assert resolved[0] == "brave"
+
+
+async def test_search_web_falls_through_to_the_second_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One search survives the moment the first provider runs out."""
+    from mcp_server.tools.web.web_search import search_web
+
+    monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+
+    calls: list[str] = []
+
+    async def _brave(*_: Any) -> dict[str, Any]:
+        calls.append("brave")
+        _record_credential_error("brave", 402, "quota gone")
+        return {}
+
+    async def _tavily(*_: Any) -> dict[str, Any]:
+        calls.append("tavily")
+        return {"t1": {"title": "found"}}
+
+    monkeypatch.setattr(providers, "search_brave", _brave)
+    monkeypatch.setattr(providers, "search_tavily", _tavily)
+    monkeypatch.setattr(
+        providers,
+        "_PROVIDERS",
+        {
+            "brave": (_brave, "BRAVE_API_KEY"),
+            "tavily": (_tavily, "TAVILY_API_KEY"),
+        },
+    )
+
+    assert await search_web("anything") == {"t1": {"title": "found"}}
+    assert calls == ["brave", "tavily"]
+
+
+async def test_an_empty_result_does_not_spend_the_other_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Finding nothing is an answer; only a refusal justifies re-asking."""
+    from mcp_server.tools.web.web_search import search_web
+
+    monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+
+    calls: list[str] = []
+
+    async def _brave(*_: Any) -> dict[str, Any]:
+        calls.append("brave")
+        return {}
+
+    async def _tavily(*_: Any) -> dict[str, Any]:
+        calls.append("tavily")
+        return {"t1": {"title": "found"}}
+
+    monkeypatch.setattr(
+        providers,
+        "_PROVIDERS",
+        {
+            "brave": (_brave, "BRAVE_API_KEY"),
+            "tavily": (_tavily, "TAVILY_API_KEY"),
+        },
+    )
+
+    assert await search_web("anything") == {}
+    assert calls == ["brave"]
+
+
+async def test_availability_is_true_while_any_provider_is_healthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The connector is usable as long as one key still works."""
+    from mcp_server.tools.web.web_search import check_web_search_available
+
+    monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    _record_credential_error("brave", 402, "quota gone")
+
+    assert await check_web_search_available() is True
+
+    _record_credential_error("tavily", 432, "out of credits")
     assert await check_web_search_available() is False
