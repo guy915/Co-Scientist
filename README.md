@@ -176,7 +176,7 @@ Copy `.env.example` to `.env`. Empty keys keep you in offline mode.
 
 ```
 OPENROUTER_API_KEY=                  # empty = offline mode; any provider key triggers the real LLM backend
-MODEL_NAME=openrouter/deepseek/deepseek-v4-flash-0731   # LiteLLM format
+MODEL_NAME=openrouter/stealth/ox-alpha   # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
 SAFETY_MODE=standard                 # 'strict' for dual-use filtering
 ```

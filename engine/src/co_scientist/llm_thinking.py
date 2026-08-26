@@ -7,6 +7,7 @@ from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
@@ -27,7 +28,15 @@ logger = logging.getLogger(__name__)
 # litellm's cost map marks deepseek/* as supporting response schema, but the
 # DeepSeek API only accepts json_object, so the registry alone cannot be
 # trusted for these providers.
-_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
+#
+# ``ox-alpha`` is here for a different reason than DeepSeek, and a harder
+# one: no host serving it accepts ``json_schema`` at all. Paired with
+# ``require_parameters`` below that is not a soft degradation to an
+# unconstrained answer -- the gateway finds no eligible host and the call
+# fails outright ("No endpoints found that can handle the requested
+# parameters"). Measured live: ``json_object`` plus the same routing
+# constraint answers, ``json_schema`` plus it 404s.
+_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek", "ox-alpha")
 
 # Routes that normalize reasoning control into their own parameter rather
 # than forwarding the provider's. A gateway serves many models through one
@@ -77,6 +86,56 @@ _MAX_PRICE_MULTIPLE: Final[float] = 2.0
 _GATEWAY_PROVIDER: Final[dict[str, Any]] = {
     "require_parameters": True,
     "sort": "throughput",
+}
+
+
+@dataclass(frozen=True)
+class GatewayModel:
+    """What a gateway route needs to know about one model.
+
+    Both facts are properties of the model rather than of the route, and
+    neither is discoverable from its name -- which is why they are stated
+    here rather than inferred from a family substring. Inferring them is
+    what made a rival vendor's model run with no reasoning configured and
+    no price ceiling while looking exactly like a configured one.
+
+    Attributes:
+        reasons: Whether the model spends a chain of thought against
+            ``max_tokens``. Only a model that does gets the reasoning knob
+            and the token floor that funds it; asking a model that does
+            not lifts its budget to the floor for nothing and misreports
+            what the call was sized for.
+        fallbacks: Gateway-relative ids to try, in order, when this model
+            is unavailable. The gateway walks the list itself, which is
+            the only layer that can: a 429 from a saturated free pool is
+            not something the engine's retry ladder fixes by asking the
+            same host again, and it is not a transport error either.
+    """
+
+    reasons: bool
+    fallbacks: tuple[str, ...] = ()
+
+
+# The models this deployment reaches through the gateway, and the order it
+# falls through them. Ox Alpha is free and serves the whole run; GLM 5.2's
+# free pool catches it when Ox Alpha is rate-limited; Muse Spark is the
+# paid last resort, reached only when both free models are unavailable.
+#
+# Note what the middle rung is worth today: `z-ai/glm-5.2:free` returned
+# 429 on every one of nine live probes, its free pool being saturated
+# rather than the account being throttled. So the chain's real behaviour
+# under an Ox Alpha outage is a fall to the paid model, at $1.25/$4.25 per
+# million -- twenty times the rate of anything else here. That is the
+# chain doing what it was asked to do, not a defect, but it is the one
+# way this configuration spends money.
+_GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
+    "openrouter/stealth/ox-alpha": GatewayModel(
+        reasons=False,
+        fallbacks=("z-ai/glm-5.2:free", "meta/muse-spark-1.2"),
+    ),
+    "openrouter/z-ai/glm-5.2:free": GatewayModel(reasons=True),
+    "openrouter/z-ai/glm-5.2": GatewayModel(reasons=True),
+    "openrouter/meta/muse-spark-1.2": GatewayModel(reasons=True),
 }
 
 
@@ -145,7 +204,10 @@ def deepseek_thinking_extra_body(
         a model with no thinking mode.
     """
     lowered = model_name.lower()
-    if not any(f in lowered for f in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+    declared = _GATEWAY_MODELS.get(lowered)
+    if declared is not None:
+        return _declared_gateway_body(lowered, declared, enabled)
+    if "deepseek" not in lowered:
         return {}
     if not _is_gateway_route(lowered):
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
@@ -153,6 +215,55 @@ def deepseek_thinking_extra_body(
     if enabled:
         reasoning["effort"] = _REASONING_EFFORT
     return {"reasoning": reasoning, "provider": _gateway_provider(lowered)}
+
+
+def _declared_gateway_body(
+    lowered: str, declared: GatewayModel, enabled: bool
+) -> dict[str, Any]:
+    """Build the ``extra_body`` for a model declared in ``_GATEWAY_MODELS``.
+
+    Args:
+        lowered: Model name in litellm format, already lowercased.
+        declared: What the gateway needs to know about this model.
+        enabled: Whether thinking mode is requested for this call.
+
+    Returns:
+        The routing constraint always, the fallback chain when one is
+        declared, and the reasoning knob only for a model that reasons.
+    """
+    body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
+    if declared.fallbacks:
+        body["models"] = list(declared.fallbacks)
+    if not declared.reasons:
+        return body
+    reasoning: dict[str, Any] = {"enabled": enabled}
+    if enabled:
+        reasoning["effort"] = _REASONING_EFFORT
+    body["reasoning"] = reasoning
+    return body
+
+
+def model_reasons(model_name: str) -> bool:
+    """Whether this model spends a chain of thought against ``max_tokens``.
+
+    The question the token floor actually asks. It used to be answered by
+    "does this model get a thinking body at all", which stopped being the
+    same question once a model needed gateway routing without reasoning:
+    that model would have had its budget lifted to the thinking floor to
+    fund a chain of thought it never writes.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        True for a declared gateway model that reasons, and for any
+        DeepSeek model, whose whole family does.
+    """
+    lowered = model_name.lower()
+    declared = _GATEWAY_MODELS.get(lowered)
+    if declared is not None:
+        return declared.reasons
+    return "deepseek" in lowered
 
 
 def reasoning_effort_args(
@@ -221,7 +332,7 @@ def effective_max_tokens(
         ``max_tokens`` raised to ``THINKING_FLOOR_MAX_TOKENS`` when this
         call will reason, otherwise ``max_tokens`` unchanged.
     """
-    if enable_thinking and deepseek_thinking_extra_body(model_name):
+    if enable_thinking and model_reasons(model_name):
         return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
     return max_tokens
 

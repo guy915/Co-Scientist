@@ -34,48 +34,46 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     #
-    # One model on every tier, reached through OpenRouter rather than
-    # DeepSeek's own API. Two separate findings put it there, both measured
-    # on this project's own workload (six research goals, three independent
-    # judges blind-ranking the hypotheses each model produced):
+    # One model on every tier, reached through OpenRouter: Ox Alpha, which
+    # is served free. Cost is the binding constraint on this deployment, so
+    # the tier split buys nothing -- there is no cheaper rung than free for
+    # a worker tier to drop to, and no budget freed by giving the strategic
+    # tier something dearer.
     #
-    # * **The route, not the model, was the bill.** DeepSeek's first-party
-    #   V4 pricing rose to $0.44/$1.32 per million tokens on Flash and
-    #   $1.32/$3.96 on Pro (see ``constants_pricing``); the same weights
-    #   served through OpenRouter cost a fraction of that, because a dozen
-    #   hosts compete to serve an open-weights model and DeepSeek's own API
-    #   does not have to.
-    # * **The 0731 snapshot is both cheaper and better.** It out-ranked
-    #   V4 Flash 0423 by a wide margin and edged out V4 Pro, at a fifth of
-    #   Pro's cost, so the worker/strategic split stopped paying for
-    #   itself: the strategic tier was buying a *weaker* model at eight
-    #   times the price.
+    # A free model is a routing risk rather than a quality one, so the
+    # gateway is given the order to fall through when Ox Alpha is
+    # unavailable: GLM 5.2's free pool, then Muse Spark 1.2, which is paid.
+    # ``llm_thinking._GATEWAY_MODELS`` holds that chain and what each model
+    # in it needs -- and records the one thing to watch, which is that the
+    # middle rung answered none of nine live probes, so an Ox Alpha outage
+    # today falls straight to the paid model.
     #
-    # What the change costs is latency. 0731 reasons roughly three times as
-    # long per call as 0423 (measured median 62s against 31s), which is
-    # what buys the quality; a run's wall clock grows accordingly.
+    # Two properties of Ox Alpha are load-bearing and neither is guessable
+    # from its name, which is why both are declared rather than inferred.
+    # It serves no host that accepts ``json_schema``, so every schema'd
+    # call is downgraded to ``json_object`` with the schema restated in the
+    # prompt (paired with ``require_parameters``, sending the schema is a
+    # 404 rather than a soft degradation). And it spends no reasoning
+    # tokens, so it is not asked to reason and its calls keep the budget
+    # their call sites chose instead of being lifted to the thinking floor.
     #
-    # Staying inside the DeepSeek family is deliberate rather than
-    # incidental: ``llm_thinking`` keys thinking mode, the reasoning-effort
-    # knob, the JSON-object output mode and the gateway price cap off that
-    # family, so another vendor's model silently runs with none of them.
+    # Ox Alpha is a stealth listing: a cloaked preview that can be renamed
+    # or withdrawn without notice. The fallback chain is what makes that
+    # survivable rather than an outage.
     #
-    # model_name: worker model — generate, review, ranking, reflection,
+    # model_name: worker model -- generate, review, ranking, reflection,
     # evolve, proximity, literature_review, claim verification. High-volume,
     # runs many times per iteration.
-    model_name: str = "openrouter/deepseek/deepseek-v4-flash-0731"
-    # supervisor_model_name: strategic model — supervisor (research
+    model_name: str = "openrouter/stealth/ox-alpha"
+    # supervisor_model_name: strategic model -- supervisor (research
     # planning), meta_review and research_overview (final report synthesis).
-    # Runs once or twice per iteration. The same model as the worker tier:
-    # no model that scored above it costs less than it. Falls back to
+    # Runs once or twice per iteration. The same model as the worker tier.
+    # Falls back to model_name only if explicitly cleared.
+    supervisor_model_name: str | None = "openrouter/stealth/ox-alpha"
+    # chat_model_name: model for all user-facing communication -- the
+    # research interview, Chat-tab Q&A, and session titling. Falls back to
     # model_name only if explicitly cleared.
-    supervisor_model_name: str | None = (
-        "openrouter/deepseek/deepseek-v4-flash-0731"
-    )
-    # chat_model_name: model for all user-facing communication — the research
-    # interview, Chat-tab Q&A, and session titling. Matches the supervisor
-    # tier. Falls back to model_name only if explicitly cleared.
-    chat_model_name: str | None = "openrouter/deepseek/deepseek-v4-flash-0731"
+    chat_model_name: str | None = "openrouter/stealth/ox-alpha"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -114,9 +112,7 @@ class Settings(BaseSettings):
     semantic_safety_enabled: bool = True
     # Kept on the worker tier rather than falling back to the supervisor
     # model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = (
-        "openrouter/deepseek/deepseek-v4-flash-0731"
-    )
+    semantic_safety_model: str | None = "openrouter/stealth/ox-alpha"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see
@@ -376,7 +372,7 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     # gets the same DeepSeek weights the deployment defaults to, so a
     # BYOK run is comparable to a house run rather than a different
     # experiment.
-    "openrouter": "openrouter/deepseek/deepseek-v4-flash-0731",
+    "openrouter": "openrouter/stealth/ox-alpha",
 }
 """Default model each BYOK provider runs, in litellm format.
 

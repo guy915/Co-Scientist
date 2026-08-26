@@ -94,6 +94,23 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # charging up to 3.4x this on input and 4.7x on output -- DeepSeek's
     # own first-party endpoint among them, at 0.22/0.66 -- is excluded.
     "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
+    # The deployed chain (``app.config`` names the first;
+    # ``llm_thinking._GATEWAY_MODELS`` holds the order). The two free rungs
+    # are priced at zero because they are free, which is a real rate and
+    # not a missing entry -- a run on them reports $0.00 because it cost
+    # that. Note the one thing zero costs us: ``_gateway_provider`` derives
+    # its routing ceiling as a multiple of the listed rate, and zero has no
+    # meaningful multiple, so a free model's call goes out uncapped. That
+    # is correct -- capping at zero would refuse every host -- but it means
+    # the chain itself, not a price ceiling, is what bounds the spend.
+    "openrouter/stealth/ox-alpha": ModelPrice(0.0, 0.0),
+    "openrouter/z-ai/glm-5.2:free": ModelPrice(0.0, 0.0),
+    # The paid last resort, and the only rung that can spend anything. At
+    # twenty times the rate of the DeepSeek route this replaced, a run that
+    # falls all the way through costs materially more than one that does
+    # not -- so a bill appearing here is a signal that both free rungs were
+    # unavailable, not that the model was chosen.
+    "openrouter/meta/muse-spark-1.2": ModelPrice(1.25, 4.25),
     "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
     # Azure resells OpenAI's models at OpenAI's list price. Present

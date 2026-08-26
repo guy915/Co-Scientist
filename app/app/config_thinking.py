@@ -17,13 +17,27 @@ from co_scientist.llm_request import (
     deepseek_thinking_extra_body as _thinking_body,
 )
 from co_scientist.llm_request import (
+    model_reasons as _model_reasons,
+)
+from co_scientist.llm_request import (
     reasoning_effort_args as _effort_args,
 )
 
 
 def _is_deepseek(model_name: str) -> bool:
-    """Whether ``model_name`` targets a DeepSeek model (thinking-capable)."""
-    return "deepseek" in model_name.lower()
+    """Whether this model reasons, and so needs the floors below.
+
+    Asks the engine rather than matching a family substring. The two are
+    no longer the same question: the deployed model is not DeepSeek and
+    does not reason, while the models behind it in the fallback chain do,
+    and a substring test would have answered "no" for all three -- lifting
+    no budget and no deadline for the two that need both.
+
+    The name is kept because ``app.config`` re-exports it and the floors
+    below read as a pair with it.
+    """
+    reasons: bool = _model_reasons(model_name)
+    return reasons
 
 
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
