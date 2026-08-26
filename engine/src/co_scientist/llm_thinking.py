@@ -7,6 +7,7 @@ from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
@@ -27,7 +28,15 @@ logger = logging.getLogger(__name__)
 # litellm's cost map marks deepseek/* as supporting response schema, but the
 # DeepSeek API only accepts json_object, so the registry alone cannot be
 # trusted for these providers.
-_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
+#
+# ``ox-alpha`` is here for a different reason than DeepSeek, and a harder
+# one: no host serving it accepts ``json_schema`` at all. Paired with
+# ``require_parameters`` below that is not a soft degradation to an
+# unconstrained answer -- the gateway finds no eligible host and the call
+# fails outright ("No endpoints found that can handle the requested
+# parameters"). Measured live: ``json_object`` plus the same routing
+# constraint answers, ``json_schema`` plus it 404s.
+_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek", "ox-alpha")
 
 # Routes that normalize reasoning control into their own parameter rather
 # than forwarding the provider's. A gateway serves many models through one
@@ -77,6 +86,76 @@ _MAX_PRICE_MULTIPLE: Final[float] = 2.0
 _GATEWAY_PROVIDER: Final[dict[str, Any]] = {
     "require_parameters": True,
     "sort": "throughput",
+}
+
+
+@dataclass(frozen=True)
+class GatewayModel:
+    """What a gateway route needs to know about one model.
+
+    Every fact here is a property of the model rather than of the route,
+    and none is discoverable from its name -- which is why they are stated
+    rather than inferred from a family substring. Inferring them is what
+    made a rival vendor's model run with no reasoning configured and no
+    price ceiling while looking exactly like a configured one. The two
+    reasoning fields are separate for the same reason one scale down: a
+    model can decline the parameter and still spend the budget.
+
+    Attributes:
+        takes_reasoning_knob: Whether to send the gateway's ``reasoning``
+            parameter. A model that does not accept it gains nothing from
+            being asked.
+        spends_budget_thinking: Whether the model can consume its whole
+            ``max_tokens`` before writing any answer, and so needs
+            ``THINKING_FLOOR_MAX_TOKENS``. Deliberately separate from the
+            knob above, because the two came apart in production: Ox Alpha
+            reports ``reasoning_tokens=0`` and takes no reasoning
+            parameter, yet still returns ``finish_reason="length"`` with
+            empty content at an 8000-token budget -- it spends the
+            allowance on something the API does not itemise. Recording
+            that as "does not reason" cost 24 answerless round-trips in a
+            single express run, each one climbing the escalation ladder to
+            arrive at the budget this floor would have given it first.
+            When unsure, fund it: a ceiling is not a spend.
+        fallbacks: Gateway-relative ids to try, in order, when this model
+            is unavailable. The gateway walks the list itself, which is
+            the only layer that can: a 429 from a saturated free pool is
+            not something the engine's retry ladder fixes by asking the
+            same host again, and it is not a transport error either.
+    """
+
+    takes_reasoning_knob: bool
+    spends_budget_thinking: bool
+    fallbacks: tuple[str, ...] = ()
+
+
+# The models this deployment reaches through the gateway, and the order it
+# falls through them. Ox Alpha is free and serves the whole run; GLM 5.2's
+# free pool catches it when Ox Alpha is rate-limited; Muse Spark is the
+# paid last resort, reached only when both free models are unavailable.
+#
+# Note what the middle rung is worth today: `z-ai/glm-5.2:free` returned
+# 429 on every one of nine live probes, its free pool being saturated
+# rather than the account being throttled. So the chain's real behaviour
+# under an Ox Alpha outage is a fall to the paid model, at $1.25/$4.25 per
+# million -- twenty times the rate of anything else here. That is the
+# chain doing what it was asked to do, not a defect, but it is the one
+# way this configuration spends money.
+_GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
+    "openrouter/stealth/ox-alpha": GatewayModel(
+        takes_reasoning_knob=False,
+        spends_budget_thinking=True,
+        fallbacks=("z-ai/glm-5.2:free", "meta/muse-spark-1.2"),
+    ),
+    "openrouter/z-ai/glm-5.2:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/z-ai/glm-5.2": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/meta/muse-spark-1.2": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
 }
 
 
@@ -145,7 +224,10 @@ def deepseek_thinking_extra_body(
         a model with no thinking mode.
     """
     lowered = model_name.lower()
-    if not any(f in lowered for f in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+    declared = _GATEWAY_MODELS.get(lowered)
+    if declared is not None:
+        return _declared_gateway_body(lowered, declared, enabled)
+    if "deepseek" not in lowered:
         return {}
     if not _is_gateway_route(lowered):
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
@@ -153,6 +235,55 @@ def deepseek_thinking_extra_body(
     if enabled:
         reasoning["effort"] = _REASONING_EFFORT
     return {"reasoning": reasoning, "provider": _gateway_provider(lowered)}
+
+
+def _declared_gateway_body(
+    lowered: str, declared: GatewayModel, enabled: bool
+) -> dict[str, Any]:
+    """Build the ``extra_body`` for a model declared in ``_GATEWAY_MODELS``.
+
+    Args:
+        lowered: Model name in litellm format, already lowercased.
+        declared: What the gateway needs to know about this model.
+        enabled: Whether thinking mode is requested for this call.
+
+    Returns:
+        The routing constraint always, the fallback chain when one is
+        declared, and the reasoning knob only for a model that reasons.
+    """
+    body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
+    if declared.fallbacks:
+        body["models"] = list(declared.fallbacks)
+    if not declared.takes_reasoning_knob:
+        return body
+    reasoning: dict[str, Any] = {"enabled": enabled}
+    if enabled:
+        reasoning["effort"] = _REASONING_EFFORT
+    body["reasoning"] = reasoning
+    return body
+
+
+def model_reasons(model_name: str) -> bool:
+    """Whether this model can spend its whole budget before answering.
+
+    The question the token floor actually asks, and deliberately not "does
+    it take the reasoning parameter". The two came apart in production: Ox
+    Alpha answers no to the second and yes to this one, and conflating them
+    withheld the floor from a model that needed it, costing 24 answerless
+    round-trips in one express run.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        True for a declared gateway model that spends its budget thinking,
+        and for any DeepSeek model, whose whole family does.
+    """
+    lowered = model_name.lower()
+    declared = _GATEWAY_MODELS.get(lowered)
+    if declared is not None:
+        return declared.spends_budget_thinking
+    return "deepseek" in lowered
 
 
 def reasoning_effort_args(
@@ -171,16 +302,29 @@ def reasoning_effort_args(
     since the value equals the default, that bug is inert. Sending it keeps
     the intent explicit and the call correct once the fix lands.
 
-    Empty for models without a thinking mode, and when thinking is disabled
-    for the call.
+    **Direct routes only.** A gateway route already carries the tier inside
+    the ``reasoning`` object ``deepseek_thinking_extra_body`` builds for it,
+    so this field beside it is the same instruction twice -- and the copy
+    the gateway rejects, since litellm raises ``UnsupportedParamsError`` for
+    a model whose OpenRouter support map does not list the parameter. Engine
+    calls pass ``drop_params`` and so never saw it; the app's own call sites
+    invoke litellm directly without that, and the redundant field failed the
+    contextual safety screen outright -- which parks a run for human review
+    rather than erroring visibly.
+
+    Empty for models without a thinking mode, for gateway routes, and when
+    thinking is disabled for the call.
 
     Args:
         model_name: Model name in litellm format.
         enabled: Whether thinking mode is requested for this call.
 
     Returns:
-        ``{"reasoning_effort": "high"}`` when the tier applies, else ``{}``.
+        ``{"reasoning_effort": "high"}`` when the tier applies and the route
+        has nowhere else to state it, else ``{}``.
     """
+    if _is_gateway_route(model_name):
+        return {}
     if enabled and deepseek_thinking_extra_body(model_name):
         return {"reasoning_effort": "high"}
     return {}
@@ -208,7 +352,7 @@ def effective_max_tokens(
         ``max_tokens`` raised to ``THINKING_FLOOR_MAX_TOKENS`` when this
         call will reason, otherwise ``max_tokens`` unchanged.
     """
-    if enable_thinking and deepseek_thinking_extra_body(model_name):
+    if enable_thinking and model_reasons(model_name):
         return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
     return max_tokens
 

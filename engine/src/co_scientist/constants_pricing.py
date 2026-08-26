@@ -84,8 +84,39 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # call in its own dashboard, which is the billing record this only
     # estimates.
     "openrouter/deepseek/deepseek-v4-flash": ModelPrice(0.083, 0.165, 0.017),
+    # The deployed default on every tier (``app.config``). Priced off the
+    # fp8 hosts rather than the cheapest row on the board: the headline
+    # rate for this model belongs to an fp4 host at 95% uptime, and
+    # ``_MAX_PRICE_MULTIPLE`` doubles whatever is written here into the
+    # routing ceiling, so a rate copied from the cheapest quantized host
+    # would cap the route below every full-precision one. At 2x this,
+    # twenty of the model's twenty-nine hosts stay eligible, and the tail
+    # charging up to 3.4x this on input and 4.7x on output -- DeepSeek's
+    # own first-party endpoint among them, at 0.22/0.66 -- is excluded.
+    "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
+    # The deployed chain (``app.config`` names the first;
+    # ``llm_thinking._GATEWAY_MODELS`` holds the order). The two free rungs
+    # are priced at zero because they are free, which is a real rate and
+    # not a missing entry -- a run on them reports $0.00 because it cost
+    # that. Note the one thing zero costs us: ``_gateway_provider`` derives
+    # its routing ceiling as a multiple of the listed rate, and zero has no
+    # meaningful multiple, so a free model's call goes out uncapped. That
+    # is correct -- capping at zero would refuse every host -- but it means
+    # the chain itself, not a price ceiling, is what bounds the spend.
+    "openrouter/stealth/ox-alpha": ModelPrice(0.0, 0.0),
+    "openrouter/z-ai/glm-5.2:free": ModelPrice(0.0, 0.0),
+    # The paid last resort, and the only rung that can spend anything. At
+    # twenty times the rate of the DeepSeek route this replaced, a run that
+    # falls all the way through costs materially more than one that does
+    # not -- so a bill appearing here is a signal that both free rungs were
+    # unavailable, not that the model was chosen.
+    "openrouter/meta/muse-spark-1.2": ModelPrice(1.25, 4.25),
     "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
+    # Azure resells OpenAI's models at OpenAI's list price. Present
+    # because ``BYOK_PROVIDER_DEFAULT_MODELS`` names it, and an unpriced
+    # model reports every run as costing nothing.
+    "azure/gpt-4o": ModelPrice(2.50, 10.00),
     "openai/gpt-4o-mini": ModelPrice(0.15, 0.60),
     "anthropic/claude-sonnet-4-5": ModelPrice(3.00, 15.00),
 }

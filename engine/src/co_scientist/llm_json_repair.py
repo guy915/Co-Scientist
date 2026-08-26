@@ -207,6 +207,21 @@ _MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     lambda s: json.loads(
         _fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))
     ),
+    # Admit literal control characters inside strings. A model writing
+    # prose into a string field presses return inside it, and strict JSON
+    # forbids a raw newline between quotes -- so a complete, balanced
+    # object is discarded over a blank line in one value. `strict=False`
+    # is exactly and only this permission; it accepts nothing else the
+    # parser would have rejected, so it cannot turn genuinely broken JSON
+    # into a wrong answer. Measured on `openrouter/stealth/ox-alpha` in
+    # json_object mode, where no server-side schema constrains the shape:
+    # five ranking calls in one express run died this way, each losing a
+    # tournament verdict the model had written correctly.
+    lambda s: json.loads(s, strict=False),
+    # And the same, once the two textual repairs above have run.
+    lambda s: json.loads(
+        _fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s)), strict=False
+    ),
 ]
 
 # Major repairs (indicate truncation/incomplete, only tried on the final

@@ -16,11 +16,28 @@ from typing import Any
 from co_scientist.llm_request import (
     deepseek_thinking_extra_body as _thinking_body,
 )
+from co_scientist.llm_request import (
+    model_reasons as _model_reasons,
+)
+from co_scientist.llm_request import (
+    reasoning_effort_args as _effort_args,
+)
 
 
 def _is_deepseek(model_name: str) -> bool:
-    """Whether ``model_name`` targets a DeepSeek model (thinking-capable)."""
-    return "deepseek" in model_name.lower()
+    """Whether this model reasons, and so needs the floors below.
+
+    Asks the engine rather than matching a family substring. The two are
+    no longer the same question: the deployed model is not DeepSeek and
+    does not reason, while the models behind it in the fallback chain do,
+    and a substring test would have answered "no" for all three -- lifting
+    no budget and no deadline for the two that need both.
+
+    The name is kept because ``app.config`` re-exports it and the floors
+    below read as a pair with it.
+    """
+    reasons: bool = _model_reasons(model_name)
+    return reasons
 
 
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
@@ -67,7 +84,16 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     request body entirely (BerriAI/litellm#27439), and because the value
     matches the provider default that bug changes nothing here. Sending it
     anyway means the intent is recorded and the call is already correct when
-    the fix lands. Spread into a completion call
+    the fix lands.
+
+    Which of the two shapes carries the tier is the engine's decision, not
+    a rule restated here: a gateway route states it inside its own
+    ``reasoning`` object, and a top-level ``reasoning_effort`` beside that
+    is the copy litellm refuses outright for a model its OpenRouter support
+    map does not list. Engine calls survive such a refusal because they all
+    pass ``drop_params``; these app call sites reach litellm directly and do
+    not, so the redundant field failed the contextual safety screen and
+    parked runs for human review. Spread into a completion call
     (``**deepseek_thinking_kwargs``). Used by every app call except titling:
     interview, Q&A, safety, and claim verification. Non-DeepSeek models get
     an empty dict.
@@ -82,7 +108,8 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     extra_body = _thinking_body(model_name, enabled=True)
     if not extra_body:
         return {}
-    return {"extra_body": extra_body, "reasoning_effort": "high"}
+    effort: dict[str, Any] = _effort_args(model_name, enabled=True)
+    return {"extra_body": extra_body, **effort}
 
 
 THINKING_FLOOR_MAX_TOKENS = 18_000

@@ -74,6 +74,9 @@ from co_scientist.llm_thinking import (
     failure_context_text as failure_context_text,
 )
 from co_scientist.llm_thinking import (
+    model_reasons as model_reasons,
+)
+from co_scientist.llm_thinking import (
     reasoning_effort_args as reasoning_effort_args,
 )
 

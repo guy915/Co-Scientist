@@ -33,19 +33,47 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # LLM Configuration
-    # model_name: worker model — generate, review, ranking, reflection, evolve,
-    # proximity, literature_review, claim verification. High-volume, runs many
-    # times per iteration. DeepSeek V4 Flash: the fast, cheap thinking tier.
-    model_name: str = "deepseek/deepseek-v4-flash"
-    # supervisor_model_name: strategic model — supervisor (research planning),
-    # meta_review and research_overview (final report synthesis). Runs once or
-    # twice per iteration. DeepSeek V4 Pro: the stronger thinking model. Falls
-    # back to model_name only if explicitly cleared.
-    supervisor_model_name: str | None = "deepseek/deepseek-v4-pro"
-    # chat_model_name: model for all user-facing communication — the research
-    # interview, Chat-tab Q&A, and session titling. DeepSeek V4 Pro, matching
-    # the supervisor tier. Falls back to model_name only if explicitly cleared.
-    chat_model_name: str | None = "deepseek/deepseek-v4-pro"
+    #
+    # One model on every tier, reached through OpenRouter: Ox Alpha, which
+    # is served free. Cost is the binding constraint on this deployment, so
+    # the tier split buys nothing -- there is no cheaper rung than free for
+    # a worker tier to drop to, and no budget freed by giving the strategic
+    # tier something dearer.
+    #
+    # A free model is a routing risk rather than a quality one, so the
+    # gateway is given the order to fall through when Ox Alpha is
+    # unavailable: GLM 5.2's free pool, then Muse Spark 1.2, which is paid.
+    # ``llm_thinking._GATEWAY_MODELS`` holds that chain and what each model
+    # in it needs -- and records the one thing to watch, which is that the
+    # middle rung answered none of nine live probes, so an Ox Alpha outage
+    # today falls straight to the paid model.
+    #
+    # Two properties of Ox Alpha are load-bearing and neither is guessable
+    # from its name, which is why both are declared rather than inferred.
+    # It serves no host that accepts ``json_schema``, so every schema'd
+    # call is downgraded to ``json_object`` with the schema restated in the
+    # prompt (paired with ``require_parameters``, sending the schema is a
+    # 404 rather than a soft degradation). And it spends no reasoning
+    # tokens, so it is not asked to reason and its calls keep the budget
+    # their call sites chose instead of being lifted to the thinking floor.
+    #
+    # Ox Alpha is a stealth listing: a cloaked preview that can be renamed
+    # or withdrawn without notice. The fallback chain is what makes that
+    # survivable rather than an outage.
+    #
+    # model_name: worker model -- generate, review, ranking, reflection,
+    # evolve, proximity, literature_review, claim verification. High-volume,
+    # runs many times per iteration.
+    model_name: str = "openrouter/stealth/ox-alpha"
+    # supervisor_model_name: strategic model -- supervisor (research
+    # planning), meta_review and research_overview (final report synthesis).
+    # Runs once or twice per iteration. The same model as the worker tier.
+    # Falls back to model_name only if explicitly cleared.
+    supervisor_model_name: str | None = "openrouter/stealth/ox-alpha"
+    # chat_model_name: model for all user-facing communication -- the
+    # research interview, Chat-tab Q&A, and session titling. Falls back to
+    # model_name only if explicitly cleared.
+    chat_model_name: str | None = "openrouter/stealth/ox-alpha"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -82,9 +110,9 @@ class Settings(BaseSettings):
     # configured model's provider credential is present. Deterministic hard
     # blocks always run first and cannot be overridden by the model.
     semantic_safety_enabled: bool = True
-    # Kept on the worker tier (V4 Flash) rather than falling back to the
-    # supervisor model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = "deepseek/deepseek-v4-flash"
+    # Kept on the worker tier rather than falling back to the supervisor
+    # model, so safety screening stays on the "everything else" tier.
+    semantic_safety_model: str | None = "openrouter/stealth/ox-alpha"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see
@@ -344,7 +372,7 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     # gets the same DeepSeek weights the deployment defaults to, so a
     # BYOK run is comparable to a house run rather than a different
     # experiment.
-    "openrouter": "openrouter/deepseek/deepseek-v4-flash",
+    "openrouter": "openrouter/stealth/ox-alpha",
 }
 """Default model each BYOK provider runs, in litellm format.
 

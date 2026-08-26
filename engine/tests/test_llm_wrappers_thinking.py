@@ -61,6 +61,38 @@ def test_thinking_disabled_drops_reasoning_effort() -> None:
     assert "reasoning_effort" not in args
 
 
+def test_gateway_route_carries_the_effort_only_inside_extra_body() -> None:
+    """A gateway route states the reasoning tier exactly once.
+
+    The gateway's own ``reasoning`` object already carries ``effort``, so a
+    top-level ``reasoning_effort`` beside it is a second copy of the same
+    instruction -- and the copy the gateway rejects. litellm refuses it for
+    a model whose OpenRouter support map does not list the parameter
+    (``UnsupportedParamsError``), which the engine survives only because
+    every engine call also passes ``drop_params``. The app's own call sites
+    invoke litellm directly and do not, so the redundant field failed the
+    contextual safety screen outright and parked runs for human review.
+    """
+    from co_scientist.llm_request import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    args = _build_completion_args(
+        "prompt",
+        "openrouter/deepseek/deepseek-v4-flash",
+        100,
+        0.5,
+        CompletionShape(),
+    )
+
+    assert args["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "high",
+    }
+    assert "reasoning_effort" not in args
+
+
 def test_thinking_params_absent_for_non_deepseek_models() -> None:
     """The thinking params are DeepSeek-specific and never sent elsewhere."""
     from co_scientist.llm_request import (
