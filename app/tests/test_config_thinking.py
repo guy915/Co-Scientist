@@ -171,3 +171,12 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     }
     assert deepseek_non_thinking_extra_body("gemini/gemini-2.5-flash") == {}
     assert deepseek_thinking_kwargs("gemini/gemini-2.5-flash") == {}
+
+    # The tier is stated once, in the shape the route understands. A
+    # top-level ``reasoning_effort`` beside the gateway's own ``reasoning``
+    # object is the copy litellm refuses (``UnsupportedParamsError``) for a
+    # model its OpenRouter support map does not list -- and these app call
+    # sites reach litellm directly, without the ``drop_params`` every engine
+    # call carries. It parked runs at the contextual safety screen.
+    assert "reasoning_effort" not in deepseek_thinking_kwargs(routed)
+    assert deepseek_thinking_kwargs(direct)["reasoning_effort"] == "high"

@@ -171,16 +171,29 @@ def reasoning_effort_args(
     since the value equals the default, that bug is inert. Sending it keeps
     the intent explicit and the call correct once the fix lands.
 
-    Empty for models without a thinking mode, and when thinking is disabled
-    for the call.
+    **Direct routes only.** A gateway route already carries the tier inside
+    the ``reasoning`` object ``deepseek_thinking_extra_body`` builds for it,
+    so this field beside it is the same instruction twice -- and the copy
+    the gateway rejects, since litellm raises ``UnsupportedParamsError`` for
+    a model whose OpenRouter support map does not list the parameter. Engine
+    calls pass ``drop_params`` and so never saw it; the app's own call sites
+    invoke litellm directly without that, and the redundant field failed the
+    contextual safety screen outright -- which parks a run for human review
+    rather than erroring visibly.
+
+    Empty for models without a thinking mode, for gateway routes, and when
+    thinking is disabled for the call.
 
     Args:
         model_name: Model name in litellm format.
         enabled: Whether thinking mode is requested for this call.
 
     Returns:
-        ``{"reasoning_effort": "high"}`` when the tier applies, else ``{}``.
+        ``{"reasoning_effort": "high"}`` when the tier applies and the route
+        has nowhere else to state it, else ``{}``.
     """
+    if _is_gateway_route(model_name):
+        return {}
     if enabled and deepseek_thinking_extra_body(model_name):
         return {"reasoning_effort": "high"}
     return {}
