@@ -11,8 +11,9 @@ import logging
 from typing import Any
 
 from mcp_server.tools.web.providers import (
-    resolve_provider,
-    web_search_credential_error,
+    candidate_providers,
+    configured_providers,
+    credential_error_for,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,21 +44,30 @@ async def search_web(
         published_date. Empty on any error so a failed search degrades
         gracefully.
     """
-    provider = resolve_provider()
-    if provider is None:
+    candidates = candidate_providers()
+    if not candidates:
         logger.warning("Web search requested but no provider key is configured")
         return {}
 
-    name, search_fn = provider
     capped = min(max(max_results, 1), _MAX_RESULTS_CEILING)
-    results = await search_fn(query, capped, max(recency_days, 0))
-    logger.debug(
-        "web search via %s returned %s results for %r",
-        name,
-        len(results),
-        query,
-    )
-    return results
+    for name, search_fn in candidates:
+        results = await search_fn(query, capped, max(recency_days, 0))
+        if results:
+            logger.debug(
+                "web search via %s returned %s results for %r",
+                name,
+                len(results),
+                query,
+            )
+            return results
+        # Only a refusal justifies re-asking elsewhere. An empty answer is
+        # an answer, and spending a second provider's monthly allowance to
+        # hear it twice is how two free tiers become one.
+        if credential_error_for(name) is None:
+            logger.debug("web search via %s found nothing for %r", name, query)
+            return {}
+        logger.warning("%s refused the search; trying the next provider", name)
+    return {}
 
 
 async def check_web_search_available() -> bool:
@@ -72,9 +82,9 @@ async def check_web_search_available() -> bool:
     actually being asked.
 
     Returns:
-        True when a provider is configured and its key has not been
-        refused since the last search that worked.
+        True when at least one configured provider has not been refused
+        since the last search that worked.
     """
-    if resolve_provider() is None:
-        return False
-    return web_search_credential_error() is None
+    return any(
+        credential_error_for(name) is None for name, _ in configured_providers()
+    )
