@@ -159,7 +159,6 @@ export function ShellHeader({
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
       <ProductLockup onNewChat={startNewChat} />
-      <SessionSwitch session={session} />
       <div className={HEADER_TITLE_CLASSES}>
         {headerTitle && (
           <TruncatedLabel
@@ -168,7 +167,12 @@ export function ShellHeader({
           />
         )}
       </div>
+      {/* Inside the Logs anchor rather than beside it: the switch wears the
+          same pill as the controls it sits with, and a click on it navigates,
+          which closes any open popover on its own (see
+          useDismissChromeOnNavigate). */}
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+        <SessionSwitch session={session} />
         <SystemStatusIndicator />
         <AudienceHeaderControl
           activePanel={activePanel}

@@ -95,7 +95,17 @@ function sessionSideHref(session: SessionSwitchData, side: string): string {
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
   if (!session) return null;
   return (
-    <nav className="ucs-session-switch" aria-label="Session view">
+    <nav
+      className="ucs-session-switch"
+      aria-label="Session view"
+      data-active={session.active}
+    >
+      {/* The moving highlight. A single element the container slides between
+          the two halves, rather than a background on each side: only one
+          element can animate from where the highlight *was* to where it is
+          going, which is the difference between the marker travelling and it
+          reappearing on the other side. */}
+      <span className="ucs-session-switch-thumb" aria-hidden="true" />
       {SWITCH_SIDES.map(({side, icon, label}) => {
         const active = side === session.active;
         return (
