@@ -90,9 +90,9 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # ``_MAX_PRICE_MULTIPLE`` doubles whatever is written here into the
     # routing ceiling, so a rate copied from the cheapest quantized host
     # would cap the route below every full-precision one. At 2x this,
-    # roughly seventeen hosts stay eligible and the tail that costs up to
-    # 8x -- DeepSeek's own first-party endpoint among them, at 0.22/0.66
-    # -- is excluded.
+    # twenty of the model's twenty-nine hosts stay eligible, and the tail
+    # charging up to 3.4x this on input and 4.7x on output -- DeepSeek's
+    # own first-party endpoint among them, at 0.22/0.66 -- is excluded.
     "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
     "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
