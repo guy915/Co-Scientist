@@ -147,8 +147,6 @@
   --cosci-settings-card-bg: #f8fafd;
 
   /* Settings save toast — near-black snackbar, inverted in dark. */
-  --cosci-settings-toast-bg: #1f1f1f;
-  --cosci-settings-toast-fg: #fff;
 
   /* Run-step "done" check — MD3 green in light, brand mint in dark. */
   --cosci-run-step-done: #1e8e3e;
@@ -246,8 +244,6 @@
   --cosci-settings-segment-bg: #1b1b1b;
   --cosci-settings-card-bg: #1e1f20;
 
-  --cosci-settings-toast-bg: #e3e3e3;
-  --cosci-settings-toast-fg: #1f1f1f;
 
   --cosci-run-step-done: var(--cosci-green);
 

@@ -54,7 +54,9 @@ it('opens the Settings dialog and switches sections', async () => {
   fireEvent.change(input, {target: {value: 'sk-test-123'}});
   fireEvent.keyDown(input, {key: 'Enter'});
   expect(window.localStorage.getItem('cosci-api-key')).toBe('sk-test-123');
-  expect(screen.getByText('Settings saved')).toBeInTheDocument();
+  // Saving says nothing: the field holds the value it just stored, and a
+  // toast repeating that only covered the page it was confirming.
+  expect(screen.queryByText('Settings saved')).toBeNull();
 
   fireEvent.click(screen.getByRole('button', {name: 'Help'}));
   // The Help section renders project info plus the FAQ accordion rows
@@ -92,7 +94,7 @@ it('persists the BYOK provider choice in the Model section', async () => {
   fireEvent.click(screen.getByRole('menuitemradio', {name: 'OpenAI'}));
   expect(window.localStorage.getItem('cosci-api-provider')).toBe('openai');
   expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
-  expect(screen.getByText('Settings saved')).toBeInTheDocument();
+  expect(screen.queryByText('Settings saved')).toBeNull();
   // Choosing closes the menu.
   expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
 });

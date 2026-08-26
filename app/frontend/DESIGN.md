@@ -471,7 +471,7 @@ The `/proposals` page renders a full-page static relationship graph of the syste
 
 ### Settings
 
-The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, an FAQ accordion (`.ucs-faq-*`), and a `.ucs-settings-toast` for confirmations. The **Affiliation section** holds the audience picker (General / Google / SBI-UCD lab, radio option cards persisted client-side); the AudienceGate opens the dialog here on first visit. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
+The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, and an FAQ accordion (`.ucs-faq-*`). Saving is silent -- the field shows what it stored. The **Affiliation section** holds the audience picker (General / Google / SBI-UCD lab, radio option cards persisted client-side); the AudienceGate opens the dialog here on first visit. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
 
 ### Tabs (Run Detail)
 

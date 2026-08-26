@@ -12,7 +12,6 @@ import {useBackgroundInert} from '../hooks/use_background_inert';
 import {useEscapeKey} from '../hooks/use_escape_key';
 import {useFocusTrap} from '../hooks/use_focus_trap';
 import {useRestoreFocusOnClose} from '../hooks/use_restore_focus_on_close';
-import {useToast, type ToastState} from '../hooks/use_toast';
 import {type Mode, useTheme} from '../theme_context';
 import {
   AffiliationSection,
@@ -44,22 +43,21 @@ function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
 // Model section's BYOK fields: a local editable copy of the persisted key
 // (written back to storage only on blur/Enter, not every keystroke) plus
 // the provider choice (persisted on change, since a select commits whole
-// values) and the brief "Settings saved" confirmation toast.
+// values). Saving is silent: the field showing the value it now holds is
+// the confirmation, so a toast only covered the page to repeat it.
 function useApiKeyField() {
   // Local editable copy of the persisted key; only written back to storage on
   // blur/Enter (see onSave), not on every keystroke.
   const [apiKey, setApiKey] = useState(getStoredApiKey);
   const [provider, setProvider] = useState<ByokProvider>(getStoredApiProvider);
-  const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
 
   // Persists the API key (trimmed; a blank value clears it, see
-  // setStoredApiKey) only when it actually changed, then re-syncs local state
-  // from storage and shows a brief confirmation toast.
+  // setStoredApiKey) only when it actually changed, then re-syncs local
+  // state from storage.
   function onSave() {
     if (apiKey.trim() === getStoredApiKey()) return;
     setStoredApiKey(apiKey);
     setApiKey(getStoredApiKey());
-    setSavedToast('Settings saved');
   }
 
   // Persists the provider choice immediately (a select commits whole
@@ -68,7 +66,6 @@ function useApiKeyField() {
     if (next === getStoredApiProvider()) return;
     setStoredApiProvider(next);
     setProvider(getStoredApiProvider());
-    setSavedToast('Settings saved');
   }
 
   return {
@@ -77,7 +74,6 @@ function useApiKeyField() {
     provider,
     onProviderChange,
     onSave,
-    savedToast,
   };
 }
 
@@ -145,17 +141,6 @@ function SettingsDialogScrim({onClose}: {onClose: () => void}) {
       aria-hidden="true"
       onClick={onClose}
     />
-  );
-}
-
-// The brief "Settings saved" confirmation toast, shown only while one is
-// pending (see useApiKeyField).
-function SettingsDialogToast({toast}: {toast: ToastState | null}) {
-  if (!toast) return null;
-  return (
-    <div className="ucs-settings-toast" role="status">
-      {toast.message}
-    </div>
   );
 }
 
@@ -236,7 +221,6 @@ function SettingsDialogWindow({
         theme={theme}
         apiKeyField={apiKeyField}
       />
-      <SettingsDialogToast toast={apiKeyField.savedToast} />
     </div>
   );
 }
