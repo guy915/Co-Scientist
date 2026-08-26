@@ -33,6 +33,7 @@ function activeInterview(): Interview {
         content: 'Study liver fibrosis',
         reasoning: null,
         fallback: false,
+        questions: [],
         created_at: 1,
       },
       {
@@ -41,6 +42,7 @@ function activeInterview(): Interview {
         content: 'Which mechanisms should I prioritize?',
         reasoning: 'No mechanism named yet, so ask for one.',
         fallback: false,
+        questions: [],
         created_at: 2,
       },
     ],

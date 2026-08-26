@@ -56,6 +56,8 @@ export type {
   Interview,
   InterviewDocument,
   InterviewFields,
+  InterviewQuestion,
+  InterviewQuestionOption,
   InterviewTurn,
   JsonPrimitive,
   JsonValue,

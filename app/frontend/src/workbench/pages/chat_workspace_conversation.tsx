@@ -7,6 +7,8 @@ import {
   CHAT_TIMELINE_CLASSES,
 } from './chat_setup_classes';
 import {Composer} from './chat_composer';
+import {pendingQuestions} from './chat_questions';
+import {QuestionChooser} from './chat_questions_panel';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {buildTimelineItems, type TimelineItem} from './chat_workspace_timeline';
 import {useChatTimelineScroll} from './chat_workspace_scroll';
@@ -103,6 +105,8 @@ export interface ConversationViewProps {
     | 'startedSession'
     | 'handleSubmit'
     | 'handleStop'
+    | 'interview'
+    | 'handleAnswerQuestions'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
@@ -181,6 +185,8 @@ interface ComposerSectionProps {
     | 'startedSession'
     | 'handleSubmit'
     | 'handleStop'
+    | 'interview'
+    | 'handleAnswerQuestions'
   >;
   setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
@@ -227,8 +233,33 @@ function ComposerSection(props: ComposerSectionProps) {
           onSubmit={handleSubmit}
           stoppable={isAwaitingAgent}
           onStop={handleStop}
+          aboveInput={composerQuestions(props)}
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * The chooser for the question the Agent is waiting on, or nothing.
+ *
+ * Rendered into the composer's own shell (Composer's `aboveInput`), so it
+ * grows out of the top of the input box and the ResizeObserver above keeps
+ * the timeline's bottom padding clear of it without knowing it exists.
+ *
+ * Withheld while a turn is in flight: the answer has already been sent, and
+ * the questions it answered are about to be replaced by the next turn's.
+ * Keyed by the turn that asked, so a new turn's chooser starts fresh rather
+ * than inheriting the last one's selections or its dismissal.
+ */
+function composerQuestions(props: ComposerSectionProps) {
+  const pending = pendingQuestions(props.session.interview);
+  if (!pending || props.session.isAwaitingAgent) return null;
+  return (
+    <QuestionChooser
+      key={pending.turnId}
+      questions={pending.questions}
+      onAnswer={props.session.handleAnswerQuestions}
+    />
   );
 }
