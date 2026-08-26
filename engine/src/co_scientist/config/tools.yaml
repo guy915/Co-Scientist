@@ -561,6 +561,23 @@ tools:
       response_format:
         type: "boolean_string"
 
+    # Web-search usability check. Distinct from asking whether the server
+    # registers `search_web`: it registers that whenever a provider key was
+    # set at boot, and a key the provider has since refused leaves the tool
+    # listed while every search returns nothing. Registered only alongside
+    # `search_web`, so it is absent for the same reasons that tool is.
+    check_web_search:
+      server: "default_pubmed"
+      mcp_tool_name: "check_web_search_available"
+      display_name: "Check Web Search Availability"
+      description: "Check whether a web search would reach a provider"
+      category: "utility"
+      enabled: true
+      effects: ["read", "network"]
+
+      response_format:
+        type: "boolean_string"
+
 # Workflow Configurations
 # Define which tools are available in each phase of hypothesis generation
 workflows:

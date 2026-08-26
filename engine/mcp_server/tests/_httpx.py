@@ -76,8 +76,13 @@ class StubClient:
         """Record the GET and serve the next queued payload."""
         return self._serve(url, kwargs.get("params"))
 
-    async def post(self, url: str, json: Any = None) -> StubResponse:
-        """Record the POST and serve the next queued payload."""
+    async def post(self, url: str, json: Any = None, **_: Any) -> StubResponse:
+        """Record the POST and serve the next queued payload.
+
+        Keyword arguments beyond the body are accepted and ignored, the
+        same way ``get`` ignores everything but ``params``: a caller that
+        sends auth headers (Tavily) must not need a second stub.
+        """
         return self._serve(url, json)
 
     def _serve(self, url: str, payload: Any) -> StubResponse:

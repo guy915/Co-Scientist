@@ -10,7 +10,10 @@ surface.
 import logging
 from typing import Any
 
-from mcp_server.tools.web.providers import resolve_provider
+from mcp_server.tools.web.providers import (
+    resolve_provider,
+    web_search_credential_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +58,23 @@ async def search_web(
         query,
     )
     return results
+
+
+async def check_web_search_available() -> bool:
+    """Reports whether a web search issued now would reach a provider.
+
+    The connector's status used to be inferred from whether the server
+    advertises ``search_web`` at all, which only tells you that some key
+    was set at boot. A key that the provider has since refused -- revoked,
+    unpaid, or out of quota -- leaves the tool registered and answering
+    every search with an empty result set, so the connector reads as
+    healthy while returning nothing. This answers the question that was
+    actually being asked.
+
+    Returns:
+        True when a provider is configured and its key has not been
+        refused since the last search that worked.
+    """
+    if resolve_provider() is None:
+        return False
+    return web_search_credential_error() is None

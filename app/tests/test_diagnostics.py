@@ -220,6 +220,39 @@ def test_diagnostics_probe_imports() -> None:
     for name in (
         "check_literature_source_available",
         "check_mcp_available",
-        "check_tool_available",
+        "check_web_search_available",
     ):
         assert hasattr(mcp_client, name), name
+
+
+async def test_web_search_probe_asks_usability_not_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A registered search_web whose key is refused must read as down.
+
+    The server registers the tool whenever a provider key was set at
+    boot, so presence survives the provider revoking, unpaying or
+    exhausting that key -- and a refused search returns an empty result
+    set, which is indistinguishable from a quiet week on the web. The
+    connector card said "up" throughout.
+    """
+    from co_scientist import mcp_client
+
+    async def _usable() -> bool:
+        return False
+
+    async def _registered(_name: str) -> bool:
+        return True
+
+    async def _up() -> bool:
+        return True
+
+    monkeypatch.setattr(mcp_client, "check_web_search_available", _usable)
+    monkeypatch.setattr(mcp_client, "check_tool_available", _registered)
+    monkeypatch.setattr(mcp_client, "check_mcp_available", _up)
+    monkeypatch.setattr(mcp_client, "check_literature_source_available", _up)
+
+    _, _, web_search = await diagnostics._probe_literature_stack()
+
+    assert web_search.available is False
+    assert web_search.state == PROBE_DOWN
