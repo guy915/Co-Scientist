@@ -22,6 +22,7 @@ export function makeInterview(overrides: Partial<Interview> = {}): Interview {
         content: 'Which mechanisms should I prioritize?',
         reasoning: null,
         fallback: false,
+        questions: [],
         created_at: 2,
       },
     ],

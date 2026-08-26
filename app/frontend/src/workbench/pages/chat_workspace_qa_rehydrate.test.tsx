@@ -2,7 +2,7 @@
 // must show those exchanges -- an answer that only ever lived in memory is
 // worse than no answer. See use_chat_rehydrate.ts's third effect.
 
-import {screen} from '@testing-library/react';
+import {screen, within} from '@testing-library/react';
 import {beforeEach, expect, it} from 'vitest';
 import {
   apiMock,
@@ -110,4 +110,70 @@ it('shows a run Q&A exchange after reopening the chat', async () => {
   expect(
     screen.queryByText('Focus more on the cold-stress pathway.'),
   ).not.toBeInTheDocument();
+});
+
+// The chat's opening exchange -- the scientist's "Start research" and the
+// Agent's reply to it -- reopens the same way its questions do, and the
+// session card carries that reply as its lead-in rather than a canned
+// notice. The local-only bubble this replaced vanished on every reload.
+it('restores the start exchange onto the session card', async () => {
+  apiMock.getInterview.mockResolvedValue(completedInterview());
+  apiMock.listInterviews.mockResolvedValue([
+    {
+      id: 'interview-1',
+      title: 'Cold-stress glucose homeostasis',
+      challenge: 'Investigate glucose homeostasis.',
+      status: 'completed',
+      run_id: 'run-1',
+      created_at: 1,
+      updated_at: 3,
+    },
+  ]);
+  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
+  apiMock.getRunMessages.mockResolvedValue([
+    {
+      id: 8,
+      run_id: 'run-1',
+      sender: 'user',
+      content: 'Start research',
+      kind: 'start',
+      created_at: 8,
+      applied: false,
+      meta: null,
+    },
+    {
+      id: 9,
+      run_id: 'run-1',
+      sender: 'system',
+      content: 'Cold-stress glucose work is under way.',
+      kind: 'start',
+      created_at: 9,
+      applied: false,
+      meta: {reasoning: 'The run exists, so this confirms it.'},
+    },
+  ]);
+
+  renderWorkspace('/chats/interview-1');
+
+  const card = await screen.findByRole('region', {
+    name: 'Started research session',
+  });
+  expect(
+    within(card).getByText('Cold-stress glucose work is under way.'),
+  ).toBeInTheDocument();
+  // The reply is the card's lead-in, not a bubble beside it, and the
+  // scientist's own prompt is a bubble outside the card.
+  expect(within(card).queryByText('Start research')).not.toBeInTheDocument();
+  // The bubble, not the plan card's own Start control, which carries the
+  // same words.
+  const prompt = screen
+    .getAllByText('Start research')
+    .find(node => node.closest('button') === null);
+  expect(prompt).toBeDefined();
+  // The card is re-anchored to the reply it carries, so it sorts below the
+  // prompt rather than at the run's earlier creation time.
+  expect(
+    prompt!.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
 });

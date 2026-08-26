@@ -323,3 +323,53 @@ it('sorts chronologically, breaking ties on the `order` field', () => {
     'draft-spec',
   ]);
 });
+
+// The started card's own group: the Agent's reply to "Start research" is the
+// card's lead-in and its thinking is disclosed above it, exactly as the
+// completing interview turn's are on the plan card.
+function announcingSession(
+  overrides: Partial<StartedSession> = {},
+): StartedSession {
+  return {
+    id: 'run-1',
+    title: 'Cold-stress glucose homeostasis',
+    at: 60,
+    ...overrides,
+  };
+}
+
+it('shows the start announcement as the session card lead-in', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        startedSession: announcingSession({
+          intro: 'Cold-stress work is under way.',
+          reasoning: 'The run exists, so this confirms it.',
+        }),
+      }),
+    ),
+  );
+
+  expect(screen.getByText('Cold-stress work is under way.')).toBeVisible();
+  expect(screen.getByText('Thinking')).toBeVisible();
+});
+
+it('re-signs the session card as its announcement is written', () => {
+  // The reply streams into a card whose id and timestamp never change, so
+  // `revision` is the only thing that tells the auto-scroll it grew (see
+  // chat_workspace_scroll.ts).
+  const signature = (intro: string) =>
+    buildTimelineItems(
+      baseArgs({startedSession: announcingSession({intro, announcing: true})}),
+    ).find(item => item.id === 'started-session-run-1')?.revision;
+
+  expect(signature('Cold-stress')).not.toEqual(signature('Cold-stress work'));
+});
+
+it('falls back to the standby copy for a card with no reply', () => {
+  renderItems(
+    buildTimelineItems(baseArgs({startedSession: announcingSession()})),
+  );
+
+  expect(screen.getByText(/Co-Scientist has started research/)).toBeVisible();
+});

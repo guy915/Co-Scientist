@@ -220,6 +220,68 @@ export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 export const OPTION_DESCRIPTION_CLASSES =
   'col-start-2 text-[0.92rem] leading-[1.3] text-cosci-muted';
 
+// The question chooser that grows out of the top of the composer while an
+// Agent turn is waiting on a choice (chat_questions_panel.tsx). It renders
+// INSIDE the composer's own form, so it inherits the composer's shell,
+// border and shadow and reads as the input box expanding upward rather than
+// as a card floating above it -- hence a bottom rule instead of a border,
+// and no background of its own.
+export const QUESTIONS_PANEL_CLASSES =
+  'reference-questions-panel mb-[0.9rem] grid gap-[0.85rem] ' +
+  'border-b border-cosci-composer-border pb-[0.9rem]';
+
+// The chooser's own title row: what is being asked about, then the minimize
+// and dismiss controls.
+export const QUESTIONS_HEAD_CLASSES =
+  'flex min-w-0 items-center justify-between gap-[0.6rem]';
+
+export const QUESTIONS_HEAD_LABEL_CLASSES =
+  'min-w-0 truncate text-[0.82rem] font-medium tracking-[0.04em] uppercase ' +
+  'text-cosci-muted';
+
+export const QUESTIONS_HEAD_ACTIONS_CLASSES =
+  'flex shrink-0 items-center gap-[0.15rem]';
+
+export const QUESTIONS_ICON_BUTTON_CLASSES = `${MUTED_ICON_BUTTON} size-8`;
+
+export const QUESTIONS_ICON_CLASSES = 'size-[1.1rem]';
+
+// One question inside the chooser: its prompt, then its answers.
+export const QUESTION_GROUP_CLASSES =
+  'm-0 grid min-w-0 gap-[0.6rem] border-0 p-0';
+
+export const QUESTION_PROMPT_CLASSES =
+  'text-base leading-[1.35] font-medium text-cosci-fg';
+
+// The scientist's own wording, revealed by choosing "Something else".
+export const QUESTION_OTHER_INPUT_CLASSES =
+  'w-full rounded-[0.65rem] border border-cosci-composer-border ' +
+  'bg-transparent px-[0.85rem] py-[0.6rem] text-base text-cosci-fg ' +
+  'outline-none placeholder:text-cosci-composer-label ' +
+  'focus:border-cosci-option-hover-border';
+
+// The multi-select marker. Deliberately NOT composed from
+// OPTION_MARKER_CLASSES with a radius override: both are utilities for the
+// same property, so which one wins is decided by their order in the
+// generated stylesheet rather than in the class attribute, and `rounded-full`
+// won -- every checkbox rendered as a radio. A checkbox and a radio must be
+// told apart at a glance, since the difference is whether one answer or
+// several can hold.
+export const QUESTION_CHECKBOX_MARKER_CLASSES =
+  'mt-[0.08rem] grid size-[1.28rem] place-items-center rounded-[0.35rem] ' +
+  'border-2 border-cosci-option-marker';
+
+export const QUESTION_CHECKBOX_MARKER_SELECTED_CLASSES =
+  'border-cosci-option-marker-on bg-cosci-option-marker-on';
+
+// The tick inside a chosen checkbox, drawn on the filled marker.
+export const QUESTION_CHECKBOX_TICK_CLASSES =
+  'size-[0.95rem] text-cosci-composer-bg';
+
+// The row carrying the chooser's send control, present whenever a click
+// alone cannot be taken as the whole answer.
+export const QUESTIONS_SEND_ROW_CLASSES = 'flex justify-end';
+
 // Cancel/Start research button row at the bottom of the plan document card.
 export const SETUP_ACTIONS_CLASSES =
   'reference-setup-actions flex justify-end gap-[0.7rem] pt-[0.3rem]';
@@ -236,13 +298,13 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
   'hover:bg-cosci-btn-primary-hover ' +
   `focus-visible:bg-cosci-btn-primary-hover ${PILL_BUTTON_DISABLED}`;
 
-// StartedSessionCard's wrapper and its intro-copy paragraphs.
+// StartedSessionCard's wrapper and the block its lead-in is rendered into.
+// The lead-in is the Agent's own markdown reply now, so its paragraphs are
+// styled by MarkdownMessage rather than by a paragraph class of their own.
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-cosci-fg';
 
 export const STARTED_COPY_CLASSES = 'reference-started-copy grid gap-[0.1rem]';
-
-export const STARTED_COPY_PARAGRAPH_CLASSES = 'm-0 text-base leading-[1.45]';
 
 // The clickable colored session card (title/meta + "Open" affordance) linking
 // to the run's detail page.

@@ -16,7 +16,7 @@ function timelineScrollTarget(
   startedSession: StartedSession | null,
 ): {signature: string; anchorMode: 'top' | 'bottom'} {
   const signature = timelineItems
-    .map(item => `${item.id}:${item.at}`)
+    .map(item => `${item.id}:${item.at}:${item.revision ?? ''}`)
     .join('|');
   const latestTimelineItemId =
     timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
@@ -160,9 +160,16 @@ export function useChatTimelineScroll(
 
   useEffect(() => syncSentTurnScroll(refs, isAwaitingAgent), [isAwaitingAgent]);
 
+  // Keyed on the session's id, not the session object: the Agent's start
+  // announcement streams into that object fragment by fragment, and this
+  // scroll ignores where the reader is by design -- re-running it per
+  // fragment would haul a reader who scrolled up back down on every token,
+  // the exact behaviour isFollowingBottom exists to prevent. The growth
+  // itself reaches the follow-aware effect above through the item's
+  // `revision`.
   useEffect(
     () => syncStartedSessionScroll(scrollRef, startedSession),
-    [startedSession],
+    [startedSession?.id],
   );
 
   return scrollRef;

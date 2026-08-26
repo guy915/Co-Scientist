@@ -35,6 +35,7 @@ const apiMock = vi.hoisted(() => {
   });
   return {
     addInterviewTurn: vi.fn(),
+    announceRunStart: vi.fn(),
     askRunQuestion: vi.fn(),
     createInterview: vi.fn(),
     createRun: vi.fn(),
@@ -183,6 +184,15 @@ export const hypothesis = makeHypothesis({
 });
 
 /**
+ * The Agent's start announcement in these suites -- deliberately nothing like
+ * the standby copy the card falls back to, so a test asserting on it cannot
+ * pass on hardcoded text.
+ */
+export const ANNOUNCEMENT_TEXT =
+  'Your cold-stress session is running now. Look in on it whenever you ' +
+  'like; the first ideas need a few minutes.';
+
+/**
  * Resets globals/mocks and installs the default `@/api/runs` mock responses
  * shared by every ChatWorkspace suite. Call from each suite's `beforeEach`.
  */
@@ -227,7 +237,28 @@ export function installChatWorkspaceMocks() {
     completed_at: 2,
   }));
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
+  // The Agent's reply to "Start research", as the server streams it: some
+  // thinking, then the announcement itself. Suites asserting the degraded
+  // card override this with a rejection.
+  apiMock.announceRunStart.mockImplementation(
+    async (
+      _runId: string,
+      _prompt: string,
+      sinks: {
+        onReasoning?: (fragment: string) => void;
+        onChunk?: (fragment: string) => void;
+      } = {},
+    ) => {
+      sinks.onReasoning?.('The plan is confirmed, so this is a confirmation.');
+      sinks.onChunk?.(ANNOUNCEMENT_TEXT);
+      return {fallback: false};
+    },
+  );
   apiMock.getRunMessages.mockResolvedValue([]);
+  // Reset explicitly: restoreAllMocks leaves a mockResolvedValue set by
+  // one test in place for the next, and a stray chat row carrying a
+  // run_id changes what every later suite rehydrates.
+  apiMock.listInterviews.mockResolvedValue([]);
   apiMock.listDemoRuns.mockResolvedValue([
     minimalRun({
       id: 'demo-ferroptosis',

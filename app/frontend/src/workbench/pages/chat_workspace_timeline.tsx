@@ -25,6 +25,13 @@ export interface TimelineItem {
   at: number;
   order: number;
   node: ReactNode;
+  /**
+   * Extra input to the scroll signature, for an item whose content grows in
+   * place rather than by another item arriving (see chat_workspace_scroll.ts).
+   * Without it such growth is invisible to the auto-scroll, since neither the
+   * item's id nor its timestamp changes as it fills.
+   */
+  revision?: string | number;
 }
 
 // Fixed ids of the (at most one each) run-spec card entries. The scroll hook
@@ -347,6 +354,32 @@ function confirmedSpecTimelineItems({
   ];
 }
 
+// The announcing turn's thinking, above the reply it produced -- the same
+// shape the completing interview turn's takes above the plan card (see
+// draftTimelineItems). Live while the reply is still being written, so it
+// stops counting and closes as the turn resolves rather than being swapped
+// for a second control. Empty for a run started before announcements
+// existed, whose card has neither.
+function announcementThoughtsItems(
+  startedSession: StartedSession,
+): TimelineItem[] {
+  if (!startedSession.announcing && !startedSession.reasoning) return [];
+  return [
+    {
+      id: 'started-session-thoughts',
+      at: startedSession.at,
+      order: 59,
+      node: (
+        <ThoughtsDisclosure
+          reasoning={startedSession.reasoning}
+          live={startedSession.announcing}
+          answering={Boolean(startedSession.intro)}
+        />
+      ),
+    },
+  ];
+}
+
 // Terminal timeline entry once the backend run has actually started; the card
 // links to the run detail page (a URL, not a handler, so a middle- or
 // cmd-click opens it in a new tab).
@@ -361,10 +394,14 @@ function startedTimelineItems({
 >): TimelineItem[] {
   if (!startedSession) return [];
   return [
+    ...announcementThoughtsItems(startedSession),
     {
       id: `started-session-${startedSession.id}`,
       at: startedSession.at,
       order: 60,
+      // The Agent's reply streams into this card's lead-in, growing it a
+      // fragment at a time under a fixed id and timestamp.
+      revision: startedSession.intro?.length ?? 0,
       node: (
         <StartedSessionCard
           session={startedSession}

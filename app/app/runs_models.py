@@ -100,6 +100,17 @@ class AskRequest(BaseModel):
     audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
 
 
+class StartAnnouncementRequest(BaseModel):
+    """Body for POST /api/runs/{id}/messages/started (session announcement).
+
+    ``prompt`` is the scientist's own start request, sent verbatim so it is
+    persisted and replayed as the turn it is rather than reconstructed
+    server-side from a button press.
+    """
+
+    prompt: str = Field(..., min_length=1)
+
+
 class HumanHypothesisRequest(BaseModel):
     """Body for POST /api/runs/{id}/hypotheses (scientist-contributed)."""
 

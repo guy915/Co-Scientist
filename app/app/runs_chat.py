@@ -21,11 +21,16 @@ from app import (
     engine_tasks,
     paper_corpus,
     qa,
+    run_start_announcement,
     store,
 )
 from app.audience import audience_chat_context
 from app.auth import principal_for_request
-from app.runs_models import AskRequest, SendMessageRequest
+from app.runs_models import (
+    AskRequest,
+    SendMessageRequest,
+    StartAnnouncementRequest,
+)
 from app.runs_support import _require_run, _run_or_404
 
 router = APIRouter()
@@ -206,3 +211,27 @@ async def ask_question(
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
     return _live_qa_response(req, run_id, question_msg, context, byok)
+
+
+@router.post("/{run_id}/messages/started")
+async def announce_start(
+    run_id: str, req: StartAnnouncementRequest, request: Request
+) -> StreamingResponse:
+    """Answer the scientist's start request in the Agent's own words.
+
+    The reply the chat shows above the session card. It is a turn, not a
+    notice: the scientist's prompt is persisted first (so the exchange
+    survives a reload whatever the reply does), then the announcement
+    streams and is persisted in turn. A provider this call cannot reach
+    ends in the deterministic announcement rather than an error -- the run
+    has already started by the time this endpoint is reached, and nothing
+    here can change that.
+    """
+    run = _run_or_404(run_id)
+    prompt_msg = run_start_announcement.persist_prompt(run_id, req.prompt)
+    return StreamingResponse(
+        run_start_announcement.stream_announcement(
+            run, prompt_msg.id, _resolve_qa_byok(run_id, request)
+        ),
+        media_type="text/event-stream",
+    )

@@ -6,6 +6,9 @@ stays in ``db.py``. Inline comments document each table's role and the
 compatibility notes behind non-obvious column choices.
 """
 
+from app.store.schema_interviews import (
+    INTERVIEWS_SCHEMA as INTERVIEWS_SCHEMA,
+)
 from app.store.schema_knowledge_facts import (
     KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
 )
@@ -60,67 +63,9 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
+"""
 
--- Durable pre-run Agent interview. The structured fields are derived from the
--- append-only turn transcript and remain editable until finalized.
-CREATE TABLE IF NOT EXISTS interviews (
-    id TEXT PRIMARY KEY,
-    client_id TEXT NOT NULL,
-    status TEXT NOT NULL,             -- active | completed | cancelled
-    fields_json TEXT NOT NULL,
-    current_question TEXT,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL,
-    completed_at REAL
-);
-CREATE INDEX IF NOT EXISTS idx_interviews_client
-    ON interviews(client_id, updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS interview_turns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    interview_id TEXT NOT NULL,
-    role TEXT NOT NULL,               -- user | agent
-    content TEXT NOT NULL,
-    -- the Agent's chain of thought for this turn; NULL for user turns and
-    -- for models that emit none
-    reasoning TEXT,
-    -- 1 when the deterministic recovery path authored this Agent turn
-    -- because no model could be reached (see
-    -- interviews_model._fallback_interview_response); 0 for model-driven
-    -- turns and every user turn. Per turn, so a mid-session credential
-    -- change marks only the turns it affects.
-    fallback INTEGER NOT NULL DEFAULT 0,
-    created_at REAL NOT NULL,
-    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_interview_turns
-    ON interview_turns(interview_id, id ASC);
-
--- Scientist documents uploaded BEFORE any run exists, so an attachment can
--- ground the interview that scopes the goal and can be carried into the run
--- as part of creating it. Owned by client_id and never read across owners.
--- `interview_id` is set when the document is attached to a chat, `run_id`
--- when creating a run copies it into that run's private corpus; a row keeps
--- both so a document is traceable from chat to run. Deliberately not
--- foreign-keyed: a document exists before either row does.
-CREATE TABLE IF NOT EXISTS staged_documents (
-    id TEXT PRIMARY KEY,
-    client_id TEXT NOT NULL,
-    interview_id TEXT,
-    run_id TEXT,
-    title TEXT NOT NULL,
-    text TEXT NOT NULL,               -- extracted text, never the raw bytes
-    mime_type TEXT NOT NULL,
-    sha256 TEXT NOT NULL,
-    byte_size INTEGER NOT NULL,
-    extraction_tool TEXT NOT NULL,
-    created_at REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_staged_documents_client
-    ON staged_documents(client_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_staged_documents_interview
-    ON staged_documents(interview_id, created_at ASC);
-
+_SCHEMA_MID = """
 -- Revocable capability links for read-only public Goal Reports. Tokens are
 -- random and stored only as hashes so a database read cannot disclose links.
 CREATE TABLE IF NOT EXISTS report_shares (
@@ -470,6 +415,11 @@ CREATE TABLE IF NOT EXISTS proximity_edges (
 CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 """
 
+# The interview/staged-document DDL lives in its own module (see there for
+# why) and is spliced back between the head and the mid, which is exactly
+# where it stood before the split -- so the executed script, and any schema
+# dump taken from it, is byte-identical to what it was.
+#
 # Concatenated (not interpolated) so knowledge_facts' CREATE TABLE runs
 # right after claim_evidence's -- adjacent in the executed script to the
 # table it derives from, matching the story an on-disk schema dump tells.
@@ -480,6 +430,8 @@ CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 # it goes last, before the tail.
 SCHEMA = (
     _SCHEMA_HEAD
+    + INTERVIEWS_SCHEMA
+    + _SCHEMA_MID
     + KNOWLEDGE_FACTS_SCHEMA
     + SUPERVISOR_PLAN_SCHEMA
     + SCIENTIFIC_TASKS_SCHEMA

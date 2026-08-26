@@ -70,12 +70,28 @@ async function startRunFromPlan(page: Page): Promise<string> {
       /\/api\/runs\/[^/]+\/start$/.test(new URL(response.url()).pathname) &&
       response.request().method() === 'POST',
   );
+  // The Agent's reply to the start request, which the session card renders as
+  // its lead-in. Captured here because a wrong route or frame vocabulary is
+  // invisible to either side's unit tests -- the card would simply show its
+  // standby copy, which is also what a correct offline run shows.
+  const announcedPromise = page.waitForResponse(
+    response =>
+      /\/api\/runs\/[^/]+\/messages\/started$/.test(
+        new URL(response.url()).pathname,
+      ) && response.request().method() === 'POST',
+  );
   await page.getByRole('button', {name: 'Start research'}).click();
   const created = await createdPromise;
   expect(created.status()).toBe(200);
   const {id} = (await created.json()) as {id: string};
   const startAttempt = await startAttemptPromise;
   expect(startAttempt.status()).toBe(200);
+  const announced = await announcedPromise;
+  expect(announced.status()).toBe(200);
+  expect(await announced.text()).toContain('"type": "done"');
+  await expect(
+    page.getByRole('region', {name: 'Started research session'}),
+  ).toBeVisible();
   return id;
 }
 

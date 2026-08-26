@@ -72,6 +72,7 @@ export type ExecuteStartDeps = Pick<
   | 'setDraft'
   | 'setInput'
   | 'setStartedSession'
+  | 'setIsAwaitingAgent'
   | 'setMessages'
   | 'pendingAttachments'
   | 'setPendingAttachments'
@@ -97,7 +98,11 @@ export interface HandlerDeps {
   setInterview: (interview: Interview | null) => void;
   setDraft: (stage: SpecStage | null) => void;
   setConfirmed: (stage: SpecStage | null) => void;
-  setStartedSession: (session: StartedSession) => void;
+  // A dispatch, not a plain setter: the Agent's start announcement streams
+  // into the session already on screen (see chat_session_start_run.ts), so
+  // its fragments have to merge into the current value rather than replace a
+  // captured one.
+  setStartedSession: Dispatch<SetStateAction<StartedSession | null>>;
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
   setAgentReasoning: Dispatch<SetStateAction<string>>;

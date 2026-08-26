@@ -1,4 +1,4 @@
-import {useEffect, useRef} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {
   getInterview,
   getRunMessages,
@@ -11,7 +11,11 @@ import {type StartedSession} from '../pages/chat_timeline_cards';
 import {useChatHistoryContext} from './chat_history_context';
 import {useRunHistoryContext} from './run_history_context';
 import {applyInterview} from './chat_session_transcript';
-import {qaMessagesToEntries} from './chat_session_qa_transcript';
+import {
+  qaMessagesToEntries,
+  runStartAnnouncement,
+  type RehydratedAnnouncement,
+} from './chat_session_qa_transcript';
 import {type useChatSession} from './use_chat_session';
 
 type ChatSession = ReturnType<typeof useChatSession>;
@@ -68,6 +72,11 @@ export function useChatRehydration(
   // appliedRef because it depends on the run id, which arrives from the
   // chats list on its own schedule (see the third effect below).
   const qaLoadedRef = useRef<string | null>(null);
+  // The reopened run's start announcement, once its messages have loaded.
+  // State rather than a ref: the card it belongs on is built by a different
+  // effect, and the merge below has to re-run when either side lands.
+  const [announcement, setAnnouncement] =
+    useState<RehydratedAnnouncement | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -78,9 +87,12 @@ export function useChatRehydration(
       if (appliedRef.current) live.resetSession();
       appliedRef.current = null;
       qaLoadedRef.current = null;
+      setAnnouncement(null);
       return;
     }
     if (alreadyShowing(live, chatId, appliedRef.current)) return;
+    // Belongs to the chat being left, not the one being opened.
+    setAnnouncement(null);
     let cancelled = false;
     // try/catch around the await rather than .catch on the promise: this must
     // also survive the client throwing synchronously, which would otherwise
@@ -131,28 +143,69 @@ export function useChatRehydration(
   // the race instead of trying to win it.
   useEffect(() => {
     const live = sessionRef.current;
-    if (!readyToLoadQa(chatId, qaLoadedRef.current, live.interview?.id)) {
+    if (
+      !readyToLoadQa(
+        chatId,
+        qaLoadedRef.current,
+        live.interview?.id,
+        appliedRef.current,
+      )
+    ) {
       return;
     }
     let cancelled = false;
-    void loadQaHistory(chatId, chats, qaLoadedRef, live, () => cancelled);
+    void loadQaHistory(
+      chatId,
+      chats,
+      {qaLoadedRef, live, onAnnouncement: setAnnouncement},
+      () => cancelled,
+    );
     return () => {
       cancelled = true;
     };
   }, [chatId, chats, session.interview]);
+
+  // The announcement onto the card, once both are in hand. They arrive from
+  // two independent fetches in either order -- the chats/runs lists build the
+  // card, the run's messages carry its lead-in -- so this waits for the pair
+  // rather than the loader trying to patch a card that may not exist yet.
+  //
+  // Applied only to a card that has no lead-in: returning `current` unchanged
+  // once it has one is what stops this effect, which depends on the session
+  // it writes to, from re-running on its own output.
+  useEffect(() => {
+    if (!announcement) return;
+    sessionRef.current.setStartedSession(current =>
+      current && current.intro === undefined
+        ? {...current, ...announcement}
+        : current,
+    );
+  }, [announcement, session.startedSession]);
 }
 
 // Whether the Q&A rehydration effect above should run for this render: a
 // chat is named, it has not already been fetched, and the interview
-// transcript for it has landed (see the effect's own comment for why order
-// matters). `chatId` narrows to `string` so the caller need not repeat the
-// undefined check.
+// transcript for it was *reopened* by this hook (see the effect's own comment
+// for why order matters). `chatId` narrows to `string` so the caller need not
+// repeat the undefined check.
+//
+// `appliedFor` is what confines this to reopened tabs. The live session is
+// short-circuited by alreadyShowing and so never sets it -- and a tab that
+// just started a run already has that exchange on screen, so fetching the
+// rows it just wrote appends a second copy of every one of them. That was
+// unreachable only while starting a run persisted no messages.
 function readyToLoadQa(
   chatId: string | undefined,
   loadedFor: string | null,
   interviewId: string | undefined,
+  appliedFor: string | null,
 ): chatId is string {
-  return Boolean(chatId) && loadedFor !== chatId && interviewId === chatId;
+  return (
+    Boolean(chatId) &&
+    loadedFor !== chatId &&
+    interviewId === chatId &&
+    appliedFor === chatId
+  );
 }
 
 // This chat's run id per the chats list, if it has one yet.
@@ -160,17 +213,29 @@ function chatRunId(chats: ChatSummary[], chatId: string): string | null {
   return chats.find(entry => entry.id === chatId)?.run_id ?? null;
 }
 
-// Marks this chat's Q&A history loaded and appends whatever rows it found
-// (a no-op fetch is not an error, just nothing yet to show).
+// Where a loaded chat's persisted rows are written back to: the session that
+// takes the bubbles, the marker saying this chat has been fetched, and the
+// caller's sink for the start announcement.
+interface QaLoadTarget {
+  qaLoadedRef: {current: string | null};
+  live: ChatSession;
+  onAnnouncement: (announcement: RehydratedAnnouncement) => void;
+}
+
+// Marks this chat's Q&A history loaded and applies whatever rows it found (a
+// no-op fetch is not an error, just nothing yet to show): the bubbles are
+// appended, and the Agent's start announcement is handed to the caller, which
+// merges it onto the session card once that card exists.
 function applyQaRows(
   chatId: string,
-  qaLoadedRef: {current: string | null},
-  live: ChatSession,
+  target: QaLoadTarget,
   rows: RunMessage[],
 ): void {
-  qaLoadedRef.current = chatId;
+  target.qaLoadedRef.current = chatId;
   const entries = qaMessagesToEntries(rows);
-  if (entries.length) live.setMessages(prev => [...prev, ...entries]);
+  if (entries.length) target.live.setMessages(prev => [...prev, ...entries]);
+  const announcement = runStartAnnouncement(rows);
+  if (announcement) target.onAnnouncement(announcement);
 }
 
 // Resolves this chat's run id and fetches its Q&A history, appending
@@ -179,15 +244,14 @@ function applyQaRows(
 async function loadQaHistory(
   chatId: string,
   chats: ChatSummary[],
-  qaLoadedRef: {current: string | null},
-  live: ChatSession,
+  target: QaLoadTarget,
   isCancelled: () => boolean,
 ): Promise<void> {
   const runId = chatRunId(chats, chatId);
   if (!runId) return;
   try {
     const rows = await getRunMessages(runId);
-    if (!isCancelled()) applyQaRows(chatId, qaLoadedRef, live, rows);
+    if (!isCancelled()) applyQaRows(chatId, target, rows);
   } catch {
     // Best-effort: the interview transcript above is the load that matters
     // most, so a Q&A fetch failure leaves it showing without its later
