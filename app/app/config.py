@@ -33,19 +33,49 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # LLM Configuration
-    # model_name: worker model — generate, review, ranking, reflection, evolve,
-    # proximity, literature_review, claim verification. High-volume, runs many
-    # times per iteration. DeepSeek V4 Flash: the fast, cheap thinking tier.
-    model_name: str = "deepseek/deepseek-v4-flash"
-    # supervisor_model_name: strategic model — supervisor (research planning),
-    # meta_review and research_overview (final report synthesis). Runs once or
-    # twice per iteration. DeepSeek V4 Pro: the stronger thinking model. Falls
-    # back to model_name only if explicitly cleared.
-    supervisor_model_name: str | None = "deepseek/deepseek-v4-pro"
+    #
+    # One model on every tier, reached through OpenRouter rather than
+    # DeepSeek's own API. Two separate findings put it there, both measured
+    # on this project's own workload (six research goals, three independent
+    # judges blind-ranking the hypotheses each model produced):
+    #
+    # * **The route, not the model, was the bill.** DeepSeek's first-party
+    #   V4 pricing rose to $0.44/$1.32 per million tokens on Flash and
+    #   $1.32/$3.96 on Pro (see ``constants_pricing``); the same weights
+    #   served through OpenRouter cost a fraction of that, because a dozen
+    #   hosts compete to serve an open-weights model and DeepSeek's own API
+    #   does not have to.
+    # * **The 0731 snapshot is both cheaper and better.** It out-ranked
+    #   V4 Flash 0423 by a wide margin and edged out V4 Pro, at a fifth of
+    #   Pro's cost, so the worker/strategic split stopped paying for
+    #   itself: the strategic tier was buying a *weaker* model at eight
+    #   times the price.
+    #
+    # What the change costs is latency. 0731 reasons roughly three times as
+    # long per call as 0423 (measured median 62s against 31s), which is
+    # what buys the quality; a run's wall clock grows accordingly.
+    #
+    # Staying inside the DeepSeek family is deliberate rather than
+    # incidental: ``llm_thinking`` keys thinking mode, the reasoning-effort
+    # knob, the JSON-object output mode and the gateway price cap off that
+    # family, so another vendor's model silently runs with none of them.
+    #
+    # model_name: worker model — generate, review, ranking, reflection,
+    # evolve, proximity, literature_review, claim verification. High-volume,
+    # runs many times per iteration.
+    model_name: str = "openrouter/deepseek/deepseek-v4-flash-0731"
+    # supervisor_model_name: strategic model — supervisor (research
+    # planning), meta_review and research_overview (final report synthesis).
+    # Runs once or twice per iteration. The same model as the worker tier:
+    # no model that scored above it costs less than it. Falls back to
+    # model_name only if explicitly cleared.
+    supervisor_model_name: str | None = (
+        "openrouter/deepseek/deepseek-v4-flash-0731"
+    )
     # chat_model_name: model for all user-facing communication — the research
-    # interview, Chat-tab Q&A, and session titling. DeepSeek V4 Pro, matching
-    # the supervisor tier. Falls back to model_name only if explicitly cleared.
-    chat_model_name: str | None = "deepseek/deepseek-v4-pro"
+    # interview, Chat-tab Q&A, and session titling. Matches the supervisor
+    # tier. Falls back to model_name only if explicitly cleared.
+    chat_model_name: str | None = "openrouter/deepseek/deepseek-v4-flash-0731"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -82,9 +112,11 @@ class Settings(BaseSettings):
     # configured model's provider credential is present. Deterministic hard
     # blocks always run first and cannot be overridden by the model.
     semantic_safety_enabled: bool = True
-    # Kept on the worker tier (V4 Flash) rather than falling back to the
-    # supervisor model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = "deepseek/deepseek-v4-flash"
+    # Kept on the worker tier rather than falling back to the supervisor
+    # model, so safety screening stays on the "everything else" tier.
+    semantic_safety_model: str | None = (
+        "openrouter/deepseek/deepseek-v4-flash-0731"
+    )
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see
@@ -344,7 +376,7 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     # gets the same DeepSeek weights the deployment defaults to, so a
     # BYOK run is comparable to a house run rather than a different
     # experiment.
-    "openrouter": "openrouter/deepseek/deepseek-v4-flash",
+    "openrouter": "openrouter/deepseek/deepseek-v4-flash-0731",
 }
 """Default model each BYOK provider runs, in litellm format.
 

@@ -84,8 +84,22 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # call in its own dashboard, which is the billing record this only
     # estimates.
     "openrouter/deepseek/deepseek-v4-flash": ModelPrice(0.083, 0.165, 0.017),
+    # The deployed default on every tier (``app.config``). Priced off the
+    # fp8 hosts rather than the cheapest row on the board: the headline
+    # rate for this model belongs to an fp4 host at 95% uptime, and
+    # ``_MAX_PRICE_MULTIPLE`` doubles whatever is written here into the
+    # routing ceiling, so a rate copied from the cheapest quantized host
+    # would cap the route below every full-precision one. At 2x this,
+    # roughly seventeen hosts stay eligible and the tail that costs up to
+    # 8x -- DeepSeek's own first-party endpoint among them, at 0.22/0.66
+    # -- is excluded.
+    "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
     "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
+    # Azure resells OpenAI's models at OpenAI's list price. Present
+    # because ``BYOK_PROVIDER_DEFAULT_MODELS`` names it, and an unpriced
+    # model reports every run as costing nothing.
+    "azure/gpt-4o": ModelPrice(2.50, 10.00),
     "openai/gpt-4o-mini": ModelPrice(0.15, 0.60),
     "anthropic/claude-sonnet-4-5": ModelPrice(3.00, 15.00),
 }
