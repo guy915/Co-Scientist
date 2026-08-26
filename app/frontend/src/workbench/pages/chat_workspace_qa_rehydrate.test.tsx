@@ -155,7 +155,12 @@ it('restores the start exchange onto the session card', async () => {
 
   renderWorkspace('/chats/interview-1');
 
-  const card = await screen.findByRole('region', {
+  // Wait for the reply, not just for the card: the card is built from the
+  // chats and runs lists, and its lead-in arrives from a later, independent
+  // fetch of the run's messages. Waiting on the card alone reads it while it
+  // is still showing its standby copy.
+  await screen.findByText('Cold-stress glucose work is under way.');
+  const card = screen.getByRole('region', {
     name: 'Started research session',
   });
   expect(
