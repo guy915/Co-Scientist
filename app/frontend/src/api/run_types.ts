@@ -1,4 +1,25 @@
 import type {Report} from './report_types';
+// Re-exported below so `run_types` stays the one wire-type import site,
+// and because ChatSummary and Interview reference each other's neighbours.
+import type {
+  ChatSummary,
+  Interview,
+  InterviewDocument,
+  InterviewFields,
+  InterviewQuestion,
+  InterviewQuestionOption,
+  InterviewTurn,
+} from './interview_types';
+
+export type {
+  ChatSummary,
+  Interview,
+  InterviewDocument,
+  InterviewFields,
+  InterviewQuestion,
+  InterviewQuestionOption,
+  InterviewTurn,
+};
 /** Lifecycle state of a run as reported by the backend. */
 export type RunStatus =
   | 'draft'
@@ -59,74 +80,6 @@ export type RunEventActivity =
  * Honor system, no server verification.
  */
 export type Audience = 'general' | 'google' | 'sbi_ucd';
-
-/** The four verified fields derived by the research-goal interview. */
-export interface InterviewFields {
-  research_challenge: string;
-  focus_area: string[];
-  preferences: string[];
-  title: string | null;
-}
-
-/** One immutable scientist/Agent interview turn. */
-export interface InterviewTurn {
-  id: number;
-  role: 'user' | 'agent';
-  content: string;
-  /**
-   * The Agent's chain of thought for this turn, when the model produced one.
-   * Persisted rather than shown and dropped, so a reopened chat replays the
-   * thinking the scientist watched arrive.
-   */
-  reasoning: string | null;
-  /**
-   * True when the deterministic fallback authored this Agent turn because no
-   * model could be reached (no deployment credential and no bring-your-own
-   * key answered it). Per turn, so a mid-session credential change marks
-   * only the turns it affects; always false for user turns. The timeline
-   * renders a quiet notice on marked turns so scripted questions are never
-   * silently passed off as model output.
-   */
-  fallback: boolean;
-  created_at: number;
-}
-
-/**
- * One entry in the sidebar's chat list: an interview without its transcript,
- * plus the run it started (null until the scientist starts one).
- */
-export interface ChatSummary {
-  id: string;
-  title: string | null;
-  challenge: string;
-  status: 'active' | 'completed' | 'cancelled';
-  run_id: string | null;
-  created_at: number;
-  updated_at: number;
-}
-
-/** Durable interview state returned by the backend. */
-export interface Interview {
-  id: string;
-  client_id: string;
-  status: 'active' | 'completed' | 'cancelled';
-  fields: InterviewFields;
-  current_question: string | null;
-  turns: InterviewTurn[];
-  /** Documents attached to this chat, which the Agent reads each turn. */
-  documents: InterviewDocument[];
-  created_at: number;
-  updated_at: number;
-  completed_at: number | null;
-}
-
-/** One document attached to a chat, as summarized back to the client. */
-export interface InterviewDocument {
-  id: string;
-  title: string;
-  mime_type: string;
-  byte_size: number;
-}
 
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {

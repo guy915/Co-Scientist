@@ -102,6 +102,10 @@ def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(
         conn, "interview_turns", "fallback", "INTEGER NOT NULL DEFAULT 0"
     )
+    # The structured multiple-choice questions one Agent turn offered, as a
+    # JSON array. NULL leaves every pre-existing turn reading as "asked
+    # nothing choosable", which is what those turns did.
+    _add_column_if_missing(conn, "interview_turns", "questions_json", "TEXT")
 
 
 def _migrate_message_and_hypothesis_columns(

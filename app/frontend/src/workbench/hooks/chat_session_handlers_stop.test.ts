@@ -64,6 +64,7 @@ test('a stopped turn on an existing interview resyncs, not errors', async () => 
         content: 'one more thing',
         reasoning: null,
         fallback: false,
+        questions: [],
         created_at: 3,
       },
     ],

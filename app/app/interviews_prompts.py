@@ -34,18 +34,59 @@ _FORMAT_PROMPT = (
     f"{OPEN_MARKER}\n"
     '{"research_challenge": "...", "focus_area": ["..."], '
     '"preferences": ["..."], "lab_constraints": ["..."], '
-    '"title": "..." or null, "completed": true or false}\n'
+    '"title": "..." or null, "completed": true or false, '
+    '"questions": [...]}\n'
     f"{CLOSE_MARKER}\n\n"
     "Rules for the block:\n"
     "- It MUST be the last thing in your reply, and MUST appear exactly "
     "once. Never open it before you have finished writing to the "
     "scientist.\n"
-    "- It carries the interview's whole current state, not just what this "
-    "turn changed. Repeat fields that did not change.\n"
+    "- The five fields carry the interview's whole current state, not just "
+    "what this turn changed. Repeat fields that did not change.\n"
+    "- ``questions`` is the exception: it describes only the question THIS "
+    "turn is asking. Never repeat a previous turn's questions, and omit "
+    "the key entirely on a turn that offers no choices.\n"
     "- It is machine-read and never shown to the scientist, so never "
     "mention it, and never refer to it in your reply.\n"
     "- Its contents MUST be valid JSON. Do not wrap it in a code fence."
 )
+
+# The clickable half of a turn's question. The scientist can always type
+# instead, so this never changes what the prose has to say -- it only saves
+# them writing out an answer the model could already enumerate.
+_QUESTIONS_PROMPT = r"""
+## Offering answers to click
+
+When the question you are asking has a small, known set of sensible
+answers, list them in the block's ``questions`` array so the scientist can
+click one instead of typing it:
+
+[{"header": "Model system", "question": "Which model system should the
+ideas be built around?", "multi_select": false, "options": [{"label":
+"Primary human cells", "description": "Closest to patient biology"},
+{"label": "iPSC-derived line", "description": "Renewable and editable"}]}]
+
+- ``header`` is a two-or-three word label for what is being chosen.
+  ``question`` is the question itself, in full. ``options`` carries two to
+  five answers, each a short ``label`` and a one-line ``description`` of
+  what choosing it would mean for the work.
+- Set ``multi_select`` true when several answers can hold at once (which
+  focus areas to prioritize, which exclusions apply) and false when they
+  are alternatives (which model system, which readout).
+- Usually one question, matching the one question your prose asks. Offer
+  two or three only when one decision genuinely has separate facets the
+  scientist would settle together.
+- Do NOT enumerate the options again in your prose. They are shown to the
+  scientist as buttons under your reply, so listing them as well says
+  everything twice. Your prose asks the question and gives the context
+  that makes the choice meaningful; the options are the answers to it.
+- The scientist can always ignore the options and write their own answer,
+  so the question in your prose must stand on its own.
+- Omit ``questions`` when the answer space is open (what is the scientist
+  actually trying to find out, what does their data look like), when you
+  would be guessing at the options rather than deriving them, and on the
+  completing turn, which asks nothing.
+"""
 
 # Rebased on Google's own two prompts for this product family (captured
 # 2026-06 under references/ui-ux/, since deleted -- read them out of git
@@ -247,7 +288,7 @@ question.
 
 """
 
-_SYSTEM_PROMPT = f"{_GUIDE}{_FORMAT_PROMPT}"
+_SYSTEM_PROMPT = f"{_GUIDE}{_FORMAT_PROMPT}\n{_QUESTIONS_PROMPT}"
 
 
 def _system_prompt(interview: dict[str, Any]) -> str:

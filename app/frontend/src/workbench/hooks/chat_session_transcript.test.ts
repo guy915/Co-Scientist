@@ -9,6 +9,7 @@ function makeTurn(overrides: Partial<InterviewTurn> = {}): InterviewTurn {
     content: 'Which focus area should this research prioritize?',
     reasoning: null,
     fallback: false,
+    questions: [],
     created_at: 1,
     ...overrides,
   };

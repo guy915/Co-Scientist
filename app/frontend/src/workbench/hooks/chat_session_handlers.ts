@@ -56,16 +56,26 @@ type SubmitComposerDeps = Pick<
   | 'clearSessionState'
   | 'reloadHistory'
 > & {
-  e: FormEvent<HTMLFormElement>;
   files: File[];
+  /**
+   * The turn's text when it did not come from the composer -- the answer
+   * composed from the question chooser's option cards. Given, it is what is
+   * sent and the composer's own contents are left alone, so a half-written
+   * message survives answering a question by clicking.
+   */
+  answer?: string;
 };
 
 // Clears the composer for a new turn; returns the trimmed text, or null
 // when there is nothing to submit.
+//
+// A clicked answer (`answer`) leaves the composer's contents where they
+// are: it is not what is being sent, and wiping it would discard a message
+// the scientist was part-way through writing.
 function beginComposerTurn(deps: SubmitComposerDeps): string | null {
-  const text = deps.input.trim();
+  const text = (deps.answer ?? deps.input).trim();
   if (!text) return null;
-  deps.setInput('');
+  if (deps.answer === undefined) deps.setInput('');
   deps.setError(null);
   deps.setToast(null);
   return text;
@@ -143,7 +153,6 @@ async function handleSubmitOutcome(
 // derives scientific setup fields from keywords; only the persisted model
 // response can complete the setup and produce a runnable specification.
 async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
-  deps.e.preventDefault();
   // A started run consumed the interview: the server completed it when the
   // run was created, so it rejects further turns. buildChatHandlers routes
   // handleSubmit to submitRunQuestion instead the moment startedSession is
@@ -323,10 +332,22 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
     // turn (A17). Read at call time (handlerDeps is the live view over the
     // latest render's state -- see liveHandlerDeps), so this cannot drift
     // behind a stale render.
-    handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) =>
-      handlerDeps.startedSession
-        ? submitRunQuestion({e, ...handlerDeps})
-        : submitComposerMessage({e, files, ...handlerDeps}),
+    handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) => {
+      if (handlerDeps.startedSession) {
+        return submitRunQuestion({e, ...handlerDeps});
+      }
+      // Prevented here rather than inside submitComposerMessage, which is
+      // also reached by handleAnswerQuestions below -- an answer clicked in
+      // the question chooser has no form submission to prevent.
+      e.preventDefault();
+      return submitComposerMessage({files, ...handlerDeps});
+    },
+    // An answer assembled from the question chooser's option cards. It
+    // takes the same path a typed answer takes -- one ordinary interview
+    // turn -- so the Agent reads the conversation it would have read had
+    // the scientist written the answer out.
+    handleAnswerQuestions: (answer: string) =>
+      submitComposerMessage({files: [], answer, ...handlerDeps}),
     handleStartRun: () => promoteDraftToRun(handlerDeps),
     handleStop: () => stopTurn(handlerDeps),
   };

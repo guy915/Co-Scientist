@@ -93,11 +93,16 @@ async def _stream_interview_content(
         messages=messages,
         temperature=0.3,
         # Thinking spends reasoning tokens against this budget before the
-        # answer, so the floor covers the reasoning and 3k is what remains
+        # answer, so the floor covers the reasoning and this is what remains
         # for the prose and its spec block. Sizing this for the answer alone
         # is what leaves a run untitled and an interview turn blank; see
-        # thinking_safe_max_tokens.
-        max_tokens=thinking_safe_max_tokens(model, 3_000),
+        # thinking_safe_max_tokens. Raised from 3k when the block learned to
+        # carry clickable answers: a turn offering three options writes a
+        # label and a description for each on top of the five fields it
+        # already restates every turn, and a budget that funds the prose but
+        # truncates the block loses the whole turn's state, not just the
+        # options.
+        max_tokens=thinking_safe_max_tokens(model, 4_000),
         # Bounds establishing the stream; once chunks flow, stream_chunks
         # below owns the clock.
         timeout=_INTERVIEW_TOTAL_SECONDS,

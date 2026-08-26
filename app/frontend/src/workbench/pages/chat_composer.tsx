@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
   useEffect,
@@ -62,7 +63,13 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * button. `stoppable` swaps the send button for a Stop control while a turn
  * the scientist can interrupt is in flight (an interview turn or a run Q&A
  * turn; not the run create+start round trip, which has nothing to abort
- * this way) -- `onStop` is its handler. `placeholderOverride` replaces the
+ * this way) -- `onStop` is its handler. `aboveInput` renders inside the
+ * composer's shell above the textarea -- the question chooser
+ * (chat_questions_panel.tsx) sits there so it reads as the input box
+ * expanding upward, sharing this border, radius and shadow instead of
+ * approximating them on a card of its own. It is an opaque slot rather
+ * than a typed prop because the composer has no business knowing what an
+ * interview question is. `placeholderOverride` replaces the
  * computed label outright (used once a run has started: the composer stays
  * live, asking the run rather than editing its setup, so neither the
  * `setupDraftMode` nor the `disabled` copy fits).
@@ -80,6 +87,7 @@ export interface ComposerProps {
   stoppable?: boolean;
   onStop?: () => void;
   placeholderOverride?: string;
+  aboveInput?: ReactNode;
 }
 
 // Every connector on, with no owner to write a change back to: the shape a
@@ -101,8 +109,16 @@ function composerOptions(props: ComposerProps) {
     autoFocus = false,
     connectors = DEFAULT_CONNECTORS,
     placeholderOverride,
+    aboveInput,
   } = props;
-  return {large, setupDraftMode, autoFocus, connectors, placeholderOverride};
+  return {
+    large,
+    setupDraftMode,
+    autoFocus,
+    connectors,
+    placeholderOverride,
+    aboveInput,
+  };
 }
 
 // Composer's <form onSubmit>: forwards the staged attachments' files to the
@@ -144,8 +160,14 @@ export function Composer(props: ComposerProps) {
     stoppable = false,
     onStop,
   } = props;
-  const {large, setupDraftMode, autoFocus, connectors, placeholderOverride} =
-    composerOptions(props);
+  const {
+    large,
+    setupDraftMode,
+    autoFocus,
+    connectors,
+    placeholderOverride,
+    aboveInput,
+  } = composerOptions(props);
   const state = useComposerState(input, large);
   // A session that starts while the connectors menu is open locks the whole
   // composer; close the menu so no dangling control survives the transition.
@@ -187,6 +209,7 @@ export function Composer(props: ComposerProps) {
         connectors={connectors}
         stoppable={stoppable}
         onStop={onStop}
+        aboveInput={aboveInput}
       />
     </form>
   );
@@ -376,11 +399,12 @@ interface ComposerBodyProps {
   connectors: ConnectorToggleProps;
   stoppable: boolean;
   onStop?: () => void;
+  aboveInput?: ReactNode;
 }
 
-// Composer's <form> children: the staged-attachments strip, the textarea
-// field, and the footer controls row. Split out so Composer itself only
-// wires hooks and props together.
+// Composer's <form> children: anything slotted above the input, the staged-
+// attachments strip, the textarea field, and the footer controls row. Split
+// out so Composer itself only wires hooks and props together.
 function ComposerBody(props: ComposerBodyProps) {
   const {
     input,
@@ -397,6 +421,7 @@ function ComposerBody(props: ComposerBodyProps) {
   } = props;
   return (
     <>
+      {props.aboveInput}
       <AttachmentStrip
         attachments={state.attachments}
         onRemove={state.removeAttachment}

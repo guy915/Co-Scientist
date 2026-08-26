@@ -6,7 +6,7 @@ import json
 import sqlite3
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
@@ -113,8 +113,9 @@ def get_interview(
         if row is None:
             return None
         turns = active.execute(
-            "SELECT id, role, content, reasoning, fallback, created_at "
-            "FROM interview_turns WHERE interview_id=? ORDER BY id ASC",
+            "SELECT id, role, content, reasoning, fallback, questions_json, "
+            "created_at FROM interview_turns WHERE interview_id=? "
+            "ORDER BY id ASC",
             (interview_id,),
         ).fetchall()
     result = dict(row)
@@ -122,10 +123,26 @@ def get_interview(
     # Normalize the stored 0/1 into a JSON boolean so every payload the
     # frontend reads (interview GET, streamed turn frames) carries a real
     # true/false marker.
-    result["turns"] = [
-        {**dict(turn), "fallback": bool(turn["fallback"])} for turn in turns
-    ]
+    result["turns"] = [_decoded_turn(turn) for turn in turns]
     return result
+
+
+def _decoded_turn(turn: sqlite3.Row) -> dict[str, Any]:
+    """Render one stored turn as the payload every client reads.
+
+    The stored 0/1 fallback marker becomes a real JSON boolean, and the
+    questions column becomes a list -- empty rather than null, so the
+    frontend maps over it without a null branch. Both the interview GET and
+    the streamed turn's closing frame go through here, so the two can never
+    describe the same turn differently.
+    """
+    row = dict(turn)
+    raw = row.pop("questions_json", None)
+    return {
+        **row,
+        "fallback": bool(turn["fallback"]),
+        "questions": json.loads(raw) if raw else [],
+    }
 
 
 def _interview_run_ids(
@@ -211,12 +228,17 @@ class NewInterviewTurn:
             Agent turn because no model could be reached. Persisted per
             turn so the UI can signal exactly which turns are scripted;
             always False for user turns.
+        questions: The structured multiple-choice questions this Agent turn
+            offered the scientist, if any. Persisted with the turn that
+            asked them so a reopened chat re-offers the pending one rather
+            than showing a question with no way to answer it.
     """
 
     role: str
     content: str
     reasoning: str | None = None
     fallback: bool = False
+    questions: list[dict[str, Any]] = field(default_factory=list)
 
 
 def append_interview_turn(
@@ -238,13 +260,15 @@ def append_interview_turn(
     with _use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO interview_turns (interview_id, role, content, "
-            "reasoning, fallback, created_at) VALUES (?,?,?,?,?,?)",
+            "reasoning, fallback, questions_json, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
             (
                 interview_id,
                 turn.role,
                 turn.content.strip(),
                 turn.reasoning or None,
                 int(turn.fallback),
+                json.dumps(turn.questions) if turn.questions else None,
                 now,
             ),
         )

@@ -42,6 +42,7 @@ function completedInterview(goal: string) {
         content: goal,
         reasoning: null,
         fallback: false,
+        questions: [],
         created_at: 1,
       },
       {
@@ -50,6 +51,7 @@ function completedInterview(goal: string) {
         content: 'The goal is ready.',
         reasoning: null,
         fallback: false,
+        questions: [],
         created_at: 2,
       },
     ],

@@ -94,6 +94,9 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _system_prompt as _system_prompt,
 )
+from app.interviews_questions import (
+    normalized_questions as normalized_questions,
+)
 from app.interviews_revision import (
     _require_revisable_turn as _require_revisable_turn,
 )
@@ -209,6 +212,11 @@ class _ResolvedTurn:
             credential nor a scoped bring-your-own-key one answered it).
             Persisted per turn so the UI signals exactly which turns are
             scripted; see ``store.NewInterviewTurn.fallback``.
+        questions: The structured multiple-choice answers this turn offers
+            the scientist, if any. Unlike the fields -- which carry the
+            interview's whole state forward every turn -- a question
+            belongs to the turn that asked it and is never inherited, so
+            this reads only from *this* turn's block.
     """
 
     message: str
@@ -216,6 +224,7 @@ class _ResolvedTurn:
     reasoning: str
     completed: bool
     fallback: bool
+    questions: list[dict[str, Any]]
 
 
 def _resolved_turn(
@@ -241,6 +250,7 @@ def _resolved_turn(
         reasoning=reasoning,
         completed=_interview_turn_completed(response, fields, used_fallback),
         fallback=used_fallback,
+        questions=normalized_questions(response.get("questions")),
     )
 
 
@@ -249,7 +259,11 @@ def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
     store.append_interview_turn(
         interview_id,
         store.NewInterviewTurn(
-            "agent", turn.message, turn.reasoning, fallback=turn.fallback
+            "agent",
+            turn.message,
+            turn.reasoning,
+            fallback=turn.fallback,
+            questions=turn.questions,
         ),
     )
     store.update_interview(
