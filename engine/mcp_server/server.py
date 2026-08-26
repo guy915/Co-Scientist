@@ -78,8 +78,15 @@ from mcp_server.tools.systems_biology import (
     search_reactome_pathways,
     search_string_interactions,
 )
-from mcp_server.tools.web import read_url, search_web
-from mcp_server.tools.web.providers import resolve_provider
+from mcp_server.tools.web import (
+    check_web_search_available,
+    read_url,
+    search_web,
+)
+from mcp_server.tools.web.providers import (
+    resolve_provider,
+    web_search_credential_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +121,17 @@ _MCP_TOOLS = (
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
     (fetch_paper, "fetch_paper"),
-    *(((search_web, "search_web"),) if web_search_provider else ()),
+    # Both gated on the same key: the check tool exists to say whether
+    # that key still works, which is only a question worth asking when
+    # one was configured at all.
+    *(
+        (
+            (search_web, "search_web"),
+            (check_web_search_available, "check_web_search_available"),
+        )
+        if web_search_provider
+        else ()
+    ),
     (read_url, "read_url"),
     (search_chembl, "search_chembl"),
     (search_uniprot, "search_uniprot"),
@@ -214,6 +231,11 @@ async def root() -> JSONResponse:
                     "INDRA_COGEX_URL", "https://discovery.indra.bio"
                 ),
                 "web_search_provider": web_search_provider,
+                # Present only once a provider has refused the key. Until
+                # then there is nothing observed to report: the server
+                # learns a key is dead from a real search failing, not at
+                # boot.
+                "web_search_credential_error": web_search_credential_error(),
             },
         }
     )

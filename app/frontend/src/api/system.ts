@@ -20,7 +20,7 @@ export interface SystemStatus {
   mcp_available: boolean;
   pubmed_available: boolean;
   literature_review_available: boolean;
-  /** Present once the backend advertises the web-search tool. */
+  /** Whether a web search would reach a provider, key included. */
   web_search_available?: boolean;
   /**
    * Whether an SMTP transport is configured. False means a completion-email

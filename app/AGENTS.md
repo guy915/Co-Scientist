@@ -61,7 +61,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 
 **Key endpoints**
 
-Diagnostics (in `main.py`): `GET /health`, `/config`, `/status` — `/status` reports MCP/PubMed/web-search availability.
+Diagnostics (in `main.py`): `GET /health`, `/config`, `/status` — `/status` reports MCP/PubMed/web-search availability. The web-search probe calls the MCP server's `check_web_search_available`, **not** `search_web`'s presence in the tool list: the server registers that tool whenever a provider key was set at boot, so presence survives the provider refusing the key, and a refused search returns an empty result set that looks like a quiet week on the web. An older mcp image without the check tool falls back to presence, since api and mcp deploy separately.
 
 Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
 - `POST /api/runs` — create a draft run; `GET /api/runs` — list runs; `GET /api/runs/demo`.

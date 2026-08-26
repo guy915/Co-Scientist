@@ -45,11 +45,6 @@ PROBE_UP = "up"
 PROBE_DOWN = "down"
 PROBE_ERROR = "error"
 
-# MCP tool name backing the "Web search" connector. The server registers it
-# only when a search-provider API key is configured, so its presence is the
-# availability signal for that connector.
-WEB_SEARCH_TOOL_NAME = "search_web"
-
 
 @dataclass
 class HealthCheck:
@@ -316,10 +311,12 @@ async def _probe_literature_stack() -> tuple[
     scientist as a connectors menu with nothing in it. Import names here
     are checked by ``test_diagnostics_probe_imports``.
 
-    Web search is probed by asking the MCP server whether it advertises
-    ``search_web``. The server registers that tool only when a provider API
-    key is configured, so this is what distinguishes "web search is usable"
-    from "the server is up but has no key".
+    Web search is probed by asking the MCP server whether a search
+    issued now would reach a provider -- not whether it advertises
+    ``search_web``, which it does whenever a key was set at boot. The two
+    answers diverge the moment a provider refuses that key: the tool stays
+    listed, every search returns an empty result set, and the connector
+    reads as healthy while the runs get nothing.
 
     Returns:
         The ``(mcp, pubmed, web_search)`` probe outcomes.
@@ -328,7 +325,7 @@ async def _probe_literature_stack() -> tuple[
         from co_scientist.mcp_client import (
             check_literature_source_available,
             check_mcp_available,
-            check_tool_available,
+            check_web_search_available,
         )
     except Exception as exc:
         unavailable = _probe_error(f"engine unavailable: {exc}")
@@ -339,7 +336,7 @@ async def _probe_literature_stack() -> tuple[
     return await asyncio.gather(
         _run_probe(check_mcp_available(), timeout),
         _run_probe(check_literature_source_available(), timeout),
-        _run_probe(check_tool_available(WEB_SEARCH_TOOL_NAME), timeout),
+        _run_probe(check_web_search_available(), timeout),
     )
 
 

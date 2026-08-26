@@ -16,6 +16,7 @@ from co_scientist.mcp_client import (
     MCPToolClient,
     check_literature_source_available,
     check_mcp_available,
+    check_web_search_available,
     get_mcp_client,
     reset_mcp_client,
 )
@@ -261,4 +262,71 @@ async def test_literature_source_registry_false_when_mcp_down(
     registry = make_registry(availability_check=None)
     assert (
         await check_literature_source_available(tool_registry=registry) is False
+    )
+
+
+# --- check_web_search_available ---------------------------------------------
+#
+# The connector's health used to be read off the presence of ``search_web``,
+# which only says a key was set when the server booted. A key the provider
+# has since refused leaves the tool listed and every search empty, so the
+# status card read "up" while the runs saw nothing.
+
+
+async def test_web_search_false_when_the_server_reports_a_dead_key(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """A listed search_web does not override the server's own verdict."""
+    _patch_mcp_seam.tools = [
+        string_tool("check_web_search_available", "false"),
+        string_tool("search_web", "{}"),
+    ]
+    assert (
+        await check_web_search_available(server_url="http://x.test/mcp")
+        is False
+    )
+
+
+async def test_web_search_true_when_the_server_reports_a_usable_key(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """The check tool's affirmative answer is the whole answer."""
+    _patch_mcp_seam.tools = [
+        string_tool("check_web_search_available", "true"),
+        string_tool("search_web", "{}"),
+    ]
+    assert (
+        await check_web_search_available(server_url="http://x.test/mcp") is True
+    )
+
+
+async def test_web_search_falls_back_to_tool_presence_on_older_servers(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """App and MCP server deploy separately; an old image must still pass."""
+    _patch_mcp_seam.tools = [string_tool("search_web", "{}")]
+    assert (
+        await check_web_search_available(server_url="http://x.test/mcp") is True
+    )
+
+
+async def test_web_search_false_when_the_tool_is_absent_entirely(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """No key at boot means no search_web, which is still "not usable"."""
+    _patch_mcp_seam.tools = [string_tool("search_pubmed", "{}")]
+    assert (
+        await check_web_search_available(server_url="http://x.test/mcp")
+        is False
+    )
+
+
+async def test_web_search_false_on_connection_error(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """An unreachable server degrades to unavailable, like the other probes."""
+    _patch_mcp_seam.error = ConnectionError("boom")
+    assert (
+        await check_web_search_available(server_url="http://x.test/mcp")
+        is False
     )

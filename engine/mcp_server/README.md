@@ -22,6 +22,7 @@ Biomedical databases and knowledge graph:
 Open-web research and browsing:
 
 - **search_web**: Search the open web for news, grey literature, and recent developments. Registered only when a provider API key is configured
+- **check_web_search_available**: Report whether a search issued now would reach a provider -- false once the provider has refused the key, which registration alone cannot tell you
 - **read_url**: Fetch a web page or PDF and return readable text. Always available
 
 `fetch_paper` is always registered, but it needs `SBI_CORPUS_DIR` pointing at a directory of `<paper_id>.md`/`.txt` files; without one it returns an empty result for every id. The corpus is not searched here — the caller injects the whole catalog (title + abstract per paper) into the model's context, and this tool reads one paper in full as the follow-up.

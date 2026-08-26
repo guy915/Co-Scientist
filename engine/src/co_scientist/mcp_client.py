@@ -18,6 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from co_scientist.mcp_client_availability import (
+    _call_check_tool,
     _has_any_tools,
     _log_mcp_test_start,
     _log_mcp_unavailable,
@@ -189,6 +190,56 @@ async def check_tool_available(
         # only gates whether a capability is offered, and an unreachable
         # server must degrade to "not available" rather than raise.
         logger.debug("tool availability check failed for %s: %s", tool_name, e)
+        return False
+
+
+# The MCP server's own verdict on whether a web search would reach a
+# provider, and the tool it gates. Older server images expose only the
+# second: the api and mcp services deploy separately, so the probe has to
+# work against an image that predates the check.
+WEB_SEARCH_CHECK_TOOL = "check_web_search_available"
+WEB_SEARCH_TOOL = "search_web"
+
+
+async def check_web_search_available(
+    server_url: str | None = None,
+    tool_registry: Optional["ToolRegistry"] = None,
+) -> bool:
+    """Check whether a web search issued now would reach a provider.
+
+    Presence of ``search_web`` is not the same question. The server
+    registers that tool when a provider key is *set*, which stays true
+    after the provider starts refusing the key -- and since a refused
+    search degrades to an empty result set, the connector then reads as
+    healthy while every run gets nothing back. Ask the server instead,
+    falling back to presence only against an image too old to answer.
+
+    Args:
+        server_url: URL of the MCP server (legacy).
+        tool_registry: Optional ToolRegistry for multi-server configs.
+
+    Returns:
+        True if a web search would reach a provider, False otherwise --
+        including when the server is unreachable.
+    """
+    if server_url is None and tool_registry is None:
+        server_url = _resolve_server_url()
+
+    try:
+        probe_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
+        await probe_client.initialize()
+        tools, _ = probe_client.get_tools()
+        if WEB_SEARCH_CHECK_TOOL in tools:
+            return await _call_check_tool(
+                probe_client, WEB_SEARCH_CHECK_TOOL, tools
+            )
+        return WEB_SEARCH_TOOL in tools
+    except Exception as e:
+        # Broad catch to False, matching the probes around it: an
+        # unreachable server means the capability is not usable now.
+        logger.debug("web search availability check failed: %s", e)
         return False
 
 

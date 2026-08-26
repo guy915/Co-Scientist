@@ -48,6 +48,77 @@ def clean_snippet(raw: Any) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 
+# Statuses that mean "this key will not work until a human changes
+# something": revoked, unpaid, forbidden. Brave withdrew its free tier in
+# Feb 2026 and exhausted keys began answering 402 with a zero monthly
+# allowance -- which, because every provider error degrades to `{}`, reached
+# the agents as "the web had nothing on this" rather than as a broken
+# connector. 429 is deliberately absent: throttling is a healthy key being
+# asked to wait, and it clears itself within seconds.
+_KEY_REJECTED_STATUSES = frozenset({401, 402, 403})
+
+# The last rejection observed, or None. Module state because the fact is
+# about the process's credentials rather than about any one search, and
+# `check_web_search_available` has to answer for the connector as a whole.
+_credential_error: dict[str, Any] | None = None
+
+
+def web_search_credential_error() -> dict[str, Any] | None:
+    """Reports the last provider rejection of the configured key.
+
+    Returns:
+        ``{"provider": ..., "status": ..., "detail": ...}`` describing the
+        most recent rejection, or None when no call has been refused since
+        the last successful search.
+    """
+    return _credential_error
+
+
+def _clear_credential_error() -> None:
+    """Forgets any recorded rejection, after a search that worked."""
+    global _credential_error
+    _credential_error = None
+
+
+def _handle_provider_error(
+    provider: str, query: str, exc: Exception
+) -> dict[str, Any]:
+    """Classifies a failed search and records it if the key was refused.
+
+    Args:
+        provider: Provider name, as used in the status payload.
+        query: The search that failed, for the log line.
+        exc: The transport, status, or parse error raised.
+
+    Returns:
+        An empty result set, so a failed search still degrades rather than
+        raising -- the callers merge results and have no error channel.
+    """
+    global _credential_error
+    status = (
+        exc.response.status_code
+        if isinstance(exc, httpx.HTTPStatusError)
+        else None
+    )
+    if status in _KEY_REJECTED_STATUSES:
+        _credential_error = {
+            "provider": provider,
+            "status": status,
+            "detail": str(exc),
+        }
+        # Logged at error, not warning: this one does not clear on its own,
+        # and every search until someone acts on it returns nothing.
+        logger.error(
+            "%s rejected the configured API key (HTTP %s) - web search is "
+            "returning no results until the key or plan is fixed",
+            provider,
+            status,
+        )
+        return {}
+    logger.warning("%s web search failed for %r: %s", provider, query, exc)
+    return {}
+
+
 _BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 _TAVILY_URL = "https://api.tavily.com/search"
 
@@ -242,10 +313,11 @@ async def search_brave(
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             resp = await client.get(_BRAVE_URL, params=params, headers=headers)
             resp.raise_for_status()
-            return normalize_brave(resp.json(), max_results)
+            results = normalize_brave(resp.json(), max_results)
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Brave web search failed for %r: %s", query, exc)
-        return {}
+        return _handle_provider_error("brave", query, exc)
+    _clear_credential_error()
+    return results
 
 
 async def search_tavily(
@@ -277,10 +349,11 @@ async def search_tavily(
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             resp = await client.post(_TAVILY_URL, json=payload, headers=headers)
             resp.raise_for_status()
-            return normalize_tavily(resp.json(), max_results)
+            results = normalize_tavily(resp.json(), max_results)
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Tavily search failed for %r: %s", query, exc)
-        return {}
+        return _handle_provider_error("tavily", query, exc)
+    _clear_credential_error()
+    return results
 
 
 SearchFn = Callable[[str, int, int], Awaitable[dict[str, Any]]]

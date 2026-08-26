@@ -56,8 +56,8 @@ it('lists the web search connector from /status, on by default', async () => {
 });
 
 it('omits the web search connector when /status omits it', async () => {
-  // The MCP server only advertises its web search tool when a provider key
-  // is configured, so a deployment without one must not offer the row.
+  // The backend drops the row when a web search would not reach a
+  // provider -- no key configured, or a key the provider now refuses.
   stubStatusConnectors([{id: 'pubmed', display: 'PubMed'}]);
   renderWorkspace();
 

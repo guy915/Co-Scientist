@@ -142,8 +142,9 @@ class SystemStatusResponse(BaseModel):
     web_search_available: bool = Field(
         False,
         description=(
-            "whether the mcp server advertises its web search tool, which "
-            "it does only when a search-provider api key is configured"
+            "whether a web search issued now would reach a provider -- not "
+            "merely whether the tool is advertised, which stays true after "
+            "the provider starts refusing the key"
         ),
     )
     email_notifications_available: bool = Field(
@@ -364,8 +365,9 @@ def _build_status_payload(
         "mcp_available": mcp.available,
         "pubmed_available": pubmed.available,
         "literature_review_available": literature_available,
-        # True only when the MCP server advertises its web search tool, which
-        # requires a search-provider API key on that server.
+        # True only when a search issued now would reach a provider: the
+        # MCP server has the tool registered AND the provider has not
+        # refused the key since the last search that worked.
         "web_search_available": web_search.available,
         **_local_capabilities(),
         "probes": {
