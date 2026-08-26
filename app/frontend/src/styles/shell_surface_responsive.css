@@ -266,14 +266,21 @@
     width: 100%;
   }
 
-  /* The desktop title/diagnostics don't fit a phone bar; the hamburger replaces
-     the (now off-canvas) rail toggle as the way to open navigation. */
-  .ucs-header-title,
-  .ucs-header-actions {
+  /* The desktop title doesn't fit a phone bar; the hamburger replaces the
+     (now off-canvas) rail toggle as the way to open navigation. */
+  .ucs-header-title {
     display: none;
     max-width: 0;
     opacity: 0;
     visibility: hidden;
+  }
+
+  /* The diagnostics don't fit either, but the actions box itself stays: it
+     holds the session switch, and with the run's back arrow now leaving the
+     run entirely, that switch is the only way back to a session's transcript
+     on a phone. So the cluster's other controls go, not the cluster. */
+  .ucs-header-actions > :not(.ucs-session-switch) {
+    display: none;
   }
 
   .ucs-header-action-bar {
@@ -282,13 +289,20 @@
     padding-inline: 0.5rem;
   }
 
-  /* The bar keeps the session switch where it drops the title and actions:
-     with the run's back arrow now leaving the run entirely, this is the only
-     way back to a session's transcript on a phone. Its labels go, not the
-     control -- each side keeps its name through the link's aria-label, so the
-     icons stay announced. */
+  /* Labels go, not the control -- each side keeps its name through the link's
+     aria-label, so the icons stay announced. */
   .ucs-session-switch-label {
     display: none;
+  }
+
+  /* The bar is space-between over two in-flow items, so with the hamburger
+     showing, the lockup sits against the right edge -- where the switch's
+     cluster now is. Hand the free space to the lockup instead, which puts the
+     wordmark beside the hamburger and leaves the right edge to the switch.
+     Only on a session route: everywhere else the lockup keeps the right-edge
+     placement the margin below balances. */
+  .ucs-header-action-bar:has(.ucs-session-switch) .ucs-product-lockup {
+    margin-right: auto;
   }
 
   .ucs-session-switch-side {
