@@ -15,11 +15,12 @@ from co_scientist.llm_request import (
     _build_completion_args,
     _supports_json_schema_response_format,
     deepseek_thinking_extra_body,
+    model_reasons,
 )
 
-_OX = "openrouter/stealth/ox-alpha"
+_PRIMARY = "openrouter/z-ai/glm-5.3-flash"
 _GLM = "openrouter/z-ai/glm-5.2:free"
-_MUSE = "openrouter/meta/muse-spark-1.2"
+_NEMO = "openrouter/minimax/minimax-m3:free"
 
 
 def test_the_primary_model_carries_its_fallback_chain() -> None:
@@ -30,9 +31,12 @@ def test_the_primary_model_carries_its_fallback_chain() -> None:
     without a retry: a 429 from a free pool is not a transport error the
     engine's own retry ladder can fix by asking the same host again.
     """
-    body = deepseek_thinking_extra_body(_OX)
+    body = deepseek_thinking_extra_body(_PRIMARY)
 
-    assert body["models"] == ["z-ai/glm-5.2:free", "meta/muse-spark-1.2"]
+    assert body["models"] == [
+        "minimax/minimax-m3:free",
+        "nvidia/nemotron-3.5-lightning:free",
+    ]
 
 
 def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
@@ -43,7 +47,7 @@ def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
     is the one it would reach.
     """
     assert "models" not in deepseek_thinking_extra_body(_GLM)
-    assert "models" not in deepseek_thinking_extra_body(_MUSE)
+    assert "models" not in deepseek_thinking_extra_body(_NEMO)
 
 
 def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
@@ -60,23 +64,22 @@ def test_every_gateway_call_is_pinned_to_hosts_that_honour_it() -> None:
     rather than advisory, and a gateway spreads one model over hosts that
     differ by an order of magnitude in speed.
     """
-    for model in (_OX, _GLM, _MUSE):
+    for model in (_PRIMARY, _GLM, _NEMO):
         provider = deepseek_thinking_extra_body(model)["provider"]
         assert provider["require_parameters"] is True
         assert provider["sort"] == "throughput"
 
 
-def test_ox_alpha_is_downgraded_to_json_object() -> None:
-    """No host serving the primary accepts ``json_schema``.
+def test_the_primary_is_downgraded_to_json_object() -> None:
+    """A model the capability registry does not know gets the safe format.
 
-    Sending it is not a soft degradation: the gateway pairs it with
-    ``require_parameters`` and finds no eligible host at all, so the call
-    fails outright with a 404 rather than answering unconstrained. Measured
-    live -- ``json_schema`` plus the routing constraint returns "No
-    endpoints found that can handle the requested parameters", while
-    ``json_object`` with the same constraint answers.
+    ``json_object`` is served by every host in this chain; ``json_schema``
+    is not, and paired with ``require_parameters`` an unsupported format
+    is a hard 404 rather than a soft degradation to an unconstrained
+    answer. Free models turn over faster than litellm's registry does, so
+    the conservative answer is the correct one here.
     """
-    assert _supports_json_schema_response_format(_OX) is False
+    assert _supports_json_schema_response_format(_PRIMARY) is False
 
 
 def test_the_primary_still_gets_the_thinking_token_floor() -> None:
@@ -94,18 +97,84 @@ def test_the_primary_still_gets_the_thinking_token_floor() -> None:
     answer briefly, and removes 24 wasted round-trips from the ones that
     do not.
     """
-    args = _build_completion_args("prompt", _OX, 4000, 0.5, CompletionShape())
+    args = _build_completion_args(
+        "prompt", _PRIMARY, 4000, 0.5, CompletionShape()
+    )
 
     assert args["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
 
 
-def test_the_primary_is_still_not_sent_the_reasoning_knob() -> None:
-    """Funding a budget and asking for reasoning are separate decisions.
+def test_the_two_reasoning_facts_stay_separable() -> None:
+    """Taking the knob and spending the budget remain distinct questions.
 
-    They were one flag, which is how the floor came to be withheld: the
-    model does not take the reasoning knob, so it was recorded as not
-    reasoning, so it lost the budget too. The same shape as the
-    ``"deepseek"`` substring that gated four behaviours at once, one scale
-    down.
+    This pinned a model that answered no to the first and yes to the
+    second; its provider withdrew it mid-session, and the model replacing
+    it answers yes to both. The distinction is what matters and is kept
+    under test, because collapsing the two is what withheld the token
+    floor and cost 24 answerless round-trips.
     """
-    assert "reasoning" not in deepseek_thinking_extra_body(_OX)
+    from co_scientist.llm_thinking import GatewayModel
+
+    knob_only = GatewayModel(
+        takes_reasoning_knob=False, spends_budget_thinking=True
+    )
+
+    assert knob_only.takes_reasoning_knob is False
+    assert knob_only.spends_budget_thinking is True
+    assert model_reasons(_PRIMARY) is True
+
+
+def test_no_fallback_costs_more_than_the_model_above_it() -> None:
+    """A chain may only ever descend in price.
+
+    This is the test that would have caught the incident this chain was
+    rebuilt after: a free primary with a $1.25/$4.25 "last resort" behind
+    it, where 429 is the normal state of a shared free pool, so the
+    expensive rung was the routine destination rather than the emergency
+    one. It served 3.17M tokens and billed $5.23 in an afternoon.
+
+    Asserted over the declared table rather than one hand-picked pair, so
+    a rung added later cannot reintroduce the shape.
+    """
+    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.llm_thinking import _GATEWAY_MODELS
+
+    def rate(gateway_relative: str) -> tuple[float, float]:
+        price = MODEL_PRICING[f"openrouter/{gateway_relative}"]
+        return (
+            price.prompt_usd_per_million,
+            price.completion_usd_per_million,
+        )
+
+    for primary, declared in _GATEWAY_MODELS.items():
+        if not declared.fallbacks:
+            continue
+        above = (
+            MODEL_PRICING[primary].prompt_usd_per_million,
+            MODEL_PRICING[primary].completion_usd_per_million,
+        )
+        for name in declared.fallbacks:
+            below = rate(name)
+            assert below <= above, (
+                f"{name} costs more than {primary} it falls back from"
+            )
+            above = below
+
+
+def test_a_priced_primary_arms_the_routing_ceiling() -> None:
+    """The cap only exists when the primary has a rate to be a multiple of.
+
+    A primary listed at zero silently drops ``max_price`` -- there is no
+    meaningful multiple of nothing -- and an uncapped route may be served
+    at any price the gateway likes. That is the mechanism behind the
+    $5.23: not the fallback being wrong on its own, but the ceiling that
+    would have refused it never being sent.
+    """
+    from co_scientist.llm_thinking import _GATEWAY_MODELS, _gateway_provider
+
+    for primary, declared in _GATEWAY_MODELS.items():
+        if not declared.fallbacks:
+            continue
+        assert "max_price" in _gateway_provider(primary), (
+            f"{primary} heads a chain but sends no price ceiling"
+        )

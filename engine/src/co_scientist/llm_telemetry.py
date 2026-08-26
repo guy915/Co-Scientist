@@ -183,25 +183,56 @@ def record_call(model_name: str, stats: ModelCallStats) -> None:
     accumulator.record(_current_phase.get(), model_name, stats)
 
 
+def _served_model_name(requested: str, response: Any) -> str:
+    """The model that answered, falling back to the one requested.
+
+    Args:
+        requested: Model name in litellm format, as sent.
+        response: The raw response returned by ``litellm.acompletion``.
+
+    Returns:
+        ``response.model`` when the provider named one, else ``requested``.
+        A gateway rewrites this field to the rung that actually served the
+        call, which is the only signal distinguishing a primary from its
+        fallback after the fact.
+    """
+    served = getattr(response, "model", None)
+    if isinstance(served, str) and served:
+        return served
+    return requested
+
+
 def record_completion_response(
     model_name: str, response: Any, latency_seconds: float
 ) -> None:
     """Record a successful completion's token usage, cost, and latency.
 
+    Cost and tokens are attributed to the model that *answered*, which is
+    not always the one asked for: a gateway walking a fallback chain
+    answers with whichever rung served the call, and it walks that chain
+    precisely when the primary is unavailable. Pricing the requested name
+    reports what the configured model would have cost rather than what was
+    billed -- a run configured for a free primary reported $0.00 across
+    226 calls while the gateway was serving a $1.25/$4.25 fallback, and
+    the account was billed $5.23. The requested name is kept only when the
+    provider names nothing, since not every one echoes the served model
+    and a missing field must not blank out a run's attribution.
+
     Args:
-        model_name: Model name in litellm format.
+        model_name: Model name in litellm format, as requested.
         response: The raw response returned by ``litellm.acompletion``.
         latency_seconds: Wall-clock time the physical call took.
     """
     usage = extract_token_usage(response)
+    served = _served_model_name(model_name, response)
     cost = estimate_cost_usd(
-        model_name,
+        served,
         usage.prompt_tokens,
         usage.completion_tokens,
         usage.cached_prompt_tokens,
     )
     record_call(
-        model_name,
+        served,
         ModelCallStats(
             calls=1,
             prompt_tokens=usage.prompt_tokens,

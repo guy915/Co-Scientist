@@ -103,14 +103,22 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # meaningful multiple, so a free model's call goes out uncapped. That
     # is correct -- capping at zero would refuse every host -- but it means
     # the chain itself, not a price ceiling, is what bounds the spend.
-    "openrouter/stealth/ox-alpha": ModelPrice(0.0, 0.0),
+    # The deployed primary. Listing it at a real rate is what arms the
+    # routing price ceiling (2x -> $0.15/$0.50): a primary priced at zero
+    # disables the cap, which is how a $4.25 fallback once served a run
+    # that reported $0.00. The $0.075/$0.25 here is ZAI's 50%-off rate,
+    # which expires 2026-09-09 and reverts to $0.15/$0.50 -- at which
+    # point this entry needs updating or the cap starts refusing the very
+    # model it is meant to admit.
+    "openrouter/z-ai/glm-5.3-flash": ModelPrice(0.075, 0.25, 0.015),
+    "openrouter/minimax/minimax-m3:free": ModelPrice(0.0, 0.0),
+    "openrouter/nvidia/nemotron-3.5-lightning:free": ModelPrice(0.0, 0.0),
     "openrouter/z-ai/glm-5.2:free": ModelPrice(0.0, 0.0),
     # The paid last resort, and the only rung that can spend anything. At
     # twenty times the rate of the DeepSeek route this replaced, a run that
     # falls all the way through costs materially more than one that does
     # not -- so a bill appearing here is a signal that both free rungs were
     # unavailable, not that the model was chosen.
-    "openrouter/meta/muse-spark-1.2": ModelPrice(1.25, 4.25),
     "openrouter/deepseek/deepseek-v4-pro": ModelPrice(1.60, 3.20, 0.13),
     "openai/gpt-4o": ModelPrice(2.50, 10.00),
     # Azure resells OpenAI's models at OpenAI's list price. Present

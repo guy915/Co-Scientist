@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # fails outright ("No endpoints found that can handle the requested
 # parameters"). Measured live: ``json_object`` plus the same routing
 # constraint answers, ``json_schema`` plus it 404s.
-_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek", "ox-alpha")
+_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 # Routes that normalize reasoning control into their own parameter rather
 # than forwarding the provider's. A gateway serves many models through one
@@ -108,9 +108,9 @@ class GatewayModel:
         spends_budget_thinking: Whether the model can consume its whole
             ``max_tokens`` before writing any answer, and so needs
             ``THINKING_FLOOR_MAX_TOKENS``. Deliberately separate from the
-            knob above, because the two came apart in production: Ox Alpha
-            reports ``reasoning_tokens=0`` and takes no reasoning
-            parameter, yet still returns ``finish_reason="length"`` with
+            knob above, because the two came apart in production: a model
+            reporting ``reasoning_tokens=0`` and taking no reasoning
+            parameter still returned ``finish_reason="length"`` with
             empty content at an 8000-token budget -- it spends the
             allowance on something the API does not itemise. Recording
             that as "does not reason" cost 24 answerless round-trips in a
@@ -130,30 +130,39 @@ class GatewayModel:
 
 
 # The models this deployment reaches through the gateway, and the order it
-# falls through them. Ox Alpha is free and serves the whole run; GLM 5.2's
-# free pool catches it when Ox Alpha is rate-limited; Muse Spark is the
-# paid last resort, reached only when both free models are unavailable.
+# falls through them.
 #
-# Note what the middle rung is worth today: `z-ai/glm-5.2:free` returned
-# 429 on every one of nine live probes, its free pool being saturated
-# rather than the account being throttled. So the chain's real behaviour
-# under an Ox Alpha outage is a fall to the paid model, at $1.25/$4.25 per
-# million -- twenty times the rate of anything else here. That is the
-# chain doing what it was asked to do, not a defect, but it is the one
-# way this configuration spends money.
+# **A fallback may only ever be cheaper than the model above it.** Wired the
+# other way once -- free primary, paid last resort -- a "last resort" priced
+# at $1.25/$4.25 served 3.17M tokens and billed $5.23 in an afternoon,
+# because 429 is the *normal* state of a shared free pool rather than an
+# exception, so the expensive rung was the routine destination rather than
+# the emergency one.
+#
+# What actually let that happen is worth stating exactly, because the guard
+# against it already existed: ``_gateway_provider`` caps a routed call at
+# ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate, and a primary
+# priced at zero has no meaningful multiple, so the cap was skipped and the
+# request could be served at any price the gateway liked. A *priced*
+# primary arms the ceiling -- here $0.15/$0.50 -- and no rung dearer than
+# that can serve the request however far the chain falls. Free rungs below
+# a priced one are safe for the same reason they were dangerous above one.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    "openrouter/stealth/ox-alpha": GatewayModel(
-        takes_reasoning_knob=False,
+    "openrouter/z-ai/glm-5.3-flash": GatewayModel(
+        takes_reasoning_knob=True,
         spends_budget_thinking=True,
-        fallbacks=("z-ai/glm-5.2:free", "meta/muse-spark-1.2"),
+        fallbacks=(
+            "minimax/minimax-m3:free",
+            "nvidia/nemotron-3.5-lightning:free",
+        ),
+    ),
+    "openrouter/minimax/minimax-m3:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
     ),
     "openrouter/z-ai/glm-5.2:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/z-ai/glm-5.2": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/meta/muse-spark-1.2": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
 }
