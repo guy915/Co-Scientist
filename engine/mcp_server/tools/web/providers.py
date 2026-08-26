@@ -48,36 +48,75 @@ def clean_snippet(raw: Any) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 
-# Statuses that mean "this key will not work until a human changes
-# something": revoked, unpaid, forbidden. Brave withdrew its free tier in
-# Feb 2026 and exhausted keys began answering 402 with a zero monthly
-# allowance -- which, because every provider error degrades to `{}`, reached
-# the agents as "the web had nothing on this" rather than as a broken
-# connector. 429 is deliberately absent: throttling is a healthy key being
-# asked to wait, and it clears itself within seconds.
-_KEY_REJECTED_STATUSES = frozenset({401, 402, 403})
+# Statuses that mean "this key will not serve another search until
+# something changes": revoked, unpaid, forbidden (401/402/403), and the two
+# Tavily returns once the month's credits are spent (432 plan limit, 433
+# pay-as-you-go limit). Brave withdrew its free tier in Feb 2026 and
+# exhausted keys began answering 402 with a zero monthly allowance --
+# which, because every provider error degrades to `{}`, reached the agents
+# as "the web had nothing on this" rather than as a spent connector. 429 is
+# deliberately absent: throttling is a healthy key being asked to wait, and
+# it clears itself within seconds.
+_KEY_REJECTED_STATUSES = frozenset({401, 402, 403, 432, 433})
 
-# The last rejection observed, or None. Module state because the fact is
-# about the process's credentials rather than about any one search, and
-# `check_web_search_available` has to answer for the connector as a whole.
-_credential_error: dict[str, Any] | None = None
+# Rejections observed so far, keyed by provider, most recent last. Module
+# state because the fact is about this process's credentials rather than
+# about any one search: it decides which provider the next search goes to,
+# and what the connector reports about itself.
+_credential_errors: dict[str, dict[str, Any]] = {}
 
 
 def web_search_credential_error() -> dict[str, Any] | None:
-    """Reports the last provider rejection of the configured key.
+    """Reports the most recent provider rejection, for the status route.
 
     Returns:
         ``{"provider": ..., "status": ..., "detail": ...}`` describing the
-        most recent rejection, or None when no call has been refused since
-        the last successful search.
+        latest rejection, or None when nothing has been refused since the
+        last search that worked.
     """
-    return _credential_error
+    if not _credential_errors:
+        return None
+    return next(reversed(_credential_errors.values()))
 
 
-def _clear_credential_error() -> None:
-    """Forgets any recorded rejection, after a search that worked."""
-    global _credential_error
-    _credential_error = None
+def credential_error_for(provider: str) -> dict[str, Any] | None:
+    """Reports whether one provider has been refused.
+
+    Args:
+        provider: Provider name, as used in ``_PROVIDERS``.
+
+    Returns:
+        That provider's recorded rejection, or None if it has none.
+    """
+    return _credential_errors.get(provider)
+
+
+def _record_credential_error(provider: str, status: int, detail: str) -> None:
+    """Records that ``provider`` refused this process's key.
+
+    Re-recording moves the entry to the end, so
+    ``web_search_credential_error`` reports the latest refusal rather than
+    the first one seen.
+    """
+    _credential_errors.pop(provider, None)
+    _credential_errors[provider] = {
+        "provider": provider,
+        "status": status,
+        "detail": detail,
+    }
+
+
+def _clear_credential_error(provider: str | None = None) -> None:
+    """Forgets a recorded rejection after a search that worked.
+
+    Args:
+        provider: The provider that just succeeded, or None to forget
+            every record (used to reset state between tests).
+    """
+    if provider is None:
+        _credential_errors.clear()
+    else:
+        _credential_errors.pop(provider, None)
 
 
 def _handle_provider_error(
@@ -94,23 +133,18 @@ def _handle_provider_error(
         An empty result set, so a failed search still degrades rather than
         raising -- the callers merge results and have no error channel.
     """
-    global _credential_error
     status = (
         exc.response.status_code
         if isinstance(exc, httpx.HTTPStatusError)
         else None
     )
-    if status in _KEY_REJECTED_STATUSES:
-        _credential_error = {
-            "provider": provider,
-            "status": status,
-            "detail": str(exc),
-        }
+    if status is not None and status in _KEY_REJECTED_STATUSES:
+        _record_credential_error(provider, status, str(exc))
         # Logged at error, not warning: this one does not clear on its own,
-        # and every search until someone acts on it returns nothing.
+        # and the search moves to another provider or returns nothing.
         logger.error(
-            "%s rejected the configured API key (HTTP %s) - web search is "
-            "returning no results until the key or plan is fixed",
+            "%s refused the configured API key (HTTP %s) - searches move to "
+            "the next provider, if one is configured",
             provider,
             status,
         )
@@ -316,7 +350,7 @@ async def search_brave(
             results = normalize_brave(resp.json(), max_results)
     except (httpx.HTTPError, ValueError) as exc:
         return _handle_provider_error("brave", query, exc)
-    _clear_credential_error()
+    _clear_credential_error("brave")
     return results
 
 
@@ -352,7 +386,7 @@ async def search_tavily(
             results = normalize_tavily(resp.json(), max_results)
     except (httpx.HTTPError, ValueError) as exc:
         return _handle_provider_error("tavily", query, exc)
-    _clear_credential_error()
+    _clear_credential_error("tavily")
     return results
 
 
@@ -396,26 +430,52 @@ def _resolve_requested_provider(requested: str) -> tuple[str, SearchFn] | None:
     return None
 
 
-def _autodetect_provider() -> tuple[str, SearchFn] | None:
-    """Picks the first autodetect-order provider with a key configured.
+def configured_providers() -> list[tuple[str, SearchFn]]:
+    """Lists every provider with a key, preferred one first.
+
+    An explicit ``WEB_SEARCH_PROVIDER`` names the preference; the rest
+    follow in autodetect order, so a second key is a fallback rather than
+    a value that has to be chosen between.
 
     Returns:
-        A (provider name, search function) pair, or None if no provider
-        in ``_AUTODETECT_ORDER`` has its key set.
+        (provider name, search function) pairs, empty when no provider has
+        an API key configured.
     """
-    for name in _AUTODETECT_ORDER:
-        search_fn, key_var = _PROVIDERS[name]
-        if os.environ.get(key_var):
-            return name, search_fn
-    return None
+    ordered: list[str] = []
+    requested = os.environ.get("WEB_SEARCH_PROVIDER", "").strip().lower()
+    if requested and _resolve_requested_provider(requested) is not None:
+        ordered.append(requested)
+    ordered += [name for name in _AUTODETECT_ORDER if name not in ordered]
+    return [
+        (name, _PROVIDERS[name][0])
+        for name in ordered
+        if name in _PROVIDERS and os.environ.get(_PROVIDERS[name][1])
+    ]
+
+
+def candidate_providers() -> list[tuple[str, SearchFn]]:
+    """Lists the providers one search may try, in order.
+
+    Providers that have refused this process's key are dropped, so a
+    second free allowance actually gets used once the first is spent.
+    When *every* configured provider has been refused the preferred one is
+    returned alone: a record only clears on a search that works, so
+    something has to be tried or a monthly reset would stay invisible
+    until the process restarts.
+
+    Returns:
+        (provider name, search function) pairs, empty when no provider has
+        an API key configured.
+    """
+    configured = configured_providers()
+    healthy = [
+        entry for entry in configured if credential_error_for(entry[0]) is None
+    ]
+    return healthy or configured[:1]
 
 
 def resolve_provider() -> tuple[str, SearchFn] | None:
-    """Selects the configured web-search provider.
-
-    An explicit ``WEB_SEARCH_PROVIDER`` wins when its key is present.
-    Otherwise the first provider in autodetect order with a key configured
-    is used.
+    """Selects the web-search provider a search should use first.
 
     Returns:
         A (provider name, search function) pair, or None when no provider
@@ -423,10 +483,5 @@ def resolve_provider() -> tuple[str, SearchFn] | None:
         registration, so a key-less deployment never advertises a web
         search tool it cannot serve.
     """
-    requested = os.environ.get("WEB_SEARCH_PROVIDER", "").strip().lower()
-    if requested:
-        result = _resolve_requested_provider(requested)
-        if result is not None:
-            return result
-
-    return _autodetect_provider()
+    candidates = candidate_providers()
+    return candidates[0] if candidates else None
