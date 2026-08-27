@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.1 "Prompts for the Generation agent" -> Figure A.2 (lines ~739-779).
-PARALLEL SOURCE (same prompt, Nature-published version): references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE (same prompt, Nature-published version): references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.1 (lines ~1129-1174).
 AGENT: Generation agent. PURPOSE: hypothesis generation after a simulated multi-expert scientific debate (self-play).
 VERBATIM extract. {curly_brace} placeholders are the paper's.

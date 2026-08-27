@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.2 "Prompt for the Reflection agent" -> Figure A.3 (line 783; rendered inline as one paragraph in source).
-PARALLEL SOURCE (same prompt, re-rendered as a numbered list): references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE (same prompt, re-rendered as a numbered list): references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.2 (lines ~1176-1215).
 AGENT: Reflection agent. PURPOSE: the "observation review" -- find prior-experiment observations a hypothesis could newly explain.
 VERBATIM extract from the canonical source (which presents the prompt as a single run-on paragraph). {curly_brace} placeholders are the paper's.

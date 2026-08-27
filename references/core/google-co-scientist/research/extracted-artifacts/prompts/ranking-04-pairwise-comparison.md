@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.3 "Prompts for the Ranking agent" -> Figure A.4 (lines ~789-811).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.3 "Prompts for the Ranking agent".
 AGENT: Ranking agent. PURPOSE: single-turn pairwise hypothesis comparison in the Elo tournament (used for lower-ranked pairs).
 VERBATIM extract. {curly_brace} placeholders are the paper's.

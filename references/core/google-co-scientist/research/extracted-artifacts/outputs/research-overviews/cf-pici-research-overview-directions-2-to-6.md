@@ -1,5 +1,5 @@
 <!--
-SOURCE (verbatim): references/google-co-scientist/research/supplements/ai-mirrors-experimental-science-to-uncover-a-mechanism-of-gene-transfer-crucial-to-bacterial-evolution-supplementary-information.md
+SOURCE (verbatim): references/core/google-co-scientist/research/supplements/ai-mirrors-experimental-science-to-uncover-a-mechanism-of-gene-transfer-crucial-to-bacterial-evolution-supplementary-information.md
   "Supplemental Data S2. Output of the AI co-scientist, related to Figure 1" (full output is lines 45-410 of the source).
 CASE STUDY: Antimicrobial resistance / bacterial gene transfer (cf-PICIs).
 ARTIFACT: the Co-Scientist's research-overview OUTPUT for the cf-PICI goal -- this is the CONTINUATION of the sibling file

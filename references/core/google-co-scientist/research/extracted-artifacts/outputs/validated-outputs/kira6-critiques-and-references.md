@@ -1,4 +1,4 @@
-<!-- SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md · Note 6 "Detailed Co-Scientist output for a validated AML repurposing candidate" -> "KIRA6 for AML" · lines 816-864 -->
+<!-- SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md · Note 6 "Detailed Co-Scientist output for a validated AML repurposing candidate" -> "KIRA6 for AML" · lines 816-864 -->
 <!--
 COMPLETES the KIRA6 output. The sibling file `01-kira6-detailed-output-validated.md` reproduces Note 6
 verbatim only through the Novelty review's final "Answer: 3" (source line 814). The supplement's KIRA6

@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 -> "Example output of deep verification via probing questions by the Reflection agent" / Figure A.15 (lines 1056-1089).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.7 (lines ~1497-1529).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.7 (lines ~1497-1529).
 AGENT: Reflection (deep verification via probing questions). CASE STUDY: Drug repurposing for AML (Reparixin / CXCR1/2).
 ARTIFACT: a probing-question deep-verification review. (Per the source caption, the [Research Goal] is shown "for illustration only, it is not included in the review output.")
 VERBATIM extract.

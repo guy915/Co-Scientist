@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 -> "Example of a scientific debate match in the Ranking agent tournament" / Figure A.17 (lines 1110-1124).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.9 (lines ~1551-1569).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.9 (lines ~1551-1569).
 AGENT: Ranking (tournament). CASE STUDY: ALS illustrative example. ARTIFACT: a multi-turn simulated scientific-debate match comparing two hypotheses (Idea 1 vs Idea 2), ending in an Elo-relevant verdict.
 >>> CAVEAT: Illustrative ALS example only; not therapeutic advice and may contain errors (see 01-research-goal-and-plan-config.md).
 VERBATIM extract.

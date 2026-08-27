@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 -> "Example output of the Generation agent" / Figure A.10 (lines 929-955).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.2 (lines ~1365-1393).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.2 (lines ~1365-1393).
 AGENT: Generation. CASE STUDY: ALS illustrative example. ARTIFACT: a generated hypothesis + research proposal (abbreviated in source).
 >>> CAVEAT: Illustrative ALS example only; not therapeutic advice and may contain errors (see 01-research-goal-and-plan-config.md).
 VERBATIM extract (abbreviated in the source with "...").

@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.4 "Prompts for the Evolution agent" -> Figure A.7 (lines ~865-883).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.4 "Prompts for the Evolution agent".
 AGENT: Evolution agent. PURPOSE: generate a divergent, "out-of-the-box" hypothesis by analogy from existing ideas.
 VERBATIM extract. {curly_brace} placeholders are the paper's.

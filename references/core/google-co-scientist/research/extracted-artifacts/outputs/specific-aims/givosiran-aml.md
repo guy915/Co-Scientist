@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.5.3 "Examples of co-scientist generated Specific Aims with expert evaluation" / Figures A.26-A.27 (lines 1427-1496).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 4.1.1 "Example 1: Givosiran for AML" (lines 121-193).
 CASE STUDY: Drug repurposing for AML. ARTIFACT: a Co-Scientist hypothesis reformatted by the Meta-review agent into the NIH grant "Specific Aims Page" format (one of 78 such proposals that expert oncologists rated). This shows the constrained-decoding / formatted-output capability.
 VERBATIM extract (from canonical source; the Nature supplement also includes the per-aim "Expert rating" tables not reproduced here).

@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.5.3 "Examples of co-scientist generated Specific Aims with expert evaluation" / Figures A.30-A.31 (lines 1597-1705).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 4.1.3 "Example 3: Lapatinib for colon cancer" (lines 259-~353). The per-axis Expert-rating list below is reproduced
   verbatim from the arXiv report, the canonical source here.
 CASE STUDY: Drug repurposing — Specific Aims (colon adenocarcinoma / COAD). ARTIFACT: a Co-Scientist hypothesis reformatted by the

@@ -1,5 +1,5 @@
 <!--
-SOURCE (verbatim): references/google-co-scientist/research/supplements/ai-mirrors-experimental-science-to-uncover-a-mechanism-of-gene-transfer-crucial-to-bacterial-evolution-supplementary-information.md
+SOURCE (verbatim): references/core/google-co-scientist/research/supplements/ai-mirrors-experimental-science-to-uncover-a-mechanism-of-gene-transfer-crucial-to-bacterial-evolution-supplementary-information.md
   "Supplemental Data S1. Original input to the AI co-scientist, related to Table 1" (lines 11-27; the bundled 12-item reference list is at lines 29-43 in the source, not reproduced here).
 CASE STUDY: Antimicrobial resistance / bacterial gene transfer (cf-PICIs).
 ARTIFACT: the exact natural-language RESEARCH GOAL (the end-user input/prompt) given to the Co-Scientist. This is the input that

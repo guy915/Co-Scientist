@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.5.3 "Examples of co-scientist generated Specific Aims with expert evaluation" / Figures A.28-A.29 (lines 1509-1597).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 4.1.2 "Example 2: Selinexor monotherapy for colon cancer" (lines 195-257). NOTE: the Nature SI prose differs slightly
   (e.g. it titles the example "Selinexor monotherapy…" and elsewhere reports 9 raters / avg 6.7 yrs experience vs. the arXiv's
   6 raters / 8 yrs); the per-axis Expert-rating list below is reproduced verbatim from the arXiv report, the canonical source here.

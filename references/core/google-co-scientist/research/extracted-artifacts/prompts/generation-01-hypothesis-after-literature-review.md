@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.1 "Prompts for the Generation agent" -> Figure A.1 (lines ~715-737).
-PARALLEL SOURCE (same prompt, Nature-published version): references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE (same prompt, Nature-published version): references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.1 "Prompts for the Generation agent" (lines ~1105-1127).
 AGENT: Generation agent. PURPOSE: hypothesis generation after literature review and relevant article exploration.
 This file is a VERBATIM extract of the prompt template. Placeholders in {curly_braces} are the paper's, not added by us.

@@ -1,8 +1,8 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.6 "An example of tool use in the AI co-scientist with AlphaFold" / Figure A.40 (lines 1956-1964).
   Section-local references cited by the [3]-[7] markers below are reproduced from the A.6 reference list (lines 1970-1974).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Supplementary Note 11 "An example of tool use in Co-Scientist with AlphaFold" (lines 1713-1719; Supplementary Fig. 9 caption at line 1769).
 CASE STUDY: Tool use / protein design (general-purpose demonstration, not one of the three biomedical wet-lab validations).
 ARTIFACT: a qualitative worked example of the AI co-scientist using AlphaFold as a validation tool to assess a proposed OCT4 protein modification. Figure A.40 itself is an image (predicted 3D structures + metrics); only its caption is extractable as text.

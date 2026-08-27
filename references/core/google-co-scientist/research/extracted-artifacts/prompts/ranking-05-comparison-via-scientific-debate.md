@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.3 "Prompts for the Ranking agent" -> Figure A.5 (lines ~815-855).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.3 "Prompts for the Ranking agent".
 AGENT: Ranking agent. PURPOSE: multi-turn pairwise comparison via simulated scientific debate (used for top-ranked pairs).
 VERBATIM extract. {curly_brace} placeholders are the paper's.

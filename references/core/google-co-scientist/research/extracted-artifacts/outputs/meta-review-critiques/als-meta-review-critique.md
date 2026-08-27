@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 -> "Example output of a critique by the Meta-review agent" / Figures A.18-A.19 (lines 1126-1203).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.10 (lines ~1571-1644).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.10 (lines ~1571-1644).
 AGENT: Meta-review. CASE STUDY: ALS illustrative example. ARTIFACT: the synthesized meta-review critique across all ALS reviews/debates (this feedback is appended to other agents' prompts in subsequent iterations).
 >>> CAVEAT: Illustrative ALS example only; not therapeutic advice and may contain errors (see 01-research-goal-and-plan-config.md).
 VERBATIM extract (Figures A.18 + A.19 concatenated; the "(continued)" boundary is marked).

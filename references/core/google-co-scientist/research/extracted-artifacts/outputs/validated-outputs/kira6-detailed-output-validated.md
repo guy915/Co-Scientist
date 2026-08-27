@@ -1,5 +1,5 @@
 <!--
-SOURCE (verbatim): references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+SOURCE (verbatim): references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 6 "Detailed Co-Scientist output for a validated AML repurposing candidate" -> "KIRA6 for AML" (lines 592-821).
 CASE STUDY: Drug repurposing for AML (the Nature 2026 paper's primary wet-lab-validated result).
 ARTIFACT: a COMPLETE single Co-Scientist proposal -- hypothesis + mechanism + experimental plan + the system's own Review and Novelty review (with self-assigned scores "Answer: 4" / "Answer: 3").

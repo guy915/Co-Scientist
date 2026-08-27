@@ -1,5 +1,5 @@
 <!--
-SOURCE (verbatim): references/google-co-scientist/research/supplements/ai-assisted-drug-re-purposing-for-human-liver-fibrosis-supplementary-data-file-1.md (entire file, lines 1-114).
+SOURCE (verbatim): references/core/google-co-scientist/research/supplements/ai-assisted-drug-re-purposing-for-human-liver-fibrosis-supplementary-data-file-1.md (entire file, lines 1-114).
 CASE STUDY: Novel target discovery for liver fibrosis (epigenetic targets).
 ARTIFACT: two complete Generation-agent example hypotheses ("Example experiment 1" and "Example experiment 2"), each scored
   (score=novelty+details+usefulness+pairwise rank=11) and ending with the system's own novelty/similarity judgment.

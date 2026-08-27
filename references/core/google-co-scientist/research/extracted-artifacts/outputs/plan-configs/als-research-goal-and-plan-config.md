@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 "Examples ..." -> "From research goal to research plan configuration" / Figure A.9 (lines 917-927).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.1 (lines ~1351-1363).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.1 (lines ~1351-1363).
 CASE STUDY: ALS (Amyotrophic Lateral Sclerosis) -- the recurring ILLUSTRATIVE example used throughout both papers.
 
 >>> CAVEAT (from the source papers): This ALS example "has been reviewed by domain experts, [but] it remains

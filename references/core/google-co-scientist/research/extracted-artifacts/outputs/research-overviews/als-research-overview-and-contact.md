@@ -1,9 +1,9 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3:
     - "Example of a research overview by the Meta-review agent"             / Figures A.20-A.21 (lines 1205-1271)
     - "Example of research contact identification by the Meta-review agent"  / Figure A.22 (lines 1273-1280)
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Sections 10.11 (research overview) and 10.12 (research contact).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Sections 10.11 (research overview) and 10.12 (research contact).
 AGENT: Meta-review. CASE STUDY: ALS illustrative example.
 ARTIFACTS: (a) the research overview -- the main final output presented to the scientist, mapping research directions; (b) a suggested research contact (expert names redacted in source).
 >>> CAVEAT: Illustrative ALS example only; not therapeutic advice and may contain errors (see 01-research-goal-and-plan-config.md).

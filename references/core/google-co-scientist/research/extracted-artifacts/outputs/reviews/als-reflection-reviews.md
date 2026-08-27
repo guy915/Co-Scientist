@@ -1,11 +1,11 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3, Figures A.11-A.14:
     - "Example output of a complete novelty review by the Reflection agent" / Figure A.11 (lines 957-976)
     - "Example output of review critiques by the Reflection agent"        / Figure A.12 (lines 978-989)
     - "Example output of a full review by the Reflection agent"           / Figure A.13 (lines 991-1023)
     - "Example output of deep verification by the Reflection agent"        / Figure A.14 (lines 1025-1054)
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Sections 10.3 (novelty review), 10.4 (critiques), 10.5 (full review), 10.6 (deep verification).
 AGENT: Reflection. CASE STUDY: ALS illustrative example. ARTIFACTS: novelty review, review critiques, full review, deep-verification review (all abbreviated in source).
 >>> CAVEAT: Illustrative ALS example only; not therapeutic advice and may contain errors (see 01-research-goal-and-plan-config.md).

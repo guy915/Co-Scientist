@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.3 -> "Example output of an observation review by the Reflection Agent" / Figure A.16 (lines 1091-1108).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.8 (lines ~1531-1549).
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md Section 10.8 (lines ~1531-1549).
 AGENT: Reflection (observation review). CASE STUDY: Antimicrobial resistance (cf-PICIs).
 ARTIFACT: an observation review of an ALTERNATIVE cf-PICI hypothesis -- the "Modular Capsid-OMV Mediated Transfer" (MCOMT)
   hypothesis. (Per the source caption, the [Research Goal] is shown for illustration only and is not part of the review output.)

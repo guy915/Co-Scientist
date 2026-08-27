@@ -1,7 +1,7 @@
 <!--
-SOURCE (canonical, verbatim): references/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
+SOURCE (canonical, verbatim): references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md
   Section A.2.4 "Prompts for the Evolution agent" -> Figure A.6 (line 861; rendered inline as one paragraph in source).
-PARALLEL SOURCE: references/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
+PARALLEL SOURCE: references/core/google-co-scientist/research/supplements/accelerating-scientific-discovery-with-co-scientist-supplementary-information.md
   Section 9.4 "Prompts for the Evolution agent".
 AGENT: Evolution agent. PURPOSE: refine a hypothesis for practical implementability / technological feasibility.
 VERBATIM extract from the canonical source (which presents the prompt as a single run-on paragraph). {curly_brace} placeholders are the paper's.
