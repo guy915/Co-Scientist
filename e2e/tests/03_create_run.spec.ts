@@ -56,6 +56,40 @@ async function answerInterviewUntilPlan(page: Page): Promise<void> {
   await expect(page.getByText(GOAL).first()).toBeVisible();
 }
 
+/**
+ * The plan turn must open at its *own* top, not the conversation's.
+ *
+ * The auto-scroll used to set the timeline's scrollTop to 0 when the plan
+ * card arrived, which is the top of the whole conversation -- past a couple
+ * of turns the scientist was thrown back to their opening message the moment
+ * the plan was produced. Only a real browser lays the timeline out, so this
+ * is the one place the geometry can be observed.
+ */
+async function assertPlanOpensAtItsOwnTop(page: Page): Promise<void> {
+  await expect(async () => {
+    const metrics = await page.evaluate(() => {
+      const scroller = document.querySelector('.reference-chat-timeline');
+      const card = document.querySelector('[data-timeline-anchor="draft-spec"]');
+      if (!scroller || !card) return null;
+      return {
+        scrollTop: scroller.scrollTop,
+        overflows: scroller.scrollHeight > scroller.clientHeight,
+        viewport: scroller.clientHeight,
+        cardOffset:
+          card.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top,
+      };
+    });
+    expect(metrics).not.toBeNull();
+    // A conversation short enough to fit has no scroll position to get
+    // wrong, so there is nothing here to observe.
+    if (!metrics!.overflows) return;
+    expect(metrics!.scrollTop).toBeGreaterThan(0);
+    expect(metrics!.cardOffset).toBeGreaterThan(-8);
+    expect(metrics!.cardOffset).toBeLessThan(metrics!.viewport);
+  }).toPass({timeout: 10_000});
+}
+
 // Click "Start research" and capture both lifecycle mutations as direct
 // evidence that the browser owns and starts the same draft through the
 // cross-origin development topology. Returns the created run id.
@@ -150,6 +184,7 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   await page.goto('/');
   await draftGoalInComposer(page);
   await answerInterviewUntilPlan(page);
+  await assertPlanOpensAtItsOwnTop(page);
   const id = await startRunFromPlan(page);
   await openRunDetail(page, id);
   await assertStreamedRunCompletes(page);

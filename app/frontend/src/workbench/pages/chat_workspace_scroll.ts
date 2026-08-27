@@ -1,33 +1,34 @@
 import {type RefObject, useEffect, useRef} from 'react';
-import {type StartedSession} from './chat_timeline_cards';
 import {
-  CONFIRMED_SPEC_ITEM_ID,
-  DRAFT_SPEC_ITEM_ID,
-  type TimelineItem,
-} from './chat_workspace_timeline';
+  type StartedSession,
+  TIMELINE_ANCHOR_ATTRIBUTE,
+} from './chat_timeline_cards';
+import {DRAFT_SPEC_ITEM_ID, type TimelineItem} from './chat_workspace_timeline';
 
 // Cheap fingerprint of the timeline's identity/order, used to detect when it
 // actually changed shape/order without deep-comparing React nodes, plus
-// whether an auto-scroll should anchor to the top (a newly arrived, tall
-// spec card) or bottom (everything else, and always once a session has
-// started).
+// whether an auto-scroll should bring the newly arrived plan turn's own top
+// edge into view or simply follow the bottom (everything else, and always
+// once a session has started).
+//
+// Only the *draft* plan card anchors that way, and only while no run has
+// started. The confirmed card deliberately does not: it replaces the draft
+// in place, so it is the same card the reader is already looking at rather
+// than a new arrival -- and it becomes the timeline's last item for the
+// length of the create+start round trip, which is exactly when the reader is
+// waiting for the reply that follows it.
 function timelineScrollTarget(
   timelineItems: TimelineItem[],
   startedSession: StartedSession | null,
-): {signature: string; anchorMode: 'top' | 'bottom'} {
+): {signature: string; anchorMode: 'plan' | 'bottom'} {
   const signature = timelineItems
     .map(item => `${item.id}:${item.at}:${item.revision ?? ''}`)
     .join('|');
   const latestTimelineItemId =
     timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
-  // Once a run has started, always anchor to the bottom. Otherwise, a newly
-  // arrived spec card (which is tall) anchors to the top so its heading is
-  // visible; anything else (chat bubbles) anchors to the bottom as usual.
-  const anchorMode: 'top' | 'bottom' = startedSession
-    ? 'bottom'
-    : latestTimelineItemId === DRAFT_SPEC_ITEM_ID ||
-        latestTimelineItemId === CONFIRMED_SPEC_ITEM_ID
-      ? 'top'
+  const anchorMode: 'plan' | 'bottom' =
+    !startedSession && latestTimelineItemId === DRAFT_SPEC_ITEM_ID
+      ? 'plan'
       : 'bottom';
   return {signature, anchorMode};
 }
@@ -64,17 +65,54 @@ function isFollowingBottom(scroller: HTMLDivElement): boolean {
   return gap <= FOLLOW_THRESHOLD_PX;
 }
 
+// Breathing room left above an anchored turn, matching the timeline's own
+// top padding (CHAT_TIMELINE_CLASSES' `pt-5`) so the turn sits where the
+// first turn of a fresh conversation sits rather than flush against the
+// pane's edge.
+const ANCHOR_TOP_INSET_PX = 20;
+
+/**
+ * Scrolls the timeline so the given item's own top edge sits just below the
+ * scroller's top edge.
+ *
+ * The plan turn is tall, so following the bottom would open it at its Start
+ * button with the message that introduces it off screen. What it must never
+ * do is scroll the *container* to zero: that is the top of the whole
+ * conversation, which for anything past a couple of turns threw the reader
+ * back to their opening message the moment the plan arrived.
+ *
+ * Falls back to the bottom when the element cannot be found, for the same
+ * reason -- zero is never the answer here.
+ */
+function scrollItemToTop(scroller: HTMLDivElement, itemId: string): void {
+  const anchor = scroller.querySelector<HTMLElement>(
+    `[${TIMELINE_ANCHOR_ATTRIBUTE}="${itemId}"]`,
+  );
+  if (!anchor) {
+    scroller.scrollTop = scroller.scrollHeight;
+    return;
+  }
+  // The element's on-screen offset from the scroller's own top edge is how
+  // far the scroller has to travel to put it there (mirrors
+  // lib/smooth_scroll.ts). Assignment clamps, so an anchor near the end of a
+  // short timeline simply lands as low as the content allows.
+  const offset =
+    anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  scroller.scrollTop += offset - ANCHOR_TOP_INSET_PX;
+}
+
 // Effect body for the signature-based auto-scroll below: fires whenever the
 // timeline's signature changes (new item, or an item's timestamp changed),
 // skipping the very first render's signature and any re-render that doesn't
 // actually change the timeline. A bottom anchor only follows a reader who is
-// already at the bottom; a top anchor (a tall spec card arriving) is a
-// discrete event and jumps regardless. The zero-delay timeout defers until
-// after layout so scrollHeight reflects the new DOM.
+// already at the bottom; the plan anchor (a tall card arriving) is a discrete
+// event and moves the view regardless. The zero-delay timeout defers until
+// after layout, so both scrollHeight and the anchor's rect reflect the new
+// DOM.
 function syncTimelineScroll(
   refs: TimelineScrollRefs,
   timelineSignature: string,
-  timelineAnchorMode: 'top' | 'bottom',
+  timelineAnchorMode: 'plan' | 'bottom',
 ) {
   const scroller = refs.scroller.current;
   if (!scroller || refs.previousSignature.current === timelineSignature) {
@@ -83,8 +121,11 @@ function syncTimelineScroll(
   refs.previousSignature.current = timelineSignature;
   if (timelineAnchorMode === 'bottom' && !isFollowingBottom(scroller)) return;
   const timeout = window.setTimeout(() => {
-    scroller.scrollTop =
-      timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
+    if (timelineAnchorMode === 'plan') {
+      scrollItemToTop(scroller, DRAFT_SPEC_ITEM_ID);
+      return;
+    }
+    scroller.scrollTop = scroller.scrollHeight;
   }, 0);
   return () => window.clearTimeout(timeout);
 }

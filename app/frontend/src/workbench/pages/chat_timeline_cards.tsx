@@ -10,6 +10,7 @@
 export {
   ChatBubble,
   FallbackTurnNotice,
+  TIMELINE_ANCHOR_ATTRIBUTE,
   type ChatEntry,
 } from './chat_timeline_bubble';
 export {RunSpecCard} from './chat_timeline_run_spec_card';

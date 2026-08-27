@@ -244,6 +244,7 @@ function draftSpecCardNode({
   return (
     <RunSpecCard
       spec={draft.spec}
+      anchorId={DRAFT_SPEC_ITEM_ID}
       isStarting={isStarting}
       intro={draft.intro}
       introFallback={draft.fallback}
@@ -400,8 +401,13 @@ function startedTimelineItems({
       at: startedSession.at,
       order: 60,
       // The Agent's reply streams into this card's lead-in, growing it a
-      // fragment at a time under a fixed id and timestamp.
-      revision: startedSession.intro?.length ?? 0,
+      // fragment at a time under a fixed id and timestamp. The announcing
+      // flag rides along because the session block appears when it clears
+      // (see StartedSessionCard), which grows the card without adding a
+      // character to the lead-in.
+      revision: `${startedSession.intro?.length ?? 0}:${Boolean(
+        startedSession.announcing,
+      )}`,
       node: (
         <StartedSessionCard
           session={startedSession}

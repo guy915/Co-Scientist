@@ -1,4 +1,4 @@
-import {fireEvent, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
   ANNOUNCEMENT_TEXT,
@@ -307,6 +307,48 @@ it('does not repeat the start exchange the live tab already shows', async () => 
     ).toHaveLength(1);
   });
   expect(screen.getAllByText(ANNOUNCEMENT_TEXT)).toHaveLength(1);
+});
+
+it('withholds the session block until the reply has been written', async () => {
+  // The turn reads as the Agent answering "Start research" and handing over
+  // the session. Attaching the session block to a reply that has not arrived
+  // yet puts the hand-off in front of the answer, and then grows it under the
+  // reader while the text streams in above.
+  let finishAnnouncement: (() => void) | undefined;
+  apiMock.announceRunStart.mockImplementation(
+    async (
+      _runId: string,
+      _prompt: string,
+      sinks: {onChunk?: (fragment: string) => void} = {},
+    ) =>
+      new Promise<{fallback: boolean}>(resolve => {
+        finishAnnouncement = () => {
+          sinks.onChunk?.(ANNOUNCEMENT_TEXT);
+          resolve({fallback: false});
+        };
+      }),
+  );
+
+  await driveToRunSpec();
+  await startRunFromSpec();
+  await waitFor(() => {
+    expect(apiMock.announceRunStart).toHaveBeenCalled();
+  });
+
+  expect(screen.queryByText('Research session')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('link', {name: 'View session details'}),
+  ).not.toBeInTheDocument();
+
+  await act(async () => {
+    finishAnnouncement?.();
+  });
+
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(screen.getByText('Research session')).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', {name: 'View session details'}),
+  ).toBeInTheDocument();
 });
 
 it('falls back to the standby copy when no reply is written', async () => {

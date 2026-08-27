@@ -1,9 +1,12 @@
-import {useState} from 'react';
+import {Fragment, useState} from 'react';
 import {act, render} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
 import {useChatTimelineScroll} from './chat_workspace_scroll';
-import {type TimelineItem} from './chat_workspace_timeline';
-import {type StartedSession} from './chat_timeline_cards';
+import {DRAFT_SPEC_ITEM_ID, type TimelineItem} from './chat_workspace_timeline';
+import {
+  type StartedSession,
+  TIMELINE_ANCHOR_ATTRIBUTE,
+} from './chat_timeline_cards';
 
 // jsdom gives every element a zero height, which would read as "already at
 // the bottom" whatever scrollTop says. These are the metrics of a scroller
@@ -124,4 +127,78 @@ test('leaves a reader who scrolled up during the announcement alone', () => {
   act(() => void vi.runAllTimers());
 
   expect(scroller.scrollTop).toBe(120);
+});
+
+// Mounts the hook over a conversation the plan card lands at the end of, with
+// the card's row carrying the anchor attribute the real card renders. The
+// rects are faked because jsdom measures everything as zero: the card's row
+// sits 300px below the scroller's own top edge on screen.
+const ANCHOR_ON_SCREEN_OFFSET = 300;
+const SCROLLER_SCREEN_TOP = 50;
+
+function renderPlanScroller(startAt: number, withAnchor = true) {
+  let arrive: (() => void) | undefined;
+  function Harness() {
+    const [planned, setPlanned] = useState(false);
+    arrive = () => setPlanned(true);
+    const items: TimelineItem[] = makeItems(1);
+    if (planned) {
+      items.push({
+        id: DRAFT_SPEC_ITEM_ID,
+        at: 99,
+        order: 50,
+        node: (
+          <div
+            data-testid="plan-card"
+            {...(withAnchor
+              ? {[TIMELINE_ANCHOR_ATTRIBUTE]: DRAFT_SPEC_ITEM_ID}
+              : {})}
+          />
+        ),
+      });
+    }
+    const ref = useChatTimelineScroll(items, null);
+    return (
+      <div data-testid="scroller" ref={ref}>
+        {items.map(item => (
+          <Fragment key={item.id}>{item.node}</Fragment>
+        ))}
+      </div>
+    );
+  }
+  const {getByTestId} = render(<Harness />);
+  const scroller = getByTestId('scroller');
+  Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
+  Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
+  scroller.getBoundingClientRect = () =>
+    ({top: SCROLLER_SCREEN_TOP}) as DOMRect;
+  scroller.scrollTop = startAt;
+  return {
+    scroller,
+    arrive: () => {
+      act(() => arrive?.());
+      const card = getByTestId('plan-card');
+      card.getBoundingClientRect = () =>
+        ({top: SCROLLER_SCREEN_TOP + ANCHOR_ON_SCREEN_OFFSET}) as DOMRect;
+      act(() => void vi.runAllTimers());
+    },
+  };
+}
+
+test('opens the arriving plan turn at its own top, not the conversation top', () => {
+  // scrollTop = 0 is the top of the whole conversation: the reader landed
+  // back on their opening message the moment the plan was produced.
+  const {scroller, arrive} = renderPlanScroller(600);
+
+  arrive();
+
+  expect(scroller.scrollTop).toBe(600 + ANCHOR_ON_SCREEN_OFFSET - 20);
+});
+
+test('falls back to the bottom when the plan turn cannot be located', () => {
+  const {scroller, arrive} = renderPlanScroller(600, false);
+
+  arrive();
+
+  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
 });

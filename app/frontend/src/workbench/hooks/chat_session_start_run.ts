@@ -93,6 +93,12 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
     id: created.id,
     title: conciseTitle(deps.specToStart.goal),
     at: Date.now() / 1000,
+    // Announcing from the moment the card mounts, not from where
+    // announceStart sets it below: several awaits separate the two, and the
+    // card withholds its session block until the reply is written (see
+    // StartedSessionCard). Left unset, that block would appear for those
+    // renders and then be taken away again as the announcement began.
+    announcing: true,
   };
   deps.setConfirmed({spec: deps.specToStart, createdAt: deps.specCreatedAt});
   deps.setDraft(null);

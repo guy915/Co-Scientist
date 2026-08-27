@@ -54,6 +54,13 @@ import {CompletionNotification} from './chat_timeline_run_spec_notification';
 // session hook.
 interface RunSpecCardProps {
   spec: InferredRunSpec;
+  /**
+   * Timeline item id to tag this card's row with, so the auto-scroll can
+   * bring the card's own top edge into view when it arrives (see
+   * chat_workspace_scroll.ts). Omitted by the confirmed card, which is a
+   * re-render of a card already on screen rather than a new arrival.
+   */
+  anchorId?: string;
   isStarting: boolean;
   locked?: boolean;
   intro?: string;
@@ -95,6 +102,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
       content={planIntroText(props.intro)}
       fallback={props.introFallback}
       ariaLabel="Inferred run setup"
+      anchorId={props.anchorId}
       attachment={
         <MessageAttachment>
           <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>

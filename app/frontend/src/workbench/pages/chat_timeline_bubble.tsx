@@ -115,7 +115,21 @@ export interface AssistantMessageProps {
   attachment?: ReactNode;
   /** The retry/copy/download row shown under the turn. */
   actions: MessageAction[];
+  /**
+   * Marks this row as the scroll anchor for the timeline item it renders,
+   * tagging it with {@link TIMELINE_ANCHOR_ATTRIBUTE} so the auto-scroll can
+   * find the turn's own top edge in the DOM (see chat_workspace_scroll.ts).
+   */
+  anchorId?: string;
 }
+
+/**
+ * Attribute naming the timeline item a row belongs to, so the auto-scroll can
+ * bring that turn's top edge into view instead of guessing at a scroll
+ * offset. Read by chat_workspace_scroll.ts; written by AssistantMessage's
+ * `anchorId`.
+ */
+export const TIMELINE_ANCHOR_ATTRIBUTE = 'data-timeline-anchor';
 
 /**
  * Renders one assistant turn: markdown-rendered reply text, an optional
@@ -133,10 +147,15 @@ export function AssistantMessage({
   ariaLabel,
   attachment,
   actions,
+  anchorId,
 }: AssistantMessageProps) {
   const Row: 'section' | 'div' = ariaLabel ? 'section' : 'div';
   return (
-    <Row className={CHAT_BUBBLE_ROW_CLASSES} aria-label={ariaLabel}>
+    <Row
+      className={CHAT_BUBBLE_ROW_CLASSES}
+      aria-label={ariaLabel}
+      {...{[TIMELINE_ANCHOR_ATTRIBUTE]: anchorId}}
+    >
       <div className="min-w-0">
         {fallback && <FallbackTurnNotice />}
         <ThoughtsDisclosure reasoning={reasoning} />

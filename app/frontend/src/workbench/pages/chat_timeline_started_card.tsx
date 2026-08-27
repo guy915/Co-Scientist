@@ -94,10 +94,18 @@ export function StartedSessionCard({
       content={intro}
       ariaLabel="Started research session"
       attachment={
-        <MessageAttachment>
-          <SessionLinkCard session={session} href={href} />
-          <SessionNextActions href={href} onNewTopic={onNewTopic} />
-        </MessageAttachment>
+        // Withheld until the reply is written. The turn reads as an answer
+        // that hands over the session, so the session block belongs after
+        // the answer, not in front of a reply that has not started arriving
+        // -- and it grew under the reader's eyes while the text streamed in
+        // above it. A run reopened from history has no announcement to wait
+        // for (`announcing` is unset) and shows it straight away.
+        session.announcing ? undefined : (
+          <MessageAttachment>
+            <SessionLinkCard session={session} href={href} />
+            <SessionNextActions href={href} onNewTopic={onNewTopic} />
+          </MessageAttachment>
+        )
       }
       actions={responseActions(
         null,
