@@ -1,6 +1,10 @@
 import {expect, test} from 'vitest';
-import {type InterviewTurn} from '@/api/runs';
-import {turnToEntry} from './chat_session_transcript';
+import {type Interview, type InterviewTurn} from '@/api/runs';
+import {
+  applyInterview,
+  turnToEntry,
+  type TranscriptSink,
+} from './chat_session_transcript';
 
 function makeTurn(overrides: Partial<InterviewTurn> = {}): InterviewTurn {
   return {
@@ -23,4 +27,63 @@ test('turnToEntry carries the fallback marker for scripted turns', () => {
 test('turnToEntry leaves model-driven turns unmarked', () => {
   const entry = turnToEntry(makeTurn());
   expect(entry.fallback).toBeUndefined();
+});
+
+// A completed interview plus the sinks applyInterview writes through, so a
+// test can assert which of the two plan states it landed in.
+function completedInterview(runId: string | null): Interview {
+  return {
+    id: 'chat-1',
+    client_id: 'client-1',
+    status: 'completed',
+    fields: {
+      research_challenge: 'Reverse liver fibrosis.',
+      focus_area: ['Stellate cells'],
+      preferences: ['Preclinical only'],
+      title: 'Fibrosis reversal',
+    },
+    current_question: null,
+    turns: [
+      makeTurn({id: 1, role: 'user', content: 'Reverse liver fibrosis.'}),
+      makeTurn({id: 2, content: 'The scope is settled.', created_at: 7}),
+    ],
+    documents: [],
+    created_at: 1,
+    updated_at: 7,
+    completed_at: 7,
+    run_id: runId,
+  };
+}
+
+function recordingSink() {
+  const calls = {draft: [] as unknown[], confirmed: [] as unknown[]};
+  const sink: TranscriptSink = {
+    setMessages: () => undefined,
+    setInterview: () => undefined,
+    setDraft: value => calls.draft.push(value),
+    setConfirmed: value => calls.confirmed.push(value),
+    stageDraftSpec: (...args) => calls.draft.push(args),
+  };
+  return {sink, calls};
+}
+
+test('a completed interview with no run stages an editable plan', () => {
+  const {sink, calls} = recordingSink();
+  applyInterview(sink, completedInterview(null));
+  expect(calls.draft).toHaveLength(1);
+  expect(calls.confirmed).toHaveLength(0);
+});
+
+// Reopening a chat whose run already started used to re-stage the plan as a
+// draft, so Start research was live beside a card saying the run was under
+// way -- one click from a second run on the same goal.
+test('a completed interview whose run started comes back settled', () => {
+  const {sink, calls} = recordingSink();
+  applyInterview(sink, completedInterview('run-1'));
+  expect(calls.draft).toEqual([null]);
+  expect(calls.confirmed).toHaveLength(1);
+  const stage = calls.confirmed[0] as {intro?: string; createdAt: number};
+  // Settled, but not stripped: the closing turn is still the card's lead-in.
+  expect(stage.intro).toBe('The scope is settled.');
+  expect(stage.createdAt).toBe(7);
 });

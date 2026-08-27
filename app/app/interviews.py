@@ -364,8 +364,19 @@ async def list_interviews(request: Request) -> list[dict[str, Any]]:
 
 @router.get("/{interview_id}")
 async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
-    """Resume an owned interview with its full transcript and progress."""
-    return _owned_interview(interview_id, request)
+    """Resume an owned interview with its full transcript and progress.
+
+    Carries ``run_id`` -- the run this chat started, when it started one.
+    Reopening is the only place that needs it, and it needs it to know the
+    plan is settled: without it the workbench re-staged the completing turn
+    as an editable draft with Start research live, beside a card saying the
+    run was already under way.
+    """
+    interview = _owned_interview(interview_id, request)
+    interview["run_id"] = store.run_id_for_interview(
+        interview_id, client_id(request)
+    )
+    return interview
 
 
 @router.delete("/{interview_id}")
