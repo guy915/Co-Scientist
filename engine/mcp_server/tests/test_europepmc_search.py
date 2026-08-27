@@ -6,24 +6,24 @@ from mcp_server.tests._httpx import stub_failure, stub_responses
 from mcp_server.tools.lit_review import europepmc_search
 
 
-def _payload(source: str = "MED") -> dict[str, object]:
-    """Builds one Europe PMC search response with a single result."""
-    return {
-        "resultList": {
-            "result": [
-                {
-                    "id": "42387642",
-                    "source": source,
-                    "title": "PKMYT1 in Cancer",
-                    "abstractText": "PKMYT1 has emerged as a target.",
-                    "pubYear": "2026",
-                    "doi": "10.1002/gcc.70151",
-                    "authorString": "Li Y, Chen X.",
-                    "citedByCount": 3,
-                }
-            ]
-        }
+def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
+    """Builds one Europe PMC search response with a single result.
+
+    Args:
+        source: The Europe PMC source code the result carries.
+        overrides: Result fields to replace, e.g. a marked-up title.
+    """
+    result: dict[str, object] = {
+        "id": "42387642",
+        "source": source,
+        "title": "PKMYT1 in Cancer",
+        "abstractText": "PKMYT1 has emerged as a target.",
+        "pubYear": "2026",
+        "doi": "10.1002/gcc.70151",
+        "authorString": "Li Y, Chen X.",
+        "citedByCount": 3,
     }
+    return {"resultList": {"result": [result | overrides]}}
 
 
 async def test_a_result_says_whether_it_was_peer_reviewed(
@@ -128,3 +128,27 @@ async def test_citation_count_uses_the_name_the_ranker_reads(
     result = await europepmc_search.search_europepmc("pkmyt1", max_results=1)
 
     assert result["records"][0]["cited_by_count"] == 3
+
+
+async def test_a_record_reads_as_plain_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Europe PMC italicizes species names, in either encoding.
+
+    A live query returns both forms in one result list, and whichever
+    arrives, the agent quoting the title should see the name and not the
+    markup around it.
+    """
+    stub_responses(
+        monkeypatch,
+        _payload(
+            title="Colistin resistance in &lt;i&gt;K. pneumoniae&lt;/i&gt;",
+            abstractText="<h4>Aims</h4><i>K. pneumoniae</i> is a threat.",
+        ),
+    )
+
+    search = await europepmc_search.search_europepmc("colistin")
+
+    (record,) = search["records"]
+    assert record["title"] == "Colistin resistance in K. pneumoniae"
+    assert record["abstract"] == "Aims K. pneumoniae is a threat."

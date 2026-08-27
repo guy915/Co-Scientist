@@ -18,6 +18,8 @@ from typing import Any
 
 import httpx
 
+from mcp_server.tools.text import clean_markup
+
 logger = logging.getLogger(__name__)
 
 _EUROPEPMC_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -43,8 +45,10 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
     record_id = f"{result.get('source', 'MED')}/{result.get('id')}"
     return {
         "source_id": record_id,
-        "title": result.get("title"),
-        "abstract": result.get("abstractText"),
+        # Europe PMC italicizes species and gene names, and sends that
+        # markup escaped on some records and raw on others.
+        "title": clean_markup(result.get("title")),
+        "abstract": clean_markup(result.get("abstractText")),
         "year": result.get("pubYear"),
         "journal": (result.get("journalInfo") or {})
         .get("journal", {})
