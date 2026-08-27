@@ -184,6 +184,28 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     return _wrap_as_text_result(data)
 
 
+def _build_enrichment_canonical_params(entity: str) -> dict[str, Any]:
+    """Build the canonical params for one enrichment tool call.
+
+    Named separately from its single caller so the contract test can drive
+    the real vocabulary this path sends (see
+    ``tests/test_tool_param_contract.py``): every configured enrichment tool
+    has to accept whatever these canonical names map to, and a tool whose
+    mapping is written for another path's vocabulary is rejected by the
+    server rather than merely returning nothing.
+
+    Args:
+        entity: The entity name this call looks up.
+
+    Returns:
+        The canonical enrichment params, before the tool's own mapping.
+    """
+    return {
+        "entity_name": entity,
+        "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
+    }
+
+
 async def _query_enrichment_entity(
     tool_config: Any,
     entity: str,
@@ -200,10 +222,7 @@ async def _query_enrichment_entity(
     """
     tool_name = tool_config.mcp_tool_name
     params = tool_config.map_parameters(
-        {
-            "entity_name": entity,
-            "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
-        }
+        _build_enrichment_canonical_params(entity)
     )
     raw = await _call_enrichment_tool_for_entity(tool_name, params, mcp_client)
     if raw is None:
