@@ -43,10 +43,13 @@ export const NAV_ICON_CLASSES = 'ucs-nav-icon';
  * (a clickable trigger wants them across its whole hit area; the switch
  * wants them per side) and setting the same CSS property twice on one
  * element leaves Tailwind's stylesheet order, not class order, to pick the
- * winner.
+ * winner -- which is also why `display` is not in here: the switch is a
+ * two-column grid and the trigger a flex row, and an `inline-flex` here
+ * silently outranked the switch's own `grid`, leaving its halves
+ * content-sized and the sliding highlight aligned to neither.
  */
 export const HEADER_PILL_SHAPE_CLASSES =
-  'inline-flex h-[2.35rem] min-w-max items-center rounded-full ' +
+  'h-[2.35rem] min-w-max items-center rounded-full ' +
   'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
 
 // The filled accent pill: the shape above wearing the accent. The Logs
@@ -54,7 +57,7 @@ export const HEADER_PILL_SHAPE_CLASSES =
 // active half is), which is why the fill lives here rather than in the
 // shape.
 export const HEADER_ACCENT_PILL_CLASSES =
-  `${HEADER_PILL_SHAPE_CLASSES} ` +
+  `inline-flex ${HEADER_PILL_SHAPE_CLASSES} ` +
   'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
 
 /**
