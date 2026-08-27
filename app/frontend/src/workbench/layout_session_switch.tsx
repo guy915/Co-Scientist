@@ -3,8 +3,8 @@ import {type ChatSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from './classes';
 import {
-  HEADER_ACCENT_PILL_CLASSES,
   HEADER_CONTROL_ICON_CLASSES,
+  HEADER_PILL_SHAPE_CLASSES,
 } from './layout_primitives';
 import {useRecordSessionSide} from './layout_session_memory';
 import {tabPath} from './run_tabs';
@@ -74,29 +74,45 @@ const SWITCH_SIDES: {
   {side: 'results', icon: 'lab_profile', label: 'Results'},
 ];
 
-// The track: the same accent-pill chrome as the Logs trigger (bg, height,
-// radius, typography), just gridded into two equal halves instead of one
-// button's worth of content -- see HEADER_ACCENT_PILL_CLASSES.
+// The track: the Logs pill's shape (height, radius, typography) gridded into
+// two equal halves, but wearing the quiet segmented-control surface rather
+// than the accent. The accent marks *which half you are on*; spending it on
+// the whole track would leave the highlight nothing to say.
+// The track: the Logs pill's own shape (height, radius, typography) with no
+// padding of its own, so each half is a full-height pill exactly the size of
+// the Logs trigger rather than a smaller one inset inside a taller box. It
+// wears the recents card's own chip surface (--cosci-recent-meta-bg), which
+// is configured light and dark to read as a quiet raised surface on either
+// -- unlike the card's body colour, which is plain white in light mode and
+// so vanishes into the header.
 const SWITCH_TRACK_CLASSES = joinClasses(
-  'ucs-session-switch relative box-border grid grid-cols-2 gap-[0.2rem] p-[0.2rem]',
-  HEADER_ACCENT_PILL_CLASSES,
+  'ucs-session-switch relative box-border inline-grid grid-cols-2 p-0',
+  'bg-cosci-recent-meta-bg',
+  HEADER_PILL_SHAPE_CLASSES,
 );
 
-// One side's chrome, sans the active/inactive background. Both sides share
-// the pill's own accent text color -- the highlight below, not a dimmed
-// label, is what marks which one is current.
-const SWITCH_SIDE_CLASSES =
-  'ucs-session-switch-side relative z-[1] flex h-full min-w-0 ' +
-  'items-center justify-center gap-[0.35rem] rounded-full px-[0.7rem] ' +
-  'no-underline hover:bg-cosci-logs-accent-hover ' +
-  'focus-visible:bg-cosci-logs-accent-hover';
+// One side's chrome, matching the Logs trigger's own gap and padding so the
+// two are the same control at the same size. The colour is set here, on the
+// link itself, and not inherited from the track: these are real <a>
+// elements, and the user-agent rule for a visited link outranks an inherited
+// colour, which painted both halves browser-purple once either had been
+// followed. The fill is the sliding highlight behind them, never a
+// background on the side itself -- only one element can travel from where
+// the marker was to where it is going.
+const SWITCH_SIDE_BASE_CLASSES =
+  'ucs-session-switch-side relative z-[1] flex h-full min-w-0 items-center ' +
+  'justify-center gap-[0.45rem] rounded-full px-[0.72rem] no-underline';
 
-// The active side additionally carries the same hover tint permanently --
-// the Logs pill's own "engaged" look (see [&[aria-expanded=true]] in
-// headerControlButtonClasses), reused here to mean "this is where you are".
+const SWITCH_SIDE_CLASSES = joinClasses(
+  SWITCH_SIDE_BASE_CLASSES,
+  'text-cosci-shell-icon',
+);
+
+// The side the reader is on: the text colour that reads against the
+// highlight arriving under it.
 const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
-  SWITCH_SIDE_CLASSES,
-  'bg-cosci-logs-accent-hover',
+  SWITCH_SIDE_BASE_CLASSES,
+  'ucs-session-switch-side--active text-cosci-logs-accent-fg',
 );
 
 // Where each side leads. The results side always targets the run's default
@@ -128,10 +144,20 @@ function sessionSideHref(session: SessionSwitchData, side: string): string {
  * @param session The session to switch within; renders nothing without one.
  */
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
-  useRecordSessionSide(session?.runId, session?.chatId, session?.active);
+  useRecordSessionSide(session?.runId, session?.active);
   if (!session) return null;
   return (
-    <nav className={SWITCH_TRACK_CLASSES} aria-label="Session view">
+    <nav
+      className={SWITCH_TRACK_CLASSES}
+      aria-label="Session view"
+      data-active={session.active}
+    >
+      {/* The moving highlight: one element the track slides between its two
+          halves, rather than a background on each side. Only a single
+          element can animate from where the marker *was* to where it is
+          going, which is the difference between it travelling and it
+          reappearing on the other side. */}
+      <span className="ucs-session-switch-thumb" aria-hidden="true" />
       {SWITCH_SIDES.map(({side, icon, label}) => {
         const active = side === session.active;
         return (

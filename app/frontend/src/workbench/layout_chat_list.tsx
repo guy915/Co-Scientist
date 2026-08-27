@@ -5,7 +5,7 @@ import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from './components/truncated_label';
 import {useFittingRows} from './hooks/use_fitting_rows';
 import {useOverflowing} from './hooks/use_overflowing';
-import {readSessionSide} from './layout_session_memory';
+import {preferredSessionSide} from './layout_session_memory';
 import {tabPath} from './run_tabs';
 import {tooltipClassNames} from './tooltip';
 
@@ -63,8 +63,7 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
  */
 function chatPath(chat: ChatSummary): string {
   if (!chat.run_id) return `/chats/${chat.id}`;
-  const remembered = readSessionSide(chat.run_id);
-  return remembered?.side === 'chat'
+  return preferredSessionSide(chat.run_id) === 'chat'
     ? `/chats/${chat.id}`
     : tabPath(chat.run_id, undefined);
 }

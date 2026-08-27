@@ -279,6 +279,54 @@
    switch* below survives only as the selector hook the rules further down
    key off of. */
 
+/* The Chat/Results switch's moving highlight. Sized to one column of the
+   track and translated a full width of itself to reach the other. Transform,
+   not left/width: it is the only pair of properties the compositor can
+   animate without laying the header out again on every frame. The track has
+   no padding, so the highlight is a full-height pill exactly the size of the
+   Logs trigger beside it -- the two are the same control at the same size,
+   which is the point of building it from the Logs pill in the first place.
+
+   Everything else about the switch is Tailwind on the element itself
+   (layout_session_switch.tsx); only the travel needs a stylesheet. */
+.ucs-session-switch-thumb {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  border-radius: 9999px;
+  background: var(--cosci-logs-accent-bg);
+  transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ucs-session-switch[data-active='results'] .ucs-session-switch-thumb {
+  transform: translateX(100%);
+}
+
+/* Matches the highlight's travel, so the label it is arriving under turns as
+   it gets there rather than a frame before it leaves. */
+.ucs-session-switch-side {
+  transition: color 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Scoped to the unhighlighted side so a hover never fights the accent behind
+   the other one. A tint distinct from the track in both themes -- the
+   menu-row hover colour is the track's own value, so it would read as no
+   hover at all. */
+.ucs-session-switch-side:not(.ucs-session-switch-side--active):hover,
+.ucs-session-switch-side:not(.ucs-session-switch-side--active):focus-visible {
+  background: var(--cosci-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-session-switch-thumb,
+  .ucs-session-switch-side {
+    transition: none;
+  }
+}
+
 /* The switch takes the title's place on a session route. The bar has room
    for the lockup, one centred title and the right-hand controls and no more:
    with the switch in that cluster, a long title painted straight through it

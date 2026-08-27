@@ -81,14 +81,38 @@ export function applyInterview(
   sink.setMessages(entries);
   sink.setInterview(interview);
   if (closing) {
-    sink.stageDraftSpec(interviewToRunSpec(interview), closing.created_at, {
+    const intro = {
       message: closing.content,
       reasoning: closing.reasoning ?? undefined,
       turnId: closing.id,
       // The closing turn becomes the plan card's lead-in instead of a
       // bubble, so its fallback marker rides with it there.
       fallback: closing.fallback || undefined,
-    });
+    };
+    // A chat that already started a run has no plan left to edit. Staging
+    // one anyway put Start research live beside a card saying the run was
+    // under way -- one click from a second run on the same goal. The
+    // server's own answer is used rather than the run the workspace may or
+    // may not have looked up yet, so reopening cannot depend on which of
+    // the two loads lands first. Editing a settled plan is still offered,
+    // by the confirmed card's own Edit, which stages a draft deliberately.
+    if (interview.run_id) {
+      sink.setDraft(null);
+      sink.setConfirmed({
+        spec: interviewToRunSpec(interview),
+        createdAt: closing.created_at,
+        intro: intro.message,
+        reasoning: intro.reasoning,
+        turnId: intro.turnId,
+        fallback: intro.fallback,
+      });
+      return;
+    }
+    sink.stageDraftSpec(
+      interviewToRunSpec(interview),
+      closing.created_at,
+      intro,
+    );
     return;
   }
   sink.setDraft(null);

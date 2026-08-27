@@ -100,6 +100,12 @@ export interface Interview {
   created_at: number;
   updated_at: number;
   completed_at: number | null;
+  /**
+   * The run this chat started, when it started one. Present on the
+   * chat-reopening GET only; a turn frame mid-interview omits it, which is
+   * the same thing as "no run yet".
+   */
+  run_id?: string | null;
 }
 
 /** One document attached to a chat, as summarized back to the client. */

@@ -123,6 +123,9 @@
   --color-cosci-toggle-off-knob: var(--cosci-toggle-off-knob);
   --color-cosci-logs-accent-bg: var(--cosci-logs-accent-bg);
   --color-cosci-logs-accent-fg: var(--cosci-logs-accent-fg);
+  --color-cosci-recent-meta-bg: var(--cosci-recent-meta-bg);
+  --color-cosci-shell-icon: var(--cosci-shell-icon);
+  --color-cosci-menu-row-hover: var(--cosci-menu-row-hover);
   --color-cosci-logs-accent-hover: var(--cosci-logs-accent-hover);
   --color-cosci-logs-count-bg: var(--cosci-logs-count-bg);
   --color-cosci-logs-action-border: var(--cosci-logs-action-border);

@@ -273,14 +273,17 @@ By your fourth turn, complete with what you have unless something
 essential is genuinely missing -- and complete earlier when the essentials
 arrive earlier.
 
-On the completing turn, do not merely announce that the goal is ready.
-Present the finalized scope as a structured summary the scientist can
-check at a glance: a '## ' heading per part, the challenge stated in full,
-and the focus areas, preferences and lab constraints as bold-labelled
-lists or a table. Omit any part that is empty rather than heading a
-section to say it holds nothing. Then say that the run can be started or
-the scope refined further, set completed to true, and ask no further
-question.
+On the completing turn, write a short closing message: what you took the
+scientist to be asking for, in a sentence or two of your own words, and
+then that the run can be started or the scope refined further. Set
+completed to true and ask no further question.
+
+Do not restate the scope field by field. The workbench renders the fields
+you emit below as an editable plan document directly beneath this message,
+so a structured summary here is the same content twice on one screen --
+which is exactly how it read before this instruction replaced one asking
+for that summary. Say what the fields do not: why this is the shape you
+settled on, or what you deliberately left out.
 
 # Output format
 

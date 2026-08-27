@@ -17,6 +17,7 @@ import {
   describeSubmitError,
   isAbortError,
   recoverFromStoppedTurn,
+  settleTurn,
 } from './chat_session_handlers_shared';
 import {
   editUserMessage,
@@ -194,7 +195,7 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   } finally {
     deps.turnAbortRef.current = null;
     deps.setIsStarting(false);
-    deps.setIsAwaitingAgent(false);
+    settleTurn(deps);
   }
 }
 

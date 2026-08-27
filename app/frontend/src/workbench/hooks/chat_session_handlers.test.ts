@@ -113,3 +113,28 @@ test('stages only a completed persisted interview derivation', async () => {
   // from the interview the server returned.
   expect(deps.setMessages).toHaveBeenCalledTimes(2);
 });
+
+test('drops the streamed reply once the turn it belonged to resolves', async () => {
+  // The live reply and its thinking belong to the turn in flight. Left
+  // behind, they were re-shown whole the next time anything set
+  // `isAwaitingAgent` -- clicking Start research put the interview's closing
+  // message back on screen underneath the plan it had just produced.
+  vi.clearAllMocks();
+  vi.mocked(createInterview).mockImplementation(async (_text, sinks) => {
+    sinks?.onReasoning?.('Ask about the model system.');
+    sinks?.onProse?.('Which model system should this be built around?');
+    return makeInterview();
+  });
+  const deps = makeDeps({input: 'Study liver fibrosis'});
+
+  await buildChatHandlers(deps).handleSubmit({
+    preventDefault: vi.fn(),
+  } as never);
+
+  // The sinks did fire, so an empty last call is the turn being cleaned up
+  // rather than nothing having streamed at all.
+  expect(deps.setAgentDraft).toHaveBeenCalledTimes(3);
+
+  expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
+  expect(deps.setAgentReasoning).toHaveBeenLastCalledWith('');
+});

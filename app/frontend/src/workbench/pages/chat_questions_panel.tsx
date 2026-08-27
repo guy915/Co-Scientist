@@ -29,11 +29,11 @@ import {
 import {
   answerText,
   emptySelections,
-  hasOtherAnswer,
   type QuestionSelections,
   setOther,
   toggleOption,
 } from './chat_questions';
+import {QUESTION_OPTIONS_TOP_SPACING_CLASSES} from './chat_questions_classes';
 
 /**
  * The answer that is not on offer.
@@ -70,6 +70,12 @@ export interface QuestionChooserProps {
  * deliberately not lifted: it belongs to one pending turn and nothing
  * outside this component reads it. The caller remounts on a new turn by
  * keying on the turn id, which is what resets all three at once.
+ *
+ * Choosing an answer never sends it -- clicking, checking a box, and typing
+ * into "Something else" all only update what is selected. The chooser's own
+ * send control (always present, inert until something is chosen) is the one
+ * way to commit the turn, so the scientist can change their mind, answer
+ * several questions in any order, or add their own words before sending.
  */
 export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   const [selections, setSelections] = useState(emptySelections);
@@ -78,17 +84,11 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   if (dismissed) return null;
 
   const answer = answerText(questions, selections);
-  const sendsOnClick = clickIsTheWholeAnswer(questions);
   const sendAnswer = () => onAnswer(answer);
   const choose = (index: number, label: string) => {
-    const next = toggleOption(
-      selections,
-      index,
-      label,
-      questions[index].multi_select,
+    setSelections(
+      toggleOption(selections, index, label, questions[index].multi_select),
     );
-    setSelections(next);
-    if (sendsOnClick) onAnswer(answerText(questions, next));
   };
 
   return (
@@ -105,35 +105,12 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
           selections={selections}
           setSelections={setSelections}
           onChoose={choose}
-          send={needsSendControl(questions, selections) ? sendAnswer : null}
+          send={sendAnswer}
           answered={answer.length > 0}
         />
       )}
     </section>
   );
-}
-
-// Whether clicking an answer is the whole answer, so the chooser can send
-// it there and then. One single-select question is: asking for a second
-// click to confirm one radio button would be ceremony. Anything else --
-// several questions, several answers, or an answer still being typed into
-// the "something else" field -- is not finished until the scientist says
-// it is, which is what the send control is for.
-function clickIsTheWholeAnswer(questions: InterviewQuestion[]): boolean {
-  return questions.length === 1 && !questions[0].multi_select;
-}
-
-// Whether the chooser needs a send control of its own. It does unless a
-// click is the whole answer -- and it does again the moment the scientist
-// has written their own words for any question, since typing can never send
-// on its own (a keystroke must never submit the composer's form) and the
-// send control is the only way to commit what is still being typed.
-function needsSendControl(
-  questions: InterviewQuestion[],
-  selections: QuestionSelections,
-): boolean {
-  if (!clickIsTheWholeAnswer(questions)) return true;
-  return questions.some((_, index) => hasOtherAnswer(selections, index));
 }
 
 // What the chooser calls itself while it is collapsed: the headers of what
@@ -209,14 +186,17 @@ interface ChooserBodyProps {
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
-  /** Sends the composed answer, or null when a click already sends it. */
-  send: (() => void) | null;
+  /** Sends the composed answer. */
+  send: () => void;
   answered: boolean;
 }
 
-// Every question, stacked, and the send control when one is needed.
+// Every question, stacked, then the chooser's own send control -- always
+// present, so it reads as the way to commit an answer whether the scientist
+// picked one option or is still filling in several questions.
 function ChooserBody(props: ChooserBodyProps) {
-  const {questions, selections, setSelections, onChoose, send} = props;
+  const {questions, selections, setSelections, onChoose, send, answered} =
+    props;
   return (
     <>
       {questions.map((question, index) => (
@@ -229,18 +209,16 @@ function ChooserBody(props: ChooserBodyProps) {
           onChoose={onChoose}
         />
       ))}
-      {send && (
-        <div className={QUESTIONS_SEND_ROW_CLASSES}>
-          <button
-            type="button"
-            className={SETUP_SECONDARY_BUTTON_CLASSES}
-            disabled={!props.answered}
-            onClick={send}
-          >
-            Send answer
-          </button>
-        </div>
-      )}
+      <div className={QUESTIONS_SEND_ROW_CLASSES}>
+        <button
+          type="button"
+          className={SETUP_SECONDARY_BUTTON_CLASSES}
+          disabled={!answered}
+          onClick={send}
+        >
+          Send answer
+        </button>
+      </div>
     </>
   );
 }
@@ -262,7 +240,12 @@ function QuestionGroup(props: QuestionGroupProps) {
   return (
     <fieldset className={QUESTION_GROUP_CLASSES}>
       <legend className={QUESTION_PROMPT_CLASSES}>{question.question}</legend>
-      <div className={QUESTION_OPTION_GRID_CLASSES}>
+      <div
+        className={joinClasses(
+          QUESTION_OPTION_GRID_CLASSES,
+          QUESTION_OPTIONS_TOP_SPACING_CLASSES,
+        )}
+      >
         {question.options.map(option => (
           <AnswerRow
             key={option.label}

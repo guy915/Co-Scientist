@@ -166,6 +166,25 @@ def _interview_run_ids(
     return links
 
 
+def run_id_for_interview(
+    interview_id: str,
+    client_id: str,
+    *,
+    db_path: str | None = None,
+) -> str | None:
+    """Return the run started from one interview, or None.
+
+    Kept out of ``get_interview`` deliberately: that reader is on the
+    per-turn and engine-adapter paths, and the link costs a scan of the
+    client's runs (see ``_interview_run_ids``). Only the chat-reopening
+    endpoint needs the answer, and it asks once.
+    """
+    if not client_id:
+        return None
+    with connect(db_path) as conn:
+        return _interview_run_ids(conn, client_id).get(str(interview_id))
+
+
 def _chat_summary(row: sqlite3.Row, run_id: str | None) -> dict[str, Any]:
     """Build one chat-list entry from an interview row and its run link."""
     fields = json.loads(row["fields_json"])

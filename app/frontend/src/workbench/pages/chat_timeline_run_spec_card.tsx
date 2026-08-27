@@ -34,6 +34,7 @@ import {
 } from './chat_setup_classes';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
+import {planLeadIn} from './chat_timeline_plan_prose';
 import {SpecFieldsSection} from './chat_timeline_run_spec_editor';
 import {CompletionNotification} from './chat_timeline_run_spec_notification';
 
@@ -47,7 +48,9 @@ import {CompletionNotification} from './chat_timeline_run_spec_notification';
 // confirmed spec). `intro` is the Agent's closing interview message, shown
 // as the card's lead-in so the completed interview reads as a single
 // response; it falls back to generic copy when absent (e.g. a re-shown
-// confirmed spec). `introFallback` marks that closing message as
+// confirmed spec). `introReasoning` is the thinking behind that message,
+// disclosed inside the turn like any other reply's. `introFallback` marks
+// that closing message as
 // fallback-authored (no model reachable), so the lead-in carries the same
 // quiet notice a fallback bubble does. The remaining handlers wire the
 // Focus/Tier options and the cancel/edit/retry/start actions back to the
@@ -64,6 +67,7 @@ interface RunSpecCardProps {
   isStarting: boolean;
   locked?: boolean;
   intro?: string;
+  introReasoning?: string;
   introFallback?: boolean;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
@@ -75,12 +79,14 @@ interface RunSpecCardProps {
   onStart: () => void;
 }
 
-// The Agent's closing interview message, or a generic fallback when it is
-// absent (e.g. a re-shown confirmed spec). `||`, not `??`: an empty closing
-// message must fall back too.
+// The Agent's closing interview message with its restatement of the plan
+// taken out (chat_timeline_plan_prose.ts -- the document below is where
+// those fields live), or a generic lead-in when nothing of it is left: a
+// re-shown confirmed spec carrying no message, or a turn that was only the
+// summary. `||`, not `??`: an empty closing message must fall back too.
 function planIntroText(intro?: string): string {
   return (
-    intro ||
+    planLeadIn(intro) ||
     'The interview is complete. I derived the research setup below from ' +
       'your answers.'
   );
@@ -101,6 +107,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
     <AssistantMessage
       content={planIntroText(props.intro)}
       fallback={props.introFallback}
+      reasoning={props.introReasoning}
       ariaLabel="Inferred run setup"
       anchorId={props.anchorId}
       attachment={

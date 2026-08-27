@@ -67,6 +67,7 @@ from app.store.interviews import (
     get_interview,
     list_interviews,
     rewind_interview,
+    run_id_for_interview,
     update_interview,
 )
 from app.store.knowledge_facts import (
@@ -338,6 +339,7 @@ __all__ = [
     "revoke_report_share",
     "rewind_interview",
     "run_exists",
+    "run_id_for_interview",
     "run_offline_backed",
     "run_used_offline",
     "safety_stage_is_approved",

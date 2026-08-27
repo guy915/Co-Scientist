@@ -22,6 +22,7 @@ import {
 } from './chat_home_classes';
 import {Composer} from './chat_composer';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
+import {useChatHistoryContext} from '../hooks/chat_history_context';
 import {HomeRecentsPanel} from './home_recents';
 import {
   SESSION_STEPS,
@@ -213,6 +214,10 @@ function HomeRecentsRegion({
   showAllRecents: boolean;
   onToggleShowAll: () => void;
 }) {
+  // Read here rather than inside the panel so the panel stays renderable
+  // outside the shell; a card needs the list only to reach the
+  // conversation behind its run.
+  const {chats} = useChatHistoryContext();
   if (isMobile) return null;
   return (
     <HomeRecentsPanel
@@ -220,6 +225,7 @@ function HomeRecentsRegion({
       scoresByRunId={scoresByRunId}
       showAll={showAllRecents}
       onToggleShowAll={onToggleShowAll}
+      chats={chats}
     />
   );
 }
