@@ -49,7 +49,13 @@ from app.store.documents import (
     list_staged_documents_for_client,
     mark_documents_used_by_run,
 )
-from app.store.events import append_event, latest_event_seq, list_events
+from app.store.events import (
+    append_event,
+    latest_event_seq,
+    list_events,
+    recent_events,
+    run_execution_started_at,
+)
 from app.store.hypotheses import (
     HypothesisStateChanges,
     NewHypothesis,
@@ -322,6 +328,7 @@ __all__ = [
     "prune_logs",
     "prune_superseded_checkpoints",
     "read_report_markdown",
+    "recent_events",
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",
     "redact_run_goal",
@@ -338,6 +345,7 @@ __all__ = [
     "revive_task_for_retry",
     "revoke_report_share",
     "rewind_interview",
+    "run_execution_started_at",
     "run_exists",
     "run_id_for_interview",
     "run_offline_backed",

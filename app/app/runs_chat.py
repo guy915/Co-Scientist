@@ -10,6 +10,7 @@ from ``app.runs``, which remains the stable import and monkeypatch surface.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -20,6 +21,7 @@ from app import (
     engine_adapter,
     engine_tasks,
     qa,
+    qa_run_state,
     run_start_announcement,
     store,
 )
@@ -63,8 +65,16 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 
 
 def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
-    """Load a run's state and build its numbered evidence manifest for Q&A."""
-    # All six reads target the same run; share one connection.
+    """Load a run's state and build its numbered evidence manifest for Q&A.
+
+    The chat stays open for the whole life of a run, so the context is not
+    only the run's artifacts: it also carries how far the run has got while
+    it executes, and what its report concluded once it finishes. All of it
+    is read-only and bounded -- a question is asked far more often than a
+    run commits a task, and a write here would queue behind every run in
+    flight on the single SQLite writer.
+    """
+    # Every read targets the same run; share one connection.
     with store.connect() as conn:
         hypotheses = store.list_hypotheses(run.id, conn=conn)
         reviews = store.list_reviews(run.id, conn=conn)
@@ -73,6 +83,17 @@ def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
         history = store.list_messages(run.id, conn=conn)[:-1]
         evidence = store.list_evidence(run.id, conn=conn)
         citations = store.list_citations(run.id, conn=conn)
+        progress = qa_run_state.gather_run_progress(
+            run,
+            reviews,
+            {
+                "ideas": len(hypotheses),
+                "evidence": len(evidence),
+                "matches": len(matches),
+            },
+            conn,
+            time.time(),
+        )
     return qa.QaRunContext(
         research_goal=run.research_goal,
         hypotheses=hypotheses,
@@ -80,6 +101,15 @@ def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
         matches=matches,
         history=history,
         manifest=qa.build_evidence_manifest(evidence, citations),
+        progress=progress,
+        # Fetched outside the shared connection, and only for a run that
+        # has finished: the report row carries the whole payload JSON, so a
+        # running run never pays to read a report it does not have.
+        report=(
+            None
+            if progress.is_running
+            else qa_run_state.gather_report_facts(run.id)
+        ),
     )
 
 
@@ -154,13 +184,15 @@ def _live_qa_response(
     byok: credentials.ByokCredential | None,
 ) -> StreamingResponse:
     """Stream a live LLM Q&A answer, prompted with the run's evidence."""
-    system_prompt = qa.build_system_prompt(context)
     return StreamingResponse(
         qa.stream_answer(
             run_id,
             qa.QaQuestion(text=req.question, message_id=question_msg.id),
-            system_prompt,
-            context.manifest,
+            qa.QaAnswerInputs(
+                system_prompt=qa.build_system_prompt(context),
+                manifest=context.manifest,
+                ideas=context.hypotheses,
+            ),
             byok=byok,
         ),
         media_type="text/event-stream",

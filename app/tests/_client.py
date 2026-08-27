@@ -151,7 +151,7 @@ def fake_litellm(
 
     Returns:
         A module-like object exposing an ``acompletion`` matching the shape
-        ``qa._stream_llm_deltas`` expects: an async function returning an
+        ``qa.stream_llm_deltas`` expects: an async function returning an
         object that supports ``async for``.
     """
 

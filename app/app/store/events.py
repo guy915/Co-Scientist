@@ -201,3 +201,74 @@ def list_events(
                 }
             )
         return out
+
+
+def recent_events(
+    run_id: str,
+    limit: int,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return a run's most recent events, oldest-first within the window.
+
+    Bounded counterpart to :func:`list_events`, which returns every event a
+    run ever emitted. A long run emits thousands, and the Q&A prompt only
+    ever renders the tail, so reading (and JSON-decoding) the whole log per
+    question is work with nowhere to go.
+
+    Args:
+        run_id: Identifier of the run whose events to read.
+        limit: Maximum number of events to return, counted from the newest.
+        conn: Optional open connection to reuse.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        Up to ``limit`` event dicts (seq, type, payload, created_at),
+        ordered oldest-first so callers read them as a narrative.
+    """
+    with _use_conn(conn, db_path) as active:
+        rows = active.execute(
+            "SELECT seq, type, payload_json, created_at FROM run_events "
+            "WHERE run_id=? ORDER BY seq DESC LIMIT ?",
+            (run_id, limit),
+        ).fetchall()
+    return [
+        {
+            "seq": r["seq"],
+            "type": r["type"],
+            "payload": json.loads(r["payload_json"]),
+            "created_at": r["created_at"],
+        }
+        for r in reversed(rows)
+    ]
+
+
+def run_execution_started_at(
+    run_id: str,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> float | None:
+    """Return when a run began executing, or None if it never started.
+
+    The run row's ``created_at`` is when the *draft* was created, which can
+    precede the start by any amount -- a plan reviewed over lunch and then
+    started reports hours of "elapsed" that nothing was working for. The
+    first ``lifecycle`` event is appended by the start endpoint (``queued``),
+    so its timestamp is the honest clock start.
+
+    Args:
+        run_id: Identifier of the run.
+        conn: Optional open connection to reuse.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The epoch seconds the run was queued for execution, or None.
+    """
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT MIN(created_at) AS started FROM run_events "
+            "WHERE run_id=? AND type='lifecycle'",
+            (run_id,),
+        ).fetchone()
+    started = row["started"] if row is not None else None
+    return float(started) if started is not None else None

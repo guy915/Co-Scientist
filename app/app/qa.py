@@ -15,31 +15,18 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import AsyncGenerator, AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from app import credentials, offline_guard, store
-from app.config import (
-    THINKING_FLOOR_TIMEOUT_SECONDS,
-    deepseek_thinking_kwargs,
-    settings,
-    thinking_safe_max_tokens,
-)
-from app.llm_stream import stream_chunks
+from app import credentials, store
+from app.config import settings
 from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
+from app.qa_stream import stream_llm_deltas as stream_llm_deltas
 from app.sse import sse_frame as sse_frame
 
 logger = logging.getLogger(__name__)
-
-# A grounded answer cites passages and stays short; the ceiling is here so
-# the reasoning is funded from its own headroom rather than the answer's.
-_ANSWER_MAX_TOKENS = 4_000
-# The answer streams into the chat as it is written, so silence is the only
-# thing that distinguishes a dead provider from a thorough one.
-_QA_STALL_SECONDS = 45.0
-_QA_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
 
 @dataclass(frozen=True)
@@ -56,6 +43,29 @@ class QaQuestion:
 
     text: str
     message_id: int
+
+
+@dataclass(frozen=True)
+class QaAnswerInputs:
+    """Everything one streamed answer is grounded in.
+
+    Bundled rather than passed one by one: the prompt, the manifest the
+    answer cites against and the ideas its tool searches are three views of
+    the same gathered context (see ``runs_chat._gather_qa_context``), and
+    they are only ever assembled together.
+
+    Attributes:
+        system_prompt: The assembled grounding prompt.
+        manifest: The numbered evidence manifest, emitted to the client
+            first and stored with the answer.
+        ideas: The run's ideas, which the ``search_ideas`` tool searches.
+            Empty offers the model no tool, which is what a run with no
+            ideas yet should do.
+    """
+
+    system_prompt: str
+    manifest: list[dict[str, Any]]
+    ideas: list[dict[str, Any]] = field(default_factory=list)
 
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -286,60 +296,6 @@ async def stream_offline_answer(
         yield frame
 
 
-async def _stream_llm_deltas(
-    model: str,
-    system_prompt: str,
-    question: str,
-) -> AsyncGenerator[str, None]:
-    """Call litellm with streaming enabled and yield plain text deltas.
-
-    Deferred import keeps module import cheap and lets the caller's except
-    branch turn a missing/broken litellm into the Q&A fallback message.
-    A scoped bring-your-own-key credential overrides both the model and
-    the deployment credential for this call.
-
-    Args:
-        model: The model name to complete with.
-        system_prompt: The assembled grounding prompt.
-        question: The user's question.
-
-    Yields:
-        Non-empty text deltas from the streaming completion.
-    """
-    import litellm
-
-    # The endpoint already routes an offline process to the deterministic
-    # grounded answer, so this never fires from there. It is here so the
-    # invariant belongs to the call that makes the request rather than to
-    # one caller that remembers to check -- any later caller of
-    # stream_answer inherits it.
-    offline_guard.require_remote_chat("Q&A")
-    model, api_key = credentials.byok_model_and_key(model)
-    response = await litellm.acompletion(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-        ],
-        # Sending no budget takes the provider's default, which thinking can
-        # exhaust before the first answer delta -- the stream then ends
-        # clean and empty and the scientist gets a blank reply, not an error.
-        max_tokens=thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
-        timeout=_QA_TOTAL_SECONDS,
-        stream=True,
-        **deepseek_thinking_kwargs(model),
-        api_key=api_key,
-    )
-    async for chunk in stream_chunks(
-        response,
-        stall_seconds=_QA_STALL_SECONDS,
-        total_seconds=_QA_TOTAL_SECONDS,
-    ):
-        delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
-        if delta:
-            yield delta
-
-
 def _citation_meta(manifest: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Build the persisted-message meta dict carrying sources, if any."""
     return {"sources": manifest} if manifest else None
@@ -388,8 +344,7 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
 async def stream_answer(
     run_id: str,
     question: QaQuestion,
-    system_prompt: str,
-    manifest: list[dict[str, Any]],
+    inputs: QaAnswerInputs,
     byok: credentials.ByokCredential | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the LLM answer as SSE frames and persist the exchange.
@@ -400,16 +355,26 @@ async def stream_answer(
     bring-your-own-key credential is scoped around the whole stream so the
     answer is generated (and billed) on the run's own key.
 
+    Args:
+        run_id: The run being asked about.
+        question: The scientist's question and its persisted message id.
+        inputs: The prompt, evidence manifest and ideas the answer is
+            grounded in.
+        byok: Optional credential the answer is generated on.
+
     Yields:
         SSE ``data:`` frames.
     """
     try:
         with credentials.scoped_byok(byok):
-            deltas = _stream_llm_deltas(
-                settings.effective_chat_model, system_prompt, question.text
+            deltas = stream_llm_deltas(
+                settings.effective_chat_model,
+                inputs.system_prompt,
+                question.text,
+                inputs.ideas,
             )
             async for frame in _framed_answer(
-                run_id, question.message_id, manifest, deltas
+                run_id, question.message_id, inputs.manifest, deltas
             ):
                 yield frame
     except Exception as exc:

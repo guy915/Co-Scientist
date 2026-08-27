@@ -70,7 +70,7 @@ def test_system_prompt_enforces_grounding_only() -> None:
     lowered = prompt.lower()
     # Claims about the run are confined to the run's own artifacts, and the
     # assistant declines rather than filling the gap when they fall short.
-    assert "must come only from the artifacts above" in lowered
+    assert "must come only from the context above" in lowered
     assert "do not contain the answer" in lowered
     # It grounds citations to the numbered manifest, never invented ones.
     assert "never invent a citation" in lowered

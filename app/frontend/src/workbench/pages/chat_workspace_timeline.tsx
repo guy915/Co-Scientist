@@ -327,6 +327,21 @@ function confirmedSpecTimelineItems({
   ];
 }
 
+// How much of the started card has arrived, as one value the scroll
+// signature can compare.
+//
+// The Agent's reply and its chain of thought both stream into this card,
+// growing it a fragment at a time under a fixed id and timestamp -- so
+// neither shows up as a timeline change on its own. The announcing flag
+// rides along too, because the session block appears when it clears (see
+// StartedSessionCard), which grows the card without adding a character to
+// either.
+function startedCardRevision(session: StartedSession): string {
+  const intro = session.intro?.length ?? 0;
+  const reasoning = session.reasoning?.length ?? 0;
+  return `${intro}:${reasoning}:${Boolean(session.announcing)}`;
+}
+
 // Terminal timeline entry once the backend run has actually started; the card
 // links to the run detail page (a URL, not a handler, so a middle- or
 // cmd-click opens it in a new tab).
@@ -345,15 +360,7 @@ function startedTimelineItems({
       id: `started-session-${startedSession.id}`,
       at: startedSession.at,
       order: 60,
-      // The Agent's reply and its chain of thought both stream into this
-      // card, growing it a fragment at a time under a fixed id and
-      // timestamp. The announcing flag rides along too, because the session
-      // block appears when it clears (see StartedSessionCard), which grows
-      // the card without adding a character to either.
-      revision:
-        `${startedSession.intro?.length ?? 0}:` +
-        `${startedSession.reasoning?.length ?? 0}:` +
-        `${Boolean(startedSession.announcing)}`,
+      revision: startedCardRevision(startedSession),
       node: (
         <StartedSessionCard
           session={startedSession}

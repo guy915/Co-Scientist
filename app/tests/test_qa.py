@@ -104,7 +104,7 @@ def test_build_system_prompt_includes_every_section() -> None:
     )
 
     assert "Investigate X" in prompt
-    assert "[H1] Elo 1300, 2W/1L" in prompt
+    assert "- H1 (Elo 1300, active)" in prompt
     assert "review on abcdefgh: a critique summary" in prompt
     assert "Winner abcdefgh (Elo 1310) — A is better grounded" in prompt
     assert "[1] T1 (PubMed, 2020) — verified" in prompt
@@ -167,7 +167,7 @@ def test_stream_llm_deltas_yields_only_nonempty_chunks(
         sys.modules, "litellm", _fake_litellm(["Hello", "", " world"])
     )
 
-    assert _drain(qa._stream_llm_deltas("model", "sys prompt", "q?")) == [
+    assert _drain(qa.stream_llm_deltas("model", "sys prompt", "q?", [])) == [
         "Hello",
         " world",
     ]
@@ -227,8 +227,7 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
         qa.stream_answer(
             run_id,
             qa.QaQuestion(text="Q?", message_id=1),
-            "sys prompt",
-            manifest,
+            qa.QaAnswerInputs("sys prompt", manifest),
         )
     )
 
@@ -258,7 +257,9 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
 
     frames = _drain(
         qa.stream_answer(
-            run_id, qa.QaQuestion(text="Q?", message_id=2), "sys prompt", []
+            run_id,
+            qa.QaQuestion(text="Q?", message_id=2),
+            qa.QaAnswerInputs("sys prompt", []),
         )
     )
 
@@ -286,7 +287,9 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
 
     frames = _drain(
         qa.stream_answer(
-            run_id, qa.QaQuestion(text="Q?", message_id=3), "sys prompt", []
+            run_id,
+            qa.QaQuestion(text="Q?", message_id=3),
+            qa.QaAnswerInputs("sys prompt", []),
         )
     )
 

@@ -15,6 +15,13 @@ from collections.abc import Iterator
 from typing import Any
 
 from app.citations import STATE_RANK
+from app.qa_run_state import (
+    ReportFacts,
+    RunProgress,
+    render_idea_index,
+    render_progress,
+    render_report,
+)
 
 # States a Q&A answer must not treat as support: "unsupported" means the
 # claim was checked against the source and the source did not back it, and
@@ -252,6 +259,11 @@ class QaRunContext:
         matches: The run's tournament matches, oldest-first.
         history: Prior chat messages, excluding the current question.
         manifest: The numbered evidence manifest citations resolve against.
+        progress: The run's execution state -- how long it has been going,
+            what step it is on, what it has produced. None only for a caller
+            that did not gather it.
+        report: The finished report's synthesis, once the run has produced
+            one; None while it is still running.
     """
 
     research_goal: str
@@ -260,13 +272,15 @@ class QaRunContext:
     matches: list[dict[str, Any]]
     history: list[Any]
     manifest: list[dict[str, Any]]
+    progress: RunProgress | None = None
+    report: ReportFacts | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class _PromptSections:
     """The rendered prompt sections, in the order the template lays them out."""
 
-    hypotheses: str
+    ideas: str
     reviews: str
     matches: str
     evidence: str
@@ -276,18 +290,16 @@ class _PromptSections:
 def _summarize_run_context(context: QaRunContext) -> _PromptSections:
     """Summarize hypotheses, reviews, matches, evidence, and history.
 
-    Each section is truncated (top 5 hypotheses, last 5 reviews, last 3
-    matches, last 10 messages) to keep the prompt bounded on long runs.
+    Every section but the idea index is truncated (last 5 reviews, last 3
+    matches, last 10 messages) to keep the prompt bounded on long runs. The
+    index is not: it is titles only, and it is what tells the model which
+    ideas it can look up (see ``render_idea_index``).
 
     Returns:
         The five rendered prompt sections.
     """
     return _PromptSections(
-        hypotheses="\n".join(
-            f"- [{h['title']}] Elo {h['elo_rating']}, "
-            f"{h['win_count']}W/{h['loss_count']}L"
-            for h in context.hypotheses[:5]
-        ),
+        ideas=render_idea_index(context.hypotheses),
         reviews="\n".join(
             f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
             f"{r['summary'][:120]}"
@@ -306,6 +318,53 @@ def _summarize_run_context(context: QaRunContext) -> _PromptSections:
     )
 
 
+# What the answer may and may not do with the context above. Kept apart
+# from the sections so the rules read as one paragraph rather than as the
+# tail of the last artifact rendered.
+_ANSWER_RULES = (
+    "Claims about this run -- what the ideas say, how they were reviewed "
+    "or ranked, how far the run has got, and what the evidence shows -- "
+    "must come ONLY from the context above and from the search_ideas tool. "
+    "The idea index lists titles, not what the ideas say: call search_ideas "
+    "before answering anything about an idea's content. If the run's "
+    "artifacts do not contain the answer, say so plainly rather than "
+    "speculating. Inline citations refer only to the numbered evidence "
+    "list. Do not repeat the question. When a statement is supported by a "
+    "listed source, cite it inline as [n]."
+)
+
+
+def _state_sections(context: QaRunContext) -> list[str]:
+    """Render the run's own state: how it is going, and what it concluded.
+
+    The report section is present only once the run has produced one, so a
+    running run's prompt never carries an empty "Final report" heading for
+    the model to answer out of.
+    """
+    sections: list[str] = []
+    if context.progress is not None:
+        sections.append(f"Run status:\n{render_progress(context.progress)}")
+    if context.report is not None:
+        body = render_report(context.report)
+        if body:
+            sections.append(f"Final report:\n{body}")
+    return sections
+
+
+def _artifact_sections(sections: _PromptSections) -> list[str]:
+    """Render the run's artifacts in the order the prompt lays them out."""
+    return [
+        "Ideas in this run (titles only -- call the search_ideas tool for "
+        f"what any of them actually says):\n{sections.ideas or '(none yet)'}",
+        f"Recent reviews:\n{sections.reviews or '(none yet)'}",
+        f"Recent tournament matches:\n{sections.matches or '(none yet)'}",
+        "Evidence (cite supporting sources inline as [n] using ONLY this "
+        "numbered list; never invent a citation):\n"
+        f"{sections.evidence or '(no evidence retrieved)'}",
+        f"Conversation history:\n{sections.conversation or '(none)'}",
+    ]
+
+
 def build_system_prompt(context: QaRunContext) -> str:
     """Assemble the grounded-Q&A system prompt from a run's current state.
 
@@ -315,24 +374,13 @@ def build_system_prompt(context: QaRunContext) -> str:
     Returns:
         The system prompt string.
     """
-    research_goal = context.research_goal
     sections = _summarize_run_context(context)
-    return (
-        f"You are a concise research assistant helping the user understand "
-        f"an ongoing AI-driven hypothesis generation run.\n\n"
-        f"Research goal: {research_goal}\n\n"
-        f"Top hypotheses by Elo:\n{sections.hypotheses or '(none yet)'}\n\n"
-        f"Recent reviews:\n{sections.reviews or '(none yet)'}\n\n"
-        f"Recent tournament matches:\n{sections.matches or '(none yet)'}\n\n"
-        f"Evidence (cite supporting sources inline as [n] using ONLY this "
-        f"numbered list; never invent a citation):\n"
-        f"{sections.evidence or '(no evidence retrieved)'}\n\n"
-        f"Conversation history:\n{sections.conversation or '(none)'}\n\n"
-        f"Claims about this run -- what the hypotheses say, how they were "
-        f"reviewed or ranked, and what the evidence shows -- must come ONLY "
-        f"from the artifacts above. If the run's artifacts do not contain "
-        f"the answer, say so plainly rather than speculating. Inline "
-        f"citations refer only to the numbered evidence list. Do not repeat "
-        f"the question. When a statement is supported by a listed source, "
-        f"cite it inline as [n]."
-    )
+    blocks = [
+        "You are a concise research assistant helping the user understand "
+        "an AI-driven hypothesis generation run.",
+        f"Research goal: {context.research_goal}",
+        *_state_sections(context),
+        *_artifact_sections(sections),
+        _ANSWER_RULES,
+    ]
+    return "\n\n".join(blocks)

@@ -81,3 +81,45 @@ def test_ask_uses_real_llm_when_provider_key_present(
         m for m in reversed(msgs) if m.kind == "qa" and m.sender == "system"
     )
     assert answer.content == "Model text"
+
+
+def _prompt_for(rid: str) -> str:
+    """Return the system prompt the Q&A endpoint would send for ``rid``."""
+    from app import qa, runs_chat
+
+    run = store.get_run(rid)
+    assert run is not None
+    return qa.build_system_prompt(runs_chat._gather_qa_context(run))
+
+
+def test_the_prompt_carries_the_runs_progress_and_its_report() -> None:
+    """The chat can answer "how is it going" and "what did it conclude".
+
+    The scientist keeps talking to the chat after the run starts, so the
+    context is not only the run's artifacts: what the prompt must carry is
+    how far the run got, what it produced, and -- once it finishes -- what
+    its report concluded.
+    """
+    prompt = _prompt_for(_completed_run_id())
+
+    assert "Run status:" in prompt
+    assert "Ideas generated so far:" in prompt
+    assert "Final report:" in prompt
+    assert "Ideas explored:" in prompt
+    # Idea *titles* are in the prompt; their bodies are the tool's job.
+    assert "call the search_ideas tool" in prompt
+
+
+def test_a_running_run_carries_no_final_report_section() -> None:
+    """A run still going must not be given an empty report to answer out of."""
+    c = _client()
+    rid = c.post(
+        "/api/runs",
+        json={"research_goal": "Investigate X", "tier": "express"},
+    ).json()["id"]
+    store.update_run_status(rid, store.RunStatus.RUNNING)
+
+    prompt = _prompt_for(rid)
+
+    assert "Run status:" in prompt
+    assert "Final report:" not in prompt

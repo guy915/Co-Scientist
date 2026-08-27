@@ -1,6 +1,8 @@
 import {type ReactNode} from 'react';
 import {useLocation} from 'react-router-dom';
+import {type RunStatus} from '@/api/runs';
 import {joinClasses} from './classes';
+import {useRunHistoryContext} from './hooks/run_history_context';
 import {SettingsDialog} from './components/settings_dialog';
 import {NEW_CHAT_EVENT} from './dom_events';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
@@ -188,6 +190,7 @@ interface ShellWorkspaceProps {
   startNewChat: () => void;
   headerTitle: string;
   session: SessionSwitchData | null;
+  runStatus: RunStatus | undefined;
   workspaceClasses: string;
   pageClasses: string;
   children: ReactNode;
@@ -198,6 +201,7 @@ function ShellWorkspace({
   startNewChat,
   headerTitle,
   session,
+  runStatus,
   workspaceClasses,
   pageClasses,
   children,
@@ -210,6 +214,7 @@ function ShellWorkspace({
         startNewChat={startNewChat}
         headerTitle={headerTitle}
         session={session}
+        runStatus={runStatus}
         activePanel={chrome.activePanel}
         onTogglePanel={chrome.togglePanel}
         logsControlRef={chrome.logsControlRef}
@@ -235,9 +240,14 @@ function useLayoutState() {
   const headerTitle = useHeaderTitle(titleContextKey);
   const {chats, showAllChats, toggleShowAllChats} = useChatHistory();
   const chrome = useLayoutChrome(location.pathname);
+  const {history} = useRunHistoryContext();
   // Both halves of the session this route belongs to, so the header can
   // offer the other one (see SessionSwitch).
   const session = sessionSwitchData(chats, activeChatId, activeRunId);
+  // The run's own status, for the header's Stop control. Read from the
+  // shared history rather than fetched here: it already polls while any run
+  // is active, so the control appears and disappears on its own.
+  const runStatus = history.find(run => run.id === session?.runId)?.status;
   const shellClass = shellClassFor(isRunRoute, chrome.navOpen);
   const startNewChat = createStartNewChatHandler(chrome.setNavOpen);
 
@@ -254,6 +264,7 @@ function useLayoutState() {
     },
     headerTitle,
     session,
+    runStatus,
     workspaceClasses,
     pageClasses,
   };
@@ -279,6 +290,7 @@ export function Layout({children}: {children: ReactNode}) {
         startNewChat={state.startNewChat}
         headerTitle={state.headerTitle}
         session={state.session}
+        runStatus={state.runStatus}
         workspaceClasses={state.workspaceClasses}
         pageClasses={state.pageClasses}
       >

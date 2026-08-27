@@ -15,6 +15,7 @@ function renderHeader(activePanel: 'logs' | 'settings' | null = null) {
         onTogglePanel={() => {}}
         logsControlRef={{current: null}}
         session={null}
+        runStatus={undefined}
       />
     </MemoryRouter>,
   );

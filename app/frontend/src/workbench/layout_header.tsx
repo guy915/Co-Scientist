@@ -1,9 +1,11 @@
 import {type RefObject} from 'react';
 import {Link} from 'react-router-dom';
+import {type RunStatus} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {isModifiedClick} from '@/lib/modified_click';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
+import {CancelRunControl} from './layout_cancel_run';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {type ShellPanel} from './layout_hooks';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
@@ -81,6 +83,8 @@ function ProductLockup({onNewChat}: {onNewChat: () => void}) {
  *   popover.
  * @param session The session this route is one half of, switched between by
  *   the Chat/Results control; null when there is no other half.
+ * @param runStatus Status of that session's run, when it has one, which is
+ *   what decides whether the Stop control is offered.
  */
 export function ShellHeader({
   navOpen,
@@ -91,6 +95,7 @@ export function ShellHeader({
   onTogglePanel,
   logsControlRef,
   session,
+  runStatus,
 }: {
   navOpen: boolean;
   toggleNav: () => void;
@@ -100,6 +105,7 @@ export function ShellHeader({
   onTogglePanel: (panel: ShellPanel) => void;
   logsControlRef: RefObject<HTMLDivElement | null>;
   session: SessionSwitchData | null;
+  runStatus: RunStatus | undefined;
 }) {
   return (
     <header className={HEADER_CLASSES}>
@@ -118,6 +124,7 @@ export function ShellHeader({
           which closes any open popover on its own (see
           useDismissChromeOnNavigate). */}
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+        <CancelRunControl runId={session?.runId} status={runStatus} />
         <SessionSwitch session={session} />
         <SystemStatusIndicator />
         <DiagnosticsControl
