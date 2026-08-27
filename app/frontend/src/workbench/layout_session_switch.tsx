@@ -80,7 +80,7 @@ const SWITCH_SIDES: {
 // the whole track would leave the highlight nothing to say.
 const SWITCH_TRACK_CLASSES = joinClasses(
   'ucs-session-switch relative box-border grid grid-cols-2 gap-[0.2rem] p-[0.2rem]',
-  'border border-cosci-border bg-cosci-settings-segment-bg',
+  'bg-cosci-settings-segment-bg',
   HEADER_PILL_SHAPE_CLASSES,
 );
 
@@ -133,7 +133,7 @@ function sessionSideHref(session: SessionSwitchData, side: string): string {
  * @param session The session to switch within; renders nothing without one.
  */
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
-  useRecordSessionSide(session?.runId, session?.chatId, session?.active);
+  useRecordSessionSide(session?.runId, session?.active);
   if (!session) return null;
   return (
     <nav className={SWITCH_TRACK_CLASSES} aria-label="Session view">

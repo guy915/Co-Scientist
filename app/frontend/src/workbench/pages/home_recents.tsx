@@ -1,11 +1,11 @@
 import {Link} from 'react-router-dom';
-import {isActiveStatus, type Run} from '@/api/runs';
+import {isActiveStatus, type ChatSummary, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {firstSentenceClause} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
-import {readSessionSide} from '../layout_session_memory';
+import {preferredSessionSide} from '../layout_session_memory';
 import {
   HOME_LOAD_MORE_BUTTON_CLASSES,
   HOME_LOAD_MORE_ITEM_CLASSES,
@@ -91,6 +91,13 @@ interface HomeRecentsPanelProps {
   scoresByRunId: Record<string, number | null>;
   showAll: boolean;
   onToggleShowAll: () => void;
+  /**
+   * The rail's chat list, used only to find the conversation behind a run
+   * when the switch's remembered side is the chat one. Passed in rather
+   * than read from context so this panel stays renderable on its own;
+   * without it a card simply opens the run, which is its own default.
+   */
+  chats?: readonly ChatSummary[];
 }
 
 export function HomeRecentsPanel({
@@ -98,6 +105,7 @@ export function HomeRecentsPanel({
   scoresByRunId,
   showAll,
   onToggleShowAll,
+  chats = [],
 }: HomeRecentsPanelProps) {
   // Cap the list to 4 items until the user expands it.
   const visibleRuns = showAll ? runs : runs.slice(0, 4);
@@ -116,6 +124,7 @@ export function HomeRecentsPanel({
               key={run.id}
               run={run}
               topScore={homeRunScore(run, scoresByRunId)}
+              chats={chats}
             />
           ))
         ) : (
@@ -223,19 +232,26 @@ function recentCardTitle(run: Run): string {
 }
 
 // The card's destination: wherever this reader last had the Chat/Results
-// switch on for this session (see layout_session_memory), defaulting to the
-// run's own details tab when there is no memory yet. Unlike the chat rail,
-// this card has no chat-summary list of its own, so the chat id for that
-// remembered side has to ride along in the stored record rather than being
-// looked up here.
-function recentCardHref(run: Run): string {
-  const remembered = readSessionSide(run.id);
-  return remembered?.side === 'chat'
-    ? `/chats/${remembered.chatId}`
-    : `/runs/${run.id}/details`;
+// switch (see layout_session_memory), defaulting to the run's own details
+// tab. The chat side needs the conversation's id, which the card does not
+// carry -- it is looked up in the rail's own chat list rather than stored
+// beside the side, so a renamed or deleted chat cannot leave a stale id
+// behind in storage.
+function recentCardHref(run: Run, chats: readonly ChatSummary[]): string {
+  if (preferredSessionSide(run.id) !== 'chat') return `/runs/${run.id}/details`;
+  const chat = chats.find(entry => entry.run_id === run.id);
+  return chat ? `/chats/${chat.id}` : `/runs/${run.id}/details`;
 }
 
-function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
+function RecentRunCard({
+  run,
+  topScore,
+  chats,
+}: {
+  run: Run;
+  topScore: number | null;
+  chats: readonly ChatSummary[];
+}) {
   // The run's real top hypotheses by Elo, served on the run-list payload
   // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
   const topIdeas = run.top_hypotheses ?? [];
@@ -244,7 +260,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   return (
     <li>
       <Link
-        to={recentCardHref(run)}
+        to={recentCardHref(run, chats)}
         className={
           isActiveRun ? ACTIVE_RECENT_CARD_CLASSES : RECENT_CARD_CLASSES
         }

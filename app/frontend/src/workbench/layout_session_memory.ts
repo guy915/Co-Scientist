@@ -3,53 +3,54 @@ import {useEffect} from 'react';
 /** Which half of a session was last on screen. */
 export type SessionSide = 'chat' | 'results';
 
-// One localStorage entry per session, keyed by the run id: it is available
-// at every entry point that needs to read the memory (a chat row only knows
-// the chat once it has started a run, at which point it also has run_id; a
-// recents card only knows the run). The chat id rides along in the value so
-// a recents card -- which has no chat list of its own -- can still build a
-// `/chats/:id` href for the chat side without one.
+// One entry per session, keyed by the run id -- the one identifier both
+// entry points hold (a chat row knows its run once it has started one; a
+// recents card knows only the run).
 const STORAGE_PREFIX = 'cosci:session-side:';
 
-interface StoredSide {
-  chatId: string;
-  side: SessionSide;
+// The side last viewed in *any* session. The scientist reads the control as
+// one switch with a position, not as a per-session preference: flipping to
+// Chat and then opening a different session from the recents list and
+// landing on Results reads as the switch being ignored. So a session with no
+// memory of its own inherits the switch's last position, and only a reader
+// who has never touched it gets the old defaults.
+const LAST_SIDE_KEY = 'cosci:session-side';
+
+function isSide(value: unknown): value is SessionSide {
+  return value === 'chat' || value === 'results';
 }
 
-function isStoredSide(value: unknown): value is StoredSide {
-  const record = value as Partial<StoredSide> | null;
-  return (
-    typeof record?.chatId === 'string' &&
-    (record.side === 'chat' || record.side === 'results')
-  );
-}
-
-/**
- * The side last viewed for the session that started `runId`, or undefined
- * with no memory (never started, cleared storage, or a private window that
- * refuses storage) -- callers keep today's default in that case.
- */
-export function readSessionSide(runId: string): StoredSide | undefined {
+function read(key: string): SessionSide | undefined {
   try {
-    const raw = window.localStorage.getItem(STORAGE_PREFIX + runId);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return isStoredSide(parsed) ? parsed : undefined;
+    const raw = window.localStorage.getItem(key);
+    return isSide(raw) ? raw : undefined;
   } catch {
+    // Storage disabled (private window, quota): the memory is best-effort.
     return undefined;
   }
 }
 
-/** Records the side currently on screen for the session that started `runId`. */
-export function writeSessionSide(
-  runId: string,
-  chatId: string,
-  side: SessionSide,
-): void {
+/**
+ * The side to open a session on: its own memory, else wherever the switch
+ * was last left, else undefined so the caller keeps its own default.
+ *
+ * @param runId The run the session started, or undefined for a chat that
+ *   has not started one (which has no other half to open).
+ */
+export function preferredSessionSide(
+  runId: string | undefined,
+): SessionSide | undefined {
+  if (!runId) return undefined;
+  return read(STORAGE_PREFIX + runId) ?? read(LAST_SIDE_KEY);
+}
+
+/** Records the side on screen, for this session and for the switch itself. */
+export function writeSessionSide(runId: string, side: SessionSide): void {
   try {
-    const value: StoredSide = {chatId, side};
-    window.localStorage.setItem(STORAGE_PREFIX + runId, JSON.stringify(value));
+    window.localStorage.setItem(STORAGE_PREFIX + runId, side);
+    window.localStorage.setItem(LAST_SIDE_KEY, side);
   } catch {
-    // Storage disabled (private window, quota): the memory is best-effort.
+    // As above: best-effort.
   }
 }
 
@@ -61,10 +62,9 @@ export function writeSessionSide(
  */
 export function useRecordSessionSide(
   runId: string | undefined,
-  chatId: string | undefined,
   side: SessionSide | undefined,
 ): void {
   useEffect(() => {
-    if (runId && chatId && side) writeSessionSide(runId, chatId, side);
-  }, [runId, chatId, side]);
+    if (runId && side) writeSessionSide(runId, side);
+  }, [runId, side]);
 }
