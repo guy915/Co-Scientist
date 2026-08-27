@@ -276,22 +276,3 @@ def test_headerless_caller_cannot_export_an_account(isolated_db: str) -> None:
 
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
-
-
-def test_headerless_callers_no_longer_share_feedback(isolated_db: str) -> None:
-    """One identity-less caller's notes stay invisible to the next.
-
-    Submitting feedback deliberately stays open (a browser must be able to
-    report its own errors), so the note is written -- but the empty subject
-    it lands under is not a scope anyone can read back.
-    """
-    submitted = _headerless_client().post(
-        "/api/feedback",
-        json={"category": "bug", "message": "Anonymous note"},
-    )
-    assert submitted.status_code == 201
-
-    listed = _headerless_client().get("/api/feedback")
-
-    assert listed.status_code == 200
-    assert listed.json()["feedback"] == []

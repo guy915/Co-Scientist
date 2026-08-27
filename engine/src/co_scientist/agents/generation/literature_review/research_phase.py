@@ -38,7 +38,6 @@ from co_scientist.research_adapter import (
     McpRetrieval,
     ResearchRetrieval,
     budget_for_tier,
-    local_corpus_for,
 )
 from co_scientist.research_adapter.retrieval import ResearchRun
 from co_scientist.state import WorkflowState
@@ -148,8 +147,7 @@ def _prepare(
                 run_id=str(state.get("run_id") or ""),
                 research_goal=config.research_goal,
             ),
-        ),
-        local_corpus_for(state),
+        )
     )
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)

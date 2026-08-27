@@ -164,3 +164,44 @@ def test_migrating_a_client_isolated_volume_backfills_llm_backend(
 
     assert mock_run is not None and mock_run.llm_backend == "offline"
     assert engine_run is not None and engine_run.llm_backend == "real"
+
+
+def test_migrating_a_volume_with_the_retired_feedback_table_drops_it(
+    isolated_db: str,
+) -> None:
+    """A volume carrying the retired pilot-feedback table loses it cleanly.
+
+    The current schema no longer creates ``feedback`` at all, so this is
+    the one migration only a populated legacy volume exercises: build the
+    table by hand, as an old deploy would still have it, and confirm the
+    ``DROP TABLE IF EXISTS`` migration removes it without raising.
+    """
+    raw = sqlite3.connect(isolated_db)
+    try:
+        _create_ancient_tables(raw)
+        raw.execute(
+            "CREATE TABLE feedback (id INTEGER PRIMARY KEY, "
+            "client_id TEXT NOT NULL, audience TEXT NOT NULL, "
+            "category TEXT NOT NULL, message TEXT NOT NULL, "
+            "created_at REAL NOT NULL)"
+        )
+        raw.execute(
+            "INSERT INTO feedback (client_id, audience, category, message, "
+            "created_at) VALUES ('c1', 'general', 'bug', 'old note', 1)"
+        )
+        raw.commit()
+    finally:
+        raw.close()
+
+    # Any store call establishes the connection and runs _init_schema plus
+    # _run_migrations, which is where the drop happens.
+    assert store.get_run("does-not-exist", db_path=isolated_db) is None
+
+    with store_db.connect(isolated_db) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert "feedback" not in tables

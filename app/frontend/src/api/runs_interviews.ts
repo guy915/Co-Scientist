@@ -2,7 +2,7 @@
 // (`/api/interviews`). Extracted from `./runs`, which re-exports the public
 // functions so callers keep importing them from '@/api/runs'.
 
-import type {Audience, ChatSummary, Interview} from './run_types';
+import type {ChatSummary, Interview} from './run_types';
 import {
   API_BASE_URL,
   byokHeaders,
@@ -98,17 +98,10 @@ async function streamInterviewTurn(
   return interview;
 }
 
-/**
- * Starts a durable model-driven research-goal interview.
- *
- * The audience is sent once, at creation: the server stores it on the
- * interview so every later turn is conducted with the same lab context,
- * which is also what lets the Agent answer questions about the group.
- */
+/** Starts a durable model-driven research-goal interview. */
 export async function createInterview(
   researchChallenge: string,
   sinks?: InterviewSinks,
-  audience?: Audience,
   documentIds: string[] = [],
   signal?: AbortSignal,
 ): Promise<Interview> {
@@ -116,7 +109,6 @@ export async function createInterview(
     '/api/interviews',
     {
       research_challenge: researchChallenge,
-      audience,
       document_ids: documentIds,
     },
     sinks,

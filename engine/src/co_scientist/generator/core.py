@@ -37,7 +37,6 @@ from co_scientist.generator.run_setup import (
     _configure_cache_dir_env,
     _resolve_dev_isolation_flag,
     _resolve_dev_mode_flag,
-    _resolve_local_corpus_dir,
     _resolve_overview_review,
     _resolve_research_tier,
     _resolve_run_identity,
@@ -274,7 +273,6 @@ class HypothesisGenerator(
             pubmed_available,
             enable_literature_review_node,
         ) = await self._resolve_literature_review_settings(opts)
-        local_corpus_dir = _resolve_local_corpus_dir(opts, self._tool_registry)
         capabilities = RunCapabilities(
             mcp_available=mcp_available,
             pubmed_available=pubmed_available,
@@ -290,10 +288,7 @@ class HypothesisGenerator(
             enable_overview_review=_resolve_overview_review(
                 opts, self.supervisor_model_name
             ),
-            research_tier=_resolve_research_tier(
-                opts, mcp_available, bool(local_corpus_dir)
-            ),
-            local_corpus_dir=local_corpus_dir,
+            research_tier=_resolve_research_tier(opts, mcp_available),
             # These flags are threaded through to the initial state and the
             # consuming nodes branch on them directly.
             dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),

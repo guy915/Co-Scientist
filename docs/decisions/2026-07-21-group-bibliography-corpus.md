@@ -4,6 +4,10 @@
 **Code:** `corpus/sbi_ucd/`, `app/app/paper_corpus.py`, `app/dev/harvest_group_pubmed.py`, `app/dev/build_catalog.py`
 **Supersedes in part:** [2026-07-18](2026-07-18-audience-context-tiers.md), which sized the corpus at fifteen papers.
 
+> **Superseded by [2026-08-27](2026-08-27-remove-audience-affiliation.md).**
+> The audience feature and the corpus this record describes were removed
+> entirely. Kept as history of why they were built.
+
 The corpus was fifteen hand-curated papers. The ask was to make it the
 group's complete published record. This records what "complete" was scoped to
 and why the catalog had to change shape to hold it.

@@ -24,10 +24,9 @@ app/
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/
         ├── workbench/
-        │   ├── pages/      chat workspace, run detail, proposals, researcher access, shared report
-        │   ├── proposals/  proposals graph data/layout/rendering
+        │   ├── pages/      chat workspace, run detail, researcher access, shared report
         │   ├── hooks/      chat-session, run-history, and utility hooks
-        │   └── components/  shared workbench UI (settings dialog, audience gate) + tabs/ (ideas_tab)
+        │   └── components/  shared workbench UI (settings dialog) + tabs/ (ideas_tab)
         ├── api/runs.ts     HTTP + SSE client
         └── hooks/          Shared app-level hooks (use_run_stream, ...)
 ```

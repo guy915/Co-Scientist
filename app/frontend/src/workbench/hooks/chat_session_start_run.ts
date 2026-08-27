@@ -1,6 +1,5 @@
 import {announceRunStart, cancelRun, createRun, startRun} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {readStoredAudience} from '../audience_context';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {announceChatsChanged} from './chat_history_context';
@@ -37,13 +36,7 @@ function buildCreateRunPayload(deps: ExecuteStartDeps) {
       ? spec.completionEmail
       : undefined,
     enable_literature_review: deps.pubmedEnabled,
-    // The audience persists to localStorage, so this path (which runs outside
-    // React and takes its deps as args) reads storage directly rather than
-    // threading a hook value through every caller. An unchosen audience sends
-    // none, leaving run creation unchanged.
-    audience: readStoredAudience() ?? undefined,
     enable_web_search: deps.webSearchEnabled,
-    enable_paper_corpus: deps.paperCorpusEnabled,
     // Already uploaded and extracted (see stageDocument), so creation copies
     // them into the run's corpus rather than a second call doing it after
     // the run exists.

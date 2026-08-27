@@ -324,21 +324,6 @@ CREATE TABLE IF NOT EXISTS run_metrics (
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
--- Pilot feedback submitted from the workspace. Standalone by design: a note
--- is not tied to a run (testers send them from the header at any time), and
--- `audience` records which mode the sender was in when they wrote it.
-CREATE TABLE IF NOT EXISTS feedback (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id  TEXT NOT NULL,
-    audience   TEXT NOT NULL,
-    -- bug | suggestion | question | praise
-    -- (see FEEDBACK_CATEGORIES in app/feedback.py)
-    category   TEXT NOT NULL,
-    message    TEXT NOT NULL,
-    created_at REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC);
-
 -- Claim-level entailment graph (Milestone 5). One row per atomic claim of a
 -- hypothesis, with its assessed entailment label against retrieved evidence and
 -- the exact supporting/contradicting passages that drove the verdict. This is

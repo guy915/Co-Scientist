@@ -120,19 +120,6 @@ def test_build_system_prompt_falls_back_when_sections_are_empty() -> None:
     assert "(no evidence retrieved)" in prompt
 
 
-def test_system_prompt_includes_audience_context() -> None:
-    prompt = qa.build_system_prompt(
-        qa.QaRunContext("goal", [], [], [], [], []),
-        audience_context="LAB BACKGROUND",
-    )
-    assert "LAB BACKGROUND" in prompt
-
-
-def test_system_prompt_without_audience_context() -> None:
-    prompt = qa.build_system_prompt(qa.QaRunContext("goal", [], [], [], [], []))
-    assert "LAB BACKGROUND" not in prompt
-
-
 # ---------------------------------------------------------------------------
 # settings.effective_chat_model (the model Q&A and titling resolve)
 # ---------------------------------------------------------------------------

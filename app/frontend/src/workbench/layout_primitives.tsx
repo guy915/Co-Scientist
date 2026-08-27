@@ -37,13 +37,12 @@ export interface HeaderControlProps {
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
 /**
- * Shape and typography of every accent pill in the header: the Logs,
- * Google-note, and pilot-feedback triggers, and the Chat/Results switch's
- * track. Deliberately excludes padding, gap, and interaction states (hover,
- * expanded) -- those differ per consumer (a clickable trigger wants them
- * across its whole hit area; the switch wants them per side) and setting the
- * same CSS property twice on one element leaves Tailwind's stylesheet order,
- * not class order, to pick the winner.
+ * Shape and typography of every accent pill in the header: the Logs trigger
+ * and the Chat/Results switch's track. Deliberately excludes padding, gap,
+ * and interaction states (hover, expanded) -- those differ per consumer (a
+ * clickable trigger wants them across its whole hit area; the switch wants
+ * them per side) and setting the same CSS property twice on one element
+ * leaves Tailwind's stylesheet order, not class order, to pick the winner.
  */
 export const HEADER_ACCENT_PILL_CLASSES =
   'inline-flex h-[2.35rem] min-w-max items-center rounded-full ' +
@@ -51,9 +50,8 @@ export const HEADER_ACCENT_PILL_CLASSES =
   'whitespace-nowrap text-cosci-logs-accent-fg';
 
 /**
- * Trigger chrome shared by the header's right-side controls (the Logs,
- * Google-note, and pilot-feedback pills): the accent pill above, whose
- * expanded state holds the hover tint.
+ * Trigger chrome shared by the header's right-side controls (the Logs
+ * pill): the accent pill above, whose expanded state holds the hover tint.
  *
  * @param padding The control's padding utilities, passed as complete class
  *   names so Tailwind's scanner sees them at the call site. The Logs
@@ -188,9 +186,8 @@ export function headerControlPopoverClasses(width: string): string {
 }
 
 /**
- * Shared popover shell for the Settings menu, the Logs panel, and the
- * audience-specific header controls; the caller supplies extra
- * positioning/sizing classes via `className`.
+ * Shared popover shell for the Settings menu and the Logs panel; the caller
+ * supplies extra positioning/sizing classes via `className`.
  *
  * Every one of these panels is interactive content the person opened on
  * purpose (a menu, a log list with its own controls, a form), not a status

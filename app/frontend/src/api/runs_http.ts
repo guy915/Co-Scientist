@@ -19,8 +19,7 @@ export function exchangeAccessCode(
 
 /**
  * Header identifying the calling browser client to the backend. Exported for
- * sibling API clients (e.g. `@/api/feedback`) so the auth-header policy stays
- * defined once.
+ * sibling API clients so the auth-header policy stays defined once.
  */
 export function clientHeaders(): Record<string, string> {
   const token = getAccessToken();

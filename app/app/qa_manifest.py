@@ -273,32 +273,6 @@ class _PromptSections:
     conversation: str
 
 
-def build_system_prompt(
-    context: QaRunContext,
-    *,
-    audience_context: str = "",
-    corpus_catalog: str = "",
-) -> str:
-    """Assemble the grounded-Q&A system prompt from a run's current state.
-
-    Args:
-        context: The run state the answer must stay grounded in.
-        audience_context: The audience's field background, appended only
-            when non-empty; see ``_append_audience_context``.
-        corpus_catalog: The audience's paper catalog, appended only when
-            non-empty; see ``_append_corpus_catalog``.
-
-    Returns:
-        The system prompt string.
-    """
-    prompt = _base_system_prompt(
-        context.research_goal, _summarize_run_context(context)
-    )
-    prompt = _append_audience_context(prompt, audience_context)
-    prompt = _append_corpus_catalog(prompt, corpus_catalog)
-    return prompt
-
-
 def _summarize_run_context(context: QaRunContext) -> _PromptSections:
     """Summarize hypotheses, reviews, matches, evidence, and history.
 
@@ -332,8 +306,17 @@ def _summarize_run_context(context: QaRunContext) -> _PromptSections:
     )
 
 
-def _base_system_prompt(research_goal: str, sections: _PromptSections) -> str:
-    """Render the grounded-Q&A system prompt before audience/corpus appends."""
+def build_system_prompt(context: QaRunContext) -> str:
+    """Assemble the grounded-Q&A system prompt from a run's current state.
+
+    Args:
+        context: The run state the answer must stay grounded in.
+
+    Returns:
+        The system prompt string.
+    """
+    research_goal = context.research_goal
+    sections = _summarize_run_context(context)
     return (
         f"You are a concise research assistant helping the user understand "
         f"an ongoing AI-driven hypothesis generation run.\n\n"
@@ -348,37 +331,8 @@ def _base_system_prompt(research_goal: str, sections: _PromptSections) -> str:
         f"Claims about this run -- what the hypotheses say, how they were "
         f"reviewed or ranked, and what the evidence shows -- must come ONLY "
         f"from the artifacts above. If the run's artifacts do not contain "
-        f"the answer, say so plainly rather than speculating. Background "
-        f"about the user's field and its methods may draw on the background "
-        f"section below when one is present, but never cite it as [n]: "
-        f"inline citations refer only to the numbered evidence list. Do not "
-        f"repeat the question. When a statement is supported by a listed "
-        f"source, cite it inline as [n]."
-    )
-
-
-def _append_audience_context(prompt: str, audience_context: str) -> str:
-    """Append the user's field background, when present, last."""
-    # Appended last so the grounding rule above governs how it may be used.
-    if not audience_context.strip():
-        return prompt
-    return prompt + (
-        f"\n\nBackground about the user's field:\n{audience_context.strip()}"
-    )
-
-
-def _append_corpus_catalog(prompt: str, corpus_catalog: str) -> str:
-    """Append the audience's paper catalog, when present."""
-    # The catalog is real published work, unlike the background, so anything
-    # taken from it must be attributed -- but by paper title, since these are
-    # not in the numbered manifest and [n] has to keep resolving to it.
-    if not corpus_catalog.strip():
-        return prompt
-    return prompt + (
-        f"\n\nThe user's own group's published papers (title and abstract "
-        f"of each). Attribute anything you take from them by paper title, "
-        f"never as [n]. They are the group's prior work, not results from "
-        f"this run -- do not present them as findings this run produced. "
-        f"If an abstract is not enough to answer, note that the full text "
-        f"can be read:\n{corpus_catalog.strip()}"
+        f"the answer, say so plainly rather than speculating. Inline "
+        f"citations refer only to the numbered evidence list. Do not repeat "
+        f"the question. When a statement is supported by a listed source, "
+        f"cite it inline as [n]."
     )

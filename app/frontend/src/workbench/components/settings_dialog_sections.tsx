@@ -1,7 +1,5 @@
 import {Icon, type IconName} from '@/components/icon';
 import {type ByokProvider} from '@/lib/api_key';
-import {useAudience} from '../audience_context';
-import {AUDIENCE_OPTIONS} from '../audience_content';
 import {type Mode} from '../theme_context';
 import {
   PROVIDER_KEY_PAGES,
@@ -15,7 +13,7 @@ import {
  * section, controlled by the parent (see the `section`/`onSectionChange`
  * props on SettingsDialog in settings_dialog.tsx).
  */
-export type SettingsSection = 'appearance' | 'model' | 'affiliation' | 'help';
+export type SettingsSection = 'appearance' | 'model' | 'help';
 
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
@@ -36,7 +34,6 @@ export const SETTINGS_SECTIONS: {
 }[] = [
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
-  {section: 'affiliation', icon: 'assignment', label: 'Affiliation'},
   {section: 'help', icon: 'help', label: 'Help'},
 ];
 
@@ -245,48 +242,6 @@ export function HelpSection() {
             </summary>
             <p className="ucs-faq-answer">{item.answer}</p>
           </details>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/**
- * Settings section letting the user change their declared affiliation. Also
- * serves as the first-visit chooser: AudienceGate opens Settings here when no
- * audience has been picked yet.
- */
-export function AffiliationSection() {
-  const {audience, setAudience} = useAudience();
-  // Nothing is preselected while the answer is unset: the chooser is a
-  // required first-visit question (see AudienceGate), so showing a default
-  // already ticked would read as "answered" and invite closing past it.
-  const selected = audience;
-  const required = audience === null;
-  return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Affiliation</h3>
-      <p className="ucs-settings-card-copy">
-        {required
-          ? 'Tell us how you use Co-Scientist so the workspace can be ' +
-            'tailored to you. You can change this later in Settings.'
-          : 'This tailors the workspace to how you use Co-Scientist. You can ' +
-            'change it here at any time.'}
-      </p>
-      <div className="ucs-affiliation-group">
-        {AUDIENCE_OPTIONS.map(option => (
-          <label key={option.value} className="ucs-affiliation-option">
-            <input
-              className="ucs-affiliation-input"
-              type="radio"
-              name="cosci-affiliation"
-              value={option.value}
-              checked={selected === option.value}
-              onChange={() => setAudience(option.value)}
-            />
-            <span className="ucs-affiliation-title">{option.title}</span>
-            <span className="ucs-affiliation-blurb">{option.blurb}</span>
-          </label>
         ))}
       </div>
     </section>

@@ -2,11 +2,10 @@
 # Build from repo root: docker build -f Dockerfile.api .
 #
 # Sibling: app/docker/Dockerfile.api (docker-compose). The two are deliberately
-# divergent -- this one (Railway) bakes the engine source and the corpus into
-# the image at build time, while the compose file installs the engine at
-# startup from a mounted checkout (entrypoint.sh) and mounts the corpus. A
-# change to app deps, corpus handling, or the run command here usually needs a
-# mirrored change there.
+# divergent -- this one (Railway) bakes the engine source into the image at
+# build time, while the compose file installs the engine at startup from a
+# mounted checkout (entrypoint.sh). A change to app deps or the run command
+# here usually needs a mirrored change there.
 # Pinned by digest so the same source always builds the same base
 # image (N18) -- python:3.12-slim is a mutable tag that moves under
 # it on rebuild. Update deliberately: `docker pull python:3.12-slim`
@@ -42,14 +41,6 @@ COPY engine/src/ /workspace/co-scientist-engine/src/
 
 # Copy app source
 COPY app/app/ ./app/
-
-# The research group's own papers, as sanitized text. The app retrieves from
-# these directly (chat and Q&A grounding) rather than through the MCP server,
-# so the api image needs its own copy. SBI_CORPUS_DIR is set explicitly rather
-# than relying on the module's repo-relative default, which does not survive
-# the move into the image.
-COPY corpus/ ./corpus/
-ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
 # The vendored Google DeepMind Science Skills bundle, pinned in
 # vendor/science-skills (the NOTICE at the repo root records the upstream

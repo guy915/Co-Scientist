@@ -44,7 +44,6 @@ from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
     ResearchRetrieval,
-    local_corpus_for,
 )
 from co_scientist.research_adapter.budget import (
     review_budget_for_tier,
@@ -131,12 +130,6 @@ async def _prepare(
 ) -> tuple[ResearchRetrieval, ResearchBudget] | None:
     """Resolve what this hypothesis may search, and whether it may at all.
 
-    An unreachable search server no longer ends this: a run whose
-    audience carries the group's own papers still has one source, on
-    local disk, and researching one source is the degradation this is
-    supposed to have rather than researching nothing. With neither, the
-    budget is offered no sources and refuses itself.
-
     Returns:
         The retrieval port and its budget, or None when this hypothesis
         researches nothing. Every gate is checked before any client is
@@ -147,29 +140,25 @@ async def _prepare(
     )
 
     tier = str(state.get("research_tier") or "")
-    local = local_corpus_for(state)
-    if not tier or (not state.get("mcp_available") and local is None):
+    if not tier or not state.get("mcp_available"):
         return None
     if hypothesis.id not in _researched_hypothesis_ids(state, tier):
         return None
     config = _probe_search_config(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = ResearchRetrieval(await _remote_for(state, config), local)
+    retrieval = ResearchRetrieval(await _remote_for(state, config))
     budget = review_budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
 
 
-async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval | None:
-    """Open the MCP half of retrieval, or None when there is no server.
+async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval:
+    """Open the MCP half of retrieval.
 
-    Kept separate so the client is opened only where one can exist: a
-    corpus-only review must not open an MCP client to prove it cannot.
+    Only called once the caller has confirmed ``mcp_available``.
     """
     from co_scientist.mcp_client import get_mcp_client
 
-    if not state.get("mcp_available"):
-        return None
     client = await get_mcp_client(tool_registry=config.tool_registry)
     return McpRetrieval(
         client,

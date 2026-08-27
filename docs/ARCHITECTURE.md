@@ -12,7 +12,6 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   /runs/:id          -> redirect to the details tab                |
 |   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
 |   /chats/:id         -> ChatWorkspace   (one saved conversation)   |
-|   /proposals         -> ProposalsPage   (/recommendations aliases) |
 |   /access            -> researcher access-code exchange            |
 |   /shared/:token     -> public read-only Goal Report               |
 |   *                  -> NotFoundPage                               |
@@ -150,8 +149,7 @@ It does persist a handful of small, non-content keys, all via
 `localStorage`/`sessionStorage` (not a state-management library): the
 client id and (when a researcher session is active) its bearer token
 (`lib/client_id.ts` — `co_scientist_client_id`, `co_scientist_access_token`),
-the self-declared audience (`workbench/audience_context.tsx` —
-`cosci-audience`), the light/dark theme (`workbench/theme_context.tsx` —
+the light/dark theme (`workbench/theme_context.tsx` —
 `cosci-theme`), a scientist's own BYOK provider key when set
 (`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs
 popover's per-session baseline row id (`workbench/layout_diagnostics_state.ts`

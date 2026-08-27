@@ -21,14 +21,6 @@ export const CLIENT_ID = 'e2e-client';
 // app/frontend/src/lib/client_id.ts).
 const CLIENT_ID_KEY = 'co_scientist_client_id';
 
-// localStorage key the frontend reads the self-declared audience from (see
-// app/frontend/src/workbench/audience_context.tsx). Seeding it to the public
-// `general` product suppresses the first-visit "Choose your affiliation" gate,
-// whose locked modal scrim would otherwise intercept every click. The suite
-// exercises the general-audience workbench, so this is also the correct mode.
-const AUDIENCE_KEY = 'cosci-audience';
-const AUDIENCE = 'general';
-
 /**
  * Thin backend client used by flows that must set up or drive run state
  * outside the UI (there is no in-product affordance to create a run over the
@@ -99,11 +91,10 @@ function makeBackendApi(ctx: APIRequestContext): BackendApi {
 export const test = base.extend<{api: BackendApi}>({
   page: async ({page}, use) => {
     await page.addInitScript(
-      ([clientKey, id, audienceKey, audience]) => {
+      ([clientKey, id]) => {
         window.localStorage.setItem(clientKey, id);
-        window.localStorage.setItem(audienceKey, audience);
       },
-      [CLIENT_ID_KEY, CLIENT_ID, AUDIENCE_KEY, AUDIENCE] as const,
+      [CLIENT_ID_KEY, CLIENT_ID] as const,
     );
     await use(page);
   },

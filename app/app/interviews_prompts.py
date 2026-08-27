@@ -15,11 +15,9 @@ from typing import Any
 
 from co_scientist.llm_json_lists import coerce_json_list
 
-from app import paper_corpus, store
-from app.audience import audience_chat_context
+from app import store
 from app.config import settings
 from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
-from app.text_utils import combine_blocks
 
 # The turn's shape, restated for the model. The five fields are unchanged
 # from the JSON-object format this replaced; what changed is where they
@@ -291,39 +289,6 @@ question.
 _SYSTEM_PROMPT = f"{_GUIDE}{_FORMAT_PROMPT}\n{_QUESTIONS_PROMPT}"
 
 
-def _system_prompt(interview: dict[str, Any]) -> str:
-    """Return the system prompt, carrying the audience's lab context.
-
-    The interview is the first surface a scientist talks to, so it needs the
-    same background the in-run Q&A gets (see runs.ask_question); without it
-    the Agent cannot answer "what do you know about my group?" and denies
-    knowing the lab it is supposedly briefed on. The long-form reference is
-    used for the same reason chat uses it: one call per turn, so the cost is
-    paid once rather than per tournament comparison.
-
-    Args:
-        interview: The interview row, whose stored audience selects context.
-
-    Returns:
-        The system prompt, with lab context and paper catalog appended when
-        the audience has them, and unchanged otherwise.
-    """
-    audience = interview.get("audience")
-    joined = combine_blocks(
-        audience_chat_context(audience),
-        paper_corpus.catalog_context(audience),
-    )
-    if not joined:
-        return _SYSTEM_PROMPT
-    return (
-        f"{_SYSTEM_PROMPT}\n\n"
-        "The following describes the scientist's own group and its published "
-        "work. Use it to ask better-targeted questions and to answer "
-        "questions about the group; do not treat it as the research goal.\n\n"
-        f"{joined}"
-    )
-
-
 def _clean_list(raw: Any) -> list[str]:
     """Normalize a model- or user-produced list into non-empty strings.
 
@@ -444,7 +409,7 @@ def _interview_request(interview: dict[str, Any]) -> tuple[str, Any]:
         A ``(model, messages)`` pair ready for litellm.
     """
     messages = [
-        {"role": "system", "content": _system_prompt(interview)},
+        {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": _prompt(interview)},
     ]
     return settings.effective_chat_model, messages

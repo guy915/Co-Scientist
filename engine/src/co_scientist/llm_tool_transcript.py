@@ -288,7 +288,7 @@ _ELIDED_NOTE = "full text elided; re-fetch by id if you need it"
 # for again. Their payload is one string rather than records, so there is
 # nothing inside it worth keeping: the call that produced it stays in the
 # transcript, and that is what names the page or the paper.
-_REFETCHABLE_TEXT_TOOLS = ("read_url", "fetch_paper")
+_REFETCHABLE_TEXT_TOOLS = ("read_url",)
 
 _ELIDED_TEXT = json.dumps(
     "Elided: you read this in full earlier in this conversation. Call the"

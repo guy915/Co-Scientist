@@ -1,69 +1,15 @@
-import {type ReactNode, type RefObject} from 'react';
+import {type RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon} from '@/components/icon';
 import {isModifiedClick} from '@/lib/modified_click';
-import {type Audience, useAudience} from './audience_context';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
-import {GoogleTeamControl} from './layout_google_control';
 import {type ShellPanel} from './layout_hooks';
-import {PilotControl} from './layout_pilot_control';
-import {
-  NAV_ICON_CLASSES,
-  ShellPopover,
-  type HeaderControlProps,
-} from './layout_primitives';
+import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
 import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
-
-// The shape the three header controls share: an open flag, a toggle request,
-// and the shell's popover wrapper.
-type HeaderControl = (props: HeaderControlProps) => ReactNode;
-
-// The single audience-specific header control, which REPLACES the Logs
-// button rather than sitting beside it: the Google team gets a personal note,
-// SBI/UCD pilots a feedback form, and the general audience the diagnostics
-// Logs popover. One entry per audience, so exactly one control is shown --
-// a pilot sees Feedback where a general user sees Logs, never both -- and the
-// table is keyed by Audience so a new audience is a compile error here rather
-// than a silent fallthrough to Logs. The team/pilot controls sit on the
-// shell's 'audience' popover slot and Logs on its own 'logs' slot; the shell's
-// single-open-panel rule keeps them mutually exclusive with every other
-// header popover.
-const AUDIENCE_CONTROLS: Record<
-  Audience,
-  {Control: HeaderControl; panel: ShellPanel}
-> = {
-  general: {Control: DiagnosticsControl, panel: 'logs'},
-  google: {Control: GoogleTeamControl, panel: 'audience'},
-  sbi_ucd: {Control: PilotControl, panel: 'audience'},
-};
-
-function AudienceHeaderControl({
-  activePanel,
-  onTogglePanel,
-}: {
-  activePanel: ShellPanel | null;
-  onTogglePanel: (panel: ShellPanel) => void;
-}) {
-  // An unanswered affiliation question reads as the plain general workspace,
-  // the same as everywhere else the audience is consumed.
-  const {audience} = useAudience();
-  const {Control, panel} = AUDIENCE_CONTROLS[audience ?? 'general'];
-  return (
-    <Control
-      open={activePanel === panel}
-      onToggle={() => onTogglePanel(panel)}
-      renderPopover={(children, className, ariaLabel) => (
-        <ShellPopover className={className} role="group" ariaLabel={ariaLabel}>
-          {children}
-        </ShellPopover>
-      )}
-    />
-  );
-}
 
 const HEADER_CLASSES = 'ucs-header-action-bar';
 
@@ -174,9 +120,18 @@ export function ShellHeader({
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
         <SessionSwitch session={session} />
         <SystemStatusIndicator />
-        <AudienceHeaderControl
-          activePanel={activePanel}
-          onTogglePanel={onTogglePanel}
+        <DiagnosticsControl
+          open={activePanel === 'logs'}
+          onToggle={() => onTogglePanel('logs')}
+          renderPopover={(children, className, ariaLabel) => (
+            <ShellPopover
+              className={className}
+              role="group"
+              ariaLabel={ariaLabel}
+            >
+              {children}
+            </ShellPopover>
+          )}
         />
       </div>
     </header>

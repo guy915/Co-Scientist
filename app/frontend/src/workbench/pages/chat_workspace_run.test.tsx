@@ -394,7 +394,6 @@ it('keeps the composer live once the run starts, asking it instead of the interv
       'run-1',
       'Which hypothesis ranked highest?',
       expect.any(Object),
-      'general',
       expect.any(AbortSignal),
     );
   });

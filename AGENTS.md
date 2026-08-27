@@ -8,7 +8,6 @@ This is a research/reference workspace organized around replicating Google's AI 
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
-- `corpus/` — sanitized full text of the research group's own papers (`sbi_ucd/`, one markdown file per paper plus `catalog.json`), committed in full so retrieval works from a clean checkout. Audience-gated: only `sbi_ucd` runs can see it. Env `SBI_CORPUS_DIR`, default `corpus/sbi_ucd`.
 - `evaluations/` — offline evaluation harness (`parity_check.py`, `citation_eval.py`, `safety_eval.py`, `metrics.py`, `golden_run.py`, `scaling_eval.py` + `scaling_budget_driver.py`, `ablation_driver.py`, `elo_concordance_eval.py`, `release_gate.py`, `smoke.py`, plus `datasets/`, `results/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - `references/` — folder containing research, product screenshots, and design specs
@@ -35,18 +34,17 @@ Each project is also independently installable and runnable.
 Per-project detail lives beside the code and loads when you touch that subtree. Read the one you are working in:
 
 - **[`engine/AGENTS.md`](engine/AGENTS.md)** — LangGraph agent graph, node→file map, LLM dispatch/bounds, MCP + web search, tool registry, prompts, style conventions, and the reference MCP server (`engine/mcp_server/`).
-- **[`app/AGENTS.md`](app/AGENTS.md)** — FastAPI backend and module map, durable task execution (the real run path), auth/ownership, audience + paper corpus, persisted logs, key endpoints, the `cosci` CLI, the React frontend, and the Docker workflow.
+- **[`app/AGENTS.md`](app/AGENTS.md)** — FastAPI backend and module map, durable task execution (the real run path), auth/ownership, persisted logs, key endpoints, the `cosci` CLI, the React frontend, and the Docker workflow.
 
 ## Production hosting
 
 Three services: **frontend** on Vercel (`co-scientist-ui`, https://ai-co-scientist.com/), **api** and **mcp** on Railway (project `co-scientist`, env `production`), both built from repo-root `Dockerfile.api` / `Dockerfile.mcp`. Full build, env-var and networking detail: **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
 
-These four are load-bearing — each was an outage or a silent data-loss bug. Do not "clean them up" without reading the rationale in `docs/DEPLOYMENT.md`:
+These three are load-bearing — each was an outage or a silent data-loss bug. Do not "clean them up" without reading the rationale in `docs/DEPLOYMENT.md`:
 
 - **`RAILWAY_RUN_UID=0` must stay set on the api.** Railway mounts the persistent volume over `/app/data` at runtime, so an unprivileged process cannot write the SQLite DB; the app then dies in its lifespan hook before binding a port and every deploy fails its healthcheck. This is not an oversight to restore non-root on.
 - **The api service runs at exactly one replica.** The store is SQLite in WAL mode with `synchronous=NORMAL` — sound only single-writer. A second replica is unserialized concurrent writes to one file, a correctness bug no tuning fixes. Growing past this is a store migration, not a knob.
 - **`COSCIENTIST_CACHE_DIR` stays OFF the volume** (`/tmp/coscientist-cache`); only `COSCIENTIST_DB_PATH` belongs on it.
-- **`COPY corpus/` and `ENV SBI_CORPUS_DIR` must stay together** in both images — the repo-relative default does not survive into the image, and the MCP corpus tool has no default at all (unset returns `{}`, indistinguishable from "no such paper").
 
 ## Gotchas
 
@@ -86,7 +84,7 @@ Capability is keyed per model, never off a family substring. One `"deepseek"` su
 
 **Production still sets all four as explicit Railway env vars pointing at the first-party DeepSeek models, which override these defaults**; switching prod is an env change (plus `OPENROUTER_API_KEY`), not a deploy of this file.
 
-The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `CLAIM_ASSESSOR` (default `llm`), `FORCE_LITERATURE_REVIEW` (`0` is a hard kill switch for tests/dev), and `SBI_CORPUS_DIR` (default `corpus/sbi_ucd`). Most viewer env vars are documented in `app/.env.example` — but not `SBI_CORPUS_DIR`. The reference MCP server has a **separate** env surface (`engine/mcp_server/.env.example`); setting those vars in the app's `.env` does nothing.
+The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `CLAIM_ASSESSOR` (default `llm`), and `FORCE_LITERATURE_REVIEW` (`0` is a hard kill switch for tests/dev). Viewer env vars are documented in `app/.env.example`. The reference MCP server has a **separate** env surface (`engine/mcp_server/.env.example`); setting those vars in the app's `.env` does nothing.
 
 With no provider key set, or with `COSCIENTIST_FORCE_OFFLINE=1` (deprecated alias `COSCIENTIST_FORCE_MOCK=1`), the viewer runs every hypothesis-generation call through the engine's deterministic offline LLM backend (`co_scientist.offline_llm`, which intercepts `litellm.acompletion` for `offline/`-prefixed models) instead of a real provider — no key required.
 

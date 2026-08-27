@@ -27,11 +27,10 @@ from app import (
     credentials,
     documents,
     engine_adapter,
-    paper_corpus,
     run_corpus,
     store,
 )
-from app.auth import client_id, principal_for_request, require_client_scope
+from app.auth import client_id, require_client_scope
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
 )
@@ -239,18 +238,6 @@ async def create_run(
             ``app.auth.require_client_scope``).
     """
     require_client_scope(request)
-    # The corpus audience gates real content (see paper_corpus.py), so a
-    # claim the caller cannot back with a verified researcher session is
-    # downgraded before anything else reads req.audience -- the config,
-    # the injected catalog, and the persisted run row all derive from this.
-    principal = principal_for_request(request)
-    req = req.model_copy(
-        update={
-            "audience": paper_corpus.verified_audience(
-                req.audience, principal.method if principal else None
-            )
-        }
-    )
     # Validated BEFORE any database write: a rejected key must surface as
     # a clean 4xx here, never as a stored run that fails mid-execution.
     byok = await _resolve_byok(request)

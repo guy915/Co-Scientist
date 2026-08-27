@@ -1,11 +1,11 @@
 # mcp server dockerfile (local/compose build from engine/)
 #
 # Sibling: repo-root Dockerfile.mcp (Railway). The two are deliberately
-# divergent -- this one builds from engine/, ships no corpus, and binds
-# 0.0.0.0, while the Railway file builds from the repo root so it can COPY the
-# corpus in and set SBI_CORPUS_DIR, and binds IPv6 (`--host ::`) with an [::1]
-# healthcheck for Railway's IPv6 private network. A change to the server
-# install, bind host, or healthcheck here usually needs a mirrored change there.
+# divergent -- this one builds from engine/ and binds 0.0.0.0, while the
+# Railway file builds from the repo root and binds IPv6 (`--host ::`) with an
+# [::1] healthcheck for Railway's IPv6 private network. A change to the
+# server install, bind host, or healthcheck here usually needs a mirrored
+# change there.
 # Pinned by digest so the same source always builds the same base
 # image (N18) -- python:3.12-slim is a mutable tag that moves under
 # it on rebuild. Update deliberately: `docker pull python:3.12-slim`

@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 from app import store
+from app.account_export import router as account_export_router
 from app.auth import (
     Principal,
     auth_required,
@@ -73,7 +74,6 @@ from app.diagnostics_api import (
     router as diagnostics_api_router,
 )
 from app.documents import router as documents_router
-from app.feedback import router as feedback_router
 from app.interviews import router as interviews_router
 from app.logging_setup import (
     configure_log_capture,
@@ -355,7 +355,7 @@ app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
 app.include_router(shares_router)
-app.include_router(feedback_router)
+app.include_router(account_export_router)
 app.include_router(auth_router)
 app.include_router(logs_router)
 # Diagnostics endpoints (/, /health, /config, /status).

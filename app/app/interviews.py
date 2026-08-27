@@ -24,10 +24,9 @@ from app import (
     credentials,
     documents,
     interviews_revision,
-    paper_corpus,
     store,
 )
-from app.auth import client_id, principal_for_request, require_client_scope
+from app.auth import client_id, require_client_scope
 from app.interviews_documents import (
     _attach_documents as _attach_documents,
 )
@@ -90,9 +89,6 @@ from app.interviews_prompts import (
 )
 from app.interviews_prompts import (
     _ready as _ready,
-)
-from app.interviews_prompts import (
-    _system_prompt as _system_prompt,
 )
 from app.interviews_questions import (
     normalized_questions as normalized_questions,
@@ -348,18 +344,7 @@ async def create_interview(
     byok = _request_byok(request)
     # Refused before the interview row exists, so a bad id leaves nothing.
     documents.resolve_owned_documents(body.document_ids, owner)
-    # Same corpus-audience gate as run creation and Q&A (paper_corpus.py):
-    # a claim the caller cannot back with a verified researcher session is
-    # downgraded before it is persisted, since the stored value is what
-    # later unlocks the catalog for every turn of this interview.
-    principal = principal_for_request(request)
-    interview = store.create_interview(
-        owner,
-        body.research_challenge,
-        audience=paper_corpus.verified_audience(
-            body.audience, principal.method if principal else None
-        ),
-    )
+    interview = store.create_interview(owner, body.research_challenge)
     _attach_documents(str(interview["id"]), body.document_ids, request)
     return _interview_stream(str(interview["id"]), byok)
 

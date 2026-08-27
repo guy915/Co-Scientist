@@ -37,7 +37,6 @@ type SubmitComposerDeps = Pick<
   | 'input'
   | 'interview'
   | 'startedSession'
-  | 'audience'
   | 'setInput'
   | 'setError'
   | 'setToast'
@@ -97,9 +96,9 @@ async function stageTurnFiles(
 }
 
 // Advances the durable interview by one turn: continues it when one is
-// already in progress, else starts a fresh one for the current audience.
+// already in progress, else starts a fresh one.
 function startInterviewTurn(
-  deps: Pick<SubmitComposerDeps, 'interview' | 'audience'>,
+  deps: Pick<SubmitComposerDeps, 'interview'>,
   text: string,
   sinks: InterviewSinks,
   documentIds: string[],
@@ -114,13 +113,7 @@ function startInterviewTurn(
       signal,
     );
   }
-  return createInterview(
-    text,
-    sinks,
-    deps.audience ?? undefined,
-    documentIds,
-    signal,
-  );
+  return createInterview(text, sinks, documentIds, signal);
 }
 
 // What submitComposerMessage's catch does with the round trip's outcome: a
@@ -391,7 +384,5 @@ export function toHandlerDeps(
     onChatStarted: view.onChatStarted,
     pubmedEnabled: view.pubmedEnabled,
     webSearchEnabled: view.webSearchEnabled,
-    paperCorpusEnabled: view.paperCorpusEnabled,
-    audience: view.audience,
   };
 }

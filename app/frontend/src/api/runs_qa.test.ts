@@ -97,13 +97,7 @@ describe('askRunQuestion', () => {
     );
     const controller = new AbortController();
 
-    const pending = askRunQuestion(
-      'run-1',
-      'Why?',
-      {},
-      undefined,
-      controller.signal,
-    );
+    const pending = askRunQuestion('run-1', 'Why?', {}, controller.signal);
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({name: 'AbortError'});

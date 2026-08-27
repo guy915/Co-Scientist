@@ -17,7 +17,6 @@ from co_scientist.generator import _build_initial_state
 from co_scientist.generator.initial_state import RunCapabilities, RunIdentity
 from co_scientist.retrieval_degradation import (
     CAPABILITIES_LOST_WITHOUT_MCP,
-    FLOOR_GROUP_CORPUS,
     FLOOR_NONE,
     FLOOR_RUN_ATTACHMENTS,
     MCP_UNREACHABLE,
@@ -61,14 +60,7 @@ def test_a_run_that_cannot_retrieve_names_what_it_lost() -> None:
 
 
 def test_with_no_documents_of_its_own_the_floor_is_nothing() -> None:
-    """The plan expected a corpus floor here; there is not one.
-
-    The group's papers stopped being a literature search source when the
-    whole catalogue began arriving in run context instead, and the tool
-    that reads one is served by the same server that just failed. So the
-    honest answer for a run with no attachments is "nothing", and saying
-    that is the point of the field.
-    """
+    """The only floor is a run's own attachments; without any, there is none."""
     degradation = _state(mcp_available=False)["retrieval_degradation"]
 
     assert degradation is not None
@@ -95,48 +87,3 @@ def test_the_fact_is_plain_data() -> None:
     )
 
     assert json.loads(json.dumps(degradation)) == degradation
-
-
-def test_the_corpus_is_the_strongest_floor_and_keeps_research_alive() -> None:
-    """The floor the plan assumed, now that it exists for real.
-
-    It differs from the attachment floor in kind, not degree: attachments
-    leave a run some text to cite, while the corpus is a search source,
-    so the two capabilities that only need *a* source keep working. Any
-    reader told merely that the run "degraded" would assume otherwise.
-    """
-    degradation = resolve_retrieval_degradation(
-        mcp_available=False,
-        private_sources=None,
-        local_corpus=True,
-    )
-
-    assert degradation is not None
-    assert degradation["floor"] == FLOOR_GROUP_CORPUS
-    assert "deep_research" not in degradation["lost"]
-    assert "review_evidence" not in degradation["lost"]
-    # The four gated on the server itself are still gone.
-    assert "literature_review" in degradation["lost"]
-    assert "verification_probes" in degradation["lost"]
-
-
-def test_the_corpus_outranks_attachments_as_the_reported_floor() -> None:
-    """One floor is reported, and it names the strongest thing left."""
-    degradation = resolve_retrieval_degradation(
-        mcp_available=False,
-        private_sources=[{"title": "a memo"}],
-        local_corpus=True,
-    )
-
-    assert degradation is not None
-    assert degradation["floor"] == FLOOR_GROUP_CORPUS
-
-
-def test_a_healthy_run_reports_nothing_even_with_a_corpus() -> None:
-    """The corpus is an ordinary source when the server is up."""
-    assert (
-        resolve_retrieval_degradation(
-            mcp_available=True, private_sources=None, local_corpus=True
-        )
-        is None
-    )

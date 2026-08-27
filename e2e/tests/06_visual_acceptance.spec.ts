@@ -22,8 +22,8 @@ test('home renders at the required desktop viewport', async ({page}) => {
     }),
   ).toBeVisible();
   await expect(page.locator('.reference-home-main')).toHaveCSS('opacity', '1');
-  // The general-audience workbench surfaces the Logs popover in the header
-  // (audience-gated in layout_header.tsx); it is part of the faithful render.
+  // The workbench header surfaces the Logs popover; it is part of the
+  // faithful render.
   await expect(page.getByRole('button', {name: /Logs/i})).toBeVisible();
   await captureViewport(page, {
     ...DESKTOP_VIEWPORT,

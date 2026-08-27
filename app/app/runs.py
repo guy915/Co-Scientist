@@ -66,9 +66,6 @@ from app import (
     engine_tasks as engine_tasks,
 )
 from app import (
-    paper_corpus as paper_corpus,
-)
-from app import (
     qa as qa,
 )
 from app import (
@@ -80,7 +77,6 @@ from app import (
     runs_lifecycle,
     store,
 )
-from app.audience import audience_chat_context as audience_chat_context
 from app.auth import client_id as client_id
 from app.runs_chat import (
     _gather_qa_context as _gather_qa_context,

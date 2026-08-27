@@ -9,7 +9,6 @@
 
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
-  Audience,
   Run,
   RunFocus,
   RunStatus,
@@ -37,7 +36,6 @@ import {
 // '@/api/runs'` alongside the API functions below, without a second import
 // from './run_types'.
 export type {
-  Audience,
   ChatSummary,
   ClaimEvidenceRow,
   Evidence,
@@ -188,10 +186,8 @@ export async function createRun(input: {
   k_factor?: number;
   enable_literature_review?: boolean;
   enable_web_search?: boolean;
-  enable_paper_corpus?: boolean;
   notify_on_completion?: boolean;
   completion_email?: string;
-  audience?: Audience;
 }): Promise<Run> {
   const init = jsonRequest(input, true);
   // Bring-your-own-key: the stored key/provider ride along as request

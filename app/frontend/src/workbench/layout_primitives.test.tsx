@@ -3,9 +3,8 @@ import {expect, it} from 'vitest';
 import {ShellPopover} from './layout_primitives';
 
 // O4: the shell's shared popover shell backs every interactive header/rail
-// panel (Settings menu, Logs, the Google note, the pilot feedback form) --
-// none of them are status output, so the container must never carry an
-// implicit `role="status"` live region.
+// panel (Settings menu, Logs) -- none of them are status output, so the
+// container must never carry an implicit `role="status"` live region.
 
 it('never renders as a status live region', () => {
   render(<ShellPopover className="test-popover">content</ShellPopover>);

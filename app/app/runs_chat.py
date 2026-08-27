@@ -19,13 +19,10 @@ from app import (
     credentials,
     engine_adapter,
     engine_tasks,
-    paper_corpus,
     qa,
     run_start_announcement,
     store,
 )
-from app.audience import audience_chat_context
-from app.auth import principal_for_request
 from app.runs_models import (
     AskRequest,
     SendMessageRequest,
@@ -140,23 +137,6 @@ def _resolve_qa_byok(
     return byok if byok is not None else _request_byok(request)
 
 
-def _gated_ask_request(req: AskRequest, request: Request) -> AskRequest:
-    """Apply the corpus-audience gate to one question's audience claim.
-
-    Same corpus-audience gate as run creation (paper_corpus.py): a
-    per-question audience claim of "sbi_ucd" is a separate opportunity to
-    pull the corpus into context and needs the same verified-session check.
-    """
-    principal = principal_for_request(request)
-    return req.model_copy(
-        update={
-            "audience": paper_corpus.verified_audience(
-                req.audience, principal.method if principal else None
-            )
-        }
-    )
-
-
 def _persist_question(run_id: str, content: str) -> store.MessageRow:
     """Persist a Q&A question so history survives even if streaming fails."""
     return store.append_message(
@@ -174,11 +154,7 @@ def _live_qa_response(
     byok: credentials.ByokCredential | None,
 ) -> StreamingResponse:
     """Stream a live LLM Q&A answer, prompted with the run's evidence."""
-    system_prompt = qa.build_system_prompt(
-        context,
-        audience_context=audience_chat_context(req.audience),
-        corpus_catalog=paper_corpus.catalog_context(req.audience),
-    )
+    system_prompt = qa.build_system_prompt(context)
     return StreamingResponse(
         qa.stream_answer(
             run_id,
@@ -200,7 +176,6 @@ async def ask_question(
     The response is streamed back to the caller.
     """
     run = _run_or_404(run_id)
-    req = _gated_ask_request(req, request)
     question_msg = _persist_question(run_id, req.question)
 
     # Prompt assembly and streaming are delegated to qa.py; the endpoint

@@ -9,19 +9,10 @@ paper. That is the failure this module exists to end -- not by changing
 what the run does, but by making it a fact the run carries, the same way
 a fallback-served section is.
 
-**The floor the plan assumed did not exist, and now does.** This
-work's plan recorded the group's paper corpus as an always-available
-source the degradation could rest on. It was neither:
-it stopped being a literature search source when its whole catalogue
-began arriving in run context instead (`config/tools.yaml`), and the one
-tool that read it, ``fetch_paper``, is served by the same MCP server the
-gate just failed. ``research_adapter.local_corpus`` is that source built
-for real -- the same directory, read from disk with no network -- so a
-run whose audience carries the corpus keeps researching through an
-outage instead of stopping. It is still not universal: the corpus
-belongs to one audience, so most runs fall back to their own attachments
-or to nothing, and reporting which of the three actually applied is the
-whole point.
+The only thing that survives an MCP outage is a run's own attached
+documents, searched in-process. There is no second source behind them:
+most runs fall back to nothing, and reporting which of the two actually
+applied is the whole point.
 """
 
 from __future__ import annotations
@@ -43,14 +34,6 @@ CAPABILITIES_LOST_WITHOUT_MCP: tuple[str, ...] = (
     "evolution_grounding",
 )
 
-# The two of those a local corpus keeps alive, because the research loop
-# is source-agnostic and the deep reviews resolve their own sources: with
-# one local source left they research one source instead of none. The
-# other four are gated on the server itself and stay lost.
-CAPABILITIES_KEPT_BY_CORPUS: frozenset[str] = frozenset(
-    {"deep_research", "review_evidence"}
-)
-
 # Reason codes. A code rather than a sentence because the app renders
 # this and a report should not quote an engine log line.
 MCP_UNREACHABLE = "mcp_unreachable"
@@ -58,14 +41,12 @@ MCP_UNREACHABLE = "mcp_unreachable"
 # What is left to search, worst first. "none" is a real answer.
 FLOOR_NONE = "none"
 FLOOR_RUN_ATTACHMENTS = "run_attachments"
-FLOOR_GROUP_CORPUS = "group_corpus"
 
 
 def resolve_retrieval_degradation(
     *,
     mcp_available: bool,
     private_sources: Sequence[Any] | None,
-    local_corpus: bool = False,
 ) -> dict[str, Any] | None:
     """State whether this run can reach literature, and what is left if not.
 
@@ -77,10 +58,6 @@ def resolve_retrieval_degradation(
         private_sources: The run's own attached documents, as the app
             passes them in (``context_enrichment_sources``). These are
             searched in-process and survive the outage.
-        local_corpus: Whether this run may search the group's own papers
-            from local disk. The strongest floor, because it is the only
-            one that keeps real research running rather than merely
-            leaving some text behind.
 
     Returns:
         The degradation as plain JSON-safe data, or None when the run
@@ -91,29 +68,6 @@ def resolve_retrieval_degradation(
         return None
     return {
         "reason": MCP_UNREACHABLE,
-        "lost": _lost_capabilities(local_corpus),
-        "floor": _floor(private_sources, local_corpus),
+        "lost": list(CAPABILITIES_LOST_WITHOUT_MCP),
+        "floor": FLOOR_RUN_ATTACHMENTS if private_sources else FLOOR_NONE,
     }
-
-
-def _lost_capabilities(local_corpus: bool) -> list[str]:
-    """Name what is actually lost, given what is left to search."""
-    if not local_corpus:
-        return list(CAPABILITIES_LOST_WITHOUT_MCP)
-    return [
-        name
-        for name in CAPABILITIES_LOST_WITHOUT_MCP
-        if name not in CAPABILITIES_KEPT_BY_CORPUS
-    ]
-
-
-def _floor(private_sources: Sequence[Any] | None, local_corpus: bool) -> str:
-    """Name the best remaining source, or that there is not one.
-
-    Reported as one value rather than a set: a reader needs to know how
-    far the run could still see, and naming the strongest thing left
-    answers that where a list of everything left would not.
-    """
-    if local_corpus:
-        return FLOOR_GROUP_CORPUS
-    return FLOOR_RUN_ATTACHMENTS if private_sources else FLOOR_NONE

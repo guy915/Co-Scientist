@@ -6,7 +6,6 @@ PubMed-only implementation for biomedical research.
 
 import logging
 import os
-from pathlib import Path
 
 import fastmcp
 import uvicorn
@@ -64,11 +63,6 @@ from mcp_server.tools.lit_review.openalex_search import search_openalex
 from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
     pubmed_search_with_fulltext,
 )
-from mcp_server.tools.lit_review.search_paper_corpus import (
-    CORPUS_ENV_VAR,
-    count_corpus_papers,
-    fetch_paper,
-)
 from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
     search_pubmed,
@@ -120,7 +114,6 @@ _MCP_TOOLS = (
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
-    (fetch_paper, "fetch_paper"),
     # Both gated on the same key: the check tool exists to say whether
     # that key still works, which is only a question worth asking when
     # one was configured at all.
@@ -158,19 +151,11 @@ for _tool_fn, _tool_name in _MCP_TOOLS:
 
 # Which tools this process actually advertises, and the state of the things
 # they need. Logged at startup because the alternative is inferring it from
-# an empty result an hour into a run: a corpus that was never mounted and a
-# corpus that had no match both return nothing.
+# an empty result an hour into a run.
 logger.info(
     "Registered %d MCP tools: %s",
     len(_MCP_TOOLS),
     ", ".join(name for _, name in _MCP_TOOLS),
-)
-_corpus_dir = os.environ.get(CORPUS_ENV_VAR)
-logger.info(
-    "Paper corpus: %s",
-    f"{_corpus_dir} ({count_corpus_papers(Path(_corpus_dir))} papers)"
-    if _corpus_dir and Path(_corpus_dir).is_dir()
-    else f"not configured ({CORPUS_ENV_VAR} unset or missing)",
 )
 logger.info(
     "PubMed: %s",

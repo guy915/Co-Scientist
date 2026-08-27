@@ -136,14 +136,13 @@ def test_architecture_discloses_the_browser_storage_keys() -> None:
 
     Guards the N26 correction: the doc used to state "The workbench holds
     no durable state in the browser," while `client_id.ts`, `theme_context`,
-    `audience_context`, `api_key.ts`, and `layout_diagnostics_state.ts`
+    `api_key.ts`, and `layout_diagnostics_state.ts`
     persist identity/preference keys to localStorage/sessionStorage.
     """
     text = _ARCHITECTURE.read_text(encoding="utf-8")
     assert "holds no durable state in the browser" not in text
     for key in (
         "co_scientist_client_id",
-        "cosci-audience",
         "cosci-theme",
         "cosci-api-key",
     ):

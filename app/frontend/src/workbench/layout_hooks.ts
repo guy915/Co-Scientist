@@ -16,11 +16,9 @@ import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 /**
  * Which header popover is open. Only one can be open at a time (see
  * useLayoutChrome's togglePanel), and any open one is dismissed by an
- * outside click, Escape, or navigation. 'audience' is the audience-specific
- * control (Google team note / SBI-UCD pilot guide); the Logs popover keeps
- * its own 'logs' slot in every audience.
+ * outside click, Escape, or navigation.
  */
-export type ShellPanel = 'settings' | 'logs' | 'audience';
+export type ShellPanel = 'settings' | 'logs';
 
 /**
  * Sidebar chat history: the chat list (from the shared

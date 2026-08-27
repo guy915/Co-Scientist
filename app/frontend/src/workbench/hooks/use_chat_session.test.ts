@@ -72,8 +72,6 @@ function makeDeps() {
     setToast: vi.fn(),
     pubmedEnabled: true,
     webSearchEnabled: true,
-    paperCorpusEnabled: true,
-    audience: null,
   };
 }
 
@@ -262,7 +260,6 @@ it('asks the run instead of posting further interview turns once started', async
     'run-xyz',
     'one more thing',
     expect.any(Object),
-    undefined,
     expect.any(AbortSignal),
   );
   expect(result.current.messages).toHaveLength(messagesAfterStart + 2);
@@ -301,7 +298,6 @@ it('resetting a started session reopens the composer for a new chat', async () =
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
-    undefined,
     [],
     expect.any(AbortSignal),
   );
@@ -342,7 +338,6 @@ it('stages attached documents before the run is created', async () => {
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
-    undefined,
     ['doc-1'],
     expect.any(AbortSignal),
   );

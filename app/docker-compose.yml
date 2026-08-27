@@ -37,15 +37,10 @@ services:
       # it reads for variable substitution, the same file app/.env is
       # symlinked to at the repo root (see Makefile).
       - TOOLS_CONFIG=${TOOLS_CONFIG:-/workspace/co-scientist-engine/src/co_scientist/config/examples/indra_cancer.yaml}
-      # The group's own papers, for chat/Q&A grounding. Mounted below rather
-      # than baked in: the corpus lives at the repo root, outside this
-      # service's build context.
-      - SBI_CORPUS_DIR=/app/corpus/sbi_ucd
     volumes:
       - ./data:/app/data
       - ./cache:/app/cache
       - ./app:/app/app
-      - ../corpus:/app/corpus:ro
       # mount local engine checkout; entrypoint can clone if COSCIENTIST_ENGINE_REPO is set
       - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:
@@ -90,14 +85,9 @@ services:
       - COSCIENTIST_MCP_SHARED_SECRET=${COSCIENTIST_MCP_SHARED_SECRET:-}
       # set ENTREZ_EMAIL here (or in .env) for PubMed access; server degrades gracefully without it
       # - ENTREZ_EMAIL=you@example.com
-      # The group's own papers, searched as a literature source alongside
-      # PubMed. Mounted below: the corpus lives at the repo root, outside this
-      # service's build context.
-      - SBI_CORPUS_DIR=/app/corpus/sbi_ucd
     volumes:
       - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server/paper_cache:/app/mcp_server/paper_cache
       - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server:/app/mcp_server
-      - ../corpus:/app/corpus:ro
     # --reload is a deliberate dev-only trade-off (matches `make dev-api`'s
     # own --reload for the api service, entrypoint.sh): restarting on every
     # edit under mcp_server/ can drop an in-flight literature-review call

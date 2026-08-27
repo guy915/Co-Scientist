@@ -38,11 +38,11 @@
   --cosci-home-heading: #1f1f1f;
 
   /* The app's one accent: the brand teal-green and the text that reads on
-     it. Every surface that wants "our accent" — the logo, the logs and
-     feedback popovers, the proposals focus ring — aliases these. They used
-     to alias --cosci-step-dot-bg instead, which made the home step circle's
-     own styling load-bearing for six unrelated surfaces. Unlike the
-     reference these DO swap per theme: mint green in dark. */
+     it. Every surface that wants "our accent" — the logo, the logs popover —
+     aliases these. They used to alias --cosci-step-dot-bg instead, which
+     made the home step circle's own styling load-bearing for several
+     unrelated surfaces. Unlike the reference these DO swap per theme: mint
+     green in dark. */
   --cosci-accent: #238a84;
   --cosci-accent-fg: #f2f2f2;
 

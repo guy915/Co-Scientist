@@ -50,13 +50,6 @@ from app.store.documents import (
     mark_documents_used_by_run,
 )
 from app.store.events import append_event, latest_event_seq, list_events
-from app.store.feedback import (
-    append_feedback,
-    delete_feedback,
-    delete_feedback_older_than,
-    list_feedback,
-    list_feedback_for_client,
-)
 from app.store.hypotheses import (
     HypothesisStateChanges,
     NewHypothesis,
@@ -253,7 +246,6 @@ __all__ = [
     "add_safety_decision",
     "add_staged_document",
     "append_event",
-    "append_feedback",
     "append_interview_turn",
     "append_log",
     "append_message",
@@ -278,8 +270,6 @@ __all__ = [
     "create_interview",
     "create_report_share",
     "create_run",
-    "delete_feedback",
-    "delete_feedback_older_than",
     "delete_interview",
     "delete_logs_for_run",
     "delete_run",
@@ -308,8 +298,6 @@ __all__ = [
     "list_events",
     "list_evidence",
     "list_expired_terminal_runs",
-    "list_feedback",
-    "list_feedback_for_client",
     "list_hypotheses",
     "list_interview_documents",
     "list_interviews",

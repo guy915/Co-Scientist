@@ -46,7 +46,6 @@ test('once a run has started, submit asks it a question instead of the interview
       onSources: expect.any(Function),
       onChunk: expect.any(Function),
     }),
-    undefined,
     expect.any(Object),
   );
   // The A17 trap: never posts to the interview once a run has started.
@@ -102,7 +101,7 @@ test('without a started run, submit still advances the interview as before', asy
 
 test('stopping a Q&A turn drops the partial answer without an error banner', async () => {
   vi.mocked(askRunQuestion).mockImplementation(
-    (_id, _q, sinks, _audience, signal) =>
+    (_id, _q, sinks, signal) =>
       new Promise((_resolve, reject) => {
         sinks?.onChunk?.('partial');
         signal?.addEventListener('abort', () => reject(abortError()));

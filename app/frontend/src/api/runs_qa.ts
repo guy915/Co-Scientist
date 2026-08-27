@@ -8,7 +8,7 @@
 // no `reasoning` frame -- see qa.py::stream_answer -- so QaSinks carries one
 // fewer channel than InterviewSinks.
 
-import type {Audience, QaSource, RunMessage} from './run_types';
+import type {QaSource, RunMessage} from './run_types';
 import {
   API_BASE_URL,
   byokHeaders,
@@ -64,8 +64,6 @@ function applyAskFrame(
  * @param runId The run being asked about.
  * @param question The scientist's question.
  * @param sinks Where the streamed sources/chunks are relayed.
- * @param audience Optional audience claim (the same corpus-audience gate
- *   run creation and the interview apply).
  * @param signal Aborts the turn -- the fetch itself if not yet sent, or the
  *   read loop if the stream is already open; see the composer's Stop
  *   control. The partial answer is never persisted server-side on abort
@@ -77,10 +75,9 @@ export async function askRunQuestion(
   runId: string,
   question: string,
   sinks: QaSinks = {},
-  audience?: Audience,
   signal?: AbortSignal,
 ): Promise<number | undefined> {
-  const init = jsonRequest({question, audience}, true);
+  const init = jsonRequest({question}, true);
   const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages/ask`, {
     ...init,
     signal,

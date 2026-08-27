@@ -445,17 +445,6 @@ class WorkflowState(TypedDict):
     none. An opaque label to the engine (``research_adapter.budget``).
     """
 
-    local_corpus_dir: str | None
-    """Where the group's own papers sit for this run, "" for none.
-
-    Set only when the run's audience may read them and a catalog is
-    actually there (``run_setup._resolve_local_corpus_dir``), so a node
-    holding a non-empty value may search it without re-asking either
-    question. This is the one retrieval source that is not a network
-    call, which is what lets a run keep researching when the search
-    server is gone.
-    """
-
     research_expansion_findings: str | None
     """What a research-expansion cycle's own exploration found, rendered
     for the generation prompts (``generation.expansion_research``). Set

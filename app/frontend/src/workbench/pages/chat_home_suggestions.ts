@@ -1,6 +1,4 @@
 import {type IconName} from '@/components/icon';
-import {type Audience} from '../audience_context';
-import {SBI_SUGGESTIONS} from '../audience_content';
 
 // Each suggestion carries two strings with distinct jobs. `preview` is a
 // one-sentence teaser shown on the card (truncated to the card width via
@@ -78,13 +76,6 @@ export const SUGGESTIONS: readonly {
 ];
 
 export type Suggestion = (typeof SUGGESTIONS)[number];
-
-/** Home suggestions for an audience: SBI's tailored set, else the default. */
-export function activeSuggestions(
-  audience: Audience | null,
-): readonly Suggestion[] {
-  return audience === 'sbi_ucd' ? SBI_SUGGESTIONS : SUGGESTIONS;
-}
 
 // Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
 // title (hidden on mobile to save vertical space; see the `!isMobile` guard).

@@ -78,22 +78,3 @@ def test_export_is_scoped_to_the_caller() -> None:
 
     assert other_export.status_code == 200
     assert other_export.json()["runs"] == []
-
-
-def test_export_includes_feedback() -> None:
-    client = make_client()
-    client.post(
-        "/api/feedback",
-        headers=_OWNER,
-        json={"message": "Own note", "category": "bug"},
-    )
-    client.post(
-        "/api/feedback",
-        headers=_OTHER,
-        json={"message": "Not mine", "category": "bug"},
-    )
-
-    payload = client.get("/api/account/export", headers=_OWNER).json()
-
-    messages = [note["message"] for note in payload["feedback"]]
-    assert messages == ["Own note"]

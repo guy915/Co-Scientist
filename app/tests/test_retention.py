@@ -114,19 +114,3 @@ def test_sweep_expired_documents_deletes_only_past_the_window(
 
     assert deleted == 1
     assert store.get_staged_documents([document_id], "retention-tester") == []
-
-
-def test_sweep_expired_feedback_deletes_only_past_the_window(
-    isolated_db: str,
-) -> None:
-    client = make_client()
-    client.post(
-        "/api/feedback",
-        json={"message": "Old note", "category": "bug"},
-    )
-
-    far_future = time.time() + 400 * 86_400
-    deleted = retention.sweep_expired_feedback(now=far_future)
-
-    assert deleted == 1
-    assert store.list_feedback() == []

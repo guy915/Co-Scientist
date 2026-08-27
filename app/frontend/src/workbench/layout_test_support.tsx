@@ -3,7 +3,6 @@ import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
-import {AudienceProvider} from './audience_context';
 import {resetSessionBaselineForTest} from './layout_diagnostics_state';
 import {ChatHistoryProvider} from './hooks/chat_history_context';
 import {RunHistoryProvider} from './hooks/run_history_context';
@@ -82,19 +81,15 @@ export {apiMock, systemApiMock, logsApiMock};
 export function renderLayout(path = '/') {
   return render(
     <ThemeProvider>
-      {/* Declared up front so AudienceGate doesn't open the affiliation
-          chooser over the shell these tests are asserting on. */}
-      <AudienceProvider initialAudience="general">
-        <MemoryRouter initialEntries={[path]}>
-          <ChatHistoryProvider>
-            <RunHistoryProvider>
-              <Layout>
-                <main>Workspace content</main>
-              </Layout>
-            </RunHistoryProvider>
-          </ChatHistoryProvider>
-        </MemoryRouter>
-      </AudienceProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <ChatHistoryProvider>
+          <RunHistoryProvider>
+            <Layout>
+              <main>Workspace content</main>
+            </Layout>
+          </RunHistoryProvider>
+        </ChatHistoryProvider>
+      </MemoryRouter>
     </ThemeProvider>,
   );
 }

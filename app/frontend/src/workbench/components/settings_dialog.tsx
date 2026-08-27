@@ -14,7 +14,6 @@ import {useFocusTrap} from '../hooks/use_focus_trap';
 import {useRestoreFocusOnClose} from '../hooks/use_restore_focus_on_close';
 import {type Mode, useTheme} from '../theme_context';
 import {
-  AffiliationSection,
   AppearanceSection,
   HelpSection,
   ModelSection,
@@ -26,7 +25,6 @@ import {
 // settings_dialog_sections.tsx; re-exported here so callers keep importing
 // them from the dialog module.
 export {
-  AffiliationSection,
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from './settings_dialog_sections';
@@ -127,7 +125,6 @@ function SettingsPanel({
           onSave={apiKeyField.onSave}
         />
       )}
-      {section === 'affiliation' && <AffiliationSection />}
       {section === 'help' && <HelpSection />}
     </div>
   );
@@ -145,12 +142,8 @@ function SettingsDialogScrim({onClose}: {onClose: () => void}) {
 }
 
 /**
- * Centered Settings dialog with a section rail (Appearance, Model,
- * Affiliation, Help), matching the reference product's settings window.
- *
- * Doubles as the first-visit affiliation chooser, which AudienceGate opens
- * on the Affiliation section -- as this same ordinary dialog, so the surface
- * that asks the question is the one that later changes the answer.
+ * Centered Settings dialog with a section rail (Appearance, Model, Help),
+ * matching the reference product's settings window.
  *
  * @param props The active section and the change/close callbacks.
  */

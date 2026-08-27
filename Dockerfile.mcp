@@ -2,12 +2,11 @@
 # Build from repo root: docker build -f Dockerfile.mcp .
 #
 # Sibling: engine/mcp_server/Dockerfile (local/compose). The two are
-# deliberately divergent -- this one (Railway) builds from the repo root so it
-# can COPY the corpus in and set SBI_CORPUS_DIR, and binds IPv6 (`--host ::`)
-# with an [::1] healthcheck for Railway's IPv6 private network. The engine-local
-# file builds from engine/, ships no corpus, and binds 0.0.0.0. A change to the
-# server install, bind host, or healthcheck here usually needs a mirrored change
-# there.
+# deliberately divergent -- this one (Railway) builds from the repo root and
+# binds IPv6 (`--host ::`) with an [::1] healthcheck for Railway's IPv6
+# private network, while the engine-local file builds from engine/ and binds
+# 0.0.0.0. A change to the server install, bind host, or healthcheck here
+# usually needs a mirrored change there.
 # Pinned by digest so the same source always builds the same base
 # image (N18) -- python:3.12-slim is a mutable tag that moves under
 # it on rebuild. Update deliberately: `docker pull python:3.12-slim`
@@ -30,15 +29,6 @@ RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
         ./mcp_server/tools/web \
     && pip install --no-cache-dir -e ./mcp_server
 COPY engine/mcp_server/ ./mcp_server/
-
-# The research group's own papers, as sanitized text. Copied after the install
-# so editing the corpus does not invalidate the dependency layer. The corpus
-# tools read SBI_CORPUS_DIR and have no default: without both this COPY and the
-# env var they return empty, which is indistinguishable from "no match", so the
-# two must stay together. Absent corpus is not an error -- deployments without
-# one simply serve no group papers.
-COPY corpus/ ./corpus/
-ENV SBI_CORPUS_DIR=/app/corpus/sbi_ucd
 
 ENV PYTHONUNBUFFERED=1
 

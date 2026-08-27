@@ -96,7 +96,6 @@ export interface ComposerProps {
 const DEFAULT_CONNECTORS: ConnectorToggleProps = {
   pubmedEnabled: true,
   webSearchEnabled: true,
-  paperCorpusEnabled: true,
 };
 
 // The optional presentation props, resolved to their defaults in one place so

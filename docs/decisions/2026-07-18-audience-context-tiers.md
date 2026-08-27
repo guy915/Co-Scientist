@@ -3,6 +3,10 @@
 **Status:** Accepted · 2026-07-18 · partially superseded (see below)
 **Code:** `app/app/audience.py`, `app/app/content/sbi_ucd_context.md`
 
+> **Superseded by [2026-08-27](2026-08-27-remove-audience-affiliation.md).**
+> The audience feature and the corpus this record describes were removed
+> entirely. Kept as history of why they were built.
+
 > **Superseded in part by later corpus work.** Two decisions below were
 > reversed; the record is kept as history of why they were tried.
 >

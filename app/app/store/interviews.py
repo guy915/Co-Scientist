@@ -19,7 +19,6 @@ class _NewInterviewFields:
     interview_id: str
     client_id: str
     challenge: str
-    audience: str | None
     fields: dict[str, Any]
     now: float
 
@@ -30,13 +29,12 @@ def _insert_interview_rows(
     """Insert the interview row and its opening transcript turn."""
     conn.execute(
         "INSERT INTO interviews (id, client_id, status, fields_json, "
-        "audience, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+        "created_at, updated_at) VALUES (?,?,?,?,?,?)",
         (
             f.interview_id,
             f.client_id,
             "active",
             json.dumps(f.fields),
-            f.audience,
             f.now,
             f.now,
         ),
@@ -52,7 +50,6 @@ def create_interview(
     client_id: str,
     challenge: str,
     *,
-    audience: str | None = None,
     db_path: str | None = None,
 ) -> dict[str, Any]:
     """Create an active interview seeded with the scientist's challenge.
@@ -60,8 +57,6 @@ def create_interview(
     Args:
         client_id: The owning client.
         challenge: The scientist's opening research challenge.
-        audience: The self-declared audience, stored so every turn of this
-            interview is conducted with the same injected lab context.
         db_path: Optional database override.
 
     Returns:
@@ -86,7 +81,6 @@ def create_interview(
                 interview_id=interview_id,
                 client_id=client_id,
                 challenge=challenge,
-                audience=audience,
                 fields=fields,
                 now=now,
             ),

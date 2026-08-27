@@ -1,7 +1,0 @@
-# Trading the micro-world of combinatorial complexity for the macro-world of protein interaction domains
-
-*Biosystems, 2006.* PMID: 16242235. DOI: 10.1016/j.biosystems.2005.03.006.
-
-## Abstract
-
-Membrane receptors and proteins involved in signal transduction display numerous binding domains and operate as molecular scaffolds generating a variety of parallel reactions and protein complexes. The resulting combinatorial explosion of the number of feasible chemical species and, hence, different states of a network greatly impedes mechanistic modeling of signaling systems. Here we present novel general principles and identify kinetic requirements that allow us to replace a mechanistic picture of all possible micro-states and transitions by a macro-description of states of separate binding sites of network proteins. This domain-oriented approach dramatically reduces computational models of cellular signaling networks by dissecting mechanistic trajectories into the dynamics of macro- and meso-variables. We specify the conditions when the temporal dynamics of micro-states can be exactly or approximately expressed in terms of the product of the relative concentrations of separate domains. We prove that our macro-modeling approach equally applies to signaling systems with low population levels, analyzed by stochastic rather than deterministic equations. Thus, our results greatly facilitate quantitative analysis and computational modeling of multi-protein signaling networks.

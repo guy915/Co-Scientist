@@ -21,48 +21,19 @@ test('starts a model-driven interview with no local draft', async () => {
 
   await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-  // The trailing sink is how the turn's live reasoning reaches the UI, and
-  // the audience rides along so the Agent is briefed on the scientist's
-  // group; undefined here because this fixture declares no audience.
+  // The trailing sink is how the turn's live reasoning reaches the UI.
   expect(createInterview).toHaveBeenCalledWith(
     'Study liver fibrosis',
     expect.objectContaining({
       onReasoning: expect.any(Function),
       onProse: expect.any(Function),
     }),
-    undefined,
     [],
     expect.any(AbortSignal),
   );
   expect(deps.setInterview).toHaveBeenCalledWith(interview);
   expect(deps.stageDraftSpec).not.toHaveBeenCalled();
   expect(deps.setMessages).toHaveBeenCalledTimes(2);
-});
-
-test('conducts the interview under the declared audience', async () => {
-  // Regression: the interview was the one conversational surface that never
-  // received the audience, so in SBI mode the Agent denied knowing the lab
-  // it was supposedly briefed on.
-  vi.mocked(createInterview).mockResolvedValue(makeInterview());
-  const deps = makeDeps({
-    input: 'Study liver fibrosis',
-    audience: 'sbi_ucd',
-  });
-
-  await buildChatHandlers(deps).handleSubmit({
-    preventDefault: vi.fn(),
-  } as never);
-
-  expect(createInterview).toHaveBeenCalledWith(
-    'Study liver fibrosis',
-    expect.objectContaining({
-      onReasoning: expect.any(Function),
-      onProse: expect.any(Function),
-    }),
-    'sbi_ucd',
-    [],
-    expect.any(AbortSignal),
-  );
 });
 
 test('asks the run a question instead of posting to the closed interview', async () => {
@@ -87,7 +58,6 @@ test('asks the run a question instead of posting to the closed interview', async
     'run-1',
     'one more thing',
     expect.any(Object),
-    undefined,
     expect.any(AbortSignal),
   );
   expect(deps.setInput).toHaveBeenCalledWith('');

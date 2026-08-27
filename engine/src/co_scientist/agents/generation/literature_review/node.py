@@ -231,11 +231,10 @@ async def _check_server_available(
     Fails fast (before spending any LLM calls on query generation) only if
     the MCP server itself is unreachable -- in which case no search source
     can run. It deliberately does not gate on any single source's health:
-    the node searches several sources (the group's local corpus, PubMed,
-    OpenAlex), each of whose failures is swallowed downstream so the others
-    still complete. Gating on one source (historically PubMed) would let an
-    unavailable remote service veto sources that are perfectly reachable,
-    including the always-available local corpus.
+    the node searches several sources (PubMed, OpenAlex, ...), each of
+    whose failures is swallowed downstream so the others still complete.
+    Gating on one source (historically PubMed) would let an unavailable
+    remote service veto sources that are perfectly reachable.
 
     Returns:
         A failure result dict if the server is unreachable, else None.
@@ -261,7 +260,6 @@ async def _check_server_available(
     result["retrieval_degradation"] = resolve_retrieval_degradation(
         mcp_available=False,
         private_sources=state.get("context_enrichment_sources"),
-        local_corpus=bool(state.get("local_corpus_dir")),
     )
     return result
 

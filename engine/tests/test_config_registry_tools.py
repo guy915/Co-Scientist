@@ -104,7 +104,7 @@ def test_disabled_tools_also_disables_its_search_source(
     ``SearchSourceConfig.enabled`` and never consults the tool's own flag,
     so a caller-disabled tool would otherwise keep being searched while the
     workflow whitelists correctly dropped it -- the gap that let a
-    per-audience tool restriction leak into the literature review.
+    caller's tool restriction leak into the literature review.
     """
     path = _write_config(tmp_path, _TWO_SOURCE_CONFIG)
 

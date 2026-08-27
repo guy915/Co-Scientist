@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from app import paper_corpus, run_corpus, store
+from app import run_corpus, store
 from app.config import settings
 from app.run_modes import (
     clean_string_list,
@@ -226,14 +226,7 @@ def _lab_constraints_for_run(
 def _apply_private_sources(
     initial_opts: dict[str, Any], run_id: str, goal: str, db_path: str | None
 ) -> None:
-    """Fold scientist-uploaded document sources into opts, when any exist.
-
-    The group's own papers no longer ride the literature channel as
-    retrieved passages: the whole catalog (title + abstract of every paper)
-    is injected into the run's setup context up front (see
-    runs_models._build_create_run_config), and the agent fetches any paper
-    in full with fetch_paper. Only scientist-uploaded documents land here.
-    """
+    """Fold scientist-uploaded document sources into opts, when any exist."""
     private_sources = run_corpus.engine_context_sources(
         store.list_evidence(run_id, db_path=db_path),
         goal,
@@ -308,11 +301,6 @@ def _build_engine_opts(
         initial_opts["lab_constraints"] = lab_constraints
     goal = str((cfg.get("setup") or {}).get("goal") or "")
     _apply_private_sources(initial_opts, run_id, goal, db_path)
-    # Where the group's papers are, not whether this run may read them:
-    # that half is already decided by withholding the corpus tools above,
-    # and the engine reads the same decision off its registry. Passing a
-    # second permission here is how two gates come to disagree.
-    initial_opts["local_corpus_dir"] = str(paper_corpus.corpus_dir())
     return initial_opts
 
 
@@ -362,25 +350,6 @@ def _resolve_generator_models(
     return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
 
 
-def _resolve_generator_disable_tools(cfg: dict[str, Any]) -> list[str]:
-    """Return combined engine tool ids to disable for one run's generator.
-
-    Two sources of per-run tool withholding, combined. (1) The group's
-    paper corpus is one lab's library; the tools YAML enables it
-    unconditionally, so withhold it here for every other audience --
-    otherwise any run could search another lab's papers directly, which no
-    audience gate on injected context would catch. (2) The run's connector
-    toggles, applied by the engine's ToolRegistry as `tool.enabled = False`.
-    """
-    return [
-        *paper_corpus.disabled_tools_for(
-            str(cfg.get("audience") or ""),
-            enabled=cfg.get("enable_paper_corpus", True) is not False,
-        ),
-        *_resolve_disabled_tools(cfg),
-    ]
-
-
 def _generator_kwargs(
     cfg: dict[str, Any],
     model_name: str,
@@ -427,7 +396,7 @@ def _generator_kwargs(
             # PubMed-only. Startup already validated this path is readable
             # (see app.main lifespan).
             tools_config=settings.tools_config,
-            disable_tools=_resolve_generator_disable_tools(cfg),
+            disable_tools=_resolve_disabled_tools(cfg),
             api_key=api_key,
         ),
     }

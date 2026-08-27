@@ -70,15 +70,11 @@ jobs:
               - '.github/workflows/ci.yml'
             mcp_server:
               - 'engine/mcp_server/**'
-              # fetch_paper reads this directory straight off disk.
-              - 'corpus/**'
               - '.github/workflows/ci.yml'
             app:
               - 'app/**'
               - '!app/frontend/**'
               - 'engine/**'
-              # The sbi_ucd catalog/paper-corpus tests read this directory.
-              - 'corpus/**'
               - '.github/workflows/ci.yml'
             frontend:
               - 'app/frontend/**'

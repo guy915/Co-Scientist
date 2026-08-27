@@ -12,7 +12,6 @@ Literature search:
 - **search_pubmed**: PubMed search (metadata)
 - **pubmed_search_with_fulltext**: Search PubMed, download fulltext from PMC, and extract clean text for LLM analysis
 - **search_openalex**: OpenAlex scholarly search
-- **fetch_paper**: Retrieve one paper of the research group's own corpus in full, by `paper_id`, from local disk
 
 Biomedical databases and knowledge graph:
 
@@ -24,8 +23,6 @@ Open-web research and browsing:
 - **search_web**: Search the open web for news, grey literature, and recent developments. Registered only when a provider API key is configured; with both keys set, a provider that is out of credit is skipped and the search falls through to the other one
 - **check_web_search_available**: Report whether a search issued now would reach a provider -- false only once every configured provider has refused the key, which registration alone cannot tell you
 - **read_url**: Fetch a web page or PDF and return readable text. Always available
-
-`fetch_paper` is always registered, but it needs `SBI_CORPUS_DIR` pointing at a directory of `<paper_id>.md`/`.txt` files; without one it returns an empty result for every id. The corpus is not searched here — the caller injects the whole catalog (title + abstract per paper) into the model's context, and this tool reads one paper in full as the follow-up.
 
 See [Web Search](../docs/WEB_SEARCH.md) for provider setup and the URL safety screen.
 
@@ -109,10 +106,6 @@ WEB_SEARCH_PROVIDER=
 # paper cache directory (code default: ./cache/literature_review; the
 # .env.example and the compose volume both use ./paper_cache)
 COSCIENTIST_LIT_REVIEW_DIR=./paper_cache
-
-# directory of <paper_id>.md/.txt files the fetch_paper tool reads. NO
-# DEFAULT: unset means fetch_paper returns an empty result for every id.
-SBI_CORPUS_DIR=./corpus/sbi_ucd
 ```
 
 `.env.example` carries the full environment surface, including the shared-secret auth, INDRA CoGex, and OpenAlex settings not repeated here.
@@ -148,8 +141,7 @@ mcp_server/
     ├── lit_review/
     │   ├── search_pubmed.py                 # check availability + metadata search
     │   ├── pubmed_search_with_fulltext.py   # search + fulltext
-    │   ├── openalex_search.py               # search_openalex tool
-    │   └── search_paper_corpus.py           # fetch_paper: reads one corpus paper from disk
+    │   └── openalex_search.py               # search_openalex tool
     ├── indra_cogex/             # INDRA CoGex knowledge-graph query tools
     │   ├── associations.py
     │   ├── drug_clinical.py

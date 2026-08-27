@@ -41,20 +41,14 @@ function deps(): HandlerDeps {
   } as unknown as HandlerDeps;
 }
 
-describe('start run forwards audience', () => {
+describe('start run', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.clearAllMocks();
   });
 
-  it('sends the stored audience on createRun', async () => {
-    window.localStorage.setItem('cosci-audience', 'sbi_ucd');
+  it('creates the run from the confirmed draft spec', async () => {
     await promoteDraftToRun(deps());
-    expect(vi.mocked(createRun).mock.calls[0][0].audience).toBe('sbi_ucd');
-  });
-
-  it('sends no audience when none is stored', async () => {
-    await promoteDraftToRun(deps());
-    expect(vi.mocked(createRun).mock.calls[0][0].audience).toBeUndefined();
+    expect(vi.mocked(createRun).mock.calls[0][0].research_goal).toBe(SPEC.goal);
   });
 });

@@ -1,7 +1,6 @@
 import {type Dispatch, type RefObject, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
 import {type Interview, type StagedDocument} from '@/api/runs';
-import {type Audience} from '../audience_context';
 import {
   type ChatEntry,
   type StartedSession,
@@ -53,8 +52,6 @@ export interface ChatSessionDeps {
   setToast: ToastSetter;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
-  paperCorpusEnabled: boolean;
-  audience: Audience | null;
 }
 
 /**
@@ -66,7 +63,6 @@ export type ExecuteStartDeps = Pick<
   HandlerDeps,
   | 'pubmedEnabled'
   | 'webSearchEnabled'
-  | 'paperCorpusEnabled'
   | 'reloadHistory'
   | 'setConfirmed'
   | 'setDraft'
@@ -129,6 +125,4 @@ export interface HandlerDeps {
   onChatStarted: (chatId: string) => void;
   pubmedEnabled: boolean;
   webSearchEnabled: boolean;
-  paperCorpusEnabled: boolean;
-  audience: Audience | null;
 }

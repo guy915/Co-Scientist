@@ -382,74 +382,14 @@ def test_a_run_that_names_no_tier_researches_nothing() -> None:
 def test_research_is_refused_where_there_is_nothing_to_search() -> None:
     """The loop's whole shape is search, read, search again.
 
-    Without MCP *and* without a local corpus the run has no reachable
-    source at all -- so this is refused up front rather than discovered
-    one empty call at a time. Note what is *not* a refusal: the
-    literature review node being off. Research has a second owner in the
-    deep reviews, which resolve the run's sources from its tool registry
+    Without MCP the run has no reachable source at all -- so this is
+    refused up front rather than discovered one empty call at a time.
+    Note what is *not* a refusal: the literature review node being off.
+    Research has a second owner in the deep reviews, which resolve the
+    run's sources from its tool registry
     themselves.
     """
     assert _resolve_research_tier({"research_tier": "ultra"}, False) == ""
-
-
-def test_a_local_corpus_keeps_research_alive_through_an_outage() -> None:
-    """The floor, at the one gate that would otherwise end research.
-
-    This is the difference between degrading and stopping: the corpus is
-    on local disk, so an unreachable search server leaves the loop one
-    source rather than none, and a run researches narrowly instead of
-    not at all.
-    """
-    assert (
-        _resolve_research_tier({"research_tier": "ultra"}, False, True)
-        == "ultra"
-    )
-
-
-def test_a_corpus_is_not_a_substitute_for_asking() -> None:
-    """A floor answers "with what", never "whether"."""
-    assert _resolve_research_tier({}, False, True) == ""
-
-
-def test_the_corpus_directory_needs_both_a_catalog_and_permission(
-    tmp_path: Path,
-) -> None:
-    """Location and permission are resolved once, together, at setup.
-
-    Permission is read off the registry rather than restated, so a run
-    whose audience had the corpus tools withheld gets no directory --
-    the same single decision that stops it fetching a paper stops it
-    searching for one.
-    """
-    import json
-
-    from co_scientist.generator.run_setup import _resolve_local_corpus_dir
-
-    root = tmp_path / "sbi"
-    root.mkdir()
-    (root / "catalog.json").write_text(json.dumps({"papers": []}), "utf-8")
-
-    class _Tool:
-        def __init__(self, enabled: bool) -> None:
-            self.enabled = enabled
-
-    class _Registry:
-        def __init__(self, enabled: bool) -> None:
-            self._tool = _Tool(enabled)
-
-        def get_tool(self, tool_id: str) -> Any:
-            return self._tool
-
-    opts = {"local_corpus_dir": str(root)}
-    assert _resolve_local_corpus_dir(opts, _Registry(True)) == str(root)
-    assert _resolve_local_corpus_dir(opts, _Registry(False)) == ""
-    assert _resolve_local_corpus_dir({}, _Registry(True)) == ""
-    assert (
-        _resolve_local_corpus_dir(
-            {"local_corpus_dir": str(tmp_path / "nope")}, _Registry(True)
-        )
-        == ""
-    )
 
 
 def test_the_offline_backend_still_researches() -> None:

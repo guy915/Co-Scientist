@@ -2,10 +2,9 @@
 #
 # Sibling: repo-root Dockerfile.api (Railway). The two are deliberately
 # divergent -- this one (docker-compose) installs the engine at startup from a
-# mounted checkout via entrypoint.sh and mounts the corpus as a volume, while
-# the Railway file bakes both the engine source and the corpus into the image
-# at build time. A change to app deps, corpus handling, or the run command here
-# usually needs a mirrored change there.
+# mounted checkout via entrypoint.sh, while the Railway file bakes the engine
+# source into the image at build time. A change to app deps or the run
+# command here usually needs a mirrored change there.
 # Pinned by digest so the same source always builds the same base
 # image (N18) -- python:3.12-slim is a mutable tag that moves under
 # it on rebuild. Update deliberately: `docker pull python:3.12-slim`

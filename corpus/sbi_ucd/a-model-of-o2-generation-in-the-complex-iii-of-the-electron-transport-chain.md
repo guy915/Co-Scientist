@@ -1,7 +1,0 @@
-# A model of O2.-generation in the complex III of the electron transport chain
-
-*Mol Cell Biochem, 1998.* PMID: 9746310.
-
-## Abstract
-
-Oxidation of semiquinone by O2 in the Q cycle is known to be one of the sources of superoxide anion (O2.-) in aerobic cells. In this paper, such a phenomenon was analyzed using the chemical kinetics model of electron transfer from succinate to cytochrome c, including coenzyme Q, the complex III non-heme iron protein FeSIII and cytochromes bl, bh and cl. Electron transfers from QH2 to FeSIII and cytochrome bl were assumed to occur according to direct transfer mechanism (dynamic channelling) involving the formation of FeS(red)III-Q.- and Q.--cytochrome bl complexes. For oxidation/reduction reactions involving cytochromes bh and bl, the dependence of the equilibrium and elementary rate constants on the membrane potential (deltapsi) was taken into consideration. The rate of O2.- generation was found to increase dramatically with increase in deltapsi above the values found in State 3. On the other hand, the rate of cytochrome c reduction decreased sharply at the same values of the membrane potential. This explains experimental data that the O2.- generation at State 4 appears to be very much faster than at State 3. A mild uncoupling in State 4 can markedly decrease the superoxide generation due to a decrease in deltapsi below the above mentioned critical level. DeltapH appears to be equally effective as deltapsi in stimulation of superoxide production which depends, in fact, upon the deltamuH+ level.

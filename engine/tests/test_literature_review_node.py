@@ -83,8 +83,8 @@ async def test_node_gate_is_server_reachability_not_source_health(
     """The node proceeds whenever the MCP server responds.
 
     Regression guard: the node once gated on a single source's availability
-    (``check_pubmed``), so a PubMed outage aborted the whole node -- including
-    the always-available local corpus. The gate is now server reachability.
+    (``check_pubmed``), so a PubMed outage aborted the whole node. The gate
+    is now server reachability.
     This pins it: with the server reachable the node runs its search regardless
     of any one source's health, consulting ``check_mcp_available`` rather than a
     source-specific probe.

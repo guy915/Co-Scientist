@@ -1,7 +1,0 @@
-# Bistability from double phosphorylation in signal transduction. Kinetic and structural requirements
-
-*FEBS J, 2006.* PMID: 16934033. DOI: 10.1111/j.1742-4658.2006.05394.x.
-
-## Abstract
-
-Previous studies have suggested that positive feedback loops and ultrasensitivity are prerequisites for bistability in covalent modification cascades. However, it was recently shown that bistability and hysteresis can also arise solely from multisite phosphorylation. Here we analytically demonstrate that double phosphorylation of a protein (or other covalent modification) generates bistability only if: (a) the two phosphorylation (or the two dephosphorylation) reactions are catalyzed by the same enzyme; (b) the kinetics operate at least partly in the zero-order region; and (c) the ratio of the catalytic constants of the phosphorylation and dephosphorylation steps in the first modification cycle is less than this ratio in the second cycle. We also show that multisite phosphorylation enlarges the region of kinetic parameter values in which bistability appears, but does not generate multistability. In addition, we conclude that a cascade of phosphorylation/dephosphorylation cycles generates multiple steady states in the absence of feedback or feedforward loops. Our results show that bistable behavior in covalent modification cascades relies not only on the structure and regulatory pattern of feedback/feedforward loops, but also on the kinetic characteristics of their component proteins.

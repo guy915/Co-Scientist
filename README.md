@@ -104,7 +104,6 @@ configuration.
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
 | `evaluations/` | Parity ledger checker, safety/citation evals, and release gate |
 | `e2e/` | Playwright browser end-to-end suite |
-| `corpus/` | Domain paper corpus baked into the API and MCP images |
 | `docs/` | Live architecture, fidelity notes, screenshots, and diagrams (see [`docs/README.md`](docs/README.md) for the index) |
 | `.github/` | CI and nightly workflows |
 | `references/` | Source research, product captures, and comparison material (~39 MB) |

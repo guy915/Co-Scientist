@@ -79,38 +79,6 @@ def test_build_generator_forwards_none_tools_config(
     assert _FakeGenerator.last_kwargs["options"].tools_config is None
 
 
-def test_build_generator_withholds_corpus_tools_by_audience(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The corpus audience keeps its tools; every other audience loses them.
-
-    The tools YAML enables the corpus unconditionally, so this per-run
-    argument is the only thing standing between another audience's run and
-    the lab's library -- an agent calls those tools itself, well downstream
-    of any gate on injected context.
-    """
-    monkeypatch.setattr(settings, "tools_config", None)
-
-    cfg = _cfg()
-    cfg["audience"] = "sbi_ucd"
-    _build_generator(_FakeGenerator, cfg)
-    assert _FakeGenerator.last_kwargs["options"].disable_tools == []
-
-    for other in ("google", "general", ""):
-        cfg = _cfg()
-        cfg["audience"] = other
-        _build_generator(_FakeGenerator, cfg)
-        assert _FakeGenerator.last_kwargs["options"].disable_tools == [
-            "paper_corpus_fetch",
-        ]
-
-    # A run config with no audience key at all must not open the corpus.
-    _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["options"].disable_tools == [
-        "paper_corpus_fetch",
-    ]
-
-
 def test_build_generator_forwards_run_elo_k_factor() -> None:
     """The persisted run K-factor governs real-engine Elo updates."""
     _build_generator(_FakeGenerator, _cfg())
@@ -229,16 +197,9 @@ def test_tools_config_report_none_enumerates_the_bundled_default() -> None:
 
 
 def test_build_generator_enables_web_search_by_default() -> None:
-    """A config without the toggle keeps web search on.
-
-    The corpus tools still appear: a config without an audience is not the
-    SBI/UCD group, so the lab corpus is withheld regardless of connector
-    toggles.
-    """
+    """A config without the toggle keeps web search on."""
     _build_generator(_FakeGenerator, _cfg())
-    assert _FakeGenerator.last_kwargs["options"].disable_tools == [
-        "paper_corpus_fetch",
-    ]
+    assert _FakeGenerator.last_kwargs["options"].disable_tools == []
 
 
 def test_build_generator_disables_web_search_when_toggled_off() -> None:
@@ -246,7 +207,6 @@ def test_build_generator_disables_web_search_when_toggled_off() -> None:
     cfg = _cfg() | {"enable_web_search": False}
     _build_generator(_FakeGenerator, cfg)
     assert _FakeGenerator.last_kwargs["options"].disable_tools == [
-        "paper_corpus_fetch",
         "web_search",
     ]
 
@@ -305,43 +265,14 @@ def test_connectors_report_still_falls_back_to_pubmed() -> None:
     assert connectors == [{"id": "pubmed", "display": "PubMed"}]
 
 
-def test_connectors_report_lists_paper_corpus_when_installed() -> None:
-    """The lab-papers connector appears whenever the corpus is installed.
-
-    The composer shows it only to the SBI/UCD audience; the report lists it on
-    availability alone.
-    """
-    connectors = connectors_report(
-        literature_available=True,
-        enabled_tools=None,
-        paper_corpus_available=True,
-    )
-    assert {"id": "paper_corpus", "display": "Lab papers"} in connectors
-
-
-def test_connectors_report_omits_paper_corpus_when_absent() -> None:
-    """No installed corpus means no lab-papers row."""
-    connectors = connectors_report(
-        literature_available=True,
-        enabled_tools=None,
-        paper_corpus_available=False,
-    )
-    assert all(item["id"] != "paper_corpus" for item in connectors)
-
-
-def test_connectors_report_orders_web_then_pubmed_then_corpus() -> None:
-    """The menu order is web search, then PubMed, then the lab corpus."""
+def test_connectors_report_orders_web_then_pubmed() -> None:
+    """The menu order is web search, then PubMed."""
     connectors = connectors_report(
         literature_available=True,
         enabled_tools=None,
         web_search_available=True,
-        paper_corpus_available=True,
     )
-    assert [item["id"] for item in connectors] == [
-        "web_search",
-        "pubmed",
-        "paper_corpus",
-    ]
+    assert [item["id"] for item in connectors] == ["web_search", "pubmed"]
 
 
 def test_resolved_run_config_enables_web_search_by_default() -> None:

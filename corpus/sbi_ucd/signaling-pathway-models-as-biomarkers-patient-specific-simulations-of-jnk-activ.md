@@ -1,7 +1,0 @@
-# Signaling pathway models as biomarkers: Patient-specific simulations of JNK activity predict the survival of neuroblastoma patients
-
-*Sci Signal, 2015.* PMID: 26696630. DOI: 10.1126/scisignal.aab0990.
-
-## Abstract
-
-Signaling pathways control cell fate decisions that ultimately determine the behavior of cancer cells. Therefore, the dynamics of pathway activity may contain prognostically relevant information different from that contained in the static nature of other types of biomarkers. To investigate this hypothesis, we characterized the network that regulated stress signaling by the c-Jun N-terminal kinase (JNK) pathway in neuroblastoma cells. We generated an experimentally calibrated and validated computational model of this network and used the model to extract prognostic information from neuroblastoma patient-specific simulations of JNK activation. Switch-like JNK activation mediates cell death by apoptosis. An inability to initiate switch-like JNK activation in the simulations was significantly associated with poor overall survival for patients with neuroblastoma with or without MYCN amplification, indicating that patient-specific simulations of JNK activation could stratify patients. Furthermore, our analysis demonstrated that extracting information about a signaling pathway to develop a prognostically useful model requires understanding of not only components and disease-associated changes in the abundance or activity of the components but also how those changes affect pathway dynamics.

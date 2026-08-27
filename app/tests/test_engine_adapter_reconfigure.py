@@ -1,10 +1,9 @@
 """Two runs in one process must each execute their own tool topology.
 
 The app runs several runs concurrently in one worker process, each with its
-own connector toggles and audience, so "the first run's configuration is the
-process's configuration" would be a cross-run correctness failure rather than
-a stale-cache annoyance: a run with web search off would still search the web,
-and a run outside the corpus audience would reach another lab's papers.
+own connector toggles, so "the first run's configuration is the process's
+configuration" would be a cross-run correctness failure rather than a
+stale-cache annoyance: a run with web search off would still search the web.
 
 Nothing here is expected to fail today -- ``_build_generator`` constructs a
 fresh generator, and therefore a fresh ``ToolRegistry``, per durable task.
@@ -64,15 +63,6 @@ def test_toggle_order_does_not_decide_the_topology() -> None:
 
     assert "web_search" not in _enabled_tools(without)
     assert "web_search" not in _search_sources(without)
-
-
-def test_paper_corpus_stays_gated_after_a_corpus_run() -> None:
-    """One lab's library must not become the process's library."""
-    corpus_run = _generator_for(audience="sbi_ucd")
-    later_run = _generator_for(audience="general")
-
-    assert "paper_corpus_fetch" in _enabled_tools(corpus_run)
-    assert "paper_corpus_fetch" not in _enabled_tools(later_run)
 
 
 def test_each_run_holds_a_registry_of_its_own() -> None:

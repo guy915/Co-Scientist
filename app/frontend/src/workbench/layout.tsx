@@ -1,7 +1,6 @@
 import {type ReactNode} from 'react';
 import {useLocation} from 'react-router-dom';
 import {joinClasses} from './classes';
-import {AudienceGate} from './components/audience_gate';
 import {SettingsDialog} from './components/settings_dialog';
 import {NEW_CHAT_EVENT} from './dom_events';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
@@ -35,10 +34,6 @@ const HOME_PAGE_CLASSES = 'ucs-page ucs-page--home';
 
 const REPORT_PAGE_CLASSES = 'ucs-page ucs-page--report';
 
-// The proposals graph sizes itself to the viewport, so the page must not
-// scroll.
-const PROPOSALS_PAGE_CLASSES = 'ucs-page ucs-page--proposals';
-
 const SHELL_OPEN_GRID_CLASSES = 'nav-open';
 
 const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
@@ -47,7 +42,6 @@ const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
 // home variant on '/', and the plain page otherwise.
 function pageClassesFor(pathname: string, isRunRoute: boolean): string {
   if (isRunRoute) return REPORT_PAGE_CLASSES;
-  if (pathname === '/proposals') return PROPOSALS_PAGE_CLASSES;
   return pathname === '/' ? HOME_PAGE_CLASSES : PAGE_CLASSES;
 }
 
@@ -141,31 +135,21 @@ function DrawerScrim({
   return <div className="ucs-scrim" aria-hidden="true" onClick={onDismiss} />;
 }
 
-// The overlays that sit above the shell's own content: the full-screen
-// Settings dialog and the AudienceGate that opens it on its Affiliation
-// section for a first-time visitor. Kept out of Layout so the component
-// itself stays the thin render/wiring function documented there.
+// The full-screen Settings dialog overlay. Kept out of Layout so the
+// component itself stays the thin render/wiring function documented there.
 interface ShellOverlaysProps {
   chrome: LayoutChrome;
 }
 
 function ShellOverlays({chrome}: ShellOverlaysProps) {
-  const {settingsSection, setSettingsSection, openSettings} = chrome;
+  const {settingsSection, setSettingsSection} = chrome;
+  if (!settingsSection) return null;
   return (
-    <>
-      {settingsSection && (
-        <SettingsDialog
-          section={settingsSection}
-          onSectionChange={setSettingsSection}
-          onClose={() => setSettingsSection(null)}
-        />
-      )}
-      <AudienceGate
-        onOpenAffiliation={() => openSettings('affiliation')}
-        onCloseChooser={() => setSettingsSection(null)}
-        chooserOpen={settingsSection === 'affiliation'}
-      />
-    </>
+    <SettingsDialog
+      section={settingsSection}
+      onSectionChange={setSettingsSection}
+      onClose={() => setSettingsSection(null)}
+    />
   );
 }
 

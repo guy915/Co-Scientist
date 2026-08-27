@@ -134,10 +134,10 @@ function resolveSelectedHypothesis(
   return isMobile ? null : sorted[0];
 }
 
-// The route of one idea: the selection lives in the query string (like the
-// proposals graph's ?node=) so a single idea can be linked to, opened in a
-// new tab, and shared. Only the search part is set, so the link stays on
-// whatever run/tab path it is rendered under.
+// The route of one idea: the selection lives in the query string so a
+// single idea can be linked to, opened in a new tab, and shared. Only the
+// search part is set, so the link stays on whatever run/tab path it is
+// rendered under.
 function ideaSearch(id: string): {search: string} {
   return {search: `?idea=${encodeURIComponent(id)}`};
 }

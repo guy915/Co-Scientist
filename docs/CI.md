@@ -138,9 +138,7 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
   Google computes the affected set from the Bazel build graph; we declare
   the dependency edges by hand as path globs (`app` depends on `engine`;
   `evaluations` depends on nearly everything because the parity ledger cites
-  evidence files across `engine/`, `app/`, and the frontend; `app` and
-  `mcp_server` both depend on `corpus/`, since the sbi_ucd catalog and
-  `fetch_paper` both read it straight off disk). Filtering happens at the
+  evidence files across `engine/`, `app/`, and the frontend). Filtering happens at the
   job level rather than `on.paths` so skipped jobs still report a `skipped`
   conclusion, which branch protection counts as passing — workflow-level
   `paths:` would leave required checks pending forever. Every path in the

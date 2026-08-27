@@ -25,18 +25,13 @@ import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {HomeRecentsPanel} from './home_recents';
 import {
   SESSION_STEPS,
-  type Suggestion,
-  activeSuggestions,
-} from './chat_home_suggestions';
-import {HomeSuggestionRow} from './chat_home_suggestion_row';
-import {useAudience} from '../audience_context';
-import {GoogleLabsIcon} from '../components/google_labs_icon';
-
-export {
   SUGGESTIONS,
   type Suggestion,
-  activeSuggestions,
 } from './chat_home_suggestions';
+import {HomeSuggestionRow} from './chat_home_suggestion_row';
+import {GoogleLabsIcon} from '../components/google_labs_icon';
+
+export {SUGGESTIONS, type Suggestion} from './chat_home_suggestions';
 
 /**
  * Props for HomeStage, named at module level per the destructured prop
@@ -137,8 +132,6 @@ export function HomeStage(props: HomeStageProps) {
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
-  const {audience} = useAudience();
-  const suggestions = activeSuggestions(audience);
   // Mobile shows suggestions as a single-line glyph list, so the label
   // truncates to one line (word-level, via TruncatedLabel); desktop keeps the
   // two-line card. Tracks viewport width so the line budget follows the
@@ -150,7 +143,7 @@ export function HomeStage(props: HomeStageProps) {
       <HomeMainColumn
         {...props}
         isMobile={isMobile}
-        suggestions={suggestions}
+        suggestions={SUGGESTIONS}
         hoveredSuggestion={hoveredSuggestion}
         onPreview={setHoveredSuggestion}
         onSelect={prompt =>

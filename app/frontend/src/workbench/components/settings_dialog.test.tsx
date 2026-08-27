@@ -2,14 +2,11 @@ import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {AudienceProvider} from '../audience_context';
 import {ThemeProvider} from '../theme_context';
 import {SettingsDialog} from './settings_dialog';
 
-// O1: the Settings dialog (also the first-visit affiliation chooser, which
-// AudienceGate opens on its Affiliation section) must trap Tab within
-// itself, mark the page behind it inert, and hand focus back to whatever
-// opened it once it closes.
+// O1: the Settings dialog must trap Tab within itself, mark the page behind
+// it inert, and hand focus back to whatever opened it once it closes.
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => window.localStorage.clear());
@@ -18,16 +15,14 @@ function DialogHarness() {
   const [open, setOpen] = useState(false);
   return (
     <ThemeProvider>
-      <AudienceProvider initialAudience="general">
-        <button onClick={() => setOpen(true)}>Open settings</button>
-        {open && (
-          <SettingsDialog
-            section="appearance"
-            onSectionChange={() => {}}
-            onClose={() => setOpen(false)}
-          />
-        )}
-      </AudienceProvider>
+      <button onClick={() => setOpen(true)}>Open settings</button>
+      {open && (
+        <SettingsDialog
+          section="appearance"
+          onSectionChange={() => {}}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </ThemeProvider>
   );
 }
@@ -45,20 +40,16 @@ it('returns focus to the control that opened it once it closes', async () => {
   await waitFor(() => expect(opener).toHaveFocus());
 });
 
-function renderOpenDialog(
-  section: 'appearance' | 'affiliation' = 'appearance',
-) {
+function renderOpenDialog() {
   return render(
     <ThemeProvider>
-      <AudienceProvider initialAudience="general">
-        <button>Outside leading</button>
-        <SettingsDialog
-          section={section}
-          onSectionChange={vi.fn()}
-          onClose={vi.fn()}
-        />
-        <button>Outside trailing</button>
-      </AudienceProvider>
+      <button>Outside leading</button>
+      <SettingsDialog
+        section="appearance"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+      <button>Outside trailing</button>
     </ThemeProvider>,
   );
 }
@@ -93,34 +84,18 @@ it('traps backward Shift+Tab, wrapping past the first focusable element', async 
   expect(lastThemeButton).toHaveFocus();
 });
 
-it('traps focus on the affiliation section the first-visit gate opens', async () => {
-  const user = userEvent.setup();
-  renderOpenDialog('affiliation');
-
-  const closeButton = await screen.findByRole('button', {
-    name: 'Close settings',
-  });
-  const radios = screen.getAllByRole('radio');
-  radios[radios.length - 1].focus();
-  await user.tab();
-
-  expect(closeButton).toHaveFocus();
-});
-
 function InertHarness() {
   const [open, setOpen] = useState(true);
   return (
     <ThemeProvider>
-      <AudienceProvider initialAudience="general">
-        <button>Outside</button>
-        {open && (
-          <SettingsDialog
-            section="appearance"
-            onSectionChange={vi.fn()}
-            onClose={() => setOpen(false)}
-          />
-        )}
-      </AudienceProvider>
+      <button>Outside</button>
+      {open && (
+        <SettingsDialog
+          section="appearance"
+          onSectionChange={vi.fn()}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </ThemeProvider>
   );
 }

@@ -7,7 +7,6 @@ import {
 } from 'react';
 import {type Connector, type SystemStatus} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
-import {type Audience, useAudience} from '../audience_context';
 import {joinClasses} from '../classes';
 import {useSystemStatus} from '../hooks/system_status_context';
 import {tooltipClassNames} from '../tooltip';
@@ -37,23 +36,16 @@ const DEFAULT_CONNECTORS: Connector[] = [{id: 'pubmed', display: 'PubMed'}];
 // other id shares the literature toggle (see ConnectorsMenu).
 const WEB_SEARCH_CONNECTOR_ID = 'web_search';
 
-// The connector id for the SBI/UCD paper corpus ("Lab papers"). Its row drives
-// its own standalone toggle and is only shown to the sbi_ucd audience (see
-// ConnectorsMenu).
-const PAPER_CORPUS_CONNECTOR_ID = 'paper_corpus';
-
 /**
- * The PubMed/web-search/lab-papers connector toggle values plus their
- * change callbacks, bundled so SourceControls/ConnectorsMenu/ComposerFooter
- * can each take a single argument instead of six.
+ * The PubMed/web-search connector toggle values plus their change callbacks,
+ * bundled so SourceControls/ConnectorsMenu/ComposerFooter can each take a
+ * single argument instead of four.
  */
 export interface ConnectorToggleProps {
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
   webSearchEnabled: boolean;
   onWebSearchEnabledChange?: (value: boolean) => void;
-  paperCorpusEnabled: boolean;
-  onPaperCorpusEnabledChange?: (value: boolean) => void;
 }
 
 /**
@@ -185,25 +177,13 @@ function SourceToolbarButton({
 
 // The available data sources come from the backend (/status), derived from
 // literature and web-search availability plus the configured tools YAML, so
-// newly configured connectors appear here automatically. Which are shown is
-// filtered for the current audience: the backend already orders them (web,
-// pubmed, corpus), so only the Lab papers row is ever dropped, for every
-// non-SBI audience, preserving that order otherwise.
-function visibleConnectors(
-  status: SystemStatus | null,
-  audience: Audience | null,
-): Connector[] {
+// newly configured connectors appear here automatically.
+function visibleConnectors(status: SystemStatus | null): Connector[] {
   // No answer yet is not the same as an empty answer: the caller renders its
   // own note for that, rather than this passing off the fallback as the
   // deployment's real source list.
   if (status === null) return [];
-  const advertised = status.connectors?.length
-    ? status.connectors
-    : DEFAULT_CONNECTORS;
-  return advertised.filter(
-    connector =>
-      connector.id !== PAPER_CORPUS_CONNECTOR_ID || audience === 'sbi_ucd',
-  );
+  return status.connectors?.length ? status.connectors : DEFAULT_CONNECTORS;
 }
 
 // Which toggle a connector row reads and writes, plus the icon it shows.
@@ -223,11 +203,11 @@ function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
   };
 }
 
-// The connectors that own an independent toggle, keyed by id. Web search and
-// Lab papers each stand alone here; every other connector falls through to
-// the literature default above, since the engine enables that stack as one
-// unit. This maps ids that are already on screen to their behavior — which
-// connectors an audience sees is decided by visibleConnectors alone.
+// The connectors that own an independent toggle, keyed by id. Web search
+// stands alone here; every other connector falls through to the literature
+// default above, since the engine enables that stack as one unit. This maps
+// ids that are already on screen to their behavior — which connectors are
+// shown at all is decided by visibleConnectors alone.
 //
 // Entries are selector functions, not built behaviors, so the table itself
 // lives at module scope: a per-row table meant rebuilding every connector's
@@ -240,11 +220,6 @@ const STANDALONE_BEHAVIORS: Record<
     checked: toggles.webSearchEnabled,
     setChecked: toggles.onWebSearchEnabledChange,
     icon: 'search',
-  }),
-  [PAPER_CORPUS_CONNECTOR_ID]: toggles => ({
-    checked: toggles.paperCorpusEnabled,
-    setChecked: toggles.onPaperCorpusEnabledChange,
-    icon: 'science',
   }),
 };
 
@@ -349,8 +324,7 @@ function ConnectorsMenu({
   connectors: ConnectorToggleProps;
 }) {
   const {status, unreachable} = useSystemStatus();
-  const {audience} = useAudience();
-  const connectors = visibleConnectors(status, audience);
+  const connectors = visibleConnectors(status);
   return (
     <div
       className={CONNECTORS_MENU_CLASSES}

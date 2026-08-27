@@ -1,29 +1,16 @@
-"""Tests for create-run config resolution with audience context."""
+"""Tests for create-run request validation."""
 
 from __future__ import annotations
 
-from app.runs_models import CreateRunRequest, _build_create_run_config
+from app.runs_models import CreateRunRequest
 
 
-def test_sbi_ucd_injects_audience_context() -> None:
+def test_stray_audience_field_is_ignored() -> None:
+    """An old cached frontend sending the retired `audience` field must not 422.
+
+    Pydantic's default ``extra="ignore"`` drops it silently, so a stale
+    client is never broken by the field's removal.
+    """
     req = CreateRunRequest(research_goal="goal", audience="sbi_ucd")
-    config, _focus, _tier = _build_create_run_config(req)
-    assert "SBI" in config["setup"]["audience_context"]
 
-
-def test_general_audience_has_no_context() -> None:
-    req = CreateRunRequest(research_goal="goal", audience="general")
-    config, _focus, _tier = _build_create_run_config(req)
-    assert "audience_context" not in config["setup"]
-
-
-def test_missing_audience_has_no_context() -> None:
-    req = CreateRunRequest(research_goal="goal")
-    config, _focus, _tier = _build_create_run_config(req)
-    assert "audience_context" not in config["setup"]
-
-
-def test_audience_persisted_in_config() -> None:
-    req = CreateRunRequest(research_goal="goal", audience="sbi_ucd")
-    config, _focus, _tier = _build_create_run_config(req)
-    assert config["audience"] == "sbi_ucd"
+    assert not hasattr(req, "audience")

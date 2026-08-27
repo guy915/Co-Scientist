@@ -84,11 +84,6 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
 
 def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
     """Add the durable goal interview's own metadata columns."""
-    # The audience that opened the interview, so its every turn can carry the
-    # same injected lab context the in-run Q&A gets. Persisted rather than
-    # taken per turn: the interview is durable and resumable, and a resumed
-    # one must not silently change which context it was conducted under.
-    _add_column_if_missing(conn, "interviews", "audience", "TEXT")
     # The Agent's chain of thought for one interview turn. Persisted rather
     # than relayed and dropped: a chat is short enough to carry its own
     # thinking back into the next turn's context, and a resumed chat that
@@ -265,6 +260,16 @@ def _migrate_task_attempts_history(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_drop_feedback_table(conn: sqlite3.Connection) -> None:
+    """Drop the retired pilot-feedback table.
+
+    Idempotent (``IF EXISTS``): a database built from the current schema
+    never created this table at all, and one built from an older schema
+    drops it exactly once.
+    """
+    conn.execute("DROP TABLE IF EXISTS feedback")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -278,3 +283,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_evidence_retrieval_scoring_columns(conn)
     _migrate_evidence_retrieval_call_id(conn)
     _migrate_task_attempts_history(conn)
+    _migrate_drop_feedback_table(conn)

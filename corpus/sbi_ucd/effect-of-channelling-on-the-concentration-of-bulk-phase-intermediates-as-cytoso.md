@@ -1,7 +1,0 @@
-# Effect of channelling on the concentration of bulk-phase intermediates as cytosolic proteins become more concentrated
-
-*Biochem J, 1996.* PMID: 8611176. DOI: 10.1042/bj3130921.
-
-## Abstract
-
-This paper shows that metabolic channelling can provide a mechanism for decreasing the concentration of metabolites in the cytoplasm when cytosolic proteins become more concentrated. A dynamic complex catalysing the direct transfer of an intermediate is compared with the analogous pathway lacking a channel (an "ideal" pathway). In an ideal pathway a proportional increase in protein content does not result in a change in the steady-state concentration of the bulk-phase intermediate, whereas in a channelling pathway the bulk-phase intermediate either decreases or increases depending on the elemental rate constants within the enzyme mechanisms. When the concentration of the enzymes are equal, the pool size decreases with increasing protein concentration if the elemental step depleting the bulk-phase intermediate exerts more control on its concentration than the step supplying the intermediate. Results are illustrated numerically, and a simplified dynamic channel is analysed in which the concentration of the enzyme-enzyme forms. For such a "hit-and-run" channel it is shown that, when the product-releasing step of the enzyme located upstream is close to equilibrium, the pool size decreases as the concentrations of the enzymes increase in proportion, regardless of the rate, equilibrium constants and concentration ratios of the two sequential enzymes.

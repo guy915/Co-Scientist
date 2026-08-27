@@ -3,7 +3,6 @@ import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
 import {makeHypothesis, makeRun} from '@/test_fixtures';
-import {AudienceProvider, type Audience} from '../audience_context';
 import {ChatHistoryProvider} from '../hooks/chat_history_context';
 import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
@@ -66,19 +65,15 @@ export {apiMock};
 export function renderWorkspace(path = '/') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      {/* Declared up front so AudienceGate doesn't open the affiliation
-          chooser over the workspace these tests are asserting on. */}
-      <AudienceProvider initialAudience="general">
-        <RunHistoryProvider>
-          <ChatHistoryProvider>
-            <Routes>
-              <Route path="/" element={<ChatWorkspace />} />
-              <Route path="/chats/:id" element={<ChatWorkspace />} />
-            </Routes>
-            <LocationProbe />
-          </ChatHistoryProvider>
-        </RunHistoryProvider>
-      </AudienceProvider>
+      <RunHistoryProvider>
+        <ChatHistoryProvider>
+          <Routes>
+            <Route path="/" element={<ChatWorkspace />} />
+            <Route path="/chats/:id" element={<ChatWorkspace />} />
+          </Routes>
+          <LocationProbe />
+        </ChatHistoryProvider>
+      </RunHistoryProvider>
     </MemoryRouter>,
   );
 }
@@ -86,29 +81,6 @@ export function renderWorkspace(path = '/') {
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}</div>;
-}
-
-/**
- * Renders ChatWorkspace pinned to a specific audience. The Lab papers connector
- * row is gated to the sbi_ucd audience, and {@link renderWorkspace} always
- * resolves to 'general'. Mirrors that helper's provider stack so the
- * `@/api/runs` mock it registers still applies.
- *
- * @param audience The audience to pin the workspace to.
- * @returns The React Testing Library render result.
- */
-export function renderWorkspaceAs(audience: Audience) {
-  return render(
-    <MemoryRouter>
-      <AudienceProvider initialAudience={audience}>
-        <RunHistoryProvider>
-          <ChatHistoryProvider>
-            <ChatWorkspace />
-          </ChatHistoryProvider>
-        </RunHistoryProvider>
-      </AudienceProvider>
-    </MemoryRouter>,
-  );
 }
 
 /**
@@ -134,16 +106,6 @@ export function stubStatusConnectors(
     })) as unknown as typeof fetch,
   );
 }
-
-/**
- * Backend-ordered connectors (web, pubmed, corpus) including the SBI/UCD paper
- * corpus, used by the audience-gated Lab papers connector tests.
- */
-export const CORPUS_CONNECTORS = [
-  {id: 'web_search', display: 'Web search'},
-  {id: 'pubmed', display: 'PubMed'},
-  {id: 'paper_corpus', display: 'Lab papers'},
-];
 
 /**
  * Builds a minimal run record, merging in any per-test overrides.

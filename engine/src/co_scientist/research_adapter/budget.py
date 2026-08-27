@@ -30,7 +30,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from co_scientist.research import ResearchBudget
-from co_scientist.research_adapter.local_corpus import GROUP_CORPUS_SOURCE
 
 # Tier -> (depth, breadth, hits per question). Absent means no research.
 _TIER_CEILINGS: dict[str, tuple[int, int, int]] = {
@@ -42,45 +41,6 @@ _TIER_CEILINGS: dict[str, tuple[int, int, int]] = {
 # each thread is a fan of searches plus a read plus two model calls, and
 # the sources throttle a burst long before this engine runs out of loop.
 _CONCURRENCY = 3
-
-
-# Places on every question guaranteed to the group's own papers. The
-# corpus is searched last -- it is appended after the network sources --
-# and a question reads a fixed number of documents drawn in that order,
-# so on a healthy run the indexed literature fills every place before the
-# corpus is reached and the group's library is never actually read. That
-# is preference order acting as a proxy for quality the corpus cannot
-# compete on: it has no citation count and no recency, which is the same
-# reason the literature review's evidence budget reserves places for it
-# (`search_budget.py::select_within_budget`).
-#
-# One place, not more. The reservation exists so the group's own work is
-# always consulted, not so it displaces the published literature -- at
-# three to five documents a question, one is between a fifth and a third
-# of the read, and the rest still go to whatever ranked best.
-_CORPUS_RESERVED_SLOTS = 1
-
-
-def _corpus_reservation(
-    sources: Sequence[str], hits_per_question: int
-) -> tuple[tuple[str, int], ...]:
-    """Reserve the corpus its places, when this run has a corpus at all.
-
-    Args:
-        sources: The run's sources, as the retrieval port names them.
-        hits_per_question: Documents this budget reads per question.
-
-    Returns:
-        The reservation, or empty when there is no corpus to reserve for
-        or so few documents that a reservation would claim them all --
-        which ``ResearchBudget`` refuses, and which would leave source
-        order deciding nothing.
-    """
-    if GROUP_CORPUS_SOURCE not in sources:
-        return ()
-    if hits_per_question <= _CORPUS_RESERVED_SLOTS:
-        return ()
-    return ((GROUP_CORPUS_SOURCE, _CORPUS_RESERVED_SLOTS),)
 
 
 def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
@@ -109,7 +69,6 @@ def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
         concurrency=_CONCURRENCY,
         hits_per_question=hits,
         sources=tuple(sources),
-        reserved_slots=_corpus_reservation(sources, hits),
     )
 
 
@@ -197,7 +156,6 @@ def review_budget_for_tier(
         concurrency=_CONCURRENCY,
         hits_per_question=hits,
         sources=tuple(sources),
-        reserved_slots=_corpus_reservation(sources, hits),
     )
 
 

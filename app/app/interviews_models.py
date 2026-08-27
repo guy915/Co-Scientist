@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.audience import AUDIENCE_PATTERN
-
 
 class CreateInterviewRequest(BaseModel):
     """Initial scientist challenge for a new interview.
@@ -23,7 +21,6 @@ class CreateInterviewRequest(BaseModel):
     """
 
     research_challenge: str = Field(..., min_length=1, max_length=20_000)
-    audience: str | None = Field(None, pattern=AUDIENCE_PATTERN)
     document_ids: list[str] = Field(default_factory=list)
 
 

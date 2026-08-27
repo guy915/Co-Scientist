@@ -306,7 +306,7 @@ def test_evidence_corpus_interleaves_sources() -> None:
         make_article(title="P3", source="pubmed", used_in_analysis=True),
         make_article(title="O1", source="openalex", used_in_analysis=True),
         make_article(title="O2", source="openalex", used_in_analysis=True),
-        make_article(title="C1", source="sbi_corpus", used_in_analysis=True),
+        make_article(title="C1", source="third_source", used_in_analysis=True),
     ]
 
     corpus = ro._build_evidence_corpus(articles)
@@ -321,7 +321,7 @@ def test_evidence_corpus_interleaves_sources() -> None:
     assert {entry["source"] for entry in ordered[:3]} == {
         "pubmed",
         "openalex",
-        "sbi_corpus",
+        "third_source",
     }
     # Best-first order is preserved within each source.
     pubmed_titles = [e["title"] for e in ordered if e["source"] == "pubmed"]

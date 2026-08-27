@@ -17,7 +17,6 @@ from app import (
     diagnostics,
     engine_adapter,
     ops_metrics,
-    paper_corpus,
 )
 from app.config import settings
 from app.notifications import email_notifications_configured
@@ -384,7 +383,6 @@ def _build_status_payload(
             literature_available=literature_available,
             enabled_tools=adapter_status.get("enabled_tools"),
             web_search_available=web_search.available,
-            paper_corpus_available=bool(paper_corpus.load_catalog()),
         ),
         # provider/llm_backend/model_name/etc. from engine_adapter.system_status
         **adapter_status,

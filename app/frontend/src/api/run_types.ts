@@ -72,12 +72,6 @@ export type RunEventActivity =
   | 'synthesis'
   | 'other';
 
-/**
- * Self-declared audience riding on run, interview, and Q&A requests.
- * Honor system, no server verification.
- */
-export type Audience = 'general' | 'google' | 'sbi_ucd';
-
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {
   goal: string;
@@ -103,7 +97,6 @@ export interface RunConfig {
   evidence_count?: number;
   enable_literature_review?: boolean;
   enable_web_search?: boolean;
-  enable_paper_corpus?: boolean;
   k_factor?: number;
   tier?: RunTier;
   focus?: RunFocus;

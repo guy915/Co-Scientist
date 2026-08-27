@@ -49,49 +49,6 @@ servers:
 # change is needed.
 tools:
   search_tools:
-    # The research group's own papers, held as sanitized full text on the MCP
-    # server rather than fetched from a publisher. The group's papers are not
-    # searched: the whole catalogue (title + abstract of every paper) is
-    # injected into the run's context by the app, so the model already knows
-    # what each paper is and reads any one in full with this tool by paper_id.
-    # Papers run 8k-24k tokens, a small fraction of the configured models'
-    # context, so reading one in full is cheap when its abstract is not
-    # enough. Silently empty when no corpus is installed, which is the default.
-    paper_corpus_fetch:
-      server: "default_pubmed"
-      mcp_tool_name: "fetch_paper"
-      display_name: "Group Paper Full Text"
-      description: "Read one of the research group's own papers in full, by paper_id"
-      category: "search"
-      source_type: "academic"
-      enabled: true
-      effects: ["read", "network"]
-
-      response_format:
-        type: "json"
-        results_path: "."
-        is_dict: true
-        field_mapping:
-          title: "title"
-          content: "content"
-          source_id: "source_id"
-          source: "'group_corpus'"
-
-      prompt_snippet: |
-        Use `fetch_paper` to read one of the research group's own papers in full.
-        - The `paper_id` comes from the catalogue of the group's papers already in your
-          context: every paper's title, abstract, and `paper_id` are listed there.
-        - Use it when an abstract shows a paper is relevant but you need what a method
-          actually did, what the controls were, or what the paper concluded rather than
-          claimed.
-        - Example: fetch_paper(paper_id="control-of-cell-state-transitions")
-
-      parameters:
-        paper_id:
-          type: "string"
-          required: true
-          description: "The paper_id from the injected paper catalogue"
-
     # PubMed metadata search (used in draft phase)
     pubmed_search:
       server: "default_pubmed"
@@ -584,10 +541,6 @@ workflows:
   # Literature review phase - comprehensive paper analysis
   literature_review:
     search_sources:
-      # The group's own papers are no longer a search source: their whole
-      # catalogue (title + abstract of every paper) is injected into the run's
-      # context by the app, and paper_corpus_fetch reads any one in full on
-      # demand. So the literature review searches the public databases only.
       - tool: "pubmed_fulltext"
         papers_per_query: 4
         enabled: true
@@ -636,7 +589,6 @@ workflows:
   draft_generation:
     search_tools:
       - "pubmed_search"
-      - "paper_corpus_fetch"
       - "web_search"
     read_tools:
       - "read_url"
@@ -653,7 +605,6 @@ workflows:
       # months, which is the window that lives on preprint servers and is
       # invisible to a peer-reviewed-only search.
       - "preprint_search"
-      - "paper_corpus_fetch"
 
   # Reflection phase - entity-based evidence lookup against knowledge-graph
   # sources. Web tools do not fit this path (it queries by gene/protein
@@ -670,7 +621,6 @@ workflows:
       - "ensembl_gene"
       - "gnomad_constraint"
       - "clinical_trials"
-      - "paper_corpus_fetch"
 
 # Global Settings
 settings:

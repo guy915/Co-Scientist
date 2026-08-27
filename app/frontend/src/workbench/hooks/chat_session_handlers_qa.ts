@@ -18,7 +18,6 @@ type AskComposerDeps = Pick<
   HandlerDeps,
   | 'input'
   | 'startedSession'
-  | 'audience'
   | 'setInput'
   | 'setError'
   | 'setToast'
@@ -95,13 +94,7 @@ async function runAskRequest(
   const {sinks, result} = buildAskSinks(deps);
   const signal = beginTurnAbort(deps);
   try {
-    await askRunQuestion(
-      runId,
-      text,
-      sinks,
-      deps.audience ?? undefined,
-      signal,
-    );
+    await askRunQuestion(runId, text, sinks, signal);
     const {answer, sources} = result();
     appendChatMessage(deps.setMessages, {
       role: 'assistant',

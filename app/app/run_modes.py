@@ -147,23 +147,18 @@ def setup_config(
     lists: PlanningLists | None = None,
     focus: str | None = None,
     tier: str | None = None,
-    audience_context: str = "",
 ) -> dict[str, Any]:
     """Build the durable setup block persisted inside run config JSON.
 
     Callers that omit the planning lists (a direct API call, a seeded demo)
     fall back to the client-independent planning baseline so the engine
-    always receives guidance regardless of which client created the run. A
-    non-empty audience_context is stored so setup_guidance can surface it to
-    the planning and generation agents.
+    always receives guidance regardless of which client created the run.
 
     Args:
         research_goal: The run's research goal.
         lists: The user-authored requirements/attributes/criteria.
         focus: Requested research focus; normalized, defaulting to balanced.
         tier: Requested run tier; normalized, defaulting to standard.
-        audience_context: The audience's injected context, stored only when
-            non-empty.
 
     Returns:
         The setup block persisted inside the run's config JSON.
@@ -171,7 +166,7 @@ def setup_config(
     lists = lists or PlanningLists()
     # `or` also covers lists that become empty after cleaning, so a caller
     # sending only blank strings still gets the baseline defaults.
-    setup: dict[str, Any] = {
+    return {
         "goal": research_goal.strip(),
         "requirements": clean_string_list(lists.requirements)
         or list(DEFAULT_REQUIREMENTS),
@@ -181,9 +176,6 @@ def setup_config(
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
     }
-    if audience_context.strip():
-        setup["audience_context"] = audience_context.strip()
-    return setup
 
 
 def focus_guidance(focus: str | None) -> str:
@@ -252,10 +244,6 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
         ("Criteria", "criteria"),
     ):
         lines.extend(_setup_field_lines(title, setup.get(key)))
-    context = setup.get("audience_context")
-    if isinstance(context, str) and context.strip():
-        lines.append("Audience context:")
-        lines.append(context.strip())
     return "\n".join(lines)
 
 
@@ -344,7 +332,6 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "setup": _apply_verbatim_override,
     "tier": _apply_tier_override,
     "focus": _apply_focus_override,
-    "audience": _apply_verbatim_override,
     # Provider flag of a bring-your-own-key run (the provider name only,
     # never the key). Must survive every config round-trip verbatim:
     # resolve_offline_backend reads it to keep the run real-backed, and
@@ -353,7 +340,6 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "enable_literature_review": _apply_bool_override,
     "llm_backend": _apply_llm_backend_override,
     "enable_web_search": _apply_bool_override,
-    "enable_paper_corpus": _apply_bool_override,
     # A discovery run's whole specification: what to optimize, how to
     # measure it, and the program to start from. Verbatim because it is a
     # dict -- the numeric fallback cannot coerce one and would drop it
@@ -431,8 +417,4 @@ def resolved_run_config(
     # Web search is on by default, matching the literature stack. It is a
     # no-op unless the MCP server actually offers the tool.
     base.setdefault("enable_web_search", True)
-    # The paper corpus is on by default. It is a no-op for every audience but
-    # sbi_ucd (whose gate dominates the toggle), and for that audience only
-    # when the corpus catalog is actually installed.
-    base.setdefault("enable_paper_corpus", True)
     return base

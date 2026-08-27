@@ -24,11 +24,10 @@ logger = logging.getLogger(__name__)
 # composer's connectors menu. Add an entry here when a new connector's tools are
 # wired up so it appears in the menu automatically.
 # Order is the composer menu's top-to-bottom order: web search, then the
-# PubMed literature base, then the lab's own paper corpus, then INDRA.
+# PubMed literature base, then INDRA.
 _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
     ("web_search", "Web search"),
     ("pubmed", "PubMed"),
-    ("paper_corpus", "Lab papers"),
     ("indra", "INDRA"),
 )
 
@@ -38,24 +37,21 @@ def connectors_report(
     literature_available: bool,
     enabled_tools: list[str] | None,
     web_search_available: bool = False,
-    paper_corpus_available: bool = False,
 ) -> list[dict[str, str]]:
     """Derive the user-facing data-source connectors for the composer menu.
 
-    A connector backed by a live probe (PubMed, web search, the paper
-    corpus) is listed on that probe alone: being configured is not the same
-    as being reachable, and offering a source the run cannot actually query
-    is how "the agent never searched the web" becomes a mystery rather than
-    a deployment answer. Every other known connector is listed when the
-    tools YAML enables a matching tool. Falls back to PubMed so the menu is
-    never empty.
+    A connector backed by a live probe (PubMed, web search) is listed on
+    that probe alone: being configured is not the same as being reachable,
+    and offering a source the run cannot actually query is how "the agent
+    never searched the web" becomes a mystery rather than a deployment
+    answer. Every other known connector is listed when the tools YAML
+    enables a matching tool. Falls back to PubMed so the menu is never
+    empty.
 
     Args:
         literature_available: Whether the MCP + PubMed literature stack is up.
         enabled_tools: Enabled tool ids from a readable tools config, or None.
         web_search_available: Advertised only when a provider key is set.
-        paper_corpus_available: Whether a paper catalog is installed (shown
-            only to the corpus audience; see paper_corpus.catalog_context).
 
     Returns:
         Ordered connectors, each ``{"id": ..., "display": ...}``.
@@ -64,7 +60,6 @@ def connectors_report(
     available_by_probe = {
         "pubmed": literature_available,
         "web_search": web_search_available,
-        "paper_corpus": paper_corpus_available,
     }
     connectors: list[dict[str, str]] = []
     for key, display in _KNOWN_CONNECTORS:

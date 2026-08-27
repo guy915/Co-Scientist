@@ -68,7 +68,7 @@ def _prune_older_checkpoints(
     get_latest_checkpoint is the only reader in the codebase, so any row
     below the newest seq is already unreachable -- nothing can load it
     again. Each envelope is a whole WorkflowState snapshot (hypotheses,
-    reviews, literature, the injected audience context), so keeping the
+    reviews, literature, injected run context), so keeping the
     history cost hundreds of kilobytes per boundary crossed: in production
     it grew this table to 380 MB, 97% of the database, and filled the
     volume until every write failed with "database or disk is full".

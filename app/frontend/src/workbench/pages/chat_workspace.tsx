@@ -8,7 +8,6 @@ import {
 } from 'react-router-dom';
 import {type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {useAudience} from '../audience_context';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
@@ -40,22 +39,19 @@ interface ChatWorkspaceLocationState {
 // useToast's setter type, matching its actual (non-Dispatch) signature.
 type SetToast = (value: string | ToastState | null) => void;
 
-// Owns the PubMed/web-search/lab-papers connector toggles, each defaulting
-// on and shared between the home and in-chat composers. Returned in the shape
-// the composer already takes them in (ConnectorToggleProps), so every surface
-// between here and the connectors menu passes one value rather than restating
-// the same six names.
+// Owns the PubMed/web-search connector toggles, each defaulting on and
+// shared between the home and in-chat composers. Returned in the shape the
+// composer already takes them in (ConnectorToggleProps), so every surface
+// between here and the connectors menu passes one value rather than
+// restating the same four names.
 function useConnectorToggles(): ConnectorToggleProps {
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
-  const [paperCorpusEnabled, setPaperCorpusEnabled] = useState(true);
   return {
     pubmedEnabled,
     onPubmedEnabledChange: setPubmedEnabled,
     webSearchEnabled,
     onWebSearchEnabledChange: setWebSearchEnabled,
-    paperCorpusEnabled,
-    onPaperCorpusEnabledChange: setPaperCorpusEnabled,
   };
 }
 
@@ -72,12 +68,11 @@ interface WorkspaceSessionBundle {
   session: ReturnType<typeof useChatSession>;
 }
 
-// Owns the audience, toast, recents-history, and session state machine, and
-// the stable focusComposer callback they all share.
+// Owns the toast, recents-history, and session state machine, and the
+// stable focusComposer callback they all share.
 function useWorkspaceSessionBundle(
   connectors: ConnectorToggleProps,
 ): WorkspaceSessionBundle {
-  const {audience} = useAudience();
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
   const navigate = useNavigate();
@@ -102,8 +97,6 @@ function useWorkspaceSessionBundle(
     setToast,
     pubmedEnabled: connectors.pubmedEnabled,
     webSearchEnabled: connectors.webSearchEnabled,
-    paperCorpusEnabled: connectors.paperCorpusEnabled,
-    audience,
   });
   return {
     toast,
@@ -187,7 +180,7 @@ export function ChatWorkspace() {
   const [showAllRecents, setShowAllRecents] = useState(false);
   const connectors = useConnectorToggles();
 
-  // The session state machine, audience, toast, and recents data all live in
+  // The session state machine, toast, and recents data all live in
   // this bundle; the layout bundle below wires "New chat"/header-title sync
   // and builds the timeline on top of it.
   const sessionBundle = useWorkspaceSessionBundle(connectors);

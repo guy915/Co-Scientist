@@ -8,11 +8,9 @@ import {RunHistoryProvider} from './hooks/run_history_context';
 import {SystemStatusProvider} from './hooks/system_status_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
-import {ProposalsPage} from './pages/proposals_page';
 import {RunDetail} from './pages/run_detail';
 import {SharedGoalReportPage} from './pages/shared_goal_report';
 import {ResearcherAccessPage} from './pages/researcher_access';
-import {AudienceProvider} from './audience_context';
 import {ThemeProvider} from './theme_context';
 
 // Every routed page mounts with a NoIndex tag; this pairs them once.
@@ -41,13 +39,6 @@ function WorkbenchRoutes() {
       <Route
         path="/access"
         element={page('Researcher access', <ResearcherAccessPage />)}
-      />
-      <Route path="/proposals" element={page('Proposals', <ProposalsPage />)} />
-      {/* The page was published as /recommendations before it became the
-          proposals graph; keep the old path working. */}
-      <Route
-        path="/recommendations"
-        element={<Navigate to="/proposals" replace />}
       />
       <Route
         path="/shared/:token"
@@ -79,17 +70,15 @@ export function WorkbenchApp() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <AudienceProvider>
-          <SystemStatusProvider>
-            <RunHistoryProvider>
-              <ChatHistoryProvider>
-                <Layout>
-                  <WorkbenchRoutes />
-                </Layout>
-              </ChatHistoryProvider>
-            </RunHistoryProvider>
-          </SystemStatusProvider>
-        </AudienceProvider>
+        <SystemStatusProvider>
+          <RunHistoryProvider>
+            <ChatHistoryProvider>
+              <Layout>
+                <WorkbenchRoutes />
+              </Layout>
+            </ChatHistoryProvider>
+          </RunHistoryProvider>
+        </SystemStatusProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

@@ -57,7 +57,6 @@ from co_scientist.research_adapter import (
     McpRetrieval,
     ResearchRetrieval,
     budget_for_tier,
-    local_corpus_for,
 )
 from co_scientist.research_adapter.retrieval import ResearchRun
 from co_scientist.state import WorkflowState
@@ -185,9 +184,7 @@ async def _prepare(
     """Resolve what this cycle may search, and whether it may at all.
 
     Every gate is checked before a client is opened, so a cycle that
-    buys no exploration costs nothing. A corpus-only run still explores:
-    one source on local disk is the degradation this should have, not
-    exploring nothing.
+    buys no exploration costs nothing.
 
     Returns:
         The retrieval port and its budget, or None.
@@ -197,29 +194,25 @@ async def _prepare(
     )
 
     tier = str(state.get("research_tier") or "")
-    local = local_corpus_for(state)
     if not is_research_expansion(state) or not tier:
         return None
-    if not state.get("mcp_available") and local is None:
+    if not state.get("mcp_available"):
         return None
     config = _get_search_config(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = ResearchRetrieval(await _remote_for(state, config), local)
+    retrieval = ResearchRetrieval(await _remote_for(state, config))
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
 
 
-async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval | None:
-    """Open the MCP half of retrieval, or None when there is no server.
+async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval:
+    """Open the MCP half of retrieval.
 
-    Kept separate so the client is opened only where one can exist: a
-    corpus-only cycle must not open an MCP client to prove it cannot.
+    Only called once the caller has confirmed ``mcp_available``.
     """
     from co_scientist.mcp_client import get_mcp_client
 
-    if not state.get("mcp_available"):
-        return None
     client = await get_mcp_client(tool_registry=config.tool_registry)
     return McpRetrieval(
         client,
