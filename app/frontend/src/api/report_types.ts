@@ -108,9 +108,8 @@ export interface ResearchOverview {
       suggested_experiments: string[];
     }[];
   };
-  // The blocks Google's published Specific Aims exemplars print. Reports
-  // stored before the engine adopted that vocabulary carry the older
-  // introduction/impact pair, so both stay declared and both render.
+  // The blocks Google's published exemplars print, plus the older
+  // introduction/impact pair reports stored before them still carry.
   nih_specific_aims?: {
     disease_description?: string;
     unmet_need?: string;

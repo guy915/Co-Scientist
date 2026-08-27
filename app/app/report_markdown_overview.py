@@ -154,26 +154,19 @@ _AIMS_PREAMBLE_BLOCKS = (
     ("unmet_need", "Unmet Need"),
     ("proposed_solution", "Proposed Solution"),
 )
-_AIMS_CLOSING_BLOCKS = (("pilot_evaluation", "Pilot Evaluation"),)
-_AIMS_LEGACY_CLOSING_BLOCKS = (("impact", "Impact"),)
+_AIMS_CLOSING_BLOCKS = (
+    ("pilot_evaluation", "Pilot Evaluation"),
+    ("impact", "Impact"),
+)
 # Per-aim fields, new spelling first: the exemplars give every aim a goal,
-# the hypothesis it tests, and the reasoning behind it.
-_AIM_HEADING_KEYS = ("overarching_goal", "aim")
+# the hypothesis it tests, and the reasoning behind it. Only one spelling
+# is ever present, so the whole list renders in order.
 _AIM_BODY_FIELDS = (
     ("hypothesis", "Hypothesis"),
     ("reasoning", "Reasoning"),
     ("rationale", "Rationale"),
     ("approach", "Approach"),
 )
-
-
-def _first_readable(source: dict[str, Any], keys: tuple[str, ...]) -> str:
-    """Return the first key's readable text, or empty when none is set."""
-    for key in keys:
-        text = _readable_text(source.get(key, ""))
-        if text:
-            return text
-    return ""
 
 
 def _render_labeled_blocks(
@@ -192,7 +185,10 @@ def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
     """Render one NIH aim entry, or nothing when not a dict."""
     if not isinstance(aim, dict):
         return []
-    lines = [f"### {_first_readable(aim, _AIM_HEADING_KEYS)}\n"]
+    heading = _readable_text(aim.get("overarching_goal", "")) or _readable_text(
+        aim.get("aim", "")
+    )
+    lines = [f"### {heading}\n"]
     for key, label in _AIM_BODY_FIELDS:
         text = _readable_text(aim.get(key, ""))
         if text:
@@ -223,9 +219,7 @@ def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
         _readable_text(aims_section.get("introduction"))
     ) + _render_labeled_blocks(aims_section, _AIMS_PREAMBLE_BLOCKS)
     aims = aims_section.get("aims") or []
-    closing = _render_labeled_blocks(
-        aims_section, _AIMS_CLOSING_BLOCKS + _AIMS_LEGACY_CLOSING_BLOCKS
-    )
+    closing = _render_labeled_blocks(aims_section, _AIMS_CLOSING_BLOCKS)
     if not _has_aims_content(preamble, aims, closing):
         return []
     return [

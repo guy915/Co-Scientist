@@ -8,15 +8,7 @@ import {
   REPORT_SECTION_CLASSES,
 } from './run_detail_document';
 
-// Renders `text` as a paragraph when present, else nothing — used for the
-// optional introduction/impact copy around a specific-aims list.
-function OptionalParagraph({text}: {text: string | undefined}) {
-  if (!text) return null;
-  return <p>{text}</p>;
-}
-
-// "Specific aims" section of the research-overview report; renders nothing
-// until the report has specific aims.
+// Renders nothing until the report has specific aims.
 export function SpecificAimsSection({
   overview,
 }: {
@@ -71,11 +63,11 @@ const AIM_BODY_FIELDS = [
   ['approach', ''],
 ] as const;
 
-// One headed block of the aims page, or an unheaded paragraph when the
-// field predates the headings; renders nothing when the field is empty.
+// One headed block of the aims page, or a bare paragraph when the field
+// predates the headings; renders nothing when the field is empty.
 function LabeledBlock({heading, text}: {heading: string; text: string}) {
   if (!text) return null;
-  if (!heading) return <OptionalParagraph text={text} />;
+  if (!heading) return <p>{text}</p>;
   return (
     <div>
       <h4 className={REPORT_H4_CLASSES}>{heading}</h4>
