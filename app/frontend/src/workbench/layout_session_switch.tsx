@@ -81,11 +81,13 @@ const SWITCH_SIDES: {
 // The track: the Logs pill's own shape (height, radius, typography) with no
 // padding of its own, so each half is a full-height pill exactly the size of
 // the Logs trigger rather than a smaller one inset inside a taller box. It
-// wears the recents card's surface -- the same quiet card colour the home
-// list uses -- so the accent is spent only on the half you are on.
+// wears the recents card's own chip surface (--cosci-recent-meta-bg), which
+// is configured light and dark to read as a quiet raised surface on either
+// -- unlike the card's body colour, which is plain white in light mode and
+// so vanishes into the header.
 const SWITCH_TRACK_CLASSES = joinClasses(
   'ucs-session-switch relative box-border inline-grid grid-cols-2 p-0',
-  'bg-cosci-recent-card-bg',
+  'bg-cosci-recent-meta-bg',
   HEADER_PILL_SHAPE_CLASSES,
 );
 

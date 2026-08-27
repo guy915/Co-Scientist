@@ -312,10 +312,12 @@
 }
 
 /* Scoped to the unhighlighted side so a hover never fights the accent behind
-   the other one. */
+   the other one. A tint distinct from the track in both themes -- the
+   menu-row hover colour is the track's own value, so it would read as no
+   hover at all. */
 .ucs-session-switch-side:not(.ucs-session-switch-side--active):hover,
 .ucs-session-switch-side:not(.ucs-session-switch-side--active):focus-visible {
-  background: var(--cosci-menu-row-hover);
+  background: var(--cosci-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {

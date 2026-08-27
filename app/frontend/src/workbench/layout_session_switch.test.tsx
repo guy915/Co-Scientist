@@ -81,8 +81,9 @@ it('spends the accent on the sliding highlight and colours both labels itself', 
   expect(track?.className).not.toContain('bg-cosci-logs-accent-bg');
   expect(results.className).not.toContain('bg-cosci-logs-accent-bg');
   expect(chat.className).not.toContain('bg-cosci-logs-accent-bg');
-  // The quiet surface is the recents card's, not a colour invented here.
-  expect(track?.className).toContain('bg-cosci-recent-card-bg');
+  // The quiet surface is an existing configured pair, not a colour
+  // invented here.
+  expect(track?.className).toContain('bg-cosci-recent-meta-bg');
   // Neither side may fall back to the inherited colour.
   expect(results.className).toContain('text-cosci-logs-accent-fg');
   expect(chat.className).toContain('text-cosci-shell-icon');
