@@ -3,11 +3,10 @@ import {type InterviewQuestion, type InterviewTurn} from '@/api/runs';
 import {
   answerText,
   emptySelections,
-  isOtherOpen,
+  hasOtherAnswer,
   pendingQuestions,
   setOther,
   toggleOption,
-  toggleOther,
 } from './chat_questions';
 
 const MODEL_SYSTEM: InterviewQuestion = {
@@ -147,16 +146,25 @@ test('no interview at all offers nothing', () => {
   expect(pendingQuestions(null)).toBeNull();
 });
 
-test('opening the free-text field declines the options without answering yet', () => {
-  const selections = toggleOther(emptySelections(), 0);
-  expect(isOtherOpen(selections, 0)).toBe(true);
+test('blank or whitespace-only free text is not yet an answer', () => {
+  expect(hasOtherAnswer(emptySelections(), 0)).toBe(false);
+  const selections = setOther(emptySelections(), 0, '   ');
+  expect(hasOtherAnswer(selections, 0)).toBe(false);
   expect(answerText([MODEL_SYSTEM], selections)).toBe('');
 });
 
-test('closing the free-text field discards what was written in it', () => {
+test('typing non-blank free text is what answers the question', () => {
+  const selections = setOther(emptySelections(), 0, 'A scaffold');
+  expect(hasOtherAnswer(selections, 0)).toBe(true);
+  expect(answerText([MODEL_SYSTEM], selections)).toBe(
+    'Model system: A scaffold',
+  );
+});
+
+test('clearing the free-text field un-answers the question', () => {
   let selections = setOther(emptySelections(), 0, 'A scaffold');
-  selections = toggleOther(selections, 0);
-  expect(isOtherOpen(selections, 0)).toBe(false);
+  selections = setOther(selections, 0, '');
+  expect(hasOtherAnswer(selections, 0)).toBe(false);
   expect(answerText([MODEL_SYSTEM], selections)).toBe('');
 });
 

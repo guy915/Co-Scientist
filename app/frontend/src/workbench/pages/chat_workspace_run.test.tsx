@@ -30,6 +30,16 @@ function submitResearchGoal(goal = RESEARCH_GOAL) {
 }
 
 /**
+ * The live message composer -- once a run's spec card is on screen, its
+ * always-present completion-email field is also a "textbox", so lookups
+ * after that point must tell the two apart by tag rather than assume
+ * there is only one.
+ */
+function getComposer(): HTMLElement {
+  return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
+}
+
+/**
  * Installs clipboard, object-URL, and anchor-download spies used by the
  * transcript action-control assertions.
  *
@@ -362,7 +372,7 @@ it('keeps the composer live once the run starts, asking it instead of the interv
 
   // The interview is completed server-side once the run starts, but the
   // composer itself stays usable -- it now asks the run, not the interview.
-  const composer = screen.getByRole('textbox');
+  const composer = getComposer();
   expect(composer).toBeEnabled();
   expect(screen.getByRole('button', {name: 'Files'})).toBeEnabled();
   expect(screen.getByRole('button', {name: 'Connectors'})).toBeEnabled();
@@ -406,7 +416,7 @@ it('streams a run Q&A answer into a growing assistant bubble', async () => {
       }),
   );
 
-  const composer = screen.getByRole('textbox');
+  const composer = getComposer();
   fireEvent.change(composer, {target: {value: 'Why?'}});
   fireEvent.submit(composer.closest('form')!);
 

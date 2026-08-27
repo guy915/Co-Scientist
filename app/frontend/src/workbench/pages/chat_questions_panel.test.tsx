@@ -59,17 +59,47 @@ test('the send control is inert until something has been chosen', () => {
   expect(screen.getByRole('button', {name: /send/i})).toBeDisabled();
 });
 
-test('choosing "Something else" opens a field for the scientist own wording', () => {
+test('the free-text field is already there, with no click needed to reveal it', () => {
+  renderChooser();
+  expect(screen.getByPlaceholderText(/your own answer/i)).toBeTruthy();
+});
+
+test('typing into "Something else" is what answers it', () => {
   const {onAnswer} = renderChooser();
-  expect(screen.queryByPlaceholderText(/your own answer/i)).toBeNull();
-  fireEvent.click(screen.getByLabelText(/Something else/));
-  fireEvent.change(screen.getByPlaceholderText(/your own answer/i), {
+  fireEvent.change(screen.getByLabelText(/Something else/), {
     target: {value: 'A decellularized scaffold'},
   });
   fireEvent.click(screen.getByRole('button', {name: /send/i}));
   expect(onAnswer).toHaveBeenCalledWith(
     'Model system: A decellularized scaffold',
   );
+});
+
+test('a keystroke never sends the free-text answer, even for a single question', () => {
+  const {onAnswer} = renderChooser();
+  fireEvent.change(screen.getByLabelText(/Something else/), {
+    target: {value: 'A'},
+  });
+  expect(onAnswer).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', {name: /send/i})).toBeTruthy();
+});
+
+test('pressing Enter in the free-text field does not submit anything', () => {
+  const {onAnswer} = renderChooser();
+  const field = screen.getByLabelText(/Something else/);
+  fireEvent.change(field, {target: {value: 'A decellularized scaffold'}});
+  // fireEvent returns false when the handler called preventDefault, which is
+  // what actually proves the guard fired -- jsdom has no implicit form
+  // submission for Enter to begin with, so `onAnswer` alone can't tell.
+  expect(fireEvent.keyDown(field, {key: 'Enter'})).toBe(false);
+  expect(onAnswer).not.toHaveBeenCalled();
+});
+
+test('the answers render as a single column of full-width rows', () => {
+  renderChooser();
+  const group = screen.getByRole('group', {name: MODEL_SYSTEM.question});
+  const grid = group.querySelector(':scope > div');
+  expect(grid?.className).toMatch(/grid-cols-1\b/);
 });
 
 test('dismissing the chooser leaves nothing of it on screen', () => {

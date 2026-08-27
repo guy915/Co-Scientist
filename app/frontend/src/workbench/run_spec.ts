@@ -178,11 +178,23 @@ export function runOptionLabel(
 }
 
 /**
+ * The minimal address-shape check (anything@anything.tld) used both to
+ * decide whether a typed address turns notification on, and to gate
+ * "Start research" below.
+ */
+export function isValidCompletionEmail(email: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+}
+
+/**
  * Whether the spec's completion-notification email passes the minimal
- * shape check used to enable "Start research" (anything@anything.tld);
- * trivially true when notification is off.
+ * shape check used to enable "Start research"; trivially true when
+ * notification is off. `notifyOnCompletion` is derived from the email's
+ * own validity (see `CompletionNotification`), so a half-typed address
+ * never sets it -- it stays a normal, silent "no email" rather than
+ * something that can block starting a run.
  */
 export function isCompletionEmailValid(spec: InferredRunSpec): boolean {
   if (!spec.notifyOnCompletion) return true;
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(spec.completionEmail || '');
+  return isValidCompletionEmail(spec.completionEmail || '');
 }

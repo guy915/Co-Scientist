@@ -37,9 +37,23 @@ export interface HeaderControlProps {
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
 /**
+ * Shape and typography of every accent pill in the header: the Logs,
+ * Google-note, and pilot-feedback triggers, and the Chat/Results switch's
+ * track. Deliberately excludes padding, gap, and interaction states (hover,
+ * expanded) -- those differ per consumer (a clickable trigger wants them
+ * across its whole hit area; the switch wants them per side) and setting the
+ * same CSS property twice on one element leaves Tailwind's stylesheet order,
+ * not class order, to pick the winner.
+ */
+export const HEADER_ACCENT_PILL_CLASSES =
+  'inline-flex h-[2.35rem] min-w-max items-center rounded-full ' +
+  'bg-cosci-logs-accent-bg font-[inherit] text-[0.88rem] font-semibold ' +
+  'whitespace-nowrap text-cosci-logs-accent-fg';
+
+/**
  * Trigger chrome shared by the header's right-side controls (the Logs,
- * Google-note, and pilot-feedback pills): an accent pill whose expanded
- * state holds the hover tint.
+ * Google-note, and pilot-feedback pills): the accent pill above, whose
+ * expanded state holds the hover tint.
  *
  * @param padding The control's padding utilities, passed as complete class
  *   names so Tailwind's scanner sees them at the call site. The Logs
@@ -48,11 +62,8 @@ export const NAV_ICON_CLASSES = 'ucs-nav-icon';
  */
 export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
   return (
-    'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max ' +
-    'cursor-pointer items-center gap-[0.45rem] rounded-full border-0 ' +
-    `bg-cosci-logs-accent-bg ${padding} font-[inherit] text-[0.88rem] ` +
-    'font-semibold whitespace-nowrap text-cosci-logs-accent-fg ' +
-    'hover:bg-cosci-logs-accent-hover ' +
+    `ucs-logs-button relative cursor-pointer gap-[0.45rem] border-0 ${padding} ` +
+    `${HEADER_ACCENT_PILL_CLASSES} hover:bg-cosci-logs-accent-hover ` +
     '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover'
   );
 }
@@ -60,9 +71,9 @@ export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
 // The plain pill, for a control that does not tighten its own padding.
 const DEFAULT_HEADER_CONTROL_CLASSES = headerControlButtonClasses();
 
-// Leading-icon sizing, shared by every header control so the three pills
-// line up whatever icon they carry.
-const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
+// Leading-icon sizing, shared by every header control (and the session
+// switch, which wears the same chrome) so their icons all line up.
+export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
 
 /**
  * The header controls' shared trigger: the accent pill above, carrying a

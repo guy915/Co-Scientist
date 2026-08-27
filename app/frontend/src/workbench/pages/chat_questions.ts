@@ -65,32 +65,17 @@ export function setOther(
 }
 
 /**
- * Whether one question's "something else" field is open.
+ * Whether the scientist has written their own words for one question.
  *
- * The key's presence is the flag, not its contents: a scientist who has
- * opened the field but not yet typed into it has still declined every
- * option offered, and the field must stay open while they write.
+ * The field is always on screen -- there is no open/closed step to track --
+ * so "chosen" is exactly "the field holds non-blank text", the same trim
+ * rule `answerText` composes an answer with.
  */
-export function isOtherOpen(
+export function hasOtherAnswer(
   selections: QuestionSelections,
   index: number,
 ): boolean {
-  return index in selections.other;
-}
-
-/** Returns the selections with one question's free-text field toggled. */
-export function toggleOther(
-  selections: QuestionSelections,
-  index: number,
-): QuestionSelections {
-  if (!isOtherOpen(selections, index)) return setOther(selections, index, '');
-  // Rebuilt without the key rather than deleted from a copy: closing the
-  // field discards what was written in it, and an entry left behind holding
-  // stale text would be sent the next time anything else is answered.
-  const other = Object.fromEntries(
-    Object.entries(selections.other).filter(([key]) => key !== String(index)),
-  );
-  return {...selections, other};
+  return (selections.other[index] ?? '').trim().length > 0;
 }
 
 // Everything the scientist gave for one question: what they clicked, then

@@ -28,16 +28,12 @@ import {
   SETUP_ACTIONS_CLASSES,
   SETUP_DOCUMENT_CLASSES,
   SETUP_DOCUMENT_TITLE_CLASSES,
-  SETUP_MESSAGE_CLASSES,
   SETUP_PARAGRAPH_CLASSES,
   SETUP_PRIMARY_BUTTON_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
 } from './chat_setup_classes';
-import {FallbackTurnNotice} from './chat_timeline_bubble';
-import {
-  MessageActionRow,
-  responseActions,
-} from './chat_timeline_message_actions';
+import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
+import {responseActions} from './chat_timeline_message_actions';
 import {SpecFieldsSection} from './chat_timeline_run_spec_editor';
 import {CompletionNotification} from './chat_timeline_run_spec_notification';
 
@@ -72,64 +68,62 @@ interface RunSpecCardProps {
   onStart: () => void;
 }
 
-// The card's lead-in copy: the Agent's closing interview message (or a
-// generic fallback) plus the fixed "review the four fields" paragraph. A
-// fallback-authored closing message carries the same quiet notice a fallback
-// bubble does, since the lead-in IS that turn.
-function RunSpecIntro({intro, fallback}: {intro?: string; fallback?: boolean}) {
+// The Agent's closing interview message, or a generic fallback when it is
+// absent (e.g. a re-shown confirmed spec). `||`, not `??`: an empty closing
+// message must fall back too.
+function planIntroText(intro?: string): string {
   return (
-    <>
-      {fallback && <FallbackTurnNotice />}
-      <p className={SETUP_PARAGRAPH_CLASSES}>
-        {/* `||`, not `??`: an empty closing message must fall back too. */}
-        {intro ||
-          'The interview is complete. I derived the research setup below ' +
-            'from your answers.'}
-      </p>
-      <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
-        Review the four fields and select a focus and run type. Once ready,
-        click "Start research" to begin.
-      </p>
-    </>
+    intro ||
+    'The interview is complete. I derived the research setup below from ' +
+      'your answers.'
   );
 }
 
 /**
- * Renders the inferred research-plan card shown in the timeline once a
- * request has been refined by the Agent: the four interview fields and Tier
- * groups, and the cancel/start actions. Also used, via `locked`, to show a
- * previously-confirmed spec read-only.
+ * Renders the inferred research-plan turn shown in the timeline once a
+ * request has been refined by the Agent: the closing interview message as
+ * an ordinary assistant reply, carrying the plan document (four fields, the
+ * Focus/Tier groups, and the cancel/start actions) as its inline attachment.
+ * Also used, via `locked`, to show a previously-confirmed spec read-only.
  */
 export function RunSpecCard(props: RunSpecCardProps) {
   const responseText = formatRunSpecResponse(props.spec);
   const locked = props.locked ?? false;
 
   return (
-    <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
-      <RunSpecIntro intro={props.intro} fallback={props.introFallback} />
-      <PlanHeading onEdit={props.onEdit} />
-      <p className={PLAN_SUBHEADING_CLASSES}>
-        Here's my plan to tackle the topic:
-      </p>
-      <RunSpecDocument
-        spec={props.spec}
-        locked={locked}
-        isStarting={props.isStarting}
-        onFocusChange={props.onFocusChange}
-        onTierChange={props.onTierChange}
-        onNotificationChange={props.onNotificationChange}
-        onFieldsChange={props.onFieldsChange}
-        onCancel={props.onCancel}
-        onStart={props.onStart}
-      />
-      <MessageActionRow
-        actions={responseActions(
-          props.onRetry,
-          responseText,
-          'co-scientist-research-plan.md',
-        )}
-      />
-    </section>
+    <AssistantMessage
+      content={planIntroText(props.intro)}
+      fallback={props.introFallback}
+      ariaLabel="Inferred run setup"
+      attachment={
+        <MessageAttachment>
+          <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
+            Review the four fields and select a focus and run type. Once ready,
+            click "Start research" to begin.
+          </p>
+          <PlanHeading onEdit={props.onEdit} />
+          <p className={PLAN_SUBHEADING_CLASSES}>
+            Here's my plan to tackle the topic:
+          </p>
+          <RunSpecDocument
+            spec={props.spec}
+            locked={locked}
+            isStarting={props.isStarting}
+            onFocusChange={props.onFocusChange}
+            onTierChange={props.onTierChange}
+            onNotificationChange={props.onNotificationChange}
+            onFieldsChange={props.onFieldsChange}
+            onCancel={props.onCancel}
+            onStart={props.onStart}
+          />
+        </MessageAttachment>
+      }
+      actions={responseActions(
+        props.onRetry,
+        responseText,
+        'co-scientist-research-plan.md',
+      )}
+    />
   );
 }
 

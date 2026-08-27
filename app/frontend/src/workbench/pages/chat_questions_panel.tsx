@@ -3,14 +3,15 @@ import {type InterviewQuestion} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {joinClasses} from '../classes';
 import {
-  OPTION_CARD_BASE_CLASSES,
-  OPTION_DESCRIPTION_CLASSES,
-  OPTION_GRID_CLASSES,
   OPTION_INPUT_CLASSES,
   OPTION_LABEL_CLASSES,
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   QUESTION_GROUP_CLASSES,
+  QUESTION_OPTION_DESCRIPTION_CLASSES,
+  QUESTION_OPTION_GRID_CLASSES,
+  QUESTION_OPTION_ROW_CLASSES,
+  QUESTION_OPTION_TEXT_CLASSES,
   QUESTION_OTHER_INPUT_CLASSES,
   QUESTION_PROMPT_CLASSES,
   QUESTIONS_HEAD_ACTIONS_CLASSES,
@@ -28,11 +29,10 @@ import {
 import {
   answerText,
   emptySelections,
-  isOtherOpen,
+  hasOtherAnswer,
   type QuestionSelections,
   setOther,
   toggleOption,
-  toggleOther,
 } from './chat_questions';
 
 /**
@@ -40,9 +40,9 @@ import {
  *
  * Every question carries it, whatever the model wrote: the options are the
  * answers the Agent could think of, and a scientist whose answer is none of
- * them must be able to say so without abandoning the chooser. Selecting it
- * opens a field rather than sending anything, so it never doubles as a
- * silent "skip".
+ * them must be able to say so without abandoning the chooser. It renders as
+ * a typable field, not a card to click first -- writing in it is what
+ * chooses it, and an empty field is a silent "skip" rather than a wrong one.
  */
 const OTHER_LABEL = 'Something else';
 
@@ -125,15 +125,15 @@ function clickIsTheWholeAnswer(questions: InterviewQuestion[]): boolean {
 
 // Whether the chooser needs a send control of its own. It does unless a
 // click is the whole answer -- and it does again the moment the scientist
-// opens a "something else" field, since what they are writing there has no
-// other way to be committed. Showing it then, rather than once they have
-// typed something, is what tells them how to finish.
+// has written their own words for any question, since typing can never send
+// on its own (a keystroke must never submit the composer's form) and the
+// send control is the only way to commit what is still being typed.
 function needsSendControl(
   questions: InterviewQuestion[],
   selections: QuestionSelections,
 ): boolean {
   if (!clickIsTheWholeAnswer(questions)) return true;
-  return questions.some((_, index) => isOtherOpen(selections, index));
+  return questions.some((_, index) => hasOtherAnswer(selections, index));
 }
 
 // What the chooser calls itself while it is collapsed: the headers of what
@@ -255,17 +255,16 @@ interface QuestionGroupProps {
   onChoose: (index: number, label: string) => void;
 }
 
-// One question: its prompt, its answers as a card grid, and -- once the
-// scientist has declined them all -- the field for their own wording.
+// One question: its prompt, then its answers as a single-column list of
+// full-width rows, the scientist's own-words field always the last of them.
 function QuestionGroup(props: QuestionGroupProps) {
   const {question, index, selections, setSelections, onChoose} = props;
-  const otherOpen = isOtherOpen(selections, index);
   return (
     <fieldset className={QUESTION_GROUP_CLASSES}>
       <legend className={QUESTION_PROMPT_CLASSES}>{question.question}</legend>
-      <div className={OPTION_GRID_CLASSES}>
+      <div className={QUESTION_OPTION_GRID_CLASSES}>
         {question.options.map(option => (
-          <AnswerCard
+          <AnswerRow
             key={option.label}
             label={option.label}
             description={option.description}
@@ -274,33 +273,52 @@ function QuestionGroup(props: QuestionGroupProps) {
             onSelect={() => onChoose(index, option.label)}
           />
         ))}
-        <AnswerCard
-          label={OTHER_LABEL}
-          description="Answer in your own words"
+        <OtherAnswerRow
           multiSelect={question.multi_select}
-          selected={otherOpen}
-          onSelect={() => setSelections(toggleOther(selections, index))}
+          text={selections.other[index] ?? ''}
+          onChangeText={text =>
+            setSelections(setOther(selections, index, text))
+          }
         />
       </div>
-      {otherOpen && (
-        <input
-          autoFocus
-          className={QUESTION_OTHER_INPUT_CLASSES}
-          placeholder={OTHER_PLACEHOLDER}
-          value={selections.other[index] ?? ''}
-          onChange={event =>
-            setSelections(setOther(selections, index, event.target.value))
-          }
-          // The composer's form surrounds this field, so an unhandled Enter
-          // would send whatever is in the composer's textarea instead of
-          // this answer. Swallowed rather than repurposed: the send control
-          // is the one way to commit an answer that is still being written.
-          onKeyDown={event => {
-            if (event.key === 'Enter') event.preventDefault();
-          }}
-        />
-      )}
     </fieldset>
+  );
+}
+
+// The row standing in for "Something else": typing into it is what chooses
+// it, so unlike AnswerRow there is no click handler and no separate hidden
+// input -- the visible field itself carries the selection.
+function OtherAnswerRow({
+  multiSelect,
+  text,
+  onChangeText,
+}: {
+  multiSelect: boolean;
+  text: string;
+  onChangeText: (text: string) => void;
+}) {
+  return (
+    <div className={QUESTION_OPTION_ROW_CLASSES}>
+      <AnswerMarker
+        multiSelect={multiSelect}
+        selected={text.trim().length > 0}
+      />
+      <input
+        className={QUESTION_OTHER_INPUT_CLASSES}
+        aria-label={OTHER_LABEL}
+        placeholder={OTHER_PLACEHOLDER}
+        value={text}
+        onChange={event => onChangeText(event.target.value)}
+        // The composer's form surrounds this field, so an unhandled Enter
+        // would send whatever is in the composer's textarea instead of
+        // this answer. Swallowed rather than repurposed: the send control
+        // is the one way to commit an answer, and typing must never submit
+        // anything on its own.
+        onKeyDown={event => {
+          if (event.key === 'Enter') event.preventDefault();
+        }}
+      />
+    </div>
   );
 }
 
@@ -339,9 +357,9 @@ function AnswerMarker({
   );
 }
 
-// Props for AnswerCard, named at module level per the destructured prop
+// Props for AnswerRow, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
-interface AnswerCardProps {
+interface AnswerRowProps {
   label: string;
   description: string;
   multiSelect: boolean;
@@ -349,15 +367,17 @@ interface AnswerCardProps {
   onSelect: () => void;
 }
 
-// One clickable answer, in the same radio-card language the run-spec card's
-// Focus and Run type groups use. A real input carries the selection so the
-// card is reachable and announced by a screen reader; `onClick` rather than
+// One clickable answer, a full-width row with its label and description
+// running side by side. A real input carries the selection so the row is
+// reachable and announced by a screen reader; `onClick` rather than
 // `onChange` drives it, since re-clicking the chosen answer un-picks it and
 // a radio input fires no change event for that.
-function AnswerCard(props: AnswerCardProps) {
+function AnswerRow(props: AnswerRowProps) {
   const {label, description, multiSelect, selected, onSelect} = props;
   return (
-    <label className={joinClasses(OPTION_CARD_BASE_CLASSES, 'cursor-pointer')}>
+    <label
+      className={joinClasses(QUESTION_OPTION_ROW_CLASSES, 'cursor-pointer')}
+    >
       <input
         type={multiSelect ? 'checkbox' : 'radio'}
         className={OPTION_INPUT_CLASSES}
@@ -366,10 +386,14 @@ function AnswerCard(props: AnswerCardProps) {
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
-      <strong className={OPTION_LABEL_CLASSES}>{label}</strong>
-      {description && (
-        <small className={OPTION_DESCRIPTION_CLASSES}>{description}</small>
-      )}
+      <span className={QUESTION_OPTION_TEXT_CLASSES}>
+        <strong className={OPTION_LABEL_CLASSES}>{label}</strong>
+        {description && (
+          <small className={QUESTION_OPTION_DESCRIPTION_CLASSES}>
+            {description}
+          </small>
+        )}
+      </span>
     </label>
   );
 }

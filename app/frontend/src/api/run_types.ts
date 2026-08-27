@@ -43,10 +43,7 @@ export type LegacyRunProfile = RunMode | 'default';
 
 /** Research style selected in the Co-Scientist setup flow. */
 export type RunFocus =
-  | 'prefer_evidence'
-  | 'balance'
-  | 'prefer_novelty'
-  | 'breakthrough';
+  'prefer_evidence' | 'balance' | 'prefer_novelty' | 'breakthrough';
 
 /** Depth preset selected in the Co-Scientist setup flow. */
 export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
@@ -95,9 +92,7 @@ export interface RunSetupConfig {
 export type JsonPrimitive = string | number | boolean | null;
 /** Any valid JSON value, recursively defined for arbitrary nesting. */
 export type JsonValue =
-  | JsonPrimitive
-  | JsonValue[]
-  | {[key: string]: JsonValue};
+  JsonPrimitive | JsonValue[] | {[key: string]: JsonValue};
 
 /** Typed run configuration JSON stored by the backend. */
 export interface RunConfig {

@@ -1,7 +1,7 @@
 // Canonical tab-route table for the goal-report surface. This is the single
 // source of truth for the tab segments, their order, their legacy aliases, and
-// the ":tab" -> TabName resolution, shared by the run-detail shell (which
-// renders the tabs) and the global keyboard shortcuts (which cycle them).
+// the ":tab" -> TabName resolution, consumed by the run-detail shell that
+// renders the tabs.
 
 // Canonical tab route segments, in the order the nav bar renders them.
 export const TABS = ['details', 'learning', 'overview', 'ideas'] as const;

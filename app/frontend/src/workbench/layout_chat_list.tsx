@@ -5,6 +5,7 @@ import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from './components/truncated_label';
 import {useFittingRows} from './hooks/use_fitting_rows';
 import {useOverflowing} from './hooks/use_overflowing';
+import {readSessionSide} from './layout_session_memory';
 import {tabPath} from './run_tabs';
 import {tooltipClassNames} from './tooltip';
 
@@ -46,19 +47,26 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
 }
 
 /**
- * Where a chat row leads: the stage its session has actually reached.
+ * Where a chat row leads: wherever this reader last had the Chat/Results
+ * switch on for this session, defaulting to the stage the session has
+ * actually reached.
  *
- * A session that has started a run has moved past its conversation, so the
- * row opens the run -- which is the live progress view while it executes
- * and the report once it lands, chosen by the run page itself. Reopening
- * the transcript instead put every session, running or long finished, back
- * at the same settled prompt and made the rail read as a list of drafts.
- * Only a chat that never started a run opens the conversation; from the run,
- * the header's Chat/Results switch is what returns to the transcript (see
- * SessionSwitch).
+ * A session that has started a run has moved past its conversation, so by
+ * default the row opens the run -- which is the live progress view while it
+ * executes and the report once it lands, chosen by the run page itself.
+ * Reopening the transcript instead put every session, running or long
+ * finished, back at the same settled prompt and made the rail read as a list
+ * of drafts. That default yields to memory once the reader has actually used
+ * the header's Chat/Results switch (see layout_session_memory) -- only a chat
+ * that never started a run, or one with no recorded side yet, opens by the
+ * rule above.
  */
 function chatPath(chat: ChatSummary): string {
-  return chat.run_id ? tabPath(chat.run_id, undefined) : `/chats/${chat.id}`;
+  if (!chat.run_id) return `/chats/${chat.id}`;
+  const remembered = readSessionSide(chat.run_id);
+  return remembered?.side === 'chat'
+    ? `/chats/${chat.id}`
+    : tabPath(chat.run_id, undefined);
 }
 
 // One row in the "Chats" list: the chat's generated title, falling back to a

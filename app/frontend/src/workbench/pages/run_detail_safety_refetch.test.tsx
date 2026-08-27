@@ -1,8 +1,8 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import {HttpError, type SafetyDecision} from '@/api/runs';
+import {type SafetyDecision} from '@/api/runs';
 import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
@@ -51,10 +51,6 @@ vi.mock('@/api/runs', async importActual => {
     getReviews: vi.fn().mockResolvedValue([]),
     getClaimEvidence: vi.fn().mockResolvedValue([]),
     getSafety: vi.fn().mockResolvedValue([]),
-    adjudicateSafety: vi.fn().mockResolvedValue({
-      decision_id: 1,
-      resolution: 'approved',
-    }),
     getCitations: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
     sendRunSteering: vi
@@ -100,27 +96,21 @@ beforeEach(() => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
 });
 
-it('shows and adjudicates held safety decisions', async () => {
+it('shows a held safety decision without offering to resolve it', async () => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([heldIntakeDecision]);
   renderAt('/runs/run-1/specifications');
 
   expect(
     await screen.findByRole('heading', {name: 'Safety audit'}),
   ).toBeInTheDocument();
-  fireEvent.click(
-    screen.getByRole('button', {name: 'Approve for research use'}),
-  );
-  fireEvent.click(screen.getByRole('button', {name: 'Confirm approve'}));
-  await waitFor(() =>
-    expect(runsApi.adjudicateSafety).toHaveBeenCalledWith(
-      'run-1',
-      7,
-      'approved',
-    ),
-  );
+  expect(screen.getByText(/Ambiguous dual-use intent/)).toBeInTheDocument();
+  // Adjudicating releases withheld content into a run that then continues on
+  // its own, so the audit reports and never acts: no control here resolves a
+  // decision, and none may be reintroduced without that being a decision.
+  expect(screen.queryByRole('button')).toBeNull();
 });
 
-it('renders a held-for-review hypothesis and adjudicates it', async () => {
+it('renders a held-for-review hypothesis', async () => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([
     decision({
       id: 11,
@@ -150,15 +140,6 @@ it('renders a held-for-review hypothesis and adjudicates it', async () => {
   expect(
     screen.getByText(/enhance pathogen transmissibility/),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', {name: 'Reject'}));
-  fireEvent.click(screen.getByRole('button', {name: 'Confirm reject'}));
-  await waitFor(() =>
-    expect(runsApi.adjudicateSafety).toHaveBeenCalledWith(
-      'run-1',
-      11,
-      'rejected',
-    ),
-  );
 });
 
 it('shows only the final verdict, not the per-hypothesis gate rows', async () => {
@@ -185,11 +166,10 @@ it('shows only the final verdict, not the per-hypothesis gate rows', async () =>
   expect(screen.queryByText('final:')).toBeNull();
 });
 
-// Bug: the summary paragraph is the *last* final-stage row, but a final
-// hold that still needs review was excluded from the reviewable list solely
-// for being that row -- rendering its rationale with no way to act on it.
-// A run held at the final gate is unanswerable exactly like an intake hold.
-it('surfaces resolve actions for an unresolved final-stage hold', async () => {
+// The summary paragraph is the *last* final-stage row. A final hold that
+// still needs review is that row, so it must be rendered as the summary
+// rather than dropped for being excluded from the reviewable list.
+it('surfaces an unresolved final-stage hold', async () => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([
     decision({
       id: 9,
@@ -205,60 +185,17 @@ it('surfaces resolve actions for an unresolved final-stage hold', async () => {
   expect(
     screen.getByText('Final output needs a second look.'),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole('button', {name: 'Approve for research use'}),
-  ).toBeInTheDocument();
-  expect(screen.getByRole('button', {name: 'Reject'})).toBeInTheDocument();
 });
 
-it('asks for confirmation before approving, and cancel backs out', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([heldIntakeDecision]);
+it('shows a recorded resolution when one exists', async () => {
+  vi.mocked(runsApi.getSafety).mockResolvedValue([
+    decision({...heldIntakeDecision, id: 7, resolution: 'approved'}),
+  ]);
   renderAt('/runs/run-1/specifications');
+
   await screen.findByRole('heading', {name: 'Safety audit'});
-
-  fireEvent.click(
-    screen.getByRole('button', {name: 'Approve for research use'}),
-  );
-  // Not yet resolved -- and the copy states the consequence.
-  expect(runsApi.adjudicateSafety).not.toHaveBeenCalled();
-  expect(screen.getByText(/releases the held content/i)).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
-
-  expect(
-    screen.getByRole('button', {name: 'Approve for research use'}),
-  ).toBeInTheDocument();
-  expect(runsApi.adjudicateSafety).not.toHaveBeenCalled();
-});
-
-it('states the consequence of a reject before confirming it', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([heldIntakeDecision]);
-  renderAt('/runs/run-1/specifications');
-  await screen.findByRole('heading', {name: 'Safety audit'});
-
-  fireEvent.click(screen.getByRole('button', {name: 'Reject'}));
-
-  expect(runsApi.adjudicateSafety).not.toHaveBeenCalled();
-  expect(screen.getByText(/blocks the run outright/i)).toBeInTheDocument();
-});
-
-it('refetches on a 409 instead of showing a raw error', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([heldIntakeDecision]);
-  vi.mocked(runsApi.adjudicateSafety).mockRejectedValueOnce(
-    new HttpError('conflict', 409),
-  );
-  renderAt('/runs/run-1/specifications');
-  await screen.findByRole('heading', {name: 'Safety audit'});
-
-  fireEvent.click(
-    screen.getByRole('button', {name: 'Approve for research use'}),
-  );
-  fireEvent.click(screen.getByRole('button', {name: 'Confirm approve'}));
-
-  // getSafety runs once on mount; a 409 must trigger a second call rather
-  // than leaving the stale, already-resolved-by-someone-else row on screen.
-  await waitFor(() => expect(runsApi.getSafety).toHaveBeenCalledTimes(2));
-  expect(screen.getByText(/already resolved/i)).toBeInTheDocument();
+  // Resolving happens through the API, and the audit reflects the outcome.
+  expect(screen.getByText('Resolution: approved')).toBeInTheDocument();
 });
 
 it('refetches on a coalesced batch ending in status with data', async () => {

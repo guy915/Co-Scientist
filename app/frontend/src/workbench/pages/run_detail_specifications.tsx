@@ -109,11 +109,7 @@ export function RunSpecificationsView({
       className="cosci-run-specifications"
     >
       <SpecFields run={run} />
-      <SafetyReviewSection
-        runId={run?.id}
-        decisions={safety}
-        onChanged={onSafetyChanged}
-      />
+      <SafetyReviewSection decisions={safety} />
       {run && !isTerminalStatus(run.status) && (
         <PrivateCorpusUpload runId={run.id} onChanged={onSafetyChanged} />
       )}

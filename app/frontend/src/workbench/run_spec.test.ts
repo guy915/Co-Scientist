@@ -3,8 +3,11 @@ import type {Interview} from '@/api/runs';
 import {
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
+  isCompletionEmailValid,
+  isValidCompletionEmail,
   interviewToRunSpec,
 } from './run_spec';
+import {makeSpec} from '@/test_fixtures';
 
 describe('interviewToRunSpec', () => {
   it('maps only the durable Agent derivation into run configuration', () => {
@@ -59,6 +62,38 @@ describe('buildInterviewFieldsPayload', () => {
         requirements: [],
       }).title,
     ).toBeNull();
+  });
+});
+
+describe('isValidCompletionEmail', () => {
+  it('accepts anything@anything.tld', () => {
+    expect(isValidCompletionEmail('scientist@example.com')).toBe(true);
+  });
+
+  it('rejects text with no @ or no domain dot', () => {
+    expect(isValidCompletionEmail('not-an-address')).toBe(false);
+    expect(isValidCompletionEmail('')).toBe(false);
+  });
+});
+
+describe('isCompletionEmailValid', () => {
+  it('never blocks starting a run when notification is off, valid or not', () => {
+    expect(
+      isCompletionEmailValid(
+        makeSpec({notifyOnCompletion: false, completionEmail: 'garbage'}),
+      ),
+    ).toBe(true);
+  });
+
+  it('passes once notification is on with a valid address', () => {
+    expect(
+      isCompletionEmailValid(
+        makeSpec({
+          notifyOnCompletion: true,
+          completionEmail: 'scientist@example.com',
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

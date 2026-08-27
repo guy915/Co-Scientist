@@ -1,22 +1,29 @@
-import {type InferredRunSpec} from '../run_spec';
+import {isValidCompletionEmail, type InferredRunSpec} from '../run_spec';
 import {useSystemStatus} from '../hooks/system_status_context';
 import {
   OPTION_GROUP_CLASSES,
   OPTION_GROUP_LEGEND_CLASSES,
 } from './chat_setup_classes';
 
+const EMAIL_ROW_CLASSES = 'mt-3 grid gap-1 text-sm';
+
+const EMAIL_LABEL_CLASSES = 'text-cosci-fg';
+
 const EMAIL_INPUT_CLASSES =
-  'mt-3 w-full rounded-xl border border-cosci-border bg-transparent p-3';
+  'w-full rounded-xl border border-cosci-border bg-transparent p-3';
 
 /**
  * The completion-email opt-in.
  *
- * Gated on the server actually having an SMTP transport (`/status`'s
+ * There is no separate checkbox: the address field is always present, and
+ * notification is simply whichever way a valid address makes it -- typing
+ * one on turns it on, clearing or breaking it turns it off. Gated on the
+ * server actually having an SMTP transport (`/status`'s
  * `email_notifications_available`): with none configured the durable send
  * task can only raise, exhaust its retries, and fail somewhere the scientist
- * never looks, so the checkbox promised a message that was never coming.
- * Unavailable, the row states that plainly rather than disappearing -- the
- * feature exists, this deployment just cannot send.
+ * never looks, so an editable field would promise a message that is never
+ * coming. Unavailable, the row states that plainly rather than disappearing
+ * -- the feature exists, this deployment just cannot send.
  */
 export function CompletionNotification({
   spec,
@@ -28,22 +35,36 @@ export function CompletionNotification({
   onChange: (enabled: boolean, email: string) => void;
 }) {
   const {status} = useSystemStatus();
+  const available = status?.email_notifications_available ?? false;
   return (
     <fieldset className={OPTION_GROUP_CLASSES}>
       <legend className={OPTION_GROUP_LEGEND_CLASSES}>Notification</legend>
-      <NotificationControls
+      <NotificationEmail
         spec={spec}
         disabled={disabled}
-        available={status?.email_notifications_available ?? false}
+        available={available}
         onChange={onChange}
       />
+      <UnavailableNote available={available} />
     </fieldset>
   );
 }
 
-// The opt-in checkbox plus whichever of the two follow-on rows applies: the
-// address to send to, or why nothing can be sent.
-function NotificationControls({
+// Says why the field is inert, so an unconfigured server reads as a
+// deployment fact rather than a control that ignores keystrokes.
+function UnavailableNote({available}: {available: boolean}) {
+  if (available) return null;
+  return (
+    <p className="text-xs text-cosci-muted">
+      Email delivery is not configured on this server.
+    </p>
+  );
+}
+
+// The address the Goal Report notice goes to. Always on screen -- entering
+// a valid one is the opt-in, an invalid or blank one is a silent opt-out,
+// and neither state is announced as an error.
+function NotificationEmail({
   spec,
   disabled,
   available,
@@ -54,64 +75,22 @@ function NotificationControls({
   available: boolean;
   onChange: (enabled: boolean, email: string) => void;
 }) {
-  const enabled = available && Boolean(spec.notifyOnCompletion);
   return (
-    <>
-      <label className="flex items-center gap-3 text-sm">
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={disabled || !available}
-          onChange={event =>
-            onChange(event.currentTarget.checked, spec.completionEmail || '')
-          }
-        />
+    <label className={EMAIL_ROW_CLASSES}>
+      <span className={EMAIL_LABEL_CLASSES}>
         Email me when the Goal Report is ready
-      </label>
-      <UnavailableNote available={available} />
-      <NotificationEmail
-        spec={spec}
-        disabled={disabled}
-        shown={enabled}
-        onChange={onChange}
+      </span>
+      <input
+        type="email"
+        disabled={disabled || !available}
+        placeholder="you@example.com — leave blank for no email"
+        className={EMAIL_INPUT_CLASSES}
+        value={spec.completionEmail || ''}
+        onChange={event => {
+          const email = event.currentTarget.value;
+          onChange(isValidCompletionEmail(email), email);
+        }}
       />
-    </>
-  );
-}
-
-// Says why the opt-in is inert, so an unconfigured server reads as a
-// deployment fact rather than a control that ignores clicks.
-function UnavailableNote({available}: {available: boolean}) {
-  if (available) return null;
-  return (
-    <p className="text-xs text-cosci-muted">
-      Email delivery is not configured on this server.
-    </p>
-  );
-}
-
-// The address the Goal Report notice goes to, shown once opted in.
-function NotificationEmail({
-  spec,
-  disabled,
-  shown,
-  onChange,
-}: {
-  spec: InferredRunSpec;
-  disabled: boolean;
-  shown: boolean;
-  onChange: (enabled: boolean, email: string) => void;
-}) {
-  if (!shown) return null;
-  return (
-    <input
-      type="email"
-      required
-      disabled={disabled}
-      aria-label="Completion notification email"
-      className={EMAIL_INPUT_CLASSES}
-      value={spec.completionEmail || ''}
-      onChange={event => onChange(true, event.currentTarget.value)}
-    />
+    </label>
   );
 }

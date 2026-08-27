@@ -202,10 +202,9 @@ export function ReportTitlebar({
  * active one, matching a nav rather than a widget. The content region below
  * carries its own accessible name instead of an `aria-controls` back to
  * this strip (see `reportSectionLabel`), since it is not this nav's
- * tabpanel. The ArrowLeft/ArrowRight tab-cycling shortcut lives entirely
- * outside this component, in `useGlobalShortcuts` -- it is a document-level
- * "next/previous page" shortcut deliberately independent of focus, not
- * roving-tabindex keyboard behavior for this strip.
+ * tabpanel. The app binds no keyboard shortcuts of its own, here or
+ * anywhere else, so Tab and Enter are the whole keyboard story for this
+ * strip.
  */
 export function ReportTabNav({
   activeTab,

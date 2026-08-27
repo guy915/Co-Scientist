@@ -3,7 +3,6 @@ import {Navigate, Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/components/error_boundary';
 import {NoIndex} from '@/public/no_index';
 import {NotFoundPage} from '@/public/not_found_page';
-import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
 import {ChatHistoryProvider} from './hooks/chat_history_context';
 import {RunHistoryProvider} from './hooks/run_history_context';
 import {SystemStatusProvider} from './hooks/system_status_context';
@@ -15,14 +14,6 @@ import {SharedGoalReportPage} from './pages/shared_goal_report';
 import {ResearcherAccessPage} from './pages/researcher_access';
 import {AudienceProvider} from './audience_context';
 import {ThemeProvider} from './theme_context';
-
-// Render-nothing bridge: useGlobalShortcuts needs react-router hooks, so it
-// must run inside the router but can't live in WorkbenchApp itself (the
-// BrowserRouter is mounted above this component, in main.tsx).
-function ShortcutsBridge() {
-  useGlobalShortcuts();
-  return null;
-}
 
 // Every routed page mounts with a NoIndex tag; this pairs them once.
 function page(title: string, element: ReactElement) {
@@ -93,7 +84,6 @@ export function WorkbenchApp() {
             <RunHistoryProvider>
               <ChatHistoryProvider>
                 <Layout>
-                  <ShortcutsBridge />
                   <WorkbenchRoutes />
                 </Layout>
               </ChatHistoryProvider>

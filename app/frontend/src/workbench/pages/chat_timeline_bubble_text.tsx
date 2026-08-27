@@ -9,10 +9,8 @@ import {
   useState,
 } from 'react';
 import {Icon} from '@/components/icon';
-import {MarkdownMessage} from '@/components/markdown_message';
 import {tooltipClassNames} from '../tooltip';
 import {
-  MODEL_BUBBLE_TEXT_CLASSES,
   USER_BUBBLE_TEXT_CLAMP_CLASSES,
   USER_BUBBLE_TEXT_CLASSES,
   USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES,
@@ -316,9 +314,8 @@ export function useCollapsibleBubbleText(isUser: boolean, content: string) {
 }
 
 // Props for BubbleText below: the collapsible-text hook's full return bundle
-// plus the isUser/bubbleClassName/content fields it needs to render.
+// plus the bubbleClassName/content fields it needs to render.
 export interface BubbleTextProps {
-  isUser: boolean;
   bubbleClassName: string;
   content: string;
   textRef: RefObject<HTMLSpanElement | null>;
@@ -330,20 +327,14 @@ export interface BubbleTextProps {
   handleBubbleTransitionEnd: (event: TransitionEvent<HTMLSpanElement>) => void;
 }
 
-// The bubble's text span, with the collapse/expand toggle appended for
-// collapsible (user) bubbles.
-//
-// An assistant bubble renders its content as markdown: the Agent writes
-// ordinary markdown now rather than one line inside a JSON field, so a reply
-// laying out options as a list has to arrive as a list rather than as
-// literal hyphens and asterisks. It takes MODEL_BUBBLE_TEXT_CLASSES rather
-// than the hook's className, whose `whitespace-pre-wrap` double-spaced the
-// rendered blocks (see that constant). A user bubble stays a plain text span
-// -- it carries what the scientist typed, which must never be reinterpreted
-// as markup, and the collapse measurement above reads that span's own
-// metrics, pre-wrap included.
+// A user request bubble's text span, with the collapse/expand toggle
+// appended when it needs one. Stays a plain text span -- it carries what
+// the scientist typed, which must never be reinterpreted as markup -- and
+// the collapse measurement above reads that span's own metrics, pre-wrap
+// included. (An assistant reply's markdown rendering lives in
+// AssistantMessage, chat_timeline_bubble.tsx -- this component only ever
+// renders the user side now.)
 export function BubbleText({
-  isUser,
   bubbleClassName,
   content,
   textRef,
@@ -354,16 +345,6 @@ export function BubbleText({
   toggleExpanded,
   handleBubbleTransitionEnd,
 }: BubbleTextProps) {
-  if (!isUser) {
-    return (
-      <div className={bubbleClassName}>
-        <MarkdownMessage
-          content={content}
-          className={MODEL_BUBBLE_TEXT_CLASSES}
-        />
-      </div>
-    );
-  }
   return (
     <div className={bubbleClassName}>
       <span

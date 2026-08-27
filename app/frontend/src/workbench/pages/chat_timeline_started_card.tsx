@@ -1,9 +1,6 @@
 import {Link} from 'react-router-dom';
-import {MarkdownMessage} from '@/components/markdown_message';
 import {TruncatedLabel} from '../components/truncated_label';
 import {
-  STARTED_COPY_CLASSES,
-  STARTED_MESSAGE_CLASSES,
   STARTED_NEXT_BUTTON_CLASSES,
   STARTED_NEXT_CLASSES,
   STARTED_NEXT_COPY_CLASSES,
@@ -12,10 +9,8 @@ import {
   STARTED_SESSION_META_CLASSES,
   STARTED_SESSION_TITLE_CLASSES,
 } from './chat_setup_classes';
-import {
-  MessageActionRow,
-  responseActions,
-} from './chat_timeline_message_actions';
+import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
+import {responseActions} from './chat_timeline_message_actions';
 
 /** A run that has been started, as shown by the timeline's terminal card. */
 export interface StartedSession {
@@ -66,9 +61,10 @@ function introCopy(session: StartedSession): string {
 }
 
 /**
- * Renders the terminal timeline card shown once a research run has actually
- * been started: confirmation copy, a clickable card linking to the run's
- * detail page, and "what next" actions (open details, or start a new topic).
+ * Renders the terminal timeline turn shown once a research run has actually
+ * been started: the Agent's own confirmation as an ordinary assistant reply,
+ * carrying the session link card and "what next" actions (open details, or
+ * start a new topic) as its inline attachment.
  *
  * @param session The started session (id, title, start timestamp) to display.
  * @param href Route of the run's detail page. A URL rather than an open
@@ -94,28 +90,21 @@ export function StartedSessionCard({
   const responseText = formatStartedSessionResponse(session, intro);
 
   return (
-    <section
-      className={STARTED_MESSAGE_CLASSES}
-      aria-label="Started research session"
-    >
-      {intro && (
-        <div className={STARTED_COPY_CLASSES}>
-          <MarkdownMessage
-            content={intro}
-            className="min-w-0 text-base leading-[1.45] text-cosci-fg"
-          />
-        </div>
+    <AssistantMessage
+      content={intro}
+      ariaLabel="Started research session"
+      attachment={
+        <MessageAttachment>
+          <SessionLinkCard session={session} href={href} />
+          <SessionNextActions href={href} onNewTopic={onNewTopic} />
+        </MessageAttachment>
+      }
+      actions={responseActions(
+        null,
+        responseText,
+        'co-scientist-session-started.md',
       )}
-      <SessionLinkCard session={session} href={href} />
-      <SessionNextActions href={href} onNewTopic={onNewTopic} />
-      <MessageActionRow
-        actions={responseActions(
-          null,
-          responseText,
-          'co-scientist-session-started.md',
-        )}
-      />
-    </section>
+    />
   );
 }
 

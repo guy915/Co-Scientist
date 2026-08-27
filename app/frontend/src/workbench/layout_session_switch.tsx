@@ -1,6 +1,12 @@
 import {Link} from 'react-router-dom';
 import {type ChatSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
+import {joinClasses} from './classes';
+import {
+  HEADER_ACCENT_PILL_CLASSES,
+  HEADER_CONTROL_ICON_CLASSES,
+} from './layout_primitives';
+import {useRecordSessionSide} from './layout_session_memory';
 import {tabPath} from './run_tabs';
 
 /**
@@ -68,6 +74,31 @@ const SWITCH_SIDES: {
   {side: 'results', icon: 'lab_profile', label: 'Results'},
 ];
 
+// The track: the same accent-pill chrome as the Logs trigger (bg, height,
+// radius, typography), just gridded into two equal halves instead of one
+// button's worth of content -- see HEADER_ACCENT_PILL_CLASSES.
+const SWITCH_TRACK_CLASSES = joinClasses(
+  'ucs-session-switch relative box-border grid grid-cols-2 gap-[0.2rem] p-[0.2rem]',
+  HEADER_ACCENT_PILL_CLASSES,
+);
+
+// One side's chrome, sans the active/inactive background. Both sides share
+// the pill's own accent text color -- the highlight below, not a dimmed
+// label, is what marks which one is current.
+const SWITCH_SIDE_CLASSES =
+  'ucs-session-switch-side relative z-[1] flex h-full min-w-0 ' +
+  'items-center justify-center gap-[0.35rem] rounded-full px-[0.7rem] ' +
+  'no-underline hover:bg-cosci-logs-accent-hover ' +
+  'focus-visible:bg-cosci-logs-accent-hover';
+
+// The active side additionally carries the same hover tint permanently --
+// the Logs pill's own "engaged" look (see [&[aria-expanded=true]] in
+// headerControlButtonClasses), reused here to mean "this is where you are".
+const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
+  SWITCH_SIDE_CLASSES,
+  'bg-cosci-logs-accent-hover',
+);
+
 // Where each side leads. The results side always targets the run's default
 // tab rather than remembering the last one: the run page itself chooses
 // between the live view and the report, and a remembered tab would be a
@@ -90,22 +121,17 @@ function sessionSideHref(session: SessionSwitchData, side: string): string {
  * labels to fit the control into the header (see shell_surface_responsive.css)
  * and an icon-only link would otherwise have no accessible name there.
  *
+ * Also records the route's current side as the last-viewed one for this
+ * session (see layout_session_memory), so the chat rail and the home recents
+ * card both reopen wherever this reader actually left off.
+ *
  * @param session The session to switch within; renders nothing without one.
  */
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
+  useRecordSessionSide(session?.runId, session?.chatId, session?.active);
   if (!session) return null;
   return (
-    <nav
-      className="ucs-session-switch"
-      aria-label="Session view"
-      data-active={session.active}
-    >
-      {/* The moving highlight. A single element the container slides between
-          the two halves, rather than a background on each side: only one
-          element can animate from where the highlight *was* to where it is
-          going, which is the difference between the marker travelling and it
-          reappearing on the other side. */}
-      <span className="ucs-session-switch-thumb" aria-hidden="true" />
+    <nav className={SWITCH_TRACK_CLASSES} aria-label="Session view">
       {SWITCH_SIDES.map(({side, icon, label}) => {
         const active = side === session.active;
         return (
@@ -113,16 +139,14 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
             key={side}
             to={sessionSideHref(session, side)}
             className={
-              active
-                ? 'ucs-session-switch-side ucs-session-switch-side--active'
-                : 'ucs-session-switch-side'
+              active ? SWITCH_SIDE_ACTIVE_CLASSES : SWITCH_SIDE_CLASSES
             }
             aria-current={active ? 'page' : undefined}
             aria-label={label}
           >
             <Icon
               aria-hidden="true"
-              className="ucs-session-switch-icon"
+              className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
               name={icon}
             />
             <span className="ucs-session-switch-label">{label}</span>

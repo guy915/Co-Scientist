@@ -184,13 +184,17 @@ it('persists completion-notification opt-in and address in the draft', () => {
   const args = baseArgs({draft});
   renderItems(buildTimelineItems(args));
 
-  fireEvent.click(
+  fireEvent.change(
     screen.getByLabelText('Email me when the Goal Report is ready'),
+    {target: {value: 'scientist@example.com'}},
   );
   const enableUpdater = vi.mocked(args.setDraft).mock.calls[0][0] as (
     current: SpecStage | null,
   ) => SpecStage | null;
   expect(enableUpdater(draft)?.spec.notifyOnCompletion).toBe(true);
+  expect(enableUpdater(draft)?.spec.completionEmail).toBe(
+    'scientist@example.com',
+  );
 });
 
 it('wires composer and spec actions to the session handlers', async () => {
@@ -372,4 +376,42 @@ it('falls back to the standby copy for a card with no reply', () => {
   );
 
   expect(screen.getByText(/Co-Scientist has started research/)).toBeVisible();
+});
+
+// The plan card's lead-in is the Agent's own closing interview message, and
+// must render like any other assistant reply's markdown -- this used to be
+// a plain <p>, so **bold** and similar syntax showed up as literal
+// characters instead of formatting.
+it('renders the plan card lead-in as markdown, like an ordinary reply', () => {
+  const draft: SpecStage = {
+    spec: makeSpec(),
+    createdAt: 5,
+    intro: 'Use **primary** cells for this line of work.',
+  };
+  renderItems(buildTimelineItems(baseArgs({draft})));
+
+  expect(screen.getByText('primary').tagName).toBe('STRONG');
+});
+
+// The plan and started-session cards should be ordinary assistant messages
+// that happen to carry an inline attachment -- not bespoke cards with their
+// own row/gap spacing. Both must share the exact wrapper class string a
+// plain assistant reply renders (CHAT_BUBBLE_ROW_CLASSES via
+// AssistantMessage), so a "space feels different" regression shows up here
+// as a class mismatch rather than only in a screenshot.
+it('wraps the plan and started-session turns in the same row a plain reply uses', () => {
+  const replyRow = renderItems(
+    buildTimelineItems(transcriptArgs()),
+  ).container.querySelector('.reference-bubble-row:not(.user)');
+  expect(replyRow).not.toBeNull();
+
+  const draftRow = renderItems(
+    buildTimelineItems(baseArgs({draft: {spec: makeSpec(), createdAt: 5}})),
+  ).container.querySelector('.reference-bubble-row');
+  expect(draftRow?.className).toBe(replyRow?.className);
+
+  const startedRow = renderItems(
+    buildTimelineItems(baseArgs({startedSession})),
+  ).container.querySelector('.reference-bubble-row');
+  expect(startedRow?.className).toBe(replyRow?.className);
 });

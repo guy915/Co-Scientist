@@ -5,6 +5,7 @@ import {firstSentenceClause} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
+import {readSessionSide} from '../layout_session_memory';
 import {
   HOME_LOAD_MORE_BUTTON_CLASSES,
   HOME_LOAD_MORE_ITEM_CLASSES,
@@ -221,6 +222,19 @@ function recentCardTitle(run: Run): string {
   );
 }
 
+// The card's destination: wherever this reader last had the Chat/Results
+// switch on for this session (see layout_session_memory), defaulting to the
+// run's own details tab when there is no memory yet. Unlike the chat rail,
+// this card has no chat-summary list of its own, so the chat id for that
+// remembered side has to ride along in the stored record rather than being
+// looked up here.
+function recentCardHref(run: Run): string {
+  const remembered = readSessionSide(run.id);
+  return remembered?.side === 'chat'
+    ? `/chats/${remembered.chatId}`
+    : `/runs/${run.id}/details`;
+}
+
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   // The run's real top hypotheses by Elo, served on the run-list payload
   // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
@@ -230,7 +244,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   return (
     <li>
       <Link
-        to={`/runs/${run.id}/details`}
+        to={recentCardHref(run)}
         className={
           isActiveRun ? ACTIVE_RECENT_CARD_CLASSES : RECENT_CARD_CLASSES
         }

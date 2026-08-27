@@ -57,6 +57,16 @@ function asking(questions: InterviewQuestion[]): Interview {
   };
 }
 
+/**
+ * The live message composer -- once the chooser is on screen, its own
+ * free-text "Something else" field is also a "textbox", so a lookup after
+ * that point must tell the two apart by tag rather than assume there is
+ * only one.
+ */
+function getComposer(): HTMLElement {
+  return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
+}
+
 async function askTheScientist(questions = [MODEL_SYSTEM]) {
   apiMock.createInterview.mockResolvedValue(asking(questions));
   apiMock.addInterviewTurn.mockResolvedValue(asking([]));
@@ -77,9 +87,7 @@ it('offers the turn answers inside the composer, above the input', async () => {
   const prompt = await askTheScientist();
   // Inside the composer's own form, which is what makes it read as the
   // input box expanding upward rather than as a card floating above it.
-  expect(prompt.closest('form')).toBe(
-    screen.getByRole('textbox').closest('form'),
-  );
+  expect(prompt.closest('form')).toBe(getComposer().closest('form'));
 });
 
 it('sends a clicked answer as the scientist own next turn', async () => {
@@ -98,7 +106,7 @@ it('sends a clicked answer as the scientist own next turn', async () => {
 
 it('leaves the composer usable, and typing past the questions still works', async () => {
   await askTheScientist();
-  const textbox = screen.getByRole('textbox');
+  const textbox = getComposer();
   expect(textbox).toBeEnabled();
   fireEvent.change(textbox, {target: {value: 'None of those — human atria'}});
   fireEvent.click(screen.getByRole('button', {name: 'Send'}));
@@ -115,7 +123,7 @@ it('leaves the composer usable, and typing past the questions still works', asyn
 
 it('keeps a half-written message when an answer is clicked instead', async () => {
   await askTheScientist();
-  const textbox = screen.getByRole('textbox');
+  const textbox = getComposer();
   fireEvent.change(textbox, {target: {value: 'also, note that'}});
   fireEvent.click(screen.getByLabelText(/Primary human cells/));
   await waitFor(() => {

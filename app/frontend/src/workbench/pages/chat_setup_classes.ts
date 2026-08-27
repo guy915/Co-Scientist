@@ -137,10 +137,7 @@ export const MESSAGE_ACTION_BUTTON_CLASSES = `size-8 ${MUTED_ICON_BUTTON}`;
 
 export const MESSAGE_ACTION_ICON_CLASSES = 'text-[1.12rem]';
 
-// RunSpecCard's top-level wrapper and intro-paragraph typography.
-export const SETUP_MESSAGE_CLASSES =
-  'reference-setup-message grid gap-[1.15rem] text-cosci-fg';
-
+// RunSpecCard attachment's fixed lead-in paragraph typography.
 export const SETUP_PARAGRAPH_CLASSES = 'm-0 text-base leading-6';
 
 // "Research plan" heading row (title + edit button) and its subheading,
@@ -282,6 +279,34 @@ export const QUESTION_CHECKBOX_TICK_CLASSES =
 // alone cannot be taken as the whole answer.
 export const QUESTIONS_SEND_ROW_CLASSES = 'flex justify-end';
 
+// The chooser's own answer list: one column, each answer a full-width row.
+// A dedicated constant rather than reusing OPTION_GRID_CLASSES -- that one
+// is the Focus/Run type picker's 2-column card grid, and the two must be
+// free to diverge.
+export const QUESTION_OPTION_GRID_CLASSES = 'grid grid-cols-1 gap-[0.6rem]';
+
+// One answer row: the marker on the left, its label and description running
+// horizontally to the right rather than stacked, since a full-width row has
+// the room. `items-center` (not OPTION_CARD_BASE_CLASSES's `content-start`)
+// keeps a description-less row from looking top-heavy.
+export const QUESTION_OPTION_ROW_CLASSES =
+  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] ' +
+  'items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent ' +
+  'bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg ' +
+  'hover:bg-cosci-option-hover-bg ' +
+  'has-[:focus-visible]:border-cosci-option-hover-border ' +
+  'has-[:focus-visible]:bg-cosci-option-hover-bg';
+
+// The label/description pair inside one answer row, wrapping as a horizontal
+// run of text instead of OPTION_DESCRIPTION_CLASSES's grid-row stack.
+export const QUESTION_OPTION_TEXT_CLASSES =
+  'flex min-w-0 flex-wrap items-baseline gap-x-[0.5rem]';
+
+// The muted description half of that horizontal pair -- OPTION_DESCRIPTION_
+// CLASSES without its `col-start-2`, which only means something in a grid.
+export const QUESTION_OPTION_DESCRIPTION_CLASSES =
+  'min-w-0 text-[0.92rem] leading-[1.3] text-cosci-muted';
+
 // Cancel/Start research button row at the bottom of the plan document card.
 export const SETUP_ACTIONS_CLASSES =
   'reference-setup-actions flex justify-end gap-[0.7rem] pt-[0.3rem]';
@@ -297,14 +322,6 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
   'px-[1.45rem] font-medium text-cosci-btn-primary-fg ' +
   'hover:bg-cosci-btn-primary-hover ' +
   `focus-visible:bg-cosci-btn-primary-hover ${PILL_BUTTON_DISABLED}`;
-
-// StartedSessionCard's wrapper and the block its lead-in is rendered into.
-// The lead-in is the Agent's own markdown reply now, so its paragraphs are
-// styled by MarkdownMessage rather than by a paragraph class of their own.
-export const STARTED_MESSAGE_CLASSES =
-  'reference-started-message grid gap-[1.15rem] text-cosci-fg';
-
-export const STARTED_COPY_CLASSES = 'reference-started-copy grid gap-[0.1rem]';
 
 // The clickable colored session card (title/meta + "Open" affordance) linking
 // to the run's detail page.
@@ -389,3 +406,13 @@ export const SPEC_EDIT_ADD_BUTTON_CLASSES =
 export const SPEC_EDIT_ADD_ICON_CLASSES = 'text-[1.05rem]';
 
 export const SPEC_EDIT_ERROR_CLASSES = 'm-0 text-[0.9rem]';
+
+// Wrapper for an inline attachment an assistant message carries (the
+// research-plan document, the started-session block): one shared class so
+// every attachment sits in the message's own flow rather than each
+// inventing its own spacing. The top margin is the same distance a plain
+// reply keeps from its own action row (CHAT_BUBBLE_ROW_CLASSES' gap), so an
+// attachment reads as the next thing in the message rather than a
+// differently-spaced card bolted on after it.
+export const MESSAGE_ATTACHMENT_CLASSES =
+  'reference-message-attachment mt-[0.7rem] grid gap-[1.15rem]';

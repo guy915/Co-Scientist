@@ -4,11 +4,7 @@
 // proposals_edges.ts can use the types without a require cycle.
 
 export type ClusterId =
-  | 'scaling'
-  | 'evaluation'
-  | 'interaction'
-  | 'knowledge'
-  | 'capabilities';
+  'scaling' | 'evaluation' | 'interaction' | 'knowledge' | 'capabilities';
 
 export type EdgeKind = 'synergy' | 'enables' | 'compensates' | 'tension';
 
