@@ -345,6 +345,58 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
     _recurse_into_properties(obj, props)
 
 
+def _prune_unknown_properties(obj: Any, schema: Any) -> None:
+    """Recursively drops properties a closed schema node does not declare.
+
+    Provider-capability shim for json_object-only models (see
+    ``co_scientist.llm_request._supports_json_schema_response_format``), and
+    the mirror image of ``_backfill_required_fields``: without server-side
+    enforcement a model both omits required fields and invents extra ones,
+    and every object node in this engine's schemas is closed
+    (``schemas/builders.obj``), so a single invented key fails the whole
+    response. Feeding that error back is no cure -- a production
+    research_overview call answered with the same three invented sections on
+    all five attempts before falling back to nothing.
+
+    Only names are touched: an unknown key under a closed node is removed in
+    place, everything the schema declares is left exactly as it arrived, and
+    a node that allows extras keeps them.
+
+    Args:
+        obj: Parsed JSON value to prune (non-dicts are ignored).
+        schema: JSON schema node describing ``obj``.
+    """
+    if not _is_backfillable(obj, schema):
+        return
+    props = schema.get("properties", {})
+    if schema.get("additionalProperties") is False:
+        _drop_undeclared_keys(obj, props)
+    for key, value in obj.items():
+        if key in props:
+            _prune_child(value, props[key])
+
+
+def _drop_undeclared_keys(obj: dict[str, Any], props: dict[str, Any]) -> None:
+    """Removes, in place, every key of obj that props does not declare."""
+    for key in [key for key in obj if key not in props]:
+        del obj[key]
+
+
+def _prune_child(value: Any, property_schema: Any) -> None:
+    """Prunes one property's value, descending into arrays element-wise.
+
+    Args:
+        value: The property's value, of any shape.
+        property_schema: The schema node describing that property.
+    """
+    if isinstance(value, list) and isinstance(property_schema, dict):
+        item_schema = property_schema.get("items")
+        for item in value:
+            _prune_unknown_properties(item, item_schema)
+        return
+    _prune_unknown_properties(value, property_schema)
+
+
 def _validation_feedback(error: ValidationError) -> str:
     """Builds the retry-prompt suffix describing a schema validation error.
 

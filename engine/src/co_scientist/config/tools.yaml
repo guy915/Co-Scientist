@@ -245,9 +245,17 @@ tools:
           abstract: "abstract"
           source_id: "source_id"
           source: "'europepmc'"
+      # Written in the *search* path's canonical vocabulary, which is what
+      # calls this tool (literature review, validation, evolution probes) --
+      # an unmapped canonical name is passed through under its own spelling,
+      # so naming another path's parameters here sends the tool four
+      # arguments it never declared and the server rejects the whole call.
       parameter_mapping:
         query: "query"
-        limit: "max_results"
+        max_papers: "max_results"
+        slug: null
+        recency_years: null
+        run_id: null
       prompt_snippet: |
         Use `search_europepmc` for broad literature coverage. Each record
         carries `is_preprint`; a preprint is weaker support than a peer-
@@ -282,9 +290,15 @@ tools:
           abstract: "abstract"
           source_id: "source_id"
           source: "'preprints'"
+      # Search-path vocabulary, exactly as europepmc_search above and for
+      # the same reason: this tool is a validation-workflow search source,
+      # not an entity-enrichment tool.
       parameter_mapping:
         query: "query"
-        limit: "max_results"
+        max_papers: "max_results"
+        slug: null
+        recency_years: null
+        run_id: null
       prompt_snippet: |
         Use `search_preprints` before claiming something is unexplored:
         the most recent work in a fast-moving field is usually a preprint,

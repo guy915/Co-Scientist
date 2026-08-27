@@ -22,6 +22,7 @@ from jsonschema.exceptions import ValidationError
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.llm_json import (
     _backfill_required_fields,
+    _prune_unknown_properties,
     _validation_feedback,
     validate_json_schema,
 )
@@ -151,10 +152,10 @@ def _backfill_and_validate(
     json_schema: dict[str, Any],
     model_name: str,
 ) -> None:
-    """Applies the provider-capability shim backfill, then validates.
+    """Applies the provider-capability shims, then validates.
 
     Args:
-        result: Parsed JSON dict to validate (and possibly back-fill).
+        result: Parsed JSON dict to validate (and possibly reshape).
         json_schema: JSON schema dict (may have a nested "schema" key).
         model_name: Model name in litellm format, used to decide whether the
             json_object provider-capability shim applies.
@@ -163,13 +164,14 @@ def _backfill_and_validate(
         ValidationError: If ``result`` doesn't match ``json_schema``.
     """
     # Provider-capability shim: calls downgraded to json_object have no
-    # server-side schema enforcement, so back-fill missing required fields
-    # with empty defaults before validating. Keyed on the same condition as
-    # the downgrade in call_llm.
+    # server-side schema enforcement, so the answer can miss required fields
+    # *and* carry invented ones -- both fail a closed schema, and neither is
+    # fixed by asking again. Reshape to what the schema declares before
+    # validating, keyed on the same condition as the downgrade in call_llm.
     if not _supports_json_schema_response_format(model_name):
-        _backfill_required_fields(
-            result, json_schema.get("schema", json_schema)
-        )
+        schema = json_schema.get("schema", json_schema)
+        _prune_unknown_properties(result, schema)
+        _backfill_required_fields(result, schema)
     validate_json_schema(result, json_schema)
 
 

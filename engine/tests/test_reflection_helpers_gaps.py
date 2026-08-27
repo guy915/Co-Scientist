@@ -23,15 +23,31 @@ from co_scientist.agents.reflection.reflection_helpers import (
     fetch_indra_evidence,
 )
 from co_scientist.config import ToolRegistry
+from co_scientist.config.tool_schema import ToolConfig
 
 
 class _FakeRegistry:
-    """Minimal duck-typed ToolRegistry stand-in listing one KG tool."""
+    """Minimal duck-typed ToolRegistry stand-in listing one KG tool.
+
+    ``get_tool`` answers with a knowledge-graph-typed config because that
+    declaration is what makes a tool reachable from this path: entity
+    queries are sent with INDRA's own arguments, which a literature tool
+    rejects outright.
+    """
 
     def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
         """Return a single configured tool id for any workflow name."""
         del workflow_name
         return ["indra_relations"]
+
+    def get_tool(self, tool_id: str) -> ToolConfig:
+        """Resolve the configured tool id to its knowledge-graph config."""
+        del tool_id
+        return ToolConfig(
+            server="default_pubmed",
+            mcp_tool_name="get_relations",
+            source_type="knowledge_graph",
+        )
 
     def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
         """Resolve the configured tool id to its MCP server tool name."""

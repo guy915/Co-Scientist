@@ -1,14 +1,14 @@
-"""Tests for how web search treats a provider that refuses the key.
+"""Tests for how web search reacts to a provider refusing the key.
 
 A provider that rejects the key is not the same event as a provider that
 found nothing, but both used to leave the same trace: an empty dict and a
 warning. Brave's free tier was withdrawn in Feb 2026 and the key started
 answering 402 with a zero monthly allowance, which read downstream as "the
-web had nothing on this" on every run. These pin the distinction, and the
-fall-through to a second provider that it makes possible.
+web had nothing on this" on every run. These pin that distinction, and the
+fall-through to a second provider it makes possible.
 
-Split out of test_web_search.py, which covers normalization and provider
-selection; the two halves share no state beyond the module under test.
+Split from ``test_web_search.py`` on size; that file keeps response
+normalization and plain provider selection.
 """
 
 from typing import Any
@@ -26,11 +26,18 @@ from mcp_server.tools.web.providers import (
     web_search_credential_error,
 )
 
-# The smallest Brave payload that normalizes to a non-empty result, used
-# only to prove a working search clears the failure record. Field mapping
-# itself is covered in test_web_search.py.
+# One healthy result: enough to prove a working search, since what these
+# tests read is the credential record rather than the results themselves.
 _BRAVE_PAYLOAD: dict[str, Any] = {
-    "web": {"results": [{"title": "t", "url": "https://example.com/a"}]}
+    "web": {
+        "results": [
+            {
+                "title": "GLP-1 trial results",
+                "url": "https://example.com/a",
+                "description": "A phase 2 readout.",
+            }
+        ]
+    }
 }
 
 

@@ -20,15 +20,18 @@ from co_scientist.agents.reflection.reflection_helpers import (
     get_kg_tools_for_workflow,
 )
 from co_scientist.config import ToolRegistry
+from co_scientist.config.tool_schema import ToolConfig
 
 
 class _FakeRegistry:
-    """Minimal duck-typed stand-in for the two ToolRegistry methods used.
+    """Minimal duck-typed stand-in for the ToolRegistry methods used.
 
-    ``get_kg_tools_for_workflow`` only calls ``get_tools_for_workflow`` and
-    ``get_mcp_tool_names``, so the test fake implements just those. Either
-    method may be configured to raise, to exercise the helper's exception
-    swallow.
+    ``get_kg_tools_for_workflow`` calls ``get_tools_for_workflow``,
+    ``get_tool`` (to read each tool's declared source type) and
+    ``get_mcp_tool_names``, so the test fake implements just those.
+    ``get_tools_for_workflow`` may be configured to raise, to exercise the
+    helper's exception swallow, and ``source_type`` sets what kind of tool
+    the configured ids resolve to.
     """
 
     def __init__(
@@ -36,10 +39,20 @@ class _FakeRegistry:
         tool_ids: list[str],
         mcp_names: list[str],
         raise_on_workflow: bool = False,
+        source_type: str = "knowledge_graph",
     ) -> None:
         self._tool_ids = tool_ids
         self._mcp_names = mcp_names
         self._raise_on_workflow = raise_on_workflow
+        self._source_type = source_type
+
+    def get_tool(self, tool_id: str) -> ToolConfig:
+        """Return a config for tool_id, typed as this fake was configured."""
+        return ToolConfig(
+            server="default_pubmed",
+            mcp_tool_name=tool_id,
+            source_type=self._source_type,
+        )
 
     def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
         """Return configured tool IDs, or raise if asked to."""
@@ -49,20 +62,25 @@ class _FakeRegistry:
         return self._tool_ids
 
     def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
-        """Return configured MCP tool names for the given IDs."""
-        del tool_ids
-        return self._mcp_names
+        """Resolve the given IDs -- only those -- to MCP tool names.
+
+        Resolves per id rather than returning the whole configured list, so
+        a test can tell an id the helper filtered out from one it kept.
+        """
+        names = dict(zip(self._tool_ids, self._mcp_names, strict=False))
+        return [names[tool_id] for tool_id in tool_ids if tool_id in names]
 
 
 def _fake(
     tool_ids: list[str],
     mcp_names: list[str],
     raise_on_workflow: bool = False,
+    source_type: str = "knowledge_graph",
 ) -> ToolRegistry:
     """Build a fake registry typed as ToolRegistry for the helper signature."""
     return cast(
         ToolRegistry,
-        _FakeRegistry(tool_ids, mcp_names, raise_on_workflow),
+        _FakeRegistry(tool_ids, mcp_names, raise_on_workflow, source_type),
     )
 
 
@@ -298,3 +316,18 @@ def test_build_enrichment_items_empty_input_returns_empty() -> None:
     """No statements (or only unconvertible ones) yields an empty list."""
     assert _build_enrichment_items([], ["KRAS"]) == []
     assert _build_enrichment_items([{"type": "X"}], ["KRAS"]) == []
+
+
+def test_get_kg_tools_skips_tools_that_are_not_knowledge_graphs() -> None:
+    """A literature tool listed for this workflow is never queried.
+
+    Workflow tool lists mix both kinds -- the shipped config lists PubMed and
+    the biomedical databases under ``reflection`` for prompt context -- and
+    this path sends INDRA's own entity arguments, which those tools reject.
+    """
+    registry = _fake(
+        tool_ids=["pubmed_fulltext"],
+        mcp_names=["pubmed_search_with_fulltext"],
+        source_type="academic",
+    )
+    assert get_kg_tools_for_workflow(registry, "reflection") == []

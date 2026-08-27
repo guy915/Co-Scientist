@@ -400,3 +400,64 @@ async def test_call_llm_json_no_backfill_for_supported_model(
             CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
             max_attempts=2,
         )
+
+
+# --- call_llm_json prune wiring ----------------------------------------------
+
+_CLOSED_SCHEMA: dict[str, Any] = {
+    "name": "capability_shim_closed",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"summary": {"type": "string"}},
+        "required": ["summary"],
+    },
+}
+
+
+async def test_call_llm_json_prunes_invented_fields_on_downgrade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On the downgrade path, properties the schema forbids are dropped.
+
+    The response carries an invented ``nih_specific_aims`` section. Without
+    the prune, the closed schema rejects it and every retry rejects the same
+    answer again; with it, the first attempt validates.
+    """
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=False)
+    captured = _capture_acompletion(
+        monkeypatch,
+        [_completion('{"summary": "ok", "nih_specific_aims": "Aim 1"}')],
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=_CLOSED_SCHEMA),
+        max_attempts=2,
+    )
+
+    assert result == {"summary": "ok"}
+    assert len(captured) == 1  # validated on the first attempt, no retry
+
+
+async def test_call_llm_json_no_prune_for_supported_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A schema-enforcing provider is trusted: the same answer still fails.
+
+    Proves the prune is keyed on the downgrade condition rather than applied
+    globally -- where the provider enforces the schema itself, an extra field
+    is a real anomaly and stays a validation failure.
+    """
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=True)
+    invented = _completion('{"summary": "ok", "nih_specific_aims": "Aim 1"}')
+    _capture_acompletion(monkeypatch, [invented, invented])
+
+    with pytest.raises(ValidationError):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(model_name="test-model", json_schema=_CLOSED_SCHEMA),
+            max_attempts=2,
+        )

@@ -9,6 +9,7 @@ from Bio import Entrez
 from mcp_server.entrez import initialize_entrez
 from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.pubmed_query import search_with_relaxation
+from mcp_server.tools.text import clean_markup
 
 logger = logging.getLogger(__name__)
 
@@ -237,8 +238,10 @@ class _EntrezClient:
         doi = _extract_doi(pubmed_article)
         return {
             "date_revised": _parse_date_revised(citation),
-            "title": article["ArticleTitle"],
-            "abstract": _extract_abstract(article),
+            # PubMed sends formatting inside its metadata -- italics around
+            # species names, subscripts inside gene symbols.
+            "title": clean_markup(article["ArticleTitle"]),
+            "abstract": clean_markup(_extract_abstract(article)),
             "doi": doi,
             "authors": _parse_authors(article),
             "publication": article["Journal"]["Title"],

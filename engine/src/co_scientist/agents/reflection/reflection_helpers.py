@@ -49,18 +49,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Only a knowledge-graph tool can answer the entity query this path sends
+# (agent/limit/evidence_limit are INDRA's own argument names). A workflow's
+# search_tools list mixes both kinds -- the shipped config lists PubMed,
+# OpenAlex and the biomedical databases under `reflection` for the prompt
+# context, and the INDRA example config *extends* that list, so its own
+# tools arrive after them. Selecting on the declared source_type rather than
+# on list position is what keeps this path from calling a literature tool
+# with an entity name, which the server rejects outright.
+_KNOWLEDGE_GRAPH_SOURCE_TYPE = "knowledge_graph"
+
+
 def get_kg_tools_for_workflow(
     tool_registry: Optional["ToolRegistry"], workflow_name: str
 ) -> list[str]:
-    """Resolve which MCP tool names the yaml config assigned to search_tools.
+    """Resolve the workflow's knowledge-graph MCP tool names, in order.
 
     Returns an empty list when:
     - no tool_registry is configured
     - no workflow entry exists in the yaml
-    - the workflow lists no enabled tools
+    - the workflow lists no enabled knowledge-graph tool
 
     This is the gate: if the list is empty, no tool calls happen for that
-    workflow.
+    workflow. The shipped config declares no knowledge-graph tool at all
+    (the reference server's INDRA tools are opt-in), so the gate is closed
+    by default and this path costs nothing.
     """
     if tool_registry is None:
         return []
@@ -71,11 +84,25 @@ def get_kg_tools_for_workflow(
         tool_ids = tool_registry.get_tools_for_workflow(workflow_name)
         if not tool_ids:
             return []
-        return tool_registry.get_mcp_tool_names(tool_ids)
+        return tool_registry.get_mcp_tool_names(
+            _knowledge_graph_tool_ids(tool_registry, tool_ids)
+        )
     except Exception:
         # Any registry lookup error degrades to "no KG tools" rather than
         # failing reflection.
         return []
+
+
+def _knowledge_graph_tool_ids(
+    tool_registry: "ToolRegistry", tool_ids: list[str]
+) -> list[str]:
+    """Keep only the tool ids declaring the knowledge-graph source type."""
+    kept = []
+    for tool_id in tool_ids:
+        tool = tool_registry.get_tool(tool_id)
+        if tool and tool.source_type == _KNOWLEDGE_GRAPH_SOURCE_TYPE:
+            kept.append(tool_id)
+    return kept
 
 
 async def _fetch_evidence_result(

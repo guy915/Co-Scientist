@@ -50,16 +50,11 @@ const LOST_CAPABILITY_LABELS: Record<string, string> = {
   evolution_grounding: 'grounding for evolved ideas',
 };
 
-// The strongest source left, worst first. The corpus reads differently
-// from the other two on purpose: it is the only floor a run can keep
-// doing real research on, so it says the research continued rather than
-// naming what was left lying around.
+// The strongest source left, worst first.
 const FLOOR_LABELS: Record<string, string> = {
   none: 'Nothing else was available to search.',
   run_attachments:
     'Only the documents attached to this run were available to search.',
-  group_corpus:
-    "Research continued against the group's own papers, held locally.",
 };
 
 /**
