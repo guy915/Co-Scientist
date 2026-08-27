@@ -11,6 +11,7 @@ from Bio import Entrez
 
 from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.models import Article
+from mcp_server.tools.text import clean_markup
 
 from .pubmed_entrez import _entrez_read
 
@@ -57,7 +58,10 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
     medline = pubmed_article["MedlineCitation"]
     article_data = medline["Article"]
 
-    title = article_data.get("ArticleTitle", "Unknown")
+    # PubMed formats inside its metadata -- italics around species names,
+    # subscripts inside gene symbols -- and an agent quoting a title reads
+    # it as text.
+    title = clean_markup(article_data.get("ArticleTitle")) or "Unknown"
     abstract = _parse_pubmed_abstract(article_data)
     authors = _parse_pubmed_authors(article_data)
     doi = _parse_pubmed_doi(pubmed_article)
@@ -92,11 +96,11 @@ def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
         abstract_parts = article_data.get("Abstract", {}).get(
             "AbstractText", []
         )
-        return (
-            " ".join(str(part) for part in abstract_parts)
-            if abstract_parts
-            else None
-        )
+        if not abstract_parts:
+            return None
+        # An absent abstract stays None rather than becoming "": ranking
+        # reads the empty string as evidence it has already seen.
+        return clean_markup(" ".join(str(part) for part in abstract_parts))
     except (KeyError, TypeError):
         return None
 
