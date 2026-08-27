@@ -233,6 +233,7 @@ tools:
       display_name: "INDRA Mechanistic Statements"
       description: "Query curated causal assertions from INDRA knowledge graph (e.g., TGFB1 activates COL1A1)"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_mechanistic_statements` to find known HFpEF-relevant causal relationships.
@@ -250,6 +251,7 @@ tools:
       display_name: "Gene-Disease Network"
       description: "Find genes associated with heart failure or cardiometabolic diseases"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_gene_disease_network` to explore HFpEF gene-disease associations.
@@ -268,6 +270,7 @@ tools:
       display_name: "Causal Subnetwork"
       description: "Find indirect mechanistic paths between cardiometabolic risk factors and cardiac endpoints — the defining tool for HFpEF research"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_causal_subnetwork` to find mediators between cardiometabolic drivers
@@ -287,6 +290,7 @@ tools:
       display_name: "Clinical Trials"
       description: "Survey the HFpEF clinical trial landscape — including failed trials — to focus hypotheses on unmet mechanistic gaps"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_clinical_trials` to map the HFpEF trial landscape before generating hypotheses.
@@ -302,6 +306,7 @@ tools:
       display_name: "Drug Target/Indication Info"
       description: "Repurposing analysis for cardiometabolic drugs in HFpEF"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_drug_info` to evaluate repurposing potential of cardiometabolic drugs.
@@ -317,6 +322,7 @@ tools:
       display_name: "Biological Pathways"
       description: "Shared pathway analysis across HFpEF-associated genes"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `query_pathways` to find shared pathways across HFpEF gene clusters.
@@ -333,6 +339,7 @@ tools:
       display_name: "Gene Codependency"
       description: "Find functionally co-essential partners for HFpEF-associated genes"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
 
     indra_enrichment:
@@ -341,6 +348,7 @@ tools:
       display_name: "Gene Set Enrichment"
       description: "Enrichment analysis on HFpEF gene sets for upstream regulator discovery"
       category: "search"
+      source_type: "knowledge_graph"
       enabled: true
       prompt_snippet: |
         Use `run_enrichment_analysis` to find enriched pathways and upstream regulators.
