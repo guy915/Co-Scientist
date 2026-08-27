@@ -3,8 +3,8 @@ import {type ChatSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from './classes';
 import {
-  HEADER_ACCENT_PILL_CLASSES,
   HEADER_CONTROL_ICON_CLASSES,
+  HEADER_PILL_SHAPE_CLASSES,
 } from './layout_primitives';
 import {useRecordSessionSide} from './layout_session_memory';
 import {tabPath} from './run_tabs';
@@ -74,29 +74,34 @@ const SWITCH_SIDES: {
   {side: 'results', icon: 'lab_profile', label: 'Results'},
 ];
 
-// The track: the same accent-pill chrome as the Logs trigger (bg, height,
-// radius, typography), just gridded into two equal halves instead of one
-// button's worth of content -- see HEADER_ACCENT_PILL_CLASSES.
+// The track: the Logs pill's shape (height, radius, typography) gridded into
+// two equal halves, but wearing the quiet segmented-control surface rather
+// than the accent. The accent marks *which half you are on*; spending it on
+// the whole track would leave the highlight nothing to say.
 const SWITCH_TRACK_CLASSES = joinClasses(
   'ucs-session-switch relative box-border grid grid-cols-2 gap-[0.2rem] p-[0.2rem]',
-  HEADER_ACCENT_PILL_CLASSES,
+  'border border-cosci-border bg-cosci-settings-segment-bg',
+  HEADER_PILL_SHAPE_CLASSES,
 );
 
-// One side's chrome, sans the active/inactive background. Both sides share
-// the pill's own accent text color -- the highlight below, not a dimmed
-// label, is what marks which one is current.
+// One side's chrome. The colour is set here, on the link itself, and not
+// inherited from the track: these are real <a> elements, and the user-agent
+// rule for a visited link outranks an inherited colour, which painted both
+// halves browser-purple once either had been followed.
 const SWITCH_SIDE_CLASSES =
   'ucs-session-switch-side relative z-[1] flex h-full min-w-0 ' +
   'items-center justify-center gap-[0.35rem] rounded-full px-[0.7rem] ' +
-  'no-underline hover:bg-cosci-logs-accent-hover ' +
-  'focus-visible:bg-cosci-logs-accent-hover';
+  'text-cosci-shell-icon no-underline hover:bg-cosci-menu-row-hover ' +
+  'focus-visible:bg-cosci-menu-row-hover';
 
-// The active side additionally carries the same hover tint permanently --
-// the Logs pill's own "engaged" look (see [&[aria-expanded=true]] in
-// headerControlButtonClasses), reused here to mean "this is where you are".
+// The side the reader is on: the accent fill, and the text colour that reads
+// against it. Both are stated after the inactive colour above rather than
+// swapped into it, so the pair cannot drift apart.
 const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
-  SWITCH_SIDE_CLASSES,
-  'bg-cosci-logs-accent-hover',
+  'ucs-session-switch-side ucs-session-switch-side--active relative z-[1] ' +
+    'flex h-full min-w-0 items-center justify-center gap-[0.35rem] ' +
+    'rounded-full px-[0.7rem] no-underline',
+  'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg',
 );
 
 // Where each side leads. The results side always targets the run's default

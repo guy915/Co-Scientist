@@ -1,13 +1,14 @@
 import type {ReactElement} from 'react';
-import {fireEvent, render, screen} from '@testing-library/react';
-import {MemoryRouter, type NavigateFunction} from 'react-router-dom';
+import {fireEvent, screen} from '@testing-library/react';
 import {expect, it, vi} from 'vitest';
-import {
-  buildTimelineItems,
-  type BuildTimelineItemsArgs,
-} from './chat_workspace_timeline';
+import {buildTimelineItems} from './chat_workspace_timeline';
 import type {StartedSession} from './chat_timeline_cards';
 import type {SpecStage} from '../hooks/chat_session_types';
+import {
+  baseArgs,
+  renderItems,
+  transcriptArgs,
+} from './chat_workspace_timeline_test_support';
 import {makeMessage, makeSpec} from '@/test_fixtures';
 
 // The plan card's completion-email opt-in is gated on the server actually
@@ -18,46 +19,6 @@ vi.mock('../hooks/system_status_context', () => ({
     unreachable: false,
   }),
 }));
-
-function baseArgs(
-  overrides: Partial<BuildTimelineItemsArgs> = {},
-): BuildTimelineItemsArgs {
-  return {
-    messages: [],
-    handleEditMessage: vi.fn(),
-    handleCopyRequest: vi.fn().mockResolvedValue(undefined),
-    handleRetryMessage: vi.fn(),
-    draft: null,
-    setDraft: vi.fn(),
-    isStarting: false,
-    isAwaitingAgent: false,
-    agentReasoning: '',
-    agentDraft: '',
-    handleCancelDraftSpec: vi.fn(),
-    handleEditPlan: vi.fn(),
-    handleRetryDraftSpec: vi.fn(),
-    handleStartRun: vi.fn().mockResolvedValue(undefined),
-    confirmed: null,
-    stageDraftSpec: vi.fn(),
-    startedSession: null,
-    navigate: vi.fn() as unknown as NavigateFunction,
-    resetWorkspace: vi.fn(),
-    focusComposer: vi.fn(),
-    ...overrides,
-  };
-}
-
-// Renders every item's node so RTL queries see the whole timeline at once.
-// The started-session card links to the run, so a router has to be in scope.
-function renderItems(items: {id: string; node: ReactElement | unknown}[]) {
-  return render(
-    <MemoryRouter>
-      {items.map(item => (
-        <div key={item.id}>{item.node as ReactElement}</div>
-      ))}
-    </MemoryRouter>,
-  );
-}
 
 it('shows the model reasoning it has streamed so far', () => {
   renderItems(
@@ -117,21 +78,6 @@ it('renders nothing once the turn resolves', () => {
   expect(screen.queryByText('Thinking')).toBeNull();
   expect(screen.queryByText('stale thought')).toBeNull();
 });
-
-function transcriptArgs(overrides: Partial<BuildTimelineItemsArgs> = {}) {
-  return baseArgs({
-    messages: [
-      makeMessage({id: 'u1', role: 'user', content: 'A question', turnId: 1}),
-      makeMessage({
-        id: 'a1',
-        role: 'assistant',
-        content: 'An answer',
-        turnId: 2,
-      }),
-    ],
-    ...overrides,
-  });
-}
 
 it('wires each bubble to its own edit/copy/retry handlers', () => {
   const args = transcriptArgs();

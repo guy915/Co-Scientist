@@ -37,17 +37,25 @@ export interface HeaderControlProps {
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
 /**
- * Shape and typography of every accent pill in the header: the Logs trigger
- * and the Chat/Results switch's track. Deliberately excludes padding, gap,
- * and interaction states (hover, expanded) -- those differ per consumer (a
- * clickable trigger wants them across its whole hit area; the switch wants
- * them per side) and setting the same CSS property twice on one element
- * leaves Tailwind's stylesheet order, not class order, to pick the winner.
+ * Shape and typography of every pill in the header: the Logs trigger and
+ * the Chat/Results switch's track. Deliberately excludes colour, padding,
+ * gap, and interaction states (hover, expanded) -- those differ per consumer
+ * (a clickable trigger wants them across its whole hit area; the switch
+ * wants them per side) and setting the same CSS property twice on one
+ * element leaves Tailwind's stylesheet order, not class order, to pick the
+ * winner.
  */
-export const HEADER_ACCENT_PILL_CLASSES =
+export const HEADER_PILL_SHAPE_CLASSES =
   'inline-flex h-[2.35rem] min-w-max items-center rounded-full ' +
-  'bg-cosci-logs-accent-bg font-[inherit] text-[0.88rem] font-semibold ' +
-  'whitespace-nowrap text-cosci-logs-accent-fg';
+  'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
+
+// The filled accent pill: the shape above wearing the accent. The Logs
+// trigger is one of these end to end; the switch's track is not (only its
+// active half is), which is why the fill lives here rather than in the
+// shape.
+export const HEADER_ACCENT_PILL_CLASSES =
+  `${HEADER_PILL_SHAPE_CLASSES} ` +
+  'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
 
 /**
  * Trigger chrome shared by the header's right-side controls (the Logs

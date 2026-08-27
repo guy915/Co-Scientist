@@ -50,6 +50,28 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
+/**
+ * Ends the turn in flight: drops the live channels and lowers the awaiting
+ * flag together.
+ *
+ * The streamed reasoning and reply belong to the turn that produced them.
+ * Left behind after it resolved, they were re-shown whole the next time
+ * anything raised `isAwaitingAgent` -- clicking Start research put the
+ * interview's closing message back on screen as a bare bubble underneath the
+ * plan it had just produced. Clearing them here, in the same place the flag
+ * drops, is what keeps the two from ever disagreeing.
+ */
+export function settleTurn(
+  deps: Pick<
+    HandlerDeps,
+    'setIsAwaitingAgent' | 'setAgentReasoning' | 'setAgentDraft'
+  >,
+): void {
+  deps.setAgentReasoning('');
+  deps.setAgentDraft('');
+  deps.setIsAwaitingAgent(false);
+}
+
 // Starts (and records) the AbortController for one turn, so the composer's
 // Stop control -- which only holds the deps bag, not this call's local
 // state -- can reach it via `turnAbortRef`.

@@ -59,3 +59,25 @@ it('shows no switch for a conversation that never started a run', async () => {
   expect(await screen.findByText('Still deciding')).toBeInTheDocument();
   expect(screen.queryByRole('link', {name: 'Results'})).toBeNull();
 });
+
+// The accent belongs to the half you are on, not to the control. Filling the
+// whole track with it left the highlight nothing to say, and the sides then
+// had no colour of their own to state -- so the user agent's visited-link
+// rule, which outranks an inherited colour, painted both labels purple once
+// either had been followed.
+it('spends the accent on the active half and colours both labels itself', async () => {
+  installStartedSession();
+  renderLayout('/runs/run-1/details');
+
+  const results = await screen.findByRole('link', {name: 'Results'});
+  const chat = screen.getByRole('link', {name: 'Chat'});
+  const track = results.closest('nav');
+
+  expect(track?.className).not.toContain('bg-cosci-logs-accent-bg');
+  expect(track?.className).toContain('bg-cosci-settings-segment-bg');
+  expect(results.className).toContain('bg-cosci-logs-accent-bg');
+  expect(chat.className).not.toContain('bg-cosci-logs-accent-bg');
+  // Neither side may fall back to the inherited colour.
+  expect(results.className).toContain('text-cosci-logs-accent-fg');
+  expect(chat.className).toContain('text-cosci-shell-icon');
+});

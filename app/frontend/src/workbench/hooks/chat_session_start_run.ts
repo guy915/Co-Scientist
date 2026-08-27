@@ -22,7 +22,7 @@ export const START_RESEARCH_PROMPT = 'Start research';
 // Builds the POST /api/runs payload from the confirmed spec plus the
 // connector toggles.
 function buildCreateRunPayload(deps: ExecuteStartDeps) {
-  const spec = deps.specToStart;
+  const spec = deps.stageToStart.spec;
   return {
     research_goal: spec.goal,
     interview_id: spec.interviewId,
@@ -47,7 +47,7 @@ function buildCreateRunPayload(deps: ExecuteStartDeps) {
 // The session slice the rollback below writes back.
 type SettleDeps = Pick<
   ExecuteStartDeps,
-  'setDraft' | 'setConfirmed' | 'specToStart' | 'specCreatedAt'
+  'setDraft' | 'setConfirmed' | 'stageToStart'
 >;
 
 // Starts a just-created run, and settles it if that fails.
@@ -68,7 +68,7 @@ async function startOrSettle(runId: string, deps: SettleDeps): Promise<void> {
     // editable again, so a retry re-runs the specification the scientist
     // wrote rather than rebuilding it from the transcript.
     deps.setConfirmed(null);
-    deps.setDraft({spec: deps.specToStart, createdAt: deps.specCreatedAt});
+    deps.setDraft(deps.stageToStart);
     throw error;
   }
 }
@@ -91,10 +91,12 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
   const created = await createRun(buildCreateRunPayload(deps));
   const session: StartedSession = {
     id: created.id,
-    title: conciseTitle(deps.specToStart.goal),
+    title: conciseTitle(deps.stageToStart.spec.goal),
     at: Date.now() / 1000,
   };
-  deps.setConfirmed({spec: deps.specToStart, createdAt: deps.specCreatedAt});
+  // The whole stage, so the plan turn keeps the closing message and thinking
+  // it was already showing rather than falling back to generic copy.
+  deps.setConfirmed(deps.stageToStart);
   deps.setDraft(null);
   await startOrSettle(created.id, deps);
   deps.setPendingAttachments([]);
@@ -251,14 +253,13 @@ async function startDraftRun(
 export async function promoteDraftToRun(deps: HandlerDeps): Promise<void> {
   if (!deps.draft) return;
   // Snapshot the draft up front so state changes during the awaits below
-  // can't swap the spec out from under this start attempt.
-  const specToStart = deps.draft.spec;
-  const specCreatedAt = deps.draft.createdAt;
+  // can't swap the stage out from under this start attempt.
+  const stageToStart = deps.draft;
   deps.setIsStarting(true);
   deps.setError(null);
   deps.setToast(null);
   try {
-    await startDraftRun({...deps, specToStart, specCreatedAt});
+    await startDraftRun({...deps, stageToStart});
   } finally {
     deps.setIsStarting(false);
   }

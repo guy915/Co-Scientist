@@ -24,7 +24,8 @@ export interface StartedSession {
    * (see chat_session_start_run.ts), which is why it grows from empty.
    */
   intro?: string;
-  /** The chain of thought behind that reply, disclosed above the card. */
+  /** The chain of thought behind that reply, disclosed inside the turn like
+   * any other reply's. */
   reasoning?: string;
   /**
    * True while the reply is still being written. It is what tells an empty
@@ -92,6 +93,8 @@ export function StartedSessionCard({
   return (
     <AssistantMessage
       content={intro}
+      reasoning={session.reasoning}
+      live={session.announcing}
       ariaLabel="Started research session"
       attachment={
         <MessageAttachment>

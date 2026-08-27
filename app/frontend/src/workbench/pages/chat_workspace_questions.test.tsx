@@ -93,6 +93,7 @@ it('offers the turn answers inside the composer, above the input', async () => {
 it('sends a clicked answer as the scientist own next turn', async () => {
   await askTheScientist();
   fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
+  fireEvent.click(screen.getByRole('button', {name: /send answer/i}));
   await waitFor(() => {
     expect(apiMock.addInterviewTurn).toHaveBeenCalledWith(
       'interview-1',
@@ -126,6 +127,7 @@ it('keeps a half-written message when an answer is clicked instead', async () =>
   const textbox = getComposer();
   fireEvent.change(textbox, {target: {value: 'also, note that'}});
   fireEvent.click(screen.getByLabelText(/Primary human cells/));
+  fireEvent.click(screen.getByRole('button', {name: /send answer/i}));
   await waitFor(() => {
     expect(apiMock.addInterviewTurn).toHaveBeenCalled();
   });
@@ -135,6 +137,7 @@ it('keeps a half-written message when an answer is clicked instead', async () =>
 it('stops offering the answers once the turn they belonged to is answered', async () => {
   await askTheScientist();
   fireEvent.click(screen.getByLabelText(/Primary human cells/));
+  fireEvent.click(screen.getByRole('button', {name: /send answer/i}));
   await waitFor(() => {
     expect(screen.queryByText(MODEL_SYSTEM.question)).toBeNull();
   });

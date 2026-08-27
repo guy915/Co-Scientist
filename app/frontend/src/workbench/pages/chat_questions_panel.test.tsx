@@ -39,9 +39,21 @@ test('asks the question and lays out every answer with its description', () => {
   expect(screen.getByText('Closest to patient biology')).toBeTruthy();
 });
 
-test('one single-select question sends the moment an answer is clicked', () => {
+test('clicking an answer only selects it, even for one single-select question', () => {
   const {onAnswer} = renderChooser();
   fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
+  expect(onAnswer).not.toHaveBeenCalled();
+});
+
+test('a single-select question still has its own send control', () => {
+  renderChooser();
+  expect(screen.getByRole('button', {name: /send/i})).toBeTruthy();
+});
+
+test('the send control commits a single-select answer once clicked', () => {
+  const {onAnswer} = renderChooser();
+  fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
+  fireEvent.click(screen.getByRole('button', {name: /send/i}));
   expect(onAnswer).toHaveBeenCalledWith('Model system: iPSC-derived line');
 });
 
@@ -57,6 +69,20 @@ test('a multi-select question waits for the send control', () => {
 test('the send control is inert until something has been chosen', () => {
   renderChooser([EXCLUSIONS]);
   expect(screen.getByRole('button', {name: /send/i})).toBeDisabled();
+});
+
+test('a multi-select question renders checkboxes and holds several answers at once', () => {
+  const {onAnswer} = renderChooser([EXCLUSIONS]);
+  const geneTherapy = screen.getByLabelText(/Gene therapy/) as HTMLInputElement;
+  const devices = screen.getByLabelText(/Devices/) as HTMLInputElement;
+  expect(geneTherapy.type).toBe('checkbox');
+  expect(devices.type).toBe('checkbox');
+  fireEvent.click(geneTherapy);
+  fireEvent.click(devices);
+  expect(geneTherapy.checked).toBe(true);
+  expect(devices.checked).toBe(true);
+  fireEvent.click(screen.getByRole('button', {name: /send/i}));
+  expect(onAnswer).toHaveBeenCalledWith('Exclusions: Gene therapy, Devices');
 });
 
 test('the free-text field is already there, with no click needed to reveal it', () => {
@@ -100,6 +126,13 @@ test('the answers render as a single column of full-width rows', () => {
   const group = screen.getByRole('group', {name: MODEL_SYSTEM.question});
   const grid = group.querySelector(':scope > div');
   expect(grid?.className).toMatch(/grid-cols-1\b/);
+});
+
+test('there is a touch more room between the question and its first option', () => {
+  renderChooser();
+  const group = screen.getByRole('group', {name: MODEL_SYSTEM.question});
+  const grid = group.querySelector(':scope > div');
+  expect(grid?.className).toMatch(/mt-\[0\.15rem\]/);
 });
 
 test('dismissing the chooser leaves nothing of it on screen', () => {

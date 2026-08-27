@@ -142,8 +142,14 @@ export const SETUP_PARAGRAPH_CLASSES = 'm-0 text-base leading-6';
 
 // "Research plan" heading row (title + edit button) and its subheading,
 // shown above the plan document card.
+//
+// No top margin of its own: the heading is one step in the attachment's own
+// grid (MESSAGE_ATTACHMENT_CLASSES), and the extra 1.75rem on top of that
+// gap opened a gulf between the Agent's reply and the plan it introduces --
+// which read as two separate blocks rather than one message carrying a
+// document.
 export const PLAN_HEADING_CLASSES =
-  'reference-plan-heading mt-7 flex items-center gap-[0.45rem]';
+  'reference-plan-heading flex items-center gap-[0.45rem]';
 
 export const PLAN_TITLE_CLASSES =
   'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg ' +

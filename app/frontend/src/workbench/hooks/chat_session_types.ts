@@ -56,8 +56,12 @@ export interface ChatSessionDeps {
 
 /**
  * Dependencies shared by `executeStart` and `startDraftRun`: the snapshotted
- * spec plus the relevant slice of `HandlerDeps` (callers pass the same
- * values they received there).
+ * draft stage plus the relevant slice of `HandlerDeps` (callers pass the
+ * same values they received there).
+ *
+ * The whole stage, not just its spec: the confirmed stage is the same
+ * completing turn frozen, so it has to carry that turn's closing message,
+ * thinking and fallback marker across the start.
  */
 export type ExecuteStartDeps = Pick<
   HandlerDeps,
@@ -73,8 +77,7 @@ export type ExecuteStartDeps = Pick<
   | 'pendingAttachments'
   | 'setPendingAttachments'
 > & {
-  specToStart: InferredRunSpec;
-  specCreatedAt: number;
+  stageToStart: SpecStage;
 };
 
 /**

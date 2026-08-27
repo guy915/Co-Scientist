@@ -1,7 +1,6 @@
 import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
-import {MarkdownMessage} from '@/components/markdown_message';
 import {type InferredRunSpec} from '../run_spec';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
@@ -11,7 +10,7 @@ import {
   type StartedSession,
   StartedSessionCard,
 } from './chat_timeline_cards';
-import {ThoughtsDisclosure} from './chat_timeline_thoughts';
+import {AssistantMessage} from './chat_timeline_bubble';
 
 /**
  * One renderable entry in the chat timeline.
@@ -110,35 +109,19 @@ function messageTimelineItems({
   }));
 }
 
-/**
- * The Agent's reply as it is being written.
- *
- * Rendered in the same bubble the finished turn lands in, so the reply does
- * not visibly move or restyle when the stream resolves -- the durable turn
- * simply replaces it. Not announced: the resolved message is what a screen
- * reader should read, once, rather than a partial sentence per token.
- */
-function AgentDraft({draft}: {draft: string}) {
-  return (
-    <div className="reference-bubble-row assistant" aria-hidden="true">
-      <MarkdownMessage
-        content={draft}
-        className="min-w-0 text-base leading-[1.45] text-cosci-fg"
-      />
-    </div>
-  );
-}
-
-// The Agent's thinking and its reply-in-progress, shown at the tail of the
-// timeline while it composes an interview turn; timestamped "now" so they sort
-// after the just-sent user message, and cleared the moment the turn resolves.
-// The thinking stays visible under the reply because a thinking model has
-// finished reasoning before its first answer token, so the trail is a record
-// of how the reply was reached rather than something still filling.
+// The turn the Agent is writing, as one message: its thinking and its reply
+// in progress are parts of the same AssistantMessage the settled turn lands
+// in, so nothing about the message moves or re-spaces when the stream
+// resolves. They were two timeline entries of their own, which put the
+// column's 1.15rem gap between the disclosure and the reply -- a gap that
+// vanished the moment the turn settled into a bubble and the two became
+// siblings inside it.
 //
-// It is the same disclosure the finished turn keeps, in its live state: one
-// control that stops counting and closes, rather than one control replaced by
-// another as the turn resolves.
+// Timestamped "now" so it sorts after the just-sent user message, and gone
+// the moment the turn resolves. The thinking stays visible under the reply
+// because a thinking model has finished reasoning before its first answer
+// token, so the trail is a record of how the reply was reached rather than
+// something still filling.
 //
 // Interview-only: once a run has started, `isAwaitingAgent` covers a run
 // Q&A turn instead (see qaAnswerTimelineItems below), which has no
@@ -154,37 +137,29 @@ function thinkingTimelineItems({
   'startedSession' | 'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
 >): TimelineItem[] {
   if (startedSession || !isAwaitingAgent) return [];
-  const items: TimelineItem[] = [
+  return [
     {
-      id: 'agent-thinking',
+      id: 'agent-turn-in-flight',
       at: Date.now() / 1000,
       order: 45,
+      revision: agentDraft.length + agentReasoning.length,
       node: (
-        <ThoughtsDisclosure
+        <AssistantMessage
+          content={agentDraft}
           reasoning={agentReasoning}
           live
-          answering={Boolean(agentDraft)}
+          streaming
         />
       ),
     },
   ];
-  if (agentDraft) {
-    items.push({
-      id: 'agent-draft',
-      at: Date.now() / 1000,
-      order: 46,
-      node: <AgentDraft draft={agentDraft} />,
-    });
-  }
-  return items;
 }
 
-// The run Q&A answer as it streams in, growing in the same bubble style an
-// interview turn's live reply uses (AgentDraft) -- but with no "Thinking"
-// disclosure above it, since a Q&A turn never carries reasoning (see
-// thinkingTimelineItems). Renders nothing until the first chunk lands, so a
-// question in flight shows only the Stop control until there is prose to
-// grow.
+// The run Q&A answer as it streams in, in the same message an interview
+// turn's live reply grows in -- but with no "Thinking" disclosure, since a
+// Q&A turn never carries reasoning (see thinkingTimelineItems). Renders
+// nothing until the first chunk lands, so a question in flight shows only
+// the Stop control until there is prose to grow.
 function qaAnswerTimelineItems({
   startedSession,
   isAwaitingAgent,
@@ -199,7 +174,8 @@ function qaAnswerTimelineItems({
       id: 'qa-answer-draft',
       at: Date.now() / 1000,
       order: 46,
-      node: <AgentDraft draft={agentDraft} />,
+      revision: agentDraft.length,
+      node: <AssistantMessage content={agentDraft} streaming />,
     },
   ];
 }
@@ -246,6 +222,7 @@ function draftSpecCardNode({
       spec={draft.spec}
       isStarting={isStarting}
       intro={draft.intro}
+      introReasoning={draft.reasoning}
       introFallback={draft.fallback}
       onFocusChange={(focus: RunFocus) => updateDraftSpec(setDraft, {focus})}
       onTierChange={(tier: RunTier) => updateDraftSpec(setDraft, {tier})}
@@ -286,19 +263,6 @@ function draftTimelineItems({
 >): TimelineItem[] {
   if (!draft) return [];
   return [
-    // The completing turn's thinking, above the plan it produced -- that turn
-    // has no bubble of its own (its message becomes the card's lead-in), so
-    // without this its reasoning would be the only one silently dropped.
-    ...(draft.reasoning
-      ? [
-          {
-            id: 'draft-spec-thoughts',
-            at: draft.createdAt,
-            order: 49,
-            node: <ThoughtsDisclosure reasoning={draft.reasoning} />,
-          },
-        ]
-      : []),
     {
       id: DRAFT_SPEC_ITEM_ID,
       at: draft.createdAt,
@@ -319,6 +283,11 @@ function draftTimelineItems({
 // Read-only confirmed spec once the plan has been locked in (e.g. after an
 // edit round-trip): all mutation handlers are no-ops and `locked` disables
 // the option cards; retrying re-stages it as an editable draft again.
+//
+// It is the same turn the draft card was, so it renders with the same
+// closing message, thinking and fallback marker. Freezing the plan used to
+// drop all three, which read as the Agent's reply vanishing (and its
+// thinking jumping below the plan) the instant Start research was clicked.
 function confirmedSpecTimelineItems({
   confirmed,
   handleEditPlan,
@@ -337,6 +306,9 @@ function confirmedSpecTimelineItems({
         <RunSpecCard
           spec={confirmed.spec}
           isStarting={false}
+          intro={confirmed.intro}
+          introReasoning={confirmed.reasoning}
+          introFallback={confirmed.fallback}
           locked
           onFocusChange={() => undefined}
           onTierChange={() => undefined}
@@ -348,32 +320,6 @@ function confirmedSpecTimelineItems({
             stageDraftSpec(confirmed.spec);
           }}
           onStart={() => undefined}
-        />
-      ),
-    },
-  ];
-}
-
-// The announcing turn's thinking, above the reply it produced -- the same
-// shape the completing interview turn's takes above the plan card (see
-// draftTimelineItems). Live while the reply is still being written, so it
-// stops counting and closes as the turn resolves rather than being swapped
-// for a second control. Empty for a run started before announcements
-// existed, whose card has neither.
-function announcementThoughtsItems(
-  startedSession: StartedSession,
-): TimelineItem[] {
-  if (!startedSession.announcing && !startedSession.reasoning) return [];
-  return [
-    {
-      id: 'started-session-thoughts',
-      at: startedSession.at,
-      order: 59,
-      node: (
-        <ThoughtsDisclosure
-          reasoning={startedSession.reasoning}
-          live={startedSession.announcing}
-          answering={Boolean(startedSession.intro)}
         />
       ),
     },
@@ -394,7 +340,6 @@ function startedTimelineItems({
 >): TimelineItem[] {
   if (!startedSession) return [];
   return [
-    ...announcementThoughtsItems(startedSession),
     {
       id: `started-session-${startedSession.id}`,
       at: startedSession.at,

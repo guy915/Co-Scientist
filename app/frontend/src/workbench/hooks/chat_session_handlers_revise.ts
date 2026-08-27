@@ -13,6 +13,7 @@ import {
   describeSubmitError,
   isAbortError,
   recoverFromStoppedTurn,
+  settleTurn,
 } from './chat_session_handlers_shared';
 import {type HandlerDeps} from './chat_session_types';
 
@@ -54,7 +55,7 @@ async function reviseInterviewTurn(
     }
   } finally {
     deps.turnAbortRef.current = null;
-    deps.setIsAwaitingAgent(false);
+    settleTurn(deps);
   }
 }
 

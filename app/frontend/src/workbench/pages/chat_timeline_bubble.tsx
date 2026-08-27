@@ -98,12 +98,27 @@ export interface AssistantMessageProps {
   content: string;
   /** Shows the quiet fallback-authored notice above the content. */
   fallback?: boolean;
-  /** The turn's chain of thought, disclosed above the content. Omitted by
-   * the plan and started-session cards, whose reasoning is disclosed as a
-   * separate timeline item above the whole turn instead (see
-   * chat_workspace_timeline.tsx) -- passing it here as well would show it
-   * twice. */
+  /**
+   * The turn's chain of thought, disclosed above the content.
+   *
+   * Every turn discloses its reasoning here, inside its own message. It used
+   * to be a timeline entry of its own for the plan and started-session
+   * turns, which put the column's gap around it (so the space above a reply
+   * visibly shrank the moment the turn settled into a bubble) and let it
+   * move relative to the plan when the draft stage became the confirmed one.
+   */
   reasoning?: string;
+  /** Whether the turn producing this message is still being written; keeps
+   * the disclosure counting (see {@link ThoughtsDisclosure}). */
+  live?: boolean;
+  /**
+   * Whether this message *is* the reply as it streams, rather than the turn
+   * it resolved to. Its body is kept out of the accessibility tree: the
+   * resolved message is what a screen reader should read, once, rather than
+   * a partial sentence per token. The disclosure above it stays exposed --
+   * it is the same one the settled turn keeps.
+   */
+  streaming?: boolean;
   /**
    * Makes the row an aria-labelled `<section>` (an accessible landmark)
    * instead of a plain `<div>`. A plain reply carries none; a turn built
@@ -113,23 +128,38 @@ export interface AssistantMessageProps {
   /** The inline attachment this turn carries, if any -- see
    * {@link MessageAttachment}. */
   attachment?: ReactNode;
-  /** The retry/copy/download row shown under the turn. */
-  actions: MessageAction[];
+  /** The retry/copy/download row shown under the turn. Absent while the turn
+   * is still being written: there is nothing settled to copy or retry yet. */
+  actions?: MessageAction[];
+}
+
+// The turn's action row, or nothing while it is still being written: there
+// is no settled response to copy, download or regenerate yet.
+function TurnActions({actions}: {actions?: MessageAction[]}) {
+  if (!actions?.length) return null;
+  return <MessageActionRow actions={actions} />;
 }
 
 /**
- * Renders one assistant turn: markdown-rendered reply text, an optional
- * inline attachment carried in the turn's own flow, and the action row
- * below it -- all inside the same row/bubble wrapper a plain assistant
- * reply uses (see ChatBubble). This is what makes the research-plan turn
- * and the started-session turn read as ordinary assistant messages that
- * happen to carry an attachment, rather than as bespoke cards with their
- * own spacing and markdown rules.
+ * Renders one assistant turn: its chain of thought, its markdown-rendered
+ * reply text, an optional inline attachment carried in the turn's own flow,
+ * and the action row below it -- all inside the same row/bubble wrapper a
+ * plain assistant reply uses (see ChatBubble). This is what makes the
+ * research-plan turn and the started-session turn read as ordinary assistant
+ * messages that happen to carry an attachment, rather than as bespoke cards
+ * with their own spacing and markdown rules.
+ *
+ * The four parts render in this fixed order in every state -- streaming,
+ * settled, and once a run has started -- because they are one element's
+ * children rather than separate timeline entries that a re-sort could
+ * reshuffle.
  */
 export function AssistantMessage({
   content,
   fallback,
   reasoning,
+  live,
+  streaming,
   ariaLabel,
   attachment,
   actions,
@@ -139,8 +169,12 @@ export function AssistantMessage({
     <Row className={CHAT_BUBBLE_ROW_CLASSES} aria-label={ariaLabel}>
       <div className="min-w-0">
         {fallback && <FallbackTurnNotice />}
-        <ThoughtsDisclosure reasoning={reasoning} />
-        <div className={MODEL_BUBBLE_CLASSES}>
+        <ThoughtsDisclosure
+          reasoning={reasoning}
+          live={live}
+          answering={Boolean(live && content)}
+        />
+        <div className={MODEL_BUBBLE_CLASSES} aria-hidden={streaming}>
           <MarkdownMessage
             content={content}
             className={MODEL_BUBBLE_TEXT_CLASSES}
@@ -148,7 +182,7 @@ export function AssistantMessage({
           {attachment}
         </div>
       </div>
-      <MessageActionRow actions={actions} />
+      <TurnActions actions={actions} />
     </Row>
   );
 }
