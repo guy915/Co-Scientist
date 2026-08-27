@@ -2,7 +2,11 @@ import {Fragment, useState} from 'react';
 import {act, render} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
 import {useChatTimelineScroll} from './chat_workspace_scroll';
-import {DRAFT_SPEC_ITEM_ID, type TimelineItem} from './chat_workspace_timeline';
+import {
+  CONFIRMED_SPEC_ITEM_ID,
+  DRAFT_SPEC_ITEM_ID,
+  type TimelineItem,
+} from './chat_workspace_timeline';
 import {
   type StartedSession,
   TIMELINE_ANCHOR_ATTRIBUTE,
@@ -201,4 +205,40 @@ test('falls back to the bottom when the plan turn cannot be located', () => {
   arrive();
 
   expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
+});
+
+test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
+  // Clicking Start research swaps the draft card for the confirmed one, which
+  // is then the timeline's last item for the whole create+start round trip.
+  // Treating that swap as an arrival is what jumped the view a second time,
+  // and anchoring it now would find no draft card and drag the reader to the
+  // bottom instead -- a quieter version of the same bug.
+  let confirm: (() => void) | undefined;
+  function Harness() {
+    const [confirmed, setConfirmed] = useState(false);
+    confirm = () => setConfirmed(true);
+    const items: TimelineItem[] = [
+      ...makeItems(1),
+      {
+        id: confirmed ? CONFIRMED_SPEC_ITEM_ID : DRAFT_SPEC_ITEM_ID,
+        at: 99,
+        order: 50,
+        node: null,
+      },
+    ];
+    const ref = useChatTimelineScroll(items, null);
+    return <div data-testid="scroller" ref={ref} />;
+  }
+  const {getByTestId} = render(<Harness />);
+  const scroller = getByTestId('scroller');
+  Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
+  Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
+  // Flush the draft card's own arrival before placing the reader.
+  act(() => void vi.runAllTimers());
+  scroller.scrollTop = 120;
+
+  act(() => confirm?.());
+  act(() => void vi.runAllTimers());
+
+  expect(scroller.scrollTop).toBe(120);
 });
