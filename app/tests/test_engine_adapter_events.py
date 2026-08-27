@@ -87,7 +87,10 @@ def _streaming_research_overview() -> dict[str, Any]:
     """The streamed research-overview sub-state."""
     return {
         "overview": {"summary": "Targeting the pathway looks promising."},
-        "nih_specific_aims": {"introduction": "Background.", "aims": []},
+        "nih_specific_aims": {
+            "disease_description": "Background.",
+            "aims": [],
+        },
     }
 
 

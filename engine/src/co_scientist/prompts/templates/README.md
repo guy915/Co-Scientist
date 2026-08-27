@@ -22,6 +22,16 @@ derived ones extend the published structure with the run-context slots
 | `evolution.md` | Partly A.6/A.7 — the paper's feasibility-improvement and out-of-the-box prompts survive as operators in a clone-authored operator-driven template, not as standalone prompts |
 | `generation_draft_with_tools.md` | Reconstruction of A.1's literature-grounded generation; the agentic draft-with-tools workflow is clone-authored |
 
+## Shaped by a published *output*
+
+`research_overview.md` has no published prompt, but the paper prints three
+complete Specific Aims pages (§A.5.3), so the section vocabulary it asks
+for is read off those exemplars rather than invented:
+disease description, unmet need, proposed solution, the aims (each with an
+overarching goal, the hypothesis it tests, and the reasoning), and a
+closing pilot evaluation. `engine/tests/test_published_artifact_shapes.py`
+pins the schema against the exemplar files themselves.
+
 ## Clone-authored reconstructions
 
 No published counterpart; reconstructed from the paper's described agent

@@ -86,15 +86,16 @@ it('flattens malformed aims and contacts instead of showing raw JSON', () => {
   const report = makeReport({
     research_overview: {
       nih_specific_aims: {
-        introduction: '{"context": "Targets tolerance", "scope": "in vitro"}',
+        disease_description:
+          '{"context": "Targets tolerance", "scope": "in vitro"}',
         aims: [
           {
-            aim: 'Aim 1: Delete relA',
-            rationale: {why: 'Guards against artefacts'},
-            approach: 'Static and flow-cell assays.',
+            overarching_goal: 'Aim 1: Delete relA',
+            hypothesis: {why: 'Guards against artefacts'},
+            reasoning: 'Static and flow-cell assays.',
           },
         ],
-        impact: 'Converts the lead hypothesis into a program.',
+        pilot_evaluation: 'Converts the lead hypothesis into a program.',
       },
       research_contacts: [
         {
@@ -139,7 +140,9 @@ it('renders the specific aims and research contacts', () => {
   ).toBeInTheDocument();
   expect(screen.getByText('An introduction to the aims.')).toBeInTheDocument();
   expect(screen.getByText('Aim 1: Do the thing')).toBeInTheDocument();
+  expect(screen.getByText('Hypothesis:')).toBeInTheDocument();
   expect(screen.getByText('Because reasons.')).toBeInTheDocument();
+  expect(screen.getByText('Reasoning:')).toBeInTheDocument();
   expect(screen.getByText('Via this approach.')).toBeInTheDocument();
   expect(screen.getByText('The impact statement.')).toBeInTheDocument();
   expect(
@@ -168,5 +171,44 @@ it('renders the winning-ideas leaderboard and closing stats', () => {
           'played\\.',
       ),
     ),
+  ).toBeInTheDocument();
+});
+
+it('still renders aims stored in the previous shape', () => {
+  // Reports persist as the engine produced them, so runs that predate the
+  // exemplar vocabulary keep introduction/aim/rationale/approach/impact.
+  const report = makeReport({
+    research_overview: {
+      nih_specific_aims: {
+        introduction: 'Significance and the gap.',
+        aims: [
+          {
+            aim: 'Aim 1: Establish the baseline.',
+            rationale: 'Nothing else measures it.',
+            approach: 'Knockdown in a matched model.',
+          },
+        ],
+        impact: 'A decision framework for the mechanism.',
+      },
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('Significance and the gap.')).toBeInTheDocument();
+  expect(
+    screen.getByText('Aim 1: Establish the baseline.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Nothing else measures it.')).toBeInTheDocument();
+  expect(screen.getByText('Knockdown in a matched model.')).toBeInTheDocument();
+  expect(
+    screen.getByText('A decision framework for the mechanism.'),
   ).toBeInTheDocument();
 });

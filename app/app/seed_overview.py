@@ -37,9 +37,9 @@ def _overview_aims(top: tuple[DemoHypothesis, ...]) -> list[dict[str, Any]]:
     """Return the grant-style specific aims derived from the top ideas."""
     return [
         {
-            "aim": f"Aim {index}: Test {item.title}",
-            "rationale": item.statement,
-            "approach": item.experiment,
+            "overarching_goal": f"Aim {index}: Test {item.title}",
+            "hypothesis": item.statement,
+            "reasoning": item.experiment,
         }
         for index, item in enumerate(top, start=1)
     ]
@@ -111,13 +111,22 @@ def _curated_research_overview(
             "research_directions": _overview_directions(top),
         },
         "nih_specific_aims": {
-            "introduction": (
-                "This curated demonstration models a grant-style synthesis: the "
-                "central gap is not whether the broad phenomenon exists, but which "
-                "specific causal mechanism is both measurable and falsifiable."
+            "disease_description": (
+                "This curated demonstration models a grant-style synthesis of a "
+                "condition whose broad phenomenon is established but whose "
+                "driving mechanism is not."
+            ),
+            "unmet_need": (
+                "The central gap is not whether the broad phenomenon exists, but "
+                "which specific causal mechanism is both measurable and "
+                "falsifiable."
+            ),
+            "proposed_solution": (
+                "Separate the competing mechanisms and decide between them with "
+                "perturbation, rescue, and independent-model replication."
             ),
             "aims": _overview_aims(top),
-            "impact": (
+            "pilot_evaluation": (
                 "The intended output is a reproducible decision framework for "
                 "prioritizing a preclinical mechanism. It is illustrative only and "
                 "does not establish a clinical intervention."

@@ -143,25 +143,68 @@ def _render_overview_section(ov: dict[str, Any]) -> list[str]:
     return lines + _render_directions_list(directions)
 
 
+# The page's blocks, in the order Google's published Specific Aims
+# exemplars print them (paper A.5.3): three preamble sections, the aims,
+# then the pilot study. Reports written before the engine adopted that
+# vocabulary carry an "introduction"/"impact" pair instead and are still
+# stored, so both spellings render -- an old report must not lose its aims
+# page because the schema moved on.
+_AIMS_PREAMBLE_BLOCKS = (
+    ("disease_description", "Disease Description"),
+    ("unmet_need", "Unmet Need"),
+    ("proposed_solution", "Proposed Solution"),
+)
+_AIMS_CLOSING_BLOCKS = (("pilot_evaluation", "Pilot Evaluation"),)
+_AIMS_LEGACY_CLOSING_BLOCKS = (("impact", "Impact"),)
+# Per-aim fields, new spelling first: the exemplars give every aim a goal,
+# the hypothesis it tests, and the reasoning behind it.
+_AIM_HEADING_KEYS = ("overarching_goal", "aim")
+_AIM_BODY_FIELDS = (
+    ("hypothesis", "Hypothesis"),
+    ("reasoning", "Reasoning"),
+    ("rationale", "Rationale"),
+    ("approach", "Approach"),
+)
+
+
+def _first_readable(source: dict[str, Any], keys: tuple[str, ...]) -> str:
+    """Return the first key's readable text, or empty when none is set."""
+    for key in keys:
+        text = _readable_text(source.get(key, ""))
+        if text:
+            return text
+    return ""
+
+
+def _render_labeled_blocks(
+    section: dict[str, Any], blocks: tuple[tuple[str, str], ...]
+) -> list[str]:
+    """Render each present block as its own headed subsection."""
+    lines: list[str] = []
+    for key, heading in blocks:
+        text = _readable_text(section.get(key))
+        if text:
+            lines += [f"### {heading}\n", f"{text}\n"]
+    return lines
+
+
 def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
     """Render one NIH aim entry, or nothing when not a dict."""
     if not isinstance(aim, dict):
         return []
-    lines = [f"### {_readable_text(aim.get('aim', ''))}\n"]
-    rationale = _readable_text(aim.get("rationale", ""))
-    if rationale:
-        lines.append(f"**Rationale:** {rationale}\n")
-    approach = _readable_text(aim.get("approach", ""))
-    if approach:
-        lines.append(f"**Approach:** {approach}\n")
+    lines = [f"### {_first_readable(aim, _AIM_HEADING_KEYS)}\n"]
+    for key, label in _AIM_BODY_FIELDS:
+        text = _readable_text(aim.get(key, ""))
+        if text:
+            lines.append(f"**{label}:** {text}\n")
     return lines
 
 
 def _has_aims_content(
-    introduction: str | None, aims: list[Any], impact: str | None
+    preamble: list[str], aims: list[Any], closing: list[str]
 ) -> bool:
     """Return whether the NIH aims section has any renderable content."""
-    return bool(introduction or aims or impact)
+    return bool(preamble or aims or closing)
 
 
 def _render_aims_list(aims: list[Any]) -> list[str]:
@@ -172,25 +215,25 @@ def _render_aims_list(aims: list[Any]) -> list[str]:
     return lines
 
 
-def _render_impact(impact: str | None) -> list[str]:
-    """Render the 'Impact' subsection, or nothing when absent."""
-    return ["### Impact\n", f"{impact}\n"] if impact else []
-
-
 def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     """Render the 'NIH Specific Aims' section, or nothing when data absent."""
     if not isinstance(aims_section, dict):
         return []
-    introduction = _readable_text(aims_section.get("introduction"))
+    preamble = _render_optional_paragraph(
+        _readable_text(aims_section.get("introduction"))
+    ) + _render_labeled_blocks(aims_section, _AIMS_PREAMBLE_BLOCKS)
     aims = aims_section.get("aims") or []
-    impact = _readable_text(aims_section.get("impact"))
-    if not _has_aims_content(introduction, aims, impact):
+    closing = _render_labeled_blocks(
+        aims_section, _AIMS_CLOSING_BLOCKS + _AIMS_LEGACY_CLOSING_BLOCKS
+    )
+    if not _has_aims_content(preamble, aims, closing):
         return []
-    lines = ["\n## NIH Specific Aims\n"]
-    lines += _render_optional_paragraph(introduction)
-    lines += _render_aims_list(aims)
-    lines += _render_impact(impact)
-    return lines
+    return [
+        "\n## NIH Specific Aims\n",
+        *preamble,
+        *_render_aims_list(aims),
+        *closing,
+    ]
 
 
 def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:

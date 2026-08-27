@@ -96,20 +96,31 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     },
                 }
             ),
+            # The page's sections are the ones Google's three published
+            # Specific Aims exemplars actually print (paper §A.5.3), not a
+            # generic grant outline: a Disease Description / Unmet Need /
+            # Proposed Solution preamble, the numbered aims, and a closing
+            # Pilot Evaluation. The earlier shape -- introduction / aims
+            # (aim, rationale, approach) / impact -- was a richer page than
+            # any exemplar shows, and dropped the per-aim hypothesis every
+            # exemplar states. test_published_artifact_shapes.py pins this
+            # against the exemplar files themselves.
             "nih_specific_aims": obj(
                 {
-                    "introduction": {"type": "string"},
+                    "disease_description": {"type": "string"},
+                    "unmet_need": {"type": "string"},
+                    "proposed_solution": {"type": "string"},
                     "aims": {
                         "type": "array",
                         "items": obj(
                             {
-                                "aim": {"type": "string"},
-                                "rationale": {"type": "string"},
-                                "approach": {"type": "string"},
+                                "overarching_goal": {"type": "string"},
+                                "hypothesis": {"type": "string"},
+                                "reasoning": {"type": "string"},
                             }
                         ),
                     },
-                    "impact": {"type": "string"},
+                    "pilot_evaluation": {"type": "string"},
                 }
             ),
             "research_contacts": {

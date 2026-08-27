@@ -51,15 +51,17 @@ export function makeFullOverviewSection(): ResearchOverview['overview'] {
 
 export function makeFullSpecificAims(): ResearchOverview['nih_specific_aims'] {
   return {
-    introduction: 'An introduction to the aims.',
+    disease_description: 'An introduction to the aims.',
+    unmet_need: 'Nothing measures it yet.',
+    proposed_solution: 'Do the thing, carefully.',
     aims: [
       {
-        aim: 'Aim 1: Do the thing',
-        rationale: 'Because reasons.',
-        approach: 'Via this approach.',
+        overarching_goal: 'Aim 1: Do the thing',
+        hypothesis: 'Because reasons.',
+        reasoning: 'Via this approach.',
       },
     ],
-    impact: 'The impact statement.',
+    pilot_evaluation: 'The impact statement.',
   };
 }
 

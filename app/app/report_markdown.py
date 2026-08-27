@@ -36,7 +36,7 @@ from app.report_markdown_overview import (
     _render_experiments_list as _render_experiments_list,
 )
 from app.report_markdown_overview import (
-    _render_impact as _render_impact,
+    _render_labeled_blocks as _render_labeled_blocks,
 )
 from app.report_markdown_overview import (
     _render_nih_aim as _render_nih_aim,

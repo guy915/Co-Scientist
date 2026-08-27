@@ -166,13 +166,15 @@ def _format_overview_for_review(response: dict[str, Any]) -> str:
             f"Direction {index + 1} - {direction.get('title', '')}: "
             f"{direction.get('importance', '')}"
         )
-    lines.append(f"Aims introduction: {aims.get('introduction', '')}")
+    lines.append(f"Disease description: {aims.get('disease_description', '')}")
+    lines.append(f"Unmet need: {aims.get('unmet_need', '')}")
+    lines.append(f"Proposed solution: {aims.get('proposed_solution', '')}")
     for index, aim in enumerate(aims.get("aims") or []):
         lines.append(
-            f"Aim {index + 1} - {aim.get('aim', '')}: "
-            f"{aim.get('rationale', '')}"
+            f"Aim {index + 1} - {aim.get('overarching_goal', '')}: "
+            f"{aim.get('hypothesis', '')}"
         )
-    lines.append(f"Aims impact: {aims.get('impact', '')}")
+    lines.append(f"Pilot evaluation: {aims.get('pilot_evaluation', '')}")
     lines.extend(_format_knowledge_base_for_review(response))
     return "\n".join(lines)
 

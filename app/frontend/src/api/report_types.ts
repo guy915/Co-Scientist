@@ -108,9 +108,23 @@ export interface ResearchOverview {
       suggested_experiments: string[];
     }[];
   };
+  // The blocks Google's published Specific Aims exemplars print. Reports
+  // stored before the engine adopted that vocabulary carry the older
+  // introduction/impact pair, so both stay declared and both render.
   nih_specific_aims?: {
+    disease_description?: string;
+    unmet_need?: string;
+    proposed_solution?: string;
+    aims?: {
+      overarching_goal?: string;
+      hypothesis?: string;
+      reasoning?: string;
+      aim?: string;
+      rationale?: string;
+      approach?: string;
+    }[];
+    pilot_evaluation?: string;
     introduction?: string;
-    aims?: {aim: string; rationale: string; approach: string}[];
     impact?: string;
   };
   research_contacts?: {

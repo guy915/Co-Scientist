@@ -75,17 +75,19 @@ def test_malformed_aims_and_contacts_are_flattened() -> None:
     """NIH aims and research contacts flatten object/JSON-string fields too."""
     payload = {
         "nih_specific_aims": {
-            "introduction": (
+            "disease_description": (
                 '{"context": "Targets tolerance", "scope": "in vitro"}'
             ),
             "aims": [
                 {
-                    "aim": "Aim 1: Delete relA",
-                    "rationale": {"why": "Guards against artefacts"},
-                    "approach": "Static and flow-cell assays.",
+                    "overarching_goal": "Aim 1: Delete relA",
+                    "hypothesis": {"why": "Guards against artefacts"},
+                    "reasoning": "Static and flow-cell assays.",
                 }
             ],
-            "impact": "Converts the lead hypothesis into a research program.",
+            "pilot_evaluation": (
+                "Converts the lead hypothesis into a research program."
+            ),
         },
         "research_contacts": [
             {
@@ -134,3 +136,63 @@ def test_well_formed_overview_is_unchanged() -> None:
     assert "- Run a controlled perturbation series." in text
     assert "- Quantify the readout against baseline." in text
     assert "converge on cross-pathway interference" in text
+
+
+def test_published_aims_vocabulary_renders_every_block() -> None:
+    """The aims page renders the blocks Google's exemplars print."""
+    payload = {
+        "nih_specific_aims": {
+            "disease_description": "An aggressive malignancy.",
+            "unmet_need": "Current therapies relapse.",
+            "proposed_solution": "Repurpose an approved inhibitor.",
+            "aims": [
+                {
+                    "overarching_goal": "Determine anti-tumour activity.",
+                    "hypothesis": "Treatment reduces viability.",
+                    "reasoning": "The pathway is upregulated.",
+                }
+            ],
+            "pilot_evaluation": "A xenograft study measures tumour growth.",
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "### Disease Description" in text
+    assert "### Unmet Need" in text
+    assert "### Proposed Solution" in text
+    assert "### Determine anti-tumour activity." in text
+    assert "**Hypothesis:** Treatment reduces viability." in text
+    assert "**Reasoning:** The pathway is upregulated." in text
+    assert "### Pilot Evaluation" in text
+
+
+def test_stored_reports_in_the_previous_aims_shape_still_render() -> None:
+    """A report written before the exemplar vocabulary keeps its aims page.
+
+    Reports are persisted as the engine produced them, so runs that predate
+    the schema change still carry introduction/aim/rationale/approach/impact.
+    Rendering must not silently drop their Specific Aims section.
+    """
+    payload = {
+        "nih_specific_aims": {
+            "introduction": "Significance and the gap.",
+            "aims": [
+                {
+                    "aim": "Aim 1: Establish the baseline.",
+                    "rationale": "Nothing else measures it.",
+                    "approach": "Knockdown in a matched model.",
+                }
+            ],
+            "impact": "A decision framework for the mechanism.",
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "## NIH Specific Aims" in text
+    assert "Significance and the gap." in text
+    assert "### Aim 1: Establish the baseline." in text
+    assert "**Rationale:** Nothing else measures it." in text
+    assert "**Approach:** Knockdown in a matched model." in text
+    assert "### Impact" in text

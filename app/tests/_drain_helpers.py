@@ -170,15 +170,19 @@ def _features_research_overview() -> dict[str, Any]:
             ],
         },
         "nih_specific_aims": {
-            "introduction": "Breast cancer stem cells drive recurrence.",
+            "disease_description": (
+                "Breast cancer stem cells drive recurrence."
+            ),
+            "unmet_need": "Existing regimens spare the stem-cell pool.",
+            "proposed_solution": "Block CXCR1 to deplete that pool.",
             "aims": [
                 {
-                    "aim": "Aim 1: Quantify CXCR1 dependence.",
-                    "rationale": "Establish the mechanistic baseline.",
-                    "approach": "shRNA knockdown in PDX models.",
+                    "overarching_goal": "Aim 1: Quantify CXCR1 dependence.",
+                    "hypothesis": "Establish the mechanistic baseline.",
+                    "reasoning": "shRNA knockdown in PDX models.",
                 },
             ],
-            "impact": "Could yield a combination therapy for TNBC.",
+            "pilot_evaluation": ("Could yield a combination therapy for TNBC."),
         },
     }
 

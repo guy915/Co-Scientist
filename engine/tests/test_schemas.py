@@ -70,9 +70,11 @@ def test_review_scores_include_all_default_criteria() -> None:
 def test_research_overview_enforces_nih_specific_aims_format() -> None:
     """The overview must produce the NIH Specific Aims structure (SSR §4).
 
-    Structurally asserts the NIH Specific Aims page: an introduction, an
-    array of aims each with aim/rationale/approach, and an impact statement --
-    all schema-required so a response omitting them is rejected.
+    Structurally asserts the page Google's published exemplars print: the
+    disease/unmet-need/solution preamble, the aims, and the closing pilot
+    study -- all schema-required so a response omitting them is rejected.
+    ``test_published_artifact_shapes.py`` is what ties this vocabulary back
+    to those exemplars; this test only pins that the schema enforces it.
     """
     schema = get_schema_for_prompt("research_overview")
     assert schema is not None
@@ -80,11 +82,20 @@ def test_research_overview_enforces_nih_specific_aims_format() -> None:
     # nih_specific_aims is a top-level required field.
     assert "nih_specific_aims" in body["required"]
     aims = body["properties"]["nih_specific_aims"]
-    # The page's three required sections.
-    assert set(aims["required"]) == {"introduction", "aims", "impact"}
-    # Each aim requires the grant-style aim / rationale / approach triple.
+    assert set(aims["required"]) == {
+        "disease_description",
+        "unmet_need",
+        "proposed_solution",
+        "aims",
+        "pilot_evaluation",
+    }
+    # Every aim states its goal, the hypothesis it tests, and why.
     aim_item = aims["properties"]["aims"]["items"]
-    assert set(aim_item["required"]) == {"aim", "rationale", "approach"}
+    assert set(aim_item["required"]) == {
+        "overarching_goal",
+        "hypothesis",
+        "reasoning",
+    }
 
 
 def test_optional_properties_stay_out_of_required() -> None:

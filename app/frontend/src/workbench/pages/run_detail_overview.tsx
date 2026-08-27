@@ -9,7 +9,7 @@ import {
 } from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {sortByEloDesc} from '@/lib/hypotheses';
-import {readableText, readableTextList} from '@/lib/text';
+import {isRecord, readableText, readableTextList} from '@/lib/text';
 import {
   AgentInsightsSection,
   DegradedSectionNotice,
@@ -27,6 +27,7 @@ import {
   REPORT_SECTION_LIST_META_CLASSES,
   ReportDocument,
 } from './run_detail_document';
+import {SpecificAimsSection} from './run_detail_overview_aims';
 
 const STAT_GRID_CLASSES =
   'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';
@@ -290,16 +291,12 @@ interface DirectionEntry {
 // json_object-mode malformations (a string field arriving as an object, or as
 // serialized JSON) that would otherwise render as raw JSON.
 function toDirectionEntry(raw: unknown): DirectionEntry {
-  const record = isRecordLike(raw) ? raw : {};
+  const record = isRecord(raw) ? raw : {};
   return {
     title: readableText(record.title),
     importance: readableText(record.importance),
     experiments: readableTextList(record.suggested_experiments),
   };
-}
-
-function isRecordLike(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 // Normalize the overview's research directions into renderable entries,
@@ -340,50 +337,6 @@ function ResearchDirectionsSection({
         </div>
       ))}
     </section>
-  );
-}
-
-// Renders `text` as a paragraph when present, else nothing — used for the
-// optional introduction/impact copy around a specific-aims list.
-function OptionalParagraph({text}: {text: string | undefined}) {
-  if (!text) return null;
-  return <p>{text}</p>;
-}
-
-// "Specific aims" section of the research-overview report; renders nothing
-// until the report has specific aims.
-function SpecificAimsSection({
-  overview,
-}: {
-  overview: ResearchOverview | undefined;
-}) {
-  const specificAims = overview?.nih_specific_aims;
-  if (!specificAims?.aims?.length) return null;
-  return (
-    <section className={REPORT_SECTION_CLASSES}>
-      <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
-      <OptionalParagraph text={readableText(specificAims.introduction)} />
-      {specificAims.aims.map((aim, index) => (
-        <SpecificAim key={index} aim={aim} />
-      ))}
-      <OptionalParagraph text={readableText(specificAims.impact)} />
-    </section>
-  );
-}
-
-// One specific-aim entry, coercing each field so a malformed (object or
-// JSON-string) value renders as readable text rather than raw JSON.
-function SpecificAim({aim}: {aim: unknown}) {
-  const record = isRecordLike(aim) ? aim : {};
-  const title = readableText(record.aim);
-  const rationale = readableText(record.rationale);
-  const approach = readableText(record.approach);
-  return (
-    <div>
-      <h4 className={REPORT_H4_CLASSES}>{title}</h4>
-      {rationale ? <p>{rationale}</p> : null}
-      {approach ? <p>{approach}</p> : null}
-    </div>
   );
 }
 

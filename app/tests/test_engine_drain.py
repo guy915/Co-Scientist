@@ -148,7 +148,8 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     overview = report["payload"].get("research_overview")
     assert overview is not None
     assert overview["overview"]["summary"].startswith("Targeting CXCR1")
-    assert overview["nih_specific_aims"]["aims"][0]["aim"].startswith("Aim 1")
+    first_aim = overview["nih_specific_aims"]["aims"][0]
+    assert first_aim["overarching_goal"].startswith("Aim 1")
 
     markdown = report["markdown_text"]
     assert "## Research Overview" in markdown

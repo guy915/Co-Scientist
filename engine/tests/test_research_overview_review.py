@@ -18,7 +18,7 @@ from tests._state import make_state
 
 _DRAFT: dict[str, Any] = {
     "overview": {"summary": "Original summary.", "research_directions": []},
-    "nih_specific_aims": {"introduction": "i", "aims": [], "impact": "imp"},
+    "nih_specific_aims": {"disease_description": "i", "aims": []},
     "research_contacts": [],
     "knowledge_base": [],
 }
@@ -28,7 +28,7 @@ def _revised(summary: str) -> dict[str, Any]:
     """A reviser response identical to ``_DRAFT`` but for the summary."""
     return {
         "overview": {"summary": summary, "research_directions": []},
-        "nih_specific_aims": {"introduction": "i", "aims": [], "impact": "imp"},
+        "nih_specific_aims": {"disease_description": "i", "aims": []},
         "research_contacts": [],
         "knowledge_base": [],
     }

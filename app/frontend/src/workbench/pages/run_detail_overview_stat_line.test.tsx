@@ -9,9 +9,9 @@ it('omits intro/impact paragraphs when a specific aim lacks them', () => {
       nih_specific_aims: {
         aims: [
           {
-            aim: 'Aim without surrounding copy',
-            rationale: 'R',
-            approach: 'A',
+            overarching_goal: 'Aim without surrounding copy',
+            hypothesis: 'R',
+            reasoning: 'A',
           },
         ],
       },

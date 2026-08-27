@@ -30,12 +30,12 @@ _OVERVIEW_RESPONSE: dict[str, Any] = {
         ],
     },
     "nih_specific_aims": {
-        "introduction": "intro",
+        "disease_description": "intro",
         "aims": [
             {
-                "aim": "A",
-                "rationale": "R",
-                "approach": "Ap",
+                "overarching_goal": "A",
+                "hypothesis": "R",
+                "reasoning": "Ap",
             }
         ],
         "impact": "imp",
@@ -107,7 +107,10 @@ async def test_produces_overview_and_aims(
 
     assert out["research_overview"]["overview"]["summary"] == "S"
     assert (
-        out["research_overview"]["nih_specific_aims"]["aims"][0]["aim"] == "A"
+        out["research_overview"]["nih_specific_aims"]["aims"][0][
+            "overarching_goal"
+        ]
+        == "A"
     )
     assert fake.await_count == 1
     contacts = out["research_overview"]["research_contacts"]
