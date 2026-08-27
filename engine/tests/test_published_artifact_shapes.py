@@ -9,10 +9,8 @@ tests derive the field vocabulary from those files and assert our schemas
 and prompts carry it, so renaming a schema key fails against the exemplar
 that names it.
 
-The exemplars live outside ``engine/``, which is independently installable.
-An engine extracted on its own has no ``references/`` tree at all and skips;
-a ``references/`` tree that exists but has lost these files is a move or a
-deletion, and fails.
+``tests._published_corpus`` locates them, and says what happens when the
+corpus is absent.
 """
 
 from __future__ import annotations
@@ -25,13 +23,7 @@ import pytest
 
 import co_scientist
 from co_scientist.schemas import get_schema_for_prompt
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_REFERENCES = _REPO_ROOT / "references"
-_EXEMPLARS = (
-    _REFERENCES
-    / "core/google-co-scientist/research/extracted-artifacts/outputs"
-)
+from tests._published_corpus import published_output
 
 # The NIH Specific Aims page, as all three published exemplars render it:
 # a three-block preamble, the numbered aims, and a closing pilot study.
@@ -50,22 +42,6 @@ _AIMS_PER_AIM_BLOCKS = {
 # Two exemplars append the paper's own apparatus after the artifact ends.
 # Neither is part of what the Meta-review agent produced.
 _AIMS_PAPER_APPARATUS = {"articles", "expert rating"}
-
-
-def _require_exemplar(relative: str) -> Path:
-    """Return a published exemplar, skipping only outside the repo.
-
-    Args:
-        relative: Path of the exemplar under the outputs directory.
-
-    Returns:
-        The exemplar's path.
-    """
-    if not _REFERENCES.is_dir():
-        pytest.skip("engine checked out without the reference corpus")
-    path = _EXEMPLARS / relative
-    assert path.is_file(), f"published exemplar moved or deleted: {path}"
-    return path
 
 
 def _heading_labels(path: Path, level: int) -> set[str]:
@@ -111,7 +87,7 @@ def test_specific_aims_schema_matches_published_exemplars(
     All three exemplars share one heading vocabulary, so the schema is
     checked against each of them rather than against a single sample.
     """
-    labels = _heading_labels(_require_exemplar(exemplar), 4)
+    labels = _heading_labels(published_output(exemplar), 4)
     labels -= _AIMS_PAPER_APPARATUS
     assert labels == set(_AIMS_PAGE_BLOCKS) | set(_AIMS_PER_AIM_BLOCKS)
 
@@ -147,7 +123,7 @@ def test_deep_verification_probe_matches_published_exemplar() -> None:
     the schema's remaining probe keys are routing metadata that never
     reaches a reader.
     """
-    exemplar = _require_exemplar(
+    exemplar = published_output(
         "reviews/reparixin-deep-verification-probing.md"
     )
     text = exemplar.read_text(encoding="utf-8")
@@ -170,7 +146,7 @@ def test_ranking_debate_verdict_matches_published_exemplar() -> None:
     with a single ``Better idea: <n>`` line -- the token the parser reads
     back as the match result.
     """
-    exemplar = _require_exemplar("ranking-tournament/als-tournament-debate.md")
+    exemplar = published_output("ranking-tournament/als-tournament-debate.md")
     text = exemplar.read_text(encoding="utf-8")
     turns = re.findall(r"^Expert \d+:", text, re.MULTILINE)
     assert len(turns) > 2, "exemplar is a multi-turn debate"
@@ -194,7 +170,7 @@ def test_research_overview_sections_match_published_exemplar() -> None:
     which are the two per-direction fields the schema requires beside the
     direction's title.
     """
-    exemplar = _require_exemplar(
+    exemplar = published_output(
         "research-overviews/cf-pici-research-overview.md"
     )
     questions = _heading_labels(exemplar, 4)
