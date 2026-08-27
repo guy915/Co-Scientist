@@ -44,6 +44,18 @@ def test_clean_markup(raw: Any, expected: str) -> None:
     assert clean_markup(raw) == expected
 
 
+def test_clean_markup_leaves_a_comparison_shaped_like_a_tag_intact() -> None:
+    """A decoded comparison whose operands spell a tag name is still text.
+
+    "p &lt;b and q&gt; r" decodes to "p <b and q> r", which reads as an
+    opening tag with attributes to anything matching loosely. Deleting it
+    would take the clause with it, so only bare tags are stripped.
+    """
+    raw = "holds for p &lt;b and q&gt; r"
+
+    assert clean_markup(raw) == "holds for p <b and q> r"
+
+
 def test_clean_markup_leaves_comparisons_intact() -> None:
     """A decoded "<" is text, not a tag, so a comparison survives.
 

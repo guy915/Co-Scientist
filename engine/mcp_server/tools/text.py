@@ -7,10 +7,14 @@ inside gene symbols. Europe PMC additionally sends some records with that
 markup escaped, so the same field can arrive as `<i>` or as `&lt;i&gt;`.
 An agent quoting a title reads it as text, so it has to be text.
 
-Only the tags publishers actually send are removed, rather than everything
-between angle brackets. Entities are decoded first, which turns `&lt;` in
-"p &lt; 0.05" into a bare "<" -- a generic strip would then delete from
-there to the next ">", silently removing a clause from an abstract.
+Only the bare tags publishers actually send are removed, rather than
+everything between angle brackets. Entities are decoded first, which turns
+the `&lt;` in "p &lt; 0.05" into a bare "<", and a looser pattern would then
+delete from there to the next ">", silently removing a clause from an
+abstract -- which is why no attributes are admitted either: "p &lt;b and
+q&gt;" decodes to something an attribute-tolerant pattern reads as an
+opening tag. An attributed tag, which these sources do not send, survives
+as visible residue instead: wrong, but readable and obvious.
 """
 
 import html
@@ -19,12 +23,12 @@ from typing import Any
 
 # Block-level markup becomes a space: "<h4>Aims</h4>The convergence" must
 # not close up into "AimsThe".
-_BLOCK_TAG_RE = re.compile(r"</?(?:p|br|div|h[1-6])\b[^>]*>", re.IGNORECASE)
+_BLOCK_TAG_RE = re.compile(r"</?(?:p|br|div|h[1-6])\s*/?>", re.IGNORECASE)
 
 # Inline markup closes up instead: bla<sub>NDM-1</sub> is one gene name,
 # and splitting it would break the string a citation is matched on.
 _INLINE_TAG_RE = re.compile(
-    r"</?(?:i|b|em|strong|u|sup|sub|sc|italic|bold|underline)\b[^>]*>",
+    r"</?(?:i|b|em|strong|u|sup|sub|sc|italic|bold|underline)\s*/?>",
     re.IGNORECASE,
 )
 
