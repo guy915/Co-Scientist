@@ -91,6 +91,14 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 RESEARCH_OVERVIEW_MAX_SUB_TOPICS: Final = 4
 RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
 
+# R12-10: bounds on open_questions/clear_patterns/unexpected_patterns
+# below, mirroring the published exemplar's "Top 10 Open Questions" list
+# and its two shorter pattern lists. Capped for the same reason as the
+# sub-topic bounds above -- this is the terminal synthesis call and its
+# output must not scale unboundedly with what the run reviewed.
+RESEARCH_OVERVIEW_MAX_OPEN_QUESTIONS: Final = 10
+RESEARCH_OVERVIEW_MAX_PATTERNS: Final = 5
+
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": obj(
@@ -204,6 +212,36 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                         "evidence_ids": str_array(),
                     }
                 ),
+            },
+            # R12-10: the published report's top-level "Open Questions"
+            # list and its "Clear Patterns:"/"Unexpected Patterns:" pair.
+            # Google's second exemplar (research-overview.md, R14-1)
+            # lists "Open questions" beside the research-directions
+            # summary in this same synthesis document, which is why
+            # these land here rather than on meta_review.
+            "open_questions": {
+                **str_array(
+                    "The most important unanswered questions this"
+                    " synthesis leaves open, each a specific testable"
+                    " question -- not a restatement of the research"
+                    " goal."
+                ),
+                "maxItems": RESEARCH_OVERVIEW_MAX_OPEN_QUESTIONS,
+            },
+            "clear_patterns": {
+                **str_array(
+                    "Patterns that recur clearly across the synthesized"
+                    " hypotheses and evidence."
+                ),
+                "maxItems": RESEARCH_OVERVIEW_MAX_PATTERNS,
+            },
+            "unexpected_patterns": {
+                **str_array(
+                    "Patterns or connections that were not anticipated"
+                    " going in, surfaced only by synthesizing across the"
+                    " hypotheses and evidence together."
+                ),
+                "maxItems": RESEARCH_OVERVIEW_MAX_PATTERNS,
             },
         }
     ),

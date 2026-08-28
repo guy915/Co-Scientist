@@ -305,6 +305,9 @@ def _format_research_overview_response(
         "knowledge_base": _validate_knowledge_base(
             response.get("knowledge_base"), evidence_corpus
         ),
+        "open_questions": response.get("open_questions", []),
+        "clear_patterns": response.get("clear_patterns", []),
+        "unexpected_patterns": response.get("unexpected_patterns", []),
     }
 
 

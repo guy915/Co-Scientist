@@ -127,6 +127,47 @@ async def test_produces_overview_and_aims(
     assert "Unsupported topic" not in str(topics)
 
 
+async def test_open_questions_and_patterns_map_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R12-10: open_questions/clear_patterns/unexpected_patterns pass through.
+
+    New research-overview fields (see
+    ``schemas.synthesis.RESEARCH_OVERVIEW_SCHEMA``); this pins that the
+    node's formatting carries them into the state delta unchanged, the
+    same way ``overview``/``nih_specific_aims`` already do.
+    """
+    response = {
+        **_OVERVIEW_RESPONSE,
+        "open_questions": ["What drives the reversal threshold?"],
+        "clear_patterns": ["Lipid handling recurs across every idea."],
+        "unexpected_patterns": ["A metabolic block explains proteolysis."],
+    }
+    fake = AsyncMock(return_value=response)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis", elo_rating=1700
+    )
+    state = make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=_grounded_articles(),
+    )
+    out = await ro.research_overview_node(state)
+
+    overview = out["research_overview"]
+    assert overview["open_questions"] == ["What drives the reversal threshold?"]
+    assert overview["clear_patterns"] == [
+        "Lipid handling recurs across every idea."
+    ]
+    assert overview["unexpected_patterns"] == [
+        "A metabolic block explains proteolysis."
+    ]
+
+
 async def test_a_contact_with_no_research_direction_defaults_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
