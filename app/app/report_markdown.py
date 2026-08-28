@@ -84,6 +84,16 @@ from app.report_markdown_overview import (
     render_research_overview_markdown as render_research_overview_markdown,
 )
 
+# The per-hypothesis References subsection (resolving [C*] citation keys)
+# lives in its own module to keep this one within the size cap; both names
+# are re-exported so this module's namespace keeps resolving.
+from app.report_markdown_references import (
+    _render_references_markdown as _render_references_markdown,
+)
+from app.report_markdown_references import (
+    references_by_hypothesis as references_by_hypothesis,
+)
+
 # The data-sources section (skill attribution + literature-search summary)
 # moved to its own module to keep this one within the size cap; both names
 # are re-exported so this module's namespace keeps resolving.
@@ -286,6 +296,7 @@ def _render_hypothesis_entry(
     i: int,
     hyp: dict[str, Any],
     edges: list[dict[str, Any]],
+    references: list[tuple[str, dict[str, Any]]],
 ) -> list[str]:
     """Render one numbered 'Top hypotheses' entry.
 
@@ -314,6 +325,11 @@ def _render_hypothesis_entry(
     ):
         if value:
             lines += [f"{label} {value}", ""]
+    # Resolves the [C*] keys the mechanism text just cited -- the engine's
+    # per-hypothesis reference index, joined back from citations+evidence
+    # (see report_markdown_references). Right after Mechanism/Predicted
+    # effect, the text the keys actually appear in.
+    lines += _render_references_markdown(references)
     # MO-10: the proposer's own pharmacological safety assessment -- not
     # the reviewer's safety_ethical_concerns (dual-use/ethics), which
     # renders in the reviews surface instead.
@@ -365,14 +381,21 @@ def _render_novelty_disclosure(
 def _render_top_hypotheses_markdown(
     top_hypotheses: list[dict[str, Any]],
     claim_evidence: list[dict[str, Any]],
+    citations: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
 ) -> list[str]:
     """Render the numbered 'Top hypotheses' section."""
     edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
+    refs_by_hypothesis = references_by_hypothesis(citations, evidence)
     lines: list[str] = ["## Top hypotheses", ""]
     lines += _render_novelty_disclosure(top_hypotheses)
     for i, hyp in enumerate(top_hypotheses, 1):
+        hyp_id = str(hyp.get("id") or "")
         lines += _render_hypothesis_entry(
-            i, hyp, edges_by_hypothesis.get(str(hyp.get("id") or ""), [])
+            i,
+            hyp,
+            edges_by_hypothesis.get(hyp_id, []),
+            refs_by_hypothesis.get(hyp_id, []),
         )
     return lines
 
@@ -419,6 +442,13 @@ class ReportMarkdownInputs:
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
     retrieval_calls: list[dict[str, Any]] | None = None
+    # Raw citations/evidence rows (store.list_citations / list_evidence),
+    # joined per hypothesis by report_markdown_references to resolve the
+    # [C*] keys the mechanism text cites. None (an old run rendered before
+    # this field existed, or a run with no citation data at all) resolves
+    # no keys -- the report never fabricates a reference.
+    citations: list[dict[str, Any]] | None = None
+    evidence: list[dict[str, Any]] | None = None
 
 
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
@@ -442,7 +472,10 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
         inputs.prepared_at,
     )
     lines += _render_top_hypotheses_markdown(
-        inputs.top_hypotheses, inputs.claim_evidence or []
+        inputs.top_hypotheses,
+        inputs.claim_evidence or [],
+        inputs.citations or [],
+        inputs.evidence or [],
     )
     lines += _render_meta_review_markdown(inputs.meta_review or {})
     lines += _render_citation_audit(inputs.citation_summary)

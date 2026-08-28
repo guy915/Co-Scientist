@@ -100,6 +100,10 @@ class _ReportData(NamedTuple):
     claim_edges: list[dict[str, Any]]
     released_claim_edges: list[dict[str, Any]]
     evidence: list[dict[str, Any]]
+    # This run's citation rows (store.list_citations), joined against
+    # ``evidence`` by the markdown renderer to resolve the [C*] keys a
+    # hypothesis's mechanism text cites.
+    citations: list[dict[str, Any]]
     match_count: int
     reviews: list[dict[str, Any]]
     # Searches the deep-research loop recorded for this run, keyed by
@@ -180,6 +184,8 @@ def _render_report_content_markdown(
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,
             retrieval_calls=data.retrieval_calls,
+            citations=data.citations,
+            evidence=data.evidence,
         )
     )
 
@@ -225,6 +231,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
         claim_edges=claim_edges,
         released_claim_edges=released_claim_edges,
         evidence=evidence,
+        citations=store.list_citations(run_id, db_path=db_path),
         match_count=store.count_matches(run_id, db_path=db_path),
         # The reader's copy of every review row -- initial, deep
         # verification, and the mature cascade's distinctly labeled

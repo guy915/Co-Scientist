@@ -11,7 +11,11 @@ from __future__ import annotations
 from typing import Any
 
 from app import engine_adapter, store
-from tests._drain_helpers import _engine_hypothesis, _final_state_with_features
+from tests._drain_helpers import (
+    _build_report,
+    _engine_hypothesis,
+    _final_state_with_features,
+)
 
 
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
@@ -288,6 +292,34 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
     evidence = store.list_evidence(run.id, db_path=isolated_db)
     kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
     assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
+
+
+def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
+    isolated_db: str,
+) -> None:
+    """End to end: a drained run's report resolves its own [C*] keys.
+
+    The generation prompt writes [C1]/[C2]/[C3] into the mechanism text; the
+    drain persists the engine's citation_map into citations+evidence; the
+    report must join the two back together rather than leaving the reader
+    with bracketed keys that resolve to nothing.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_citations(),
+        db_path=isolated_db,
+    )
+
+    _payload, markdown = _build_report(run, isolated_db)
+
+    assert "#### References" in markdown
+    section = markdown.split("#### References", 1)[1]
+    assert "CXCR1 drives CSC renewal" in section
+    assert "INDRA: CXCR1 -> STAT3" in section
+    # The filler claim text a citation row carries for classification
+    # purposes must never leak into the reader-facing reference line.
+    assert "cited in hypothesis" not in section
 
 
 def _final_state_with_multi_source_grounding() -> dict[str, Any]:
