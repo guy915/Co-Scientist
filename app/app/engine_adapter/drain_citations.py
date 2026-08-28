@@ -190,7 +190,11 @@ def _persist_one_citation(
         cite_info: The engine's raw citation entry.
         sink: The drain's citation lookups, updated in place.
     """
-    cite_title = cite_info.get("title", cite_key)
+    # "title" is a paper's own field; a non-paper source (knowledge-graph
+    # statement, CVE entry, ...) carries no title at all, only "display"
+    # (see citations._enrichment_reference_entries) -- falling straight to
+    # cite_key would persist an evidence row literally titled "C3".
+    cite_title = cite_info.get("title") or cite_info.get("display") or cite_key
     cite_url = _citation_url(cite_info)
     cite_ev_id = _ensure_citation_evidence_id(
         target.run_id,

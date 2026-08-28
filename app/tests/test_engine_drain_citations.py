@@ -266,6 +266,30 @@ def test_persist_classifies_citations_via_shared_classifier(
     }
 
 
+def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
+    isolated_db: str,
+) -> None:
+    """A non-paper citation's evidence title must not become its bare key.
+
+    ``_persist_one_citation`` fell back to the [C*] key itself
+    (``cite_info.get("title", cite_key)``) whenever a source carried no
+    "title" -- true of every non-paper source, which is keyed by "display"
+    instead (see ``citations._enrichment_reference_entries``). A run citing
+    an INDRA statement therefore persisted an evidence row titled literally
+    "C3" rather than the statement it names.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_citations(),
+        db_path=isolated_db,
+    )
+
+    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
+    assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
+
+
 def _final_state_with_multi_source_grounding() -> dict[str, Any]:
     """A run-shaped grounding: several sentences, each citing its own paper.
 
