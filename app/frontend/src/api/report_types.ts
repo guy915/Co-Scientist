@@ -119,6 +119,9 @@ export interface ResearchOverview {
       title: string;
       importance: string;
       suggested_experiments: string[];
+      // MO-12: the "what is already known" slot ALS's exemplar names
+      // "Recent Findings". Absent on a report persisted before it existed.
+      recent_findings?: string;
       // MO-1: absent on a report persisted before this layer existed.
       sub_topics?: ResearchSubTopic[];
     }[];

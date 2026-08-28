@@ -38,6 +38,7 @@ export function makeFullOverviewSection(): ResearchOverview['overview'] {
       {
         title: 'Direction one',
         importance: 'It matters because X.',
+        recent_findings: 'What is already known about direction one.',
         suggested_experiments: ['Experiment A', 'Experiment B'],
         sub_topics: [
           {

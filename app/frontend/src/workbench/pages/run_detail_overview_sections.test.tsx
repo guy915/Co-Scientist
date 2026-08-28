@@ -39,9 +39,13 @@ it('renders the research directions with their suggested experiments', () => {
   ).toBeInTheDocument();
 });
 
-it('renders the nested sub-topics under a research direction (MO-1)', () => {
+it('renders a recent-findings line and the nested sub-topics (MO-12, MO-1)', () => {
   renderFullReport();
 
+  expect(screen.getByText('Recent findings:')).toBeInTheDocument();
+  expect(
+    screen.getByText('What is already known about direction one.'),
+  ).toBeInTheDocument();
   expect(screen.getByText('Sub-topic one')).toBeInTheDocument();
   expect(screen.getByText('Why:')).toBeInTheDocument();
   expect(screen.getByText('Why sub-topic one matters.')).toBeInTheDocument();
@@ -51,13 +55,13 @@ it('renders the nested sub-topics under a research direction (MO-1)', () => {
   ).toBeInTheDocument();
   expect(screen.getByText('Question A?')).toBeInTheDocument();
   expect(screen.getByText('Question B?')).toBeInTheDocument();
-  // Direction two carries no sub-topics, and must not fall over.
+  // Direction two carries neither field, and must not fall over.
   expect(
     screen.getByText('Direction two (no experiments)'),
   ).toBeInTheDocument();
 });
 
-it('omits sub-topics for a direction stored before the layer existed', () => {
+it('omits recent findings and sub-topics for a direction stored before they existed', () => {
   const report = makeReport({
     research_overview: {
       overview: {
@@ -66,8 +70,8 @@ it('omits sub-topics for a direction stored before the layer existed', () => {
             title: 'An old direction',
             importance: 'It still matters.',
             suggested_experiments: ['Experiment A'],
-            // No sub_topics key at all -- the shape a report persisted
-            // before MO-1 landed still carries.
+            // No recent_findings/sub_topics keys at all -- the shape a
+            // report persisted before MO-1/MO-12 landed still carries.
           },
         ],
       },
@@ -85,6 +89,7 @@ it('omits sub-topics for a direction stored before the layer existed', () => {
 
   expect(screen.getByText('An old direction')).toBeInTheDocument();
   expect(screen.getByText('It still matters.')).toBeInTheDocument();
+  expect(screen.queryByText('Recent findings:')).not.toBeInTheDocument();
   expect(screen.queryByText('Why:')).not.toBeInTheDocument();
   expect(screen.queryByText('What:')).not.toBeInTheDocument();
 });

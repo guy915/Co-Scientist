@@ -19,6 +19,10 @@ interface SubTopicEntry {
 interface DirectionEntry {
   title: string;
   importance: string;
+  // MO-12: the "what is already known" slot ALS's exemplar names "Recent
+  // Findings". Absent on a direction from a report persisted before it
+  // existed.
+  recentFindings: string;
   experiments: string[];
   // MO-1: the nested sub-topic layer both exemplars develop "what to
   // research" as. Absent on a direction from a report persisted before it
@@ -55,6 +59,7 @@ function toDirectionEntry(raw: unknown): DirectionEntry {
   return {
     title: readableText(record.title),
     importance: readableText(record.importance),
+    recentFindings: readableText(record.recent_findings),
     experiments: readableTextList(record.suggested_experiments),
     subTopics: subTopicEntries(record.sub_topics),
   };
@@ -71,7 +76,11 @@ function directionEntries(
     .map(toDirectionEntry)
     .filter(
       e =>
-        e.title || e.importance || e.experiments.length || e.subTopics.length,
+        e.title ||
+        e.importance ||
+        e.recentFindings ||
+        e.experiments.length ||
+        e.subTopics.length,
     );
 }
 
@@ -123,6 +132,12 @@ export function ResearchDirectionsSection({
         <div key={direction.title || index}>
           <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
           {direction.importance ? <p>{direction.importance}</p> : null}
+          {direction.recentFindings ? (
+            <p>
+              <strong>Recent findings: </strong>
+              {direction.recentFindings}
+            </p>
+          ) : null}
           {direction.experiments.length ? (
             <ul className={REPORT_LIST_CLASSES}>
               {direction.experiments.map((experiment, i) => (
