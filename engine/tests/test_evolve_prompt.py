@@ -334,3 +334,26 @@ def test_evolution_prompt_unchanged_without_lab_constraints() -> None:
     )
     assert "Lab Constraints" not in prompt
     assert "{{MISSING" not in prompt
+
+
+# --- _build_evolution_prompt: MP-2 research goal ----------------------------
+
+
+def test_evolution_prompt_includes_research_goal() -> None:
+    """Published evolution prompts open with "Goal: {goal}" (MP-2).
+
+    evolution-06-feasibility-improvement.md and
+    evolution-07-out-of-the-box-thinking.md both open with the research
+    goal; the template had no goal placeholder at all, so every evolved
+    hypothesis was rewritten by a model never told what the run was for.
+    """
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(
+            research_goal="reverse MASH-associated liver fibrosis"
+        ),
+        _EvolutionOperation(),
+    )
+    assert "reverse MASH-associated liver fibrosis" in prompt
+    assert "{{MISSING" not in prompt

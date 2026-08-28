@@ -368,6 +368,7 @@ def _build_evolution_variables(
         context
     )
     variables["lab_constraints_section"] = _lab_constraints_section(context)
+    variables["research_goal"] = _research_goal_text(context)
     variables["specialist_feedback"] = (
         operation.specialist_feedback or "No prior specialist feedback."
     )
@@ -386,6 +387,20 @@ def _lab_constraints_section(context: _EvolutionContext) -> str:
     if context.state is None:
         return ""
     return format_lab_constraints_section(context.state.get("lab_constraints"))
+
+
+def _research_goal_text(context: _EvolutionContext) -> str:
+    """Renders the run's research goal for this refinement (MP-2).
+
+    Every published Evolution prompt opens with the goal (evolution-06,
+    evolution-07); _EvolutionContext has no dedicated field for it, so
+    this reads it from context.state, mirroring
+    _lab_constraints_section/_falsified_assumptions_section below. Blank
+    only in a context built without state, as some tests do.
+    """
+    if context.state is None:
+        return ""
+    return context.state.get("research_goal") or ""
 
 
 def _falsified_assumptions_section(context: _EvolutionContext) -> str:
