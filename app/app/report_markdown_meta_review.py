@@ -28,21 +28,28 @@ from typing import Any
 from app.report_markdown_overview import _render_optional_paragraph
 
 
-def _render_recommendation(rec: dict[str, Any] | str) -> list[str]:
-    """Render one strategic recommendation entry.
+def _render_recommendation(
+    rec: dict[str, Any] | str, *, index: int | None = None
+) -> list[str]:
+    """Render one recommendation entry, as the primary lead or a roadmap step.
 
+    ``index=None`` renders the lead line, labelled "Primary recommendation";
+    an integer ``index`` renders it as that numbered roadmap step instead.
     Structured (dict) recommendations render with a rationale; a bare string
-    falls back to a plain bullet.
+    falls back to its text alone.
     """
     if isinstance(rec, dict):
         area = rec.get("focus_area", "")
         recommendation = rec.get("recommendation", "")
-        lines = [f"**{area}**: {recommendation}"]
+        body = f"**{area}**: {recommendation}" if area else str(recommendation)
         justification = rec.get("justification", "")
-        if justification:
-            lines.append(f"  *{justification}*")
-        return lines
-    return [f"- {rec}"]
+    else:
+        body, justification = str(rec), ""
+    label = "**Primary recommendation:**" if index is None else f"{index}."
+    lines = [f"{label} {body}"]
+    if justification:
+        lines.append(f"  *{justification}*")
+    return lines
 
 
 def _render_bullet_list(heading: str, items: list[Any]) -> list[str]:
@@ -97,12 +104,24 @@ def _render_emerging_themes(meta_review: dict[str, Any]) -> list[str]:
 
 
 def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
-    """Render the 'Strategic recommendations' section, or nothing when empty."""
+    """Render 'Recommendation and strategic roadmap', or nothing when empty.
+
+    Google's published section 9 (R12-11) sequences a named primary
+    recommendation through four named phases, each with concrete next
+    steps. Our ``strategic_recommendations`` carries no phase name,
+    dependency, or ordering field beyond list position -- it is a flat
+    ``{focus_area, recommendation, justification}`` list -- so named
+    phases with assays would be invented content the schema cannot
+    support. This distinguishes the first entry as the primary
+    recommendation and numbers the rest as roadmap steps, the
+    presentation the data actually carries.
+    """
     if not recs:
         return []
-    lines = ["\n### Strategic recommendations\n"]
-    for rec in recs:
-        lines += _render_recommendation(rec)
+    lines = ["\n### Recommendation and strategic roadmap\n"]
+    lines += _render_recommendation(recs[0])
+    for i, rec in enumerate(recs[1:], start=1):
+        lines += _render_recommendation(rec, index=i)
     return lines
 
 
