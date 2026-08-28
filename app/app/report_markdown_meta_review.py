@@ -125,6 +125,13 @@ def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
     return lines
 
 
+def _render_related_hypotheses(related: list[str]) -> list[str]:
+    """Render the 'Related hypotheses' bullet block for one connection."""
+    if not related:
+        return ["- **Related hypotheses:** (unspecified)"]
+    return ["- **Related hypotheses:**"] + [f"  - {h}" for h in related]
+
+
 def _render_connection(connection: Any) -> list[str]:
     """Render one potential-connection entry, or nothing when malformed."""
     if not isinstance(connection, dict):
@@ -134,12 +141,7 @@ def _render_connection(connection: Any) -> list[str]:
     opportunity = str(connection.get("synthesis_opportunity") or "")
     if not (related or kind or opportunity):
         return []
-    lines: list[str] = []
-    if related:
-        lines.append("- **Related hypotheses:**")
-        lines.extend(f"  - {h}" for h in related)
-    else:
-        lines.append("- **Related hypotheses:** (unspecified)")
+    lines = _render_related_hypotheses(related)
     if kind:
         lines.append(f"  - **Connection type:** {kind}")
     if opportunity:

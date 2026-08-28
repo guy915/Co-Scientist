@@ -21,7 +21,7 @@ _SYSTEM_NAME = "Co-Scientist"
 
 
 def _render_setup_list(label: str, items: Any) -> list[str]:
-    """Render a 'Label:' bullet list, or nothing when there is nothing to say."""
+    """Render a 'Label:' bullet list, or nothing when there is no content."""
     values = [str(item) for item in items or [] if str(item).strip()]
     if not values:
         return []
@@ -81,7 +81,10 @@ def _render_report_header(
     setup: dict[str, Any] | None = None,
     prepared_at: float | None = None,
 ) -> list[str]:
-    """Render the title, provider line, goal details, provenance, and summary."""
+    """Render the title, provider line, goal details, provenance, and summary.
+
+    Sections render only when their data is present.
+    """
     lines = [
         f"# Research Report — {research_goal}",
         "",
