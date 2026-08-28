@@ -103,6 +103,104 @@ def _render_emerging_themes(meta_review: dict[str, Any]) -> list[str]:
     return ["\n### Emerging themes\n", *lines]
 
 
+_IDEA_COMPARISON_FIELDS = (
+    ("distinguishing_attribute", "Distinguishing attribute"),
+    ("computational_scalability", "Computational scalability"),
+    ("supporting_evidence_basis", "Supporting evidence basis"),
+    ("primary_novelty_parameter", "Primary novelty parameter"),
+)
+
+
+def _render_idea_comparison(idea: Any) -> list[str]:
+    """Render one candidate-idea comparison row, or nothing when unlabeled."""
+    if not isinstance(idea, dict):
+        return []
+    label = str(idea.get("idea") or "").strip()
+    if not label:
+        return []
+    lines = [f"- **{label}**"]
+    for key, heading in _IDEA_COMPARISON_FIELDS:
+        value = str(idea.get(key) or "").strip()
+        if value:
+            lines.append(f"  - **{heading}:** {value}")
+    return lines
+
+
+def _render_candidate_comparison(comparison: Any) -> list[str]:
+    """Render 'Comparison of candidate ideas', or nothing when empty.
+
+    Google's published report carries this comparison twice under the
+    same title (R12-9): a thematic prose comparison (section 5) and a
+    structured per-idea table (section 6, real column names corroborated
+    by a second exemplar, R14-7 -- Idea / Key Distinguishing Attribute /
+    Computational Scalability / Supporting Evidence Basis / Primary
+    Novelty Parameter). This folds both forms into one section -- a
+    thematic summary paragraph plus one bullet block per idea, in the
+    bold-label style every other section here uses (see
+    ``_render_connection``) rather than a markdown table, which nothing
+    in this renderer emits elsewhere.
+    """
+    if not isinstance(comparison, dict):
+        return []
+    summary = str(comparison.get("thematic_summary") or "").strip()
+    idea_lines: list[str] = []
+    for idea in comparison.get("ideas") or []:
+        idea_lines += _render_idea_comparison(idea)
+    if not (summary or idea_lines):
+        return []
+    lines = ["\n### Comparison of candidate ideas\n"]
+    if summary:
+        lines += [summary, ""]
+    lines += idea_lines
+    return lines
+
+
+_EXISTING_SOLUTION_FIELDS = (
+    ("approach", "Approach"),
+    ("sensitivity_to_novelty", "Sensitivity to novelty"),
+    ("scalability", "Scalability"),
+)
+
+
+def _render_existing_solution_row(row: Any) -> list[str]:
+    """Render one existing-solutions comparison row, or nothing when unnamed."""
+    if not isinstance(row, dict):
+        return []
+    label = str(row.get("method") or "").strip()
+    if not label:
+        return []
+    lines = [f"- **{label}**"]
+    for key, heading in _EXISTING_SOLUTION_FIELDS:
+        value = str(row.get(key) or "").strip()
+        if value:
+            lines.append(f"  - **{heading}:** {value}")
+    return lines
+
+
+def _render_existing_solutions_comparison(comparison: Any) -> list[str]:
+    """Render 'Comparison to existing solutions', or nothing when empty.
+
+    Real column vocabulary (Method / Approach / Sensitivity to Novelty /
+    Scalability, against named baselines) is corroborated from a second
+    published exemplar (R14-7), used in place of the MASH report's own
+    domain-specific columns (R12-9's section 7) since R14-7's names
+    generalize across research goals.
+    """
+    if not isinstance(comparison, dict):
+        return []
+    summary = str(comparison.get("summary") or "").strip()
+    row_lines: list[str] = []
+    for row in comparison.get("rows") or []:
+        row_lines += _render_existing_solution_row(row)
+    if not (summary or row_lines):
+        return []
+    lines = ["\n### Comparison to existing solutions\n"]
+    if summary:
+        lines += [summary, ""]
+    lines += row_lines
+    return lines
+
+
 def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
     """Render 'Recommendation and strategic roadmap', or nothing when empty.
 
@@ -170,6 +268,12 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
             heading, meta_review.get(section_key) or []
         )
     lines += _render_emerging_themes(meta_review)
+    lines += _render_candidate_comparison(
+        meta_review.get("candidate_comparison")
+    )
+    lines += _render_existing_solutions_comparison(
+        meta_review.get("existing_solutions_comparison")
+    )
     lines += _render_strategic_recommendations(
         meta_review.get("strategic_recommendations") or []
     )
