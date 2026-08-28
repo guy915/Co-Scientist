@@ -216,6 +216,55 @@ def test_malformed_sub_topics_are_flattened() -> None:
     assert "#### Sub-topic" in text
 
 
+def test_recent_findings_renders() -> None:
+    """MO-12: a direction's recent_findings paragraph renders.
+
+    ALS's "Recent Findings" is the "what is already known" slot our
+    schema restores alongside the cf-PICI Why/What pair we already mirror.
+    """
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Mitochondrial dysfunction",
+                    "importance": "Central to the disease's early stages.",
+                    "recent_findings": (
+                        "mtDNA repair defects are already implicated."
+                    ),
+                    "suggested_experiments": ["Profile ROS in patient iPSCs."],
+                }
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "mtDNA repair defects are already implicated." in text
+
+
+def test_malformed_recent_findings_is_flattened() -> None:
+    """A recent_findings field arriving as a dict still renders as text."""
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Direction",
+                    "importance": "I",
+                    "recent_findings": {"gap": "None known"},
+                    "suggested_experiments": ["E"],
+                }
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "None known" in text
+    assert '{"gap"' not in text
+
+
 def test_published_aims_vocabulary_renders_every_block() -> None:
     """The aims page renders the blocks Google's exemplars print."""
     payload = {

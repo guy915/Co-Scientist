@@ -154,6 +154,12 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     lines += _render_optional_paragraph(
         _readable_text(direction.get("importance", ""))
     )
+    # MO-12: the "what is already known" slot ALS's exemplar names
+    # "Recent Findings" (cf-PICI folds the same idea into a bullet under
+    # "Why Research This Area?" instead of naming it separately).
+    recent_findings = _readable_text(direction.get("recent_findings", ""))
+    if recent_findings:
+        lines.append(f"**Recent findings:** {recent_findings}\n")
     lines += _render_experiments_list(
         direction.get("suggested_experiments") or []
     )

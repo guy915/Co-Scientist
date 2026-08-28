@@ -4,11 +4,12 @@
 straight through to the report: ``title``/``importance``/
 ``suggested_experiments`` have always relied on ``report_markdown_overview``'s
 readable-text flattening for defense, not engine-side validation, and that
-convention is left alone here. MO-1's nested ``sub_topics`` layer gets the
-same defensive treatment ``research_overview_contacts.py`` already applies
-to a missing field (``raw.get(...) or ""``), plus a defensive slice:
-json_object mode does not enforce the schema's ``maxItems`` server-side, so
-a non-conforming response is capped here rather than trusted -- the same
+convention is left alone here. The two fields this restores (MO-1's nested
+``sub_topics`` layer, MO-12's ``recent_findings``) get the same defensive
+treatment ``research_overview_contacts.py`` already applies to a missing
+field (``raw.get(...) or ""``), plus a defensive slice: json_object mode
+does not enforce the schema's ``maxItems`` server-side, so a
+non-conforming response is capped here rather than trusted -- the same
 reason ``_validate_knowledge_base`` slices to its own max.
 """
 
@@ -51,7 +52,7 @@ def _validate_sub_topics(raw_sub_topics: Any) -> list[dict[str, Any]]:
 
 
 def _validate_research_direction(raw: Any) -> Any:
-    """Add MO-1's new ``sub_topics`` field to one direction, defensively.
+    """Add MO-1/MO-12's two new fields to one direction, defensively.
 
     Every other field is left exactly as the model returned it -- their
     established convention is the render-layer's own flattening, not
@@ -63,6 +64,7 @@ def _validate_research_direction(raw: Any) -> Any:
         return raw
     return {
         **raw,
+        "recent_findings": raw.get("recent_findings") or "",
         "sub_topics": _validate_sub_topics(raw.get("sub_topics")),
     }
 

@@ -105,6 +105,16 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                                 "title": {"type": "string"},
                                 "importance": {"type": "string"},
                                 "suggested_experiments": str_array(),
+                                # MO-12: the "what is already known" slot
+                                # the ALS exemplar names "Recent Findings"
+                                # (cf-PICI's own equivalent is a bullet
+                                # folded under "Why Research This Area?"
+                                # rather than a separate section -- the
+                                # two published exemplars disagree on
+                                # vocabulary here; this adds ALS's slot
+                                # onto the cf-PICI pair we already mirror,
+                                # rather than switching vocabularies).
+                                "recent_findings": {"type": "string"},
                                 # MO-1: each direction's "What to Research
                                 # in This Area?" (cf-PICI) / "Areas of
                                 # Research" (ALS) is itself a list of

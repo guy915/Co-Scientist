@@ -79,10 +79,21 @@ _OVERVIEW_EXEMPLAR_QUESTION_HEADINGS = {
 # used to flatten away entirely.
 _OVERVIEW_SUB_TOPIC_REQUIRED = {"title", "why", "what", "specific_questions"}
 
+# outputs/research-overviews/als-research-overview-and-contact.md -- 84
+# lines, sha256 6d2997eaeec0. Each direction opens with "Rationale:" /
+# "Recent Findings:" before its own "Areas of Research:" sub-topic list
+# (the same nesting as cf-PICI, under ALS's own Why/What/Example-Idea
+# vocabulary). ALS's "Recent Findings" is the "what is already known"
+# slot cf-PICI folds into a bullet under "Why Research This Area?"
+# rather than naming as its own section -- MO-12. We already mirror
+# cf-PICI's Why/What pair (importance / suggested_experiments, pinned
+# below); recent_findings adds ALS's third slot rather than switching
+# vocabularies.
 _OVERVIEW_DIRECTION_REQUIRED = {
     "title",
     "importance",
     "suggested_experiments",
+    "recent_findings",
     "sub_topics",
 }
 
@@ -165,9 +176,10 @@ def test_research_overview_sections_match_published_exemplar() -> None:
 
     The overview exemplar (cited above) develops every direction under
     two questions, which are the two per-direction fields the schema
-    requires beside the direction's title -- plus, since MO-1, the
-    nested sub_topics layer both exemplars carry under their own
-    vocabulary for "what to research".
+    requires beside the direction's title -- plus, since MO-1/MO-12,
+    the nested sub_topics layer both exemplars carry under their own
+    vocabulary for "what to research", and ALS's recent_findings slot
+    for "what is already known".
     """
     schema = get_schema_for_prompt("research_overview")
     assert schema is not None

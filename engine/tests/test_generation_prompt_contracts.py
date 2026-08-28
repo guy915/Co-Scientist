@@ -151,6 +151,15 @@ def test_research_overview_prompt_asks_for_sub_topics() -> None:
     assert "specific_questions" in prompt
 
 
+def test_research_overview_prompt_asks_for_recent_findings() -> None:
+    """MO-12: the prompt must ask for the "what is already known" slot."""
+    prompt, _ = get_research_overview_prompt(
+        research_goal="a goal", hypotheses_summary="1. an idea"
+    )
+    assert "recent_findings" in prompt
+    assert "already established" in prompt
+
+
 def test_generation_schema_fields_ask_for_depth() -> None:
     """The shared explanation/experiment fields no longer cap brevity."""
     properties = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][

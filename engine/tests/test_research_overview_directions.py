@@ -2,9 +2,10 @@
 
 MO-1 restores a nested sub-topic level beneath each research direction --
 both published exemplars develop "what to research" as a list of named
-sub-topics, not a flat experiment list. Split from ``test_research_overview``
-on size; that module keeps the node's other behavior (publication gates,
-top-k ranking, the evidence corpus).
+sub-topics, not a flat experiment list. MO-12 restores the sibling
+recent_findings field (ALS's "what is already known" slot). Split from
+``test_research_overview`` on size; that module keeps the node's other
+behavior (publication gates, top-k ranking, the evidence corpus).
 """
 
 from typing import Any
@@ -90,6 +91,45 @@ async def test_sub_topics_degrade_when_missing(
 
     direction = out["research_overview"]["overview"]["research_directions"][0]
     assert direction["sub_topics"] == []
+
+
+async def test_recent_findings_passes_through_when_well_formed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MO-12: a well-formed recent_findings paragraph survives intact."""
+    response = _direction_response(
+        {
+            "title": "T",
+            "importance": "I",
+            "suggested_experiments": ["E"],
+            "recent_findings": "Prior work established X.",
+        }
+    )
+
+    out = await _run_overview_node(monkeypatch, response)
+
+    direction = out["research_overview"]["overview"]["research_directions"][0]
+    assert direction["recent_findings"] == "Prior work established X."
+
+
+async def test_recent_findings_degrades_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A json_object-mode response omitting recent_findings never raises.
+
+    The schema declares it required, but nothing enforces that
+    server-side under the downgrade, so the model may still omit it --
+    this must degrade to "", the same pattern
+    ``_validate_research_contacts`` already follows for a missing field.
+    """
+    response = _direction_response(
+        {"title": "T", "importance": "I", "suggested_experiments": ["E"]}
+    )
+
+    out = await _run_overview_node(monkeypatch, response)
+
+    direction = out["research_overview"]["overview"]["research_directions"][0]
+    assert direction["recent_findings"] == ""
 
 
 async def test_sub_topics_are_capped_at_the_schema_bound(
