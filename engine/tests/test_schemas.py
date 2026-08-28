@@ -4,7 +4,12 @@ from co_scientist.schemas.generation import (
     GENERATION_SCHEMA,
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
 )
-from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA, REVIEW_SCHEMA
+from co_scientist.schemas.review import (
+    DEEP_VERIFICATION_SCHEMA,
+    FULL_REVIEW_SCHEMA,
+    REVIEW_BATCH_SCHEMA,
+    REVIEW_SCHEMA,
+)
 
 # The paper's five default output criteria (SSR §1). "relevance" is the
 # engine's name for alignment with the research goal.
@@ -134,3 +139,23 @@ def test_generation_category_is_required() -> None:
     for node in (generation_item, synthesis_item):
         assert "category" in node["properties"], "category no longer declared"
         assert "category" in node["required"], "category no longer required"
+
+
+def test_assumption_support_vocabulary_is_unified() -> None:
+    """Deep verification and full review score one judgement, one way.
+
+    Both ask whether the evidence backs one assumption -- deep
+    verification's ``sub_assumptions[].status`` and full review's
+    ``assumptions[].support`` -- and used to disagree on the third value
+    (``unsupported`` vs. ``likely_false``) despite both prompts defining
+    it identically ("the evidence points against it"). One vocabulary
+    now backs both, so a reader cannot be written against one enum and
+    silently miss the other's third state.
+    """
+    dv_enum = DEEP_VERIFICATION_SCHEMA["schema"]["properties"][
+        "sub_assumptions"
+    ]["items"]["properties"]["status"]["enum"]
+    fr_enum = FULL_REVIEW_SCHEMA["schema"]["properties"]["assumptions"][
+        "items"
+    ]["properties"]["support"]["enum"]
+    assert dv_enum == fr_enum == ["supported", "uncertain", "likely_false"]

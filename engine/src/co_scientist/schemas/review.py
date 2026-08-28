@@ -9,6 +9,20 @@ from typing import Any
 
 from co_scientist.schemas.builders import obj, str_array
 
+# The one vocabulary for "does the evidence back this assumption",
+# shared by deep verification's sub_assumptions[].status and full
+# review's assumptions[].support -- the same judgement asked twice, by
+# two different reflection nodes. A single source keeps them from
+# drifting into two enums that disagree again; change it here to change
+# both schemas (and their prompt templates -- see
+# test_prompts_schema_parity.py, which pins every enum value to be named
+# in its own prompt's prose).
+ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
+    "supported",
+    "uncertain",
+    "likely_false",
+)
+
 # The eight scored criteria: the paper's five default output criteria
 # (SSR §1) -- relevance, plausibility, novelty, testability, safety --
 # plus scientific_soundness, clarity, and potential_impact.
@@ -282,11 +296,7 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
                         "verification": {"type": "string"},
                         "status": {
                             "type": "string",
-                            "enum": [
-                                "supported",
-                                "uncertain",
-                                "unsupported",
-                            ],
+                            "enum": list(ASSUMPTION_SUPPORT_VALUES),
                         },
                     }
                 ),
@@ -327,7 +337,7 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                         "assumption": {"type": "string"},
                         "support": {
                             "type": "string",
-                            "enum": ["supported", "uncertain", "likely_false"],
+                            "enum": list(ASSUMPTION_SUPPORT_VALUES),
                         },
                     }
                 ),
