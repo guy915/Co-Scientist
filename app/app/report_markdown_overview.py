@@ -271,6 +271,12 @@ def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
     if not isinstance(contact, dict) or not contact.get("name"):
         return []
     lines = [f"### {_readable_text(contact['name'])}\n"]
+    # MO-7: ties the contact back to the direction that surfaced them,
+    # matching the published exemplar's "Research Direction: X" tag.
+    # Absent on a report persisted before this field existed.
+    direction = _readable_text(contact.get("research_direction"))
+    if direction:
+        lines.append(f"**Research direction:** {direction}\n")
     expertise = _readable_text(contact.get("expertise"))
     if expertise:
         lines.append(f"**Relevant expertise:** {expertise}\n")

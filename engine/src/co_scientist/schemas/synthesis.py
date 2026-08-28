@@ -132,6 +132,12 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                         "name": {"type": "string"},
                         "expertise": {"type": "string"},
                         "justification": {"type": "string"},
+                        # Ties the contact back to the direction from #2
+                        # that surfaced them (MO-7) -- free text, not
+                        # validated against the direction titles, since a
+                        # direction label is not an invented fact the way
+                        # a name or affiliation would be.
+                        "research_direction": {"type": "string"},
                     }
                 ),
             },

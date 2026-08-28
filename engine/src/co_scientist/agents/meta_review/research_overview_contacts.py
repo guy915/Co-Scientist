@@ -148,6 +148,9 @@ def _validate_research_contacts(
             **candidate,
             "expertise": str(raw.get("expertise") or "").strip(),
             "justification": str(raw.get("justification") or "").strip(),
+            "research_direction": str(
+                raw.get("research_direction") or ""
+            ).strip(),
         }
         for raw, candidate in matches
     ]

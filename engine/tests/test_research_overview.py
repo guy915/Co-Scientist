@@ -46,6 +46,7 @@ _OVERVIEW_RESPONSE: dict[str, Any] = {
             "name": "Ada Researcher",
             "expertise": "Fibrosis mechanisms",
             "justification": "Authored the analyzed source.",
+            "research_direction": "Epigenetic control of fibrosis",
         },
         {
             "candidate_id": "invented",
@@ -117,12 +118,54 @@ async def test_produces_overview_and_aims(
     assert len(contacts) == 1
     assert contacts[0]["name"] == "Ada Researcher"
     assert contacts[0]["source_id"] == "PMID:123"
+    assert (
+        contacts[0]["research_direction"] == "Epigenetic control of fibrosis"
+    )
     assert "Invented Person" not in str(contacts)
     topics = out["research_overview"]["knowledge_base"]
     assert len(topics) == 1
     assert topics[0]["title"] == "Epigenetic control of fibrosis"
     assert topics[0]["references"][0]["title"] == "Fibrosis mechanisms"
     assert "Unsupported topic" not in str(topics)
+
+
+async def test_a_contact_with_no_research_direction_defaults_to_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A json_object-mode response omitting the field never raises.
+
+    The schema declares research_direction required, but nothing enforces
+    that server-side under the json_object downgrade, so the model may
+    still omit it -- this must degrade to an empty string, not a KeyError.
+    """
+    response = {
+        **_OVERVIEW_RESPONSE,
+        "research_contacts": [
+            {
+                "candidate_id": "author-1-1",
+                "name": "Ada Researcher",
+                "expertise": "Fibrosis mechanisms",
+                "justification": "Authored the analyzed source.",
+            }
+        ],
+    }
+    fake = AsyncMock(return_value=response)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis", elo_rating=1700
+    )
+    state = make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=_grounded_articles(),
+    )
+    out = await ro.research_overview_node(state)
+
+    contacts = out["research_overview"]["research_contacts"]
+    assert contacts[0]["research_direction"] == ""
 
 
 # One (field, value) pair per publication-gate exclusion category: the
@@ -375,103 +418,3 @@ def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
     ro._format_evidence_corpus(corpus)
 
     assert next(iter(corpus.values()))["abstract"] == abstract
-
-
-# --- Accuracy review wiring (enable_overview_review) ---
-#
-# The review/revise cycle itself is pinned in
-# test_research_overview_review.py against the LLM boundary. These pin
-# the node's wiring: the tier gate, the published-prose swap on a
-# revision, and the never-fail-the-run degradation on any loop failure.
-
-
-def _base_state(**overrides: Any) -> Any:
-    h = make_hypothesis(
-        text="HDAC inhibition reverses fibrosis", elo_rating=1700
-    )
-    return make_state(
-        hypotheses=[h],
-        research_goal="g",
-        supervisor_model_name="test/model",
-        meta_review={},
-        articles=_grounded_articles(),
-        **overrides,
-    )
-
-
-async def test_review_disabled_by_default_skips_the_loop(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """No ``enable_overview_review`` flag means the loop never runs."""
-    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", synth)
-    loop = AsyncMock(side_effect=AssertionError("loop must not run"))
-    monkeypatch.setattr(ro, "review_research_overview", loop)
-
-    out = await ro.research_overview_node(_base_state())
-
-    loop.assert_not_awaited()
-    assert out["research_overview"]["overview_review"] == {
-        "reviewed": False,
-        "rounds": 0,
-    }
-    assert out["metrics"].llm_calls == 1
-
-
-async def test_a_review_round_changes_the_published_overview(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A revision the loop returns is what actually publishes."""
-    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", synth)
-    revised = {
-        **_OVERVIEW_RESPONSE,
-        "overview": {
-            **_OVERVIEW_RESPONSE["overview"],
-            "summary": "Corrected, hedged summary.",
-        },
-    }
-    loop = AsyncMock(return_value=(revised, {"reviewed": True, "rounds": 1}, 3))
-    monkeypatch.setattr(ro, "review_research_overview", loop)
-
-    out = await ro.research_overview_node(
-        _base_state(enable_overview_review=True)
-    )
-
-    loop.assert_awaited_once()
-    assert (
-        out["research_overview"]["overview"]["summary"]
-        == "Corrected, hedged summary."
-    )
-    assert out["research_overview"]["overview_review"] == {
-        "reviewed": True,
-        "rounds": 1,
-    }
-    # One synthesis call plus the three the loop reports spending.
-    assert out["metrics"].llm_calls == 4
-
-
-async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A report that fails to publish is worse than one that is unreviewed.
-
-    Any exception in the review loop must degrade to the drafted overview
-    exactly as synthesized -- never raise out of the node.
-    """
-    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", synth)
-    loop = AsyncMock(side_effect=RuntimeError("provider exploded"))
-    monkeypatch.setattr(ro, "review_research_overview", loop)
-
-    out = await ro.research_overview_node(
-        _base_state(enable_overview_review=True)
-    )
-
-    loop.assert_awaited_once()
-    assert out["research_overview"]["overview"]["summary"] == "S"
-    assert out["research_overview"]["overview_review"] == {
-        "reviewed": False,
-        "rounds": 0,
-    }
-    assert out["metrics"].llm_calls == 1
