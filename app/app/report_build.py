@@ -61,6 +61,9 @@ class ReportRequest(NamedTuple):
             this run actually used. Empty on a run that used none.
         execution_time: Wall-clock seconds the run took, when measured.
         summary: Optional summary paragraph for the markdown header.
+        setup: The run's persisted requirements/attributes/criteria
+            block (``run_modes.setup_config``), rendered as the report
+            header's "Research Goal Details".
         db_path: Optional override for the SQLite database path.
     """
 
@@ -75,6 +78,7 @@ class ReportRequest(NamedTuple):
     skills_used: dict[str, int] | None = None
     execution_time: float | None = None
     summary: str | None = None
+    setup: dict[str, Any] | None = None
     db_path: str | None = None
 
 
@@ -165,6 +169,7 @@ def _render_report_content_markdown(
             citation_summary=req.citation_summary,
             research_overview=req.research_overview,
             knowledge_base=knowledge_base,
+            setup=req.setup,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,

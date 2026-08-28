@@ -11,6 +11,16 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+# The header (title, provider line, Research Goal Details) lives in its
+# own module to keep this one within the size cap; the names are
+# re-exported so this module's namespace keeps resolving.
+from app.report_markdown_header import (
+    _render_report_header as _render_report_header,
+)
+from app.report_markdown_header import (
+    _render_research_goal_details as _render_research_goal_details,
+)
+
 # The knowledge-base section lives in its own module to keep this one
 # within the size cap; the name is re-exported so this module's namespace
 # keeps resolving.
@@ -378,6 +388,9 @@ class ReportMarkdownInputs:
     citation_summary: dict[str, int] | None = None
     research_overview: dict[str, Any] | None = None
     knowledge_base: list[dict[str, Any]] | None = None
+    # The run's persisted requirements/attributes/criteria (and goal),
+    # rendered as "Research Goal Details" -- see run_modes.setup_config.
+    setup: dict[str, Any] | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
@@ -398,7 +411,7 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
         The rendered markdown document.
     """
     lines = _render_report_header(
-        inputs.research_goal, inputs.provider, inputs.summary
+        inputs.research_goal, inputs.provider, inputs.summary, inputs.setup
     )
     lines += _render_top_hypotheses_markdown(
         inputs.top_hypotheses, inputs.claim_evidence or []
@@ -413,18 +426,3 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
         inputs.skills_used or {}, inputs.retrieval_calls or []
     )
     return "\n".join(lines)
-
-
-def _render_report_header(
-    research_goal: str, provider: str, summary: str | None
-) -> list[str]:
-    """Render the title, provider line, and optional summary paragraph."""
-    lines = [
-        f"# Research Report — {research_goal}",
-        "",
-        f"_Provider: **{provider}**_",
-        "",
-    ]
-    if summary:
-        lines += ["## Summary", summary, ""]
-    return lines

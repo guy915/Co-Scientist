@@ -463,6 +463,7 @@ async def execute_finalize(
     )
     emit = make_emitter(run.id, db_path=db_path)
     await _emit_finalize_stage_events(emit, drained)
+    setup = run.config.get("setup") if isinstance(run.config, dict) else None
     async for _ in finalize_report(
         run.id,
         ReportRequest(
@@ -470,6 +471,7 @@ async def execute_finalize(
             run_mode=normalize_run_tier(run.profile),
             provider="engine",
             execution_time=execution_time,
+            setup=setup if isinstance(setup, dict) else None,
             db_path=db_path,
             **drained.report_inputs,
         ),

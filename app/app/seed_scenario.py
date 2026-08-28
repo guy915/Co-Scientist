@@ -346,6 +346,11 @@ def _save_scenario_report(
         seed.scenario, seed.evidence, seed.hypotheses
     )
     meta_review = _curated_meta_review(seed.scenario)
+    setup = (
+        seed.run.config.get("setup")
+        if isinstance(seed.run.config, dict)
+        else None
+    )
     built = _build_report_content(
         seed.run.id,
         ReportRequest(
@@ -357,6 +362,7 @@ def _save_scenario_report(
             research_overview=overview,
             summary=seed.scenario.summary,
             execution_time=seed.scenario.duration_seconds,
+            setup=setup if isinstance(setup, dict) else None,
             db_path=seed.db_path,
         ),
     )
