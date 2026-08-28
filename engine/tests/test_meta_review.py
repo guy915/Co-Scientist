@@ -104,6 +104,64 @@ async def test_with_reviews_maps_response_fields(
     assert result["messages"][0]["metadata"]["phase"] == "meta_review"
 
 
+async def test_candidate_and_existing_solutions_comparisons_map_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R12-9: the two comparison fields copy through from the LLM response.
+
+    ``candidate_comparison`` and ``existing_solutions_comparison`` are new
+    meta-review fields (see ``schemas.planning.META_REVIEW_SCHEMA``); this
+    pins that the node's mapping carries them into state unchanged, the
+    same way ``potential_connections`` already does.
+    """
+    stub_call_llm_json(
+        monkeypatch,
+        meta_review,
+        {
+            "meta_review_summary": "s",
+            "candidate_comparison": {
+                "thematic_summary": "Two mechanistic themes emerge.",
+                "ideas": [
+                    {
+                        "idea": "Hypothesis 1: NHE1 blockade",
+                        "distinguishing_attribute": "Established checkpoint.",
+                    }
+                ],
+            },
+            "existing_solutions_comparison": {
+                "summary": "Current care slows rather than reverses.",
+                "rows": [
+                    {
+                        "method": "Beta-blockade",
+                        "approach": "Reduce afterload.",
+                    }
+                ],
+            },
+        },
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+        ]
+    )
+
+    result = await meta_review_node(state)
+
+    mr = result["meta_review"]
+    assert mr["candidate_comparison"]["thematic_summary"] == (
+        "Two mechanistic themes emerge."
+    )
+    assert mr["candidate_comparison"]["ideas"][0]["idea"] == (
+        "Hypothesis 1: NHE1 blockade"
+    )
+    assert mr["existing_solutions_comparison"]["summary"] == (
+        "Current care slows rather than reverses."
+    )
+    assert mr["existing_solutions_comparison"]["rows"][0]["method"] == (
+        "Beta-blockade"
+    )
+
+
 async def test_state_preferences_reach_the_rendered_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

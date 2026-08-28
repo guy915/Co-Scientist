@@ -5,7 +5,7 @@ constrain LLM outputs during supervisor workflow planning and
 cross-hypothesis meta-review synthesis.
 """
 
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
@@ -232,6 +232,25 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
 # guidance text for later prompts via _format_meta_review_context() in
 # prompts.py (review, ranking, reflection, research-overview, and debate
 # generation prompts all accept it).
+#
+# candidate_comparison/existing_solutions_comparison (R12-9): the
+# published report's per-idea comparison and its comparison against
+# existing solutions belong here rather than on research_overview because
+# they compare the *whole* reviewed pool (this call already sees every
+# hypothesis with a review, not just the published top-k research_overview
+# synthesizes from) and because Google's own analogous document
+# (top-ranking-hypotheses.md, R14-11) bundles these comparisons with the
+# recommendation section this schema already produces
+# (strategic_recommendations, R12-11). Ideas are identified by the same
+# hypothesis_index convention the prompt already establishes for
+# potential_connections ("Hypothesis N: <subject>"), never by echoing a
+# hypothesis's full text -- see AGENTS.md on echoing-input schemas. Both
+# arrays are capped (_MAX_CANDIDATE_COMPARISON_IDEAS/_MAX_EXISTING_
+# SOLUTIONS_ROWS) so a large reviewed pool cannot scale the response
+# unboundedly, the same caution RESEARCH_OVERVIEW_MAX_SUB_TOPICS documents.
+_MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
+_MAX_EXISTING_SOLUTIONS_ROWS: Final = 6
+
 META_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "meta_review",
     "strict": False,
@@ -280,6 +299,63 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                     }
                 ),
             },
+            "candidate_comparison": obj(
+                {
+                    "thematic_summary": {
+                        "type": "string",
+                        "description": (
+                            "How the candidate hypotheses group into"
+                            " mechanistic themes, and which is best"
+                            " supported by the reviewed evidence."
+                        ),
+                    },
+                    "ideas": {
+                        "type": "array",
+                        "maxItems": _MAX_CANDIDATE_COMPARISON_IDEAS,
+                        "items": obj(
+                            {
+                                "idea": {
+                                    "type": "string",
+                                    "description": (
+                                        "The hypothesis_index and its"
+                                        " subject, e.g. 'Hypothesis 3:"
+                                        " LILRB4 blockade' -- never the"
+                                        " full hypothesis text."
+                                    ),
+                                },
+                                "distinguishing_attribute": {"type": "string"},
+                                "computational_scalability": {"type": "string"},
+                                "supporting_evidence_basis": {"type": "string"},
+                                "primary_novelty_parameter": {"type": "string"},
+                            }
+                        ),
+                    },
+                }
+            ),
+            "existing_solutions_comparison": obj(
+                {
+                    "summary": {
+                        "type": "string",
+                        "description": (
+                            "How current standard-of-care approaches"
+                            " compare to the candidate hypotheses as a"
+                            " group."
+                        ),
+                    },
+                    "rows": {
+                        "type": "array",
+                        "maxItems": _MAX_EXISTING_SOLUTIONS_ROWS,
+                        "items": obj(
+                            {
+                                "method": {"type": "string"},
+                                "approach": {"type": "string"},
+                                "sensitivity_to_novelty": {"type": "string"},
+                                "scalability": {"type": "string"},
+                            }
+                        ),
+                    },
+                }
+            ),
         }
     ),
 }

@@ -42,6 +42,13 @@ You are an expert in scientific research and meta-analysis. Synthesize a compreh
 - ️ **WARNING**: Avoid recommending synthesis that would make hypotheses too similar or identical
 - Preserve distinct methodologies and biomarker types across hypotheses
 
+### 6. Compare the candidate ideas against each other and against existing solutions
+
+- `candidate_comparison.thematic_summary`: how the candidate hypotheses group into mechanistic themes, and which is best supported by the evidence reviewed above
+- `candidate_comparison.ideas`: one entry per hypothesis worth distinguishing (not necessarily every one), each naming its `idea` by `hypothesis_index` and subject exactly as in section 5 above (e.g. "Hypothesis 3: LILRB4 blockade" -- never the full hypothesis text), plus its `distinguishing_attribute`, `computational_scalability`, `supporting_evidence_basis`, and `primary_novelty_parameter`
+- `existing_solutions_comparison.summary`: how current standard-of-care approaches for this research goal compare to the candidate hypotheses as a group
+- `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method`, `approach`, `sensitivity_to_novelty` (whether it addresses what the candidate hypotheses target), and `scalability`
+
 Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
 
 ## Input
