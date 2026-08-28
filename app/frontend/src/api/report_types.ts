@@ -135,6 +135,10 @@ export interface ResearchOverview {
     source_title: string;
     source_url: string;
     source: string;
+    // MO-7: ties the contact back to the direction that surfaced them.
+    // Absent on a report persisted before this field existed, and may
+    // legitimately be an empty string when the model omits it.
+    research_direction?: string;
   }[];
 }
 

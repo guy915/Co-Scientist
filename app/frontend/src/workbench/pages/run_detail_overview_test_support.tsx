@@ -78,6 +78,7 @@ export function makeFullResearchContacts(): ResearchContacts {
       source_title: 'A fibrosis study',
       source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
       source: 'pubmed',
+      research_direction: 'Direction one',
     },
   ];
 }

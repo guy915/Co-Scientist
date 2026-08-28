@@ -232,25 +232,38 @@ function ResearchContactsSection({
       <p>
         Relevant authors identified from the literature analyzed in this run.
       </p>
-      {contacts.map(contact => (
-        <div key={contact.candidate_id}>
-          <h4 className={REPORT_H4_CLASSES}>{readableText(contact.name)}</h4>
-          <p>{readableText(contact.expertise)}</p>
-          <p>{readableText(contact.justification)}</p>
-          {contact.source_url ? (
-            <a
-              className="text-th-primary underline"
-              href={contact.source_url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Evidence: {readableText(contact.source_title)}
-            </a>
-          ) : (
-            <p>Evidence: {readableText(contact.source_title)}</p>
-          )}
-        </div>
-      ))}
+      {contacts.map(contact => {
+        // MO-7: ties the contact back to the direction that surfaced them.
+        // research_overview_contacts.py:151 degrades a missing field to ""
+        // (like a report persisted before it existed), so an empty value
+        // renders no label rather than a label with nothing after it.
+        const direction = readableText(contact.research_direction);
+        return (
+          <div key={contact.candidate_id}>
+            <h4 className={REPORT_H4_CLASSES}>{readableText(contact.name)}</h4>
+            {direction ? (
+              <p>
+                <strong>Research direction: </strong>
+                {direction}
+              </p>
+            ) : null}
+            <p>{readableText(contact.expertise)}</p>
+            <p>{readableText(contact.justification)}</p>
+            {contact.source_url ? (
+              <a
+                className="text-th-primary underline"
+                href={contact.source_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Evidence: {readableText(contact.source_title)}
+              </a>
+            ) : (
+              <p>Evidence: {readableText(contact.source_title)}</p>
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 }

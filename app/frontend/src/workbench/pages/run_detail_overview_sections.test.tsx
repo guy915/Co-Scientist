@@ -26,7 +26,10 @@ it('renders the research directions with their suggested experiments', () => {
   expect(
     screen.getByRole('heading', {name: 'Research directions'}),
   ).toBeInTheDocument();
-  expect(screen.getByText('Direction one')).toBeInTheDocument();
+  // "Direction one" also names the research-contact linkage line below, so
+  // this asserts at least the direction heading exists rather than picking
+  // one occurrence arbitrarily.
+  expect(screen.getAllByText('Direction one').length).toBeGreaterThan(0);
   expect(screen.getByText('It matters because X.')).toBeInTheDocument();
   expect(screen.getByText('Experiment A')).toBeInTheDocument();
   expect(screen.getByText('Experiment B')).toBeInTheDocument();
@@ -149,9 +152,80 @@ it('renders the specific aims and research contacts', () => {
     screen.getByRole('heading', {name: 'Research contacts'}),
   ).toBeInTheDocument();
   expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
+  // MO-7: ties the contact back to the direction that surfaced them.
+  // "Direction one" also names the research-direction heading above, so
+  // this asserts both occurrences rather than picking one arbitrarily.
+  expect(screen.getByText('Research direction:')).toBeInTheDocument();
+  expect(screen.getAllByText('Direction one')).toHaveLength(2);
   expect(
     screen.getByRole('link', {name: 'Evidence: A fibrosis study'}),
   ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
+});
+
+it('omits the research-direction line for a contact stored before it existed', () => {
+  const report = makeReport({
+    research_overview: {
+      research_contacts: [
+        {
+          candidate_id: 'author-1-1',
+          name: 'Ada Researcher',
+          expertise: 'Fibrosis mechanisms',
+          justification: 'Authored a directly relevant analyzed paper.',
+          source_title: 'A fibrosis study',
+          source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+          source: 'pubmed',
+          // No research_direction key at all -- the shape a report
+          // persisted before MO-7 landed still carries.
+        },
+      ],
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
+  expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();
+});
+
+it('omits the research-direction line when the model returns it empty', () => {
+  // research_overview_contacts.py:151 does `raw.get("research_direction")
+  // or ""`, so an empty string is a legitimate, non-crash value here too --
+  // it must render no label, not a label with nothing after it.
+  const report = makeReport({
+    research_overview: {
+      research_contacts: [
+        {
+          candidate_id: 'author-1-1',
+          name: 'Ada Researcher',
+          expertise: 'Fibrosis mechanisms',
+          justification: 'Authored a directly relevant analyzed paper.',
+          source_title: 'A fibrosis study',
+          source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+          source: 'pubmed',
+          research_direction: '',
+        },
+      ],
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
+  expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();
 });
 
 it('renders the winning-ideas leaderboard and closing stats', () => {
