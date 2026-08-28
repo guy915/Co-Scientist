@@ -336,22 +336,54 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         The assembled meta_review dict.
     """
     # Schema returns recurring_themes as objects {theme, description,
-    # frequency}; flatten to strings.
-    # The isinstance check tolerates a model that ignores the schema and
-    # returns bare strings instead of {theme, description, frequency}
-    # objects, coercing either shape into a plain string list.
-    recurring_themes = response.get("recurring_themes", [])
-    emerging_themes = [
-        t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
-    ]
+    # frequency}. emerging_themes flattens to bare names for the prompt
+    # and safety-monitor consumers that expect plain strings;
+    # recurring_themes below carries the full taxonomy through for the
+    # report renderer, which previously computed and paid for
+    # description/frequency in every meta-review call only to have them
+    # dropped here before anything downstream could read them.
+    recurring_themes = _normalize_recurring_themes(
+        response.get("recurring_themes", [])
+    )
+    emerging_themes = [theme["theme"] for theme in recurring_themes]
 
     return {
         "summary": response.get("meta_review_summary", ""),
         "common_strengths": response.get("strengths", []),
         "common_weaknesses": response.get("weaknesses", []),
         "emerging_themes": emerging_themes,
+        "recurring_themes": recurring_themes,
         "strategic_recommendations": response.get(
             "strategic_recommendations", []
         ),
         "potential_connections": response.get("potential_connections", []),
     }
+
+
+def _normalize_recurring_themes(
+    recurring_themes: list[Any],
+) -> list[dict[str, str]]:
+    """Coerce every entry into a uniform {theme, description, frequency} dict.
+
+    The isinstance check tolerates a model that ignores the schema and
+    returns bare strings instead of full objects (json_object mode
+    enforces nothing); such an entry keeps its text as ``theme`` with an
+    empty description/frequency rather than being dropped. ``frequency``
+    is coerced to a string because a lax provider sometimes returns it as
+    a bare integer even though the schema declares it a string.
+    """
+    normalized: list[dict[str, str]] = []
+    for entry in recurring_themes:
+        if isinstance(entry, dict):
+            normalized.append(
+                {
+                    "theme": str(entry.get("theme", "")),
+                    "description": str(entry.get("description", "")),
+                    "frequency": str(entry.get("frequency", "")),
+                }
+            )
+        else:
+            normalized.append(
+                {"theme": str(entry), "description": "", "frequency": ""}
+            )
+    return normalized

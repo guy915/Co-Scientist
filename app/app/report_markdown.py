@@ -11,6 +11,13 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+# The meta-review insights section moved to its own module to keep this
+# one within the size cap; every moved name is re-exported so this
+# module's namespace keeps resolving.
+from app.report_markdown_meta_review import (
+    _render_meta_review_markdown as _render_meta_review_markdown,
+)
+
 # The research-overview/NIH-aims/contacts renderers moved verbatim to
 # ``report_markdown_overview``; every moved name is re-exported so this
 # module's namespace keeps resolving.
@@ -182,63 +189,6 @@ def build_report_payload(inputs: ReportPayloadInputs) -> dict[str, Any]:
     if inputs.execution_time is not None:
         payload["execution_time"] = inputs.execution_time
     return payload
-
-
-def _render_recommendation(rec: dict[str, Any] | str) -> list[str]:
-    """Render one strategic recommendation entry.
-
-    Structured (dict) recommendations render with a rationale; a bare string
-    falls back to a plain bullet.
-    """
-    if isinstance(rec, dict):
-        area = rec.get("focus_area", "")
-        recommendation = rec.get("recommendation", "")
-        lines = [f"**{area}**: {recommendation}"]
-        justification = rec.get("justification", "")
-        if justification:
-            lines.append(f"  *{justification}*")
-        return lines
-    return [f"- {rec}"]
-
-
-def _render_bullet_list(heading: str, items: list[Any]) -> list[str]:
-    """Render a heading and its bullet items, or nothing when empty."""
-    if not items:
-        return []
-    return [f"\n{heading}\n"] + [f"- {item}" for item in items]
-
-
-_META_REVIEW_BULLET_SECTIONS = (
-    ("common_strengths", "### Common strengths"),
-    ("common_weaknesses", "### Common weaknesses"),
-    ("emerging_themes", "### Emerging themes"),
-)
-
-
-def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
-    """Render the 'Strategic recommendations' section, or nothing when empty."""
-    if not recs:
-        return []
-    lines = ["\n### Strategic recommendations\n"]
-    for rec in recs:
-        lines += _render_recommendation(rec)
-    return lines
-
-
-def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
-    """Render the meta-review insights section, or nothing when absent."""
-    if not meta_review:
-        return []
-    lines = ["\n## Meta-review insights\n"]
-    lines += _render_optional_paragraph(meta_review.get("summary"))
-    for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
-        lines += _render_bullet_list(
-            heading, meta_review.get(section_key) or []
-        )
-    lines += _render_strategic_recommendations(
-        meta_review.get("strategic_recommendations") or []
-    )
-    return lines
 
 
 def _claim_status(edge: dict[str, Any]) -> str:

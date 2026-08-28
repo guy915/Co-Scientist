@@ -4,7 +4,9 @@ The node walks every hypothesis' latest review and, when at least one exists,
 makes a single ``call_llm_json`` call to synthesize a meta-review; these tests
 stub that call and assert on the deterministic short-circuit (no reviews) and
 the response-to-``meta_review`` field mapping, including the flattening of
-``recurring_themes`` objects to ``emerging_themes`` strings.
+``recurring_themes`` objects to ``emerging_themes`` strings and the full
+``recurring_themes`` taxonomy (theme, description, frequency) surviving
+alongside it.
 """
 
 import pytest
@@ -160,6 +162,54 @@ async def test_recurring_themes_flattened_to_emerging_themes(
     assert result["meta_review"]["emerging_themes"] == [
         "mitochondrial dysfunction",
         "oxidative stress",
+    ]
+
+
+async def test_recurring_themes_carry_description_and_frequency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The full theme taxonomy survives to state, not just theme names.
+
+    Before this, ``recurring_themes`` was flattened straight to
+    ``emerging_themes`` and its description/frequency were discarded --
+    computed by the model, paid for in tokens, and never reaching the
+    renderer. Both are now carried through under ``recurring_themes`` as
+    a uniform ``{theme, description, frequency}`` dict per entry: a
+    dict's fields are coerced to strings (frequency may come back as an
+    int under json_object mode), and a bare-string entry -- the same
+    schema-noncompliance the flattening already tolerated -- fills
+    description/frequency empty rather than being dropped.
+    """
+    stub_call_llm_json(
+        monkeypatch,
+        meta_review,
+        {
+            "meta_review_summary": "summary",
+            "recurring_themes": [
+                {
+                    "theme": "mitochondrial dysfunction",
+                    "description": "recurs across the reviewed pool",
+                    "frequency": 3,
+                },
+                "oxidative stress",
+            ],
+        },
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+        ]
+    )
+
+    result = await meta_review_node(state)
+
+    assert result["meta_review"]["recurring_themes"] == [
+        {
+            "theme": "mitochondrial dysfunction",
+            "description": "recurs across the reviewed pool",
+            "frequency": "3",
+        },
+        {"theme": "oxidative stress", "description": "", "frequency": ""},
     ]
 
 
