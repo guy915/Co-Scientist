@@ -193,6 +193,48 @@ def _render_overview_section(ov: dict[str, Any]) -> list[str]:
     return lines + _render_directions_list(directions)
 
 
+def _render_pattern_list(heading: str, items: Any) -> list[str]:
+    """Render a heading and its bullet items, or nothing when empty.
+
+    Local to this module rather than importing
+    ``report_markdown_meta_review._render_bullet_list``: that module
+    already imports from this one (``_render_optional_paragraph``), and
+    importing back would be circular.
+    """
+    values = _readable_text_list(items)
+    if not values:
+        return []
+    return [f"\n{heading}\n"] + [f"- {v}" for v in values]
+
+
+def _render_open_questions_section(payload: dict[str, Any]) -> list[str]:
+    """Render 'Open questions' plus its Clear/Unexpected patterns pair.
+
+    R12-10: the published report's top-level ``Open Questions``, ``Clear
+    Patterns:``, and ``Unexpected Patterns:`` sections. Google's second
+    exemplar (R14-1) lists ``Open questions`` beside the research-
+    directions summary in the same document family this overview
+    renders, so it lands here rather than beside the ``meta_review``-
+    sourced ``Unexpected connections`` section one level up.
+    """
+    questions = _readable_text_list(payload.get("open_questions") or [])
+    clear_lines = _render_pattern_list(
+        "### Clear patterns", payload.get("clear_patterns") or []
+    )
+    unexpected_lines = _render_pattern_list(
+        "### Unexpected patterns", payload.get("unexpected_patterns") or []
+    )
+    if not (questions or clear_lines or unexpected_lines):
+        return []
+    lines = ["\n## Open questions\n"]
+    if questions:
+        lines += [f"{i}. {q}" for i, q in enumerate(questions, 1)]
+        lines.append("")
+    lines += clear_lines
+    lines += unexpected_lines
+    return lines
+
+
 # The page's blocks, in the order Google's published Specific Aims
 # exemplars print them (paper A.5.3): three preamble sections, the aims,
 # then the pilot study. Reports written before the engine adopted that
@@ -300,6 +342,7 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     if not isinstance(overview, dict):
         return []
     lines = _render_overview_section(overview.get("overview") or {})
+    lines += _render_open_questions_section(overview)
     lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
     lines += _render_research_contacts_section(
         overview.get("research_contacts") or []
