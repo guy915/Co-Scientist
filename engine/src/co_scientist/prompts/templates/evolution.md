@@ -51,6 +51,9 @@ Before finalizing, verify:
 
 ## Input
 
+**Evaluation Criteria:**
+{{preferences}}
+
 **Original Hypothesis:**
 {{original_hypothesis}}
 

@@ -25,6 +25,7 @@ from co_scientist.prompts import (
     _format_run_guidance,
     _get_domain_variables,
     format_lab_constraints_section,
+    format_preferences,
     load_prompt_with_schema,
 )
 from co_scientist.prompts._common import _csv_value
@@ -369,6 +370,7 @@ def _build_evolution_variables(
     )
     variables["lab_constraints_section"] = _lab_constraints_section(context)
     variables["research_goal"] = _research_goal_text(context)
+    variables["preferences"] = format_preferences(_preferences_text(context))
     variables["specialist_feedback"] = (
         operation.specialist_feedback or "No prior specialist feedback."
     )
@@ -401,6 +403,21 @@ def _research_goal_text(context: _EvolutionContext) -> str:
     if context.state is None:
         return ""
     return context.state.get("research_goal") or ""
+
+
+def _preferences_text(context: _EvolutionContext) -> str | None:
+    """Reads the scientist's stated preferences for this refinement (MP-3).
+
+    Published evolution-06/evolution-07 both surface {preferences} as the
+    hypothesis's evaluation criteria; format_preferences (the same helper
+    the Generation agent's prompts already use for this field) supplies
+    the default when the scientist set none. _EvolutionContext has no
+    dedicated field for it, so this reads context.state like
+    _research_goal_text above.
+    """
+    if context.state is None:
+        return None
+    return context.state.get("preferences")
 
 
 def _falsified_assumptions_section(context: _EvolutionContext) -> str:

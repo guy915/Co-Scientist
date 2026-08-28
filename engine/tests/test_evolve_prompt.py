@@ -357,3 +357,37 @@ def test_evolution_prompt_includes_research_goal() -> None:
     )
     assert "reverse MASH-associated liver fibrosis" in prompt
     assert "{{MISSING" not in prompt
+
+
+# --- _build_evolution_prompt: MP-3 evaluation criteria/preferences ---------
+
+
+def test_evolution_prompt_includes_preferences() -> None:
+    """Published evolution prompts carry the scientist's criteria (MP-3).
+
+    evolution-06 ("Evaluation Criteria: {preferences}") and evolution-07
+    ("Criteria for a robust hypothesis: {preferences}") both surface the
+    scientist's stated preferences to the refinement; ours dropped them
+    entirely.
+    """
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(
+            preferences="prioritize wet-lab feasibility over novelty"
+        ),
+        _EvolutionOperation(),
+    )
+    assert "prioritize wet-lab feasibility over novelty" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_evolution_prompt_defaults_preferences_when_absent() -> None:
+    """Absent preferences fall back to the same default as generation's."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(),
+        _EvolutionOperation(),
+    )
+    assert "Focus on novelty, testability, and potential impact." in prompt
