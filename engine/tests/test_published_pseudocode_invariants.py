@@ -116,9 +116,14 @@ def test_research_overview_synthesizes_the_stated_top_n() -> None:
 def test_pairing_prioritizes_new_and_similarly_rated_ideas() -> None:
     """Matchmaking weights the two priorities the listing names.
 
-    ``RunTournamentBatch`` prioritizes new hypotheses and ones whose ratings
-    are close. Google publishes no weights, so only the presence of both
-    terms is pinned, not their magnitudes.
+    ``RunTournamentBatch`` prioritizes new hypotheses (``recency``) and
+    ones whose ratings are close (``elo_closeness``, the pairwise term
+    scored in ``_partner_score`` -- ``rank`` and ``similarity_bonus``
+    score different things and would let this pass without the property
+    they name actually existing). Google publishes no weights, so only
+    the presence of both terms is pinned, not their magnitudes; behavior
+    is pinned separately by
+    ``test_ranking_matchmaking.py::test_close_elo_hypotheses_are_preferred``.
     """
     listing = published_pseudocode("04-ranking")
     assert _states(
@@ -127,8 +132,7 @@ def test_pairing_prioritizes_new_and_similarly_rated_ideas() -> None:
 
     weights = MatchmakingWeights()
     assert weights.recency > 0
-    assert weights.rank > 0
-    assert weights.similarity_bonus > 0
+    assert weights.elo_closeness > 0
 
 
 def test_evolved_hypotheses_are_reviewed_like_new_ones() -> None:

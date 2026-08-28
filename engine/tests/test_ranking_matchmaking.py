@@ -1,9 +1,10 @@
 """Tests for deterministic weighted tournament matchmaking (Milestone 3).
 
-Proves the pairing biases (similar, newer, top-ranked, low-coverage), the
-absence of invalid matches (self / immediate duplicate), minimum coverage
-(no starvation), and replayability for a fixed seed — the M3 acceptance
-requirements — against the pure :func:`build_weighted_pairings`.
+Proves the pairing biases (similar, newer, top-ranked, close-Elo,
+low-coverage), the absence of invalid matches (self / immediate
+duplicate), minimum coverage (no starvation), and replayability for a
+fixed seed — the M3 acceptance requirements — against the pure
+:func:`build_weighted_pairings`.
 """
 
 import itertools
@@ -133,6 +134,42 @@ def test_similar_hypotheses_are_preferred() -> None:
         same_cluster += same
         cross_cluster += len(pairs) - same
     assert same_cluster > cross_cluster
+
+
+def test_close_elo_hypotheses_are_preferred() -> None:
+    """Partners with a closer Elo rating are compared more often.
+
+    Mirrors ``test_similar_hypotheses_are_preferred``'s two-group design,
+    grouping by Elo distance instead of proximity cluster: a1-a3 sit
+    within 20 points of each other, b1-b3 within 20 points of each other,
+    and the two groups sit 400 points apart. ``rank`` is zeroed so the
+    existing higher-Elo-wins-more-matches bias (which would otherwise
+    over-select the b-group on both sides of a match regardless of any
+    closeness term) cannot produce this result on its own -- only
+    ``elo_closeness`` can. Prioritizing close Elo ratings (Nature SI
+    Note 8, 04-ranking.md: "or those with similar Elo ratings") should
+    pull matches toward the 6 in-group pairs over the 9 cross-group ones.
+    """
+    candidates = _cands(
+        ("a1", 1200, 5, None),
+        ("a2", 1210, 5, None),
+        ("a3", 1220, 5, None),
+        ("b1", 1600, 5, None),
+        ("b2", 1610, 5, None),
+        ("b3", 1620, 5, None),
+    )
+    same_group = cross_group = 0
+    for seed in range(10):
+        pairs = build_weighted_pairings(
+            candidates,
+            rounds=6,
+            seed=seed,
+            weights=MatchmakingWeights(rank=0.0, elo_closeness=5.0),
+        )
+        same = sum(1 for x, y in pairs if x[0] == y[0])
+        same_group += same
+        cross_group += len(pairs) - same
+    assert same_group > cross_group
 
 
 def test_deterministic_for_fixed_seed() -> None:

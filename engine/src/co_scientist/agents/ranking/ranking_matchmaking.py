@@ -1,12 +1,14 @@
 """Deterministic weighted tournament matchmaking.
 
-Replaces bounded random sampling with proximity-, recency-, and rank-aware
-pairing (paper invariant SSR §4 Ranking). The pairing
-policy favors:
+Replaces bounded random sampling with proximity-, recency-, rank-, and
+Elo-closeness-aware pairing (paper invariant SSR §4 Ranking; Nature SI
+Note 8, 04-ranking.md: "Prioritize new hypotheses or those with similar
+Elo ratings"). The pairing policy favors:
 
 - scientifically similar hypotheses (same proximity cluster);
 - newer hypotheses needing calibration (fewer prior matches);
 - top-ranked hypotheses needing discrimination (higher Elo);
+- partners whose Elo rating sits close to the primary's;
 - candidates with low match coverage;
 
 while preventing self-matches, immediate duplicate rematches, and starvation
@@ -50,10 +52,13 @@ class MatchmakingWeights:
     The defaults are clone-defined (Google leaves the exact weights
     unspecified): recency (calibrating new hypotheses) and rank
     (discriminating leaders) dominate the selection score, with a mild
-    low-coverage term to prevent starvation; ``similarity_bonus`` boosts
-    partners in the primary's proximity cluster; ``min_coverage`` is the
-    per-hypothesis match floor reached before extra discriminating matches
-    are scheduled.
+    low-coverage term to prevent starvation; ``elo_closeness`` rewards a
+    partner whose Elo sits close to the primary's -- the published
+    listing's "or those with similar Elo ratings" half of tournament
+    pairing, which nothing scored before this field existed;
+    ``similarity_bonus`` boosts partners in the primary's proximity
+    cluster; ``min_coverage`` is the per-hypothesis match floor reached
+    before extra discriminating matches are scheduled.
 
     ``min_coverage`` is the shared
     ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``: a rating built from one match
@@ -67,6 +72,7 @@ class MatchmakingWeights:
     recency: float = 1.0
     rank: float = 1.0
     coverage: float = 0.5
+    elo_closeness: float = 2.0
     similarity_bonus: float = 2.0
     min_coverage: int = TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
 
@@ -186,13 +192,33 @@ def _is_eligible_partner(
     return frozenset({primary.id, candidate.id}) not in recent_pairs
 
 
+def _elo_closeness(
+    candidate: MatchCandidate, primary: MatchCandidate, state: _PairingState
+) -> float:
+    """Score how close candidate's Elo sits to primary's (0..1, higher closer).
+
+    Normalized against the build's Elo span so the term is comparable
+    across pools; a pool with no spread (every candidate tied) carries no
+    closeness signal at all rather than the vacuous "everyone is equally
+    close" reading a naive ``/ (span or 1)`` guard would give -- which
+    would otherwise add a flat constant to every partner score and dilute
+    every other term.
+    """
+    span = state.elo_hi - state.elo_lo
+    if span == 0:
+        return 0.0
+    return 1.0 - abs(candidate.elo - primary.elo) / span
+
+
 def _partner_score(
     candidate: MatchCandidate,
     primary: MatchCandidate,
     state: _PairingState,
 ) -> float:
-    """Score candidate as a partner, with a same-cluster similarity bonus."""
-    score = _priority(candidate, state)
+    """Score candidate as a partner: Elo closeness plus a cluster bonus."""
+    score = _priority(candidate, state) + state.weights.elo_closeness * (
+        _elo_closeness(candidate, primary, state)
+    )
     same_cluster = (
         primary.cluster_id is not None
         and candidate.cluster_id == primary.cluster_id
@@ -209,9 +235,11 @@ def _select_partner(
     """Select the second side of a match for ``primary``.
 
     Excludes ``primary`` itself and any pair already scheduled this round set
-    (no self-matches, no immediate duplicate rematches). Partners in the same
-    proximity cluster get a similarity bonus so similar hypotheses are more
-    likely compared. Returns None if no valid partner remains.
+    (no self-matches, no immediate duplicate rematches). A partner with a
+    closer Elo rating scores higher, and partners in the same proximity
+    cluster get a similarity bonus on top, so both similar and
+    similarly-rated hypotheses are more likely compared. Returns None if no
+    valid partner remains.
 
     Under-covered candidates are preferred, exactly as in ``_select_primary``.
     Applying the floor to only one side of the match made coverage a tendency
