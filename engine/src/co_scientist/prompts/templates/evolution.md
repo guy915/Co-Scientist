@@ -12,6 +12,7 @@ You are a Hypothesis Evolution Agent. Your task is to refine and improve a resea
 
 ## CRITICAL REQUIREMENTS FOR PRESERVING DIVERSITY
 
+- This should not be a mere aggregation of existing methods or entities. Think out-of-the-box.
 - Execute the assigned evolution operator exactly; do not collapse every operator into generic rewriting.
 - Enhancement strengthens grounding in the targeted literature supplied below while retaining the valuable scientific premise.
 - Coherence/feasibility improvement rectifies invalid assumptions and refines the proposal for practical implementability.

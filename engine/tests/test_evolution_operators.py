@@ -124,6 +124,29 @@ def test_prompt_requires_assigned_operator() -> None:
     assert "Combination is required" in prompt
 
 
+def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
+    """Published evolution-07's anti-aggregation guard applies template-wide.
+
+    "This should not be a mere aggregation of existing methods or
+    entities. Think out-of-the-box." was absent from every operator in
+    evolution.md, including COMBINATION -- the operator it most directly
+    polices, since a faithful combination that stops at concatenating its
+    partners' methods is exactly what the guard forbids (MP-5).
+    """
+    prompt, _ = _build_evolution_prompt(
+        hypothesis=make_hypothesis("Parent mechanism."),
+        other_hypotheses_texts=["Complementary peer mechanism."],
+        context=_EvolutionContext(
+            model_name="fake/model", meta_review={}, removed_duplicates=[]
+        ),
+        operation=_EvolutionOperation(operator=EvolutionOperator.COMBINATION),
+    )
+    assert (
+        "This should not be a mere aggregation of existing methods or"
+        " entities. Think out-of-the-box." in prompt
+    )
+
+
 def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
     """Divergent evolution is not contradicted by a preservation directive."""
     prompt, _ = _build_evolution_prompt(
