@@ -2,32 +2,40 @@
 
 Every other parity test reads a *description* of Google's behavior -- the
 paper's prose, or the local consolidation under ``references/core/``, which
-the fidelity audit found to be part clone-invented. The four artifacts here
-are different: the papers print complete worked examples of them, so the
-required shape can be read off the exemplar instead of paraphrased. These
-tests derive the field vocabulary from those files and assert our schemas
-and prompts carry it, so renaming a schema key fails against the exemplar
-that names it.
+the fidelity audit found to be part clone-invented. The artifacts cited
+below are different: the papers print complete worked examples of them, so
+the required shape can be read off the exemplar instead of paraphrased.
 
-``tests._published_corpus`` locates them, and says what happens when the
-corpus is absent.
+Each exemplar's shape-defining vocabulary is transcribed once, below, as a
+cited module-level constant, and every test in this module checks our
+schemas and prompts against those constants directly -- so none of it
+touches disk and none of it can skip. That is the half of the pin that must
+keep guarding once ``references/`` is gone.
+``test_published_artifact_shapes_corroboration.py`` re-reads the same
+exemplars and asserts the transcription still matches; that module is the
+one allowed to skip when the corpus is absent.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 import co_scientist
 from co_scientist.schemas import get_schema_for_prompt
-from tests._published_corpus import published_output
 
-# The NIH Specific Aims page, as all three published exemplars render it:
-# a three-block preamble, the numbered aims, and a closing pilot study.
-# Values are the schema keys that must carry each block.
+# references/core/google-co-scientist/research/extracted-artifacts/outputs/
+# specific-aims/givosiran-aml.md -- 74 lines, sha256 e37cd65c356d.
+# specific-aims/lapatinib-colon-cancer.md -- 118 lines, sha256 ba876c0d0bae.
+# specific-aims/selinexor-colon-cancer.md -- 97 lines, sha256 fdddea2c0d52.
+# All three render one NIH Specific Aims page: a three-block preamble, the
+# numbered aims, and a closing pilot study. Values are the schema keys that
+# must carry each block.
+_AIMS_EXEMPLARS = (
+    "specific-aims/givosiran-aml.md",
+    "specific-aims/lapatinib-colon-cancer.md",
+    "specific-aims/selinexor-colon-cancer.md",
+)
 _AIMS_PAGE_BLOCKS = {
     "disease description": "disease_description",
     "unmet need": "unmet_need",
@@ -43,26 +51,28 @@ _AIMS_PER_AIM_BLOCKS = {
 # Neither is part of what the Meta-review agent produced.
 _AIMS_PAPER_APPARATUS = {"articles", "expert rating"}
 
+# outputs/reviews/reparixin-deep-verification-probing.md -- 41 lines,
+# sha256 e133f842f15a. Figure A.15 labels its probe with exactly this
+# triple, in this order; the schema's remaining probe keys are routing
+# metadata that never reaches a reader.
+_PROBE_EXEMPLAR_LABELS = ("question", "answer", "reasoning")
 
-def _heading_labels(path: Path, level: int) -> set[str]:
-    """Return an exemplar's headings at one level, normalized for matching.
+# outputs/ranking-tournament/als-tournament-debate.md -- 22 lines,
+# sha256 29679d639c25. Figure A.17: a five-turn exchange between named
+# experts that closes with a single verdict line.
+_DEBATE_EXEMPLAR_TURN_COUNT = 5
+_DEBATE_EXEMPLAR_VERDICT = "Better idea: 1"
 
-    Args:
-        path: The exemplar to read.
-        level: Heading depth, as a count of leading ``#``.
-
-    Returns:
-        Lowercased heading text with any trailing colon removed.
-    """
-    pattern = re.compile(rf"^#{{{level}}} +(.+?)\s*$", re.MULTILINE)
-    return {
-        match.rstrip(":").strip().lower()
-        for match in pattern.findall(path.read_text(encoding="utf-8"))
-    }
+# outputs/research-overviews/cf-pici-research-overview.md -- 91 lines,
+# sha256 748950658a5d. Direction #1's two per-direction question headings.
+_OVERVIEW_EXEMPLAR_QUESTION_HEADINGS = {
+    "● why research this area?",
+    "● what to research in this area?",
+}
 
 
 def _aims_schema() -> dict[str, Any]:
-    """Return the ``nih_specific_aims`` node of the research-overview schema."""
+    """Return the research-overview schema's ``nih_specific_aims`` node."""
     schema = get_schema_for_prompt("research_overview")
     assert schema is not None
     body = schema.get("schema", schema)
@@ -71,26 +81,14 @@ def _aims_schema() -> dict[str, Any]:
     return aims
 
 
-@pytest.mark.parametrize(
-    "exemplar",
-    [
-        "specific-aims/givosiran-aml.md",
-        "specific-aims/lapatinib-colon-cancer.md",
-        "specific-aims/selinexor-colon-cancer.md",
-    ],
-)
-def test_specific_aims_schema_matches_published_exemplars(
-    exemplar: str,
-) -> None:
-    """Our aims page must carry every block the exemplars print.
+def test_specific_aims_schema_carries_published_heading_vocabulary() -> None:
+    """Our aims page must carry every block the published exemplars print.
 
-    All three exemplars share one heading vocabulary, so the schema is
-    checked against each of them rather than against a single sample.
+    All three exemplars share one heading vocabulary (cited above), so it
+    is checked once rather than once per exemplar; the corroboration
+    module still re-derives each exemplar's own labels from disk and
+    checks all three separately.
     """
-    labels = _heading_labels(published_output(exemplar), 4)
-    labels -= _AIMS_PAPER_APPARATUS
-    assert labels == set(_AIMS_PAGE_BLOCKS) | set(_AIMS_PER_AIM_BLOCKS)
-
     aims = _aims_schema()
     properties = aims["properties"]
     required = set(aims["required"])
@@ -119,40 +117,23 @@ def test_specific_aims_schema_adds_nothing_the_exemplars_lack() -> None:
 def test_deep_verification_probe_matches_published_exemplar() -> None:
     """A probe must carry the exemplar's question/answer/reasoning triple.
 
-    Figure A.15 labels its probe with exactly those three, in that order;
-    the schema's remaining probe keys are routing metadata that never
-    reaches a reader.
+    Figure A.15 (cited above) labels its probe with exactly those three,
+    in that order; the schema's remaining probe keys are routing metadata
+    that never reaches a reader.
     """
-    exemplar = published_output(
-        "reviews/reparixin-deep-verification-probing.md"
-    )
-    text = exemplar.read_text(encoding="utf-8")
-    labels = [
-        label.lower()
-        for label in re.findall(r"^(Question|Answer|Reasoning):", text, re.M)
-    ]
-    assert labels == ["question", "answer", "reasoning"]
-
     schema = get_schema_for_prompt("deep_verification")
     assert schema is not None
     probe = schema["schema"]["properties"]["probes"]["items"]
-    assert set(probe["required"]) >= set(labels)
+    assert set(probe["required"]) >= set(_PROBE_EXEMPLAR_LABELS)
 
 
 def test_ranking_debate_verdict_matches_published_exemplar() -> None:
     """The tournament judge must end on the exemplar's verdict line.
 
-    Figure A.17 is a multi-turn exchange between named experts that closes
-    with a single ``Better idea: <n>`` line -- the token the parser reads
-    back as the match result.
+    Figure A.17 (cited above) is a multi-turn exchange between named
+    experts that closes with a single ``Better idea: <n>`` line -- the
+    token the parser reads back as the match result.
     """
-    exemplar = published_output("ranking-tournament/als-tournament-debate.md")
-    text = exemplar.read_text(encoding="utf-8")
-    turns = re.findall(r"^Expert \d+:", text, re.MULTILINE)
-    assert len(turns) > 2, "exemplar is a multi-turn debate"
-    verdict = re.search(r"^Better idea: *\d+\s*$", text, re.MULTILINE)
-    assert verdict is not None
-
     template = (
         Path(co_scientist.__file__).parent / "prompts/templates/ranking.md"
     ).read_text(encoding="utf-8")
@@ -166,19 +147,10 @@ def test_ranking_debate_verdict_matches_published_exemplar() -> None:
 def test_research_overview_sections_match_published_exemplar() -> None:
     """Each research direction must argue why it matters and what to do.
 
-    The overview exemplar develops every direction under two questions,
-    which are the two per-direction fields the schema requires beside the
-    direction's title.
+    The overview exemplar (cited above) develops every direction under
+    two questions, which are the two per-direction fields the schema
+    requires beside the direction's title.
     """
-    exemplar = published_output(
-        "research-overviews/cf-pici-research-overview.md"
-    )
-    questions = _heading_labels(exemplar, 4)
-    assert questions == {
-        "● why research this area?",
-        "● what to research in this area?",
-    }
-
     schema = get_schema_for_prompt("research_overview")
     assert schema is not None
     overview = schema["schema"]["properties"]["overview"]
