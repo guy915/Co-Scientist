@@ -1,0 +1,137 @@
+"""Report section rendering one numbered 'Top hypotheses' entry.
+
+Moved out of ``report_markdown`` to keep this module's own complexity and
+that module's line count under their caps: as more optional subsections
+(scene-setting MO-6, safety-and-toxicity MO-10) were added to one entry,
+its renderer's branch count grew past the mccabe ceiling. Each optional
+subsection now factors into its own low-complexity helper here, and the
+entry point is a straight-line assembly of them -- names are re-exported
+from ``report_markdown`` so that module's namespace keeps resolving.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.report_markdown_references import _render_references_markdown
+from app.text_utils import hypothesis_statement, hypothesis_title
+
+
+def _claim_status(edge: dict[str, Any]) -> str:
+    """Return the reader-facing scientific status for one claim edge."""
+    label = str(edge.get("label") or "insufficient")
+    role = str(edge.get("claim_role") or "categorical")
+    if label == "supports":
+        return "Supported"
+    if label == "partial":
+        return "Partially supported"
+    if label == "contradicts":
+        return "Contradicted"
+    if role == "speculative":
+        return "Speculative — evidence insufficient"
+    return "Unsupported categorical claim"
+
+
+def _render_evidence_span(span: Any, relation: str) -> str:
+    """Render one exact supporting or contradicting source span."""
+    if not isinstance(span, dict):
+        quote = " ".join(str(span).split())
+        return f"  - {relation} span: “{quote}”"
+    quote = " ".join(str(span.get("quote") or "").split())
+    source_title = str(
+        span.get("source_title")
+        or span.get("source")
+        or span.get("evidence_id")
+        or "Evidence passage"
+    )
+    url = str(span.get("url") or "")
+    source = f"[{source_title}]({url})" if url else source_title
+    return f"  - {relation} span — {source}: “{quote}”"
+
+
+def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
+    """Render every persisted claim verdict for one released hypothesis."""
+    if not edges:
+        return []
+    lines = ["**Claim evidence:**", ""]
+    for edge in edges:
+        role = str(edge.get("claim_role") or "categorical")
+        claim = str(edge.get("claim") or "")
+        lines.append(f"- **{_claim_status(edge)} · {role}** — {claim}")
+        for span in edge.get("supporting") or []:
+            lines.append(_render_evidence_span(span, "Supporting"))
+        for span in edge.get("contradicting") or []:
+            lines.append(_render_evidence_span(span, "Contradicting"))
+    lines.append("")
+    return lines
+
+
+def _render_hypothesis_scene_setting(hyp: dict[str, Any]) -> list[str]:
+    """Render the Introduction/Recent findings scene-setting subsections.
+
+    MO-6: the published proposal opens with an Introduction and a Recent
+    findings and related research section before the mechanism -- rendered
+    here in that order, ahead of the proposed hypothesis itself.
+    """
+    lines: list[str] = []
+    for label, value in (
+        ("Introduction", hyp.get("introduction")),
+        ("Recent findings and related research", hyp.get("recent_findings")),
+    ):
+        if value:
+            lines += [f"#### {label}", "", str(value), ""]
+    return lines
+
+
+def _render_hypothesis_mechanism(hyp: dict[str, Any]) -> list[str]:
+    """Render the Mechanism/Predicted effect subsections."""
+    lines: list[str] = []
+    for label, value in (
+        ("**Mechanism:**", hyp.get("mechanism")),
+        ("**Predicted effect:**", hyp.get("expected_effect")),
+    ):
+        if value:
+            lines += [f"{label} {value}", ""]
+    return lines
+
+
+def _render_hypothesis_safety(hyp: dict[str, Any]) -> list[str]:
+    """Render the proposer's own Safety and toxicity subsection.
+
+    MO-10: the proposer's own pharmacological safety assessment -- not the
+    reviewer's safety_ethical_concerns (dual-use/ethics), which renders in
+    the reviews surface instead.
+    """
+    safety_and_toxicity = hyp.get("safety_and_toxicity")
+    if not safety_and_toxicity:
+        return []
+    return ["#### Safety and toxicity", "", str(safety_and_toxicity), ""]
+
+
+def _render_hypothesis_entry(
+    i: int,
+    hyp: dict[str, Any],
+    edges: list[dict[str, Any]],
+    references: list[tuple[str, dict[str, Any]]],
+) -> list[str]:
+    """Render one numbered 'Top hypotheses' entry.
+
+    Title and statement both resolve through the shared ``text_utils``
+    helpers, so this entry and the payload's Agent-insights panel name the
+    same idea with the same words.
+    """
+    title = hypothesis_title(hyp)
+    lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
+    lines += _render_hypothesis_scene_setting(hyp)
+    statement = hypothesis_statement(hyp)
+    if statement:
+        lines += [f"**Proposed hypothesis:** {statement}", ""]
+    lines += _render_hypothesis_mechanism(hyp)
+    # Resolves the [C*] keys the mechanism text just cited -- the engine's
+    # per-hypothesis reference index, joined back from citations+evidence
+    # (see report_markdown_references). Right after Mechanism/Predicted
+    # effect, the text the keys actually appear in.
+    lines += _render_references_markdown(references)
+    lines += _render_hypothesis_safety(hyp)
+    lines += _render_claim_evidence(edges)
+    return lines

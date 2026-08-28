@@ -24,6 +24,30 @@ from app.report_markdown_header import (
     _render_research_goal_details as _render_research_goal_details,
 )
 
+# The per-hypothesis 'Top hypotheses' entry renderer (and its exclusive
+# claim-evidence helpers) moved to its own module to keep this one within
+# both the line-count and mccabe-complexity caps; every moved name is
+# re-exported so this module's namespace keeps resolving.
+from app.report_markdown_hypothesis import _claim_status as _claim_status
+from app.report_markdown_hypothesis import (
+    _render_claim_evidence as _render_claim_evidence,
+)
+from app.report_markdown_hypothesis import (
+    _render_evidence_span as _render_evidence_span,
+)
+from app.report_markdown_hypothesis import (
+    _render_hypothesis_entry as _render_hypothesis_entry,
+)
+from app.report_markdown_hypothesis import (
+    _render_hypothesis_mechanism as _render_hypothesis_mechanism,
+)
+from app.report_markdown_hypothesis import (
+    _render_hypothesis_safety as _render_hypothesis_safety,
+)
+from app.report_markdown_hypothesis import (
+    _render_hypothesis_scene_setting as _render_hypothesis_scene_setting,
+)
+
 # The knowledge-base section lives in its own module to keep this one
 # within the size cap; the name is re-exported so this module's namespace
 # keeps resolving.
@@ -103,7 +127,6 @@ from app.report_markdown_sources import (
 from app.report_markdown_sources import (
     _render_data_sources_section as _render_data_sources_section,
 )
-from app.text_utils import hypothesis_statement, hypothesis_title
 
 
 def _append_if(lines: list[str], label: str, value: str) -> None:
@@ -221,38 +244,6 @@ def build_report_payload(inputs: ReportPayloadInputs) -> dict[str, Any]:
     return payload
 
 
-def _claim_status(edge: dict[str, Any]) -> str:
-    """Return the reader-facing scientific status for one claim edge."""
-    label = str(edge.get("label") or "insufficient")
-    role = str(edge.get("claim_role") or "categorical")
-    if label == "supports":
-        return "Supported"
-    if label == "partial":
-        return "Partially supported"
-    if label == "contradicts":
-        return "Contradicted"
-    if role == "speculative":
-        return "Speculative — evidence insufficient"
-    return "Unsupported categorical claim"
-
-
-def _render_evidence_span(span: Any, relation: str) -> str:
-    """Render one exact supporting or contradicting source span."""
-    if not isinstance(span, dict):
-        quote = " ".join(str(span).split())
-        return f"  - {relation} span: “{quote}”"
-    quote = " ".join(str(span.get("quote") or "").split())
-    source_title = str(
-        span.get("source_title")
-        or span.get("source")
-        or span.get("evidence_id")
-        or "Evidence passage"
-    )
-    url = str(span.get("url") or "")
-    source = f"[{source_title}]({url})" if url else source_title
-    return f"  - {relation} span — {source}: “{quote}”"
-
-
 def _claim_evidence_by_hypothesis(
     claim_evidence: list[dict[str, Any]],
 ) -> dict[str, list[dict[str, Any]]]:
@@ -273,71 +264,6 @@ def _claim_evidence_by_hypothesis(
         key = str(edge.get("hypothesis_id") or "")
         grouped.setdefault(key, []).append(edge)
     return grouped
-
-
-def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
-    """Render every persisted claim verdict for one released hypothesis."""
-    if not edges:
-        return []
-    lines = ["**Claim evidence:**", ""]
-    for edge in edges:
-        role = str(edge.get("claim_role") or "categorical")
-        claim = str(edge.get("claim") or "")
-        lines.append(f"- **{_claim_status(edge)} · {role}** — {claim}")
-        for span in edge.get("supporting") or []:
-            lines.append(_render_evidence_span(span, "Supporting"))
-        for span in edge.get("contradicting") or []:
-            lines.append(_render_evidence_span(span, "Contradicting"))
-    lines.append("")
-    return lines
-
-
-def _render_hypothesis_entry(
-    i: int,
-    hyp: dict[str, Any],
-    edges: list[dict[str, Any]],
-    references: list[tuple[str, dict[str, Any]]],
-) -> list[str]:
-    """Render one numbered 'Top hypotheses' entry.
-
-    Title and statement both resolve through the shared ``text_utils``
-    helpers, so this entry and the payload's Agent-insights panel name the
-    same idea with the same words.
-    """
-    title = hypothesis_title(hyp)
-    lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
-    # Scene-setting (MO-6): the published proposal opens with an
-    # Introduction and a Recent findings and related research section
-    # before the mechanism -- rendered here in that order, ahead of the
-    # proposed hypothesis itself.
-    for label, value in (
-        ("Introduction", hyp.get("introduction")),
-        ("Recent findings and related research", hyp.get("recent_findings")),
-    ):
-        if value:
-            lines += [f"#### {label}", "", str(value), ""]
-    statement = hypothesis_statement(hyp)
-    if statement:
-        lines += [f"**Proposed hypothesis:** {statement}", ""]
-    for label, value in (
-        ("**Mechanism:**", hyp.get("mechanism")),
-        ("**Predicted effect:**", hyp.get("expected_effect")),
-    ):
-        if value:
-            lines += [f"{label} {value}", ""]
-    # Resolves the [C*] keys the mechanism text just cited -- the engine's
-    # per-hypothesis reference index, joined back from citations+evidence
-    # (see report_markdown_references). Right after Mechanism/Predicted
-    # effect, the text the keys actually appear in.
-    lines += _render_references_markdown(references)
-    # MO-10: the proposer's own pharmacological safety assessment -- not
-    # the reviewer's safety_ethical_concerns (dual-use/ethics), which
-    # renders in the reviews surface instead.
-    safety_and_toxicity = hyp.get("safety_and_toxicity")
-    if safety_and_toxicity:
-        lines += ["#### Safety and toxicity", "", str(safety_and_toxicity), ""]
-    lines += _render_claim_evidence(edges)
-    return lines
 
 
 # K3: novelty scores/language throughout the review, ranking, and
