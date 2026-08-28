@@ -27,7 +27,7 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | Deep-verification review (probing questions challenging a hypothesis's fundamental assumptions) | `agents/reflection/deep_verification.py` runs on the top-k by Elo after ranking; verdict feeds the ranking prompt; surfaced as `reviewer_agent="deep_verification"` reviews | "Towards an AI co-scientist" §3.3 + Fig A.15 |
 | Research overview + NIH Specific Aims synthesized from the top hypotheses | `agents/meta_review/research_overview.py` terminal node; surfaced in the report payload + markdown (`## Research Overview` / `## NIH Specific Aims`) | "Towards an AI co-scientist" §3.3 — research overview |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
-| Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_tier` / `run_modes.normalize_run_focus` size and steer every run; the old `standard`/`advanced`/`default` run-mode string no longer exists | product behavior — Google's footage renders the plan's four tiers and four focus settings (`PLAN-TIER-001`/`PLAN-FOCUS-001` in [PARITY.md](PARITY.md)) |
+| Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_tier` / `run_modes.normalize_run_focus` size and steer every run; the old `standard`/`advanced`/`default` run-mode string no longer exists | implementation policy — superseded by the tier (express/standard/extended/ultra) + focus system |
 | UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); `run_detail.tsx` routes to four tab components — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `components/tabs/ideas_tab.tsx` (ideas) | published UX (see the note below on retired tabs) |
 
 > **The citation classifier is an audit label, not a verification gate.**
@@ -50,7 +50,7 @@ Because the source materials do not publish these numbers, this implementation f
 | Value | Default | Source of decision |
 | --- | --- | --- |
 | `ELO_K_FACTOR` | **24** | Mirrors engine ranking node default. K is intentionally moderate so a single match can move a candidate ~12 points; high enough to surface a leader in 6–12 matches, low enough that one bad call doesn't destroy the leaderboard. |
-| Per-tier compute budgets | the `RUN_TIER_DEFAULTS` knob set, defaulting to tier `standard` / focus `balance` | Google's footage names the four tiers and four focus settings but not what a tier spends, so the vocabulary is theirs (`PLAN-TIER-001`/`PLAN-FOCUS-001`) and only the budgets are ours. Every knob scales together from express to ultra. |
+| Canonical run mode | tier `standard` / focus `balance` | Current product flow sizes and steers every run through the tier (express/standard/extended/ultra) + focus system; the older `standard`/`advanced`/`default` run-mode string no longer exists. |
 | Default pool size | 8 initial hypotheses | Matches the current chat-first workflow's candidate pool. |
 | Default iterations | 2 evolve cycles | Keeps tournament and evolution as part of every run. |
 | Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical default pool. |
