@@ -5,8 +5,20 @@ Renders the "## Meta-review insights" heading: common strengths and
 weaknesses as plain bullets, recurring themes (theme + description +
 frequency, the taxonomy MO-2 stopped discarding before it reached this
 module -- see ``_render_theme``) falling back to a bare-name bullet list
-when only the flattened ``emerging_themes`` shape is present, and
-strategic recommendations with their justification.
+when only the flattened ``emerging_themes`` shape is present, strategic
+recommendations with their justification, and unexpected connections
+(R12-7).
+
+R12-7's published exemplar tags each connection with four fixed fields --
+Claims/Reasoning/Novelty/Relevance -- that our schema does not compute:
+``agents/meta_review/meta_review.py`` produces ``related_hypotheses``
+(short subject labels the prompt assigns, e.g. "Fluspirilene (Hypothesis
+1)", never full hypothesis text -- see ``prompts/_common.py``'s
+``_format_connection``), ``connection_type``, and
+``synthesis_opportunity``. Borrowing the published labels would fabricate
+a novelty or relevance verdict this system never judges, so
+``_render_connection`` renders our own real fields under the published
+section name instead.
 """
 
 from __future__ import annotations
@@ -94,6 +106,38 @@ def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
     return lines
 
 
+def _render_connection(connection: Any) -> list[str]:
+    """Render one potential-connection entry, or nothing when malformed."""
+    if not isinstance(connection, dict):
+        return []
+    related = [str(h) for h in connection.get("related_hypotheses") or []]
+    kind = str(connection.get("connection_type") or "")
+    opportunity = str(connection.get("synthesis_opportunity") or "")
+    if not (related or kind or opportunity):
+        return []
+    lines: list[str] = []
+    if related:
+        lines.append("- **Related hypotheses:**")
+        lines.extend(f"  - {h}" for h in related)
+    else:
+        lines.append("- **Related hypotheses:** (unspecified)")
+    if kind:
+        lines.append(f"  - **Connection type:** {kind}")
+    if opportunity:
+        lines.append(f"  - **Synthesis opportunity:** {opportunity}")
+    return lines
+
+
+def _render_unexpected_connections(connections: list[Any]) -> list[str]:
+    """Render 'Unexpected connections', or nothing when empty."""
+    lines: list[str] = []
+    for connection in connections:
+        lines += _render_connection(connection)
+    if not lines:
+        return []
+    return ["\n### Unexpected connections\n", *lines]
+
+
 def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     """Render the meta-review insights section, or nothing when absent."""
     if not meta_review:
@@ -107,5 +151,8 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     lines += _render_emerging_themes(meta_review)
     lines += _render_strategic_recommendations(
         meta_review.get("strategic_recommendations") or []
+    )
+    lines += _render_unexpected_connections(
+        meta_review.get("potential_connections") or []
     )
     return lines
