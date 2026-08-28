@@ -9,7 +9,7 @@ import {
 } from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {sortByEloDesc} from '@/lib/hypotheses';
-import {isRecord, readableText, readableTextList} from '@/lib/text';
+import {readableText} from '@/lib/text';
 import {
   AgentInsightsSection,
   DegradedSectionNotice,
@@ -28,6 +28,7 @@ import {
   ReportDocument,
 } from './run_detail_document';
 import {SpecificAimsSection} from './run_detail_overview_aims';
+import {ResearchDirectionsSection} from './run_detail_overview_directions';
 
 const STAT_GRID_CLASSES =
   'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';
@@ -291,65 +292,6 @@ function OverviewSummary({
       The research overview appears after Co-Scientist finishes the final
       synthesis step.
     </p>
-  );
-}
-
-interface DirectionEntry {
-  title: string;
-  importance: string;
-  experiments: string[];
-}
-
-// Coerce one raw research-direction into readable fields, tolerating the
-// json_object-mode malformations (a string field arriving as an object, or as
-// serialized JSON) that would otherwise render as raw JSON.
-function toDirectionEntry(raw: unknown): DirectionEntry {
-  const record = isRecord(raw) ? raw : {};
-  return {
-    title: readableText(record.title),
-    importance: readableText(record.importance),
-    experiments: readableTextList(record.suggested_experiments),
-  };
-}
-
-// Normalize the overview's research directions into renderable entries,
-// dropping any that carry no content after coercion.
-function directionEntries(
-  overview: ResearchOverview | undefined,
-): DirectionEntry[] {
-  const raw = overview?.overview?.research_directions as unknown;
-  const list = Array.isArray(raw) ? raw : [];
-  return list
-    .map(toDirectionEntry)
-    .filter(e => e.title || e.importance || e.experiments.length);
-}
-
-// "Research directions" section of the research-overview report; renders
-// nothing until the report has research directions.
-function ResearchDirectionsSection({
-  overview,
-}: {
-  overview: ResearchOverview | undefined;
-}) {
-  const directions = directionEntries(overview);
-  if (!directions.length) return null;
-  return (
-    <section className={REPORT_SECTION_CLASSES}>
-      <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
-      {directions.map((direction, index) => (
-        <div key={direction.title || index}>
-          <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
-          {direction.importance ? <p>{direction.importance}</p> : null}
-          {direction.experiments.length ? (
-            <ul className={REPORT_LIST_CLASSES}>
-              {direction.experiments.map((experiment, i) => (
-                <li key={`${experiment}-${i}`}>{experiment}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ))}
-    </section>
   );
 }
 

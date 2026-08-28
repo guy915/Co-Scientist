@@ -39,6 +39,14 @@ export function makeFullOverviewSection(): ResearchOverview['overview'] {
         title: 'Direction one',
         importance: 'It matters because X.',
         suggested_experiments: ['Experiment A', 'Experiment B'],
+        sub_topics: [
+          {
+            title: 'Sub-topic one',
+            why: 'Why sub-topic one matters.',
+            what: 'What to investigate in sub-topic one.',
+            specific_questions: ['Question A?', 'Question B?'],
+          },
+        ],
       },
       {
         title: 'Direction two (no experiments)',

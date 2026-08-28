@@ -98,6 +98,19 @@ export interface IdeaBucketEntry {
   reason: string;
 }
 
+/**
+ * A named sub-topic nested one level below a research direction (MO-1):
+ * both published exemplars develop "what to research" this way (cf-PICI's
+ * "Topic 1..4", ALS's "Areas of Research"). Absent on a direction from a
+ * report persisted before this layer existed.
+ */
+export interface ResearchSubTopic {
+  title?: string;
+  why?: string;
+  what?: string;
+  specific_questions?: string[];
+}
+
 /** Synthesized roadmap and NIH Specific Aims for a run's top hypotheses. */
 export interface ResearchOverview {
   overview?: {
@@ -106,6 +119,8 @@ export interface ResearchOverview {
       title: string;
       importance: string;
       suggested_experiments: string[];
+      // MO-1: absent on a report persisted before this layer existed.
+      sub_topics?: ResearchSubTopic[];
     }[];
   };
   // The blocks Google's published exemplars print, plus the older

@@ -39,6 +39,56 @@ it('renders the research directions with their suggested experiments', () => {
   ).toBeInTheDocument();
 });
 
+it('renders the nested sub-topics under a research direction (MO-1)', () => {
+  renderFullReport();
+
+  expect(screen.getByText('Sub-topic one')).toBeInTheDocument();
+  expect(screen.getByText('Why:')).toBeInTheDocument();
+  expect(screen.getByText('Why sub-topic one matters.')).toBeInTheDocument();
+  expect(screen.getByText('What:')).toBeInTheDocument();
+  expect(
+    screen.getByText('What to investigate in sub-topic one.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Question A?')).toBeInTheDocument();
+  expect(screen.getByText('Question B?')).toBeInTheDocument();
+  // Direction two carries no sub-topics, and must not fall over.
+  expect(
+    screen.getByText('Direction two (no experiments)'),
+  ).toBeInTheDocument();
+});
+
+it('omits sub-topics for a direction stored before the layer existed', () => {
+  const report = makeReport({
+    research_overview: {
+      overview: {
+        research_directions: [
+          {
+            title: 'An old direction',
+            importance: 'It still matters.',
+            suggested_experiments: ['Experiment A'],
+            // No sub_topics key at all -- the shape a report persisted
+            // before MO-1 landed still carries.
+          },
+        ],
+      },
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('An old direction')).toBeInTheDocument();
+  expect(screen.getByText('It still matters.')).toBeInTheDocument();
+  expect(screen.queryByText('Why:')).not.toBeInTheDocument();
+  expect(screen.queryByText('What:')).not.toBeInTheDocument();
+});
+
 it('flattens malformed research directions instead of showing raw JSON', () => {
   // In production the model emits these fields in json_object mode with no
   // schema enforcement, so a string field can arrive as serialized JSON or an
