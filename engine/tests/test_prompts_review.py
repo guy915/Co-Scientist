@@ -375,6 +375,27 @@ def test_ranking_prompt_review_scores_branch() -> None:
     assert "novelty" in prompt
 
 
+def test_ranking_prompt_review_scores_says_disregard_not_consider() -> None:
+    """The review-scores section instructs the judge per the published prompt.
+
+    Published (ranking-04-pairwise-comparison.md): "Disregard these scores
+    in your comparative analysis, as they may not be directly comparable
+    across reviews." Ours used to say the opposite ("Consider these
+    scores, but make your judgment based on comprehensive comparison, not
+    just scores.").
+    """
+    prompt, _ = get_ranking_prompt(
+        research_goal="g",
+        side_a=RankingSide(text="a", review={"overall_score": 8.5}),
+        side_b=RankingSide(text="b", review={"overall_score": 6.0}),
+    )
+    assert (
+        "Disregard these scores in your comparative analysis, as they may"
+        " not be directly comparable across reviews." in prompt
+    )
+    assert "Consider these scores" not in prompt
+
+
 def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
     """Absent reflection notes fall back to the documented placeholder text."""
     prompt, _ = get_ranking_prompt(

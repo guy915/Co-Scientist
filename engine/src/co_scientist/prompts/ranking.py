@@ -435,14 +435,14 @@ def _format_review_context(
 
     sections = [
         "## Review Scores Context\n",
-        "The following review scores are available to inform your"
-        " comparison:\n\n",
+        "Each hypothesis includes an independent review. These reviews"
+        " may contain numerical scores:\n\n",
     ]
     sections.extend(_format_single_review_scores("A", review_a))
     sections.extend(_format_single_review_scores("B", review_b))
     sections.append(
-        "Consider these scores, but make your judgment based on"
-        " comprehensive comparison, not just scores.\n"
+        "Disregard these scores in your comparative analysis, as they"
+        " may not be directly comparable across reviews.\n"
     )
 
     return "".join(sections)
