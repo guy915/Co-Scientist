@@ -11,6 +11,14 @@ That corpus lives outside ``engine/``, which is independently installable.
 An engine extracted on its own has no ``references/`` tree at all and skips;
 a ``references/`` tree that exists but has lost one of these files is a move
 or a deletion, and fails.
+
+The engine's two published-value pin modules -- ``pseudocode_invariants``
+and ``artifact_shapes`` -- carry their pinned values inline as cited module
+constants and no longer import this module at all, so they cannot skip.
+Only their ``_corroboration`` siblings do: they re-read the corpus through
+the functions here and check the inlined constants still match what is on
+disk, which is exactly the check this module's skip-or-fail split exists
+for.
 """
 
 from __future__ import annotations
