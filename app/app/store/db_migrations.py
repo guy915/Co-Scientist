@@ -291,9 +291,7 @@ def _migrate_hypothesis_safety_toxicity_column(
     (dual-use/ethics). A hypothesis row written before this carried
     neither, and this column is never read by the safety gate.
     """
-    _add_column_if_missing(
-        conn, "hypotheses", "safety_and_toxicity", "TEXT"
-    )
+    _add_column_if_missing(conn, "hypotheses", "safety_and_toxicity", "TEXT")
 
 
 def _run_migrations(conn: sqlite3.Connection) -> None:

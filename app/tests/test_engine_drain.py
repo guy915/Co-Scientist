@@ -383,7 +383,7 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
 def test_persist_writes_scene_setting_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    """Introduction/Recent findings (MO-6) reach the persisted hypothesis row."""
+    """Introduction/Recent findings (MO-6) persist on the hypothesis row."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [

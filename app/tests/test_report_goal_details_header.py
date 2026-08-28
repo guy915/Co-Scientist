@@ -24,9 +24,7 @@ def _markdown(setup: dict[str, object] | None) -> str:
     )
 
 
-def test_the_header_carries_goal_requirements_attributes_and_criteria() -> (
-    None
-):
+def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
     """Every configured section of the run's plan renders."""
     markdown = _markdown(
         {

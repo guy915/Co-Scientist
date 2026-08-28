@@ -43,9 +43,11 @@ def test_the_header_names_this_system_not_googles() -> None:
 def test_the_date_is_derived_from_prepared_at_not_wall_clock() -> None:
     """The rendered date matches the supplied timestamp, not datetime.now()."""
     timestamp = 1_700_000_000.0
-    expected = datetime.datetime.fromtimestamp(
-        timestamp, tz=datetime.timezone.utc
-    ).date().isoformat()
+    expected = (
+        datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+        .date()
+        .isoformat()
+    )
 
     markdown = _markdown(timestamp)
 

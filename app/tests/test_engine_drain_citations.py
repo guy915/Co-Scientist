@@ -61,9 +61,7 @@ def _final_state_with_novelty_review() -> dict[str, Any]:
                         "already_explored": [
                             "CXCR1 is a known breast-CSC marker."
                         ],
-                        "novel_aspects": [
-                            "The proposed feedback loop is new."
-                        ],
+                        "novel_aspects": ["The proposed feedback loop is new."],
                     }
                 ],
             )
@@ -78,7 +76,7 @@ def _final_state_with_novelty_review() -> dict[str, Any]:
 def test_persist_writes_novelty_review_lists_into_critique(
     isolated_db: str,
 ) -> None:
-    """The published Aspects-already-explored/Novel-Aspects lists reach the reader (MO-3)."""
+    """Already-explored/novel-aspects lists reach the reader (MO-3)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(
         run_id=run.id,

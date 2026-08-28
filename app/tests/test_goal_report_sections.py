@@ -270,7 +270,9 @@ def test_insights_and_markdown_show_one_statement_per_idea() -> None:
     assert finding == hypothesis["text"]
 
 
-def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> None:
+def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> (
+    None
+):
     """Introduction/Recent findings (MO-6) render ahead of the mechanism.
 
     The published proposal opens with an Introduction and a Recent
@@ -295,9 +297,7 @@ def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> None
     )
 
     intro_at = markdown.index("#### Introduction")
-    findings_at = markdown.index(
-        "#### Recent findings and related research"
-    )
+    findings_at = markdown.index("#### Recent findings and related research")
     statement_at = markdown.index("**Proposed hypothesis:**")
     assert intro_at < findings_at < statement_at
     assert "Metabolic disease remains a major cause of morbidity." in markdown
@@ -315,7 +315,9 @@ def test_markdown_renders_the_proposers_safety_and_toxicity_section() -> None:
         "title": "Feedback control is rate-limiting.",
         "statement": "Blocking the loop raises the steady-state flux.",
         "mechanism": "The enzyme is allosterically inhibited by its product.",
-        "safety_and_toxicity": "Limited human safety data exists for this class.",
+        "safety_and_toxicity": (
+            "Limited human safety data exists for this class."
+        ),
     }
 
     markdown = report_markdown.render_report_markdown(

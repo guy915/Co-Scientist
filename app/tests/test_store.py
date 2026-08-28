@@ -168,7 +168,9 @@ def test_hypothesis_row_carries_scene_setting(db: str) -> None:
             run_id=run.id,
             title="t",
             statement="s",
-            introduction="Metabolic disease remains a major cause of morbidity.",
+            introduction=(
+                "Metabolic disease remains a major cause of morbidity."
+            ),
             recent_findings="Aldolase inhibitors have shown early promise.",
             created_by_agent="generation",
         )
