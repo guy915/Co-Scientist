@@ -62,10 +62,12 @@ The engine is closest to the paper; the product surface is furthest from Google'
    `docs/FIDELITY.md`, `docs/PARITY.md`, `docs/UI-FIDELITY.md`, `.remember/`, or
    prior closure matrices. Where those disagree with FINDINGS.md, they are the
    ones that are wrong.
-4. **Much of `references/core/google-co-scientist/` files 02–09 is
-   clone-invented**, not Google canon — including the Elo-leaderboard Ideas tab,
-   the 12-agent roster, and the 3-persona debate. See the corpus-integrity
-   corrections in FINDINGS.md before treating any reference doc as a requirement.
+4. **Much of what the corpus's clone-authored consolidation files presented
+   as "Google requirements" was invented**, not Google canon — including the
+   Elo-leaderboard Ideas tab, the 12-agent roster, and the 3-persona debate
+   (see the region map in [`docs/CORPUS-EXTRACTION.md`](../CORPUS-EXTRACTION.md)).
+   See the corpus-integrity corrections in FINDINGS.md before treating any
+   reference doc as a requirement.
 
 ## The 2026-07-12 campaign
 

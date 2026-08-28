@@ -2,7 +2,7 @@
 
 A walk through the whole product, focused on the multi-agent engine. For engineers. Every diagram is hand-authored SVG in `docs/assets/`; the inline graphs are Mermaid (renders on GitHub and in VS Code). `file:line` references point at the code that backs each claim.
 
-> Scope: the workbench UI, the FastAPI/SSE layer, the LangGraph engine, and the MCP tool server. For the original DeepMind system analysis see `references/core/google-co-scientist/`; for fidelity tradeoffs see [`docs/FIDELITY.md`](FIDELITY.md).
+> Scope: the workbench UI, the FastAPI/SSE layer, the LangGraph engine, and the MCP tool server. For the original DeepMind system analysis see [`docs/CORPUS-EXTRACTION.md`](CORPUS-EXTRACTION.md) (Appendix D reproduces the paper's own architecture and execution-flow sections verbatim); for fidelity tradeoffs see [`docs/FIDELITY.md`](FIDELITY.md).
 
 ---
 
@@ -347,6 +347,6 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budget
 | Engine docs (ASCII graph, modes, MCP) | `engine/docs/ARCHITECTURE.md`, `GENERATION_MODES.md`, `MCP_INTEGRATION.md` |
 | Runtime architecture (events, persistence) | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Fidelity tradeoffs | [`docs/FIDELITY.md`](FIDELITY.md) |
-| Original DeepMind system analysis | `references/core/google-co-scientist/` |
+| Original DeepMind system analysis | [`docs/CORPUS-EXTRACTION.md`](CORPUS-EXTRACTION.md), Appendix D |
 
 Diagrams in this explainer: [`assets/pipeline.svg`](assets/pipeline.svg) (linear overview) and [`assets/architecture.svg`](assets/architecture.svg).

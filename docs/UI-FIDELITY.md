@@ -33,8 +33,8 @@ The repo carried **two** distinct real references plus several secondary skins.
 They play different roles and must not be conflated — the prior audit's failure
 came from auditing against one and inferring "invented" from its absence.
 
-**A. `references/core/google-co-scientist/` — the FUNCTIONAL SOURCE OF TRUTH**
-(still on disk). This is the real AI Co-Scientist. It carries written specs
+**A. `references/core/google-co-scientist/` — the FUNCTIONAL SOURCE OF TRUTH.**
+This is the real AI Co-Scientist. It carries written specs
 (`product-surface-and-ux.md` et al.) *and*, most importantly,
 `media/live-footage/*.mp4` — the real UI in motion. When a spec still and a
 live-footage frame disagree, **the live footage wins** (it is the newest, and it
@@ -105,11 +105,14 @@ live-footage era, and `run_tabs.ts`'s `TAB_ALIASES` (line 14) absorbs the
 | `overview` → **Research Overview** | Research Overview | Summary → `summary`/`report` | Faithful structure; content lighter (F9) |
 | `ideas` → **All Ideas** | All Ideas | Ideas → `hypotheses` | Faithful (F1); ESN enrichments absent (F3) |
 
-**Evidence for the mapping:** newer era —
-`media/live-footage/mash-fibrosis-research-plan-and-run.mp4` frame ≈66 s (re-
-extracted, downscaled to width 900) shows exactly these 4 tabs, icon+label, with
-"Goal Details" active. Older era — `media/hypothesis-generation/esn-*.jpg` +
-`product-surface-and-ux.md` §Stage 5.
+**Evidence for the mapping:** newer era — a frame (≈66 s) from
+`media/live-footage/mash-fibrosis-research-plan-and-run.mp4` showed exactly
+these 4 tabs, icon+label, with "Goal Details" active; that mp4 is gitignored
+and was never committed, so the frame itself is unrecoverable. The surviving
+evidence for a 4-tab bar with an active-tab underline is the older era:
+`media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg`
+(tracked in git) shows *Ideas · Knowledge Base · Summary · Run Specification*
+with Knowledge Base active, plus `product-surface-and-ux.md` §Stage 5.
 
 ---
 

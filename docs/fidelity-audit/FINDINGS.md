@@ -477,10 +477,13 @@ by running the engine, not only by reading it.
 
 ## Corpus-integrity corrections
 
-The 2026-07-21 audit established that much of what `references/core/google-co-scientist/`
-files 02–09 present as "Google requirements" is **clone-authored design** with no
-paper or product basis. Scoring against these makes the system *less* faithful.
-Do not treat them as targets.
+The 2026-07-21 audit established that much of what the corpus's
+clone-authored consolidation files (product surface, agent roster,
+tournament/evolution, retrieval, etc. — see the region map in
+[`docs/CORPUS-EXTRACTION.md`](../CORPUS-EXTRACTION.md)) present as "Google
+requirements" is **clone-authored design** with no paper or product basis.
+Scoring against these makes the system *less* faithful. Do not treat them as
+targets.
 
 | Claimed as Google | Reality |
 |---|---|

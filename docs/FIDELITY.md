@@ -11,7 +11,7 @@
 > (`verified`/`partial`/`missing`/`external`/`undisclosed`). This document is
 > the narrative companion; where the two differ, PARITY.md and the tests win.
 
-The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `references/core/google-co-scientist/media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
+The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product's own screenshots) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
 ## Invariants preserved exactly
 

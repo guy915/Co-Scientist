@@ -1,12 +1,12 @@
 # Prompt template provenance
 
 Google's full prompt library is undisclosed; only eight templates are public
-(the paper's appendix prompts A.1–A.8, reproduced in
-`references/core/google-co-scientist/prompting-architecture-and-prompt-library.md`,
-section 4). Every template in this directory is therefore either derived
-from one of those eight or a clone-authored reconstruction — never Google
-source. All templates are reconstructions in the strict sense: even the
-derived ones extend the published structure with the run-context slots
+(the paper's appendix prompts A.1–A.8, reproduced byte-exact in
+`docs/CORPUS-EXTRACTION.md`, Appendix A). Every template in this directory is
+therefore either derived from one of those eight or a clone-authored
+reconstruction — never Google source. All templates are reconstructions in
+the strict sense: even the derived ones extend the published structure with
+the run-context slots
 (`{{supervisor_guidance}}`, `{{meta_review_context}}`, `{{run_guidance}}`,
 …) that the public templates predate.
 
