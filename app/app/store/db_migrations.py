@@ -270,6 +270,17 @@ def _migrate_drop_feedback_table(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS feedback")
 
 
+def _migrate_hypothesis_scene_setting_columns(conn: sqlite3.Connection) -> None:
+    """Add the published proposal's scene-setting columns (MO-6).
+
+    Every published proposal opens with an Introduction and a Recent
+    findings and related research section before the mechanism; a
+    hypothesis row written before this carried neither.
+    """
+    _add_column_if_missing(conn, "hypotheses", "introduction", "TEXT")
+    _add_column_if_missing(conn, "hypotheses", "recent_findings", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -284,3 +295,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_evidence_retrieval_call_id(conn)
     _migrate_task_attempts_history(conn)
     _migrate_drop_feedback_table(conn)
+    _migrate_hypothesis_scene_setting_columns(conn)

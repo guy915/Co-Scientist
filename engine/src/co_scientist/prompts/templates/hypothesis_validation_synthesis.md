@@ -56,7 +56,7 @@ For each draft hypothesis, decide whether to **approve**, **refine**, or **pivot
 
 ## Output format
 
-**CRITICAL: Each hypothesis MUST include ALL SIX components below:**
+**CRITICAL: Each hypothesis MUST include ALL EIGHT components below:**
 
 Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hypotheses, each with:
 
@@ -137,6 +137,12 @@ Validation: Success requires >90% detection rate, <5% false positive rate, >50% 
 
 ### 6. Category (required)
 `category` is a short (2-4 word) classification label naming the mechanism family or research sub-area the hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Every hypothesis must carry a category.
+
+### 7. Introduction (required)
+`introduction` is 2-4 sentences of scene-setting background: the problem area this hypothesis addresses and why it matters, before any specific mechanism.
+
+### 8. Recent findings and related research (required)
+`recent_findings` is 2-4 sentences summarizing the recent literature findings and related research this hypothesis builds on, extends, or departs from. Distinct from Literature Grounding above: this sets the scene, Literature Grounding argues the specific hypothesis.
 
 ## Guidelines
 

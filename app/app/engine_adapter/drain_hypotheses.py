@@ -407,6 +407,8 @@ def _persist_engine_hypothesis_row(
             mechanism=h.get("literature_grounding") or "",
             expected_effect=h.get("explanation") or "",
             experimental_context=h.get("experiment") or "",
+            introduction=h.get("introduction") or "",
+            recent_findings=h.get("recent_findings") or "",
             created_by_agent=identity.agent,
         ),
         conn=conn,

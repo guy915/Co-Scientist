@@ -35,6 +35,8 @@ class NewHypothesis:
     hypothesis and stays empty for agent-generated ones. ``parent_ids`` is
     the full multi-parent lineage for combination children (JSON-encoded on
     write); it stays None when ``parent_id`` alone is the whole lineage.
+    ``introduction``/``recent_findings`` are the published proposal's
+    scene-setting sections (MO-6).
     """
 
     run_id: str
@@ -48,6 +50,8 @@ class NewHypothesis:
     mechanism: str = ""
     expected_effect: str = ""
     experimental_context: str = ""
+    introduction: str = ""
+    recent_findings: str = ""
     created_by_agent: str = "generation"
     author: str = ""
 
@@ -75,8 +79,9 @@ def _parent_ids_json(parent_ids: list[str] | None) -> str | None:
 _HYPOTHESIS_UPSERT = (
     "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
     "generation, category, title, statement, mechanism, expected_effect, "
-    "experimental_context, created_by_agent, author, created_at) "
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+    "experimental_context, introduction, recent_findings, "
+    "created_by_agent, author, created_at) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
     "ON CONFLICT(id) DO UPDATE SET "
     "category=COALESCE(hypotheses.category, excluded.category), "
     "mechanism=COALESCE(NULLIF(hypotheses.mechanism, ''), "
@@ -85,7 +90,11 @@ _HYPOTHESIS_UPSERT = (
     "excluded.expected_effect), "
     "experimental_context=COALESCE("
     "NULLIF(hypotheses.experimental_context, ''), "
-    "excluded.experimental_context)"
+    "excluded.experimental_context), "
+    "introduction=COALESCE(NULLIF(hypotheses.introduction, ''), "
+    "excluded.introduction), "
+    "recent_findings=COALESCE(NULLIF(hypotheses.recent_findings, ''), "
+    "excluded.recent_findings)"
 )
 
 # The mutable-state row is created once and thereafter only updated, so a
@@ -120,6 +129,8 @@ def _insert_hypothesis_rows(
             f.mechanism,
             f.expected_effect,
             f.experimental_context,
+            f.introduction,
+            f.recent_findings,
             f.created_by_agent,
             f.author,
             now,

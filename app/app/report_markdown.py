@@ -295,6 +295,16 @@ def _render_hypothesis_entry(
     """
     title = hypothesis_title(hyp)
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
+    # Scene-setting (MO-6): the published proposal opens with an
+    # Introduction and a Recent findings and related research section
+    # before the mechanism -- rendered here in that order, ahead of the
+    # proposed hypothesis itself.
+    for label, value in (
+        ("Introduction", hyp.get("introduction")),
+        ("Recent findings and related research", hyp.get("recent_findings")),
+    ):
+        if value:
+            lines += [f"#### {label}", "", str(value), ""]
     statement = hypothesis_statement(hyp)
     if statement:
         lines += [f"**Proposed hypothesis:** {statement}", ""]

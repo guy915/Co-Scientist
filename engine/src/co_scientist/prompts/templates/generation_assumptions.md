@@ -35,4 +35,8 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The literat
 
 For each hypothesis's `category`: give a short (2-4 word) label naming the mechanism family or research sub-area the hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing", "Circuit remodeling"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Every hypothesis must carry a category.
 
+## Scene-Setting
+
+Before the mechanism, give each hypothesis two short scene-setting fields: `introduction` (2-4 sentences on the problem area and why it matters) and `recent_findings` (2-4 sentences on the recent literature findings and related research this hypothesis builds on). Every hypothesis must carry both.
+
 Generate {{num_hypotheses}} hypotheses. Favor hypotheses that overturn or refine a load-bearing assumption over incremental variations.

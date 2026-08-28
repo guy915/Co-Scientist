@@ -160,6 +160,29 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     assert h["statement"] == "s"
 
 
+def test_hypothesis_row_carries_scene_setting(db: str) -> None:
+    """Introduction/Recent findings (MO-6) round-trip through the store."""
+    run = store.create_run("scene-setting test", "standard", "mock", {})
+    hid = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="t",
+            statement="s",
+            introduction="Metabolic disease remains a major cause of morbidity.",
+            recent_findings="Aldolase inhibitors have shown early promise.",
+            created_by_agent="generation",
+        )
+    )
+    h = store.get_hypothesis(hid)
+    assert h is not None
+    assert h["introduction"] == (
+        "Metabolic disease remains a major cause of morbidity."
+    )
+    assert h["recent_findings"] == (
+        "Aldolase inhibitors have shown early promise."
+    )
+
+
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     run = store.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(

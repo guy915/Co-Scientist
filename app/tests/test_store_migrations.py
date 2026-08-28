@@ -177,6 +177,37 @@ def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
     assert [row[0] for row in rows] == [None]
 
 
+def test_connect_adds_scene_setting_columns_to_old_hypotheses(
+    tmp_path: object,
+) -> None:
+    """A pre-MO-6 hypotheses table gains introduction/recent_findings.
+
+    A deployed volume holds hypotheses written before the published
+    proposal's scene-setting sections were carried at all; those rows
+    read back with NULL in both new columns rather than failing the
+    upgrade.
+    """
+    path = str(tmp_path / "old_hyps_scene.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_HYPOTHESES)
+    conn.execute(
+        "INSERT INTO hypotheses (id, run_id, title, statement, "
+        "created_by_agent, created_at) "
+        "VALUES ('h1', 'r1', 'T', 'S', 'generation', 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute(
+            "SELECT introduction, recent_findings FROM hypotheses"
+        ).fetchall()
+
+    columns = _columns(path, "hypotheses")
+    assert {"introduction", "recent_findings"} <= columns
+    assert [tuple(row) for row in rows] == [(None, None)]
+
+
 # The evidence table exactly as builds before retrieval provenance created
 # it: scoring columns present, but nothing naming the search behind a row.
 _OLD_EVIDENCE = """

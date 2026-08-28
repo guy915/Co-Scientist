@@ -244,10 +244,11 @@ def hypothesis_from_llm_output(
 ) -> Hypothesis:
     """Build a Hypothesis from a raw LLM hypothesis dict.
 
-    Extracts the shared fields (text/category/explanation/literature_grounding/
-    experiment), resolves citation keys against ``sources``, and applies the
-    default score and initial Elo. ``extra`` supplies generation-path-specific
-    kwargs such as ``debate_id`` or ``novelty_validation``.
+    Extracts the shared fields (text/category/introduction/recent_findings/
+    explanation/literature_grounding/experiment), resolves citation keys
+    against ``sources``, and applies the default score and initial Elo.
+    ``extra`` supplies generation-path-specific kwargs such as ``debate_id``
+    or ``novelty_validation``.
 
     Args:
         hyp_data: Raw hypothesis dict emitted by the LLM.
@@ -267,6 +268,8 @@ def hypothesis_from_llm_output(
         # caller to normalize the raw LLM dict first.
         text=hyp_data.get("hypothesis") or hyp_data.get("text", ""),
         category=hyp_data.get("category"),
+        introduction=hyp_data.get("introduction"),
+        recent_findings=hyp_data.get("recent_findings"),
         explanation=hyp_data.get("explanation"),
         literature_grounding=literature_grounding,
         experiment=hyp_data.get("experiment"),

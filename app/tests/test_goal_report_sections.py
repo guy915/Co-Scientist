@@ -270,6 +270,60 @@ def test_insights_and_markdown_show_one_statement_per_idea() -> None:
     assert finding == hypothesis["text"]
 
 
+def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> None:
+    """Introduction/Recent findings (MO-6) render ahead of the mechanism.
+
+    The published proposal opens with an Introduction and a Recent
+    findings and related research section before the hypothesis itself;
+    no field carried this before.
+    """
+    hypothesis = {
+        "id": "h1",
+        "title": "Feedback control is rate-limiting.",
+        "statement": "Blocking the loop raises the steady-state flux.",
+        "introduction": "Metabolic disease remains a major cause of morbidity.",
+        "recent_findings": "Feedback inhibition has been studied for decades.",
+        "mechanism": "The enzyme is allosterically inhibited by its product.",
+    }
+
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[hypothesis],
+        )
+    )
+
+    intro_at = markdown.index("#### Introduction")
+    findings_at = markdown.index(
+        "#### Recent findings and related research"
+    )
+    statement_at = markdown.index("**Proposed hypothesis:**")
+    assert intro_at < findings_at < statement_at
+    assert "Metabolic disease remains a major cause of morbidity." in markdown
+    assert "Feedback inhibition has been studied for decades." in markdown
+
+
+def test_markdown_omits_scene_setting_sections_when_absent() -> None:
+    """No Introduction/Recent findings heading renders without the data."""
+    hypothesis = {
+        "id": "h1",
+        "title": "Feedback control is rate-limiting.",
+        "statement": "Blocking the loop raises the steady-state flux.",
+    }
+
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[hypothesis],
+        )
+    )
+
+    assert "#### Introduction" not in markdown
+    assert "#### Recent findings and related research" not in markdown
+
+
 def test_key_findings_omit_an_idea_with_no_proposal_text() -> None:
     """An idea with nothing to propose is dropped, not labelled blank.
 

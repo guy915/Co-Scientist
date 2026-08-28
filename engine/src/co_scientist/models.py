@@ -101,6 +101,11 @@ class Hypothesis:
             mechanism family or research sub-area it belongs to). Optional;
             when set it drives the document breadcrumb in the viewer, mirroring
             the reference product's first-class ``category`` field.
+        introduction: Scene-setting background for the problem area, before
+            any mechanism is proposed (MO-6; the published 'Introduction').
+        recent_findings: Recent literature findings and related research
+            this hypothesis builds on (MO-6; the published 'Recent findings
+            and related research').
         explanation: Step-by-step layman explanation of the hypothesis
         literature_grounding: Explicit grounding in literature review with
             [P1]/[KG1]-style citation keys
@@ -149,6 +154,8 @@ class Hypothesis:
     )
     creation_iteration: int | None = field(default=None, compare=False)
     category: str | None = None
+    introduction: str | None = None
+    recent_findings: str | None = None
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None

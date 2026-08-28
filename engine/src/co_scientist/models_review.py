@@ -74,6 +74,8 @@ def _claim_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
         # Also referred to as "hypothesis" in other contexts.
         "text": hypothesis.text,
         "category": hypothesis.category,
+        "introduction": hypothesis.introduction,
+        "recent_findings": hypothesis.recent_findings,
         "explanation": hypothesis.explanation,
         "literature_grounding": hypothesis.literature_grounding,
         "experiment": hypothesis.experiment,

@@ -146,6 +146,11 @@ def _build_evolution_child(
         origin=HypothesisOrigin.EVOLUTION,
         creation_iteration=creation_iteration,
         category=primary.category,
+        # Scene-setting (MO-6): the evolution LLM is not asked to rewrite
+        # these, so the child inherits them unchanged, the same as
+        # literature_grounding below.
+        introduction=primary.introduction,
+        recent_findings=primary.recent_findings,
         explanation=fields.explanation,
         experiment=fields.experiment,
         # Inherit grounding context, but not competition state.

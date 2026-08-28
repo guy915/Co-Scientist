@@ -146,6 +146,8 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 {
   "hypotheses": [
     {
+      "introduction": "2-4 sentences of scene-setting background: the problem area and why it matters, before any mechanism",
+      "recent_findings": "2-4 sentences on recent literature findings and related research this hypothesis builds on",
       "hypothesis": "Final dense, falsifiable mechanistic proposition with explicit context and predicted outcome",
       "explanation": "Step-by-step layman explanation tracing each mechanistic step from intervention to outcome (a full paragraph)",
       "literature_grounding": "Grounding that cites ONLY the [C*] keys from the Citation Reference List when one is provided. 2-4 sentences with citation keys.",
@@ -160,6 +162,8 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 ```
 
 **Field requirements:**
+- `introduction`: 2-4 sentences of scene-setting background, before any mechanism
+- `recent_findings`: 2-4 sentences on recent literature findings and related research this hypothesis builds on; distinct from `literature_grounding`, which argues the specific hypothesis
 - `hypothesis`: Technical, falsifiable formulation approved, refined, or pivoted from the draft; do not force a fixed sentence template
 - `explanation`: Clear explanation for technical audiences in layman terms
 - `literature_grounding`: **CRITICAL - Cite ONLY the `[C*]` keys from the Citation Reference List (never author-year text). Include the draft's literature_sources keys plus any papers found via tools.**

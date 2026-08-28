@@ -26,6 +26,8 @@ _HYPOTHESIS_DICT_KEYS = {
     "creation_iteration",
     "text",
     "category",
+    "introduction",
+    "recent_findings",
     "explanation",
     "literature_grounding",
     "experiment",

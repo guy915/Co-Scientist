@@ -141,6 +141,26 @@ def test_generation_category_is_required() -> None:
         assert "category" in node["required"], "category no longer required"
 
 
+def test_generation_schemas_require_scene_setting() -> None:
+    """Introduction/recent_findings are required in both generation schemas.
+
+    Every published proposal opens with an Introduction and a Recent
+    findings and related research section before the mechanism
+    (docs/CORPUS-EXTRACTION.md, hypotheses/als-generation-output.md --
+    34 lines, sha256 025d46737463); no field carried this before (MO-6).
+    """
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    for node in (generation_item, synthesis_item):
+        for name in ("introduction", "recent_findings"):
+            assert name in node["properties"], f"{name} no longer declared"
+            assert name in node["required"], f"{name} no longer required"
+
+
 def test_assumption_support_vocabulary_is_unified() -> None:
     """Deep verification and full review score one judgement, one way.
 

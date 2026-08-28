@@ -210,6 +210,46 @@ def test_validation_synthesis_prompts_present_category() -> None:
         assert "mechanism family" in prompt
 
 
+# --- MO-6: required, prompt-present scene-setting -----------------------------
+
+
+def test_generation_schemas_require_scene_setting() -> None:
+    """introduction/recent_findings are required in both generation schemas."""
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    for node in (generation_item, synthesis_item):
+        assert "introduction" in node["required"]
+        assert "recent_findings" in node["required"]
+
+
+def test_assumptions_prompt_presents_scene_setting_contract() -> None:
+    """The assumptions prompt names both scene-setting fields."""
+    prompt = _render_assumptions_prompt({})
+    assert "## Scene-Setting" in prompt
+    assert "introduction" in prompt
+    assert "recent_findings" in prompt
+
+
+def test_validation_synthesis_prompts_present_scene_setting() -> None:
+    """Both synthesis prompts present the scene-setting fields."""
+    analyses: list[dict[str, Any]] = []
+    plain = get_hypothesis_validation_synthesis_prompt(
+        research_goal="a goal", hypotheses_with_analyses=analyses
+    )
+    with_tools, _ = get_validation_synthesis_prompt_with_tools(
+        ValidationSynthesisRequest(
+            research_goal="a goal", hypotheses_with_analyses=analyses
+        )
+    )
+    for prompt in (plain, with_tools):
+        assert "introduction" in prompt
+        assert "recent_findings" in prompt
+
+
 # --- K5: lab constraints section ----------------------------------------------
 
 

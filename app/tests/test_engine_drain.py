@@ -26,6 +26,7 @@ from app import engine_adapter, report_render, store
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,
+    _engine_hypothesis,
     _final_state_with_features,
     _final_state_with_lineage,
     _persist_and_finalize,
@@ -377,6 +378,45 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     ids = {h["id"] for h in hyps}
     assert ids == {"eng-hyp-a", "eng-hyp-b"}
+
+
+def test_persist_writes_scene_setting_onto_the_hypothesis_row(
+    isolated_db: str,
+) -> None:
+    """Introduction/Recent findings (MO-6) reach the persisted hypothesis row."""
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    final_state = {
+        "hypotheses": [
+            _engine_hypothesis(
+                "eng-hyp-scene",
+                "Blocking CXCR1 suppresses breast cancer stem cells.",
+                introduction=(
+                    "Breast cancer stem cells drive relapse and resistance."
+                ),
+                recent_findings=(
+                    "CXCR1 is enriched in the stem-like subpopulation."
+                ),
+            )
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=final_state,
+        db_path=isolated_db,
+    )
+
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    assert len(hyps) == 1
+    assert hyps[0]["introduction"] == (
+        "Breast cancer stem cells drive relapse and resistance."
+    )
+    assert hyps[0]["recent_findings"] == (
+        "CXCR1 is enriched in the stem-like subpopulation."
+    )
 
 
 def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:

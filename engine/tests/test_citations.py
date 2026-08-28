@@ -16,9 +16,10 @@ test suite. The engine's citation module is concerned solely with parsing
 from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     build_reference_index,
+    hypothesis_from_llm_output,
     resolve_citation_keys,
 )
-from co_scientist.models import Article
+from co_scientist.models import Article, GenerationMethod
 
 
 def _used_article(
@@ -309,3 +310,32 @@ def test_round_trip_build_then_resolve() -> None:
     assert list(resolved) == ["C1", "C2"]
     assert resolved["C1"] is idx.sources["C1"]
     assert resolved["C2"] is idx.sources["C2"]
+
+
+# --- hypothesis_from_llm_output ---------------------------------------------
+
+
+def test_hypothesis_from_llm_output_carries_scene_setting() -> None:
+    """The scene-setting fields (MO-6) reach the constructed Hypothesis."""
+    hyp = hypothesis_from_llm_output(
+        {
+            "hypothesis": "X inhibits Y.",
+            "introduction": "ALS is a fatal neurodegenerative disease.",
+            "recent_findings": "TDP-43 mislocalization is well documented.",
+        },
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.introduction == "ALS is a fatal neurodegenerative disease."
+    assert hyp.recent_findings == "TDP-43 mislocalization is well documented."
+
+
+def test_hypothesis_from_llm_output_defaults_missing_scene_setting() -> None:
+    """A payload omitting the fields (json_object downgrade) degrades safely."""
+    hyp = hypothesis_from_llm_output(
+        {"hypothesis": "X inhibits Y."},
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.introduction is None
+    assert hyp.recent_findings is None

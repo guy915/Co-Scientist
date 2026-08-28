@@ -64,6 +64,38 @@ _LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
     ),
 }
 
+# MO-6: every published proposal opens with scene-setting -- an
+# Introduction and a Recent findings and related research section -- before
+# the mechanism (docs/CORPUS-EXTRACTION.md, hypotheses/als-generation-
+# output.md -- 34 lines, sha256 025d46737463, and validated-outputs/kira6-
+# detailed-output-validated.md -- 220 lines, sha256 b5a22b590874). No field
+# carried this before, so a reader went from the title straight into the
+# mechanism. Bounded to 2-4 sentences each (unlike the published exemplars'
+# full paragraphs) since this is model output emitted per hypothesis in an
+# array: an unbounded pair of new fields scales output tokens with pool
+# size.
+_INTRODUCTION_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "2-4 sentences of scene-setting background: the problem area"
+        " this hypothesis addresses and why it matters, before any"
+        " specific mechanism is proposed. Matches the published"
+        " 'Introduction' section."
+    ),
+}
+
+_RECENT_FINDINGS_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "2-4 sentences summarizing recent findings and related"
+        " research this hypothesis builds on, extends, or departs"
+        " from. Matches the published 'Recent findings and related"
+        " research' section. Distinct from literature_grounding: this"
+        " sets the scene, literature_grounding argues the specific"
+        " hypothesis."
+    ),
+}
+
 # Generation schema
 # Shapes the final-turn output of the debate-based generation node
 # (agents/generation/debate.py) for both the
@@ -79,6 +111,8 @@ GENERATION_SCHEMA: dict[str, Any] = {
                 "type": "array",
                 "items": obj(
                     {
+                        "introduction": _INTRODUCTION_FIELD,
+                        "recent_findings": _RECENT_FINDINGS_FIELD,
                         "hypothesis": _HYPOTHESIS_FIELD,
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
@@ -168,6 +202,8 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                 "type": "array",
                 "items": obj(
                     {
+                        "introduction": _INTRODUCTION_FIELD,
+                        "recent_findings": _RECENT_FINDINGS_FIELD,
                         "hypothesis": {
                             "type": "string",
                             "description": (
