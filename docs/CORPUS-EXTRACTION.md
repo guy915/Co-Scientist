@@ -102,7 +102,7 @@ applies to exactly one of them.**
 
 | | Volume | What it is | Rule |
 |---|---|---|---|
-| **Verbatim published artifacts** | **11,070 lines** — 8 prompts (260), 7 pseudocode listings (240), 20 real outputs (1,536), one complete published run of 22 files (9,034), plus the MASH report (4,187) | Google's own text, transcribed | **Mirror it.** Differences need a stated justification |
+| **Verbatim published artifacts** | **11,986 lines** — 8 prompts (260), 7 pseudocode listings (240), 20 real outputs (2,452), one complete published run of 22 files (9,034), plus the MASH report (4,187) | Google's own text, transcribed | **Mirror it.** Differences need a stated justification |
 | **Clone-authored consolidations** | ~2,270 lines — the 11 root `.md` files (R1–R9) | A previous effort's *design writing about* the system, largely unattributed | **Do not mirror it.** The audit's own reading rule 4 is explicit that scoring against these makes the system *less* faithful |
 
 Getting this backwards is the expensive mistake available here, and it is easy to
@@ -478,7 +478,7 @@ and anchors live, is still free text.
 ### The MASH Goal Report (Known Lead 2)
 
 `research-overviews/mash-liver-fibrosis-reversal-therapeutic-hypothesis.md` is
-4,187 lines, but the substance is lines 1–832: lines 832–4,185 are one flat
+4,187 lines, but the substance is lines 1–831: lines 832–4,185 are one flat
 `References` list of linked article titles, and line 4,186 repeats `Top ideas`.
 
 Our renderer (`app/app/report_markdown.py::render_report_markdown`, 429-455)
@@ -4108,7 +4108,7 @@ extract of it. What follows is the surrounding prose specification.
 
 #### §3–3.3 System overview, task queue, and the agent roster (with the Figure 2 caption)
 
-Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 82-141, sha256 `191ae41db9dd`.
+Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 82-141, sha256 `35eaba957d02`.
 
 ````
 This section describes the technical details, agents, and framework comprising the co-scientist system. The co-scientist employs a multi-agent architecture built upon Gemini 2.0, integrated within an asynchronous task execution framework. This framework allows for flexible scaling of test-time compute resources, facilitating advanced scientific reasoning.
@@ -4175,7 +4175,7 @@ Finally, while our work leverages Gemini 2.0, the co-scientist framework is mode
 
 #### §3.3.1–3.3.6 One subsection per specialized agent — the per-agent flow
 
-Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 145-212, sha256 `1981f113d92f`.
+Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 145-211, sha256 `1981f113d92f`.
 
 ````
 #### 3.3.1 Generation agent
@@ -4249,7 +4249,7 @@ Research contacts identification. The Meta-review agent uses prior literature re
 
 #### §3.4–3.5 Expert-in-the-loop and tool use
 
-Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 213-229, sha256 `fe43d8c4c6fd`.
+Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 213-228, sha256 `fe43d8c4c6fd`.
 
 ````
 ### <span id="page-12-0"></span>3.4 Expert-in-the-loop interactions with the co-scientist
@@ -4272,7 +4272,7 @@ Finally, the system can utilize and incorporate feedback from specialized AI mod
 
 #### §4.2 Test-time compute scaling — the paper's own framing of how the system spends more effort
 
-Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 230-278, sha256 `c7217c4cb3f3`.
+Source: `references/core/google-co-scientist/research/papers/towards-an-ai-co-scientist.md` lines 230-277, sha256 `c7217c4cb3f3`.
 
 ````
 ### 4 Evaluation and Results
