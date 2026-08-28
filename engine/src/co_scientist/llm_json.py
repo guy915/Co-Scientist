@@ -313,7 +313,29 @@ def _recurse_into_properties(
     """
     for key, value in obj.items():
         if key in props:
-            _backfill_required_fields(value, props[key])
+            _backfill_child(value, props[key])
+
+
+def _backfill_child(value: Any, property_schema: Any) -> None:
+    """Backfills one property's value, descending into arrays element-wise.
+
+    Mirrors ``_prune_child``: ``_backfill_required_fields`` itself only
+    accepts a dict, so without this an array-of-objects property (e.g. a
+    schema's ``research_directions``) was handed straight to it and
+    silently skipped -- a required field missing from one *item* inside
+    the array never got backfilled, and the response failed schema
+    validation instead of degrading.
+
+    Args:
+        value: The property's value, of any shape.
+        property_schema: The schema node describing that property.
+    """
+    if isinstance(value, list) and isinstance(property_schema, dict):
+        item_schema = property_schema.get("items")
+        for item in value:
+            _backfill_required_fields(item, item_schema)
+        return
+    _backfill_required_fields(value, property_schema)
 
 
 def _backfill_required_fields(obj: Any, schema: Any) -> None:
@@ -327,7 +349,10 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
     would otherwise abort the run in schema validation. Missing required
     fields are filled in place with neutral empty values (empty string or
     first enum value, ``{}``, ``[]``, ``0``); fields that are present are
-    never modified.
+    never modified. Recurses into array-of-object properties element-wise
+    (``_backfill_child``), so a field missing from one item of a list
+    schema (e.g. one entry of ``research_directions``) is backfilled the
+    same as a field missing from a plain nested object.
 
     Args:
         obj: Parsed JSON value to back-fill (non-dicts are ignored).

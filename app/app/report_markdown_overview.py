@@ -103,6 +103,49 @@ def _render_experiments_list(experiments: list[Any]) -> list[str]:
     )
 
 
+def _render_specific_questions(questions: list[Any]) -> list[str]:
+    """Render a sub-topic's 'Specific questions' list, or nothing when empty."""
+    items = _readable_text_list(questions)
+    if not items:
+        return []
+    return (
+        ["Specific questions:\n"]
+        + [f"- {question}" for question in items]
+        + [""]
+    )
+
+
+def _render_sub_topic(sub_topic: dict[str, Any]) -> list[str]:
+    """Render one named sub-topic entry, or nothing when not a dict.
+
+    MO-1: both published exemplars nest a named sub-topic one level below
+    the direction ("Areas of Research" / "What to Research in This
+    Area?"), each carrying its own why, what, and specific questions.
+    """
+    if not isinstance(sub_topic, dict):
+        return []
+    title = _readable_text(sub_topic.get("title", ""))
+    lines = [f"#### {title}\n"] if title else []
+    why = _readable_text(sub_topic.get("why", ""))
+    if why:
+        lines.append(f"**Why:** {why}\n")
+    what = _readable_text(sub_topic.get("what", ""))
+    if what:
+        lines.append(f"**What:** {what}\n")
+    lines += _render_specific_questions(
+        sub_topic.get("specific_questions") or []
+    )
+    return lines
+
+
+def _render_sub_topics_list(sub_topics: list[Any]) -> list[str]:
+    """Render each sub-topic entry in sequence."""
+    lines: list[str] = []
+    for sub_topic in sub_topics:
+        lines += _render_sub_topic(sub_topic)
+    return lines
+
+
 def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     """Render one research-direction entry, or nothing when not a dict."""
     if not isinstance(direction, dict):
@@ -114,6 +157,7 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     lines += _render_experiments_list(
         direction.get("suggested_experiments") or []
     )
+    lines += _render_sub_topics_list(direction.get("sub_topics") or [])
     return lines
 
 

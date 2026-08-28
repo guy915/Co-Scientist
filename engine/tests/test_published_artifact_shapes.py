@@ -70,6 +70,22 @@ _OVERVIEW_EXEMPLAR_QUESTION_HEADINGS = {
     "● what to research in this area?",
 }
 
+# The same exemplar's "What to Research in This Area?" answer is itself a
+# list of named sub-topics ("Topic 1: Characterization of the cf-PICI
+# Integrase" through "Topic 4: Episomal Maintenance", consistently 4 per
+# direction across all 6 directions), each carrying its own "Why research
+# this topic?", an "Example idea" (what to investigate), and a "Specific
+# questions" list of 4 -- MO-1, the nested sub-topic layer our schema
+# used to flatten away entirely.
+_OVERVIEW_SUB_TOPIC_REQUIRED = {"title", "why", "what", "specific_questions"}
+
+_OVERVIEW_DIRECTION_REQUIRED = {
+    "title",
+    "importance",
+    "suggested_experiments",
+    "sub_topics",
+}
+
 
 def _aims_schema() -> dict[str, Any]:
     """Return the research-overview schema's ``nih_specific_aims`` node."""
@@ -149,15 +165,27 @@ def test_research_overview_sections_match_published_exemplar() -> None:
 
     The overview exemplar (cited above) develops every direction under
     two questions, which are the two per-direction fields the schema
-    requires beside the direction's title.
+    requires beside the direction's title -- plus, since MO-1, the
+    nested sub_topics layer both exemplars carry under their own
+    vocabulary for "what to research".
     """
     schema = get_schema_for_prompt("research_overview")
     assert schema is not None
     overview = schema["schema"]["properties"]["overview"]
     assert set(overview["required"]) == {"summary", "research_directions"}
     direction = overview["properties"]["research_directions"]["items"]
-    assert set(direction["required"]) == {
-        "title",
-        "importance",
-        "suggested_experiments",
-    }
+    assert set(direction["required"]) == _OVERVIEW_DIRECTION_REQUIRED
+
+
+def test_research_direction_sub_topics_match_published_exemplar() -> None:
+    """Each sub-topic must carry the exemplars' why/what/specific-questions.
+
+    Both exemplars nest a named sub-topic one level below the direction
+    (MO-1); this checks the sub-topic item's own required shape.
+    """
+    schema = get_schema_for_prompt("research_overview")
+    assert schema is not None
+    overview = schema["schema"]["properties"]["overview"]
+    direction = overview["properties"]["research_directions"]["items"]
+    sub_topic = direction["properties"]["sub_topics"]["items"]
+    assert set(sub_topic["required"]) == _OVERVIEW_SUB_TOPIC_REQUIRED

@@ -138,6 +138,84 @@ def test_well_formed_overview_is_unchanged() -> None:
     assert "converge on cross-pathway interference" in text
 
 
+def test_sub_topics_render() -> None:
+    """MO-1: a direction's nested sub-topics render.
+
+    Mirrors the published exemplars' nested "Areas of Research" /
+    "What to Research in This Area?" layer, one level below the
+    direction: a named sub-topic with its own why/what/specific
+    questions.
+    """
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Mitochondrial dysfunction",
+                    "importance": "Central to the disease's early stages.",
+                    "suggested_experiments": ["Profile ROS in patient iPSCs."],
+                    "sub_topics": [
+                        {
+                            "title": "Mitochondrial DNA repair defects",
+                            "why": "A deficiency could be a primary driver.",
+                            "what": "Assay BER activity in iPSC neurons.",
+                            "specific_questions": [
+                                "Does OGG1 activity correlate with damage?",
+                                "Does release activate cGAS-STING?",
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "#### Mitochondrial DNA repair defects" in text
+    assert "A deficiency could be a primary driver." in text
+    assert "Assay BER activity in iPSC neurons." in text
+    assert "- Does OGG1 activity correlate with damage?" in text
+    assert "- Does release activate cGAS-STING?" in text
+
+
+def test_malformed_sub_topics_are_flattened() -> None:
+    """A sub-topic arriving as JSON-string or malformed fields still render.
+
+    Stored/persisted overviews may predate this schema or arrive from a
+    model in json_object mode, so the renderer -- not the engine -- is
+    the backstop: this must never raise, matching the existing
+    tolerance for importance/suggested_experiments.
+    """
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Direction",
+                    "importance": "I",
+                    "suggested_experiments": ["E"],
+                    "sub_topics": [
+                        {
+                            "title": "Sub-topic",
+                            "why": '["stress", "damage"]',
+                            "what": "Investigate.",
+                            "specific_questions": "not a list",
+                        },
+                        "not a dict",
+                    ],
+                }
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "stress damage" in text
+    assert '["stress"' not in text
+    assert "#### Sub-topic" in text
+
+
 def test_published_aims_vocabulary_renders_every_block() -> None:
     """The aims page renders the blocks Google's exemplars print."""
     payload = {

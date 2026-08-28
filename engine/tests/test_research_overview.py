@@ -118,9 +118,7 @@ async def test_produces_overview_and_aims(
     assert len(contacts) == 1
     assert contacts[0]["name"] == "Ada Researcher"
     assert contacts[0]["source_id"] == "PMID:123"
-    assert (
-        contacts[0]["research_direction"] == "Epigenetic control of fibrosis"
-    )
+    assert contacts[0]["research_direction"] == "Epigenetic control of fibrosis"
     assert "Invented Person" not in str(contacts)
     topics = out["research_overview"]["knowledge_base"]
     assert len(topics) == 1

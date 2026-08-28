@@ -5,7 +5,7 @@ constrain LLM outputs during hypothesis evolution (refinement) and
 final research-overview synthesis.
 """
 
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
@@ -77,6 +77,20 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 # top-ranked hypotheses into a narrative summary plus an NIH-style
 # "Specific Aims" writeup (introduction / aims / impact), mirroring the
 # structure NIH grant applications use for the Specific Aims page.
+
+# Bounds on the sub-topic layer below (MO-1). Google's published cf-PICI
+# exemplar nests exactly 4 named sub-topics per direction, each with 4
+# specific questions, consistently across all 6 directions -- these bounds
+# mirror the exemplar rather than being picked arbitrarily. Kept small on
+# purpose: this layer multiplies the response by (directions x sub-topics),
+# and this schema has already been bitten by an unbounded nesting silently
+# truncating a large run's output on every retry (see AGENTS.md). Enforced
+# again defensively in research_overview_directions.py, since json_object
+# mode (the production downgrade path) does not enforce maxItems
+# server-side.
+RESEARCH_OVERVIEW_MAX_SUB_TOPICS: Final = 4
+RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
+
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": obj(
@@ -91,6 +105,33 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                                 "title": {"type": "string"},
                                 "importance": {"type": "string"},
                                 "suggested_experiments": str_array(),
+                                # MO-1: each direction's "What to Research
+                                # in This Area?" (cf-PICI) / "Areas of
+                                # Research" (ALS) is itself a list of
+                                # named sub-topics, not a flat experiment
+                                # list -- restored here one level below
+                                # the direction. Identify sub-topics by
+                                # their own content; there is no input
+                                # pool to echo back by index here.
+                                "sub_topics": {
+                                    "type": "array",
+                                    "maxItems": (
+                                        RESEARCH_OVERVIEW_MAX_SUB_TOPICS
+                                    ),
+                                    "items": obj(
+                                        {
+                                            "title": {"type": "string"},
+                                            "why": {"type": "string"},
+                                            "what": {"type": "string"},
+                                            "specific_questions": {
+                                                **str_array(),
+                                                "maxItems": (
+                                                    RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS
+                                                ),
+                                            },
+                                        }
+                                    ),
+                                },
                             }
                         ),
                     },

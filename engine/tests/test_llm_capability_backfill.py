@@ -100,3 +100,59 @@ def test_backfill_noop_for_non_dict_inputs() -> None:
     """Non-dict payloads and non-dict schemas are silently ignored."""
     _backfill_required_fields(["not", "a", "dict"], {"required": ["x"]})
     _backfill_required_fields({}, "not a schema")  # no exception == pass
+
+
+_ARRAY_OF_OBJECTS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "notes": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["title", "notes"],
+            },
+        },
+    },
+    "required": ["items"],
+}
+
+
+def test_backfill_recurses_into_array_items() -> None:
+    """A required field missing from one item of an array is backfilled.
+
+    ``_recurse_into_properties`` used to hand an array value straight to
+    ``_backfill_required_fields``, which no-ops on anything that is not a
+    dict -- so a required field missing from an *item* inside an array
+    (as opposed to a nested object) was never filled, and the response
+    failed schema validation instead of degrading. This is the array
+    counterpart of ``_prune_unknown_properties``'s ``_prune_child``, which
+    already walks array items the same way.
+    """
+    obj: dict[str, Any] = {
+        "items": [
+            {"title": "present", "notes": ["kept"]},
+            {"title": "missing notes"},
+        ]
+    }
+
+    _backfill_required_fields(obj, _ARRAY_OF_OBJECTS_SCHEMA)
+
+    assert obj == {
+        "items": [
+            {"title": "present", "notes": ["kept"]},
+            {"title": "missing notes", "notes": []},
+        ]
+    }
+
+
+def test_backfill_ignores_non_dict_array_items() -> None:
+    """A malformed array item (not a dict) is left alone, not crashed on."""
+    obj: dict[str, Any] = {"items": ["not a dict", 42]}
+
+    _backfill_required_fields(obj, _ARRAY_OF_OBJECTS_SCHEMA)
+
+    assert obj == {"items": ["not a dict", 42]}

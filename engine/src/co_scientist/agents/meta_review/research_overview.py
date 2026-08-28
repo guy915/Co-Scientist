@@ -10,6 +10,9 @@ from co_scientist.agents.meta_review.research_overview_contacts import (
     _format_or_placeholder,
     _validate_research_contacts,
 )
+from co_scientist.agents.meta_review.research_overview_directions import (
+    format_overview,
+)
 from co_scientist.agents.meta_review.research_overview_review import (
     OverviewReviewContext as OverviewReviewContext,
 )
@@ -294,7 +297,7 @@ def _format_research_overview_response(
 ) -> dict[str, Any]:
     """Formats and validates the raw LLM response into the overview shape."""
     return {
-        "overview": response.get("overview", {}),
+        "overview": format_overview(response.get("overview", {})),
         "nih_specific_aims": response.get("nih_specific_aims", {}),
         "research_contacts": _validate_research_contacts(
             response.get("research_contacts"), contact_candidates

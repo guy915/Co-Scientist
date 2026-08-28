@@ -142,6 +142,15 @@ def test_research_overview_prompt_carries_depth_guidance() -> None:
     assert "multi-paragraph narrative" in prompt
 
 
+def test_research_overview_prompt_asks_for_sub_topics() -> None:
+    """MO-1: the prompt must ask for the nested sub-topic layer."""
+    prompt, _ = get_research_overview_prompt(
+        research_goal="a goal", hypotheses_summary="1. an idea"
+    )
+    assert "sub_topics" in prompt
+    assert "specific_questions" in prompt
+
+
 def test_generation_schema_fields_ask_for_depth() -> None:
     """The shared explanation/experiment fields no longer cap brevity."""
     properties = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
