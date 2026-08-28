@@ -15,26 +15,35 @@ ADRs under `docs/decisions/`, and deleted.
 
 **931 candidate rows** were swept out of the corpus. All **182 files** are
 accounted for — see "Coverage" at the end, which also records what the first
-pass missed. They reduce to **97 region rows** plus **17 deletion rows**, and a later
-**mirror-fidelity pass** — commissioned once the owner set the governing rule
-that published artifacts must be copied, not paraphrased — added **31 more**
-(`MO-*` outputs, `MP-*` prompts, `MC-*` pseudocode, `MA-*` architecture).
+pass missed. They reduce to **98 region rows** plus **17 deletion rows** (`R6-1`
+introduces the fourteen-source retrieval table below it rather than carrying
+one of the six statuses itself; it was previously left out of this count —
+corrected here). A later **mirror-fidelity pass** — commissioned once the
+owner set the governing rule that published artifacts must be copied, not
+paraphrased — added **31 more** (`MO-*` outputs, `MP-*` prompts, `MC-*`
+pseudocode, `MA-*` architecture), and a further pass mining `R14` — the
+corpus's only complete published run, wrongly excluded from the original
+sweep as a duplicate rather than read — added **26 more**.
 
 | Status | Region rows | |
 |---|---|---|
-| `work` | **67** | Real, unrecorded. This is the checklist. |
-| `done` | 21 | Already implemented, recorded, or pinned. |
-| `reject` | 19 | Clone-authored, invented, or an accepted divergence. |
-| `unclear` | 14 | Could not be decided; each says what would settle it. |
-| `adapted` | 3 | Justified difference, but with a runtime effect worth a decision. |
+| `work` | **64** | Real, unrecorded. This is the checklist. |
+| `done` | 43 | Already implemented, recorded, or pinned. |
+| `reject` | 20 | Clone-authored, invented, or an accepted divergence. |
+| `unclear` | 19 | Could not be decided; each says what would settle it. |
+| `adapted` | 4 | Justified difference, but with a runtime effect worth a decision. |
 | `external` | 4 | Needs data, access, or expertise this repo lacks. |
 | **deletion** | **+17** | Separate: what must happen before the folder can go. |
 
-**The three findings that would change the most if fixed**, all from the mirror
-pass: `MP-1` (the tournament judge is instructed to do the opposite of what the
-published prompt says, on the highest-volume call in a run), `MP-2` (the
-evolution agent is never told the research goal), and `MA-1` (the parity ledger
-cites a clone's summary 51 times and the papers zero times).
+(The six rows above sum to 154, one short of 155 — `R6-1` again, carried in
+the 98/31/26 total but not in any status bucket.)
+
+**The three findings that changed the most once fixed**, all from the mirror
+pass: `MP-1` (the tournament judge had been instructed to do the opposite of
+what the published prompt says, on the highest-volume call in a run — now
+`done`), `MP-2` (the evolution agent was never told the research goal — now
+`done`), and `MA-1` (the parity ledger cites a clone's summary 51 times and
+the papers zero times — still `work`).
 
 Plus a 14-source retrieval table in R6 (8 `done`, 6 `reject`).
 
@@ -61,13 +70,14 @@ separately — see "Verification depth".
 
 **The three highest-value `work` items:**
 
-1. **`R8-1` — a published prompt instruction was silently lost.** The published
-   pairwise judge is told to "disregard these scores… as they may not be
-   directly comparable across reviews". That instruction is absent from
-   `templates/ranking.md`, which nonetheless injects review content into the
-   judge. We feed the judge exactly what the published prompt warns about,
-   without the warning. It comes from the region everyone had marked finished,
-   which is what makes it matter (`R8-2`).
+1. **`MC-4` — the initial-review gate has no published counterpart, and it
+   decides the run.** Our blocking, never-revisited initial-review disposition
+   gate appears in no published pseudocode listing. `engine/CLAUDE.md`'s own
+   gotcha records it disqualifying 20 of 22 ideas in one production run —
+   before ranking, evolution or meta-review ever see them. It surfaced in the
+   pseudocode mirror pass, the artifact class this study rates as the most
+   faithful of the three (32 of 68 steps mirrored outright), which is exactly
+   why an invented gate with this much authority was easy to miss.
 2. **`R12-1` / `R12-2` — the run-plan vocabularies are Google's, and the ledger
    says the opposite.** The tier and focus vocabularies transcribed from
    Google's own footage match `run_modes.py` name-for-name and order-for-order,
@@ -86,7 +96,11 @@ vocabulary), `R11-4` (a 20th hypothesis referenced but absent), `R12-12`
 (references list vs citation audit), `R12-13` (`Top ideas` appearing twice),
 `R12-15` (assumption-verdict wording), `R12-16` (research-contact fields),
 `R13-6` (whether anything cites `google-labs-page/`), `R8-4` (ranking-05's
-prompt-only content).
+prompt-only content), `R14-2` (which of three published goal-intake shapes is
+canonical), `R14-3` and `R14-4` (two report surfaces disagreeing on the goal
+restatement and the disclaimer), `R14-10` (whether the compound ranking-report
+structure is general or one capture's artifact), `R14-16` (whether a
+research-contact's second evidence field is a real schema slot).
 
 ## The verbatim corpus — the part that must be mirrored
 
@@ -356,6 +370,7 @@ proof — it survived every existing check.
 | R11 | `research/supplements/` | 26 (~11,400 L) | Nature SI Notes 1–7 largely unmined; one full published run |
 | R12 | `research/extracted-artifacts/outputs/` | 45 files | Richest per file read; the 4,187-line MASH report sits here |
 | R13 | `media/` | 5 folders (36 MB) | Mostly moot or out of scope; **holds the only unrecoverable content** |
+| R14 | protein-assemblies run (`R11`/`R12` overlap) | 22 files (~9,010 L) | A full document-shape read of the corpus's only complete published run |
 
 ---
 
@@ -595,7 +610,8 @@ region everyone had already marked finished.
 
 The protein-assemblies folder is the corpus's only **complete published run** —
 one prompt, 19 hypotheses, 3 reports, 9,010 lines. It is a reality check on what
-a real run's output looks like.
+a real run's output looks like. `R11-1` … `R11-8` are its headline facts; a full
+document-shape read of all 22 files is `R14`, below.
 
 | ID | Source | What it states | Status | Decided by | Proposed sink | Effort |
 |---|---|---|---|---|---|---|
@@ -607,6 +623,77 @@ a real run's output looks like.
 | R11-6 | `supplements/ai-guided-discovery-…/` vs `extracted-artifacts/outputs/…/protein-assemblies/` | Every file is byte-identical between the two locations (verified by `diff -rq`; the only difference is an added `SOURCE-NOTE.md` in each of the two copies) | `done` | **22 files and 8,973 lines** are duplicated *within* the corpus — 19 hypotheses (7,689 lines) and 3 reports (1,284 lines). The corpus is smaller than its file count suggests | Deletion-planning note | S |
 | R11-7 | `ai-assisted-drug-re-purposing-…-file-1.md` | The file's own title is "**Med-Gemini Output** for Role of Epigenetic Changes in Liver Fibrosis" | `reject` | It is a **comparator system's** output used as a baseline, not the AI co-scientist's. Nothing in it is evidence of Co-Scientist behaviour | `none` — one explicit warning line | S |
 | R11-8 | Nature SI Note 3 / Supplementary Table 1 | A fully quantified per-agent ablation: Reflection search-tool ablation (novelty 6.14→2.38, correctness 7.4→8.46, GPQA AUC 0.643→0.651), Evolution (GPQA precision 70.9%→75.4%, quality 4.7→5.6), Meta-review (AUC 0.521→0.597 constructed, 0.629→0.634 GPQA), plus Ranking-prompt and Proximity findings | `work` | PARITY `EVAL-ABLATION-001` is `partial`, and its residual says meta-review and debate-strategy have no toggle seam — **exactly the arms Google published numbers for**. Only the 6.14→2.38 datum is already known (FINDINGS `E8`) | `evaluations/ablation_driver.py` + the `EVAL-ABLATION-001` residual | M |
+
+---
+
+## R14 — the protein-assemblies run, read in full
+
+`R11-1` … `R11-8` already swept this run's headline facts (title diversity, no
+Elo, review-label vocabulary, the missing 20th hypothesis, the OCR export
+twin, the `supplements/` duplicate). This region is a second, closer pass: all
+19 hypothesis files and all 3 report outputs (the goal, `research-overview.md`,
+`top-ranking-hypotheses.md`, `top-ranking-hypotheses-existing-export.md`) were
+read start to end, checked for line-number continuity file by file, and
+compared element by element against the current schemas and renderers — the
+same mirror-pass method used above for the prompts, pseudocode and `MO-*`
+output shapes. The run was originally excluded from the sweep on the reasoning
+that it duplicates its `supplements/` twin byte-for-byte (`R11-6`); that
+reasoning does not hold for a *reading* pass — file identity was checked, but
+the run's own document shape never was.
+
+Every row below was re-verified against the tree as it stands today, after
+commit `9f8c9202` flipped 19 existing rows to `done`. Two original readings
+needed correcting rather than merely refreshing: `R14-8` had reopened `R12-11`
+wholesale where only a narrower residual remains open, and `R14-22`/`R14-24`
+had misread three files' trailing sections as truncated captures when the
+sparser explanation fits the same evidence better.
+
+**Caveat carried from `R12-6` … `R12-13`.** This is *one* published run. It is
+strong evidence these sections exist and weak evidence every Google run emits
+them.
+
+### The run's reports (goal + 3 outputs)
+
+| ID | Source | What it states | Status | Decided by | Proposed sink | Effort |
+|---|---|---|---|---|---|---|
+| R14-1 | `reports/research-overview.md:7-14` | The report opens with an explicit `#### Table of contents:` section, six bulleted nav items (Summary of Main Research Directions / Review guidelines / Open questions / Unexpected connections / Research contacts / Top ranking hypotheses) | `work` | Re-grepped: no hit for "table of contents" anywhere in `app/app/report_markdown*.py` — our report has no navigation aid at all | Report renderer (a generated ToC block, or `none` if judged decorative) | S |
+| R14-2 | `research-goals/protein-assemblies-research-goal.md:1-38` | A third, structurally distinct goal-intake shape beyond `MO-11`'s two: `Title` (dated), `Prompt` (persona instruction), `## The Context:`, `**The Core Objective:**`, `**The Ground Truth Dataset:**` (named reference structures with PDB IDs, used as calibration anchors), `**Your Role:**` (explicit AI-role framing), per-sub-goal blocks (`## Goal 1: <name>` with Focus/Goal/Rationale/Preferences), then `## • Attributes:` (Output/Reference Set/Scope) | `unclear` | `app/app/runs_models.py:29` (`research_goal: str`) and `app/app/interviews_models.py:41-45` match none of the three published shapes structurally, re-confirmed unchanged. `MO-11` (`work`) undersells the diversity: MASH is a five-section shape (`R12-3`), this run is eight parts with two field types (Ground Truth Dataset, Your Role) neither other exemplar has | Needs a decision on which shape, if any, is canonical before `MO-11`'s sink is actionable | S (decision), M (implementation) |
+| R14-3 | `research-overview.md:3` vs `top-ranking-hypotheses.md:5-7` | The same run's goal renders two different ways across its two report surfaces — `research-overview.md` inlines the raw structured goal (bullet markers flattened into one paragraph); `top-ranking-hypotheses.md` prints a freshly synthesized narrative restatement in different words | `unclear` | `render_report_markdown` renders one `## Research Goal Details` block (`report_markdown_header.py:31-54`) from the literal setup fields, re-confirmed — neither the flatten-the-raw-goal nor the synthesize-a-restatement behavior. Whether Google's two behaviors reflect two different agents or capture inconsistency is unresolved | `none` pending the two-report-surfaces question (`R14-11`) | S |
+| R14-4 | `research-overview.md:5` | A second, longer disclaimer exists on this surface beyond the "Prepared by … date" line (`R12-20`, `done`): "**About**: This is an experimental system for generating novel and testable hypotheses. The hypotheses are generated by a model and may be wrong. For research purposes only." — no date, no "Prepared by", states the hypotheses may be wrong | `unclear` | Re-confirmed absent: `grep -rn "may be wrong" app/app/*.py` returns nothing; only the short "Prepared by … date" line exists (`report_markdown_header.py:70-73`). Unclear whether this is a second disclaimer required on a distinct surface or a variant of the same one produced by a different rendering path | Report header, if a second surface is ever built (`R14-11`) | S |
+| R14-5 | `research-overview.md:317-323, 335-338, 351-356, 369-372` | This run's research contacts do carry an affiliation per researcher — "AmirAli Toghani (The Sainsbury Laboratory)", "Furong Liu & Brian J. Staskawicz (UC Berkeley)" — contradicting `R12-16`'s reading of the ALS exemplar ("No affiliation, institution, or email field appears") | `adapted` | `engine/src/co_scientist/schemas/synthesis.py:191-194` deliberately has no affiliation field, re-confirmed, and the code comment states why: "a direction label is not an invented fact the way a name or affiliation would be" — we do not fabricate what the candidate-paper metadata doesn't supply. Two exemplars now disagree (ALS: no affiliation; protein-assemblies: affiliation present), so `R12-16` stays `unclear` on what's canonical, but our own omission has a stated grounding rationale independent of that | `none` — the current omission is justified; revisit only if a future exemplar shows affiliation sourced from paper metadata itself | — |
+| R14-6 | `research-overview.md:309-376` | Research contacts are grouped by research direction (4 groups), each carrying a shared "Why they are best for this direction" rationale paragraph (one per group, not per researcher) and two "Example Hypothesis Titles" per direction | `work` | `MO-7` (`done`) only restored the flat per-contact `research_direction` tag (`report_markdown_overview.py:319-327`, re-confirmed). Neither a group-level rationale nor "Example Hypothesis Titles" exists anywhere in `schemas/synthesis.py`'s `research_contacts` shape or the renderer — new structure beyond what `MO-7` covered | `RESEARCH_OVERVIEW_SCHEMA.research_contacts` (group-level, if grouping is adopted) + renderer | M |
+| R14-7 | `top-ranking-hypotheses.md:164-184` | Concrete column vocabulary for the two comparison sections `R12-9` (`work`) already flags absent: an "Idea Comparison Table" (Idea / Key Distinguishing Attribute / Computational Scalability / Supporting Evidence Basis / Primary Novelty Parameter) and a "Comparison with Existing Solutions" table (Method / Approach / Sensitivity to Novelty / Scalability, against 2 named baselines) | `work` | Re-confirmed absent — no hit for `existing_solution`, `comparison_table`, or "idea comparison" across `app/app/report_markdown*.py`, `engine/src/co_scientist/schemas/*.py`, `agents/meta_review/*.py`. A second real exemplar of `R12-9`, now with the exact column names to mirror | Same as `R12-9`: report renderer + a synthesis schema field | L |
+| R14-8 | `top-ranking-hypotheses.md:201-213` | "Best Next Steps" is a staged roadmap richer than `R12-11`'s base finding: 3 numbered phases with explicit time estimates ("Weeks 1-2", "Weeks 3-8", "Month 3+"), one phase split into lettered sub-phases ("Phase A:"/"Phase B:"), and the recommendation names one winning idea by number ("proceed with Idea 1 … inspired by Idea 4") — natural-language selection, no numeric score | `work` | **Scoped down from the original reading, which had reopened `R12-11` wholesale.** `R12-11`'s base rendering — a numbered primary recommendation plus roadmap steps — is genuinely `done`, re-confirmed current at `app/app/report_markdown_meta_review.py:106-125`. The residual is real: `_render_recommendation` (`:31-51`) has no time-estimate field, no lettered sub-phase, and no named-idea-recommendation field anywhere in `strategic_recommendations` — that specific richer shape is what remains unaddressed, not the roadmap concept itself | A time-estimate / phase-letter / recommended-idea-id field on `strategic_recommendations` + renderer | M |
+| R14-9 | `top-ranking-hypotheses.md:9-22` | The synthesized-criteria section (`R12-18`'s "section 2" concept) renders here as a markdown table — Criterion / Importance, 5 rows (Quantitative Extractability / Mechanistic Grounding / Stoichiometric Sensitivity / Computational Scalability / Statistical Robustness) — a different format from MASH's prose paragraphs for the same concept | `work` | `R12-18` re-confirmed still fully absent — `app/app/runs_crud_resolve.py:83` still only maps `focus_area` into `attributes`, `criteria` is never set from the interview. New: the synthesized-criteria feature has two distinct published renderings (table here, prose in MASH), worth deciding which to mirror | Same as `R12-18` | M |
+| R14-10 | `top-ranking-hypotheses.md:1-397` (whole file) | The artifact is a compound document, three parts concatenated in one file: (1) the ranking/comparison report, (2) an empty `# References:` heading then a complete embedded Generation-style hypothesis proposal ("Proposal 5"), (3) a complete embedded deep-review ("Reviews summary", numbered 1-8, `Verdict: No-Go`). Both this file and its `-existing-export` twin end mid-section at "8. Conclusion" with zero body text — the corpus capture itself is truncated there, not an export artifact | `unclear` | Our nearest analogue is the Ideas tab plus the markdown report's `## Top hypotheses` section — neither embeds one hypothesis's full proposal and full review sequentially inside a ranking/comparison artifact. Unresolved: is this composition specific to how this one capture was made, or a general shape of Google's ranking report? One exemplar cannot settle it. The embedded proposal's own field schema is covered by `R14-12` … `R14-26` below; this row is scoped to the container document's section sequence only | `none` pending a second exemplar of a Google ranking report | S |
+| R14-11 | `SOURCE-NOTE.md:5-7` plus direct comparison of `research-overview.md` vs `top-ranking-hypotheses.md` | A single run produces two separately-purposed report documents, not one: `research-overview.md` (meta-review-style synthesis — Main Directions, Review guidelines, Open questions, Unexpected connections, Research contacts, Top ranking hypotheses list) and `top-ranking-hypotheses.md` (tournament/ranking comparison — Candidate Ideas, Idea Comparison Table, Recommendation). Their content does not overlap 1:1 (different goal restatement per `R14-3`, different disclaimer per `R14-4`, different structuring of the same ideas) | `work` | We emit exactly one combined markdown report (`render_report_markdown`, `app/app/report_markdown.py:424-455`, re-confirmed current); Google's one real run shows two. Whether that is architectural (two producing agents) or incidental (one export bundled two views) is `R14-10`'s open question — this row records the surface fact regardless of cause. (`SOURCE-NOTE.md`'s own labels are the corpus curator's gloss, not a cited Google fact, and are treated here as descriptive only) | Needs a decision before any sink: split the report, or confirm one combined document is the intended local adaptation | M (decision), L (implementation if split) |
+
+### The 19 hypotheses — document shape
+
+All 19 files were swept for every top-level heading, plus exhaustive
+single-line-match passes for the disclaimer, the LaTeX macro artifact,
+citation markers, grounding URLs, `Answer: N` scores, and content after
+`Reviews summary` / `Deep verification`. `R11-1`/`R11-2` already cover title
+diversity and the absence of Elo/lineage across this same set; the rows below
+are the per-hypothesis document shape those didn't reach.
+
+| ID | Source | What it states | Status | Decided by | Proposed sink | Effort |
+|---|---|---|---|---|---|---|
+| R14-12 | All 19 files, line 1 | Every title is `# **Co-scientist - <Title>**` — an H1, bold, prefixed with the product name, a compact noun phrase, never a full sentence. 19/19 identical prefix pattern | `work` | `app/app/text_utils.py:22-24` `hypothesis_title()` returns `h.get("title") or h.get("text")` truncated to 140 chars; `:61-76` `first_sentence()` shows the store derives `title` by splitting the hypothesis's own body text at its first sentence boundary — a mechanical truncation of body prose, not an authored noun-phrase field, and carries no product-name prefix, re-confirmed unchanged | A dedicated, LLM-composed `title` field on `Hypothesis` (distinct from `text`), + prefix convention decision | M |
+| R14-13 | All 19 files, line 3 | Every hypothesis carries a verbatim-identical one-line disclaimer directly under the title: "**About**: *This is an experimental system for generating novel and testable hypotheses. The hypotheses are generated by a model and may be wrong. For research purposes only.*" 19/19, byte-identical | `work` | Re-confirmed: `grep -rn "experimental system\|may be wrong\|research purposes only" app/app app/frontend/src` hits only `app/app/safety_patterns.py:192` (an evasive-language *detector* regex, unrelated) and the report-level provenance line (`R12-20`, `done`, a different sentence). No per-hypothesis disclaimer exists anywhere | A per-hypothesis disclaimer line in the report/UI hypothesis renderer, separate from `R12-20` | S |
+| R14-14 | 8/19 files 8-part, 3/19 `Positive aspects:`/`Negative aspects:`, 8/19 empty | Where populated, `Reviews summary` takes an 8-part numbered structure (Executive Verdict → Critical Flaws → Addressed Objections → Validated Risks & Limitations → Supporting Arguments & Evidence (Motivation) → Alignment & Novelty → Feasibility Assessment (Go/No-Go Decision) → Conclusion) or a simpler two-list bullet form | `work` | `engine/src/co_scientist/schemas/review.py:140-141` `review_summary` is a plain string, "Overall assessment (2-3 sentences)", re-confirmed — no top-level executive-summary field distinct from the per-axis review, and no numbered multi-part structure | A structured review-summary schema (or accept the divergence and record why) | M |
+| R14-15 | 8/19 files, e.g. `development-eight-parameter-…-af3-homology.md:143,178` | Within the 8-part `Reviews summary`, section 1 ends with a bolded free-text `**Verdict: <recommendation>**` framed as Go/No-Go (wording varies, not a closed enum), and section 7 carries a `**Time to Verdict:**` field naming an estimated timeframe ("Short", "2-4 weeks", "2-3 months") | `work` | `engine/src/co_scientist/schemas/review.py:352-356,404-409` — the only `verdict` enums are `holds/weakened/undermined` (deep verification, evidence state) and `sound/needs_revision/rejected` (full review), neither a go/no-go testing recommendation. Re-grepped `time.to.verdict\|time_to_verdict` across `engine/src/co_scientist/schemas/*.py` — zero hits, no ETA/timeline field anywhere | A Go/No-Go recommendation field + a feasibility-timeline field, likely on the review or generation schema | M |
+| R14-16 | 14/19 files | `Research contacts` names candidate expert reviewers, each with a `**Justification:**` field explaining relevance (14/14 files that have this section — 100% consistent label), followed by a second, evidence-citing field whose label varies (`Supporting Articles:` / `Relevant Articles:` / `Supporting Excerpt:` / `Support:` / unlabeled prose) | `unclear` | Sharpens `R12-16`, which checked only the MASH report's single exemplar and found "name(s) + one free-text relevance paragraph." This per-hypothesis source shows `Justification:` is the true fixed first field, but the second field's presence/label is emergent LLM prose, not a schema — whether a fixed 2-field contact schema exists at all cannot be settled from one run. `app/app/report_markdown_overview.py:319-336` renders `### {contact name}` plus one evidence line, re-confirmed — our shape already resembles the modal case | Owner call: is `Justification` + variable-label evidence worth pinning as two named fields, or is one free-text field (current) sufficient | S |
+| R14-17 | 15/19 files | The Appendix's `All reviews:` block is always ordered Correctness → Novelty → Feasibility → Impact potential, and each axis has its own fixed sub-schema, not a shared template — e.g. Correctness runs Related Article Abstracts → Detailed Assumptions → Comparison with Knowledge Base → Strength of Evidence → Suggested Improvements → Goal Requirement(s) Assessment → Reasoning → Conclusion/Recommendation (7-8 parts); Feasibility is the leanest at 3 parts | `work` | `engine/src/co_scientist/schemas/review.py:53-91` — `_SCORES_SCHEMA`/`_DETAILED_FEEDBACK_SCHEMA` give each of our 8 axes exactly one integer score + one prose-feedback string, re-confirmed; no axis-specific sub-structure anywhere | Record as an accepted-shape divergence, or add sub-structure to `REVIEW_SCHEMA` if the owner wants the richer shape | L |
+| R14-18 | 16/19 files carry ≥1 `Answer: N`; values observed 2,4,5,6,7,8,9 (never 1, 3, 10) | Each of the four axes ends with a bare `Answer: N` line — a per-axis numeric verdict, distinct from the prose | `done` | `engine/src/co_scientist/schemas/review.py:46-47` (`REVIEW_SCORE_MINIMUM=1`, `REVIEW_SCORE_MAXIMUM=10`) already implements the identical mechanism (a bounded per-axis integer score separate from prose feedback), re-confirmed. Axis names/count differ by design (our 8 vs. this run's 4) per `R1-1` (`done`), not reopened here | `none` | — |
+| R14-19 | Novelty axis, all files with that axis populated | The Novelty axis is always exactly two named lists — what the idea overlaps with existing work, and what it doesn't | `done` | `engine/src/co_scientist/schemas/review.py:96-124` `_NOVELTY_REVIEW_SCHEMA` (`already_explored`/`novel_aspects`, `MO-3`, `done`) is already pinned against a different corpus file (`als-reflection-reviews.md`). This run independently corroborates the same two-list shape from a second, larger source | `none` — cite this run as second corroboration alongside the existing `MO-3` pin | — |
+| R14-20 | 14/19 files, e.g. `development-seven-parameter-sni-unconventional-nrc-nlr-candidates.md:257-268` | `Steps to Test the Idea` is a numbered plan (2-5 steps: scripting/automation → ground-truth calibration → outgroup/control comparison → an explicit Go/No-Go Initial Experiment step with separately bolded `**Go:**`/`**No-Go:**` criteria stating the exact pass/fail threshold; sometimes a further multi-phase rollout | `work` | `engine/src/co_scientist/schemas/generation.py:42-53` `_EXPERIMENT_FIELD` is one free-text paragraph authored by the hypothesis itself, re-confirmed — not a numbered pilot-then-scale-up plan with a stated Go/No-Go threshold, and not a separate reviewer-authored experiment-design critique (we have none) | A phased Go/No-Go structure in the experiment field, or a reviewer-side feasibility-plan field; owner to decide scope | M |
+| R14-21 | Two bibliographies — L1 (`# **References:**`, H1, 8/19 files) and L2 (`#### References:`, H4, end of Appendix, 15/19 files) | L1 entries route several citations through `vertexaisearch.cloud.google.com/grounding-api-redirect/…` (Google Search grounding-tool redirects); inline markers use both `<sup>N</sup>` and `[N]` for the same reference — a rendering inconsistency | `work` | Extends `R12-19` (scoped to the MASH report) with per-hypothesis evidence: `grep -rn "citation_map" app/app/report_markdown*.py` — zero hits, and `report_markdown.py` never renders `literature_grounding` either, re-confirmed — so neither the Generation-side nor Reflection-side citation list renders anywhere, now confirmed at the hypothesis level too, not just the report level. The `vertexaisearch` redirects are fresh corroboration of `R1-11` (web search primary, `done`) | Render `citation_map` as a numbered bibliography (Generation-side) and `literature_grounding`'s citations (Reflection-side) as a second one; downstream of `R12-19` | M |
+| R14-22 | 8/19 files, e.g. `development-eight-parameter-…-af3-homology.md:546-568`, `seven-parameter-af3-sni-…:588-615` | Where populated, `Deep verification:` holds a numbered list (2-5 items) of methodological/technical flaws surfaced by mentally simulating the proposed protocol — each item a bolded flaw name plus a reasoning paragraph, a distinct adversarial pass from the four-axis rubric in `R14-17` | `work` | **Corrects an overstated original reading** ("nothing renders it … anywhere in `app/app/report_markdown*.py`"). `app/app/report_markdown.py:120-139` `format_deep_verification_critique` does render `deep_verification_probes`, as a numbered `Probe N (fundamental/non-fundamental assumption): Question/Answer/Reasoning` block, persisted via `engine_adapter/drain_reviews.py:176-198` as its own review row. But that is a different mechanism from the published shape: Google's "simulate the protocol, list numbered flaws by name" maps more closely to our separate `SIMULATION_REVIEW_SCHEMA` (`schemas/review.py:420-444`: `steps`/`failure_points`/`decisive_step`), and *that* output has no render path at all — zero hits for `simulation_review`, `failure_points`, or `decisive_step` anywhere in `app/app`. The real gap is not "deep verification is unrendered", it is "the agent whose shape actually matches Google's Deep-verification content has no renderer" | Render `simulation_review`'s `failure_points`/`steps` as the numbered flaw list; decide whether `deep_verification`'s Q&A-probe framing is meant to be the same section or a separate one | M |
+| R14-23 | — (a question about our own renderer, raised by `R14-22`/`R14-24`) | Does our nearest equivalent to Motivation/Coherence/Deep verification print a heading unconditionally and fill it only on a finding (Google's shape, `R14-24`), or omit the section entirely when there is nothing to say? | `done` (record only) | Checked directly. Every renderer touched by this study follows one convention, stated in its own docstrings: `_render_bullet_list` ("…or nothing when empty", `report_markdown_meta_review.py:55-59`), `_render_strategic_recommendations` (`:106-125`), `_render_contact_entry` (each optional field guarded `if x:`, `report_markdown_overview.py:319-336`), and `_render_hypothesis_entry` (Introduction/Recent findings/Safety-and-toxicity each behind `if value:`, `report_markdown.py:285-321`) all omit the heading along with the body when there is nothing to say. `_persist_deep_verification_review` goes further and skips creating the review row at all when `probes` is empty (`engine_adapter/drain_reviews.py:176-184`). **Ours is the opposite of the published convention**: Google always prints the heading and leaves it empty; we never print a heading with nothing under it | `none` — record the divergence; revisit only if a reader-facing reason to always show empty section headings emerges | — |
+| R14-24 | 11/19 files (all `DV lines = 0`); corroborated by `SOURCE-NOTE.md:6-7` | **Corrects the original reading.** The 11-vs-8 split in whether `Deep verification:` carries content is real, but it is not truncation — verified directly against three files by checking Motivation/Coherence/Deep verification independently: `development-seven-parameter-sni-unconventional-nrc-nlrs-af3.md` (377 lines) has Motivation populated (19 lines), Coherence empty, Deep verification populated (12 lines); `development-eight-parameter-sni-unconventional-nrc-nlrs-af3-homology.md` (573 lines) has Motivation empty, Coherence empty, Deep verification populated (18 lines); `development-sni-clt-unconventional-nrc-nlrs-mechanical-lever-analysis.md` (524 lines) has all three populated (18/3/17 lines). A capture truncated partway through a document cannot produce "Motivation empty, Deep verification populated" — a later section has content while an earlier one does not. All three headings print unconditionally in every file (19/19); each fills only when that specific check surfaced a finding. **Coherence is the rarest** — populated in exactly 1 of 19 files, not merely "sometimes absent". The "512-616 lines = a complete hypothesis" claim in the original reading is unsupported: file length does not predict which sections are populated | `work` (record only — a corpus-reading correction, not a code gap) | N/A — corrects a corpus-reading conclusion, not a code claim. See `R14-22`/`R14-23` for what our own renderer does with the equivalent content | A footnote here correcting the file-length framing; any future row citing a short hypothesis file as "intentionally minimal" should check per-section content, not total line count, before concluding absence is a design fact | S |
+| R14-25 | All 19 files carry `\$\def\mathcal#1{\mathit{#1}}\def\mathscr#1{\mathit{#1}}\$` (19/19, 3-6 times per file); ≥2 files render numbered-parameter tables as garbled markdown; 2 files render the `Appendix:` heading itself as a degenerate one-cell table | Both are lossy PDF/Google-Docs-to-Markdown export artifacts, not authored content or product formatting | `reject` | N/A — clone/export noise, same family as `R11-5`, which already warns the twin-report OCR garbling "must never be mined as a schema source." This extends that warning to the hypothesis files | `none` — fold into the `R11-5` caution | S |
+| R14-26 | Composite of all rows above; order verified against every file with no counter-example | The canonical top-level section sequence of a published hypothesis is fixed: Title → About disclaimer → Proposal (optional numbered-parameter framework + optional L1 References) → Reviews summary → (optional) Research contacts → Appendix: → All reviews: → Correctness → Novelty → Feasibility → Impact potential → L2 References → Motivation → Coherence → Deep verification. No file reorders any present section | `work` | We have no equivalent fixed per-hypothesis document assembly — `_render_hypothesis_entry` (`app/app/report_markdown.py:285-321`, re-confirmed) renders one flat idea entry (title/Elo + Introduction/Recent findings + mechanism + expected_effect + safety/toxicity + claim evidence), not a multi-section document with this order | A per-hypothesis "detail page" render order, if the owner wants a fuller per-idea artifact beyond the current flat entry | M |
 
 ---
 
@@ -1485,8 +1572,15 @@ reproduce. Excluded here: the MASH report's **bibliography only** — lines
 in the "Bibliography lines" row above rather than transcribed; the report's
 **body** (lines 1–831) is embedded below, since `R12-6` … `R12-23` cite it by
 line number and a summary cannot stand in for a citation target. Also excluded:
-the 22 protein-assemblies files (byte-identical duplicates of the
-`supplements/` copy, per `R11-6`).
+the 22 protein-assemblies files. **This is not because `R11-6` found them
+byte-identical to their `supplements/` twin** — both copies live inside
+`references/`, which this document's own precedent has deleted whole, so one
+copy being a duplicate of the other is not a reason either survives. The real
+reason is a decision: this run was mined, not embedded verbatim. It was read
+in full and every structural finding worth keeping was written up as its own
+row in `R14`, above. Neither copy of its 22 files is reproduced here, and its
+verbatim text does not survive the folder's deletion — `R14`'s rows are what
+carries forward.
 
 #### hypotheses/als-generation-output.md
 
