@@ -50,7 +50,7 @@ Because the source materials do not publish these numbers, this implementation f
 | Value | Default | Source of decision |
 | --- | --- | --- |
 | `ELO_K_FACTOR` | **24** | Mirrors engine ranking node default. K is intentionally moderate so a single match can move a candidate ~12 points; high enough to surface a leader in 6–12 matches, low enough that one bad call doesn't destroy the leaderboard. |
-| Canonical run mode | tier `standard` / focus `balance` | Current product flow sizes and steers every run through the tier (express/standard/extended/ultra) + focus system; the older `standard`/`advanced`/`default` run-mode string no longer exists. |
+| Per-tier compute budgets | the `RUN_TIER_DEFAULTS` knob set | The tier and focus **vocabularies** are not implementation-defined: Google's own footage renders a plan offering Express/Standard/Extended/Ultra and Prefer evidence/Balance/Prefer novelty/Breakthrough, and `PLAN-TIER-001`/`PLAN-FOCUS-001` in [PARITY.md](PARITY.md) hold us to them. What each tier *spends* is the clone decision — the footage names the tiers, not their budgets. Defaults are tier `standard` / focus `balance`; the older `standard`/`advanced`/`default` run-mode string no longer exists. |
 | Default pool size | 8 initial hypotheses | Matches the current chat-first workflow's candidate pool. |
 | Default iterations | 2 evolve cycles | Keeps tournament and evolution as part of every run. |
 | Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical default pool. |

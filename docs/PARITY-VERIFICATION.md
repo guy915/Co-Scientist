@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 65 requirement rows:
-**verified=53, partial=9, missing=0, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 68 requirement rows:
+**verified=55, partial=10, missing=0, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).

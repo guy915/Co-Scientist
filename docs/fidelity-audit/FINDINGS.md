@@ -20,7 +20,9 @@ The audits scored this repository as an attempted replica of Google's product,
 so they recorded every difference as a gap. It is not a replica: the engine
 reconstructs the paper's published behavior, the product surface is its own. A
 difference is a defect only where the local choice is worse — not where it is
-merely different. Rows marked `=` are the differences that were chosen.
+merely different. Rows marked `=` are the differences that were chosen; rows
+marked `✗` are findings whose premise later primary evidence contradicted (see
+[the 2026-08-28 correction](#correction-2026-08-28--the-run-plan-vocabularies-are-googles)).
 
 **Re-verified against `main` on 2026-08-05**, 276 commits past the audited
 revision `11a31082`. Every **Critical** and **High** finding was checked against
@@ -59,8 +61,8 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | = | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
-| B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | = | 12:A15, 21:R8 |
+| B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | ✗ | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
+| B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | ✗ | 12:A15, 21:R8 |
 | B3 | Medium | missing | Concurrency quota is one aggregate ceiling, not Google's 3 Standard + 1 Advanced; counted per spoofable client id *and* per profile, so one id can reserve 40 | ~ | 12:B04, 20:OP-002/OP-054 |
 | B4 | Medium | divergent | Compute envelope far below Google's several-hour scale | | 12:B07, 20:EB-011 |
 | B5 | Medium | incorrect | The generator caches its compiled graph and MCP availability, so configuration changes silently execute a stale topology. Re-scoped and fixed: the app side was already sound (each durable task builds its own generator and tool registry, so per-run connector toggles never shared a topology). The real staleness was engine-side -- the compiled graph was built once and never rechecked, so a reused generator ran the first call's topology forever in both directions, and `get_mcp_client` keyed its process-wide singleton on nothing, so a second caller resolving different servers silently talked to the first one's deployment. The graph is now shape-keyed, and `reload_tool_registry` drops the graph and the availability answers together because the probe is what decides the shape | ✓ | 20:EB-012 |
@@ -472,6 +474,46 @@ by running the engine, not only by reading it.
 | Initial review is genuinely tool-free, as specified | 21:E7 |
 | Google Sans typography | 12:M11, 21:C3 |
 | Private-repository indexing exists (run-scoped) | 21:G9 |
+| The four compute tiers (Express/Standard/Extended/Ultra) and the four focus settings (Prefer evidence/Balance/Prefer novelty/Breakthrough) are the product's own, name for name and in its order | the live-footage plan config; pinned by `app/tests/test_published_plan_config.py` — see the 2026-08-28 correction |
+| The drafted run plan is built from the product's sections: the goal, then Requirements, Attributes, Criteria, Focus, Tier | same artifact and pin |
+
+---
+
+## Correction 2026-08-28 — the run-plan vocabularies are Google's
+
+`B1` and `B2` recorded the four tiers and the four-way focus selector as local
+extensions: "four tiers replace Google's exactly-two Standard/Advanced" and the
+focus selector "has no Google basis". Both premises are contradicted by an
+artifact that was already in the corpus and had not been read back — a
+transcription of the research plan shown in Google's own Gemini Enterprise
+footage:
+
+`references/core/google-co-scientist/research/extracted-artifacts/outputs/plan-configs/mash-liver-fibrosis-reversal-research-plan.md`
+
+It renders the product's plan with a `## Tier` section offering **Express,
+Standard, Extended, Ultra** and a `## Focus` section offering **Prefer
+evidence, Balance, Prefer novelty, Breakthrough**, each with the chosen option
+marked — the same four names, in the same order, as `app/app/run_modes.py`.
+The plan's own sections are the goal plus Requirements, Attributes, Criteria,
+Focus and Tier, which is what `run_modes.setup_config` builds.
+
+This meets the bar the README sets for reopening a boundary item: new primary
+evidence, not new code. `app/tests/test_published_plan_config.py` reads the two
+vocabularies out of the artifact and asserts ours match, and
+`PLAN-TIER-001`/`PLAN-FOCUS-001`/`PLAN-SPEC-001` in [PARITY.md](../PARITY.md)
+carry the requirement.
+
+Two things are **not** corrected by it. The per-tier compute budgets stay
+clone-defined — the footage names the tiers, not their knob values. And the
+Criteria section still diverges: the product shows three named settings (idea
+correctness, idea novelty, maximize impact) where ours is a free list
+defaulting to four different criteria, recorded as the residual gap on
+`PLAN-SPEC-001`.
+
+An earlier capture read by the 2026-06-21 ADR showed a three-option tier
+selector (Explore / Express / Standard), so the product's own vocabulary has
+moved between captures; this correction rests on the later footage, which is
+the one that matches the shipped plan surface.
 
 ---
 
