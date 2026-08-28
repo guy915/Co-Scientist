@@ -109,6 +109,7 @@ async def _synthesize_meta_review(
     prompt, schema = get_meta_review_prompt(
         research_goal=state["research_goal"],
         all_reviews=json.dumps(all_reviews, indent=2),
+        preferences=state.get("preferences"),
         context=PromptRunContext(
             supervisor_guidance=state.get("supervisor_guidance"),
             tool_registry=state.get("tool_registry"),

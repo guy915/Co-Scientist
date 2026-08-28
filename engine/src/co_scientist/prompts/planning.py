@@ -16,6 +16,7 @@ from co_scientist.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
+from co_scientist.prompts.generation_formatting import format_preferences
 from co_scientist.prompts.loading import _build_prompt
 
 
@@ -27,6 +28,7 @@ def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
     instructions: str | None = None,
+    preferences: str | None = None,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the meta-review synthesis prompt and schema.
@@ -35,6 +37,9 @@ def get_meta_review_prompt(
         research_goal: The run's research goal.
         all_reviews: JSON dump of every review collected so far.
         instructions: Optional extra synthesis instructions.
+        preferences: The scientist's stated preferences, if any (published
+            meta-review-08's "Preferences: {preferences}"); defaults the
+            same way Generation's prompts do (format_preferences).
         context: Run-scoped prompt context (supervisor guidance, tool
             registry, run setup/focus guidance).
 
@@ -48,6 +53,7 @@ def get_meta_review_prompt(
             "research_goal": research_goal,
             "all_reviews": all_reviews,
             "instructions": instructions or "",
+            "preferences": format_preferences(preferences),
         },
         sections=PromptSections(
             supervisor_guidance=_format_supervisor_guidance_for_meta_review(

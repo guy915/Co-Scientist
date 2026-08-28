@@ -102,6 +102,30 @@ async def test_with_reviews_maps_response_fields(
     assert result["messages"][0]["metadata"]["phase"] == "meta_review"
 
 
+async def test_state_preferences_reach_the_rendered_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """state["preferences"] threads into the meta-review prompt (MP-4).
+
+    Published meta-review-08 has a dedicated "Preferences: {preferences}"
+    slot; the node must supply it from the run's own state.
+    """
+    calls = stub_call_llm_json(
+        monkeypatch, meta_review, {"meta_review_summary": "s"}
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+        ],
+        preferences="prioritize wet-lab feasibility over novelty",
+    )
+
+    await meta_review_node(state)
+
+    assert len(calls) == 1
+    assert "prioritize wet-lab feasibility over novelty" in calls[0]["prompt"]
+
+
 async def test_recurring_themes_flattened_to_emerging_themes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

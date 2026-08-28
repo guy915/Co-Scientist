@@ -49,6 +49,9 @@ Refrain from evaluating individual proposals or reviews; focus on producing a sy
 **Research Goal:**
 {{research_goal}}
 
+**Preferences:**
+{{preferences}}
+
 **Hypotheses Process Supervisor Guidance**
 {{supervisor_guidance}}
 

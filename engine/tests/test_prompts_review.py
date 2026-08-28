@@ -308,6 +308,30 @@ def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
     assert isinstance(schema, dict)
 
 
+def test_meta_review_prompt_includes_preferences() -> None:
+    """The published meta-review prompt carries "Preferences: {preferences}".
+
+    meta-review-08-meta-review-generation.md has a dedicated Preferences
+    slot, separate from "Additional instructions"; ours had no preferences
+    placeholder at all, so the scientist's stated preferences never
+    reached meta-review -- and, via _common.py's re-injection, never
+    reached the six-plus downstream nodes that read meta_review either.
+    """
+    prompt, _ = get_meta_review_prompt(
+        research_goal="g",
+        all_reviews="r",
+        preferences="prioritize wet-lab feasibility over novelty",
+    )
+    assert "prioritize wet-lab feasibility over novelty" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_meta_review_prompt_defaults_preferences_when_absent() -> None:
+    """Absent preferences fall back to the same default as generation's."""
+    prompt, _ = get_meta_review_prompt(research_goal="g", all_reviews="r")
+    assert "Focus on novelty, testability, and potential impact." in prompt
+
+
 def test_meta_review_prompt_supervisor_guidance_branch() -> None:
     """Guidance adds key areas and evolution guidance to the meta-review."""
     with_guidance, _ = get_meta_review_prompt(
