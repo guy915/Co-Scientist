@@ -234,12 +234,22 @@ def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
 
 
 def _assumption_line(item: dict[str, Any]) -> str | None:
-    """Render one full-review assumption entry, or None when empty."""
+    """Render one full-review assumption entry, or None when empty.
+
+    ``reasoning`` (MO-9) is the published free-text paragraph explaining the
+    support verdict; appended when present so a hypothesis reviewed through
+    full review alone still carries it, the way deep verification's
+    ``sub_assumptions[].verification`` always has.
+    """
     assumption = str(item.get("assumption") or "").strip()
     if not assumption:
         return None
     support = str(item.get("support") or "").strip()
-    return f"Assumption ({support or 'unrated'}): {assumption}"
+    line = f"Assumption ({support or 'unrated'}): {assumption}"
+    reasoning = str(item.get("reasoning") or "").strip()
+    if reasoning:
+        line += f" — {reasoning}"
+    return line
 
 
 def _append_full_critique(lines: list[str], review: dict[str, Any]) -> None:

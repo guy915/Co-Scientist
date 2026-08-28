@@ -109,6 +109,10 @@ def _final_state_with_mature_reviews() -> dict[str, Any]:
                         "assumptions": [
                             {
                                 "assumption": "CXCR1 is the only driver",
+                                "reasoning": (
+                                    "Two other chemokine receptors are"
+                                    " independently sufficient."
+                                ),
                                 "support": "likely_false",
                             }
                         ],
@@ -162,6 +166,12 @@ def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
     )
     assert "Circular pathway reasoning." in by_agent["full_review"]["critique"]
     assert "CXCR1 is the only driver" in by_agent["full_review"]["critique"]
+    # The published free-text reasoning paragraph (MO-9) rides alongside
+    # the assumption and its support verdict.
+    assert (
+        "Two other chemokine receptors are independently sufficient."
+        in by_agent["full_review"]["critique"]
+    )
     assert by_agent["simulation_review"]["summary"] == (
         "Simulation review verdict: breaks_down"
     )

@@ -372,6 +372,26 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                 "items": obj(
                     {
                         "assumption": {"type": "string"},
+                        # MO-9: the published full review (e.g.
+                        # docs/CORPUS-EXTRACTION.md,
+                        # validated-outputs/kira6-detailed-output-validated.md
+                        # -- 220 lines, sha256 b5a22b590874, "Reasoning about
+                        # assumptions") prints a free-text paragraph beside
+                        # every assumption; deep verification's
+                        # sub_assumptions[].verification already carries this
+                        # prose, but the full review previously carried only
+                        # the closed enum below, so a hypothesis reviewed
+                        # through full review alone lost the reasoning
+                        # entirely.
+                        "reasoning": {
+                            "type": "string",
+                            "description": (
+                                "2-4 sentences of free-text reasoning for"
+                                " why the evidence does or does not back"
+                                " this assumption, referencing specific"
+                                " evidence where available."
+                            ),
+                        },
                         "support": {
                             "type": "string",
                             "enum": list(ASSUMPTION_SUPPORT_VALUES),

@@ -54,6 +54,20 @@ def test_full_review_schema_shape() -> None:
     )
 
 
+def test_full_review_assumption_carries_published_reasoning() -> None:
+    """Each assumption carries the published free-text reasoning (MO-9).
+
+    docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-detailed-output-
+    validated.md -- 220 lines, sha256 b5a22b590874, "Reasoning about
+    assumptions" -- prints a paragraph beside every assumption; the schema
+    used to carry only the closed `support` enum.
+    """
+    schema = schema_for(ReviewType.FULL)
+    assert schema is not None
+    assumption = schema["schema"]["properties"]["assumptions"]["items"]
+    assert set(assumption["required"]) == {"assumption", "reasoning", "support"}
+
+
 def test_simulation_review_schema_shape() -> None:
     """The simulation review steps through the mechanism to a verdict."""
     schema = schema_for(ReviewType.SIMULATION)
@@ -96,7 +110,11 @@ def test_full_review_answer_from_the_prompt_validates() -> None:
     answer = {
         "correctness": "Internally consistent.",
         "assumptions": [
-            {"assumption": "The receptor is expressed.", "support": "supported"}
+            {
+                "assumption": "The receptor is expressed.",
+                "reasoning": "Two prior cohort studies detect it directly.",
+                "support": "supported",
+            }
         ],
         "quality_and_novelty": "A non-obvious combination.",
         "literature_grounding": "Two cohort studies report the association.",
