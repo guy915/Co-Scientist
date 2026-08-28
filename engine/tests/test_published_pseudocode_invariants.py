@@ -30,35 +30,36 @@ from co_scientist.scheduling.models import TerminationReason
 from co_scientist.schemas import get_schema_for_prompt
 from tests._published_corpus import published_pseudocode
 
+_WHITESPACE = re.compile(r"\s+")
 
-def _states(text: str, phrase: str) -> bool:
+
+def _states(listing: str, phrase: str) -> bool:
     """Whether the listing states a phrase, ignoring its line breaks.
 
     The source wraps prompts and comments mid-sentence, so a literal
     containment check would depend on where a line happened to break.
 
     Args:
-        text: The pseudo-code to search.
+        listing: The pseudo-code to search.
         phrase: The phrase to look for.
 
     Returns:
         Whether the phrase appears, comparing whitespace-collapsed text.
     """
-    collapse = re.compile(r"\s+")
-    return collapse.sub(" ", phrase) in collapse.sub(" ", text)
+    return _WHITESPACE.sub(" ", phrase) in _WHITESPACE.sub(" ", listing)
 
 
-def _stated_number(pattern: str, text: str) -> int:
+def _stated_number(listing: str, pattern: str) -> int:
     """Return the single number the listing states for one pattern.
 
     Args:
+        listing: The pseudo-code to read it out of.
         pattern: Regex with one capturing group around the number.
-        text: The pseudo-code to read it out of.
 
     Returns:
         The captured number.
     """
-    matches = re.findall(pattern, text)
+    matches = re.findall(pattern, listing)
     assert len(matches) == 1, f"expected one {pattern!r}, got {matches}"
     return int(matches[0])
 
@@ -72,7 +73,7 @@ def test_tournament_entry_rating_is_the_stated_one() -> None:
     checked against it too.
     """
     listing = published_pseudocode("04-ranking")
-    stated = _stated_number(r"SET HypothesisToAdd\.EloRating TO (\d+)", listing)
+    stated = _stated_number(listing, r"SET HypothesisToAdd\.EloRating TO (\d+)")
 
     assert stated == INITIAL_ELO_RATING
     assert Hypothesis(text="An idea.").elo_rating == stated
@@ -96,7 +97,7 @@ def test_evolution_breeds_from_the_stated_parent_count() -> None:
     """Evolution takes its parents from the listing's top-N by rank."""
     listing = published_pseudocode("05-evolution")
     stated = _stated_number(
-        r"FETCH the top (\d+) hypotheses from the HypothesesList", listing
+        listing, r"FETCH the top (\d+) hypotheses from the HypothesesList"
     )
 
     assert stated == EVOLUTION_PARENT_COUNT
@@ -106,7 +107,7 @@ def test_research_overview_synthesizes_the_stated_top_n() -> None:
     """The final overview synthesizes the listing's top-N hypotheses."""
     listing = published_pseudocode("07-meta-review")
     stated = _stated_number(
-        r"FETCH the top (\d+) hypotheses from SharedMemory", listing
+        listing, r"FETCH the top (\d+) hypotheses from SharedMemory"
     )
 
     assert stated == RESEARCH_OVERVIEW_TOP_K
