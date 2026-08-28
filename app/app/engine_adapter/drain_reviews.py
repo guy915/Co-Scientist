@@ -119,6 +119,31 @@ def _persist_scientist_review(
     return True
 
 
+def _novelty_review_lines(rv: dict[str, Any]) -> list[str]:
+    """Render the published novelty review's two named lists (MO-3).
+
+    Google's exemplar (docs/CORPUS-EXTRACTION.md,
+    reviews/als-reflection-reviews.md -- 106 lines, sha256 2f486c549886,
+    Figure A.11) prints a novelty review as "Aspects already explored:" and
+    "Novel Aspects:", each a bulleted list. Empty when the review named
+    nothing in either list.
+    """
+    already = [str(x).strip() for x in rv.get("already_explored") or []]
+    already = [x for x in already if x]
+    novel = [str(x).strip() for x in rv.get("novel_aspects") or []]
+    novel = [x for x in novel if x]
+    lines: list[str] = []
+    if already:
+        lines += ["Aspects already explored:"]
+        lines += [f"- {item}" for item in already]
+    if novel:
+        if lines:
+            lines.append("")
+        lines += ["Novel Aspects:"]
+        lines += [f"- {item}" for item in novel]
+    return lines
+
+
 def _persist_engine_review_rows(
     run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
@@ -127,13 +152,17 @@ def _persist_engine_review_rows(
         if _persist_scientist_review(run_id, hyp_id, rv, conn):
             continue
         scores = rv.get("scores", {})
+        critique_lines = [str(rv.get("constructive_feedback") or "")]
+        novelty_lines = _novelty_review_lines(rv)
+        if novelty_lines:
+            critique_lines += ["", *novelty_lines]
         store.add_review(
             store.NewReview(
                 run_id=run_id,
                 hypothesis_id=hyp_id,
                 reviewer_agent="review",
                 summary=rv.get("review_summary", ""),
-                critique=rv.get("constructive_feedback", ""),
+                critique="\n".join(critique_lines).strip(),
                 novelty=_score_or_none(scores.get("novelty", 0)),
                 plausibility=_score_or_none(
                     scores.get("scientific_soundness", 0)

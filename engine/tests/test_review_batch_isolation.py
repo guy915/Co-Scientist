@@ -22,6 +22,7 @@ from co_scientist.agents.reflection import review
 from co_scientist.agents.reflection.review import review_node
 from co_scientist.agents.reflection.review_helpers import (
     _match_batch_entries_to_hypotheses,
+    _review_from_response,
     _sanitize_review_scores,
 )
 from co_scientist.constants import COMPARATIVE_BATCH_THRESHOLD
@@ -67,6 +68,62 @@ def test_score_fields_are_bounded_to_the_rubric_range() -> None:
         for criterion, field in scores.items():
             assert field["minimum"] == REVIEW_SCORE_MINIMUM, criterion
             assert field["maximum"] == REVIEW_SCORE_MAXIMUM, criterion
+
+
+def test_novelty_review_schema_carries_the_published_two_lists() -> None:
+    """Both review schemas carry Google's published novelty-review lists.
+
+    The published exemplar (docs/CORPUS-EXTRACTION.md,
+    reviews/als-reflection-reviews.md -- 106 lines, sha256 2f486c549886,
+    Figure A.11) prints a complete novelty review as two named lists,
+    "Aspects already explored:" and "Novel Aspects:" -- no schema field
+    distinguished them before this (MO-3).
+    """
+    batch_items = REVIEW_BATCH_SCHEMA["schema"]["properties"]["reviews"][
+        "items"
+    ]
+    for schema in (REVIEW_SCHEMA["schema"], batch_items):
+        novelty_review = schema["properties"]["novelty_review"]
+        assert set(novelty_review["required"]) == {
+            "already_explored",
+            "novel_aspects",
+        }
+        for name in ("already_explored", "novel_aspects"):
+            assert novelty_review["properties"][name]["type"] == "array"
+
+
+def test_novelty_review_lists_parse_onto_the_review() -> None:
+    """`_review_from_response` carries the two lists onto HypothesisReview."""
+    review = _review_from_response(
+        {
+            "review_summary": "Sound and moderately novel.",
+            "scores": {},
+            "novelty_review": {
+                "already_explored": [
+                    "TDP-43 mislocalization is well documented.",
+                    "  ",
+                ],
+                "novel_aspects": ["Stress-induced Nup PTMs are new."],
+            },
+        }
+    )
+    assert review.already_explored == [
+        "TDP-43 mislocalization is well documented."
+    ]
+    assert review.novel_aspects == ["Stress-induced Nup PTMs are new."]
+
+
+def test_novelty_review_missing_or_malformed_degrades_to_empty() -> None:
+    """A missing/non-dict novelty_review (json_object downgrade) is safe."""
+    review = _review_from_response({"review_summary": "s", "scores": {}})
+    assert review.already_explored == []
+    assert review.novel_aspects == []
+
+    review = _review_from_response(
+        {"review_summary": "s", "scores": {}, "novelty_review": "oops"}
+    )
+    assert review.already_explored == []
+    assert review.novel_aspects == []
 
 
 def test_batch_schema_identifies_by_index_and_never_echoes_text() -> None:

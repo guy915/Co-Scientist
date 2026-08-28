@@ -56,6 +56,13 @@ downstream ranking excludes those outcomes rather than rewarding polish.
 
 The Novelty score is your own domain judgment, not a search of the published literature. In any written feedback, never assert that a hypothesis is unprecedented, the first of its kind, or that no prior work exists — you have not checked. Use hedged phrasing such as "not familiar to me" or "appears unexplored based on my knowledge of the field" instead.
 
+## Novelty Review
+
+Beyond the Novelty score, enumerate `novelty_review` as two separate lists, drawing only on what you already know of the field (not a literature search):
+- `already_explored`: aspects of the hypothesis that overlap with existing work you are aware of.
+- `novel_aspects`: aspects you have not seen explored before.
+Leave a list empty rather than padding it with a weak entry.
+
 ## Output Format
 
 Provide your review in JSON format.

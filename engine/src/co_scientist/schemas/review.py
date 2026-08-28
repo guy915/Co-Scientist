@@ -79,6 +79,41 @@ _DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = obj(
     }
 )
 
+# Bounds each novelty-review list (MO-3, model output). Google's published
+# exemplar (docs/CORPUS-EXTRACTION.md, reviews/als-reflection-reviews.md --
+# 106 lines, sha256 2f486c549886, Figure A.11) prints six already-explored
+# entries and five novel-aspects entries for one hypothesis.
+NOVELTY_REVIEW_MAX_ITEMS = 6
+
+# The novelty review: two named lists distinguishing what the hypothesis
+# overlaps with existing work from what it does not (MO-3). The published
+# novelty review (see above) is exactly these two lists -- "Aspects already
+# explored:" and "Novel Aspects:" -- and no field distinguished them before
+# this; the "novelty" score/detailed_feedback pair above stays untouched,
+# since it is a different judgment (a 1-10 rating, not an enumeration).
+# Shared between REVIEW_SCHEMA and REVIEW_BATCH_SCHEMA by identity, the same
+# pattern as _SCORES_SCHEMA/_DETAILED_FEEDBACK_SCHEMA above.
+_NOVELTY_REVIEW_SCHEMA: dict[str, Any] = obj(
+    {
+        "already_explored": {
+            **str_array(
+                "Aspects of the hypothesis already covered by existing"
+                " work known to you, each entry one sentence naming what"
+                " is already explored. Leave empty if nothing overlaps."
+            ),
+            "maxItems": NOVELTY_REVIEW_MAX_ITEMS,
+        },
+        "novel_aspects": {
+            **str_array(
+                "Aspects of the hypothesis you have not seen explored"
+                " before, each entry one sentence naming what is novel."
+                " Leave empty if nothing is novel."
+            ),
+            "maxItems": NOVELTY_REVIEW_MAX_ITEMS,
+        },
+    }
+)
+
 # Review schema
 # Shapes the "review" prompt output, consumed by the single-hypothesis
 # review path in agents/reflection/review.py. The scored criteria cover
@@ -118,6 +153,7 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "description": "Any ethical or safety concerns",
             },
+            "novelty_review": _NOVELTY_REVIEW_SCHEMA,
             "overall_score": {
                 "type": "number",
                 "description": "Calculated as average of criterion scores",
@@ -174,6 +210,7 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                             "type": "string",
                             "description": "Any ethical or safety concerns",
                         },
+                        "novelty_review": _NOVELTY_REVIEW_SCHEMA,
                         "comparative_notes": {
                             "type": "string",
                             "description": (

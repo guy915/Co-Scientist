@@ -39,6 +39,59 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     assert deep[0]["overall"] is None
 
 
+def _final_state_with_novelty_review() -> dict[str, Any]:
+    """A final state whose hypothesis carries the published novelty review."""
+    return {
+        "hypotheses": [
+            _engine_hypothesis(
+                "eng-hyp-n",
+                "Blocking CXCR1 suppresses breast cancer stem cells.",
+                reviews=[
+                    {
+                        "review_summary": "Sound, moderately novel.",
+                        "scores": {"novelty": 6},
+                        "safety_ethical_concerns": "",
+                        "detailed_feedback": {},
+                        "constructive_feedback": "Tighten the controls.",
+                        "overall_score": 6.0,
+                        "already_explored": [
+                            "CXCR1 is a known breast-CSC marker."
+                        ],
+                        "novel_aspects": [
+                            "The proposed feedback loop is new."
+                        ],
+                    }
+                ],
+            )
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+
+
+def test_persist_writes_novelty_review_lists_into_critique(
+    isolated_db: str,
+) -> None:
+    """The published Aspects-already-explored/Novel-Aspects lists reach the reader (MO-3)."""
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_novelty_review(),
+        db_path=isolated_db,
+    )
+
+    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    review = next(r for r in reviews if r["reviewer_agent"] == "review")
+    assert "Aspects already explored:" in review["critique"]
+    assert "CXCR1 is a known breast-CSC marker." in review["critique"]
+    assert "Novel Aspects:" in review["critique"]
+    assert "The proposed feedback loop is new." in review["critique"]
+    # The plain constructive-feedback content is preserved too.
+    assert "Tighten the controls." in review["critique"]
+
+
 def _final_state_with_mature_reviews() -> dict[str, Any]:
     """A final state whose hypothesis carries all three mature reviews."""
     return {

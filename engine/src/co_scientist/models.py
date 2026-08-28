@@ -4,12 +4,12 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 
 The execution-metrics models and node state-update helpers live in
-``models_metrics``, hypothesis-id minting in ``models_ids``, and the
-literature-article record in ``models_article``; all three are re-exported
-here so import sites are unaffected by the split.
+``models_metrics``, hypothesis-id minting in ``models_ids``, the
+literature-article record in ``models_article``, and the review record plus
+the Hypothesis serialization helpers in ``models_review``; all four are
+re-exported here so import sites are unaffected by the split.
 """
 
-import dataclasses
 import enum
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,6 +28,17 @@ from co_scientist.models_metrics import (
 )
 from co_scientist.models_metrics import merge_metrics as merge_metrics
 from co_scientist.models_metrics import phase_message as phase_message
+from co_scientist.models_review import (
+    BLOCKING_REVIEW_DISPOSITIONS as BLOCKING_REVIEW_DISPOSITIONS,
+)
+from co_scientist.models_review import UNDERMINED_VERDICT as UNDERMINED_VERDICT
+from co_scientist.models_review import HypothesisReview as HypothesisReview
+from co_scientist.models_review import _assessment_fields as _assessment_fields
+from co_scientist.models_review import _claim_fields as _claim_fields
+from co_scientist.models_review import _rebuild_reviews as _rebuild_reviews
+from co_scientist.models_review import (
+    _reviews_to_dicts as _reviews_to_dicts,
+)
 
 
 class GenerationMethod(str, enum.Enum):
@@ -53,18 +64,6 @@ class HypothesisOrigin(str, enum.Enum):
     SCIENTIST_MANUAL = "scientist_manual"
 
 
-@dataclass
-class HypothesisReview:
-    """Review of a hypothesis with scores and feedback."""
-
-    review_summary: str
-    scores: dict[str, int]  # scientific_soundness, novelty, relevance, etc.
-    safety_ethical_concerns: str
-    detailed_feedback: dict[str, str]
-    constructive_feedback: str
-    overall_score: float
-
-
 def _strip_computed_fields(data: dict[str, Any]) -> dict[str, Any]:
     """Drop the derived-only total_matches/win_rate keys from a payload.
 
@@ -79,117 +78,11 @@ def _strip_computed_fields(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _rebuild_reviews(
-    reviews_data: list[dict[str, Any]],
-) -> list[HypothesisReview]:
-    """Rebuild serialized review dicts into HypothesisReview instances."""
-    return [HypothesisReview(**review) for review in reviews_data]
-
-
 def _generation_method_value(
     method: "GenerationMethod | None",
 ) -> str | None:
     """Return the enum's string value, or None."""
     return method.value if method else None
-
-
-def _reviews_to_dicts(
-    reviews: list[HypothesisReview],
-) -> list[dict[str, Any]]:
-    """Serialize HypothesisReview instances into plain dicts.
-
-    ``asdict`` rather than a hand-written field list: the inverse
-    ``_rebuild_reviews`` splats straight back into the dataclass, so a field
-    added to ``HypothesisReview`` and not to the list here would round-trip
-    as a silently missing key.
-    """
-    return [dataclasses.asdict(r) for r in reviews]
-
-
-def _claim_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
-    """Serialize what the hypothesis asserts, as generation wrote it.
-
-    Args:
-        hypothesis: The hypothesis being serialized.
-
-    Returns:
-        The claim, its supporting prose, and the citations it rests on.
-    """
-    return {
-        # Also referred to as "hypothesis" in other contexts.
-        "text": hypothesis.text,
-        "category": hypothesis.category,
-        "explanation": hypothesis.explanation,
-        "literature_grounding": hypothesis.literature_grounding,
-        "experiment": hypothesis.experiment,
-        # "literature_review_used": hypothesis.literature_review_used,
-        "novelty_validation": hypothesis.novelty_validation,
-        "enrichments": hypothesis.enrichments,
-        "citation_map": hypothesis.citation_map,
-    }
-
-
-def _assessment_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
-    """Serialize what the run's review agents concluded about a hypothesis.
-
-    Args:
-        hypothesis: The hypothesis being serialized.
-
-    Returns:
-        The reviews, proximity/evolution traces, deep-verification result,
-        and the review and safety dispositions gating publication.
-    """
-    return {
-        "reviews": _reviews_to_dicts(hypothesis.reviews),
-        "similarity_cluster_id": hypothesis.similarity_cluster_id,
-        "evolution_history": hypothesis.evolution_history,
-        "reflection_notes": hypothesis.reflection_notes,
-        "deep_verification_probes": hypothesis.deep_verification_probes,
-        "deep_verification_verdict": hypothesis.deep_verification_verdict,
-        "deep_verification_fingerprint": (
-            hypothesis.deep_verification_fingerprint
-        ),
-        "review_disposition": hypothesis.review_disposition,
-        "safety_status": hypothesis.safety_status,
-    }
-
-
-# Review dispositions that keep a hypothesis out of the Elo tournament: the
-# initial peer-review gate (inaccurate / non-novel / unsafe) and the
-# pre-ranking evidence gate (evidence_blocked). Shared by ranking and the
-# scheduler so tournament-coverage accounting matches tournament eligibility.
-#
-# "unsafe" is the reviewer's own safety axis reaching the not-viable band
-# (finding J8). It is kept apart from the two quality dispositions because
-# the reader is owed the actual reason: an idea withheld for a safety
-# concern is not an inaccurate one.
-#
-# Note what is deliberately absent: "needs_revision" and "duplicate". A
-# weak-but-not-fatal idea still competes and publishes -- the tournament,
-# not a single early review, decides its standing (see
-# agents/reflection/review.py::_apply_initial_review_gate). A duplicate is
-# archived by proximity rather than judged, so it is excluded through its
-# own path and reported as a duplicate, not as a failed idea.
-#
-# Also deliberately absent, and for a third reason: the deep-verification
-# verdict "undermined". It is not a disposition at all, and it no longer
-# withholds an idea -- see Hypothesis.is_rankable / is_undermined.
-BLOCKING_REVIEW_DISPOSITIONS = frozenset(
-    {
-        "inaccurate",
-        "non_novel",
-        "inaccurate_and_non_novel",
-        "unsafe",
-        "evidence_blocked",
-    }
-)
-
-# The deep-verification verdict for a hypothesis whose fundamental
-# assumption failed a probe. Demoting, not blocking: the idea ranks last
-# among the sound ones and publishes carrying the verdict. Defined here
-# rather than in the verification node because the ordering, the persisted
-# state, and the node all have to agree on the exact string.
-UNDERMINED_VERDICT = "undermined"
 
 
 @dataclass

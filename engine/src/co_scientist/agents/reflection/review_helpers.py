@@ -106,6 +106,24 @@ def _sanitize_review_scores(scores: Any) -> dict[str, int]:
     return sanitized
 
 
+def _sanitize_novelty_list(value: Any) -> list[str]:
+    """Keeps only non-empty string entries from a novelty-review list.
+
+    Production routes structured output through providers whose json_object
+    mode does not enforce a schema, so a malformed or missing list must
+    degrade to empty rather than raise.
+
+    Args:
+        value: The raw ``already_explored``/``novel_aspects`` value.
+
+    Returns:
+        Non-empty, whitespace-stripped string entries, in order.
+    """
+    if not isinstance(value, list):
+        return []
+    return [text for item in value if (text := str(item).strip())]
+
+
 def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
     """Builds a HypothesisReview from an LLM review payload.
 
@@ -120,6 +138,9 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
         HypothesisReview object
     """
     scores = _sanitize_review_scores(data.get("scores"))
+    novelty_review = data.get("novelty_review")
+    if not isinstance(novelty_review, dict):
+        novelty_review = {}
     if scores:
         # Deriving overall_score as the mean of the per-criterion scores
         # (rather than trusting an LLM-supplied overall_score) keeps the
@@ -139,6 +160,12 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
         detailed_feedback=data.get("detailed_feedback", {}),
         constructive_feedback=data.get("constructive_feedback", ""),
         overall_score=overall_score,
+        already_explored=_sanitize_novelty_list(
+            novelty_review.get("already_explored")
+        ),
+        novel_aspects=_sanitize_novelty_list(
+            novelty_review.get("novel_aspects")
+        ),
     )
 
 
