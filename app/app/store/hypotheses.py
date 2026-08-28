@@ -36,7 +36,10 @@ class NewHypothesis:
     the full multi-parent lineage for combination children (JSON-encoded on
     write); it stays None when ``parent_id`` alone is the whole lineage.
     ``introduction``/``recent_findings`` are the published proposal's
-    scene-setting sections (MO-6).
+    scene-setting sections (MO-6). ``safety_and_toxicity`` is the
+    proposer's own pharmacological safety assessment (MO-10), distinct
+    from the reviewer's ethics/dual-use judgement and never consulted by
+    the safety gate.
     """
 
     run_id: str
@@ -52,6 +55,7 @@ class NewHypothesis:
     experimental_context: str = ""
     introduction: str = ""
     recent_findings: str = ""
+    safety_and_toxicity: str = ""
     created_by_agent: str = "generation"
     author: str = ""
 
@@ -80,8 +84,8 @@ _HYPOTHESIS_UPSERT = (
     "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
     "generation, category, title, statement, mechanism, expected_effect, "
     "experimental_context, introduction, recent_findings, "
-    "created_by_agent, author, created_at) "
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+    "safety_and_toxicity, created_by_agent, author, created_at) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
     "ON CONFLICT(id) DO UPDATE SET "
     "category=COALESCE(hypotheses.category, excluded.category), "
     "mechanism=COALESCE(NULLIF(hypotheses.mechanism, ''), "
@@ -94,7 +98,10 @@ _HYPOTHESIS_UPSERT = (
     "introduction=COALESCE(NULLIF(hypotheses.introduction, ''), "
     "excluded.introduction), "
     "recent_findings=COALESCE(NULLIF(hypotheses.recent_findings, ''), "
-    "excluded.recent_findings)"
+    "excluded.recent_findings), "
+    "safety_and_toxicity=COALESCE("
+    "NULLIF(hypotheses.safety_and_toxicity, ''), "
+    "excluded.safety_and_toxicity)"
 )
 
 # The mutable-state row is created once and thereafter only updated, so a
@@ -131,6 +138,7 @@ def _insert_hypothesis_rows(
             f.experimental_context,
             f.introduction,
             f.recent_findings,
+            f.safety_and_toxicity,
             f.created_by_agent,
             f.author,
             now,

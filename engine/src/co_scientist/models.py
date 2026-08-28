@@ -106,6 +106,11 @@ class Hypothesis:
         recent_findings: Recent literature findings and related research
             this hypothesis builds on (MO-6; the published 'Recent findings
             and related research').
+        safety_and_toxicity: The proposer's own pharmacological safety
+            assessment of what the hypothesis proposes (MO-10; the
+            published 'Safety and toxicity'). Distinct from the reviewer's
+            ``safety_ethical_concerns`` (dual-use/ethics) and never
+            consulted by the safety gate (see agents/safety/).
         explanation: Step-by-step layman explanation of the hypothesis
         literature_grounding: Explicit grounding in literature review with
             [P1]/[KG1]-style citation keys
@@ -156,6 +161,7 @@ class Hypothesis:
     category: str | None = None
     introduction: str | None = None
     recent_findings: str | None = None
+    safety_and_toxicity: str | None = None
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None

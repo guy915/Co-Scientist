@@ -314,6 +314,12 @@ def _render_hypothesis_entry(
     ):
         if value:
             lines += [f"{label} {value}", ""]
+    # MO-10: the proposer's own pharmacological safety assessment -- not
+    # the reviewer's safety_ethical_concerns (dual-use/ethics), which
+    # renders in the reviews surface instead.
+    safety_and_toxicity = hyp.get("safety_and_toxicity")
+    if safety_and_toxicity:
+        lines += ["#### Safety and toxicity", "", str(safety_and_toxicity), ""]
     lines += _render_claim_evidence(edges)
     return lines
 

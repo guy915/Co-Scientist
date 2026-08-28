@@ -3,8 +3,8 @@
 ``_build_evolution_child`` carries several fields straight from the primary
 parent because the evolution LLM is never asked to rewrite them --
 literature_grounding is the original example; the scene-setting fields
-(MO-6) get the same treatment. Split out to keep ``test_evolve.py`` within
-the module-size cap.
+(MO-6) and the proposer's own safety assessment (MO-10) get the same
+treatment. Split out to keep ``test_evolve.py`` within the module-size cap.
 """
 
 import pytest
@@ -38,3 +38,27 @@ async def test_evolution_child_inherits_scene_setting(
     child = _children(result)[0]
     assert child.introduction == original.introduction
     assert child.recent_findings == original.recent_findings
+
+
+async def test_evolution_child_inherits_safety_and_toxicity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child inherits the parent's Safety and toxicity field (MO-10).
+
+    The evolution LLM is not asked to rewrite the proposer's own safety
+    assessment, so the child carries the primary parent's value unchanged --
+    the same treatment as literature_grounding and the scene-setting fields.
+    """
+    original = make_hypothesis(
+        text="quercetin inhibits aldolase activity",
+        safety_and_toxicity=(
+            "Limited human safety data exists for this compound class."
+        ),
+    )
+    state = make_state(hypotheses=[original], evolution_max_count=1)
+    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
+
+    result = await evolve_node(state)
+
+    child = _children(result)[0]
+    assert child.safety_and_toxicity == original.safety_and_toxicity

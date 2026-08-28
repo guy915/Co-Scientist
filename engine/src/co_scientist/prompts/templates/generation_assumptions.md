@@ -39,4 +39,8 @@ For each hypothesis's `category`: give a short (2-4 word) label naming the mecha
 
 Before the mechanism, give each hypothesis two short scene-setting fields: `introduction` (2-4 sentences on the problem area and why it matters) and `recent_findings` (2-4 sentences on the recent literature findings and related research this hypothesis builds on). Every hypothesis must carry both.
 
+## Safety and Toxicity
+
+For each hypothesis's `safety_and_toxicity`: 2-4 sentences giving your own assessment, as the proposer, of the safety profile of what you are proposing -- for a pharmacological intervention, known or expected toxicity and what preclinical safety work would be needed; for other domains, the analogous operational or experimental risks. This is your own judgment, not a review.
+
 Generate {{num_hypotheses}} hypotheses. Favor hypotheses that overturn or refine a load-bearing assumption over incremental variations.

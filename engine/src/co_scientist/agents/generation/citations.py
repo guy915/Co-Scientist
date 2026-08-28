@@ -270,6 +270,7 @@ def hypothesis_from_llm_output(
         category=hyp_data.get("category"),
         introduction=hyp_data.get("introduction"),
         recent_findings=hyp_data.get("recent_findings"),
+        safety_and_toxicity=hyp_data.get("safety_and_toxicity"),
         explanation=hyp_data.get("explanation"),
         literature_grounding=literature_grounding,
         experiment=hyp_data.get("experiment"),

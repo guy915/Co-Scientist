@@ -56,7 +56,7 @@ For each draft hypothesis, decide whether to **approve**, **refine**, or **pivot
 
 ## Output format
 
-**CRITICAL: Each hypothesis MUST include ALL EIGHT components below:**
+**CRITICAL: Each hypothesis MUST include ALL NINE components below:**
 
 Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hypotheses, each with:
 
@@ -143,6 +143,9 @@ Validation: Success requires >90% detection rate, <5% false positive rate, >50% 
 
 ### 8. Recent findings and related research (required)
 `recent_findings` is 2-4 sentences summarizing the recent literature findings and related research this hypothesis builds on, extends, or departs from. Distinct from Literature Grounding above: this sets the scene, Literature Grounding argues the specific hypothesis.
+
+### 9. Safety and toxicity (required)
+`safety_and_toxicity` is 2-4 sentences giving your own assessment, as the proposer, of the safety profile of what you are proposing -- for a pharmacological intervention, known or expected toxicity and what preclinical safety work would be needed; for other domains, the analogous operational or experimental risks. This is your own judgment as the proposer, not a review, and is distinct from any reviewer's ethical or dual-use concerns.
 
 ## Guidelines
 

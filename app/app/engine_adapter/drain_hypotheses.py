@@ -409,6 +409,7 @@ def _persist_engine_hypothesis_row(
             experimental_context=h.get("experiment") or "",
             introduction=h.get("introduction") or "",
             recent_findings=h.get("recent_findings") or "",
+            safety_and_toxicity=h.get("safety_and_toxicity") or "",
             created_by_agent=identity.agent,
         ),
         conn=conn,

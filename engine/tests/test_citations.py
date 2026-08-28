@@ -339,3 +339,16 @@ def test_hypothesis_from_llm_output_defaults_missing_scene_setting() -> None:
     )
     assert hyp.introduction is None
     assert hyp.recent_findings is None
+
+
+def test_hypothesis_from_llm_output_carries_safety_and_toxicity() -> None:
+    """The proposer's own safety assessment (MO-10) reaches the Hypothesis."""
+    hyp = hypothesis_from_llm_output(
+        {
+            "hypothesis": "X inhibits Y.",
+            "safety_and_toxicity": "Limited human safety data exists for X.",
+        },
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.safety_and_toxicity == "Limited human safety data exists for X."

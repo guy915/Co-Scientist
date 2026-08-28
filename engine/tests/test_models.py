@@ -28,6 +28,7 @@ _HYPOTHESIS_DICT_KEYS = {
     "category",
     "introduction",
     "recent_findings",
+    "safety_and_toxicity",
     "explanation",
     "literature_grounding",
     "experiment",

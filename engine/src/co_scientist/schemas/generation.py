@@ -96,6 +96,27 @@ _RECENT_FINDINGS_FIELD: dict[str, Any] = {
     ),
 }
 
+# MO-10: the published proposal itself carries a pharmacological safety and
+# toxicity section (docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-
+# detailed-output-validated.md -- 220 lines, sha256 b5a22b590874). Distinct
+# from the reviewer's safety_ethical_concerns (dual-use/ethics judgment,
+# REVIEW_SCHEMA): this is the proposer's own pharmacological assessment of
+# what it is proposing, and must never feed the safety gate (see
+# agents/safety/) -- a proposer-authored field cannot be allowed to
+# influence whether its own hypothesis passes screening. Bounded the same
+# way as the scene-setting fields above.
+_SAFETY_TOXICITY_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "2-4 sentences on the safety profile of what this hypothesis"
+        " proposes: for a pharmacological intervention, known or"
+        " expected toxicity and what preclinical safety work would be"
+        " needed before advancing it; for other domains, the analogous"
+        " operational or experimental safety considerations. This is"
+        " your own assessment as the proposer, not a review."
+    ),
+}
+
 # Generation schema
 # Shapes the final-turn output of the debate-based generation node
 # (agents/generation/debate.py) for both the
@@ -133,6 +154,7 @@ GENERATION_SCHEMA: dict[str, Any] = {
                                 " must carry the same label."
                             ),
                         },
+                        "safety_and_toxicity": _SAFETY_TOXICITY_FIELD,
                     },
                 ),
             }
@@ -240,6 +262,7 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                                 }
                             }
                         ),
+                        "safety_and_toxicity": _SAFETY_TOXICITY_FIELD,
                     },
                 ),
             }

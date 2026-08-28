@@ -161,6 +161,26 @@ def test_generation_schemas_require_scene_setting() -> None:
             assert name in node["required"], f"{name} no longer required"
 
 
+def test_generation_schemas_require_safety_and_toxicity() -> None:
+    """safety_and_toxicity is required in both generation schemas (MO-10).
+
+    The published proposal itself carries a pharmacological safety and
+    toxicity section (docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-
+    detailed-output-validated.md -- 220 lines, sha256 b5a22b590874); no
+    proposer-side field carried this before, distinct from the reviewer's
+    safety_ethical_concerns (dual-use/ethics, REVIEW_SCHEMA).
+    """
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    for node in (generation_item, synthesis_item):
+        assert "safety_and_toxicity" in node["properties"]
+        assert "safety_and_toxicity" in node["required"]
+
+
 def test_assumption_support_vocabulary_is_unified() -> None:
     """Deep verification and full review score one judgement, one way.
 

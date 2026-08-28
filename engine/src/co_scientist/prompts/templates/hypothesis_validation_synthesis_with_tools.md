@@ -155,7 +155,8 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
       "category": "Short (2-4 word) mechanism-family label, e.g. 'Metabolic reprogramming'",
       "novelty_validation": {
         "decision": "approved|refined|pivoted"
-      }
+      },
+      "safety_and_toxicity": "2-4 sentences: the proposer's own safety assessment of what is being proposed"
     }
   ]
 }
@@ -170,5 +171,6 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 - `experiment`: Concrete, actionable experiment design to test the hypothesis
 - `category`: Short (2-4 word) classification label naming the mechanism family or research sub-area this hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Required for every hypothesis
 - `novelty_validation.decision`: Must be one of "approved", "refined", or "pivoted"
+- `safety_and_toxicity`: 2-4 sentences giving your own assessment, as the proposer, of the safety profile of what you are proposing (known/expected toxicity and preclinical safety needs for a pharmacological intervention, or the analogous risks in other domains). Your own judgment, not a review, and distinct from any reviewer's ethical or dual-use concerns
 
 Output {{hypotheses_count}} validated hypotheses now. Output raw JSON with "hypotheses" array containing objects with all required fields above.

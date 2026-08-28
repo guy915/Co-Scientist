@@ -250,6 +250,43 @@ def test_validation_synthesis_prompts_present_scene_setting() -> None:
         assert "recent_findings" in prompt
 
 
+# --- MO-10: required, prompt-present safety and toxicity ----------------------
+
+
+def test_generation_schemas_require_safety_and_toxicity() -> None:
+    """safety_and_toxicity is required in both generation schemas."""
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    for node in (generation_item, synthesis_item):
+        assert "safety_and_toxicity" in node["required"]
+
+
+def test_assumptions_prompt_presents_safety_and_toxicity_contract() -> None:
+    """The assumptions prompt names the safety_and_toxicity field."""
+    prompt = _render_assumptions_prompt({})
+    assert "## Safety and Toxicity" in prompt
+    assert "safety_and_toxicity" in prompt
+
+
+def test_validation_synthesis_prompts_present_safety_and_toxicity() -> None:
+    """Both synthesis prompts present the safety_and_toxicity field."""
+    analyses: list[dict[str, Any]] = []
+    plain = get_hypothesis_validation_synthesis_prompt(
+        research_goal="a goal", hypotheses_with_analyses=analyses
+    )
+    with_tools, _ = get_validation_synthesis_prompt_with_tools(
+        ValidationSynthesisRequest(
+            research_goal="a goal", hypotheses_with_analyses=analyses
+        )
+    )
+    for prompt in (plain, with_tools):
+        assert "safety_and_toxicity" in prompt
+
+
 # --- K5: lab constraints section ----------------------------------------------
 
 

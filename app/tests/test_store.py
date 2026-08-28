@@ -183,6 +183,23 @@ def test_hypothesis_row_carries_scene_setting(db: str) -> None:
     )
 
 
+def test_hypothesis_row_carries_safety_and_toxicity(db: str) -> None:
+    """The proposer's own safety assessment (MO-10) round-trips."""
+    run = store.create_run("safety test", "standard", "mock", {})
+    hid = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run.id,
+            title="t",
+            statement="s",
+            safety_and_toxicity="Limited human safety data exists.",
+            created_by_agent="generation",
+        )
+    )
+    h = store.get_hypothesis(hid)
+    assert h is not None
+    assert h["safety_and_toxicity"] == "Limited human safety data exists."
+
+
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     run = store.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(

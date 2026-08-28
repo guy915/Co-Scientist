@@ -304,6 +304,51 @@ def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> None
     assert "Feedback inhibition has been studied for decades." in markdown
 
 
+def test_markdown_renders_the_proposers_safety_and_toxicity_section() -> None:
+    """Safety and toxicity (MO-10) is the proposer's own field, not review's.
+
+    Distinct from a reviewer's safety_ethical_concerns, which lives on the
+    review row rather than the hypothesis and is rendered elsewhere.
+    """
+    hypothesis = {
+        "id": "h1",
+        "title": "Feedback control is rate-limiting.",
+        "statement": "Blocking the loop raises the steady-state flux.",
+        "mechanism": "The enzyme is allosterically inhibited by its product.",
+        "safety_and_toxicity": "Limited human safety data exists for this class.",
+    }
+
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[hypothesis],
+        )
+    )
+
+    assert "#### Safety and toxicity" in markdown
+    assert "Limited human safety data exists for this class." in markdown
+
+
+def test_markdown_omits_safety_and_toxicity_when_absent() -> None:
+    """No Safety and toxicity heading renders without the data."""
+    hypothesis = {
+        "id": "h1",
+        "title": "Feedback control is rate-limiting.",
+        "statement": "Blocking the loop raises the steady-state flux.",
+    }
+
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[hypothesis],
+        )
+    )
+
+    assert "#### Safety and toxicity" not in markdown
+
+
 def test_markdown_omits_scene_setting_sections_when_absent() -> None:
     """No Introduction/Recent findings heading renders without the data."""
     hypothesis = {

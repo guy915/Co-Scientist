@@ -281,6 +281,21 @@ def _migrate_hypothesis_scene_setting_columns(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "hypotheses", "recent_findings", "TEXT")
 
 
+def _migrate_hypothesis_safety_toxicity_column(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add the proposer's own safety-and-toxicity column (MO-10).
+
+    The published proposal carries a pharmacological safety and toxicity
+    section, distinct from the reviewer's ``safety_ethical_concerns``
+    (dual-use/ethics). A hypothesis row written before this carried
+    neither, and this column is never read by the safety gate.
+    """
+    _add_column_if_missing(
+        conn, "hypotheses", "safety_and_toxicity", "TEXT"
+    )
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -296,3 +311,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_task_attempts_history(conn)
     _migrate_drop_feedback_table(conn)
     _migrate_hypothesis_scene_setting_columns(conn)
+    _migrate_hypothesis_safety_toxicity_column(conn)
