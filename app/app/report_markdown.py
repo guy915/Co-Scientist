@@ -11,6 +11,13 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+# The knowledge-base section lives in its own module to keep this one
+# within the size cap; the name is re-exported so this module's namespace
+# keeps resolving.
+from app.report_markdown_knowledge_base import (
+    _render_knowledge_base_markdown as _render_knowledge_base_markdown,
+)
+
 # The meta-review insights section moved to its own module to keep this
 # one within the size cap; every moved name is re-exported so this
 # module's namespace keeps resolving.
@@ -370,6 +377,7 @@ class ReportMarkdownInputs:
     meta_review: dict[str, Any] | None = None
     citation_summary: dict[str, int] | None = None
     research_overview: dict[str, Any] | None = None
+    knowledge_base: list[dict[str, Any]] | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
@@ -400,6 +408,7 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     lines.extend(
         render_research_overview_markdown(inputs.research_overview or {})
     )
+    lines += _render_knowledge_base_markdown(inputs.knowledge_base or [])
     lines += _render_data_sources_section(
         inputs.skills_used or {}, inputs.retrieval_calls or []
     )

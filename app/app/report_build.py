@@ -132,9 +132,14 @@ def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
         The report payload and its rendered markdown.
     """
     data = _gather_report_data(run_id, req.db_path)
+    # Computed once and handed to both the payload and the markdown export
+    # -- resolving it twice risks the two surfaces disagreeing on which
+    # topics a run's Knowledge Base actually carries (see the root
+    # AGENTS.md Gotchas entry on counts computed more than once).
+    knowledge_base = _resolve_knowledge_base(data, req)
     return _BuiltReport(
-        payload=_assemble_report_payload(data, req),
-        markdown=_render_report_content_markdown(data, req),
+        payload=_assemble_report_payload(data, req, knowledge_base),
+        markdown=_render_report_content_markdown(data, req, knowledge_base),
         # Derived from the run's whole claim-evidence graph, not the
         # released subset the payload/markdown are scoped to -- the
         # knowledge base records everything the run found (see
@@ -144,7 +149,9 @@ def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
 
 
 def _render_report_content_markdown(
-    data: _ReportData, req: _ReportBuildArgs
+    data: _ReportData,
+    req: _ReportBuildArgs,
+    knowledge_base: list[dict[str, Any]],
 ) -> str:
     """Render the report markdown from already-gathered store data."""
     return render_report_markdown(
@@ -157,12 +164,30 @@ def _render_report_content_markdown(
             meta_review=req.meta_review,
             citation_summary=req.citation_summary,
             research_overview=req.research_overview,
+            knowledge_base=knowledge_base,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,
             retrieval_calls=data.retrieval_calls,
         )
     )
+
+
+def _resolve_knowledge_base(
+    data: _ReportData, req: _ReportBuildArgs
+) -> list[dict[str, Any]]:
+    """Resolve the run's Knowledge Base topics, once, for payload and markdown.
+
+    Prefers the engine's synthesized topics (cross-source, from the
+    research overview); falls back to per-hypothesis topics derived from
+    the released claim graph when no overview was synthesized. The same
+    resolved list backs both the JSON payload the UI reads and the
+    markdown export, by design -- see the call site's comment.
+    """
+    synthesized = _synthesized_knowledge_base_topics(
+        req.research_overview, data.evidence
+    )
+    return synthesized or _knowledge_base_topics(data.hyps, data.claim_edges)
 
 
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
@@ -199,13 +224,12 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
 
 
 def _assemble_report_payload(
-    data: _ReportData, req: _ReportBuildArgs
+    data: _ReportData,
+    req: _ReportBuildArgs,
+    knowledge_base: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the report payload dict from already-gathered store data."""
     hyps, all_hyps, claim_edges = data.hyps, data.all_hyps, data.claim_edges
-    synthesized_topics = _synthesized_knowledge_base_topics(
-        req.research_overview, data.evidence
-    )
     payload = build_report_payload(
         ReportPayloadInputs(
             research_goal=req.research_goal,
@@ -220,9 +244,7 @@ def _assemble_report_payload(
             citation_summary=req.citation_summary,
             meta_review=req.meta_review,
             research_overview=req.research_overview,
-            knowledge_base=(
-                synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
-            ),
+            knowledge_base=knowledge_base,
             agent_insights=_agent_insights(hyps, claim_edges, req.meta_review),
             idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
             claim_evidence=data.released_claim_edges,
