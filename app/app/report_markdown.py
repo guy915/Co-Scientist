@@ -15,6 +15,9 @@ from typing import Any
 # own module to keep this one within the size cap; the names are
 # re-exported so this module's namespace keeps resolving.
 from app.report_markdown_header import (
+    _render_provenance_line as _render_provenance_line,
+)
+from app.report_markdown_header import (
     _render_report_header as _render_report_header,
 )
 from app.report_markdown_header import (
@@ -391,6 +394,11 @@ class ReportMarkdownInputs:
     # The run's persisted requirements/attributes/criteria (and goal),
     # rendered as "Research Goal Details" -- see run_modes.setup_config.
     setup: dict[str, Any] | None = None
+    # Epoch seconds this report was built, rendered as the provenance and
+    # research-purposes-only caution line. None omits that line entirely
+    # rather than stating a date via the wall clock -- see
+    # report_markdown_header._render_provenance_line.
+    prepared_at: float | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
@@ -411,7 +419,11 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
         The rendered markdown document.
     """
     lines = _render_report_header(
-        inputs.research_goal, inputs.provider, inputs.summary, inputs.setup
+        inputs.research_goal,
+        inputs.provider,
+        inputs.summary,
+        inputs.setup,
+        inputs.prepared_at,
     )
     lines += _render_top_hypotheses_markdown(
         inputs.top_hypotheses, inputs.claim_evidence or []

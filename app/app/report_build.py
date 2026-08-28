@@ -64,6 +64,10 @@ class ReportRequest(NamedTuple):
         setup: The run's persisted requirements/attributes/criteria
             block (``run_modes.setup_config``), rendered as the report
             header's "Research Goal Details".
+        prepared_at: Epoch seconds this report was built, rendered as the
+            header's provenance and research-purposes-only caution line.
+            None omits that line rather than stating a date via the wall
+            clock.
         db_path: Optional override for the SQLite database path.
     """
 
@@ -79,6 +83,7 @@ class ReportRequest(NamedTuple):
     execution_time: float | None = None
     summary: str | None = None
     setup: dict[str, Any] | None = None
+    prepared_at: float | None = None
     db_path: str | None = None
 
 
@@ -170,6 +175,7 @@ def _render_report_content_markdown(
             research_overview=req.research_overview,
             knowledge_base=knowledge_base,
             setup=req.setup,
+            prepared_at=req.prepared_at,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,

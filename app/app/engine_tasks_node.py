@@ -472,6 +472,7 @@ async def execute_finalize(
             provider="engine",
             execution_time=execution_time,
             setup=setup if isinstance(setup, dict) else None,
+            prepared_at=time.time(),
             db_path=db_path,
             **drained.report_inputs,
         ),

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import time
 from typing import Any
 
 from app import store
@@ -363,6 +364,7 @@ def _save_scenario_report(
             summary=seed.scenario.summary,
             execution_time=seed.scenario.duration_seconds,
             setup=setup if isinstance(setup, dict) else None,
+            prepared_at=time.time(),
             db_path=seed.db_path,
         ),
     )
