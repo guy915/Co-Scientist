@@ -66,6 +66,31 @@ def skills_used(final_state: dict[str, Any]) -> dict[str, int]:
     return {str(name): int(count) for name, count in used.items()}
 
 
+def stratification_attributes(
+    final_state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return the Supervisor's synthesized 1-5 stratification attributes.
+
+    A read of guidance the Supervisor already synthesizes and
+    ``drain_supervisor_plan.py`` already persists into the
+    ``supervisor_plan`` table (``supervisor_guidance.config_synthesis.
+    attributes``, up to three ``{name, rubric}`` axes) and
+    ``prompts/review.py`` already injects into every reviewer prompt --
+    not a new computation, just handing an existing one to the report
+    (R12-17). Display only: the report never uses this to gate, filter,
+    rank, or disqualify a hypothesis. Degrades to an empty list, never an
+    error, on an old checkpoint predating this field or a malformed one.
+    """
+    guidance = final_state.get("supervisor_guidance")
+    config = (
+        guidance.get("config_synthesis") if isinstance(guidance, dict) else None
+    )
+    attributes = config.get("attributes") if isinstance(config, dict) else None
+    if not isinstance(attributes, list):
+        return []
+    return [attr for attr in attributes if isinstance(attr, dict)]
+
+
 def grounding_counts(
     grounding_result: Any, grounding_candidates: list[dict[str, Any]]
 ) -> dict[str, int]:

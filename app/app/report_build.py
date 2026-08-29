@@ -64,6 +64,11 @@ class ReportRequest(NamedTuple):
         setup: The run's persisted requirements/attributes/criteria
             block (``run_modes.setup_config``), rendered as the report
             header's "Research Goal Details".
+        attributes: The Supervisor's synthesized 1-5 stratification
+            attributes (``config_synthesis.attributes``), rendered as the
+            report's "Stratification Attributes" section -- a different,
+            LLM-synthesized field from ``setup["attributes"]`` above (see
+            ``report_markdown``'s vocabulary warning).
         prepared_at: Epoch seconds this report was built, rendered as the
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
@@ -83,6 +88,7 @@ class ReportRequest(NamedTuple):
     execution_time: float | None = None
     summary: str | None = None
     setup: dict[str, Any] | None = None
+    attributes: list[dict[str, Any]] | None = None
     prepared_at: float | None = None
     db_path: str | None = None
 
@@ -179,6 +185,7 @@ def _render_report_content_markdown(
             research_overview=req.research_overview,
             knowledge_base=knowledge_base,
             setup=req.setup,
+            attributes=req.attributes,
             prepared_at=req.prepared_at,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,
