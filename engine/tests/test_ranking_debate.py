@@ -359,6 +359,48 @@ async def test_judge_prompt_carries_scientist_criteria(
     assert "{{MISSING" not in prompts[0]
 
 
+async def test_judge_prompt_carries_scientist_preferences(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Published ranking-04/05 both surface {preferences} to the judge (MP-6).
+
+    Threaded the same way evolution maps the paper's {preferences} slot
+    (commits 563e9501/8ee02acc): our ``preferences: str`` field, formatted
+    by ``format_preferences``. This is additional to, not a replacement
+    for, the scientist-supplied ``criteria`` list above (finding A2/K4).
+    """
+    prompts: list[str] = []
+
+    async def fake(**kwargs: Any) -> dict[str, Any]:
+        prompts.append(str(kwargs["prompt"]))
+        return {"winner": "a", "confidence_level": "High"}
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+        preferences="prioritize wet-lab feasibility over novelty",
+    )
+
+    await judge_matchup(ctx, debate_turns=1)
+
+    assert "prioritize wet-lab feasibility over novelty" in prompts[0]
+
+    prompts.clear()
+    plain_ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+    await judge_matchup(plain_ctx, debate_turns=1)
+
+    assert "Focus on novelty, testability, and potential impact." in prompts[0]
+    assert "{{MISSING" not in prompts[0]
+
+
 async def test_followup_turns_carry_the_envelope_guidance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -10,6 +10,7 @@ from co_scientist.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
+from co_scientist.prompts.generation_formatting import format_preferences
 from co_scientist.prompts.loading import _build_prompt
 
 
@@ -136,11 +137,25 @@ def _format_ranking_evaluation_criteria(
     return "".join(sections)
 
 
+# Published ranking-04/ranking-05 both hand the judge a {preferences}
+# slot. This is the same published slot evolution resolved onto our
+# ``preferences: str`` field (MP-3); ranking reads the same field so the
+# two agents cannot diverge on what "preferences" means. It sits beside
+# the criteria section rather than replacing it: criteria are a list the
+# scientist supplied, preferences are their prose steer, and
+# format_preferences emits a default sentence when none was given -- so
+# unlike the criteria section this one always renders.
+def _format_ranking_preferences(preferences: str | None) -> str:
+    """Format the scientist's stated preferences for the ranking judge."""
+    return f"## Scientist Preferences\n{format_preferences(preferences)}\n"
+
+
 def _build_ranking_prompt_variables(
     research_goal: str,
     side_a: RankingSide,
     side_b: RankingSide,
     criteria: list[str] | None,
+    preferences: str | None,
 ) -> dict[str, Any]:
     """Build the template variables for the ranking comparison prompt.
 
@@ -150,6 +165,7 @@ def _build_ranking_prompt_variables(
         side_b: The "B" side of the match.
         criteria: The scientist's evaluation criteria, if any (see the
             ``_CRITERIA_PREAMBLE`` mapping comment).
+        preferences: The scientist's stated preferences, if any (MP-6).
 
     Returns:
         Dict of template variables for the ranking prompt.
@@ -168,6 +184,7 @@ def _build_ranking_prompt_variables(
         # Always produced (empty when absent) so the slot never renders as
         # a {{MISSING:...}} sentinel.
         "evaluation_criteria": _format_ranking_evaluation_criteria(criteria),
+        "preferences": _format_ranking_preferences(preferences),
     }
     variables.update(_build_ranking_deep_verification_variables(side_a, side_b))
     variables.update(_build_ranking_mature_review_variables(side_a, side_b))
@@ -200,12 +217,18 @@ def get_ranking_prompt(
 
     Returns:
         Tuple of (rendered prompt string, JSON schema dict or None).
+
+    Note:
+        The scientist's preferences ride ``context`` rather than a
+        parameter of their own: published ranking-04/05 surface a
+        ``{preferences}`` slot to the judge (MP-6), and it describes the
+        run rather than this match.
     """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "ranking",
         _build_ranking_prompt_variables(
-            research_goal, side_a, side_b, criteria
+            research_goal, side_a, side_b, criteria, ctx.preferences
         ),
         sections=PromptSections(
             supervisor_guidance=_format_supervisor_guidance_for_ranking(

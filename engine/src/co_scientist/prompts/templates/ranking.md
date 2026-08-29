@@ -24,6 +24,8 @@ These seven are the whole of `judgment_explanation`. Anything else worth saying 
 
 {{evaluation_criteria}}
 
+{{preferences}}
+
 ## Your Task
 
 Make a clear decision on which hypothesis wins the comparison based on these criteria.

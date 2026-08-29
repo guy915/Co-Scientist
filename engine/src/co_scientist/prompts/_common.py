@@ -25,6 +25,9 @@ class PromptRunContext:
             customizations; None falls back to the process default.
         run_setup_guidance: Durable run setup guidance text.
         run_focus_guidance: Durable run focus guidance text.
+        preferences: The scientist's stated preferences for the run. Lives
+            here rather than as a builder parameter for the reason above:
+            it describes the run, not the node's subject matter.
     """
 
     supervisor_guidance: dict[str, Any] | None = None
@@ -32,6 +35,7 @@ class PromptRunContext:
     tool_registry: Any | None = None
     run_setup_guidance: str | None = None
     run_focus_guidance: str | None = None
+    preferences: str | None = None
 
 
 @dataclass(frozen=True)

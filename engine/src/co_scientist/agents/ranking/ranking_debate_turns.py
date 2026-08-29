@@ -196,6 +196,7 @@ class _DebateContext(NamedTuple):
     run_id: str | None = None
     matchup_index: int | None = None
     criteria: list[str] | None = None
+    preferences: str | None = None
 
 
 def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
@@ -208,6 +209,7 @@ def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
         run_setup_guidance=ctx.run_setup_guidance,
         run_focus_guidance=ctx.run_focus_guidance,
         criteria=ctx.criteria,
+        preferences=ctx.preferences,
     )
 
 
