@@ -117,7 +117,7 @@ Updated step-by-step layman explanation reflecting any refinements made (4-6 sen
 Reflects any refinements made. Explain mechanisms clearly without oversimplifying.
 
 ### 3. \[Practical\] Experiment (required)
-Updated or refined experiment design that tests the refined hypothesis. Should specify models, datasets, metrics, and validation criteria.
+An updated pilot test plan for the refined hypothesis, as a structured `experiment` object -- not a free-text paragraph: 2-5 ordered `steps` (models, datasets, metrics), ending with the Go/No-Go initial experiment step itself, plus `go_criterion`/`no_go_criterion` giving the exact quantitative pass/fail threshold for that step.
 
 ### 4. Refinement Summary (required)
 Brief summary explaining what changes were made and why. Describe the key improvements to the hypothesis.

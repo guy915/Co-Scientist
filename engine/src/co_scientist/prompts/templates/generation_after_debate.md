@@ -23,7 +23,7 @@ Instructions:
 
 1. State a precise causal or mechanistic proposition with the entities, context, intervention or observation, and predicted outcome.
 2. Explain why the mechanism is plausible, what premise it extends, and what result would falsify it.
-3. Include a concrete experimental route with model system, controls, measurable readouts, limitations, and alternatives.
+3. Include a concrete experimental route with model system, controls, measurable readouts, limitations, and alternatives. Close it with an initial pilot experiment and the exact quantitative Go/No-Go threshold that would justify continuing versus abandoning the approach.
 4. Challenge existing assumptions or extend current knowledge based on domain expertise.
 5. Remain testable without presenting unsupported details as established facts.
 6. Explore a UNIQUE approach and preserve meaningful diversity throughout selection and refinement.

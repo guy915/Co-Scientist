@@ -160,15 +160,35 @@ def test_research_overview_prompt_asks_for_recent_findings() -> None:
     assert "already established" in prompt
 
 
-def test_generation_schema_fields_ask_for_depth() -> None:
-    """The shared explanation/experiment fields no longer cap brevity."""
+def test_generation_schema_explanation_field_asks_for_depth() -> None:
+    """The shared explanation field no longer caps brevity."""
     properties = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
         "items"
     ]["properties"]
     assert "(4-6 sentences)" not in properties["explanation"]["description"]
-    assert "(4-6 sentences)" not in properties["experiment"]["description"]
     assert "Depth over brevity" in properties["explanation"]["description"]
-    assert "Depth over brevity" in properties["experiment"]["description"]
+
+
+def test_generation_schema_experiment_field_is_a_numbered_pilot_plan() -> None:
+    """R14-20: experiment is a structured pilot plan, not one paragraph.
+
+    Superseded the field's old "Depth over brevity, a full paragraph"
+    single-string contract -- Google's published shape is 2-5 terse
+    numbered steps plus explicit Go/No-Go criteria, not one deep
+    paragraph, so the per-step description asks for brevity (1-2
+    sentences) on purpose.
+    """
+    experiment = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]["properties"]["experiment"]
+    assert experiment["type"] == "object"
+    assert set(experiment["required"]) == {
+        "steps",
+        "go_criterion",
+        "no_go_criterion",
+    }
+    assert "2-5" in experiment["properties"]["steps"]["description"]
+    assert "Go/No-Go" in experiment["properties"]["steps"]["description"]
 
 
 # --- K7: required, prompt-present category -----------------------------------

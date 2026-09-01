@@ -111,16 +111,19 @@ A clear explanation of the approach for technical audiences (e.g., DARPA program
 - 2-4 sentences with inline citation keys
 
 ### 4. Practical Experiment (required)
-A concrete, actionable experiment design to test the hypothesis, at full depth: model system, comparison groups and controls, quantitative measurements with expected effect sizes or thresholds, and the criteria distinguishing support from falsification. Structure with clear sections:
+A structured pilot test plan for the hypothesis, as an `experiment` object -- **not** a free-text paragraph: 2-5 ordered `steps` (typically scripting/automation setup, then ground-truth calibration, then an outgroup/control comparison, ending with the Go/No-Go initial experiment step itself), plus `go_criterion`/`no_go_criterion` giving the exact quantitative pass/fail threshold for that concluding step.
 
 **Format:**
-```
-Objective: [1 sentence describing what you're testing]
-Models: [Specific models/components needed]
-Datasets: [Datasets and evaluation benchmarks]
-Methodology: [Step-by-step experimental procedure]
-Metrics: [Specific measurements and success criteria]
-Validation: [What results would validate/invalidate the hypothesis]
+```json
+"experiment": {
+  "steps": [
+    "Step 1: what is done and what it establishes.",
+    "Step 2: ...",
+    "Step 3 (Go/No-Go initial experiment): the decisive pilot run."
+  ],
+  "go_criterion": "The exact result that would justify continuing to the next phase.",
+  "no_go_criterion": "The exact result that would justify abandoning or substantially revising the approach."
+}
 ```
 
 ## Guidelines
@@ -151,7 +154,15 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
       "hypothesis": "Final dense, falsifiable mechanistic proposition with explicit context and predicted outcome",
       "explanation": "Step-by-step layman explanation tracing each mechanistic step from intervention to outcome (a full paragraph)",
       "literature_grounding": "Grounding that cites ONLY the [C*] keys from the Citation Reference List when one is provided. 2-4 sentences with citation keys.",
-      "experiment": "Complete experiment design: model system, groups and controls, quantitative readouts with expected effect sizes or thresholds, and validation criteria (a full paragraph)",
+      "experiment": {
+        "steps": [
+          "Step 1: what is done and what it establishes.",
+          "Step 2: ...",
+          "Step 3 (Go/No-Go initial experiment): the decisive pilot run."
+        ],
+        "go_criterion": "The exact result that would justify continuing to the next phase.",
+        "no_go_criterion": "The exact result that would justify abandoning or substantially revising the approach."
+      },
       "category": "Short (2-4 word) mechanism-family label, e.g. 'Metabolic reprogramming'",
       "novelty_validation": {
         "decision": "approved|refined|pivoted"
@@ -168,7 +179,7 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 - `hypothesis`: Technical, falsifiable formulation approved, refined, or pivoted from the draft; do not force a fixed sentence template
 - `explanation`: Clear explanation for technical audiences in layman terms
 - `literature_grounding`: **CRITICAL - Cite ONLY the `[C*]` keys from the Citation Reference List (never author-year text). Include the draft's literature_sources keys plus any papers found via tools.**
-- `experiment`: Concrete, actionable experiment design to test the hypothesis
+- `experiment`: A 2-5 step pilot plan ending in the Go/No-Go initial experiment step, plus the exact `go_criterion`/`no_go_criterion` pass/fail thresholds for that step -- not a free-text paragraph
 - `category`: Short (2-4 word) classification label naming the mechanism family or research sub-area this hypothesis belongs to (e.g. "Metabolic reprogramming", "Epitope editing"). Hypotheses from the same mechanism family must carry the same label; reuse a label already introduced in this batch where it applies, and coin a precise new one otherwise. Required for every hypothesis
 - `novelty_validation.decision`: Must be one of "approved", "refined", or "pivoted"
 - `safety_and_toxicity`: 2-4 sentences giving your own assessment, as the proposer, of the safety profile of what you are proposing (known/expected toxicity and preclinical safety needs for a pharmacological intervention, or the analogous risks in other domains). Your own judgment, not a review, and distinct from any reviewer's ethical or dual-use concerns

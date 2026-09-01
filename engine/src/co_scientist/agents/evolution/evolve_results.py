@@ -9,6 +9,9 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionContext,
     _EvolutionOperation,
 )
+from co_scientist.agents.generation.experiment_plan import (
+    format_experiment_plan,
+)
 from co_scientist.constants import (
     DUPLICATE_SIMILARITY_THRESHOLD,
     INITIAL_ELO_RATING,
@@ -54,10 +57,18 @@ def _extract_evolution_fields(
     refined_text = response.get("hypothesis") or response.get(
         "refined_hypothesis_text", hypothesis.text
     )
+    # R14-20: the response's "experiment" is EVOLUTION_SCHEMA's structured
+    # pilot-plan object -- ordered steps plus separately bolded Go/No-Go
+    # criteria (or a degraded shape under the json_object downgrade);
+    # format_experiment_plan renders it back to the plain-string prose
+    # _RefinedFields.experiment expects, falling back to the
+    # pre-evolution experiment when the response has nothing usable.
     return _RefinedFields(
         refined_text=refined_text,
         explanation=response.get("explanation", hypothesis.explanation),
-        experiment=response.get("experiment", hypothesis.experiment),
+        experiment=format_experiment_plan(
+            response.get("experiment"), fallback=hypothesis.experiment
+        ),
         refinement_summary=response.get(
             "refinement_summary", "no refinement summary provided"
         ),

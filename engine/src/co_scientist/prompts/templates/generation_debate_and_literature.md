@@ -41,7 +41,7 @@ Consider current scientific literature and knowledge in the domain.
 
 1. State a precise causal or mechanistic proposition with the entities, context, intervention or observation, and predicted outcome.
 2. Ground the rationale in the provided literature and distinguish support, inference, and speculation.
-3. Specify a feasible test with model system, controls, readouts, falsification criteria, limitations, and alternatives.
+3. Specify a feasible test with model system, controls, readouts, falsification criteria, limitations, and alternatives. Close it with an initial pilot experiment and the exact quantitative Go/No-Go threshold that would justify continuing versus abandoning the approach.
 4. Challenge accepted assumptions or pursue an underexplored literature-backed gap.
 5. Use enough domain detail for expert review; do not force a fixed sentence template.
 6. Explore a UNIQUE approach and preserve meaningful diversity through debate and selection.

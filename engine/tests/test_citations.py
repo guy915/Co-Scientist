@@ -352,3 +352,34 @@ def test_hypothesis_from_llm_output_carries_safety_and_toxicity() -> None:
         generation_method=GenerationMethod.DEBATE,
     )
     assert hyp.safety_and_toxicity == "Limited human safety data exists for X."
+
+
+def test_hypothesis_from_llm_output_formats_structured_experiment() -> None:
+    """R14-20: the structured experiment plan renders as prose on Hypothesis."""
+    hyp = hypothesis_from_llm_output(
+        {
+            "hypothesis": "X inhibits Y.",
+            "experiment": {
+                "steps": ["Script the assay.", "Run the pilot."],
+                "go_criterion": "Effect size >= 0.5.",
+                "no_go_criterion": "Effect size < 0.2.",
+            },
+        },
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.experiment == (
+        "1. Script the assay.\n2. Run the pilot."
+        "\n**Go:** Effect size >= 0.5."
+        "\n**No-Go:** Effect size < 0.2."
+    )
+
+
+def test_hypothesis_from_llm_output_degrades_malformed_experiment() -> None:
+    """A json_object-downgrade response with a string experiment survives."""
+    hyp = hypothesis_from_llm_output(
+        {"hypothesis": "X inhibits Y.", "experiment": "old-style paragraph."},
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.experiment == "old-style paragraph."

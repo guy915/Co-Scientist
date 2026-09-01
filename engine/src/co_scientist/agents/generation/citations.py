@@ -16,6 +16,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.agents.generation.experiment_plan import (
+    format_experiment_plan,
+)
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import GenerationMethod, Hypothesis
 
@@ -247,6 +250,10 @@ def hypothesis_from_llm_output(
     Extracts the shared fields (text/category/introduction/recent_findings/
     explanation/literature_grounding/experiment), resolves citation keys
     against ``sources``, and applies the default score and initial Elo.
+    ``experiment`` is rendered through ``format_experiment_plan`` (R14-20),
+    which accepts the raw LLM value's structured or (degraded) string
+    shape and returns the plain-string prose ``Hypothesis.experiment``
+    expects.
     ``extra`` supplies generation-path-specific kwargs such as ``debate_id``
     or ``novelty_validation``.
 
@@ -273,7 +280,7 @@ def hypothesis_from_llm_output(
         safety_and_toxicity=hyp_data.get("safety_and_toxicity"),
         explanation=hyp_data.get("explanation"),
         literature_grounding=literature_grounding,
-        experiment=hyp_data.get("experiment"),
+        experiment=format_experiment_plan(hyp_data.get("experiment")),
         score=0.0,
         elo_rating=INITIAL_ELO_RATING,
         generation_method=generation_method,

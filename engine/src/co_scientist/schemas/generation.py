@@ -5,7 +5,7 @@ constrain LLM outputs during hypothesis drafting, debate-based
 generation, novelty analysis, and validation synthesis.
 """
 
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
@@ -39,7 +39,92 @@ _EXPLANATION_FIELD: dict[str, Any] = {
     ),
 }
 
-_EXPERIMENT_FIELD: dict[str, Any] = {
+# R14-20 (docs/CORPUS-EXTRACTION.md): Google's published test plan is a
+# numbered pilot -- 2-5 steps, typically scripting/automation, then
+# ground-truth calibration, then an outgroup/control comparison, then a
+# concluding Go/No-Go Initial Experiment step -- closing on separately
+# bolded **Go:**/**No-Go:** criteria that state the exact pass/fail
+# threshold. Structured here (steps + go_criterion/no_go_criterion)
+# rather than left as one free-text paragraph, so the threshold is its
+# own field instead of prose a reader has to hunt through.
+#
+# This is the hypothesis's OWN proposed pilot threshold -- an experiment
+# *design* detail -- not a review verdict. Never confuse it with
+# go_no_go_recommendation on REVIEW_SCHEMA's full/recurrent review
+# (R14-15, schemas/review.py), a reviewer's testing recommendation about
+# the idea as a whole; the two live at different call sites and are
+# never merged. Nothing in this codebase may read go_criterion/
+# no_go_criterion to filter, rank, score, or disqualify a hypothesis --
+# this repo has a recorded incident where a never-revisited review gate
+# alone blocked 20 of 22 ideas and shrank the pool evolution bred from
+# (root AGENTS.md Gotchas, "An early gate that never reverses decides
+# the whole run"). test_experiment_plan.py::
+# test_criteria_never_reach_a_structured_hypothesis_field pins the
+# guarantee: format_experiment_plan collapses both criteria into prose
+# before they ever reach Hypothesis, which has no go_criterion/
+# no_go_criterion field for anything to gate on.
+#
+# MAX_EXPERIMENT_STEPS/_EXPERIMENT_*_CHARS bound the formatter in
+# agents/generation/experiment_plan.py (imported from there, never the
+# reverse, so this package keeps its no-runtime-imports convention) --
+# named here, not there, so the cap this field's own description states
+# can never drift from the cap actually enforced on the response.
+MAX_EXPERIMENT_STEPS: Final = 5
+_EXPERIMENT_STEP_CHARS: Final = 300
+_EXPERIMENT_CRITERION_CHARS: Final = 300
+
+_EXPERIMENT_STEP_FIELD: dict[str, Any] = {
+    "type": "string",
+    "description": (
+        "One ordered step of the concrete pilot plan: what is done and"
+        " what it establishes. 1-2 sentences."
+    ),
+}
+
+_EXPERIMENT_FIELD: dict[str, Any] = obj(
+    {
+        "steps": {
+            "type": "array",
+            "items": _EXPERIMENT_STEP_FIELD,
+            "description": (
+                f"2-{MAX_EXPERIMENT_STEPS} ordered steps of the pilot"
+                " test plan -- typically scripting/automation setup,"
+                " then ground-truth calibration, then an"
+                " outgroup/control comparison, ending with the Go/No-Go"
+                " initial experiment step itself. State the pass/fail"
+                " threshold in go_criterion/no_go_criterion below, not"
+                " here."
+            ),
+        },
+        "go_criterion": {
+            "type": "string",
+            "description": (
+                "The exact quantitative pass threshold for the Go/No-Go"
+                " initial experiment step: the specific result that"
+                " would justify continuing to the next phase."
+            ),
+        },
+        "no_go_criterion": {
+            "type": "string",
+            "description": (
+                "The exact quantitative fail threshold for the Go/No-Go"
+                " initial experiment step: the specific result that"
+                " would justify abandoning or substantially revising"
+                " the approach."
+            ),
+        },
+    }
+)
+
+# Phase 1 draft sketch only: kept as free prose, unlike the structured
+# pilot plan above, because nothing downstream ever reads a draft's
+# `experiment` back out. prompts/generation_validation.py's
+# _format_novelty_hypothesis_section (the only place a draft dict is
+# read again) forwards just text/gap_reasoning/literature_sources into
+# the Phase 2 synthesis prompt that produces the hypothesis's real,
+# structured experiment field -- restructuring a field whose output is
+# discarded would spend output tokens on nothing.
+_EXPERIMENT_DRAFT_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
         "Complete experiment design: model system,"
@@ -179,7 +264,7 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
                     {
                         "hypothesis": _HYPOTHESIS_FIELD,
                         "explanation": _EXPLANATION_FIELD,
-                        "experiment": _EXPERIMENT_FIELD,
+                        "experiment": _EXPERIMENT_DRAFT_FIELD,
                         "gap_reasoning": {
                             "type": "string",
                             "description": (
