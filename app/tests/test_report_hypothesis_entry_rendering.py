@@ -66,7 +66,8 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
     lines = report_markdown._render_hypothesis_entry(1, hyp, edges, references)
 
     assert lines == [
-        "### 1. Feedback control is rate-limiting.  _Elo: 1487_",
+        "### 1. **Co-Scientist - Feedback control is rate-limiting.**"
+        "  _Elo: 1487_",
         _HYPOTHESIS_DISCLAIMER,
         "",
         "#### Introduction",
@@ -114,7 +115,37 @@ def test_hypothesis_entry_omits_every_optional_subsection_when_absent() -> None:
     lines = report_markdown._render_hypothesis_entry(2, hyp, [], [])
 
     assert lines == [
-        "### 2. Bare hypothesis.  _Elo: 1200_",
+        "### 2. **Co-Scientist - Bare hypothesis.**  _Elo: 1200_",
         _HYPOTHESIS_DISCLAIMER,
         "",
     ]
+
+
+def test_hypothesis_title_is_bold_and_product_prefixed() -> None:
+    """R14-12: the title carries Google's bold/prefixed structure, adapted.
+
+    Published shape is ``# **<Product> - <Title>**`` -- an H1. Ours keeps
+    the entry's existing ``###`` level (a subsection of one combined
+    report, not a standalone per-hypothesis document -- see the docstring
+    on ``_render_hypothesis_entry``) while mirroring bold + product-name
+    prefix + concise title.
+    """
+    hyp = {"id": "h3", "title": "Rate-limiting feedback."}
+
+    lines = report_markdown._render_hypothesis_entry(3, hyp, [], [])
+
+    assert lines[0] == (
+        "### 3. **Co-Scientist - Rate-limiting feedback.**  _Elo: _"
+    )
+
+
+def test_hypothesis_title_falls_back_to_untitled_when_absent() -> None:
+    """A hypothesis with neither ``title`` nor ``text`` still renders safely.
+
+    Covers the json_object downgrade: a required field can simply be
+    missing, and ``hypothesis_title`` degrades to "Untitled" rather than
+    raising.
+    """
+    lines = report_markdown._render_hypothesis_entry(1, {"id": "h4"}, [], [])
+
+    assert lines[0] == "### 1. **Co-Scientist - Untitled**  _Elo: _"

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.report_markdown_header import _SYSTEM_NAME
 from app.report_markdown_references import _render_references_markdown
 from app.text_utils import hypothesis_statement, hypothesis_title
 
@@ -131,10 +132,21 @@ def _render_hypothesis_entry(
     published disclaimer right under its title, unconditionally -- the
     only always-present line among this function's mostly-optional
     subsections.
+
+    R14-12: the title is bold and product-prefixed, mirroring Google's
+    ``# **<Product> - <Title>**`` shape with this system's own name in
+    place of Google's. The heading level stays ``###`` rather than
+    Google's H1 -- this entry is a subsection of one combined report
+    (``## Top hypotheses``), not a standalone per-hypothesis document, and
+    promoting it to H1 would break the document's own heading hierarchy
+    without making it any more like Google's actual per-file shape (see
+    R14-11, still open, on whether a per-hypothesis document ever exists
+    here at all).
     """
     title = hypothesis_title(hyp)
     lines = [
-        f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_",
+        f"### {i}. **{_SYSTEM_NAME} - {title}**"
+        f"  _Elo: {hyp.get('elo_rating', '')}_",
         _HYPOTHESIS_DISCLAIMER,
         "",
     ]
