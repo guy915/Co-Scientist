@@ -46,8 +46,8 @@ re-litigated.
 | 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 1 |
 | 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | 7 | 0 | 0 |
 | 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | 4 | 1 | 0 |
-| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + `agents/ranking/ranking_debate*.py` | pending | pending | pending |
-| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | pending | pending | pending |
+| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + `agents/ranking/ranking_debate*.py` | 7 | 2 | 1 |
+| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 6 | 0 | 3 |
 
 ---
 
@@ -227,3 +227,85 @@ instruction. Left for the owner if a concrete source for match-level
 "considerations" ever gets defined.
 
 ---
+
+## 7. `ranking-05-comparison-via-scientific-debate.md`
+
+**Templates:** `ranking.md` (shared base prompt for every turn) plus the
+multi-turn debate machinery in `agents/ranking/ranking_debate.py` /
+`ranking_debate_turns.py`, which is what actually implements the "scientific
+debate" half of A.5 that A.4 doesn't have.
+
+| # | Published instruction | Class | Evidence |
+|---|---|---|---|
+| 1 | "Panel of domain experts...structured discussion to evaluate two competing hypotheses" | present | the multi-turn matchup loop itself (`ranking_debate.py`) |
+| 2 | "Rigorously determine which hypothesis is superior based on a predefined set of attributes and criteria" | present | `ranking.md`'s seven comparison criteria, shared with A.4 |
+| 3 | "The experts possess no pre-existing biases toward either hypothesis" | present (adapted) | Not stated as an instruction to the model anywhere. Structurally enforced instead: every matchup is judged in both A/B presentation orders (`_render_ordered_prompt` with `swapped=True`) and a position-balanced fallback (`_balanced_invalid_fallback`) resolves malformed output — an empirical bias countermeasure rather than a claim of impartiality the model can't actually verify about itself. Judged stronger than the published instruction, not a loss |
+| 4 | `Goal / Criteria for hypothesis superiority ({preferences}) / Hypothesis 1,2 / Initial review of hypothesis 1,2` | present | `{{research_goal}}`, `{{preferences}}` (MP-6), `{{hypothesis_a}}`/`{{hypothesis_b}}`, `{{review_context}}` |
+| 5 | Debate procedure: "typically ranging from 3 to 5, with a maximum of 10" turns | present | `_RANKING_DEBATE_TYPICAL_MIN_TURNS=3` / `MAX_TURNS=5` / `_RANKING_DEBATE_MAX_TURNS=10`, `ranking_debate_turns.py:31-39`, echoed into every follow-up turn's prompt by `_append_debate_context` |
+| 6 | "Turn 1: begin with a concise summary of both hypotheses and their respective initial reviews" | **missing** | No instruction anywhere directs the opening turn to summarize before judging; the base `ranking.md` goes straight from presenting the hypotheses to "Make a clear decision" |
+| 7 | Subsequent turns: evaluate on correctness/validity, utility/practicality, sufficiency of detail, novelty/originality, desirability for implementation; identify weaknesses/limitations/flaws | present | the same seven criteria as A.4 (`ranking.md:15-21`) map onto these five dimensions (soundness↔correctness, feasibility/impact↔utility, clarity↔detail sufficiency, novelty↔novelty, feasibility↔desirability); `_append_debate_context`'s "otherwise challenge the weak arguments" carries the weakness-identification instruction into follow-up turns |
+| 8 | "Additional notes: `{notes}`" | **missing** | Same gap as ranking-04 item 5 — no `notes`/considerations channel exists. Not double-counted in the fix recommendation; see judgment under ranking-04 |
+| 9 | Termination: "provide a conclusive judgment...state the rationale...write 'better idea: ' followed by '1' or '2'" | present | `_VERDICT_LINE_RE`, `ranking.md:70`; `_append_debate_context`'s "confirm that verdict decisively" |
+
+**7 present / 2 missing / 1 adapted.** The "Turn 1 begins with a summary"
+gap is stylistic pacing, not a decision-changing instruction — the judge
+already writes a structured, both-sides comparison every turn via the seven
+named criteria fields, which functions as the summary the paper asks for.
+Not recommended for restoration: adding a scripted opening-turn instruction
+buys no behavior the schema doesn't already produce, and 25 of the 90+
+tournament matchups in a full run go through this multi-turn path, so any
+instruction added here is worth being sure of before adding it.
+
+## 8. `reflection-03-generate-observations.md`
+
+**Template:** `reflection_observations.md`.
+
+| # | Published instruction | Class | Evidence |
+|---|---|---|---|
+| 1 | "Determine if the hypothesis provides a novel causal explanation for the observations, or if they contradict it" | present | `reflection_observations.md:5` |
+| 2 | Step 1, Observation extraction: list relevant observations from the article | present | `reflection_observations.md:9` |
+| 3 | Step 2, Causal analysis (individual): state established cause, assess whether the hypothesis is a causal factor, prefix "would we see this observation if the hypothesis was true:", say "not a missing piece" where a better explanation exists | present (adapted, stricter) | `reflection_observations.md:10-14`. Reworded to require the hypothesis "specifically and uniquely explains this observation beyond established mechanisms" (vs. the published "could be a causal factor") and the prefix gains ", and not otherwise:". This tightening is the documented fix for gap/novelty sentences being entailed as fundamental claims (project history: "Evidence-gap claims collapse" — 6/8 ideas were dying `evidence_blocked` under the looser published wording); it is a deliberate strengthening, not a loss |
+| 4 | Step 3, Causal analysis (summary): novel explanation for a subset of observations, prefix "would we see some of the observations if the hypothesis was true:" | present (adapted) | `reflection_observations.md:15`, reworded to "taken as a whole, does the hypothesis explain observations that known mechanisms cannot:" — same summary-judgment function, tightened the same way as item 3 |
+| 5 | Step 4, Disproof analysis: prefix "does some observations disprove the hypothesis:" | present, verbatim prefix | `reflection_observations.md:16` |
+| 6 | Step 5/6, Conclusion: `"hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>"` | present, verbatim vocabulary | `reflection_observations.md:18` and the Response line, `:40` |
+| 7 | Scoring vocabulary: the five categories with their definitions | present | `reflection_observations.md:20-26`, all five categories preserved with the same names, definitions tightened consistently with items 3-4 |
+| 8 | "If observations are expected regardless of the hypothesis, and don't disprove it, it's neutral" | present | `reflection_observations.md:28` |
+
+**6 present / 0 missing / 3 adapted** (items 3, 4, and 7's tightening
+counted together as one adaptation theme; individually listed above). No
+gaps. The one structural addition — step 5, "Positive observations" (list
+confirmed strengths) — is new relative to the published prompt but adds a
+field rather than displacing one; not a loss.
+
+---
+
+## Overall summary
+
+| # | Published prompt | Template(s) | Present | Missing | Adapted |
+|---|---|---|---|---|---|
+| 1 | `evolution-06-feasibility-improvement.md` | `evolution.md` (`COHERENCE_FEASIBILITY`) | 4 | 1 | 0 |
+| 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution.md` (`INSPIRATION`) | 4 | 1 | 0 |
+| 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_debate_and_literature.md`, `generation_draft_with_tools.md` | 8 | 0 | 1 |
+| 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 1 |
+| 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | 7 | 0 | 0 |
+| 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | 4 | 1 | 0 |
+| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + debate machinery | 7 | 2 | 1 |
+| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 6 | 0 | 3 |
+| | **Total** | | **54** | **5** | **6** |
+
+**Bottom line: the eight published prompts preserved their content
+faithfully.** 54 of 65 identified substantive instructions are present
+(most reworded, several already fixed by `MP-1`–`MP-6`), 6 more are
+deliberately and defensibly adapted (three of them documented fixes for
+prior findings — evidence-gap over-triggering, position bias, the source's
+own "better idea"/"better hypothesis" inconsistency), and only 5 are
+genuine gaps, three of which cluster into a single finding (`MP-7`'s
+reasoning scaffold, shared by evolution-06 and evolution-07) and two more
+into a second (the ranking prompts' unfilled `{notes}`/"Considerations"
+slot, which the paper itself gives no content to lose). Both are recorded
+below with a judgment; neither was found to be silently load-bearing the
+way `R8-1`'s reversed-scores instruction was.
+
+---
+
+## Phase 2 — fixes
