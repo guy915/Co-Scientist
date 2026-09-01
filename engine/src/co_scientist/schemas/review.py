@@ -26,15 +26,30 @@ ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
 # The eight scored criteria: the paper's five default output criteria
 # (SSR §1) -- relevance, plausibility, novelty, testability, safety --
 # plus scientific_soundness, clarity, and potential_impact.
+#
+# R14-17 (docs/CORPUS-EXTRACTION.md, 15/19 files): Google's published
+# per-hypothesis appendix always orders its four review axes Correctness
+# -> Novelty -> Feasibility -> Impact potential. This system's eight
+# axes don't collapse 1:1 onto Google's four -- Correctness splits into
+# two axes here (scientific_soundness, plausibility) and Feasibility
+# maps to testability -- so the order below places each of Google's four
+# axes first, in that order (Correctness's two axes adjacent), followed
+# by the three axes Google's four-axis rubric doesn't name at all
+# (relevance, safety, clarity). This is a pure ordering change: it
+# changes property order in _SCORES_SCHEMA/_DETAILED_FEEDBACK_SCHEMA
+# below (and so what order the model is asked to fill them in) at zero
+# token cost, and every reader of ``scores``/``detailed_feedback`` in
+# this codebase is name-keyed (``dict.get(axis)``), never order-keyed,
+# so nothing downstream depends on the previous order.
 _SCORE_CRITERIA: tuple[str, ...] = (
-    "scientific_soundness",
-    "plausibility",
-    "novelty",
-    "relevance",
-    "testability",
-    "safety",
-    "clarity",
-    "potential_impact",
+    "scientific_soundness",  # Correctness (1 of 2)
+    "plausibility",  # Correctness (2 of 2)
+    "novelty",  # Novelty
+    "testability",  # Feasibility
+    "potential_impact",  # Impact potential
+    "relevance",  # not one of Google's four named axes
+    "safety",  # not one of Google's four named axes
+    "clarity",  # not one of Google's four named axes
 )
 
 # The review rubric's integer range, as both review prompts state it
@@ -61,15 +76,19 @@ _SCORES_SCHEMA: dict[str, Any] = obj(
     }
 )
 
+# R14-17: same Correctness/Novelty/Feasibility/Impact-first ordering as
+# _SCORE_CRITERIA above, over whichever of the eight axes carry prose
+# feedback (plausibility and safety do not -- a pre-existing asymmetry,
+# not one this ordering change is meant to fix).
 _FEEDBACK_DESCRIPTIONS: dict[str, str] = {
     "scientific_soundness": (
         "Specific feedback on theoretical foundation and logical consistency"
     ),
     "novelty": ("Specific feedback on originality and unique contribution"),
-    "relevance": "Specific feedback on alignment with research goal",
     "testability": "Specific feedback on feasibility of testing",
-    "clarity": ("Specific feedback on precision and clarity of formulation"),
     "potential_impact": "Specific feedback on potential significance",
+    "relevance": "Specific feedback on alignment with research goal",
+    "clarity": ("Specific feedback on precision and clarity of formulation"),
 }
 
 _DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = obj(

@@ -72,6 +72,30 @@ def test_review_scores_include_all_default_criteria() -> None:
             assert scores["properties"][criterion]["type"] == "integer"
 
 
+def test_review_score_axes_are_correctness_first() -> None:
+    """R14-17: axis order mirrors Google's published review appendix.
+
+    Google's per-hypothesis appendix always orders its four review axes
+    Correctness -> Novelty -> Feasibility -> Impact potential; this
+    system's extra axes (relevance, safety, clarity) trail. Property
+    order in a JSON Schema object node is dict insertion order, which is
+    what the model sees the properties listed in -- a pure ordering
+    change, not a shape change, so this test only checks order.
+    """
+    single_scores = REVIEW_SCHEMA["schema"]["properties"]["scores"]
+    ordered = list(single_scores["properties"])
+    assert ordered == [
+        "scientific_soundness",  # Correctness (1 of 2)
+        "plausibility",  # Correctness (2 of 2)
+        "novelty",  # Novelty
+        "testability",  # Feasibility
+        "potential_impact",  # Impact potential
+        "relevance",
+        "safety",
+        "clarity",
+    ]
+
+
 def test_research_overview_enforces_nih_specific_aims_format() -> None:
     """The overview must produce the NIH Specific Aims structure (SSR §4).
 
