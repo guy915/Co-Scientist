@@ -1,18 +1,19 @@
 """Pins one 'Top hypotheses' entry's full rendered markdown, line for line.
 
-``_render_hypothesis_entry`` composes six optional subsections (title/Elo,
-scene-setting, proposed hypothesis, mechanism, references, safety, claim
-evidence) into one entry. Every other report test asserts a substring or a
-heading's presence/absence; none pin the assembled entry exactly, so a
-refactor of the composition itself -- reordering, an extra blank line, a
-dropped separator -- could pass every existing test while still changing
-what a reader sees. This test exercises all six subsections on one
-hypothesis (including both the dict-with-url and bare-string evidence-span
-shapes ``_render_evidence_span`` renders differently) and pins the exact
-line-by-line output.
+``_render_hypothesis_entry`` composes a mandatory title+disclaimer (R14-13)
+and six optional subsections (scene-setting, proposed hypothesis, mechanism,
+references, safety, claim evidence) into one entry. Every other report test
+asserts a substring or a heading's presence/absence; none pin the assembled
+entry exactly, so a refactor of the composition itself -- reordering, an
+extra blank line, a dropped separator -- could pass every existing test
+while still changing what a reader sees. This test exercises all six
+optional subsections on one hypothesis (including both the dict-with-url
+and bare-string evidence-span shapes ``_render_evidence_span`` renders
+differently) and pins the exact line-by-line output.
 """
 
 from app import report_markdown
+from app.report_markdown_hypothesis import _HYPOTHESIS_DISCLAIMER
 
 
 def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
@@ -66,6 +67,8 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
 
     assert lines == [
         "### 1. Feedback control is rate-limiting.  _Elo: 1487_",
+        _HYPOTHESIS_DISCLAIMER,
+        "",
         "#### Introduction",
         "",
         "Metabolic disease is a major cause of morbidity.",
@@ -101,9 +104,17 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
 
 
 def test_hypothesis_entry_omits_every_optional_subsection_when_absent() -> None:
-    """No optional field renders only the title line -- no stray blanks."""
+    """No optional field renders only title + disclaimer -- no stray blanks.
+
+    The disclaimer is not itself optional (R14-13): it renders even when
+    every field-derived subsection is absent.
+    """
     hyp = {"id": "h2", "title": "Bare hypothesis.", "elo_rating": 1200}
 
     lines = report_markdown._render_hypothesis_entry(2, hyp, [], [])
 
-    assert lines == ["### 2. Bare hypothesis.  _Elo: 1200_"]
+    assert lines == [
+        "### 2. Bare hypothesis.  _Elo: 1200_",
+        _HYPOTHESIS_DISCLAIMER,
+        "",
+    ]
