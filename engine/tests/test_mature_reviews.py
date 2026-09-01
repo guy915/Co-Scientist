@@ -268,3 +268,52 @@ def test_fatal_verdicts_are_recognized_per_review_type(
     _store(hypothesis, review_type, result)
 
     assert not hypothesis.is_rankable()
+
+
+def test_go_no_go_recommendation_cannot_gate_the_disposition() -> None:
+    """R14-15: the Go/No-Go field is display text, never a decision.
+
+    A ``sound`` full review carrying a contradictory ``No-Go`` framing
+    still leaves the hypothesis viable -- ``apply_mature_review_disposition``
+    reads only ``verdict``, never ``go_no_go_recommendation``. This is the
+    same shape of mistake the never-revisited initial review gate made
+    (root AGENTS.md Gotchas): a field that reads like a decision must not
+    become one by accident.
+    """
+    hypothesis = make_hypothesis(text="idea", review_disposition="viable")
+
+    _store(
+        hypothesis,
+        ReviewType.FULL,
+        _full_review(
+            "sound",
+            go_no_go_recommendation="No-Go — do not pursue.",
+            time_to_verdict="Short",
+        ),
+    )
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.is_rankable()
+
+
+def test_summary_excludes_go_no_go_fields() -> None:
+    """The ranking judge, evolution, and meta-review all read this summary.
+
+    All three read ``mature_review_summary`` rather than the raw
+    enrichment, so proving the projection drops ``go_no_go_recommendation``
+    and ``time_to_verdict`` covers every downstream reader at the one seam
+    they share, without needing a separate test per reader.
+    """
+    summary = mature_review_summary(
+        {
+            "full": _full_review(
+                "needs_revision",
+                go_no_go_recommendation="Go — pursue wet-lab validation.",
+                time_to_verdict="2-4 weeks",
+            )
+        }
+    )
+
+    assert summary is not None
+    assert "go_no_go_recommendation" not in summary["full"]
+    assert "time_to_verdict" not in summary["full"]

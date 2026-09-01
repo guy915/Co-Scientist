@@ -15,5 +15,7 @@ Instructions:
 3. Quality and novelty: judge the rigor of the formulation and whether the hypothesis is a genuine, non-obvious contribution relative to established work.
 4. Literature grounding: in `literature_grounding`, note what known results support or undermine the hypothesis, or say that none are available. Do not invent citations.
 5. Verdict: give an overall verdict — `sound`, `needs_revision`, or `rejected` — and a concise justification.
+6. Go/No-Go: in `go_no_go_recommendation`, give a short free-text testing recommendation (e.g. "Go — pursue wet-lab validation", "No-Go — mechanism unsupported"). This is advisory framing for the reader, distinct from `verdict` above; leave it out if you have nothing to add beyond `verdict`.
+7. Time to verdict: in `time_to_verdict`, give a brief estimated timeframe to reach a decisive experimental result (e.g. "Short", "2-4 weeks", "2-3 months"). Leave it out if you cannot estimate one.
 
 {{tool_instructions}}

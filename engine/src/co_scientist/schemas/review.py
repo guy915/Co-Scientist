@@ -406,7 +406,37 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                 "enum": ["sound", "needs_revision", "rejected"],
             },
             "justification": {"type": "string"},
-        }
+            # R14-15: Google's published full review carries a bolded
+            # free-text testing recommendation ("Verdict: <recommendation>",
+            # wording varies -- not a closed enum) and an estimated
+            # timeframe to a decisive result. Distinct from `verdict`
+            # above, which is this review's own sound/needs_revision/
+            # rejected disposition and the one field
+            # `mature_reviews.apply_mature_review_disposition` reads to
+            # gate the tournament -- these two are display-only, read by
+            # nothing else in this codebase (report_markdown_hypothesis's
+            # renderer is their only consumer). Optional: Google's own
+            # published files carry this in only 8 of 19, so a review that
+            # omits it is not a malformed one.
+            "go_no_go_recommendation": {
+                "type": "string",
+                "description": (
+                    "A short free-text testing recommendation, e.g. 'Go —"
+                    " pursue wet-lab validation' or 'No-Go — mechanism"
+                    " unsupported'. Advisory framing for the reader; it"
+                    " does not replace verdict above."
+                ),
+            },
+            "time_to_verdict": {
+                "type": "string",
+                "description": (
+                    "A brief estimated timeframe to reach a decisive"
+                    " experimental result, e.g. 'Short', '2-4 weeks', or"
+                    " '2-3 months'."
+                ),
+            },
+        },
+        optional=("go_no_go_recommendation", "time_to_verdict"),
     ),
 }
 

@@ -199,3 +199,17 @@ def test_assumption_support_vocabulary_is_unified() -> None:
         "items"
     ]["properties"]["support"]["enum"]
     assert dv_enum == fr_enum == ["supported", "uncertain", "likely_false"]
+
+
+def test_go_no_go_fields_are_declared_but_optional() -> None:
+    """R14-15: Google's own files carry this framing in only 8 of 19.
+
+    Declared (a downgraded json_object caller can still populate them by
+    name) but not required -- treating them as mandatory would make this
+    schema stricter than the published system it is modeling.
+    """
+    node = FULL_REVIEW_SCHEMA["schema"]
+    assert "go_no_go_recommendation" in node["properties"]
+    assert "time_to_verdict" in node["properties"]
+    assert "go_no_go_recommendation" not in node["required"]
+    assert "time_to_verdict" not in node["required"]
