@@ -6,7 +6,10 @@ provider line, "Research Goal Details" -- goal, requirements, attributes,
 criteria, all collected by ``run_modes.setup_config`` into the run's
 persisted ``setup`` block but never rendered before (R12-8) -- then a
 provenance and caution line naming this system and when the report was
-prepared (R12-20), then the optional summary paragraph.
+prepared (R12-20), then the optional summary paragraph. The title/provider
+line renders through its own function, separate from the rest: R14-1's
+table of contents is inserted right after it and before everything else,
+so the always-present opening has to be callable on its own.
 """
 
 from __future__ import annotations
@@ -74,25 +77,23 @@ def _render_provenance_line(prepared_at: float | None) -> list[str]:
     ]
 
 
-def _render_report_header(
-    research_goal: str,
-    provider: str,
-    summary: str | None,
-    setup: dict[str, Any] | None = None,
-    prepared_at: float | None = None,
-) -> list[str]:
-    """Render the title, provider line, goal details, provenance, and summary.
+def _render_title_and_provider(research_goal: str, provider: str) -> list[str]:
+    """Render the report's H1 title and provider line. Always present.
 
-    Sections render only when their data is present.
+    Split from the rest of the header (R14-1) so the table of contents can
+    be inserted right after it: this is the only part of the document that
+    is never conditional, so it is always what a reader sees first.
     """
-    lines = [
+    return [
         f"# Research Report — {research_goal}",
         "",
         f"_Provider: **{provider}**_",
         "",
     ]
-    lines += _render_research_goal_details(research_goal, setup)
-    lines += _render_provenance_line(prepared_at)
-    if summary:
-        lines += ["## Summary", summary, ""]
-    return lines
+
+
+def _render_summary_section(summary: str | None) -> list[str]:
+    """Render the optional 'Summary' paragraph, or nothing when absent."""
+    if not summary:
+        return []
+    return ["## Summary", summary, ""]

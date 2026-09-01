@@ -72,7 +72,13 @@ def test_a_bare_theme_name_falls_back_to_a_plain_bullet() -> None:
 
 
 def test_an_entry_with_no_theme_name_is_skipped() -> None:
-    """A malformed entry with an empty theme does not render a bare '**:'."""
+    """A malformed entry with an empty theme does not render a bare '****:'.
+
+    ``**:`` alone is too loose a check -- R14-13's per-hypothesis disclaimer
+    ("**About**: ...") legitimately contains it. The bug this guards is an
+    empty name reaching ``f"**{name}**: {description}"`` and rendering the
+    doubled-asterisk ``****:`` that produces.
+    """
     markdown = _markdown(
         {
             "recurring_themes": [
@@ -82,4 +88,4 @@ def test_an_entry_with_no_theme_name_is_skipped() -> None:
     )
 
     assert "orphaned text" not in markdown
-    assert "**:" not in markdown
+    assert "****:" not in markdown

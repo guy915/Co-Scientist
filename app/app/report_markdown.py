@@ -18,10 +18,13 @@ from app.report_markdown_header import (
     _render_provenance_line as _render_provenance_line,
 )
 from app.report_markdown_header import (
-    _render_report_header as _render_report_header,
+    _render_research_goal_details as _render_research_goal_details,
 )
 from app.report_markdown_header import (
-    _render_research_goal_details as _render_research_goal_details,
+    _render_summary_section as _render_summary_section,
+)
+from app.report_markdown_header import (
+    _render_title_and_provider as _render_title_and_provider,
 )
 
 # The per-hypothesis 'Top hypotheses' entry renderer (and its exclusive
@@ -107,6 +110,9 @@ from app.report_markdown_overview import (
 from app.report_markdown_overview import (
     render_research_overview_markdown as render_research_overview_markdown,
 )
+from app.report_markdown_overview import (
+    research_overview_sections as research_overview_sections,
+)
 
 # The per-hypothesis References subsection (resolving [C*] citation keys)
 # lives in its own module to keep this one within the size cap; both names
@@ -140,6 +146,13 @@ from app.report_markdown_supervisor import (
 )
 from app.report_markdown_supervisor import (
     _render_stratification_attributes_markdown as _render_stratification_attributes_markdown,  # noqa: E501
+)
+
+# The table-of-contents renderer (R14-1) lives in its own module to keep
+# this one within the size cap; the name is re-exported so this module's
+# namespace keeps resolving.
+from app.report_markdown_toc import (
+    _render_table_of_contents as _render_table_of_contents,
 )
 
 
@@ -409,12 +422,53 @@ class ReportMarkdownInputs:
     evidence: list[dict[str, Any]] | None = None
 
 
+def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
+    """Every section below the title, each its own list, in document order.
+
+    One section per possible ``## `` heading -- split apart (rather than
+    one concatenated ``lines`` list) so :func:`render_report_markdown` can
+    hand the same sections to the R14-1 table of contents that it renders
+    with, instead of re-deriving which ones are populated.
+    """
+    return [
+        _render_research_goal_details(inputs.research_goal, inputs.setup),
+        _render_provenance_line(inputs.prepared_at),
+        _render_summary_section(inputs.summary),
+        _render_evaluation_criteria_markdown(inputs.critical_criteria),
+        _render_stratification_attributes_markdown(inputs.attributes),
+        _render_top_hypotheses_markdown(
+            inputs.top_hypotheses,
+            inputs.claim_evidence or [],
+            inputs.citations or [],
+            inputs.evidence or [],
+        ),
+        _render_meta_review_markdown(inputs.meta_review or {}),
+        _render_citation_audit(inputs.citation_summary),
+        # R14-1: each of the research-overview's own four sub-sections
+        # travels as its own entry rather than the one flattened list
+        # ``render_research_overview_markdown`` returns, so a report that
+        # only carries e.g. Research Contacts still gets the other three
+        # correctly omitted from the table of contents.
+        *research_overview_sections(inputs.research_overview or {}),
+        # R12-23: the published "Review summary" sits right after the
+        # research directions and before "Knowledge Base" -- the same
+        # slot here.
+        _render_review_summary_markdown(inputs.critical_criteria),
+        _render_knowledge_base_markdown(inputs.knowledge_base or []),
+        _render_data_sources_section(
+            inputs.skills_used or {}, inputs.retrieval_calls or []
+        ),
+    ]
+
+
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     """Render a run's report markdown from one skeleton for every provider.
 
     Sections populate only when their data is present, so a provider that
     omits meta-review, citations, or a research overview simply skips those
-    headings rather than emitting empty ones.
+    headings rather than emitting empty ones. Right after the always-present
+    title and provider line comes a table of contents (R14-1) naming
+    whichever sections this particular render actually produced.
 
     Args:
         inputs: The run identity, top hypotheses, and rendered sections.
@@ -422,31 +476,11 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     Returns:
         The rendered markdown document.
     """
-    lines = _render_report_header(
-        inputs.research_goal,
-        inputs.provider,
-        inputs.summary,
-        inputs.setup,
-        inputs.prepared_at,
+    title_lines = _render_title_and_provider(
+        inputs.research_goal, inputs.provider
     )
-    lines += _render_evaluation_criteria_markdown(inputs.critical_criteria)
-    lines += _render_stratification_attributes_markdown(inputs.attributes)
-    lines += _render_top_hypotheses_markdown(
-        inputs.top_hypotheses,
-        inputs.claim_evidence or [],
-        inputs.citations or [],
-        inputs.evidence or [],
-    )
-    lines += _render_meta_review_markdown(inputs.meta_review or {})
-    lines += _render_citation_audit(inputs.citation_summary)
-    lines.extend(
-        render_research_overview_markdown(inputs.research_overview or {})
-    )
-    # R12-23: the published "Review summary" sits right after the research
-    # directions and before "Knowledge Base" -- the same slot here.
-    lines += _render_review_summary_markdown(inputs.critical_criteria)
-    lines += _render_knowledge_base_markdown(inputs.knowledge_base or [])
-    lines += _render_data_sources_section(
-        inputs.skills_used or {}, inputs.retrieval_calls or []
-    )
+    sections = _report_sections(inputs)
+    lines = title_lines + _render_table_of_contents(sections)
+    for section in sections:
+        lines += section
     return "\n".join(lines)

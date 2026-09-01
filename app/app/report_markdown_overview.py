@@ -322,8 +322,14 @@ def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     ]
 
 
-def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
-    """Render the research overview + NIH Specific Aims as markdown lines.
+def research_overview_sections(overview: dict[str, Any]) -> list[list[str]]:
+    """Return the overview's four optional sub-sections, each its own list.
+
+    Split out of ``render_research_overview_markdown`` so the report's
+    table of contents (R14-1) can tell which of these actually rendered
+    without re-deriving the guard logic, and without scanning arbitrary
+    field prose for a false '## ' match -- each returned list either is
+    empty or leads with that sub-section's own heading.
 
     Args:
         overview: The engine ``research_overview`` payload, shaped as
@@ -331,8 +337,9 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
             or carry empty sub-dicts for runs without hypotheses.
 
     Returns:
-        A list of markdown lines. Empty when no renderable content exists, so
-        callers never emit bare section headers.
+        Four lists, in document order: Research Overview, Open questions,
+        NIH Specific Aims, Research Contacts. Any of them is empty when
+        that sub-section has nothing to render.
     """
     # The isinstance guard here (and inside each section renderer) is
     # defensive: this payload can originate from LLM-produced structured
@@ -340,13 +347,27 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     # guarding defensively against a malformed or missing sub-shape rather
     # than raising here.
     if not isinstance(overview, dict):
-        return []
-    lines = _render_overview_section(overview.get("overview") or {})
-    lines += _render_open_questions_section(overview)
-    lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
-    lines += _render_research_contacts_section(
-        overview.get("research_contacts") or []
-    )
+        return [[], [], [], []]
+    return [
+        _render_overview_section(overview.get("overview") or {}),
+        _render_open_questions_section(overview),
+        _render_nih_aims_section(overview.get("nih_specific_aims") or {}),
+        _render_research_contacts_section(
+            overview.get("research_contacts") or []
+        ),
+    ]
+
+
+def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
+    """Render the research overview + NIH Specific Aims as markdown lines.
+
+    Returns:
+        A list of markdown lines. Empty when no renderable content exists, so
+        callers never emit bare section headers.
+    """
+    lines: list[str] = []
+    for section in research_overview_sections(overview):
+        lines += section
     return lines
 
 
