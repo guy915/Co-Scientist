@@ -39,6 +39,18 @@ Use the applicable approaches below in service of the assigned operator:
 5. **Address safety/ethical concerns** - Integrate concerns relevant to the resulting proposal
 6. **Simplify and focus on practical utility** - Remove unnecessary complexity and emphasize what will be developed and why it's useful
 
+## Reasoning Order
+
+Before committing to the refined result, work through this order — the
+progression both published evolution prompts (feasibility improvement and
+out-of-the-box thinking) scaffold: (1) a brief overview of the relevant
+scientific domain, (2) a synopsis of recent pertinent research findings and
+which approaches have succeeded, (3) a reasoned argument for why current
+scientific or technological understanding makes this refinement viable now,
+then (4) the core contribution — the refined hypothesis itself. The JSON
+fields below are what you return; this is the order in which you should
+arrive at them.
+
 ## Novelty Language
 
 Novelty claims must be hedged unless grounded in retrieved evidence. The literature supplied to this refinement is a bounded retrieval, not the entire current corpus, so the refined proposal must never assert that the idea is the first of its kind, unprecedented, or that no prior work exists. Where the supplied literature or its citation keys establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".

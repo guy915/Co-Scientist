@@ -147,6 +147,34 @@ def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
     )
 
 
+@pytest.mark.parametrize("operator", list(EvolutionOperator))
+def test_prompt_carries_the_published_reasoning_order(
+    operator: EvolutionOperator,
+) -> None:
+    """Published evolution-06/07's reasoning scaffold applies template-wide.
+
+    Both prompts scaffold the model's reasoning before it writes the
+    answer -- a domain overview, a synopsis of recent research, a reasoned
+    argument for viability, then the core contribution -- and evolution.md
+    dropped it rather than reformatting it into the JSON schema (MP-7).
+    Restored template-wide like the MP-5 guard above: the ordering is
+    generic scaffolding, not specific to the two operators that happen to
+    have a published prompt.
+    """
+    prompt, _ = _build_evolution_prompt(
+        hypothesis=make_hypothesis("Parent mechanism."),
+        other_hypotheses_texts=["Complementary peer mechanism."],
+        context=_EvolutionContext(
+            model_name="fake/model", meta_review={}, removed_duplicates=[]
+        ),
+        operation=_EvolutionOperation(operator=operator),
+    )
+    assert "## Reasoning Order" in prompt
+    assert "overview of the relevant" in prompt
+    assert "synopsis of recent pertinent research" in prompt
+    assert "core contribution" in prompt
+
+
 def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
     """Divergent evolution is not contradicted by a preservation directive."""
     prompt, _ = _build_evolution_prompt(

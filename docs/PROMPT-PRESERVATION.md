@@ -309,3 +309,52 @@ way `R8-1`'s reversed-scores instruction was.
 ---
 
 ## Phase 2 — fixes
+
+**One restoration: `MP-7`'s reasoning scaffold.** Both evolution-06 and
+evolution-07 scaffold the model's reasoning before it writes the answer
+(domain overview → recent-research synopsis → reasoned argument for
+viability → core contribution); `evolution.md` went straight from a list of
+improvement axes to the JSON schema with no equivalent. Added a
+`## Reasoning Order` section to `templates/evolution.md` (between
+"Refinement Approach" and "Novelty Language"), applied template-wide — to
+every operator, not only `COHERENCE_FEASIBILITY` and `INSPIRATION` — for the
+same reason `evolution.md`'s existing MP-5 guard is template-wide: the
+ordering is generic scaffolding (ground the domain, then the literature,
+then the argument, then commit), not content specific to feasibility or
+inspiration.
+
+- **Diff:** `engine/src/co_scientist/prompts/templates/evolution.md` — 11
+  lines added, no existing line changed.
+- **Measured token delta:** 623 characters, **126 tokens** (`tiktoken`
+  `cl100k_base`), added once to every rendered evolution prompt.
+- **Call-site multiplicity:** one evolve call per parent hypothesis per
+  evolution round (`agents/evolution/evolve.py`; `select_operators` assigns
+  one operator per parent, no per-candidate fan-out) — the same call the
+  prompt already made, not a new one. The 126-token addition scales with
+  however many evolve calls a run already makes (pool size × evolution
+  rounds), the same way every other line already in `evolution.md` does; it
+  adds no new LLM call and no new call-site multiplication.
+- **Test:** `test_prompt_carries_the_published_reasoning_order` in
+  `engine/tests/test_evolution_operators.py`, parametrized over every
+  `EvolutionOperator` — mirrors the existing MP-5 pinning test
+  (`test_prompt_carries_the_anti_aggregation_guard_for_combination`) in the
+  same file.
+
+**Two findings left for the owner, not restored** (both judged in their
+sections above):
+
+1. **Ranking's `{notes}`/"Considerations" slot** (`ranking-04`, `ranking-05`)
+   — the published prompt gives this field no defined content in any
+   example the corpus contains, and three functionally overlapping channels
+   already reach the judge (`evaluation_criteria`, `preferences`,
+   `supervisor_guidance`). Restoring it would mean inventing what
+   "considerations" holds, which is padding, not restoration. Revisit if a
+   concrete source for match-level considerations is ever defined.
+2. **`ranking-05`'s "Turn 1 begins with a summary" instruction** — pacing,
+   not a decision-changing rule; the judge's seven named comparison-criteria
+   fields already function as a structured, both-sides summary every turn.
+   Not restored because the multi-turn debate path judges roughly a quarter
+   of a full tournament's matchups, and no behavior the schema doesn't
+   already produce would be gained.
+
+No other template in this audit needed a change.
