@@ -12,6 +12,16 @@ ENHANCEMENT: the paper lists it as a distinct strategy with its own
 feasibility-improvement prompt (SI Note 9.4), and folding it into
 enhancement left enhancement doing two jobs while the paper's grounding
 strategy (live retrieval, see ``evolve_grounding``) went unrepresented.
+
+MP-8 (docs/CORPUS-EXTRACTION.md): the operator whose content structurally
+matches published A.7 ("out-of-the-box thinking" -- generate one
+hypothesis by analogy from supplied partner concepts, adapted rather than
+replicated) is INSPIRATION, not OUT_OF_BOX below. OUT_OF_BOX takes no
+partner hypotheses and is a clone-authored divergent-mechanism strategy
+with no published counterpart. Left as a naming/documentation mismatch,
+not renamed: EvolutionOperator.OUT_OF_BOX is a persisted value (lineage
+records, telemetry), so renaming it is a data-migration decision for the
+owner, not a prompt-content fix.
 """
 
 from __future__ import annotations
