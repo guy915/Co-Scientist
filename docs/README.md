@@ -14,6 +14,7 @@ but do not update them to match later changes.
 | [EXPLAINER.md](EXPLAINER.md) | End-to-end walkthrough of how a run executes through the engine graph |
 | [FIDELITY.md](FIDELITY.md) | Behavioural/engine fidelity vs. Google's AI Co-Scientist (defers to PARITY.md) |
 | [PARITY.md](PARITY.md) | Parity ledger, machine-checked by `make parity` |
+| [PARITY-SOURCES.md](PARITY-SOURCES.md) | The arXiv preprint and the Nature SI are two different publications that disagree on some facts; disambiguates a bare "the paper"/"Nature paper" citation in PARITY.md |
 | [RUNNING-LOCALLY.md](RUNNING-LOCALLY.md) | Running the app locally, incl. the git-worktree gotchas |
 | [UI-FIDELITY.md](UI-FIDELITY.md) | Visual/UX fidelity audit of the workbench vs. the reference product |
 | [fidelity-audit/](fidelity-audit/README.md) | **The authoritative gap analysis** vs. Google's Co-Scientist and Hypothesis Generation: [FINDINGS.md](fidelity-audit/FINDINGS.md) (every gap, deduplicated from three audits) and [PLAN.md](fidelity-audit/PLAN.md) (the sequenced work). It does not credit `FIDELITY.md`, `PARITY.md`, or `UI-FIDELITY.md` as evidence — where they disagree with it, they are the ones that are wrong. |
