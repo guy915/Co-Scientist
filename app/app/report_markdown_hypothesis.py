@@ -159,6 +159,13 @@ def _render_hypothesis_entry(
     # per-hypothesis reference index, joined back from citations+evidence
     # (see report_markdown_references). Right after Mechanism/Predicted
     # effect, the text the keys actually appear in.
+    #
+    # R14-26: Google's canonical hypothesis-document order places
+    # Safety and toxicity inside "Proposal" alongside the L1 References,
+    # but doesn't settle their order relative to each other -- the one
+    # exemplar checked (kira6-detailed-output-validated.md, MO-10) never
+    # shows a References heading near its own Safety section at all. Kept
+    # here rather than reordered on that ambiguous evidence.
     lines += _render_references_markdown(references)
     lines += _render_hypothesis_safety(hyp)
     lines += _render_claim_evidence(edges)
