@@ -11,6 +11,7 @@ from ``report_markdown`` so that module's namespace keeps resolving.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.report_markdown_header import _SYSTEM_NAME
@@ -118,11 +119,122 @@ def _render_hypothesis_safety(hyp: dict[str, Any]) -> list[str]:
     return ["#### Safety and toxicity", "", str(safety_and_toxicity), ""]
 
 
+def _reviews_by_hypothesis(
+    reviews: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Group review rows by hypothesis id in one pass.
+
+    Feeds the per-entry Go/No-Go framing and simulation-review renderers
+    (R14-15/R14-22); every review row belongs to exactly one hypothesis.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for review in reviews:
+        key = str(review.get("hypothesis_id") or "")
+        grouped.setdefault(key, []).append(review)
+    return grouped
+
+
+def _review_detail(
+    reviews: list[dict[str, Any]], reviewer_agent: str
+) -> dict[str, Any]:
+    """Return one review row's parsed ``detail_json``, or ``{}``.
+
+    Every failure mode degrades to the same empty result rather than
+    raising: no row under this ``reviewer_agent`` (a run that predates
+    the mature cascade, or the review never ran), a NULL/empty column (a
+    run that predates this column, or a review with nothing structured
+    to say), unparseable JSON, or JSON that parsed to something other
+    than an object.
+    """
+    for row in reviews:
+        if row.get("reviewer_agent") != reviewer_agent:
+            continue
+        raw = row.get("detail_json")
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _render_hypothesis_simulation_review(
+    reviews: list[dict[str, Any]],
+) -> list[str]:
+    """Render the simulation review's numbered failure points (R14-22).
+
+    Google's published shape lists each failure point as a bolded name
+    plus a reasoning paragraph. Our schema's ``failure_points`` is a flat
+    string array with no separate name field, so there is no honest way
+    to split one point into both -- each numbered item bolds its ordinal
+    label instead and carries the point's own text as its reasoning.
+
+    Omitted entirely (no heading, no body) when the mechanism holds --
+    the schema's intended output for a sound mechanism, and therefore the
+    common case on published runs -- or the review never reached this
+    hypothesis at all. Matches this repo's own render convention
+    (R14-23): omit rather than print an empty section.
+    """
+    detail = _review_detail(reviews, "simulation_review")
+    raw_points = detail.get("failure_points")
+    points = [
+        text
+        for point in (raw_points if isinstance(raw_points, list) else [])
+        if (text := str(point).strip())
+    ]
+    decisive_step = str(detail.get("decisive_step") or "").strip()
+    if not points and not decisive_step:
+        return []
+    lines = ["#### Simulation review", ""]
+    for idx, text in enumerate(points, start=1):
+        lines.append(f"{idx}. **Failure point:** {text}")
+    if points:
+        lines.append("")
+    if decisive_step:
+        lines += [f"**Decisive step:** {decisive_step}", ""]
+    return lines
+
+
+def _render_hypothesis_verdict(reviews: list[dict[str, Any]]) -> list[str]:
+    """Render the full/recurrent review's display-only Go/No-Go framing.
+
+    R14-15: Google's published shape carries a bolded free-text
+    ``Verdict: <recommendation>`` and a ``Time to Verdict:`` timeframe --
+    a testing recommendation, distinct from this system's own
+    ``sound``/``needs_revision``/``rejected`` review verdict enum.
+
+    Display only, by construction: nothing downstream of the full/
+    recurrent review call reads either field. The review-disposition
+    gate reads only ``verdict``/``justification``
+    (``mature_reviews.apply_mature_review_disposition``), and the
+    prompt-context summary the ranking judge, evolution, and meta-review
+    all read stops at the same two fields
+    (``mature_reviews._project_full_review``) -- this renderer is the
+    only consumer of ``go_no_go``/``time_to_verdict`` in the codebase.
+    A recurrent review supersedes an earlier full review's framing when
+    both rows exist, matching which one is the fresher assessment.
+    """
+    detail = _review_detail(reviews, "recurrent_review") or _review_detail(
+        reviews, "full_review"
+    )
+    go_no_go = str(detail.get("go_no_go") or "").strip()
+    time_to_verdict = str(detail.get("time_to_verdict") or "").strip()
+    lines: list[str] = []
+    if go_no_go:
+        lines += [f"**Verdict:** {go_no_go}", ""]
+    if time_to_verdict:
+        lines += [f"**Time to Verdict:** {time_to_verdict}", ""]
+    return lines
+
+
 def _render_hypothesis_entry(
     i: int,
     hyp: dict[str, Any],
     edges: list[dict[str, Any]],
     references: list[tuple[str, dict[str, Any]]],
+    reviews: list[dict[str, Any]],
 ) -> list[str]:
     """Render one numbered 'Top hypotheses' entry.
 
@@ -168,5 +280,11 @@ def _render_hypothesis_entry(
     # here rather than reordered on that ambiguous evidence.
     lines += _render_references_markdown(references)
     lines += _render_hypothesis_safety(hyp)
+    # R14-15/R14-22: the reviewer's own findings for this hypothesis --
+    # display-only Go/No-Go framing, then the simulation review's
+    # numbered failure points -- sit after the proposer's own content and
+    # before this system's claim-evidence extension.
+    lines += _render_hypothesis_verdict(reviews)
+    lines += _render_hypothesis_simulation_review(reviews)
     lines += _render_claim_evidence(edges)
     return lines

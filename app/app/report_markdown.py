@@ -50,6 +50,9 @@ from app.report_markdown_hypothesis import (
 from app.report_markdown_hypothesis import (
     _render_hypothesis_scene_setting as _render_hypothesis_scene_setting,
 )
+from app.report_markdown_hypothesis import (
+    _reviews_by_hypothesis as _reviews_by_hypothesis,
+)
 
 # The knowledge-base section lives in its own module to keep this one
 # within the size cap; the name is re-exported so this module's namespace
@@ -336,10 +339,12 @@ def _render_top_hypotheses_markdown(
     claim_evidence: list[dict[str, Any]],
     citations: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
 ) -> list[str]:
     """Render the numbered 'Top hypotheses' section."""
     edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
     refs_by_hypothesis = references_by_hypothesis(citations, evidence)
+    reviews_by_hypothesis = _reviews_by_hypothesis(reviews)
     lines: list[str] = ["## Top hypotheses", ""]
     lines += _render_novelty_disclosure(top_hypotheses)
     for i, hyp in enumerate(top_hypotheses, 1):
@@ -349,6 +354,7 @@ def _render_top_hypotheses_markdown(
             hyp,
             edges_by_hypothesis.get(hyp_id, []),
             refs_by_hypothesis.get(hyp_id, []),
+            reviews_by_hypothesis.get(hyp_id, []),
         )
     return lines
 
@@ -420,6 +426,10 @@ class ReportMarkdownInputs:
     # no keys -- the report never fabricates a reference.
     citations: list[dict[str, Any]] | None = None
     evidence: list[dict[str, Any]] | None = None
+    # Every review row the drain persisted (store.list_reviews), joined per
+    # hypothesis for the Go/No-Go framing and simulation-review subsections
+    # (R14-15/R14-22, report_markdown_hypothesis.py). None omits both.
+    reviews: list[dict[str, Any]] | None = None
 
 
 def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
@@ -441,6 +451,7 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
             inputs.claim_evidence or [],
             inputs.citations or [],
             inputs.evidence or [],
+            inputs.reviews or [],
         ),
         _render_meta_review_markdown(inputs.meta_review or {}),
         _render_citation_audit(inputs.citation_summary),

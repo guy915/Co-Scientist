@@ -204,6 +204,7 @@ def _render_report_content_markdown(
             retrieval_calls=data.retrieval_calls,
             citations=data.citations,
             evidence=data.evidence,
+            reviews=data.reviews,
         )
     )
 
