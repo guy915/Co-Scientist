@@ -19,6 +19,19 @@ _AGENTS_ASSESSED: tuple[str, ...] = (
     "meta_review",
 )
 
+# Bounds on workflow_plan.review_phase.critical_criteria below (R12-23).
+# Google's published "Review summary" exemplar (docs/CORPUS-EXTRACTION.md,
+# line 2929) prints exactly 5 numbered criteria, each with 3-4 named
+# yes/no reviewer questions (16 total) -- these bounds mirror the exemplar
+# rather than being picked arbitrarily, the same reasoning
+# NOVELTY_REVIEW_MAX_ITEMS documents. This layer multiplies the response
+# by (criteria x questions) on a call site that runs per hypothesis, per
+# review, so it is capped here and re-capped defensively at the injection
+# point in prompts/review.py, since json_object mode (the production
+# downgrade path) does not enforce maxItems server-side.
+CRITICAL_CRITERIA_MAX_COUNT: Final = 5
+CRITICAL_CRITERIA_MAX_QUESTIONS: Final = 4
+
 # Supervisor schema
 # Shapes the "supervisor" prompt output, consumed by
 # agents/supervisor/supervisor.py at the start (and, for
@@ -77,7 +90,60 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     ),
                     "review_phase": obj(
                         {
-                            "critical_criteria": str_array(),
+                            # R12-23: named to mirror the published Review
+                            # summary rubric -- a criterion name plus its
+                            # own named yes/no reviewer questions, not a
+                            # bare name. Each question is identified by its
+                            # own short name/text; there is no input pool
+                            # to echo back by index here.
+                            "critical_criteria": {
+                                "type": "array",
+                                "maxItems": CRITICAL_CRITERIA_MAX_COUNT,
+                                "description": (
+                                    "Up to 5 domain-specific criteria"
+                                    " reviewers should emphasize, each with"
+                                    " up to 4 named yes/no questions a"
+                                    " reviewer would ask when checking a"
+                                    " hypothesis against it."
+                                ),
+                                "items": obj(
+                                    {
+                                        "name": {
+                                            "type": "string",
+                                            "description": (
+                                                "short criterion name"
+                                            ),
+                                        },
+                                        "questions": {
+                                            "type": "array",
+                                            "maxItems": (
+                                                CRITICAL_CRITERIA_MAX_QUESTIONS
+                                            ),
+                                            "items": obj(
+                                                {
+                                                    "name": {
+                                                        "type": "string",
+                                                        "description": (
+                                                            "short name for"
+                                                            " this question"
+                                                        ),
+                                                    },
+                                                    "question": {
+                                                        "type": "string",
+                                                        "description": (
+                                                            "a specific"
+                                                            " yes/no"
+                                                            " question a"
+                                                            " reviewer"
+                                                            " would ask"
+                                                        ),
+                                                    },
+                                                }
+                                            ),
+                                        },
+                                    }
+                                ),
+                            },
                             "review_depth": {
                                 "type": "string",
                                 "description": "depth of review required",

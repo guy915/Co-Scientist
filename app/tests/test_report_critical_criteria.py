@@ -17,11 +17,13 @@ and conflating them would present the model's synthesis as the user's
 own setup).
 """
 
+from typing import Any
+
 from app import report_markdown
 
 
 def _markdown(
-    critical_criteria: list[str] | None,
+    critical_criteria: list[Any] | None,
     setup: dict[str, object] | None = None,
 ) -> str:
     """Render a minimal report carrying only the given critical criteria."""
@@ -64,6 +66,37 @@ def test_no_critical_criteria_renders_no_section() -> None:
 def test_all_blank_criteria_render_no_section() -> None:
     """Entries that are blank strings contribute nothing renderable."""
     markdown = _markdown(["", "   "])
+
+    assert "Evaluation Criteria" not in markdown
+
+
+def test_criteria_render_from_the_structured_shape() -> None:
+    """R12-23: the flat list still renders names from the richer shape.
+
+    critical_criteria may carry {name, questions} entries; this section
+    only extracts the name -- the questions belong to the separate
+    'Review Summary' section.
+    """
+    markdown = _markdown(
+        [
+            {
+                "name": "Kinetic Feasibility and Experimental Readouts",
+                "questions": [
+                    {"name": "Kinetic Competition", "question": "Q?"}
+                ],
+            },
+            "Human Data Integration and Accuracy",
+        ]
+    )
+
+    assert "## Evaluation Criteria" in markdown
+    assert "Kinetic Feasibility and Experimental Readouts" in markdown
+    assert "Human Data Integration and Accuracy" in markdown
+
+
+def test_malformed_criteria_render_no_section() -> None:
+    """A field that is not a list at all degrades to nothing, not a crash."""
+    markdown = _markdown("not a list")  # type: ignore[arg-type]
 
     assert "Evaluation Criteria" not in markdown
 

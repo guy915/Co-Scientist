@@ -129,11 +129,14 @@ from app.report_markdown_sources import (
 )
 
 # The Supervisor's synthesized guidance sections (stratification
-# attributes, evaluation criteria) live in their own module to keep this
-# one within the size cap; both names are re-exported so this module's
-# namespace keeps resolving.
+# attributes, evaluation criteria, the review rubric) live in their own
+# module to keep this one within the size cap; every name is re-exported
+# so this module's namespace keeps resolving.
 from app.report_markdown_supervisor import (
     _render_evaluation_criteria_markdown as _render_evaluation_criteria_markdown,  # noqa: E501
+)
+from app.report_markdown_supervisor import (
+    _render_review_summary_markdown as _render_review_summary_markdown,
 )
 from app.report_markdown_supervisor import (
     _render_stratification_attributes_markdown as _render_stratification_attributes_markdown,  # noqa: E501
@@ -378,12 +381,16 @@ class ReportMarkdownInputs:
     # conflate them under one heading.
     attributes: list[dict[str, Any]] | None = None
     # The Supervisor's synthesized per-goal evaluation criteria
-    # (workflow_plan.review_phase.critical_criteria), rendered as
-    # "Evaluation Criteria". A different, LLM-synthesized field from
-    # setup["criteria"] above -- same English word, two differently-
-    # shaped published sections (docs/CORPUS-EXTRACTION.md R12-18); do
-    # not conflate them under one heading.
-    critical_criteria: list[str] | None = None
+    # (workflow_plan.review_phase.critical_criteria), rendered as both
+    # "Evaluation Criteria" (flat names) and "Review Summary" (numbered,
+    # with each criterion's named reviewer questions -- R12-23). A
+    # different, LLM-synthesized field from setup["criteria"] above --
+    # same English word, differently-shaped published sections
+    # (docs/CORPUS-EXTRACTION.md R12-18, R12-23); do not conflate them
+    # under one heading. Each entry is either the legacy bare criterion-
+    # name string or a richer {name, questions} object; both renderers in
+    # report_markdown_supervisor.py handle either shape.
+    critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
     # rather than stating a date via the wall clock -- see
@@ -435,6 +442,9 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
     lines.extend(
         render_research_overview_markdown(inputs.research_overview or {})
     )
+    # R12-23: the published "Review summary" sits right after the research
+    # directions and before "Knowledge Base" -- the same slot here.
+    lines += _render_review_summary_markdown(inputs.critical_criteria)
     lines += _render_knowledge_base_markdown(inputs.knowledge_base or [])
     lines += _render_data_sources_section(
         inputs.skills_used or {}, inputs.retrieval_calls or []

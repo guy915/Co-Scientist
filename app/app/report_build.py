@@ -71,9 +71,13 @@ class ReportRequest(NamedTuple):
             ``report_markdown``'s vocabulary warning).
         critical_criteria: The Supervisor's synthesized per-goal evaluation
             criteria (``workflow_plan.review_phase.critical_criteria``),
-            rendered as the report's "Evaluation Criteria" section -- a
-            different, LLM-synthesized field from ``setup["criteria"]``
-            above (see ``report_markdown``'s vocabulary warning).
+            rendered as both the report's flat "Evaluation Criteria" list
+            and its "Review Summary" rubric section -- a different,
+            LLM-synthesized field from ``setup["criteria"]`` above (see
+            ``report_markdown``'s vocabulary warning). Each entry is
+            either a legacy bare name (a run persisted before R12-23) or a
+            ``{name, questions}`` object; both renderers handle either
+            shape.
         prepared_at: Epoch seconds this report was built, rendered as the
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
@@ -94,7 +98,7 @@ class ReportRequest(NamedTuple):
     summary: str | None = None
     setup: dict[str, Any] | None = None
     attributes: list[dict[str, Any]] | None = None
-    critical_criteria: list[str] | None = None
+    critical_criteria: list[Any] | None = None
     prepared_at: float | None = None
     db_path: str | None = None
 

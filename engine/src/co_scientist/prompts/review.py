@@ -5,12 +5,15 @@ from typing import Any
 from co_scientist.prompts._common import (
     PromptRunContext,
     PromptSections,
-    _csv_value,
     _format_meta_review_context,
     _guidance_items,
     _run_guidance_section,
 )
 from co_scientist.prompts.loading import _build_prompt
+from co_scientist.schemas.planning import (
+    CRITICAL_CRITERIA_MAX_COUNT,
+    CRITICAL_CRITERIA_MAX_QUESTIONS,
+)
 
 
 def _review_sections(context: PromptRunContext) -> PromptSections:
@@ -123,6 +126,67 @@ def get_review_batch_prompt(
 # Each helper extracts only the slice of the supervisor's output relevant
 # to its node and renders it as a markdown section; all of them return ""
 # when the needed keys are absent, so guidance is strictly additive.
+def _format_critical_criterion_question(question: Any) -> str:
+    """Format one critical-criterion question line, or "" when unusable.
+
+    R12-23: each question mirrors the published Review Summary's bolded-
+    name-plus-question format (docs/CORPUS-EXTRACTION.md, line 2929) --
+    ``{name, question}``. A bare string (no separate name) still renders
+    as a plain question line; anything else (a malformed entry from a
+    live run under the json_object downgrade, or from an old checkpoint)
+    renders nothing rather than raising.
+    """
+    if isinstance(question, str):
+        text = question.strip()
+        return f"  - {text}\n" if text else ""
+    if not isinstance(question, dict):
+        return ""
+    name = str(question.get("name") or "").strip()
+    text = str(question.get("question") or "").strip()
+    if not text:
+        return ""
+    return f"  - **{name}:** {text}\n" if name else f"  - {text}\n"
+
+
+def _format_critical_criterion_questions(questions: Any) -> list[str]:
+    """Format a criterion's question lines, bounded and filtered.
+
+    Bounds to ``CRITICAL_CRITERIA_MAX_QUESTIONS`` defensively -- json_object
+    mode (the production downgrade path) does not enforce the schema's own
+    maxItems.
+    """
+    lines = []
+    items = _guidance_items(questions)[:CRITICAL_CRITERIA_MAX_QUESTIONS]
+    for question in items:
+        line = _format_critical_criterion_question(question)
+        if line:
+            lines.append(line)
+    return lines
+
+
+def _format_critical_criterion(criterion: Any) -> list[str]:
+    """Format one critical criterion (name plus its named questions).
+
+    Handles both shapes a run's ``critical_criteria`` entries can carry:
+    the legacy bare string (a criterion name only, from before R12-23)
+    and the richer ``{name, questions}`` object this prompt now asks the
+    Supervisor to synthesize. Anything else (int, None, an unnamed dict)
+    renders nothing.
+    """
+    if isinstance(criterion, str):
+        name = criterion.strip()
+        return [f"- {name}\n"] if name else []
+    if not isinstance(criterion, dict):
+        return []
+    name = str(criterion.get("name") or "").strip()
+    if not name:
+        return []
+    return [
+        f"- **{name}**\n",
+        *_format_critical_criterion_questions(criterion.get("questions")),
+    ]
+
+
 def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
     """Format the workflow_plan.review_phase slice of supervisor guidance.
 
@@ -139,9 +203,11 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
         return []
 
     sections = ["## Supervisor Guidance for Review\n"]
-    if review_phase.get("critical_criteria"):
-        criteria = _csv_value(review_phase["critical_criteria"])
-        sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
+    criteria = _guidance_items(review_phase.get("critical_criteria"))
+    if criteria:
+        sections.append("**Critical Criteria to Emphasize:**\n")
+        for criterion in criteria[:CRITICAL_CRITERIA_MAX_COUNT]:
+            sections.extend(_format_critical_criterion(criterion))
     if review_phase.get("review_depth"):
         sections.append(
             f"**Review Depth Required:** {review_phase['review_depth']}\n"
