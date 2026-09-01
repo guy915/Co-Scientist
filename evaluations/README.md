@@ -99,7 +99,12 @@ explicitly says otherwise; machine-readable results are written under
   wiring only, since without a reachable MCP server every arm's literature
   review already degrades to LLM-only and the arms look near-identical
   regardless of the toggle. `--live` (opt-in) makes the toggles actually
-  bite; no live sweep has been recorded yet.
+  bite; no live sweep has been recorded yet. `PUBLISHED_BASELINES` carries
+  Google's own numbers (Nature SI Note 3 / Supplementary Table 1) for the
+  Reflection search-tool, Evolution, and Meta-review arms — reference data
+  only, never computed or compared against here; Ranking-prompt and
+  Proximity are named in the same source but not quantified in the corpus
+  extraction, recorded as `PUBLISHED_BASELINES_UNQUANTIFIED`.
 - `elo_concordance_eval.py` (L8) — round-robins graded candidate answers
   through the exact production Elo update math and scores the result against
   known correctness with Kendall's tau-b. This is explicitly **not** GPQA:
@@ -115,6 +120,18 @@ explicitly says otherwise; machine-readable results are written under
   (alignment/plausibility/novelty/testability/safety/impact/preference),
   validated round-trip, with per-axis confidence intervals and transparent
   pairwise inter-rater agreement for imported panels.
+- `specific_aims_review.py` — blinded export/import for Google's separately
+  published fifteen-axis Specific Aims pilot rubric (`datasets/
+  specific_aims_rubric_v1.json`), a DIFFERENT instrument from
+  `expert_review.py`'s six-axis quality score: an agreement scale
+  (Strongly Disagree..Strongly Agree), not a 1-5 quality number, over two
+  domains (Significance and innovation, 5 axes; Rigor and feasibility, 10
+  axes). The dataset carries the rubric's provenance (a pilot framework by
+  oncologists, explicitly not a validated instrument) and two of the
+  paper's three worked Specific Aims exemplars with a filled-in rating for
+  every axis (the third, Givosiran, carries none, recorded honestly rather
+  than dropped). The two exemplars are a reference distribution, never a
+  calibration set — nothing here tunes a threshold against them.
 - `scaling_eval.py` — computes budget-ordered best-Elo (internal signal),
   blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
   latency; also aggregates paired feature-ablation arms without treating Elo
