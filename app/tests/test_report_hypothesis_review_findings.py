@@ -71,8 +71,13 @@ def test_verdict_renders_only_the_field_present() -> None:
 
 
 def test_verdict_degrades_on_malformed_json() -> None:
-    reviews = [{"hypothesis_id": "h1", "reviewer_agent": "full_review",
-                "detail_json": "{not valid json"}]
+    reviews = [
+        {
+            "hypothesis_id": "h1",
+            "reviewer_agent": "full_review",
+            "detail_json": "{not valid json",
+        }
+    ]
     assert _render_hypothesis_verdict(reviews) == []
 
 
@@ -83,7 +88,7 @@ def test_verdict_degrades_when_detail_json_is_not_an_object() -> None:
 
 
 def test_verdict_coerces_non_string_field_values() -> None:
-    detail = {"go_no_go": 42, "time_to_verdict": None}
+    detail: dict[str, object] = {"go_no_go": 42, "time_to_verdict": None}
     reviews = [_review("full_review", detail)]
     assert _render_hypothesis_verdict(reviews) == [
         "**Verdict:** 42",
@@ -179,7 +184,7 @@ def test_simulation_review_skips_blank_points() -> None:
 
 
 def test_reviews_by_hypothesis_keeps_each_hypothesis_separate() -> None:
-    reviews = [
+    reviews: list[dict[str, object]] = [
         _review("simulation_review", {"decisive_step": "for h1"}),
         {
             "hypothesis_id": "h2",
