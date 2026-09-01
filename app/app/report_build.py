@@ -69,6 +69,11 @@ class ReportRequest(NamedTuple):
             report's "Stratification Attributes" section -- a different,
             LLM-synthesized field from ``setup["attributes"]`` above (see
             ``report_markdown``'s vocabulary warning).
+        critical_criteria: The Supervisor's synthesized per-goal evaluation
+            criteria (``workflow_plan.review_phase.critical_criteria``),
+            rendered as the report's "Evaluation Criteria" section -- a
+            different, LLM-synthesized field from ``setup["criteria"]``
+            above (see ``report_markdown``'s vocabulary warning).
         prepared_at: Epoch seconds this report was built, rendered as the
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
@@ -89,6 +94,7 @@ class ReportRequest(NamedTuple):
     summary: str | None = None
     setup: dict[str, Any] | None = None
     attributes: list[dict[str, Any]] | None = None
+    critical_criteria: list[str] | None = None
     prepared_at: float | None = None
     db_path: str | None = None
 
@@ -186,6 +192,7 @@ def _render_report_content_markdown(
             knowledge_base=knowledge_base,
             setup=req.setup,
             attributes=req.attributes,
+            critical_criteria=req.critical_criteria,
             prepared_at=req.prepared_at,
             summary=req.summary,
             claim_evidence=data.released_claim_edges,

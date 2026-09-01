@@ -88,6 +88,7 @@ from app.engine_adapter.drain_matches import (
     _resolve_match_sides as _resolve_match_sides,
 )
 from app.engine_adapter.drain_report_inputs import (
+    critical_criteria,
     degraded_sections,
     grounding_counts,
     retrieval_degradation,
@@ -246,6 +247,7 @@ def _build_drain_result(
             "retrieval_degradation": retrieval_degradation(final_state),
             "skills_used": skills_used(final_state),
             "attributes": stratification_attributes(final_state),
+            "critical_criteria": critical_criteria(final_state),
         },
         safety_counts=safety_counts(screening_result),
         grounding_counts=grounding_counts(

@@ -128,6 +128,17 @@ from app.report_markdown_sources import (
     _render_data_sources_section as _render_data_sources_section,
 )
 
+# The Supervisor's synthesized guidance sections (stratification
+# attributes, evaluation criteria) live in their own module to keep this
+# one within the size cap; both names are re-exported so this module's
+# namespace keeps resolving.
+from app.report_markdown_supervisor import (
+    _render_evaluation_criteria_markdown as _render_evaluation_criteria_markdown,  # noqa: E501
+)
+from app.report_markdown_supervisor import (
+    _render_stratification_attributes_markdown as _render_stratification_attributes_markdown,  # noqa: E501
+)
+
 
 def _append_if(lines: list[str], label: str, value: str) -> None:
     """Append a ``  Label: value`` line to lines when value is non-empty."""
@@ -326,41 +337,6 @@ def _render_top_hypotheses_markdown(
     return lines
 
 
-def _render_stratification_attributes_markdown(
-    attributes: list[dict[str, Any]] | None,
-) -> list[str]:
-    """Render the Supervisor's synthesized 1-5 stratification attributes.
-
-    R12-17: the Supervisor already synthesizes up to three named rating
-    scales (``config_synthesis.attributes``, each a ``{name, rubric}``
-    pair) and ``prompts/review.py`` already injects them into every
-    reviewer prompt as "Stratification attributes (score each 1-5)" --
-    this only displays what was already computed. Display only: never
-    used here or anywhere else to gate, filter, rank, or disqualify a
-    hypothesis.
-
-    Deliberately not titled "Attributes" -- that heading already names the
-    run's user-authored, plain-string setup attributes rendered under
-    "Research Goal Details" (``report_markdown_header.py``). Google's own
-    published documents use the same word for both a bare list and a
-    name-plus-rubric section; reusing it here would conflate the two.
-    """
-    items = [
-        attr
-        for attr in attributes or []
-        if isinstance(attr, dict) and str(attr.get("name") or "").strip()
-    ]
-    if not items:
-        return []
-    lines = ["## Stratification Attributes\n"]
-    for attr in items:
-        name = str(attr["name"]).strip()
-        rubric = str(attr.get("rubric") or "").strip()
-        lines.append(f"- **{name}:** {rubric}" if rubric else f"- **{name}**")
-    lines.append("")
-    return lines
-
-
 def _render_citation_audit(
     citation_summary: dict[str, int] | None,
 ) -> list[str]:
@@ -401,6 +377,13 @@ class ReportMarkdownInputs:
     # shaped published sections (docs/CORPUS-EXTRACTION.md R12-17); do not
     # conflate them under one heading.
     attributes: list[dict[str, Any]] | None = None
+    # The Supervisor's synthesized per-goal evaluation criteria
+    # (workflow_plan.review_phase.critical_criteria), rendered as
+    # "Evaluation Criteria". A different, LLM-synthesized field from
+    # setup["criteria"] above -- same English word, two differently-
+    # shaped published sections (docs/CORPUS-EXTRACTION.md R12-18); do
+    # not conflate them under one heading.
+    critical_criteria: list[str] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
     # rather than stating a date via the wall clock -- see
@@ -439,6 +422,7 @@ def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
         inputs.setup,
         inputs.prepared_at,
     )
+    lines += _render_evaluation_criteria_markdown(inputs.critical_criteria)
     lines += _render_stratification_attributes_markdown(inputs.attributes)
     lines += _render_top_hypotheses_markdown(
         inputs.top_hypotheses,

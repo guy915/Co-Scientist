@@ -91,6 +91,32 @@ def stratification_attributes(
     return [attr for attr in attributes if isinstance(attr, dict)]
 
 
+def critical_criteria(final_state: dict[str, Any]) -> list[str]:
+    """Return the Supervisor's synthesized per-goal evaluation criteria.
+
+    A read of guidance the Supervisor already synthesizes
+    (``supervisor_guidance.workflow_plan.review_phase.critical_criteria``,
+    a list of domain-specific criteria names like "Kinetic Feasibility and
+    Experimental Readouts") and ``prompts/review.py`` already injects into
+    every reviewer prompt as "Critical Criteria to Emphasize" -- not a new
+    computation, just handing an existing one to the report (R12-18).
+    Display only: the report never uses this to gate, filter, rank, or
+    disqualify a hypothesis. Degrades to an empty list, never an error, on
+    an old checkpoint predating this field or a malformed one.
+    """
+    guidance = final_state.get("supervisor_guidance")
+    plan = guidance.get("workflow_plan") if isinstance(guidance, dict) else None
+    review_phase = plan.get("review_phase") if isinstance(plan, dict) else None
+    criteria = (
+        review_phase.get("critical_criteria")
+        if isinstance(review_phase, dict)
+        else None
+    )
+    if not isinstance(criteria, list):
+        return []
+    return [item for item in criteria if isinstance(item, str)]
+
+
 def grounding_counts(
     grounding_result: Any, grounding_candidates: list[dict[str, Any]]
 ) -> dict[str, int]:
