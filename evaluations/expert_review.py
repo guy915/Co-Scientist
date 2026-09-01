@@ -10,6 +10,14 @@ Blinding: the export strips run/provider/Elo so a rater cannot infer which
 system produced a hypothesis; a stable opaque ``item_id`` links a rating back on
 import. No ratings are fabricated here — this module only defines and validates
 the round-trip.
+
+This is the system's own six-axis quality instrument (``RATING_AXES``:
+alignment, plausibility, novelty, testability, safety, impact, plus
+preference_rank). Google separately published a DIFFERENT, fifteen-axis
+Specific Aims pilot rubric on a five-point agreement scale, not a quality
+score -- that instrument lives in the sibling module
+``evaluations.specific_aims_review`` and is deliberately never merged with
+this one. See ``docs/PARITY.md`` ``EVAL-SPECIFIC-AIMS-RUBRIC-001``.
 """
 
 from __future__ import annotations

@@ -1,0 +1,125 @@
+{
+  "name": "specific-aims-rubric-v1",
+  "version": 1,
+  "license": "verbatim extraction of public academic text (arXiv 2502.18864 Appendix A.5.2/A.5.3; Nature Supplementary Information S4.3), reproduced under academic fair-use citation for evaluation purposes; the two rated exemplars are quoted from the papers' own published worked outputs, not synthesized",
+  "description": "Google's published expert-evaluation rubric for AI co-scientist-generated NIH 'Specific Aims' proposals -- a DIFFERENT instrument from evaluations/expert_review.py's RATING_AXES (alignment/plausibility/novelty/testability/safety/impact). See docs/CORPUS-EXTRACTION.md R10-1/R10-2/R10-10/R10-12 for the corpus rows this artifact implements, and docs/PARITY.md EVAL-SPECIFIC-AIMS-RUBRIC-001 for the ledger row. Do not merge, rename, or average this instrument's axes/scale together with RATING_AXES' -- they measure different things on different scales (see caveats below).",
+  "rubric": {
+    "source": "towards-an-ai-co-scientist.md Appendix A.5.2 (rubric definition), A.5.3 (worked examples, Figures A.26-A.31); Nature Supplementary Information Section 4.3 (rubric) and Section 4.1 (worked examples)",
+    "provenance_caveat": "The rubric is a PILOT framework built by oncologists at a US institute, inspired by NIH Specific Aims grant-review criteria and deliberately written to be LLM-specific -- it emphasises logical consistency, public-knowledge use, and explicitly probes for hallucination and factual inaccuracy. The paper itself states it is NOT a validated instrument: it 'would require considerable further research ... including assessment of validity and reliability.' Present this rubric as exactly that -- a documented pilot tool applied to one paper's Specific Aims proposals -- never as a general-purpose scientific-quality rubric this repo endorses or validates.",
+    "domains": {
+      "significance_and_innovation": [
+        {"n": 1, "axis": "unmet_clinical_needs", "label": "unmet clinical needs"},
+        {"n": 2, "axis": "bridges_therapeutic_gap", "label": "bridges therapeutic gap"},
+        {"n": 3, "axis": "scientifically_rigorous_rationale", "label": "scientifically rigorous rationale"},
+        {"n": 4, "axis": "integrates_prior_studies", "label": "integrates prior studies"},
+        {"n": 5, "axis": "avoids_over_extrapolation", "label": "avoids over-extrapolation"}
+      ],
+      "rigor_and_feasibility": [
+        {"n": 6, "axis": "clear_hypotheses_and_methods", "label": "clear hypotheses and methods"},
+        {"n": 7, "axis": "clearly_stated_aims", "label": "clearly stated aims"},
+        {"n": 8, "axis": "path_to_clinical_application", "label": "path to clinical application"},
+        {"n": 9, "axis": "well_defined_endpoints", "label": "well-defined endpoints"},
+        {"n": 10, "axis": "meaningful_preclinical_experiments", "label": "meaningful pre-clinical experiments"},
+        {"n": 11, "axis": "translational_component", "label": "translational component"},
+        {"n": 12, "axis": "avoids_inaccuracies", "label": "avoids inaccuracies"},
+        {"n": 13, "axis": "evidence_based_assumptions", "label": "evidence-based assumptions"},
+        {"n": 14, "axis": "originality_and_terminology", "label": "originality and terminology"},
+        {"n": 15, "axis": "clear_writing_and_organization", "label": "clear writing and organization"}
+      ]
+    },
+    "scale": {
+      "type": "agreement",
+      "levels": ["strongly_disagree", "disagree", "neutral", "agree", "strongly_agree"],
+      "caveat": "This is a five-point AGREEMENT scale (Strongly Disagree / Disagree / Neutral / Agree / Strongly Agree), not a quality score. It does not share a scale with, and must never be merged with, the paper's own 1-5 co-scientist review score (docs/PARITY.md EVAL-REVIEW-SCALE-001, corpus R10-3) or this repo's 1-10 review score (engine/src/co_scientist/schemas/review.py). Raters are instructed to judge clinical relevance and translation potential -- explicitly NOT translational capacity or clinical-trial design."
+    }
+  },
+  "caveats": [
+    {
+      "id": "agreement_not_quality_scale",
+      "corpus_row": "R10-12",
+      "text": "It is an agreement scale, not a quality score, and shares no scale with the 1-5 (paper) or 1-10 (this repo) review score. If those two ever get merged, both become meaningless."
+    },
+    {
+      "id": "different_instrument_from_expert_review_py",
+      "corpus_row": "R10-1",
+      "text": "This is a different instrument from evaluations/expert_review.py's RATING_AXES, which is (alignment, plausibility, novelty, testability, safety, impact) plus preference_rank -- the paper's five default review criteria plus impact. Six axes, not fifteen. Do not merge, rename, or 'unify' the two."
+    },
+    {
+      "id": "reference_distribution_not_calibration_set",
+      "corpus_row": "R10-10",
+      "text": "The two worked exemplars below are a reference distribution, not a calibration set. Nothing may tune a threshold against them -- this repo has a recorded incident (see AGENTS.md, the Jaccard/claim-similarity entry) where a threshold was tuned between two hand-picked examples and pinned a broken metric in place. evaluations/expert_review.py::summarize_specific_aims_ratings deliberately computes only a per-axis agreement-level distribution, never a mean, a pass/fail threshold, or a comparison against these two exemplars."
+    },
+    {
+      "id": "pilot_framework_not_general_purpose",
+      "corpus_row": "R10-2",
+      "text": "The rubric is a pilot framework by oncologists at a US institute, inspired by NIH Specific Aims criteria, deliberately LLM-specific, and explicitly not a validated instrument per the paper's own text. It must not be presented as a general-purpose scientific rubric."
+    }
+  ],
+  "exemplars": [
+    {
+      "case": "lapatinib_colon_cancer",
+      "source": "specific-aims/lapatinib-colon-cancer.md (towards-an-ai-co-scientist.md A.5.3, Figures A.30-A.31); parallel copy in the Nature SI Section 4.1.3",
+      "case_study": "Drug repurposing -- Specific Aims for lapatinib in colon adenocarcinoma (COAD)",
+      "ratings": {
+        "unmet_clinical_needs": "strongly_agree",
+        "bridges_therapeutic_gap": "agree",
+        "scientifically_rigorous_rationale": "strongly_agree",
+        "integrates_prior_studies": "strongly_agree",
+        "avoids_over_extrapolation": "strongly_agree",
+        "clear_hypotheses_and_methods": "strongly_agree",
+        "clearly_stated_aims": "strongly_agree",
+        "path_to_clinical_application": "strongly_agree",
+        "well_defined_endpoints": "agree",
+        "meaningful_preclinical_experiments": "neutral",
+        "translational_component": "strongly_agree",
+        "avoids_inaccuracies": "strongly_agree",
+        "evidence_based_assumptions": "strongly_agree",
+        "originality_and_terminology": "strongly_agree",
+        "clear_writing_and_organization": "agree"
+      },
+      "published_counts": {
+        "strongly_agree": 11,
+        "agree": 3,
+        "neutral": 1,
+        "disagree": 0,
+        "strongly_disagree": 0
+      }
+    },
+    {
+      "case": "selinexor_colon_cancer",
+      "source": "specific-aims/selinexor-colon-cancer.md (towards-an-ai-co-scientist.md A.5.3, Figures A.28-A.29); parallel copy in the Nature SI Section 4.1.2 (titled 'Selinexor monotherapy...' there, and reporting a different rater count/experience than the arXiv -- see docs/PARITY-SOURCES.md)",
+      "case_study": "Drug repurposing -- Specific Aims for selinexor in colon adenocarcinoma (COAD)",
+      "ratings": {
+        "unmet_clinical_needs": "strongly_agree",
+        "bridges_therapeutic_gap": "agree",
+        "scientifically_rigorous_rationale": "strongly_agree",
+        "integrates_prior_studies": "agree",
+        "avoids_over_extrapolation": "agree",
+        "clear_hypotheses_and_methods": "strongly_agree",
+        "clearly_stated_aims": "strongly_agree",
+        "path_to_clinical_application": "agree",
+        "well_defined_endpoints": "agree",
+        "meaningful_preclinical_experiments": "agree",
+        "translational_component": "agree",
+        "avoids_inaccuracies": "strongly_agree",
+        "evidence_based_assumptions": "strongly_agree",
+        "originality_and_terminology": "agree",
+        "clear_writing_and_organization": "strongly_agree"
+      },
+      "published_counts": {
+        "strongly_agree": 7,
+        "agree": 8,
+        "neutral": 0,
+        "disagree": 0,
+        "strongly_disagree": 0
+      }
+    },
+    {
+      "case": "givosiran_aml",
+      "source": "specific-aims/givosiran-aml.md (towards-an-ai-co-scientist.md A.5.3, Figures A.26-A.27); parallel copy in the Nature SI Section 4.1.1",
+      "case_study": "Drug repurposing -- Specific Aims for givosiran in acute myeloid leukemia (AML)",
+      "ratings": null,
+      "absence_note": "Givosiran is the third of the paper's three worked Specific Aims examples, but carries no filled-in 'Expert rating' block in the corpus extraction. Represented here honestly rather than dropped: the extraction's own header comment for this file says the Nature supplement DOES include per-aim 'Expert rating' tables for Givosiran, but they were not reproduced in this extraction. This is an extraction gap in the corpus, not evidence that the paper published no rating for Givosiran -- do not read a null here as 'ungraded by the experts.'"
+    }
+  ]
+}
