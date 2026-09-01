@@ -44,8 +44,8 @@ re-litigated.
 | 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution.md` (`INSPIRATION` operator, MP-8) | 4 | 1 | 0 |
 | 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_debate_and_literature.md` (literature block); `generation_draft_with_tools.md` (reconstruction) | 8 | 0 | 1 |
 | 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 1 |
-| 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | pending | pending | pending |
-| 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | pending | pending | pending |
+| 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | 7 | 0 | 0 |
+| 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | 4 | 1 | 0 |
 | 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + `agents/ranking/ranking_debate*.py` | pending | pending | pending |
 | 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | pending | pending | pending |
 
@@ -165,5 +165,65 @@ structurally near-identical to each other.
 | 14 | `#BEGIN TRANSCRIPT# {transcript} #END TRANSCRIPT#` | present | both templates, verbatim markers |
 
 **14 present / 0 missing / 1 adapted** (item 5 counted once, applies to both).
+
+---
+
+## 5. `meta-review-08-meta-review-generation.md`
+
+**Template:** `meta_review.md`, rendered by `get_meta_review_prompt`
+(`engine/src/co_scientist/prompts/planning.py:27-42`).
+
+| # | Published instruction | Class | Evidence |
+|---|---|---|---|
+| 1 | "Expert in scientific research and meta-analysis" | present | `meta_review.md:7` |
+| 2 | "Synthesize a comprehensive meta-review of provided reviews pertaining to the research goal" | present | `meta_review.md:7` |
+| 3 | `Goal / Preferences / Additional instructions / Provided reviews` slots | present | `{{research_goal}}`, `{{preferences}}` (MP-4, `done` — `planning.py:31-42`, `meta_review.md:57-60`), `{{instructions}}`, `{{all_reviews}}` |
+| 4 | "Generate a structured meta-analysis report of the provided reviews" | present | the six numbered sections, `meta_review.md:9-52` |
+| 5 | "Focus on identifying recurring critique points and common issues raised by reviewers" | present | `meta_review.md:9-13`, section 1 |
+| 6 | "Provide actionable insights for researchers developing future proposals" | present | `meta_review.md:22-28`, section 3 ("Actionable Insights!") |
+| 7 | "Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis" | present, near-verbatim | `meta_review.md:52` |
+
+**7 present / 0 missing / 0 adapted.** Clean mirror — every published
+instruction is present, most close to verbatim. Sections 2, 4, 5, and 6 of
+the template (process evaluation, direction assessment, cross-hypothesis
+connections, candidate/existing-solution comparison) are clone-authored
+additions beyond the published prompt's scope, not substitutions for
+anything the published text asked for — they carry no loss.
+
+## 6. `ranking-04-pairwise-comparison.md`
+
+**Template:** `ranking.md`, rendered by `get_ranking_prompt`
+(`engine/src/co_scientist/prompts/ranking.py`).
+
+| # | Published instruction | Class | Evidence |
+|---|---|---|---|
+| 1 | "Expert evaluator...compare two hypotheses...determine which is superior based on the specified attributes" | present | `ranking.md:9`, expanded into the seven named comparison criteria (`ranking.md:15-21`) rather than the paper's single unnamed `{idea_attributes}` slot |
+| 2 | "Concise rationale...concluding with the phrase 'better idea: <1 or 2>'" (the source's own noted inconsistency with "better hypothesis") | present | `ranking.md:70`, and `_VERDICT_LINE_RE` in `agents/ranking/ranking_debate_turns.py` accepts both "better idea" and "better hypothesis" phrasings, resolving the source's own internal inconsistency rather than picking one arbitrarily |
+| 3 | `Goal: {goal}` | present | `{{research_goal}}`, `ranking.md:42` |
+| 4 | `Evaluation criteria: {preferences}` | present (MP-6, fixed on this branch though `docs/CORPUS-EXTRACTION.md` still shows `work` — see "Standing rule" above) | `{{preferences}}` → `_format_ranking_preferences`, `ranking.md:27`; pinned by `test_judge_prompt_carries_scientist_preferences` |
+| 5 | "Considerations: `{notes}`" (a slot distinct from both `{preferences}` and the per-hypothesis `{review N}`) | **missing** | No `notes`/`considerations` variable is rendered anywhere in `ranking.md` or its builders. Judgment below. |
+| 6 | "Each hypothesis includes an independent review. These reviews may contain numerical scores. Disregard these scores...not directly comparable across reviews" | present (MP-1, `done`) | `ranking.py:466-469`, rendered into `{{review_context}}` |
+| 7 | `Hypothesis 1 / Hypothesis 2 / Review of hypothesis 1 / Review of hypothesis 2` | present | `{{hypothesis_a}}` / `{{hypothesis_b}}`, `{{review_context}}` (per-hypothesis review scores) |
+| 8 | "Reasoning and conclusion (end with 'better hypothesis: <1 or 2>')" | present | `ranking.md:70`, see item 2 |
+
+**4 present / 1 missing / 0 adapted** (counting the seven-criteria
+elaboration of item 1, the verdict line, goal, and criteria/review-scores as
+present; "Considerations" as missing).
+
+**Judgment on the missing "Considerations: `{notes}`" slot.** The published
+prompt hands the judge one more free-text field, separate from both the
+evaluation criteria and the per-hypothesis reviews, with no elaboration in
+the paper on what it's meant to carry match-to-match. Our judge prompt
+already carries three general-guidance channels that would be the natural
+home for whatever "considerations" means: `{{evaluation_criteria}}` (the
+scientist's explicit criteria list), `{{preferences}}` (their prose steer,
+MP-6), and `{{supervisor_guidance}}` (key research areas to weigh). Given
+the paper gives this slot no content of its own to lose — it's an empty
+placeholder in every rendered example the corpus contains — and three
+functionally overlapping channels already exist, this is recorded as a real
+gap but not recommended for restoration: adding a fourth "Considerations"
+field with no defined content would pad the template rather than restore an
+instruction. Left for the owner if a concrete source for match-level
+"considerations" ever gets defined.
 
 ---
