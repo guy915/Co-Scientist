@@ -74,3 +74,43 @@ def first_sentence(text: str) -> str:
     """
     match = _SENTENCE_END.search(text)
     return (text[: match.start()] if match else text).strip()
+
+
+# Matches a leading "1. " ordinal (the numbered-step prefix
+# format_experiment_plan emits) so readable_experiment_summary can drop it.
+_ORDINAL_PREFIX = re.compile(r"^\d+\.\s*")
+
+
+def readable_experiment_summary(text: str) -> str:
+    """Collapse a numbered Go/No-Go pilot plan (R14-20) into one prose line.
+
+    ``experimental_context`` may hold a markdown-shaped plan -- numbered
+    steps plus separately bolded ``**Go:**``/``**No-Go:**`` lines (see the
+    engine's ``format_experiment_plan``) -- but the two surfaces this
+    feeds (the "Next experiments" insight list and the technical-topics
+    detail panel) run no markdown renderer: ``InsightList`` prints plain
+    text, and ``run_detail_learning``'s ``renderInlineHtml`` whitelists
+    only literal HTML tags, not markdown syntax. Left alone, the literal
+    ``**``/leading-digit markup would show through unrendered. Collapsing
+    to one line here keeps both surfaces readable without teaching either
+    renderer markdown.
+
+    An older plain-paragraph experiment (no numbered lines, no bold
+    markers) passes through with only its own newlines joined, which is a
+    no-op for genuinely single-paragraph text.
+
+    Args:
+        text: The raw ``experimental_context`` value.
+
+    Returns:
+        One prose line, or an empty string when ``text`` has no content.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    parts = []
+    for line in lines:
+        line = _ORDINAL_PREFIX.sub("", line)
+        line = line.replace("**Go:**", "Go:").replace("**No-Go:**", "No-Go:")
+        parts.append(line)
+    return " ".join(parts)

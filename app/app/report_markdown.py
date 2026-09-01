@@ -42,6 +42,9 @@ from app.report_markdown_hypothesis import (
     _render_hypothesis_entry as _render_hypothesis_entry,
 )
 from app.report_markdown_hypothesis import (
+    _render_hypothesis_experiment as _render_hypothesis_experiment,
+)
+from app.report_markdown_hypothesis import (
     _render_hypothesis_mechanism as _render_hypothesis_mechanism,
 )
 from app.report_markdown_hypothesis import (

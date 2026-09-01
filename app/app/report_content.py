@@ -36,7 +36,11 @@ from app.report_content_gates import (
 from app.report_content_gates import (
     _verified_hypothesis_count as _verified_hypothesis_count,
 )
-from app.text_utils import hypothesis_statement, hypothesis_title
+from app.text_utils import (
+    hypothesis_statement,
+    hypothesis_title,
+    readable_experiment_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +85,11 @@ def _knowledge_base_topics(
                     or hypothesis.get("statement")
                     or ""
                 ),
-                "detail": str(
-                    hypothesis.get("experimental_context")
-                    or hypothesis.get("expected_effect")
-                    or ""
+                "detail": (
+                    readable_experiment_summary(
+                        str(hypothesis.get("experimental_context") or "")
+                    )
+                    or str(hypothesis.get("expected_effect") or "")
                 ),
                 "reference_ids": sorted(
                     set(references_by_hypothesis.get(hypothesis_id, []))
@@ -266,9 +271,13 @@ def _agent_insights(
             for item in meta.get("strategic_recommendations", [])
         ],
         "next_experiments": [
-            str(hypothesis.get("experimental_context") or "")
+            summary
             for hypothesis in hypotheses[:5]
-            if hypothesis.get("experimental_context")
+            if (
+                summary := readable_experiment_summary(
+                    str(hypothesis.get("experimental_context") or "")
+                )
+            )
         ],
     }
 

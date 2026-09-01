@@ -1,16 +1,17 @@
 """Pins one 'Top hypotheses' entry's full rendered markdown, line for line.
 
 ``_render_hypothesis_entry`` composes a mandatory title+disclaimer (R14-13)
-and eight optional subsections (scene-setting, proposed hypothesis,
-mechanism, references, safety, Go/No-Go verdict, simulation review, claim
-evidence) into one entry. Every other report test asserts a substring or a
-heading's presence/absence; none pin the assembled entry exactly, so a
-refactor of the composition itself -- reordering, an extra blank line, a
-dropped separator -- could pass every existing test while still changing
-what a reader sees. This test exercises all eight optional subsections on
-one hypothesis (including both the dict-with-url and bare-string
-evidence-span shapes ``_render_evidence_span`` renders differently) and
-pins the exact line-by-line output.
+and nine optional subsections (scene-setting, proposed hypothesis,
+mechanism, steps to test the idea, references, safety, Go/No-Go verdict,
+simulation review, claim evidence) into one entry. Every other report test
+asserts a substring or a heading's presence/absence; none pin the
+assembled entry exactly, so a refactor of the composition itself --
+reordering, an extra blank line, a dropped separator -- could pass every
+existing test while still changing what a reader sees. This test exercises
+all nine optional subsections on one hypothesis (including both the
+dict-with-url and bare-string evidence-span shapes
+``_render_evidence_span`` renders differently) and pins the exact
+line-by-line output.
 """
 
 import json
@@ -30,6 +31,10 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         "statement": "The loop raises steady-state flux.",
         "mechanism": "Its product inhibits the enzyme allosterically [C1].",
         "expected_effect": "Flux increases at least twofold.",
+        "experimental_context": (
+            "1. Script the assay.\n2. Run the pilot.\n"
+            "**Go:** Effect size >= 0.5.\n**No-Go:** Effect size < 0.2."
+        ),
         "safety_and_toxicity": "Limited safety data exists for this class.",
     }
     edges = [
@@ -110,6 +115,11 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         "**Mechanism:** Its product inhibits the enzyme allosterically [C1].",
         "",
         "**Predicted effect:** Flux increases at least twofold.",
+        "",
+        "#### Steps to test the idea",
+        "",
+        "1. Script the assay.\n2. Run the pilot.\n"
+        "**Go:** Effect size >= 0.5.\n**No-Go:** Effect size < 0.2.",
         "",
         "#### References",
         "",

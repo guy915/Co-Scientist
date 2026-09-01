@@ -106,6 +106,25 @@ def _render_hypothesis_mechanism(hyp: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_hypothesis_experiment(hyp: dict[str, Any]) -> list[str]:
+    """Render the "Steps to Test the Idea" pilot-plan subsection (R14-20).
+
+    ``experimental_context`` (the store's name for the engine's
+    ``Hypothesis.experiment``) is already the fully-formatted markdown
+    text a populated run produces -- numbered steps then separately
+    bolded ``**Go:**``/``**No-Go:**`` lines, built by the engine's
+    ``format_experiment_plan`` -- so this is a straight pass-through, the
+    same shape as ``_render_hypothesis_safety`` below. An older run's
+    plain-paragraph experiment (predating this structure, or a downgrade
+    response the engine could not structure) still renders correctly:
+    it is just prose under the same heading.
+    """
+    experiment = hyp.get("experimental_context")
+    if not experiment:
+        return []
+    return ["#### Steps to test the idea", "", str(experiment), ""]
+
+
 def _render_hypothesis_safety(hyp: dict[str, Any]) -> list[str]:
     """Render the proposer's own Safety and toxicity subsection.
 
@@ -263,10 +282,10 @@ def _render_hypothesis_entry(
         "",
     ]
     lines += _render_hypothesis_scene_setting(hyp)
-    statement = hypothesis_statement(hyp)
-    if statement:
+    if statement := hypothesis_statement(hyp):
         lines += [f"**Proposed hypothesis:** {statement}", ""]
     lines += _render_hypothesis_mechanism(hyp)
+    lines += _render_hypothesis_experiment(hyp)  # R14-20, right after Mechanism
     # Resolves the [C*] keys the mechanism text just cited -- the engine's
     # per-hypothesis reference index, joined back from citations+evidence
     # (see report_markdown_references). Right after Mechanism/Predicted
