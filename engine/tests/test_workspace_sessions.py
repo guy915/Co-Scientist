@@ -53,7 +53,7 @@ class TestStillRunningIsAnAnswer:
         payload = await _execute(
             provider,
             RUN_COMMAND,
-            argv=["bash", "-lc", "echo early; sleep 30"],
+            argv=["bash", "-c", "echo early; sleep 30"],
             yield_seconds=0.4,
         )
         assert payload["running"] is True
@@ -100,7 +100,7 @@ class TestStillRunningIsAnAnswer:
         started = await _execute(
             provider,
             RUN_COMMAND,
-            argv=["bash", "-lc", "echo first; sleep 0.3; echo second"],
+            argv=["bash", "-c", "echo first; sleep 0.3; echo second"],
             yield_seconds=0.1,
         )
         assert "first" in started["stdout"]
