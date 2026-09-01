@@ -132,7 +132,7 @@ def test_table_of_contents_degrades_when_research_overview_is_malformed() -> (
     None
 ):
     """A non-dict research_overview contributes no phantom nav entries."""
-    markdown = _markdown(research_overview="not a dict")  # type: ignore[arg-type]
+    markdown = _markdown(research_overview="not a dict")
 
     lines = markdown.splitlines()
     toc_at = lines.index("#### Table of contents:")
