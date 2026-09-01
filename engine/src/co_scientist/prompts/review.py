@@ -172,6 +172,15 @@ def _format_critical_criterion(criterion: Any) -> list[str]:
     and the richer ``{name, questions}`` object this prompt now asks the
     Supervisor to synthesize. Anything else (int, None, an unnamed dict)
     renders nothing.
+
+    R12-23b adds a third field, ``description`` (a prose paragraph for
+    the report's own "Evaluation Criteria" section --
+    ``report_markdown_supervisor.py``), and it is deliberately NOT read
+    here. This function runs per hypothesis, per review; the description
+    states the same substance the questions already express
+    operationally, so injecting it would roughly double this per-
+    hypothesis guidance block for no reviewer benefit. Do not "complete"
+    this by adding ``criterion.get("description")`` below.
     """
     if isinstance(criterion, str):
         name = criterion.strip()

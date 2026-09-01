@@ -19,17 +19,30 @@ _AGENTS_ASSESSED: tuple[str, ...] = (
     "meta_review",
 )
 
-# Bounds on workflow_plan.review_phase.critical_criteria below (R12-23).
-# Google's published "Review summary" exemplar (docs/CORPUS-EXTRACTION.md,
-# line 2929) prints exactly 5 numbered criteria, each with 3-4 named
-# yes/no reviewer questions (16 total) -- these bounds mirror the exemplar
-# rather than being picked arbitrarily, the same reasoning
-# NOVELTY_REVIEW_MAX_ITEMS documents. This layer multiplies the response
-# by (criteria x questions) on a call site that runs per hypothesis, per
-# review, so it is capped here and re-capped defensively at the injection
-# point in prompts/review.py, since json_object mode (the production
-# downgrade path) does not enforce maxItems server-side.
-CRITICAL_CRITERIA_MAX_COUNT: Final = 5
+# Bounds on workflow_plan.review_phase.critical_criteria below (R12-23,
+# R12-23b). Two different published sections name these criteria, and
+# they disagree on the count -- read both before touching either bound.
+# The "## **2. Evaluation Criteria**" section (docs/CORPUS-EXTRACTION.md,
+# line 2558) names 6: Mechanistic Novelty and Rigor in Fibrosis Reversal,
+# Kinetic Feasibility and Experimental Readouts, Human Data Integration
+# and Accuracy, Safety and Therapeutic Viability, Targeting and Delivery
+# Logic, and Biological Scope Alignment. The later "Review summary"
+# exemplar (line 2929) prints only 5 numbered criteria with 4/3/3/4/2
+# named yes/no reviewer questions (16 total) -- Targeting and Delivery
+# Logic is not a numbered criterion there because it was folded into
+# Safety and Therapeutic Viability as one of its own 4 questions (line
+# 2955). The count below is the union of the two sections, 6, not the
+# Review summary's 5: reading only the Review summary and "correcting"
+# this back to 5 silently truncates a real published criterion again.
+# CRITICAL_CRITERIA_MAX_QUESTIONS stays at the Review summary's per-
+# criterion ceiling (4) -- the folding changes how many *criteria* there
+# are, not how many questions any one of them carries. This layer
+# multiplies the response by (criteria x questions) on a call site that
+# runs per hypothesis, per review, so it is capped here and re-capped
+# defensively at the injection point in prompts/review.py, since
+# json_object mode (the production downgrade path) does not enforce
+# maxItems server-side.
+CRITICAL_CRITERIA_MAX_COUNT: Final = 6
 CRITICAL_CRITERIA_MAX_QUESTIONS: Final = 4
 
 # Supervisor schema
@@ -95,16 +108,25 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             # own named yes/no reviewer questions, not a
                             # bare name. Each question is identified by its
                             # own short name/text; there is no input pool
-                            # to echo back by index here.
+                            # to echo back by index here. R12-23b adds
+                            # `description`, mirroring the published
+                            # Evaluation Criteria section's own bolded-
+                            # name-plus-prose shape (line 2558) --
+                            # report-only (report_markdown_supervisor.py),
+                            # deliberately excluded from the reviewer-
+                            # prompt injection below (see
+                            # _format_critical_criterion in
+                            # prompts/review.py for why).
                             "critical_criteria": {
                                 "type": "array",
                                 "maxItems": CRITICAL_CRITERIA_MAX_COUNT,
                                 "description": (
-                                    "Up to 5 domain-specific criteria"
+                                    "Up to 6 domain-specific criteria"
                                     " reviewers should emphasize, each with"
-                                    " up to 4 named yes/no questions a"
-                                    " reviewer would ask when checking a"
-                                    " hypothesis against it."
+                                    " a prose description of what it"
+                                    " demands and up to 4 named yes/no"
+                                    " questions a reviewer would ask when"
+                                    " checking a hypothesis against it."
                                 ),
                                 "items": obj(
                                     {
@@ -112,6 +134,17 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                                             "type": "string",
                                             "description": (
                                                 "short criterion name"
+                                            ),
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "description": (
+                                                "one prose paragraph"
+                                                " stating what this"
+                                                " criterion demands of a"
+                                                " hypothesis and why it"
+                                                " matters for this"
+                                                " research goal"
                                             ),
                                         },
                                         "questions": {

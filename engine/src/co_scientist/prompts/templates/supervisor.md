@@ -114,7 +114,7 @@ Provide guidance for each phase. Use the ACTUAL configuration values ({{initial_
 - **quantity_target**: state "{{initial_hypotheses_count}} hypotheses as configured" (do not suggest different numbers)
 
 #### review_phase
-- **critical_criteria**: up to 5 domain-specific criteria reviewers should emphasize. Each criterion is an object with **name** (short) and **questions** (up to 4 named yes/no questions a reviewer would ask when checking a hypothesis against it, each with its own short **name** and **question** text)
+- **critical_criteria**: up to 6 domain-specific criteria reviewers should emphasize. Each criterion is an object with **name** (short), **description** (one prose paragraph stating what this criterion demands of a hypothesis for this goal and why it matters), and **questions** (up to 4 named yes/no questions a reviewer would ask when checking a hypothesis against it, each with its own short **name** and **question** text)
 - **review_depth**: description of review depth appropriate for this domain
 
 #### evolution_phase

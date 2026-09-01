@@ -101,6 +101,99 @@ def test_malformed_criteria_render_no_section() -> None:
     assert "Evaluation Criteria" not in markdown
 
 
+def test_criteria_render_with_description() -> None:
+    """R12-23b: a criterion carrying prose renders Google's own shape.
+
+    docs/CORPUS-EXTRACTION.md line 2558's section is a bolded name, a
+    colon, then a prose paragraph -- not a bare name bullet.
+    """
+    markdown = _markdown(
+        [
+            {
+                "name": "Kinetic Feasibility and Experimental Readouts",
+                "description": (
+                    "The experimental design must align with the"
+                    " biological timeframe of the proposed mechanism."
+                ),
+            }
+        ]
+    )
+
+    assert "## Evaluation Criteria" in markdown
+    assert (
+        "**Kinetic Feasibility and Experimental Readouts:** The"
+        " experimental design must align with the biological timeframe"
+        " of the proposed mechanism." in markdown
+    )
+    assert "- Kinetic Feasibility and Experimental Readouts" not in markdown
+
+
+def test_criteria_without_description_falls_back_to_bullet() -> None:
+    """A {name, questions} entry with no description degrades to a bullet.
+
+    Covers both a legacy pre-R12-23b dict and a live run whose answer
+    omitted description under the json_object downgrade -- degrade,
+    never drop, never crash.
+    """
+    markdown = _markdown(
+        [
+            {
+                "name": "Human Data Integration and Accuracy",
+                "questions": [{"name": "Dataset Grounding", "question": "Q?"}],
+            }
+        ]
+    )
+
+    assert "## Evaluation Criteria" in markdown
+    assert "- Human Data Integration and Accuracy" in markdown
+    assert "**Human Data Integration and Accuracy:**" not in markdown
+
+
+def test_blank_description_falls_back_to_bullet() -> None:
+    """A whitespace-only description is treated as absent, not rendered."""
+    markdown = _markdown(
+        [{"name": "Safety and Therapeutic Viability", "description": "   "}]
+    )
+
+    assert "- Safety and Therapeutic Viability" in markdown
+    assert "**Safety and Therapeutic Viability:**" not in markdown
+
+
+def test_mixed_shapes_each_render_in_their_own_form() -> None:
+    """A run mixing the description shape with legacy entries renders both."""
+    markdown = _markdown(
+        [
+            {
+                "name": "Biological Scope Alignment",
+                "description": (
+                    "Must reside within the designated focus areas."
+                ),
+            },
+            "Mechanistic Novelty and Rigor in Fibrosis Reversal",
+        ]
+    )
+
+    assert (
+        "**Biological Scope Alignment:** Must reside within the"
+        " designated focus areas." in markdown
+    )
+    assert "- Mechanistic Novelty and Rigor in Fibrosis Reversal" in markdown
+
+
+def test_non_str_non_dict_entries_are_skipped_alongside_valid_ones() -> None:
+    """An int/None/list entry contributes nothing; valid ones still render."""
+    markdown = _markdown(
+        [
+            42,
+            None,
+            ["not", "a", "criterion"],
+            {"name": "Valid Criterion", "description": "Valid prose."},
+        ]
+    )
+
+    assert "**Valid Criterion:** Valid prose." in markdown
+
+
 def test_distinct_from_the_user_authored_criteria_list() -> None:
     """The synthesized section never replaces the user-authored list.
 

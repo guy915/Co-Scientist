@@ -86,9 +86,10 @@ def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
 
     json_object mode (the production downgrade path) does not enforce the
     schema's maxItems server-side, so this caps to Google's own published
-    counts (5 criteria, 4 questions each) regardless of what the model
-    actually returned -- the same defense research_overview_directions.py
-    applies for its own nested lists.
+    counts (6 criteria -- the union of the Evaluation Criteria and Review
+    summary sections, R12-23b -- 4 questions each) regardless of what the
+    model actually returned -- the same defense
+    research_overview_directions.py applies for its own nested lists.
     """
     guidance = {
         "workflow_plan": {
@@ -111,8 +112,8 @@ def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
         hypothesis_text="h",
         context=PromptRunContext(supervisor_guidance=guidance),
     )
-    assert "criterion 4" in prompt
-    assert "criterion 5" not in prompt
+    assert "criterion 5" in prompt
+    assert "criterion 6" not in prompt
     assert "text 0-3?" in prompt
     assert "text 0-4?" not in prompt
 
@@ -154,3 +155,96 @@ def test_review_prompt_critical_criteria_absent_renders_no_section() -> None:
     )
     assert "Critical Criteria to Emphasize" not in prompt
     assert "Review Depth Required" in prompt
+
+
+def test_review_prompt_critical_criteria_not_a_list_degrades() -> None:
+    """A malformed (non-list) critical_criteria field degrades, not crashes.
+
+    ``_guidance_items`` wraps a bare string as a single-item list, so this
+    still renders it as one legacy-shaped criterion rather than raising.
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {"critical_criteria": "not a list"},
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "not a list" in prompt
+
+
+def test_review_prompt_excludes_description_even_when_present() -> None:
+    """R12-23b: ``description`` is deliberately report-only, never injected.
+
+    ``description`` backs the report's own "Evaluation Criteria" section
+    (``report_markdown_supervisor.py``) -- this call site runs per
+    hypothesis, per review, and the prose states the same substance the
+    questions already express operationally, so injecting it here would
+    roughly double this per-hypothesis guidance block for no reviewer
+    benefit (see planning.py's ``CRITICAL_CRITERIA_MAX_COUNT`` comment).
+    This is the test that protects that design decision: the name and
+    questions must still reach the reviewer, the description must not.
+    """
+    marker = "UNIQUE_DESCRIPTION_PROSE_MARKER_NEVER_INJECTED"
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": "Kinetic Feasibility",
+                        "description": (
+                            f"{marker}: explains what this criterion"
+                            " demands and why it matters for the goal."
+                        ),
+                        "questions": [
+                            {
+                                "name": "Kinetic Competition",
+                                "question": "Does degradation outpace"
+                                " synthesis?",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Kinetic Feasibility" in prompt
+    assert "Kinetic Competition" in prompt
+    assert "Does degradation outpace synthesis?" in prompt
+    assert marker not in prompt
+
+
+def test_review_prompt_blank_description_is_harmless() -> None:
+    """A whitespace-only description doesn't affect prompt injection either.
+
+    ``description`` is never read here regardless of its content, so a
+    blank one behaves exactly like an absent one.
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": "Valid Criterion",
+                        "description": "   ",
+                        "questions": [{"question": "Q?"}],
+                    }
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Valid Criterion" in prompt
+    assert "Q?" in prompt

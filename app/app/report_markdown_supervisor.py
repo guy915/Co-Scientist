@@ -15,17 +15,23 @@ user's own setup, so every renderer below picks a heading distinct from
 its user-authored namesake.
 
 ``critical_criteria`` backs two sections here, both R12-18's "Evaluation
-Criteria" (a flat name list, matching the published plan's own section 2)
-and R12-23's "Review Summary" (the numbered rubric with each criterion's
-named reviewer questions, matching the published document's later,
-separate section of that name) -- two genuinely different published
-sections that happen to derive from the same synthesized field. As of
-R12-23 that field's entries carry two shapes: the legacy bare criterion-
-name string (a run persisted before this change) and the richer
-``{name, questions}`` object the Supervisor now synthesizes. Production's
-json_object mode does not enforce the schema, so a live run can answer
-with either shape too -- every renderer below handles both, and degrades
-a malformed field (not a list, or an unnamed entry) to rendering nothing.
+Criteria" (bolded-name-plus-prose per criterion, matching the published
+plan's own section 2) and R12-23's "Review Summary" (the numbered rubric
+with each criterion's named reviewer questions, matching the published
+document's later, separate section of that name) -- two genuinely
+different published sections that happen to derive from the same
+synthesized field. That field's entries carry three shapes across two
+migrations: the legacy bare criterion-name string (a run persisted
+before R12-23), the R12-23 ``{name, questions}`` object, and the richer
+R12-23b ``{name, description, questions}`` object the Supervisor now
+synthesizes -- ``description`` is this module's prose paragraph and is
+never sent to a reviewer (see ``prompts/review.py``'s
+``_format_critical_criterion`` for why). Production's json_object mode
+does not enforce the schema, so a live run can answer with any of the
+three shapes, or a malformed one -- every renderer below handles all of
+them, degrading a missing description to the older bare-name bullet and
+a malformed field (not a list, or an unnamed entry) to rendering
+nothing.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
 every name is re-exported so its namespace keeps resolving.
@@ -88,6 +94,36 @@ def _critical_criterion_name(criterion: Any) -> str:
     return ""
 
 
+def _critical_criterion_description(criterion: Any) -> str:
+    """Extract a critical criterion's prose description, or "".
+
+    R12-23b: only the richer ``{name, description, questions}`` shape
+    carries this. A legacy bare-name string has none, and neither does a
+    dict predating this change or one whose description came back blank
+    under production's json_object downgrade (which enforces no schema).
+    ``_render_evaluation_criteria_markdown`` falls back to a bare
+    ``- {name}`` bullet in every such case.
+    """
+    if not isinstance(criterion, dict):
+        return ""
+    return str(criterion.get("description") or "").strip()
+
+
+def _render_evaluation_criterion(name: str, description: str) -> list[str]:
+    """Render one Evaluation Criteria entry.
+
+    Google's own shape when there is prose to show (docs/CORPUS-
+    EXTRACTION.md, line 2558): a bolded name, a colon, then the
+    paragraph, followed by a blank line so consecutive criteria stay
+    separate markdown paragraphs rather than merging into one. Falls
+    back to the pre-R12-23b bare ``- {name}`` bullet when there is no
+    usable description -- degrade, never drop.
+    """
+    if description:
+        return [f"**{name}:** {description}", ""]
+    return [f"- {name}"]
+
+
 def _render_evaluation_criteria_markdown(
     critical_criteria: list[Any] | None,
 ) -> list[str]:
@@ -106,19 +142,30 @@ def _render_evaluation_criteria_markdown(
     names the run's user-authored, plain-string criteria rendered under
     "Research Goal Details" (``report_markdown_header.py``).
 
-    A flat name list regardless of which shape each entry carries -- the
-    elaborated per-criterion questions R12-23 added render separately, in
+    R12-23b: Google's published section is not a flat name list -- each
+    criterion is a bolded name plus a prose paragraph stating what it
+    demands (docs/CORPUS-EXTRACTION.md, line 2558). ``critical_criteria``
+    now carries that prose as each entry's ``description``; this renders
+    it in that shape via ``_render_evaluation_criterion`` and degrades to
+    the old bare-name bullet wherever an entry has none. The elaborated
+    per-criterion reviewer questions render separately, in
     ``_render_review_summary_markdown`` below.
     """
     if not isinstance(critical_criteria, list):
         return []
-    names = [_critical_criterion_name(item) for item in critical_criteria]
-    names = [name for name in names if name]
-    if not names:
+    entries = [
+        (name, _critical_criterion_description(item))
+        for item in critical_criteria
+        for name in [_critical_criterion_name(item)]
+        if name
+    ]
+    if not entries:
         return []
     lines = ["## Evaluation Criteria\n"]
-    lines.extend(f"- {name}" for name in names)
-    lines.append("")
+    for name, description in entries:
+        lines.extend(_render_evaluation_criterion(name, description))
+    if lines[-1] != "":
+        lines.append("")
     return lines
 
 
