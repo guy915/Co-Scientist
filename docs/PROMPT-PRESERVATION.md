@@ -299,12 +299,14 @@ faithfully.** 54 of 65 identified substantive instructions are present
 deliberately and defensibly adapted (three of them documented fixes for
 prior findings — evidence-gap over-triggering, position bias, the source's
 own "better idea"/"better hypothesis" inconsistency), and only 5 are
-genuine gaps, three of which cluster into a single finding (`MP-7`'s
-reasoning scaffold, shared by evolution-06 and evolution-07) and two more
-into a second (the ranking prompts' unfilled `{notes}`/"Considerations"
-slot, which the paper itself gives no content to lose). Both are recorded
-below with a judgment; neither was found to be silently load-bearing the
-way `R8-1`'s reversed-scores instruction was.
+genuine gaps. Two cluster into a single finding (`MP-7`'s reasoning
+scaffold, shared by evolution-06 and evolution-07 — **restored below**),
+two more cluster into a second (the ranking prompts' unfilled
+`{notes}`/"Considerations" slot, which the paper itself gives no content to
+lose — left for the owner), and one is standalone (`ranking-05`'s "Turn 1
+begins with a summary" pacing instruction — also left for the owner). None
+of the five was found to be silently load-bearing the way `R8-1`'s
+reversed-scores instruction was.
 
 ---
 

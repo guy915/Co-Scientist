@@ -25,6 +25,7 @@ but do not update them to match later changes.
 | Entry | Contents |
 |---|---|
 | [PARITY-VERIFICATION.md](PARITY-VERIFICATION.md) | Point-in-time record (2026-07-10) of how parity claims were verified: commands, results, and honest limitations. The live ledger is [PARITY.md](PARITY.md) |
+| [PROMPT-PRESERVATION.md](PROMPT-PRESERVATION.md) | Point-in-time record (2026-09-01) auditing each of the eight published prompts (`docs/CORPUS-EXTRACTION.md` Appendix A) instruction-by-instruction against its corresponding template, beyond the `MP-*` checklist's spot findings |
 | `decisions/` | Dated decision records |
 | `superpowers/plans/` | Dated implementation plans |
 | `superpowers/specs/` | Dated design specs |
