@@ -19,6 +19,7 @@ from app.engine_adapter.drain_reviews import (
     _verdict_detail,
 )
 from tests._drain_helpers import (
+    _build_report,
     _final_state_with_features,
     _persist_and_finalize,
 )
@@ -139,3 +140,16 @@ def test_drain_persists_detail_json_on_the_review_row(isolated_db: str) -> None:
         if r["reviewer_agent"] == "deep_verification"
     ]
     assert dv and dv[0]["detail_json"] is None
+
+    # The whole point of persisting detail_json: the Goal Report markdown
+    # -- built fresh from the DB, not the fixture -- actually shows it.
+    # This is the one test that drives drain -> store -> markdown end to
+    # end; the renderer's own unit tests stop at hand-built review dicts,
+    # and a rename of either side's hardcoded reviewer_agent string
+    # ("simulation_review"/"full_review") would render nothing and pass
+    # every other test in this file.
+    _payload, markdown = _build_report(run, isolated_db)
+    assert "#### Simulation review" in markdown
+    assert "**Verdict:** Go" in markdown
+    assert "**Time to Verdict:** Short" in markdown
+    assert "1. **Failure point:** Substrate saturation." in markdown
