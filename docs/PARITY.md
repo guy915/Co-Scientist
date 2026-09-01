@@ -38,8 +38,12 @@ running code, then explanatory docs.
 
 **Invariant class**
 
-- **PAPER** — an invariant the Nature paper / SSR states explicitly. Hard
-  requirement.
+- **PAPER** — an invariant that arXiv or the Nature SI states explicitly,
+  cited to that publication and, where the corpus Appendix carries the exact
+  passage, to its `App.` locus (see the Legend). Hard requirement. A claim
+  whose only support is the `SSR`/`TE`/`ARCH`/`RGV` local consolidation —
+  however confidently that consolidation states it — is not this class; see
+  the Legend's note on those shorthands.
 - **CLONE** — a design choice Google left unspecified; we pick a conservative,
   configurable default and document it.
 - **PRODUCT** — a behavior documented for the current Gemini Enterprise / Labs
@@ -52,11 +56,27 @@ itself.
 
 ## Legend of primary-source shorthands
 
-- **SSR §n** — `references/core/google-co-scientist/source-system-reference.md`, section n.
+- **arXiv §n** — Gottweis et al., *Towards an AI co-scientist*, arXiv:2502.18864.
+- **Nature SI** — the Supplementary Information for Gottweis et al.,
+  *Accelerating scientific discovery with AI co-scientist* (Nature 2026).
+- **App. A / App. B / App. C / App. D** — the verbatim-artifact Appendix in
+  `docs/CORPUS-EXTRACTION.md` (A: the eight published prompts; B: the seven
+  published pseudocode listings, all Nature SI Supplementary Note 8
+  L905-1099; C: the published real outputs; D: the published
+  architecture/execution-flow prose, arXiv §3-§4.2). Each entry there names
+  its own canonical source with a sha256 pin. Citing an `App.` letter with a
+  section points at a corpus entry a reader can check without opening
+  `references/`.
+- **SSR §n** — `references/core/google-co-scientist/source-system-reference.md`,
+  section n: the local clone-authored consolidation of the paper, not the
+  paper itself. Citing `SSR §n` (or `TE §n` / `ARCH §n` / `RGV §n` below)
+  alone, with no arXiv/Nature SI/`App.` pointer alongside it, means the row's
+  only support is that consolidation — `docs/CORPUS-EXTRACTION.md`'s R1-R9
+  audit found ARCH 1/49, TE 2/73, RGV 0/71 rows actually paper-backed. Such a
+  row does not carry the `PAPER —` prefix; see `docs/PARITY-SOURCES.md`.
 - **TE §n** — `references/core/google-co-scientist/tournament-evolution-and-evaluation-criteria.md`.
 - **ARCH §n** — `references/core/google-co-scientist/system-architecture-and-orchestration.md`.
 - **RGV §n** — `references/core/google-co-scientist/retrieval-grounding-and-verification.md`.
-- **Nature** — Gottweis et al., *Towards an AI co-scientist* (Nature 2026 / arXiv 2502.18864).
 - **Mx / P0.x** — milestone identifiers from the project's internal parity-implementation roadmap (a development plan, not a published document).
 
 The arXiv preprint and the Nature SI are two different publications that
@@ -83,13 +103,13 @@ wording as settled.
 
 | ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
 |---|---|---|---|---|---|---|
-| ELO-INIT-1200 | PAPER — SSR §4 (Ranking), TE §3 | Every newly added hypothesis starts at Elo 1200 | `engine/src/co_scientist/constants.py` `INITIAL_ELO_RATING = 1200`; `models.py` `Hypothesis.elo_rating` default | `engine/tests/test_integration_pipeline.py` (asserts `INITIAL_ELO_RATING`) | verified | — |
-| EVO-IMMUTABLE-001 | PAPER — SSR §4 (Evolution), §12; TE §5 | Evolution generates NEW hypotheses; it never modifies or replaces existing ones | `agents/evolution/evolve_results.py::_build_evolution_child` constructs an immutable child; `evolve_node` returns `AppendHypotheses(children)`, parents untouched | `engine/tests/test_evolve.py`; `engine/tests/test_integration_pipeline.py::test_evolve_path_appends_immutable_children` | verified | — |
-| EVO-LINEAGE-001 | PAPER — TE §5 (`parent_ids`); ARCH §5 (`hypotheses.parent_ids`, `origin_agent`) | Each hypothesis records parent lineage, generation, and origin | Engine `Hypothesis.parent_id/generation/origin/creation_iteration` (`models.py`); drain reads explicit lineage (`engine_adapter/drain.py::_derive_hypothesis_identity`) into store `hypotheses` | `engine/tests/test_models.py::test_hypothesis_lineage_round_trips`; `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` | verified | — |
-| EVO-COMPETE-001 | PAPER — SSR §4, §12 | Every accepted child is reviewed before ranking and re-enters the tournament at Elo 1200 with zero matches | Children are fresh objects (Elo 1200, 0 matches, empty reviews) appended; graph edge `evolve → review → ranking` reviews them | `engine/tests/test_integration_pipeline.py::test_single_iteration_pipeline_updates_cross_node_state` (children reviewed ≥1 before ranking, both compete) | verified | — |
+| ELO-INIT-1200 | PAPER — arXiv §3.3.3 (App. D — Ranking agent, "We set the initial Elo rating of 1200 for the newly added hypothesis"); Nature SI Note 8 (App. B `04-ranking.md`, `SET HypothesisToAdd.EloRating TO 1200`) | Every newly added hypothesis starts at Elo 1200 | `engine/src/co_scientist/constants.py` `INITIAL_ELO_RATING = 1200`; `models.py` `Hypothesis.elo_rating` default | `engine/tests/test_integration_pipeline.py` (asserts `INITIAL_ELO_RATING`) | verified | — |
+| EVO-IMMUTABLE-001 | PAPER — arXiv §3.3.5 (App. D — Evolution agent, "generates new hypotheses; it doesn't modify or replace existing ones"); Nature SI Note 8 (App. B `05-evolution.md`, "Treat it like a brand new idea") | Evolution generates NEW hypotheses; it never modifies or replaces existing ones | `agents/evolution/evolve_results.py::_build_evolution_child` constructs an immutable child; `evolve_node` returns `AppendHypotheses(children)`, parents untouched | `engine/tests/test_evolve.py`; `engine/tests/test_integration_pipeline.py::test_evolve_path_appends_immutable_children` | verified | — |
+| EVO-LINEAGE-001 | TE §5 (`parent_ids`); ARCH §5 (`hypotheses.parent_ids`, `origin_agent`) — local-consolidation schema fields, not paper text: neither App. B's pseudocode (`02-generation.md`/`05-evolution.md`) nor App. D's Evolution-agent prose names a lineage data model, only that a child is "inspired by" prior hypotheses (arXiv §3.3.5, App. D) | Each hypothesis records parent lineage, generation, and origin | Engine `Hypothesis.parent_id/generation/origin/creation_iteration` (`models.py`); drain reads explicit lineage (`engine_adapter/drain.py::_derive_hypothesis_identity`) into store `hypotheses` | `engine/tests/test_models.py::test_hypothesis_lineage_round_trips`; `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` | verified | — |
+| EVO-COMPETE-001 | PAPER — Nature SI Note 8 (App. B `05-evolution.md`: an evolved hypothesis is saved and a `ReviewHypothesis` task created, "Treat it like a brand new idea"; App. B `04-ranking.md`'s `AddToTournament` sets Elo 1200 only for a hypothesis with no prior rating) | Every accepted child is reviewed before ranking and re-enters the tournament at Elo 1200 with zero matches | Children are fresh objects (Elo 1200, 0 matches, empty reviews) appended; graph edge `evolve → review → ranking` reviews them | `engine/tests/test_integration_pipeline.py::test_single_iteration_pipeline_updates_cross_node_state` (children reviewed ≥1 before ranking, both compete) | verified | — |
 | EVO-NOOP-001 | CLONE (from PAPER intent) | A rejected/no-op evolution creates no fake child | `_apply_evolution_result` returns `(None, None)` on unchanged/near-duplicate refinement | `engine/tests/test_evolve.py::test_evolution_noop_produces_no_child`, `::test_unchanged_response_records_no_child_or_detail` | verified | — |
 | EVO-REDUCER-001 | M1.3 | State reducer uses explicit append/update/prune, not an identity/text heuristic, so a child cannot replace a parent or resurrect a pruned duplicate | `state.py::deduplicate_hypotheses` dispatches `AppendHypotheses` (append, dedup by id/text) vs bare list (replace, dedup by id) | `engine/tests/test_state_reducer.py` | verified | — |
-| EVO-LINEAGE-RESTART-001 | PAPER — SSR §2 (context memory restart) | Lineage survives store round-trip (persist → reopen) | Drain persists parent_id/generation; `store.list_hypotheses` reads them from disk on a fresh connection | `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` (persist→reopen) | verified | Full process-restart workflow resume is owned by M4 (CKPT-*) |
+| EVO-LINEAGE-RESTART-001 | PAPER — arXiv §3.1/§3.2 (App. D — "persistent context memory to store and retrieve states of the agents and the system"; "enables easy restarts in-case of any failure in the system components") | Lineage survives store round-trip (persist → reopen) | Drain persists parent_id/generation; `store.list_hypotheses` reads them from disk on a fresh connection | `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` (persist→reopen) | verified | Full process-restart workflow resume is owned by M4 (CKPT-*) |
 
 ---
 
