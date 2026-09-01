@@ -14,6 +14,7 @@ is re-exported below, so importers written against ``drain_reviews`` --
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
@@ -314,6 +315,84 @@ def _append_simulation_critique(
     )
 
 
+# Bounds for detail_json (R14-22/R14-15): generous enough for genuine
+# reader content, tight enough that a malformed json_object-downgrade
+# response (an over-long string, a runaway array) cannot inflate the row.
+_MAX_DETAIL_ITEMS = 10
+_MAX_DETAIL_CHARS = 500
+_MAX_SHORT_CHARS = 200
+
+
+def _clip_detail(value: Any, limit: int) -> str:
+    """Coerce one possibly-malformed field to a bounded, flat string."""
+    text = " ".join(str(value or "").split())
+    return text[:limit].rstrip()
+
+
+def _simulation_detail(review: dict[str, Any]) -> dict[str, Any]:
+    """Bounded failure_points/decisive_step for the markdown renderer.
+
+    Google's published shape numbers and bolds these (R14-22); nothing
+    here or downstream parses or gates on them. ``failure_points`` may
+    legitimately be empty -- a ``holds`` verdict names no failure point --
+    which the caller renders as no section at all.
+    """
+    raw_points = review.get("failure_points")
+    points = [
+        clipped
+        for point in (raw_points if isinstance(raw_points, list) else [])[
+            :_MAX_DETAIL_ITEMS
+        ]
+        if (clipped := _clip_detail(point, _MAX_DETAIL_CHARS))
+    ]
+    decisive_step = _clip_detail(review.get("decisive_step"), _MAX_SHORT_CHARS)
+    detail: dict[str, Any] = {}
+    if points:
+        detail["failure_points"] = points
+    if decisive_step:
+        detail["decisive_step"] = decisive_step
+    return detail
+
+
+def _verdict_detail(review: dict[str, Any]) -> dict[str, Any]:
+    """Bounded Go/No-Go framing for the full/recurrent review (R14-15).
+
+    Display only, rendered verbatim: neither this function nor its
+    caller nor the markdown renderer treats either field as a decision --
+    the review-disposition gate reads only ``verdict``/``justification``
+    (``mature_reviews.apply_mature_review_disposition``), never this.
+    """
+    go_no_go = _clip_detail(
+        review.get("go_no_go_recommendation"), _MAX_SHORT_CHARS
+    )
+    time_to_verdict = _clip_detail(
+        review.get("time_to_verdict"), _MAX_SHORT_CHARS
+    )
+    detail: dict[str, Any] = {}
+    if go_no_go:
+        detail["go_no_go"] = go_no_go
+    if time_to_verdict:
+        detail["time_to_verdict"] = time_to_verdict
+    return detail
+
+
+def _review_detail_json(key: str, review: dict[str, Any]) -> str | None:
+    """Return one mature review's structured display detail, or None.
+
+    Only simulation (failure points/decisive step) and full/recurrent
+    (Go/No-Go framing) carry anything beyond summary/critique text today;
+    every other key returns None, and an empty result also returns None
+    rather than an empty ``"{}"`` row.
+    """
+    if key == "simulation":
+        detail = _simulation_detail(review)
+    elif key in ("full", "recurrent"):
+        detail = _verdict_detail(review)
+    else:
+        detail = {}
+    return json.dumps(detail) if detail else None
+
+
 def _persist_mature_review_rows(
     run_id: str,
     hyp_id: str,
@@ -340,6 +419,7 @@ def _persist_mature_review_rows(
                 reviewer_agent=reviewer_agent,
                 summary=f"{verdict_label}: {verdict}",
                 critique=_format_mature_critique(key, review),
+                detail_json=_review_detail_json(key, review),
             ),
             conn=conn,
         )

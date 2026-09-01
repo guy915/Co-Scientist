@@ -294,6 +294,22 @@ def _migrate_hypothesis_safety_toxicity_column(
     _add_column_if_missing(conn, "hypotheses", "safety_and_toxicity", "TEXT")
 
 
+def _migrate_review_detail_column(conn: sqlite3.Connection) -> None:
+    """Add the reviews table's structured-detail column (R14-22/R14-15).
+
+    A mature review's own structured fields -- the simulation review's
+    ``failure_points``/``decisive_step``, the full/recurrent review's
+    display-only Go/No-Go framing -- used to be flattened into the
+    ``critique`` text column and nowhere else, so a reader wanting the
+    numbered list back had to re-parse prose. This column carries the
+    same content as a small bounded JSON object instead, read-only and
+    display-only: nothing in this codebase parses it to gate, rank, or
+    filter a hypothesis (see ``drain_reviews._review_detail_json``). NULL
+    for every review row with nothing structured beyond summary/critique.
+    """
+    _add_column_if_missing(conn, "reviews", "detail_json", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -310,3 +326,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_drop_feedback_table(conn)
     _migrate_hypothesis_scene_setting_columns(conn)
     _migrate_hypothesis_safety_toxicity_column(conn)
+    _migrate_review_detail_column(conn)

@@ -348,7 +348,9 @@ class NewReview:
     ``author`` and ``verdict`` carry a scientist reviewer's identity and
     categorical judgement as their own columns, so neither has to be
     recovered by reading the summary prose; both stay empty for an agent
-    review.
+    review. ``detail_json`` carries one review type's own structured
+    fields beyond summary/critique (e.g. the simulation review's failure
+    points), display-only -- see ``drain_reviews._review_detail_json``.
     """
 
     run_id: str
@@ -362,6 +364,7 @@ class NewReview:
     overall: float | None = None
     author: str = ""
     verdict: str | None = None
+    detail_json: str | None = None
 
 
 def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
@@ -370,7 +373,7 @@ def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
         "INSERT INTO reviews (run_id, hypothesis_id, "
         "reviewer_agent, summary, critique, "
         "novelty, plausibility, testability, overall, author, verdict, "
-        "created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "detail_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             review.run_id,
             review.hypothesis_id,
@@ -383,6 +386,7 @@ def _insert_review_row(conn: sqlite3.Connection, review: NewReview) -> None:
             review.overall,
             review.author,
             review.verdict,
+            review.detail_json,
             _now(),
         ),
     )
