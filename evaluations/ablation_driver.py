@@ -29,7 +29,12 @@ carries no such field, meta-review runs unconditionally every cycle, and the
 debate/tool-based generation mix is *derived* from literature/tool
 availability rather than toggled directly. Building either would mean
 adding a new switch to the engine, which is out of this driver's ownership
--- see the evaluation report for what that would need.
+-- see the evaluation report for what that would need. ``PUBLISHED_BASELINES``
+below records Google's own numbers for exactly these two unreachable arms
+(plus Reflection's search-tool ablation, which *is* reachable via
+``no_web_search``), quoted from the paper as reference data a future
+credentialed sweep can be read against -- never computed, compared, or
+gated on here.
 
 **Offline (default):** proves the driver's wiring end-to-end. It is NOT
 evidence that any toggle changes real output: without a reachable MCP
@@ -73,6 +78,65 @@ _UNREACHABLE_ARMS = {
         "The debate/tool-based generation mix is derived from literature/"
         "tool availability (agents/generation/coordinator.py), not exposed "
         "as an independent toggle; GeneratorOptions carries no such field."
+    ),
+}
+
+# Google's own published per-agent ablation numbers (Nature SI Note 3 /
+# Supplementary Table 1; docs/CORPUS-EXTRACTION.md R11-8). Landed here as a
+# READ-ONLY comparison baseline for the day a credentialed --live sweep with
+# real toggles exists -- see the two _UNREACHABLE_ARMS above, which are
+# exactly the arms these numbers cover. Nothing in this module computes,
+# compares, or gates against these; they are quoted reference data only. In
+# each metric pair, "baseline" is the paper's full-system run and "ablated"
+# is the same run with that agent/tool removed, in the order the source
+# states them.
+PUBLISHED_BASELINES: dict[str, dict[str, Any]] = {
+    "reflection_search_tool": {
+        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "arm_removed": "Reflection's search tool",
+        "metrics": {
+            "novelty": {"baseline": 6.14, "ablated": 2.38},
+            "correctness": {"baseline": 7.4, "ablated": 8.46},
+            "gpqa_auc": {"baseline": 0.643, "ablated": 0.651},
+        },
+        "note": (
+            "Not uniformly directional: correctness IMPROVES when the "
+            "search tool is ablated while novelty collapses. Both numbers "
+            "are published as-is -- do not smooth this into one "
+            "consistent story."
+        ),
+    },
+    "evolution": {
+        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "arm_removed": "the Evolution agent",
+        "metrics": {
+            "gpqa_precision_pct": {"baseline": 70.9, "ablated": 75.4},
+            "quality": {"baseline": 4.7, "ablated": 5.6},
+        },
+    },
+    "meta_review": {
+        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "arm_removed": "the Meta-review agent",
+        "metrics": {
+            "auc_constructed": {"baseline": 0.521, "ablated": 0.597},
+            "auc_gpqa": {"baseline": 0.629, "ablated": 0.634},
+        },
+    },
+}
+
+# Named by the same source but NOT quantified in the corpus extraction --
+# docs/CORPUS-EXTRACTION.md R11-8 records only "plus Ranking-prompt and
+# Proximity findings", with no numbers. Recorded so a reader knows these
+# exist in Google's published ablation table and their absence here is a
+# documented extraction gap, never a claim that no effect was found.
+PUBLISHED_BASELINES_UNQUANTIFIED: dict[str, str] = {
+    "ranking_prompt": (
+        "Named in Nature SI Note 3 / Supplementary Table 1 but no numbers "
+        "are captured in docs/CORPUS-EXTRACTION.md R11-8."
+    ),
+    "proximity": (
+        "Named in Nature SI Note 3 / Supplementary Table 1 but no numbers "
+        "are captured in docs/CORPUS-EXTRACTION.md R11-8."
     ),
 }
 
@@ -177,7 +241,9 @@ def run_ablation_sweep(
 
     Returns:
         A JSON-safe report: per-arm run detail, the paired records, the
-        computed ablation summary, and the documented unreachable arms.
+        computed ablation summary, the documented unreachable arms, and
+        Google's own published baselines for those unreachable arms
+        (reference data only -- never compared against `summary` here).
     """
     arm_overrides = _ARMS if arms is None else arms
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-sweep-"))
@@ -192,6 +258,8 @@ def run_ablation_sweep(
         "goals": dict(goals),
         "arms_run": sorted(arm_overrides),
         "unreachable_arms": _UNREACHABLE_ARMS,
+        "published_baselines": PUBLISHED_BASELINES,
+        "published_baselines_unquantified": PUBLISHED_BASELINES_UNQUANTIFIED,
         "driven": driven,
         # "ablations" is the key evaluations.scaling_eval.main() reads
         # (payload.get("ablations", [])); "records" is kept as a readable
@@ -227,6 +295,7 @@ def main() -> int:
     for arm, stats in report["summary"]["arms"].items():
         print(f"  arm={arm} {stats}")
     print(f"  unreachable_arms={sorted(report['unreachable_arms'])}")
+    print(f"  published_baselines={sorted(report['published_baselines'])}")
     print(f"wrote {out}")
     return 0
 

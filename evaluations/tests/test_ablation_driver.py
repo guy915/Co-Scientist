@@ -10,7 +10,11 @@ offline run cannot show a real ablation effect.
 
 from __future__ import annotations
 
-from evaluations.ablation_driver import run_ablation_sweep
+from evaluations.ablation_driver import (
+    PUBLISHED_BASELINES,
+    PUBLISHED_BASELINES_UNQUANTIFIED,
+    run_ablation_sweep,
+)
 
 _GOALS = (
     (
@@ -59,3 +63,51 @@ def test_documents_the_unreachable_meta_review_and_strategy_arms() -> None:
     report = run_ablation_sweep(_GOALS, "express", live=False, arms=_ARMS)
     assert "no_meta_review" in report["unreachable_arms"]
     assert "no_debate_strategy" in report["unreachable_arms"]
+
+
+def test_published_baselines_cover_reflection_evolution_meta_review() -> None:
+    """Google's ablation numbers (R11-8) cover the unreachable arms.
+
+    Plus the reachable Reflection search-tool arm.
+    """
+    assert set(PUBLISHED_BASELINES) == {
+        "reflection_search_tool",
+        "evolution",
+        "meta_review",
+    }
+    reflection = PUBLISHED_BASELINES["reflection_search_tool"]
+    assert reflection["metrics"]["novelty"] == {
+        "baseline": 6.14,
+        "ablated": 2.38,
+    }
+    # Not uniformly directional: correctness improves while novelty
+    # collapses. Both numbers must survive, never smoothed into one story.
+    assert (
+        reflection["metrics"]["correctness"]["baseline"]
+        < (reflection["metrics"]["correctness"]["ablated"])
+    )
+    assert (
+        reflection["metrics"]["novelty"]["baseline"]
+        > (reflection["metrics"]["novelty"]["ablated"])
+    )
+
+
+def test_published_baselines_unquantified_names_ranking_and_proximity() -> None:
+    assert set(PUBLISHED_BASELINES_UNQUANTIFIED) == {
+        "ranking_prompt",
+        "proximity",
+    }
+
+
+def test_published_baselines_are_carried_in_the_report_unmodified() -> None:
+    """Reference data only, never fed into the computed ``summary``.
+
+    ``summary`` reads only the driven ``records``.
+    """
+    report = run_ablation_sweep(_GOALS, "express", live=False, arms=_ARMS)
+    assert report["published_baselines"] == PUBLISHED_BASELINES
+    assert (
+        report["published_baselines_unquantified"]
+        == PUBLISHED_BASELINES_UNQUANTIFIED
+    )
+    assert "published_baselines" not in report["summary"]
