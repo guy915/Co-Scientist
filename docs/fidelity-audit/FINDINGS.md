@@ -59,8 +59,8 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 
 | ID | Sev | Class | Gap | St | Src |
 |---|---|---|---|---|---|
-| B1 | High | ext | Four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form | = | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8 |
-| B2 | Medium | ext | Four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis | = | 12:A15, 21:R8 |
+| B1 | High | matched | Originally claimed: four tiers (`express/standard/extended/ultra`) replace Google's exactly-two Standard/Advanced; Google's config is conversational, with no settings form. **Corrected 2026-09-02, tier-count clause only**: false. The published product capture itself (App. C, `docs/CORPUS-EXTRACTION.md:1966`, the `## Tier` block of `plan-configs/mash-liver-fibrosis-reversal-research-plan.md`) lists exactly four tiers — Express/Standard/Extended/Ultra — in that order, with the identical quick→medium→large-scale→most-compute-intensive semantics `app/app/run_modes.py:15`'s `RUN_TIER_PATTERN` implements; there is no Google two-tier Standard/Advanced anywhere in the corpus. Pinned by `app/tests/test_published_plan_config.py::test_run_tiers_are_the_ones_the_product_offers`; see `docs/PARITY.md` `RUN-TIER-001`. The second clause ("conversational, with no settings form") is a separate claim this correction does not adjudicate: the same capture shows the tiers presented as a per-section option list with one **Selected**, inside a chat-embedded "Research plan" panel rather than a standalone settings page — consistent with, but not proof of, the original "conversational" framing. Left as previously recorded pending its own check | ✓ | 12:B01/B03, 20:F-INTERVIEW-08/EB-005, 21:R8, corpus R12-1 |
+| B2 | Medium | matched | Originally claimed: four-way focus selector (evidence/balance/novelty/breakthrough) has no Google basis. **Corrected 2026-09-02**: false. The same published capture (App. C, `docs/CORPUS-EXTRACTION.md:1955`, the `## Focus` block) lists Prefer evidence / Balance / Prefer novelty / Breakthrough, in that order, with Balance marked **Selected** — name for name and default for default matching `app/app/run_modes.py:16-21`'s `RUN_FOCUS_VALUES`/`DEFAULT_RUN_FOCUS`. Pinned by `app/tests/test_published_plan_config.py::test_run_focus_values_are_the_ones_the_product_offers`; see `docs/PARITY.md` `RUN-FOCUS-001` | ✓ | 12:A15, 21:R8, corpus R12-2 |
 | B3 | Medium | missing | Concurrency quota is one aggregate ceiling, not Google's 3 Standard + 1 Advanced; counted per spoofable client id *and* per profile, so one id can reserve 40 | ~ | 12:B04, 20:OP-002/OP-054 |
 | B4 | Medium | divergent | Compute envelope far below Google's several-hour scale | | 12:B07, 20:EB-011 |
 | B5 | Medium | incorrect | The generator caches its compiled graph and MCP availability, so configuration changes silently execute a stale topology. Re-scoped and fixed: the app side was already sound (each durable task builds its own generator and tool registry, so per-run connector toggles never shared a topology). The real staleness was engine-side -- the compiled graph was built once and never rechecked, so a reused generator ran the first call's topology forever in both directions, and `get_mcp_client` keyed its process-wide singleton on nothing, so a second caller resolving different servers silently talked to the first one's deployment. The graph is now shape-keyed, and `reload_tool_registry` drops the graph and the availability answers together because the probe is what decides the shape | ✓ | 20:EB-012 |
@@ -346,8 +346,10 @@ Raised only by the 2026-07-20 audit.
 
 ## Closed as deliberate local choices
 
-Marked `=` above: `A5`, `A12`, `A14`, `B1`, `B2`, `B6`, `C5`, `C7`, `C8`, `D1`,
-`D2`, `D3`, `D6`, `D22`, `D25`, `M1`, `M4`, `M5`, `M7`, `M8`, `M9`. Each is a
+Marked `=` above: `A5`, `A12`, `A14`, `B6`, `C5`, `C7`, `C8`, `D1`,
+`D2`, `D3`, `D6`, `D22`, `D25`, `M1`, `M4`, `M5`, `M7`, `M8`, `M9`. (`B1`/`B2`
+were removed from this list 2026-09-02 — corrected to `matched`, not a
+deliberate divergence; see their rows above.) Each is a
 real difference from Google, correctly observed — and each is how this product
 is meant to work. They are closed, and [PLAN.md](PLAN.md) does not carry them.
 
@@ -394,7 +396,7 @@ that decided the verdict.
 | ID | What moved | What remains |
 |---|---|---|
 | A2 | `criteria` is collected and threaded into engine opts | not confirmed to reach ranking or debate prompts |
-| B3 | The ceiling is one total per identity; it was multiplied per tier, so one id held four times its allowance | the 3 Standard + 1 Advanced split stays a deliberate divergence (see `B1`), and the spoofable `X-Client-ID` half is `N1` |
+| B3 | The ceiling is one total per identity; it was multiplied per tier, so one id held four times its allowance | the assumed 3 Standard + 1 Advanced split rested on `B1`'s now-corrected two-tier premise (`B1` corrected 2026-09-02 — the product ships four tiers, not two); B3's per-tier-vs-aggregate concurrency-quota question stands independent of that premise and is unaffected by the correction, and the spoofable `X-Client-ID` half is `N1` |
 | L2 | `prompt_tokens`/`completion_tokens` are parsed off the response | nothing persists or surfaces them; no cost accounting |
 | M3 | A labelled Back control exists in the run shell | resolved 2026-08-06: it now returns to the ranked list while an idea is open, on the phone breakpoint only |
 | N19 | `test-all` now covers mcp + parity; `typecheck` covers engine mypy | root `lint` still omits frontend gts |

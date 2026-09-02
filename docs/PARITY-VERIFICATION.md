@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 77 requirement rows:
-**verified=55, partial=18, missing=1, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 79 requirement rows:
+**verified=57, partial=18, missing=1, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -83,6 +83,14 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > `TOOLS-CONFIG-001` was added (`verified`) for the newly wired tools-config
 > forwarding. The remaining production-contract work is tracked as P0/P1 in
 > the audit and in the row residuals.
+
+> **Correction (2026-09-02).** `RUN-TIER-001` and `RUN-FOCUS-001` added
+> (`verified`): FINDINGS `B1`/`B2` had recorded the product's four run tiers
+> and four-way focus selector as clone-invented divergences from Google. The
+> published product capture (`docs/CORPUS-EXTRACTION.md`'s App. C plan-config
+> transcription) shows Google's own product offers the identical four tiers
+> and four focus values, name for name, order for order — an exact match,
+> not a divergence. `B1`/`B2` corrected in FINDINGS.md; row count 77->79.
 
 ---
 
