@@ -15,6 +15,11 @@ from co_scientist.offline_content import (
     _CRITIQUE_TEMPLATES,
     _EXPERIMENT_TEMPLATES,
     _GENERATED_VOCABULARY,
+    _GO_NO_GO_TEMPLATES,
+    _PHASE_LABEL_TEMPLATES,
+    _RECOMMENDED_IDEA_TEMPLATES,
+    _SCOPE_CLAUSES,
+    _TIME_ESTIMATE_TEMPLATES,
     _goal_text,
     leaf_text,
     subject_terms,
@@ -162,6 +167,42 @@ def test_one_goal_yields_many_distinct_token_bags() -> None:
     }
 
     assert len(bags) > 300, len(bags)
+
+
+@pytest.mark.parametrize(
+    ("field", "family"),
+    [
+        ("go_no_go_recommendation", _GO_NO_GO_TEMPLATES),
+        ("time_to_verdict", _TIME_ESTIMATE_TEMPLATES),
+        ("time_estimate", _TIME_ESTIMATE_TEMPLATES),
+        ("phase_label", _PHASE_LABEL_TEMPLATES),
+        ("recommended_idea", _RECOMMENDED_IDEA_TEMPLATES),
+    ],
+)
+def test_standalone_fields_stay_a_short_label(
+    field: str, family: tuple[str, ...]
+) -> None:
+    """The five fields _STANDALONE_TEMPLATES exempts never grow a clause.
+
+    Guards the offline_content fix (docs/decisions/2026-09-02-offline-
+    optional-field-reach.md): before it, these fields matched no
+    ``_FIELD_TEMPLATES`` fragment, fell through to ``_SUMMARY_TEMPLATES``,
+    and grew a trailing ``_SCOPE_CLAUSES`` sentence -- turning "Verdict:"
+    or a roadmap phase prefix into a mechanism-argument run-on. Nothing
+    else pins the shape: the offline-filler tests that cover these fields
+    only assert ``isinstance(str) and truthy``, which the run-on also
+    satisfies, so dropping a ``_FIELD_TEMPLATES`` entry or the
+    ``_STANDALONE_TEMPLATES`` branch in ``leaf_text`` would regress here
+    silently.
+    """
+    openings = _openings(family)
+
+    for seed in range(50):
+        text = leaf_text(
+            random.Random(seed), 1, field, ("resistance", "biofilms")
+        )
+        assert text in openings, text
+        assert not any(clause in text for clause in _SCOPE_CLAUSES), text
 
 
 def test_identical_inputs_are_byte_identical() -> None:

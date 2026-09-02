@@ -347,6 +347,16 @@ _WORD_RE = re.compile(r"[A-Za-z][A-Za-z-]{3,}")
 # ("Sustained modulation of modulation suppresses conditions"). Derived from
 # the templates rather than listed by hand, so editing a template cannot
 # leave a stale exclusion behind.
+#
+# The four standalone-label template tuples (_GO_NO_GO_TEMPLATES and its
+# siblings, see _STANDALONE_TEMPLATES below) are deliberately left out of
+# this derivation. Their words -- "evidence", "data", "validation",
+# "primary", "step", "phase", "stage", "hold" -- are exactly the kind of
+# term a real research goal carries, so excluding them would strip real
+# subject terms for no protection: none of these five fields is ever read
+# back as a parent hypothesis or otherwise mined by _goal_text/subject_terms
+# (full-review fields are display-only; meta-review's roadmap items sit
+# under their own heading, not "Research Goal"/"Original Hypothesis").
 _GENERATED_VOCABULARY = frozenset(
     word.lower()
     for template in (
