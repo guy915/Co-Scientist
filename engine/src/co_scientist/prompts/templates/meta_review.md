@@ -26,6 +26,7 @@ You are an expert in scientific research and meta-analysis. Synthesize a compreh
 - Potential new directions or perspectives to explore
 -  **IMPORTANT**: Provide DISTINCT recommendations for each hypothesis to preserve diversity
 -  **DO NOT** give the same generic advice to all hypotheses - tailor guidance to each unique approach
+- Where a `strategic_recommendations` entry is one step of a staged roadmap, set its `time_estimate` to that step's timeline (e.g. "Weeks 1-2", "Month 3+") and, when the roadmap splits a step into parts, its `phase_label` (e.g. "Phase A"). Leave both empty for a step with no explicit timeline or sub-phase. Where a step selects one reviewed idea to proceed with, name it in `recommended_idea` using the same `hypothesis_index` convention as section 6 below (e.g. "Hypothesis 1, building on Hypothesis 4") -- never restate the idea's own text.
 
 ### 4. Assess the overall research direction
 

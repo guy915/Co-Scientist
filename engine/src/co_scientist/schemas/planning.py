@@ -385,7 +385,48 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                         "focus_area": {"type": "string"},
                         "recommendation": {"type": "string"},
                         "justification": {"type": "string"},
-                    }
+                        # R14-8: the published roadmap's richer step
+                        # shape -- a time estimate, an optional lettered
+                        # sub-phase, and which reviewed idea a step
+                        # selects. All three are empty on most steps
+                        # (only some published phases carry a letter),
+                        # so none can be required.
+                        "time_estimate": {
+                            "type": "string",
+                            "description": (
+                                "This step's timeline, in the run's own"
+                                " units, e.g. 'Weeks 1-2' or 'Month 3+'."
+                                " Empty when this step carries no"
+                                " explicit timeline."
+                            ),
+                        },
+                        "phase_label": {
+                            "type": "string",
+                            "description": (
+                                "A lettered sub-phase name when this"
+                                " step splits into parts, e.g."
+                                " 'Phase A'. Empty otherwise."
+                            ),
+                        },
+                        "recommended_idea": {
+                            "type": "string",
+                            "description": (
+                                "Names which reviewed idea(s) this step"
+                                " selects, by the same hypothesis_index"
+                                " convention as candidate_comparison."
+                                "ideas (e.g. 'Hypothesis 1, building on"
+                                " Hypothesis 4'). Refer to ideas by"
+                                " number only -- never restate their"
+                                " text. Empty when this step does not"
+                                " single out one idea."
+                            ),
+                        },
+                    },
+                    optional=(
+                        "time_estimate",
+                        "phase_label",
+                        "recommended_idea",
+                    ),
                 ),
             },
             "potential_connections": {

@@ -109,3 +109,84 @@ def test_no_recommendations_renders_no_section() -> None:
     markdown = _markdown({"summary": "Nothing to recommend yet."})
 
     assert "Recommendation and strategic roadmap" not in markdown
+
+
+def test_time_estimate_renders_as_a_parenthetical_suffix() -> None:
+    """R14-8: a step's timeline appends after its recommendation text."""
+    markdown = _markdown(
+        {
+            "strategic_recommendations": [
+                {
+                    "focus_area": "Calcium handling",
+                    "recommendation": "Measure MCU flux directly.",
+                    "time_estimate": "Weeks 1-2",
+                }
+            ]
+        }
+    )
+
+    assert (
+        "**Primary recommendation:** **Calcium handling**: Measure MCU"
+        " flux directly. (Weeks 1-2)" in markdown
+    )
+
+
+def test_phase_label_prefixes_the_step() -> None:
+    """R14-8: a lettered sub-phase prefixes the step's own text."""
+    markdown = _markdown(
+        {
+            "strategic_recommendations": [
+                {"recommendation": "Lead step."},
+                {
+                    "focus_area": "Validation",
+                    "recommendation": "Confirm the mechanism in vivo.",
+                    "phase_label": "Phase A",
+                },
+            ]
+        }
+    )
+
+    assert (
+        "1. Phase A: **Validation**: Confirm the mechanism in vivo."
+        in markdown
+    )
+
+
+def test_recommended_idea_renders_its_own_line() -> None:
+    """R14-8: the named-idea selection, identified by number, not text."""
+    markdown = _markdown(
+        {
+            "strategic_recommendations": [
+                {
+                    "recommendation": "Proceed with the lead candidate.",
+                    "recommended_idea": (
+                        "Hypothesis 1, building on Hypothesis 4"
+                    ),
+                }
+            ]
+        }
+    )
+
+    assert (
+        "Recommended idea: Hypothesis 1, building on Hypothesis 4"
+        in markdown
+    )
+
+
+def test_a_report_with_none_of_the_new_fields_is_unaffected() -> None:
+    """A report persisted before R14-8 renders exactly as it did."""
+    markdown = _markdown(
+        {
+            "strategic_recommendations": [
+                {
+                    "focus_area": "Calcium handling",
+                    "recommendation": "Measure MCU flux directly.",
+                    "justification": "The current data is indirect.",
+                }
+            ]
+        }
+    )
+
+    assert "Weeks" not in markdown
+    assert "Phase" not in markdown
+    assert "Recommended idea" not in markdown

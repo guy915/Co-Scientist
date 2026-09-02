@@ -23,9 +23,48 @@ section name instead.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NamedTuple
 
 from app.report_markdown_overview import _render_optional_paragraph
+
+
+class _RecommendationFields(NamedTuple):
+    """One roadmap step, normalized from either published entry shape.
+
+    ``strategic_recommendations`` entries are either a structured dict or
+    (from before this schema existed) a bare string -- normalizing both
+    into one shape here keeps ``_render_recommendation`` a plain
+    formatter instead of a second isinstance branch.
+    """
+
+    body: str
+    justification: str
+    time_estimate: str
+    phase_label: str
+    recommended_idea: str
+
+
+def _normalize_recommendation(
+    rec: dict[str, Any] | str,
+) -> _RecommendationFields:
+    """Normalize one recommendation entry, dict or legacy bare string."""
+    if not isinstance(rec, dict):
+        return _RecommendationFields(str(rec), "", "", "", "")
+    area = rec.get("focus_area", "")
+    recommendation = rec.get("recommendation", "")
+    body = f"**{area}**: {recommendation}" if area else str(recommendation)
+    return _RecommendationFields(
+        body=body,
+        justification=str(rec.get("justification") or ""),
+        # R14-8: the published roadmap's richer step shape -- a time
+        # estimate, an optional lettered sub-phase, and which reviewed
+        # idea a step selects (by hypothesis_index, never by echoing its
+        # text -- see schemas/planning.py). Absent on a report persisted
+        # before these fields existed, or an entry that carries none.
+        time_estimate=str(rec.get("time_estimate") or "").strip(),
+        phase_label=str(rec.get("phase_label") or "").strip(),
+        recommended_idea=str(rec.get("recommended_idea") or "").strip(),
+    )
 
 
 def _render_recommendation(
@@ -35,20 +74,16 @@ def _render_recommendation(
 
     ``index=None`` renders the lead line, labelled "Primary recommendation";
     an integer ``index`` renders it as that numbered roadmap step instead.
-    Structured (dict) recommendations render with a rationale; a bare string
-    falls back to its text alone.
     """
-    if isinstance(rec, dict):
-        area = rec.get("focus_area", "")
-        recommendation = rec.get("recommendation", "")
-        body = f"**{area}**: {recommendation}" if area else str(recommendation)
-        justification = rec.get("justification", "")
-    else:
-        body, justification = str(rec), ""
+    fields = _normalize_recommendation(rec)
+    prefix = f"{fields.phase_label}: " if fields.phase_label else ""
+    suffix = f" ({fields.time_estimate})" if fields.time_estimate else ""
     label = "**Primary recommendation:**" if index is None else f"{index}."
-    lines = [f"{label} {body}"]
-    if justification:
-        lines.append(f"  *{justification}*")
+    lines = [f"{label} {prefix}{fields.body}{suffix}"]
+    if fields.justification:
+        lines.append(f"  *{fields.justification}*")
+    if fields.recommended_idea:
+        lines.append(f"  Recommended idea: {fields.recommended_idea}")
     return lines
 
 
