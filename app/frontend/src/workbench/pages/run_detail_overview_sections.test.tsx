@@ -26,17 +26,23 @@ it('renders the research directions with their suggested experiments', () => {
   expect(
     screen.getByRole('heading', {name: 'Research directions'}),
   ).toBeInTheDocument();
-  // "Direction one" also names the research-contact linkage line below, so
-  // this asserts at least the direction heading exists rather than picking
-  // one occurrence arbitrarily.
+  // MO-12: two named directions gates the compact preview list ahead of the
+  // full per-direction detail, so both titles now also appear as its bullet
+  // items -- on top of "Direction one" already naming the research-contact
+  // linkage line below, this asserts at least one occurrence exists rather
+  // than picking one arbitrarily.
+  expect(
+    screen.getByText('We will be focusing on these research directions:'),
+  ).toBeInTheDocument();
   expect(screen.getAllByText('Direction one').length).toBeGreaterThan(0);
   expect(screen.getByText('It matters because X.')).toBeInTheDocument();
   expect(screen.getByText('Experiment A')).toBeInTheDocument();
   expect(screen.getByText('Experiment B')).toBeInTheDocument();
-  // Second direction has no suggested experiments, so no list under it.
+  // Second direction has no suggested experiments, so no list under it. It
+  // also appears twice now: once in the preview, once as its own heading.
   expect(
-    screen.getByText('Direction two (no experiments)'),
-  ).toBeInTheDocument();
+    screen.getAllByText('Direction two (no experiments)').length,
+  ).toBeGreaterThan(0);
 });
 
 it('renders a recent-findings line and the nested sub-topics (MO-12, MO-1)', () => {
@@ -55,10 +61,11 @@ it('renders a recent-findings line and the nested sub-topics (MO-12, MO-1)', () 
   ).toBeInTheDocument();
   expect(screen.getByText('Question A?')).toBeInTheDocument();
   expect(screen.getByText('Question B?')).toBeInTheDocument();
-  // Direction two carries neither field, and must not fall over.
+  // Direction two carries neither field, and must not fall over. It also
+  // appears twice now: once in the preview, once as its own heading.
   expect(
-    screen.getByText('Direction two (no experiments)'),
-  ).toBeInTheDocument();
+    screen.getAllByText('Direction two (no experiments)').length,
+  ).toBeGreaterThan(0);
 });
 
 it('omits recent findings and sub-topics for a direction stored before they existed', () => {
@@ -92,6 +99,68 @@ it('omits recent findings and sub-topics for a direction stored before they exis
   expect(screen.queryByText('Recent findings:')).not.toBeInTheDocument();
   expect(screen.queryByText('Why:')).not.toBeInTheDocument();
   expect(screen.queryByText('What:')).not.toBeInTheDocument();
+  // MO-12: a single direction gets no preview -- it would just repeat the
+  // one heading right below it rather than orient the reader.
+  expect(
+    screen.queryByText('We will be focusing on these research directions:'),
+  ).not.toBeInTheDocument();
+});
+
+it('gates the directions preview on at least two named directions', () => {
+  const report = makeReport({
+    research_overview: {
+      overview: {
+        research_directions: [
+          {title: 'Named direction'},
+          // No title after coercion -- must not count toward the gate.
+          {importance: 'Untitled but has content.'},
+        ],
+      },
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(screen.getByText('Named direction')).toBeInTheDocument();
+  expect(screen.getByText('Untitled but has content.')).toBeInTheDocument();
+  expect(
+    screen.queryByText('We will be focusing on these research directions:'),
+  ).not.toBeInTheDocument();
+});
+
+it('previews two named directions ahead of the full per-direction detail', () => {
+  const report = makeReport({
+    research_overview: {
+      overview: {
+        research_directions: [
+          {title: 'First direction'},
+          {title: 'Second direction'},
+        ],
+      },
+    },
+  } as unknown as Parameters<typeof makeReport>[0]);
+
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={report}
+      hypotheses={[]}
+      matches={[]}
+    />,
+  );
+
+  expect(
+    screen.getByText('We will be focusing on these research directions:'),
+  ).toBeInTheDocument();
+  expect(screen.getAllByText('First direction').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Second direction').length).toBeGreaterThan(0);
 });
 
 it('flattens malformed research directions instead of showing raw JSON', () => {
@@ -208,10 +277,11 @@ it('renders the specific aims and research contacts', () => {
   ).toBeInTheDocument();
   expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
   // MO-7: ties the contact back to the direction that surfaced them.
-  // "Direction one" also names the research-direction heading above, so
-  // this asserts both occurrences rather than picking one arbitrarily.
+  // "Direction one" also names the research-direction preview bullet and
+  // heading above, so this asserts at least one occurrence rather than an
+  // exact count tied to the preview's own gate.
   expect(screen.getByText('Research direction:')).toBeInTheDocument();
-  expect(screen.getAllByText('Direction one')).toHaveLength(2);
+  expect(screen.getAllByText('Direction one').length).toBeGreaterThan(0);
   expect(
     screen.getByRole('link', {name: 'Evidence: A fibrosis study'}),
   ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');

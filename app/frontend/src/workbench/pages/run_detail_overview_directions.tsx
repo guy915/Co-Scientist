@@ -84,6 +84,30 @@ function directionEntries(
     );
 }
 
+// MO-12: both published exemplars front-load a named preview list ahead of
+// the full per-direction detail that follows (report_markdown_overview's
+// _render_directions_preview). Titles only, no new content -- naming each
+// direction rather than repeating its prose avoids duplicating the
+// paragraphs the full detail below already carries.
+//
+// A "preview" of a single named direction duplicates it rather than
+// orienting the reader, so the gate matches the markdown renderer's own:
+// fewer than two named directions renders nothing here.
+function DirectionsPreview({directions}: {directions: DirectionEntry[]}) {
+  const titles = directions.map(d => d.title).filter(Boolean);
+  if (titles.length < 2) return null;
+  return (
+    <>
+      <p>We will be focusing on these research directions:</p>
+      <ul className={REPORT_LIST_CLASSES}>
+        {titles.map((title, i) => (
+          <li key={`${title}-${i}`}>{title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 // One named sub-topic entry, or nothing when coercion left it empty.
 function SubTopicItem({subTopic}: {subTopic: SubTopicEntry}) {
   return (
@@ -128,6 +152,7 @@ export function ResearchDirectionsSection({
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
+      <DirectionsPreview directions={directions} />
       {directions.map((direction, index) => (
         <div key={direction.title || index}>
           <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
