@@ -78,9 +78,7 @@ def test_temporal_scaling_curve_orders_by_creation_not_by_elo() -> None:
     assert all(b["of"] == 3 for b in curve)
 
 
-def test_temporal_scaling_curve_tracks_top_10_average_within_a_bucket() -> (
-    None
-):
+def test_temporal_scaling_curve_tracks_top_10_average_within_a_bucket() -> None:
     """``top10_avg_elo`` averages up to 10 hypotheses per bucket, not more."""
     bucket_a = [_hyp(f"a{i}", float(i), 1000 + i) for i in range(12)]
     curve = temporal_scaling_curve(bucket_a, bucket_count=1)

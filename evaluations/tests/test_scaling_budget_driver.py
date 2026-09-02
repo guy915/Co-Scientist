@@ -80,9 +80,7 @@ def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
 
     assert curve, "an express run must produce at least one hypothesis"
     assert len(curve) <= 10
-    assert sum(b["n_hypotheses"] for b in curve) == len(
-        snapshot["hypotheses"]
-    )
+    assert sum(b["n_hypotheses"] for b in curve) == len(snapshot["hypotheses"])
     for bucket in curve:
         assert bucket["best_elo"] is not None, "offline run always rates"
         assert bucket["of"] == len(curve)

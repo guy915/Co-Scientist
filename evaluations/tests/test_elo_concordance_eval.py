@@ -163,9 +163,7 @@ def test_elo_bucket_accuracy_skips_items_with_no_candidates() -> None:
     assert elo_bucket_accuracy([{"ratings": {}, "correctness": {}}]) == []
 
 
-def test_committed_dataset_bucket_accuracy_tracks_comparator_quality() -> (
-    None
-):
+def test_committed_dataset_bucket_accuracy_tracks_comparator_quality() -> None:
     """Bucket accuracy rises with Elo for a ground-truth-agreeing comparator.
 
     Mirrors the paper's own finding (higher Elo buckets are more often
