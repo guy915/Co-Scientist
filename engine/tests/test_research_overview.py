@@ -207,6 +207,80 @@ async def test_a_contact_with_no_research_direction_defaults_to_empty(
     assert contacts[0]["research_direction"] == ""
 
 
+async def test_research_contact_groups_resolve_indices_to_real_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R14-6: a group's example indices resolve to real hypothesis ids.
+
+    The model never writes a title itself -- it names a 1-based position
+    in the numbered top-k list, and the node resolves that back to the
+    real hypothesis id. An out-of-range index (99, when only one
+    hypothesis was offered) is dropped rather than guessed at, and a
+    group naming no direction is dropped entirely.
+    """
+    response = {
+        **_OVERVIEW_RESPONSE,
+        "research_contact_groups": [
+            {
+                "research_direction": "Epigenetic control of fibrosis",
+                "rationale": (
+                    "Both bring complementary chromatin expertise."
+                ),
+                "example_hypothesis_indices": [1, 99],
+            },
+            {"research_direction": "", "rationale": "unnamed, dropped"},
+        ],
+    }
+    fake = AsyncMock(return_value=response)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis",
+        elo_rating=1700,
+        id="h1",
+    )
+    state = make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=_grounded_articles(),
+    )
+    out = await ro.research_overview_node(state)
+
+    groups = out["research_overview"]["research_contact_groups"]
+    assert len(groups) == 1
+    assert groups[0]["research_direction"] == (
+        "Epigenetic control of fibrosis"
+    )
+    assert groups[0]["rationale"] == (
+        "Both bring complementary chromatin expertise."
+    )
+    assert groups[0]["example_hypothesis_ids"] == ["h1"]
+
+
+async def test_research_contact_groups_default_to_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response omitting research_contact_groups degrades to []."""
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis", elo_rating=1700
+    )
+    state = make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=_grounded_articles(),
+    )
+    out = await ro.research_overview_node(state)
+
+    assert out["research_overview"]["research_contact_groups"] == []
+
+
 # One (field, value) pair per publication-gate exclusion category: the
 # blocking review dispositions and the blocking safety outcomes.
 #

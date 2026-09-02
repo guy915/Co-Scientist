@@ -9,81 +9,28 @@ its namespace keeps resolving.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
+# R14-6: the research-contacts renderers (flat and grouped-by-direction)
+# live in report_markdown_contact_groups -- split out to keep this module
+# within the size cap, and a leaf relative to this one (it imports only
+# report_markdown_text, never this module) so the two never form a
+# cross-import cycle. Both names are re-exported so this module's
+# namespace keeps resolving.
+from app.report_markdown_contact_groups import (
+    _render_contact_evidence_line as _render_contact_evidence_line,
+)
+from app.report_markdown_contact_groups import (
+    _render_research_contacts_section as _render_research_contacts_section,
+)
 
-def _readable_text(value: Any) -> str:
-    """Flatten a possibly-malformed field into readable plain text.
-
-    Research-overview fields come from the model in json_object mode with no
-    server-side schema enforcement, so a field the schema declares a string
-    can arrive as a dict, or as a string that is itself serialized JSON.
-    Emitting that verbatim leaks raw JSON into the report. This flattens a
-    JSON-looking string, a dict, or a list into human-readable text, and
-    passes a well-formed string through unchanged.
-    """
-    if isinstance(value, str):
-        return _readable_from_string(value)
-    if isinstance(value, list):
-        return _join_readable(value, " ")
-    if isinstance(value, dict):
-        return _join_readable(list(value.values()), " - ")
-    return "" if value is None else str(value)
-
-
-def _readable_from_string(value: str) -> str:
-    """Parse and flatten a JSON-looking string; else return it unchanged."""
-    trimmed = value.strip()
-    if not _is_json_like(trimmed):
-        return value
-    try:
-        return _readable_text(json.loads(trimmed))
-    except (ValueError, TypeError):
-        return value
-
-
-def _is_json_like(text: str) -> bool:
-    """Whether the string looks like a serialized JSON object or array."""
-    return (text.startswith("{") and text.endswith("}")) or (
-        text.startswith("[") and text.endswith("]")
-    )
-
-
-def _join_readable(values: list[Any], separator: str) -> str:
-    """Flatten each value to text, drop the empties, and join them."""
-    return separator.join(
-        text for text in (_readable_text(item) for item in values) if text
-    )
-
-
-def _readable_text_list(value: Any) -> list[str]:
-    """Flatten a possibly-malformed list field into readable strings.
-
-    Tolerates a JSON-encoded string, a lone dict, or a list whose items are
-    dicts or serialized JSON, mirroring ``_readable_text``.
-    """
-    if isinstance(value, str):
-        return _list_from_string(value)
-    if isinstance(value, list):
-        return [text for text in map(_readable_text, value) if text]
-    if isinstance(value, dict):
-        text = _readable_text(value)
-        return [text] if text else []
-    return []
-
-
-def _list_from_string(value: str) -> list[str]:
-    """Parse a JSON-array string into readable items; else a single line."""
-    trimmed = value.strip()
-    if not trimmed:
-        return []
-    if not _is_json_like(trimmed):
-        return [trimmed]
-    try:
-        return _readable_text_list(json.loads(trimmed))
-    except (ValueError, TypeError):
-        return [trimmed]
+# The malformed-field text coercion is a leaf module shared with
+# report_markdown_contact_groups (R14-6); both names are re-exported so
+# this module's namespace keeps resolving.
+from app.report_markdown_text import _readable_text as _readable_text
+from app.report_markdown_text import (
+    _readable_text_list as _readable_text_list,
+)
 
 
 def _render_optional_paragraph(text: str | None) -> list[str]:
@@ -322,7 +269,10 @@ def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     ]
 
 
-def research_overview_sections(overview: dict[str, Any]) -> list[list[str]]:
+def research_overview_sections(
+    overview: dict[str, Any],
+    hypothesis_title_by_id: dict[str, str] | None = None,
+) -> list[list[str]]:
     """Return the overview's four optional sub-sections, each its own list.
 
     Split out of ``render_research_overview_markdown`` so the report's
@@ -335,6 +285,10 @@ def research_overview_sections(overview: dict[str, Any]) -> list[list[str]]:
         overview: The engine ``research_overview`` payload, shaped as
             ``{"overview": {...}, "nih_specific_aims": {...}}``. May be empty
             or carry empty sub-dicts for runs without hypotheses.
+        hypothesis_title_by_id: This run's persisted hypothesis titles by
+            id (R14-6), for resolving a research-contact-group's example
+            hypotheses. Omitted where the caller has none -- those
+            examples then simply do not render.
 
     Returns:
         Four lists, in document order: Research Overview, Open questions,
@@ -353,12 +307,17 @@ def research_overview_sections(overview: dict[str, Any]) -> list[list[str]]:
         _render_open_questions_section(overview),
         _render_nih_aims_section(overview.get("nih_specific_aims") or {}),
         _render_research_contacts_section(
-            overview.get("research_contacts") or []
+            overview.get("research_contacts") or [],
+            overview.get("research_contact_groups"),
+            hypothesis_title_by_id,
         ),
     ]
 
 
-def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
+def render_research_overview_markdown(
+    overview: dict[str, Any],
+    hypothesis_title_by_id: dict[str, str] | None = None,
+) -> list[str]:
     """Render the research overview + NIH Specific Aims as markdown lines.
 
     Returns:
@@ -366,46 +325,8 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
         callers never emit bare section headers.
     """
     lines: list[str] = []
-    for section in research_overview_sections(overview):
+    for section in research_overview_sections(
+        overview, hypothesis_title_by_id
+    ):
         lines += section
-    return lines
-
-
-def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
-    """Render a contact's source-evidence line, or nothing when unsourced."""
-    title = _readable_text(contact.get("source_title"))
-    url = contact.get("source_url")
-    if not title:
-        return []
-    return [f"Evidence: [{title}]({url})\n" if url else f"Evidence: {title}\n"]
-
-
-def _render_contact_entry(contact: dict[str, Any]) -> list[str]:
-    """Render one research-contact entry, or nothing when unnamed."""
-    if not isinstance(contact, dict) or not contact.get("name"):
-        return []
-    lines = [f"### {_readable_text(contact['name'])}\n"]
-    # MO-7: ties the contact back to the direction that surfaced them,
-    # matching the published exemplar's "Research Direction: X" tag.
-    # Absent on a report persisted before this field existed.
-    direction = _readable_text(contact.get("research_direction"))
-    if direction:
-        lines.append(f"**Research direction:** {direction}\n")
-    expertise = _readable_text(contact.get("expertise"))
-    if expertise:
-        lines.append(f"**Relevant expertise:** {expertise}\n")
-    justification = _readable_text(contact.get("justification"))
-    if justification:
-        lines.append(f"{justification}\n")
-    lines += _render_contact_evidence_line(contact)
-    return lines
-
-
-def _render_research_contacts_section(contacts: Any) -> list[str]:
-    """Render the 'Research Contacts' section, or nothing when empty."""
-    if not isinstance(contacts, list) or not contacts:
-        return []
-    lines = ["\n## Research Contacts\n"]
-    for contact in contacts:
-        lines += _render_contact_entry(contact)
     return lines

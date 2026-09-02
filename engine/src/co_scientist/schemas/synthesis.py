@@ -200,6 +200,61 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     }
                 ),
             },
+            # R14-6: the published exemplar groups research_contacts under
+            # their research direction, each group carrying one shared
+            # rationale paragraph and up to two example hypotheses --
+            # richer than the flat per-contact research_direction tag
+            # above (MO-7). A separate, additive array rather than
+            # nesting contacts under it: the model already emits flat
+            # contacts tagged with research_direction, and the renderer
+            # (report_markdown_overview.py) matches a group to its
+            # contacts by that same free-text tag, so an old report (or
+            # one whose response never populates this field) still
+            # renders MO-7's flat shape unchanged. Bounded to the same 5
+            # as research_contacts, since there cannot usefully be more
+            # groups than there are contacts to put in them.
+            "research_contact_groups": {
+                "type": "array",
+                "maxItems": 5,
+                "items": obj(
+                    {
+                        "research_direction": {
+                            "type": "string",
+                            "description": (
+                                "Must exactly match one of the"
+                                " research_direction values used in"
+                                " research_contacts above -- this is"
+                                " how a group's contacts are found."
+                            ),
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "description": (
+                                "One shared paragraph explaining why"
+                                " this group of contacts, together, is"
+                                " well suited to lead work on this"
+                                " research direction -- distinct from"
+                                " each contact's own individual"
+                                " justification."
+                            ),
+                        },
+                        "example_hypothesis_indices": {
+                            "type": "array",
+                            "maxItems": 2,
+                            "items": {"type": "integer"},
+                            "description": (
+                                "Up to two 1-based positions from the"
+                                " numbered hypothesis list above whose"
+                                " ideas exemplify this research"
+                                " direction. Refer to hypotheses by"
+                                " number only -- never invent or echo a"
+                                " title."
+                            ),
+                        },
+                    },
+                    optional=("example_hypothesis_indices",),
+                ),
+            },
             "knowledge_base": {
                 "type": "array",
                 "maxItems": 8,

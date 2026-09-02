@@ -8,6 +8,7 @@ from co_scientist.agents.meta_review.research_overview_contacts import (
     _build_contact_candidates,
     _format_contact_candidates,
     _format_or_placeholder,
+    _validate_research_contact_groups,
     _validate_research_contacts,
 )
 from co_scientist.agents.meta_review.research_overview_directions import (
@@ -94,7 +95,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         return {"research_overview": {}}
 
     articles = state.get("articles")
-    summary = _summarize_top_hypotheses(publishable)
+    summary, hypothesis_by_index = _summarize_top_hypotheses(publishable)
     contact_candidates = _build_contact_candidates(articles)
     evidence_corpus = _build_evidence_corpus(articles)
 
@@ -106,7 +107,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     )
 
     research_overview, llm_calls = await _synthesize_research_overview(
-        state, summary, contact_candidates, evidence_corpus
+        state, summary, contact_candidates, evidence_corpus, hypothesis_by_index
     )
 
     await emit_progress(
@@ -142,7 +143,9 @@ def _publishable_hypotheses(
     ]
 
 
-def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
+def _summarize_top_hypotheses(
+    hypotheses: list[Hypothesis],
+) -> tuple[str, dict[int, str]]:
     """Ranks hypotheses for publication and formats the top-k summary.
 
     Re-ranks defensively (does not assume the incoming list is already
@@ -156,13 +159,19 @@ def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
         hypotheses: The publishable hypothesis pool.
 
     Returns:
-        A newline-joined, numbered summary of the top-k hypotheses.
+        A tuple of (newline-joined, numbered summary of the top-k
+        hypotheses; a 1-based index -> hypothesis id map, the same
+        numbering the summary text uses, for resolving a research-
+        contact-group's ``example_hypothesis_indices`` (R14-6) back to a
+        real hypothesis without letting the model echo invented text).
     """
     ranked = rank_for_publication(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
-    return "\n".join(
+    summary = "\n".join(
         f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top)
     )
+    hypothesis_by_index = {i + 1: h.id for i, h in enumerate(top)}
+    return summary, hypothesis_by_index
 
 
 async def _synthesize_research_overview(
@@ -170,6 +179,7 @@ async def _synthesize_research_overview(
     summary: str,
     contact_candidates: dict[str, dict[str, Any]],
     evidence_corpus: dict[str, dict[str, Any]],
+    hypothesis_by_index: dict[int, str],
 ) -> tuple[dict[str, Any], int]:
     """Builds the research-overview prompt, calls the LLM, and formats it.
 
@@ -184,6 +194,8 @@ async def _synthesize_research_overview(
         summary: Top-k hypotheses summary from _summarize_top_hypotheses.
         contact_candidates: Verified authors keyed by a stable candidate id.
         evidence_corpus: Analyzed sources keyed by a stable evidence id.
+        hypothesis_by_index: Same 1-based numbering as ``summary``, for
+            resolving research-contact-group example hypotheses.
 
     Returns:
         Tuple of (the formatted research_overview dict, LLM calls spent).
@@ -198,7 +210,7 @@ async def _synthesize_research_overview(
         state, summary, contact_candidates, evidence_corpus, response
     )
     formatted = _format_research_overview_response(
-        response, contact_candidates, evidence_corpus
+        response, contact_candidates, evidence_corpus, hypothesis_by_index
     )
     formatted["overview_review"] = review_meta
     return formatted, 1 + review_calls
@@ -294,6 +306,7 @@ def _format_research_overview_response(
     response: dict[str, Any],
     contact_candidates: dict[str, dict[str, Any]],
     evidence_corpus: dict[str, dict[str, Any]],
+    hypothesis_by_index: dict[int, str],
 ) -> dict[str, Any]:
     """Formats and validates the raw LLM response into the overview shape."""
     return {
@@ -301,6 +314,9 @@ def _format_research_overview_response(
         "nih_specific_aims": response.get("nih_specific_aims", {}),
         "research_contacts": _validate_research_contacts(
             response.get("research_contacts"), contact_candidates
+        ),
+        "research_contact_groups": _validate_research_contact_groups(
+            response.get("research_contact_groups"), hypothesis_by_index
         ),
         "knowledge_base": _validate_knowledge_base(
             response.get("knowledge_base"), evidence_corpus

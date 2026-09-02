@@ -177,6 +177,22 @@ def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
     )
 
 
+def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
+    """Map this run's published hypotheses to their titles, by id (R14-6).
+
+    Built from the whole published pool (``data.hyps``), not the 5-item
+    ``top_hypotheses`` report slice -- the engine's research-overview
+    synthesis draws its example hypotheses from up to
+    ``RESEARCH_OVERVIEW_TOP_K`` (10), which can name one outside that
+    slice.
+    """
+    return {
+        str(h["id"]): str(h["title"])
+        for h in hyps
+        if h.get("id") and h.get("title")
+    }
+
+
 def _render_report_content_markdown(
     data: _ReportData,
     req: _ReportBuildArgs,
@@ -202,6 +218,7 @@ def _render_report_content_markdown(
             claim_evidence=data.released_claim_edges,
             skills_used=req.skills_used,
             retrieval_calls=data.retrieval_calls,
+            hypothesis_title_by_id=_hypothesis_title_by_id(data.hyps),
             citations=data.citations,
             evidence=data.evidence,
             reviews=data.reviews,

@@ -84,12 +84,6 @@ from app.report_markdown_overview import (
     _render_aims_list as _render_aims_list,
 )
 from app.report_markdown_overview import (
-    _render_contact_entry as _render_contact_entry,
-)
-from app.report_markdown_overview import (
-    _render_contact_evidence_line as _render_contact_evidence_line,
-)
-from app.report_markdown_overview import (
     _render_directions_list as _render_directions_list,
 )
 from app.report_markdown_overview import (
@@ -433,6 +427,9 @@ class ReportMarkdownInputs:
     # hypothesis for the Go/No-Go framing and simulation-review subsections
     # (R14-15/R14-22, report_markdown_hypothesis.py). None omits both.
     reviews: list[dict[str, Any]] | None = None
+    # This run's hypothesis titles by id, for a contact group's example
+    # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id.
+    hypothesis_title_by_id: dict[str, str] | None = None
 
 
 def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
@@ -463,7 +460,9 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         # ``render_research_overview_markdown`` returns, so a report that
         # only carries e.g. Research Contacts still gets the other three
         # correctly omitted from the table of contents.
-        *research_overview_sections(inputs.research_overview or {}),
+        *research_overview_sections(
+            inputs.research_overview or {}, inputs.hypothesis_title_by_id
+        ),
         # R12-23: the published "Review summary" sits right after the
         # research directions and before "Knowledge Base" -- the same
         # slot here.

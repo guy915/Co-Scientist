@@ -19,6 +19,15 @@ _MAX_CONTACT_CANDIDATES: Final = 30
 _MAX_RESEARCH_CONTACTS: Final = 5
 """Grounded contacts kept from the model's response."""
 
+_MAX_RESEARCH_CONTACT_GROUPS: Final = 5
+"""Groups kept from the model's response (R14-6) -- bounded like the
+contacts themselves, since there cannot usefully be more groups than
+there are contacts to put in them."""
+
+_MAX_GROUP_EXAMPLE_HYPOTHESES: Final = 2
+"""Example hypotheses kept per group, matching the published exemplar's
+two "Example Hypothesis Titles" per research direction (R14-6)."""
+
 
 def _build_contact_candidates(
     articles: list[Article] | None,
@@ -154,3 +163,73 @@ def _validate_research_contacts(
         }
         for raw, candidate in matches
     ]
+
+
+def _resolve_example_hypothesis_ids(
+    raw_indices: Any, hypothesis_by_index: dict[int, str]
+) -> list[str]:
+    """Resolve a group's example-hypothesis indices to real hypothesis ids.
+
+    R14-6: the model refers to a hypothesis by the same 1-based position
+    used in the numbered top-k summary it was shown, never by echoing
+    the hypothesis's own text -- a schema that echoes input scales
+    output with the pool and truncates identically on every retry (see
+    AGENTS.md). An index outside the pool, a non-integer entry, or a
+    repeat is dropped rather than guessed at; the caller renders titles
+    from the resolved ids, never from anything the model wrote itself.
+    """
+    if not isinstance(raw_indices, list):
+        return []
+    ids: list[str] = []
+    for raw in itertools.islice(raw_indices, _MAX_GROUP_EXAMPLE_HYPOTHESES):
+        hyp_id = (
+            hypothesis_by_index.get(raw) if isinstance(raw, int) else None
+        )
+        if hyp_id is not None and hyp_id not in ids:
+            ids.append(hyp_id)
+    return ids
+
+
+def _validate_research_contact_group(
+    raw: Any, hypothesis_by_index: dict[int, str]
+) -> dict[str, Any] | None:
+    """Validate one research-contact group, or None when unnamed."""
+    if not isinstance(raw, dict):
+        return None
+    direction = str(raw.get("research_direction") or "").strip()
+    if not direction:
+        return None
+    return {
+        "research_direction": direction,
+        "rationale": str(raw.get("rationale") or "").strip(),
+        "example_hypothesis_ids": _resolve_example_hypothesis_ids(
+            raw.get("example_hypothesis_indices"), hypothesis_by_index
+        ),
+    }
+
+
+def _validate_research_contact_groups(
+    raw_groups: Any, hypothesis_by_index: dict[int, str]
+) -> list[dict[str, Any]]:
+    """Keep only well-formed groups, capped and stripped of raw indices.
+
+    Unlike ``_validate_research_contacts``, a group's ``research_direction``
+    is not checked against a verified pool -- it is free text the model
+    is asked to copy from its own ``research_contacts`` response (MO-7's
+    comment on that field: a direction label is not an invented fact the
+    way a name or affiliation would be). The renderer matches a group to
+    its contacts by that text, so a group whose text does not match any
+    contact simply renders no contacts under it.
+    """
+    if not isinstance(raw_groups, list):
+        return []
+    validated = (
+        _validate_research_contact_group(raw, hypothesis_by_index)
+        for raw in raw_groups
+    )
+    return list(
+        itertools.islice(
+            (group for group in validated if group is not None),
+            _MAX_RESEARCH_CONTACT_GROUPS,
+        )
+    )
