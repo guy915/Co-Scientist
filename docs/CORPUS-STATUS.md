@@ -241,3 +241,13 @@ Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`
 **MA: 6 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
+
+## MC — pseudocode (mirror-fidelity pass)
+
+| Row | Table says (`work`) | Verdict | Evidence |
+|---|---|---|---|
+| MC-4 | The blocking, never-revisited initial-review disposition gate has no counterpart in any published pseudocode listing (`engine/CLAUDE.md`'s own gotcha records it disqualifying 20 of 22 ideas in one production run); needs a ledger row naming it a local addition | **BUILT** | `docs/PARITY.md:229` `REVIEW-GATE-LOCAL-001` is exactly this row: "LOCAL ADDITION — no published counterpart," `verified`, citing `review_gate.py:136`'s `_apply_initial_review_gate`, `models.py:258`'s `is_rankable()`, and the monotonic-block mechanism in `mature_reviews.py:90-101` — and its residual quotes the same "20 of 22" figure from `engine/CLAUDE.md`'s gotcha verbatim |
+
+**MC: 1 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
+
+Noticed in passing: none.
