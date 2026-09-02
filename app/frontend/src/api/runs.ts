@@ -55,6 +55,7 @@ export type {
   ReportShare,
   Review,
   Run,
+  RunAttribute,
   RunConfig,
   RunCriterion,
   RunFocus,

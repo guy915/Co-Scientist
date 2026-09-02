@@ -35,6 +35,97 @@ def test_resolved_config_carries_the_tier_call_ceiling() -> None:
     )
 
 
+def test_default_attributes_are_goal_agnostic_scaled_axes() -> None:
+    """R12-5: the default shape is a scaled axis, not free prose.
+
+    No categorical default exists -- the published block's own categorical
+    axis (Target Area) is goal-derived, so nothing goal-agnostic to put
+    here (see ``run_modes_attributes``'s module docstring). The categorical
+    shape itself is still fully supported; pinned on stored producer input
+    by ``test_setup_config_keeps_accepting_a_categorical_attribute`` below.
+    """
+    for attribute in run_modes.DEFAULT_ATTRIBUTES:
+        assert set(attribute) == {"name", "scale"}
+        assert attribute["name"]
+        assert set(attribute["scale"]) == {"1", "3", "5"}
+        assert all(attribute["scale"].values())
+
+
+def test_setup_config_defaults_attributes_to_independent_copies() -> None:
+    """Two runs never share a mutable default-attribute dict."""
+    first = run_modes.setup_config(research_goal="goal one")
+    second = run_modes.setup_config(research_goal="goal two")
+    assert first["attributes"] == list(run_modes.DEFAULT_ATTRIBUTES)
+    first["attributes"][0]["scale"]["1"] = "mutated"
+    assert second["attributes"][0]["scale"]["1"] != "mutated"
+
+
+def test_setup_config_keeps_accepting_legacy_free_string_attributes() -> None:
+    """A caller still supplying prose attributes (CLI, an interview) works."""
+    spec = run_modes.setup_config(
+        research_goal="goal",
+        lists=run_modes.PlanningLists(attributes=["Spatially resolved", ""]),
+    )
+    assert spec["attributes"] == ["Spatially resolved"]
+
+
+def test_setup_config_keeps_accepting_a_categorical_attribute() -> None:
+    """A producer may still supply the categorical shape directly."""
+    spec = run_modes.setup_config(
+        research_goal="goal",
+        lists=run_modes.PlanningLists(
+            attributes=[
+                {
+                    "name": "Target Area",
+                    "values": ["Epigenetics", "Stromal-Immune Crosstalk"],
+                }
+            ]
+        ),
+    )
+    assert spec["attributes"] == [
+        {
+            "name": "Target Area",
+            "values": ["Epigenetics", "Stromal-Immune Crosstalk"],
+        }
+    ]
+
+
+def test_attribute_display_strings_renders_every_stored_shape() -> None:
+    """Back-compat: legacy strings, scaled axes, and categorical axes."""
+    assert run_modes.attribute_display_strings(
+        ["Mechanistically specific"]
+    ) == ["Mechanistically specific"]
+    assert run_modes.attribute_display_strings(
+        [{"name": "Mechanism Novelty", "scale": {"1": "Low", "5": "High"}}]
+    ) == ["Mechanism Novelty: 1-5 scale (1: Low, 5: High)"]
+    assert run_modes.attribute_display_strings(
+        [{"name": "Target Area", "values": ["A", "B", "C"]}]
+    ) == ["Target Area (A, B, or C)"]
+    # A malformed/legacy dict with neither scale nor values still renders
+    # the bare name, matching criteria_display_strings' own forgiving rule.
+    assert run_modes.attribute_display_strings([{"name": "Impact"}]) == [
+        "Impact"
+    ]
+    assert run_modes.attribute_display_strings(None) == []
+
+
+def test_setup_guidance_renders_attributes_for_both_stored_shapes() -> None:
+    """The engine-facing prompt guidance reads a legacy or new-shape run."""
+    legacy = run_modes.setup_guidance(
+        {
+            "attributes": ["Mechanistically specific"],
+            "focus": "balance",
+            "tier": "standard",
+        }
+    )
+    assert "- Attributes:\n  - Mechanistically specific" in legacy
+
+    current = run_modes.setup_guidance(
+        run_modes.setup_config(research_goal="goal")
+    )
+    assert "- Attributes:\n  - Mechanistic specificity: 1-5 scale" in current
+
+
 def test_default_criteria_are_named_settings_with_values() -> None:
     """R12-4: the default shape is name/value pairs, not free prose."""
     for pair in run_modes.DEFAULT_CRITERIA:

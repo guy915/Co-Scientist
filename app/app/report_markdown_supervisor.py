@@ -7,8 +7,8 @@ rendered to the reader until R12-17 (stratification attributes), R12-18
 together, in their own module, because they share the same trap: each
 reuses an English word Google's published documents also use for a
 *different*, user-authored field -- ``config_synthesis.attributes`` vs.
-the run's plain-string setup attributes, and ``workflow_plan.review_phase.
-critical_criteria`` vs. the run's plain-string setup criteria (both
+the run's user-authored setup attributes, and ``workflow_plan.review_phase.
+critical_criteria`` vs. the run's user-authored setup criteria (both
 rendered under "Research Goal Details" in ``report_markdown_header.py``).
 Reusing either heading here would present the model's synthesis as the
 user's own setup, so every renderer below picks a heading distinct from
@@ -57,7 +57,7 @@ def _render_stratification_attributes_markdown(
     this only displays what was already computed.
 
     Deliberately not titled "Attributes" -- that heading already names the
-    run's user-authored, plain-string setup attributes rendered under
+    run's user-authored setup attributes rendered under
     "Research Goal Details" (``report_markdown_header.py``). Google's own
     published documents use the same word for both a bare list and a
     name-plus-rubric section; reusing it here would conflate the two.
@@ -139,7 +139,7 @@ def _render_evaluation_criteria_markdown(
 
     Titled to match Google's own published section name ("Evaluation
     Criteria"), and deliberately not "Criteria" -- that heading already
-    names the run's user-authored, plain-string criteria rendered under
+    names the run's user-authored setup criteria rendered under
     "Research Goal Details" (``report_markdown_header.py``).
 
     R12-23b: Google's published section is not a flat name list -- each

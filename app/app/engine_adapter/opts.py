@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from app import run_corpus, store
 from app.config import settings
 from app.run_modes import (
+    attribute_names,
     clean_string_list,
     criteria_display_strings,
     focus_guidance,
@@ -53,7 +54,14 @@ def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "run_focus_guidance": focus_guidance(focus),
         "run_setup_guidance": setup_guidance(setup),
-        "attributes": _clean_list_field(setup, "attributes"),
+        # Attributes may be stored as the legacy free-prose list or the
+        # R12-5 structured axis list; the engine's `attributes` state
+        # field is `list[str] | None`, and several of its prompt
+        # formatters comma-join the list (see `attribute_names`'s
+        # docstring), so this sends bare names rather than the full
+        # anchored rubric text -- which still reaches the engine,
+        # bulleted, via `run_setup_guidance` above.
+        "attributes": attribute_names(setup.get("attributes")),
         "constraints": _clean_list_field(setup, "requirements"),
         # Criteria may be stored as the legacy free-prose list or the
         # R12-4 name/value pair list; the engine's `criteria` state field

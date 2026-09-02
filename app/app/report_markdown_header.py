@@ -17,7 +17,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from app.run_modes import criteria_display_strings
+from app.run_modes import attribute_display_strings, criteria_display_strings
 
 # Kept close to Google's published wording ("Prepared by AI co-scientist on
 # 2026-06-12. For research purposes only.") but naming this system, not
@@ -43,11 +43,12 @@ def _render_research_goal_details(
     """Render 'Research Goal Details': goal, requirements, attributes, criteria.
 
     Nothing renders when the run carries no setup block (a report persisted
-    before this field existed) or an empty one. Criteria may be the legacy
-    free-prose list or the R12-4 ``{"name", "value"}`` pair list a run
-    created after that change stores -- ``criteria_display_strings`` renders
-    both the same way, so an older persisted run keeps reading exactly as
-    it always did.
+    before this field existed) or an empty one. Attributes may be the
+    legacy free-prose list or the R12-5 structured axis list, and criteria
+    may be the legacy free-prose list or the R12-4 ``{"name", "value"}``
+    pair list -- ``attribute_display_strings``/``criteria_display_strings``
+    render every shape the same way, so an older persisted run keeps
+    reading exactly as it always did.
     """
     if not isinstance(setup, dict):
         return []
@@ -56,7 +57,7 @@ def _render_research_goal_details(
             "Requirements", _plain_setup_strings(setup.get("requirements"))
         ),
         _render_setup_list(
-            "Attributes", _plain_setup_strings(setup.get("attributes"))
+            "Attributes", attribute_display_strings(setup.get("attributes"))
         ),
         _render_setup_list(
             "Criteria", criteria_display_strings(setup.get("criteria"))

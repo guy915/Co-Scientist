@@ -84,11 +84,26 @@ export type RunEventActivity =
  */
 export type RunCriterion = string | {name: string; value: string};
 
+/**
+ * One entry of a run's `attributes` setup list: either the legacy free-
+ * prose string, or the R12-5 structured axis shape mirroring Google's
+ * published run plan -- a named axis that is either scaled (1-5, with
+ * anchor text at points 1/3/5, not necessarily every point -- see
+ * `attributeDisplayString`) or categorical (a name plus an enumerated
+ * value set). Unlike `RunCriterion`, the specifications tab renders
+ * attributes item-by-item (`ReportList`), so `attributeDisplayString`
+ * coerces every shape to one display string before rendering.
+ */
+export type RunAttribute =
+  | string
+  | {name: string; scale: {'1'?: string; '3'?: string; '5'?: string}}
+  | {name: string; values: string[]};
+
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {
   goal: string;
   requirements: string[];
-  attributes: string[];
+  attributes: RunAttribute[];
   criteria: RunCriterion[];
   focus: RunFocus;
   tier: RunTier;

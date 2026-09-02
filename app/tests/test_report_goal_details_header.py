@@ -58,6 +58,29 @@ def test_the_header_renders_r12_4_name_value_criteria() -> None:
     assert "- Idea correctness: Required" in markdown
 
 
+def test_the_header_renders_r12_5_structured_attributes() -> None:
+    """A run created after R12-5 stores attributes as structured axes."""
+    markdown = _markdown(
+        {
+            "goal": "Explain the cardiac benefit.",
+            "attributes": [
+                {
+                    "name": "Mechanism Novelty",
+                    "scale": {"1": "Low", "3": "Moderate", "5": "High"},
+                },
+                {"name": "Target Area", "values": ["Heart", "Vasculature"]},
+            ],
+        }
+    )
+
+    assert "**Attributes:**" in markdown
+    assert (
+        "- Mechanism Novelty: 1-5 scale (1: Low, 3: Moderate, 5: High)"
+        in markdown
+    )
+    assert "- Target Area (Heart or Vasculature)" in markdown
+
+
 def test_the_header_still_leads_with_the_title_and_provider() -> None:
     """The new section is additive: title and provider line still open."""
     markdown = _markdown({"requirements": ["A requirement."]})

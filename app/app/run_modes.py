@@ -7,6 +7,21 @@ from collections.abc import Callable
 from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
+from app.run_modes_attributes import (
+    DEFAULT_ATTRIBUTES as DEFAULT_ATTRIBUTES,
+)
+from app.run_modes_attributes import (
+    _default_attributes as _default_attributes,
+)
+from app.run_modes_attributes import (
+    attribute_display_strings as attribute_display_strings,
+)
+from app.run_modes_attributes import (
+    attribute_names as attribute_names,
+)
+from app.run_modes_attributes import (
+    clean_attributes_list as clean_attributes_list,
+)
 from app.run_modes_criteria import (
     DEFAULT_CRITERIA as DEFAULT_CRITERIA,
 )
@@ -43,11 +58,10 @@ DEFAULT_REQUIREMENTS: tuple[str, ...] = (
     "Retrieve broader literature evidence and preserve competing mechanisms.",
     "Use tournament ranking and evolution before final synthesis.",
 )
-DEFAULT_ATTRIBUTES: tuple[str, ...] = (
-    "Mechanistically specific",
-    "Evidence-grounded",
-    "Experiment-ready",
-)
+# DEFAULT_ATTRIBUTES, clean_attributes_list, attribute_display_strings, and
+# attribute_names live in run_modes_attributes (R12-5: the attributes
+# field's structured axis shape and back-compat), imported above and
+# re-exported for existing importers.
 # DEFAULT_CRITERIA, clean_criteria_list, and criteria_display_strings live in
 # run_modes_criteria (R12-4: the criteria field's named-setting shape and
 # back-compat), imported above and re-exported for existing importers.
@@ -141,14 +155,16 @@ class PlanningLists:
 
     Attributes:
         requirements: What the run's hypotheses must satisfy.
-        attributes: The qualities a good hypothesis should show.
+        attributes: The qualities a good hypothesis should show -- either
+            the legacy free-prose strings or the structured axis shape
+            (see ``clean_attributes_list``).
         criteria: The axes hypotheses are judged on -- either the legacy
             free-prose strings or the ``{"name", "value"}`` pair shape
             (see ``clean_criteria_list``).
     """
 
     requirements: list[str] | None = None
-    attributes: list[str] | None = None
+    attributes: list[Any] | None = None
     criteria: list[Any] | None = None
 
 
@@ -181,8 +197,8 @@ def setup_config(
         "goal": research_goal.strip(),
         "requirements": clean_string_list(lists.requirements)
         or list(DEFAULT_REQUIREMENTS),
-        "attributes": clean_string_list(lists.attributes)
-        or list(DEFAULT_ATTRIBUTES),
+        "attributes": clean_attributes_list(lists.attributes)
+        or _default_attributes(),
         "criteria": clean_criteria_list(lists.criteria) or _default_criteria(),
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
@@ -234,16 +250,21 @@ def _setup_field_lines(title: str, values: list[str]) -> list[str]:
     return lines
 
 
-def _setup_field_values(setup: dict[str, Any], key: str) -> list[str]:
-    """Return one setup list field's raw JSON value as display strings.
+# Attributes and criteria each get their own back-compat-aware coercion
+# since their stored shape may be the legacy free-prose list or a later
+# structured shape (R12-5, R12-4); requirements is always plain strings and
+# falls through to the generic branch below.
+_SETUP_DISPLAY_COERCIONS: dict[str, Callable[[Any], list[str]]] = {
+    "attributes": attribute_display_strings,
+    "criteria": criteria_display_strings,
+}
 
-    Criteria get their own back-compat-aware coercion
-    (``criteria_display_strings``) since their stored shape may be the
-    legacy free-prose list or the R12-4 name/value pair list; the other
-    two fields are always plain strings.
-    """
-    if key == "criteria":
-        return criteria_display_strings(setup.get(key))
+
+def _setup_field_values(setup: dict[str, Any], key: str) -> list[str]:
+    """Return one setup list field's raw JSON value as display strings."""
+    coerce = _SETUP_DISPLAY_COERCIONS.get(key)
+    if coerce is not None:
+        return coerce(setup.get(key))
     return clean_string_list([str(v) for v in setup.get(key) or []])
 
 

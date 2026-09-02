@@ -37,7 +37,11 @@ class CreateRunRequest(BaseModel):
     # Free-form planning guidance lists; defaults are filled by setup_config
     # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None
-    attributes: list[str] | None = None
+    # Each entry is the legacy free-prose string, or the R12-5 structured
+    # axis shape mirroring Google's published run plan (a 1-5 ``scale``
+    # with anchor text, or a categorical ``values`` list);
+    # ``clean_attributes_list`` accepts and validates both.
+    attributes: list[str | dict[str, Any]] | None = None
     # Each entry is the legacy free-prose string, or the R12-4
     # ``{"name", "value"}`` pair shape mirroring Google's published run
     # plan; ``clean_criteria_list`` accepts and validates both.
