@@ -14,7 +14,7 @@ from app import report_markdown
 
 def _markdown(setup: dict[str, object] | None) -> str:
     """Render a minimal report carrying only the given setup block."""
-    return report_markdown.render_report_markdown(
+    return report_markdown.render_overview_document_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -86,7 +86,7 @@ def test_the_header_still_leads_with_the_title_and_provider() -> None:
     markdown = _markdown({"requirements": ["A requirement."]})
 
     lines = markdown.splitlines()
-    assert lines[0] == "# Research Report — Explain the cardiac benefit."
+    assert lines[0] == "# Research Overview — Explain the cardiac benefit."
     assert "_Provider: **engine**_" in markdown
 
 

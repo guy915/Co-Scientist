@@ -19,7 +19,7 @@ from app.engine_adapter.drain_reviews import (
     _verdict_detail,
 )
 from tests._drain_helpers import (
-    _build_report,
+    _build_report_ranking,
     _final_state_with_features,
     _persist_and_finalize,
 )
@@ -148,7 +148,9 @@ def test_drain_persists_detail_json_on_the_review_row(isolated_db: str) -> None:
     # and a rename of either side's hardcoded reviewer_agent string
     # ("simulation_review"/"full_review") would render nothing and pass
     # every other test in this file.
-    _payload, markdown = _build_report(run, isolated_db)
+    # The simulation-review subsection renders on the Top Ranking
+    # Hypotheses document (R14-11), not the Research Overview one.
+    _payload, markdown = _build_report_ranking(run, isolated_db)
     assert "#### Simulation review" in markdown
     assert "**Verdict:** Go" in markdown
     assert "**Time to Verdict:** Short" in markdown

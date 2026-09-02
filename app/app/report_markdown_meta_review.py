@@ -1,13 +1,16 @@
 """Report section rendering the meta-review's cross-hypothesis synthesis.
 
 Split out of ``report_markdown`` to keep that module within the size cap.
-Renders the "## Meta-review insights" heading: common strengths and
-weaknesses as plain bullets, recurring themes (theme + description +
-frequency, the taxonomy MO-2 stopped discarding before it reached this
-module -- see ``_render_theme``) falling back to a bare-name bullet list
-when only the flattened ``emerging_themes`` shape is present, strategic
-recommendations with their justification, and unexpected connections
-(R12-7).
+Renders the "## Meta-review insights" heading on each of the two documents
+R14-11 splits the report into: ``_render_meta_review_overview_markdown``
+(Research Overview document) covers common strengths and weaknesses as
+plain bullets, recurring themes (theme + description + frequency, the
+taxonomy MO-2 stopped discarding before it reached this module -- see
+``_render_theme``) falling back to a bare-name bullet list when only the
+flattened ``emerging_themes`` shape is present, and unexpected connections
+(R12-7); ``_render_meta_review_ranking_markdown`` (Top Ranking Hypotheses
+document) covers the candidate/existing-solutions comparisons and the
+strategic recommendation roadmap.
 
 R12-7's published exemplar tags each connection with four fixed fields --
 Claims/Reasoning/Novelty/Relevance -- that our schema does not compute:
@@ -292,8 +295,19 @@ def _render_unexpected_connections(connections: list[Any]) -> list[str]:
     return ["\n### Unexpected connections\n", *lines]
 
 
-def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
-    """Render the meta-review insights section, or nothing when absent."""
+def _render_meta_review_overview_markdown(
+    meta_review: dict[str, Any],
+) -> list[str]:
+    """Render the Research Overview document's meta-review insights.
+
+    R14-11: cross-run synthesis -- common strengths/weaknesses, recurring
+    themes, and unexpected connections -- belongs on ``research-overview.md``
+    ("meta-review-style synthesis"), which names "Unexpected connections"
+    directly as one of its own six sections. The tournament-facing half of
+    this same payload (candidate comparison, existing-solutions comparison,
+    the recommendation roadmap) renders separately, on the ranking document
+    -- see ``_render_meta_review_ranking_markdown``.
+    """
     if not meta_review:
         return []
     lines = ["\n## Meta-review insights\n"]
@@ -303,6 +317,31 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
             heading, meta_review.get(section_key) or []
         )
     lines += _render_emerging_themes(meta_review)
+    lines += _render_unexpected_connections(
+        meta_review.get("potential_connections") or []
+    )
+    return lines
+
+
+def _render_meta_review_ranking_markdown(
+    meta_review: dict[str, Any],
+) -> list[str]:
+    """Render the Top Ranking Hypotheses document's meta-review insights.
+
+    R14-11: the tournament/ranking comparison content -- candidate
+    comparison ("Idea Comparison Table"), the existing-solutions comparison,
+    and the recommendation roadmap ("Recommendation") -- are three of that
+    document's own named sections. Kept under the same "Meta-review
+    insights" heading the overview half uses (see
+    ``_render_meta_review_overview_markdown``) rather than promoting each
+    ``###`` to a top-level ``##``: both halves are equally "insights the
+    meta-review agent produced", just addressed to a different document now
+    that there are two, and splitting the heading text as well as the
+    content would be a second, unattested change.
+    """
+    if not meta_review:
+        return []
+    lines = ["\n## Meta-review insights\n"]
     lines += _render_candidate_comparison(
         meta_review.get("candidate_comparison")
     )
@@ -311,8 +350,5 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     )
     lines += _render_strategic_recommendations(
         meta_review.get("strategic_recommendations") or []
-    )
-    lines += _render_unexpected_connections(
-        meta_review.get("potential_connections") or []
     )
     return lines

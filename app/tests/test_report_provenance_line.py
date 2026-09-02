@@ -15,7 +15,7 @@ from app import report_markdown
 
 def _markdown(prepared_at: float | None) -> str:
     """Render a minimal report carrying only the given prepared_at."""
-    return report_markdown.render_report_markdown(
+    return report_markdown.render_overview_document_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -58,9 +58,11 @@ def test_no_prepared_at_renders_no_provenance_line() -> None:
     """A report with no known preparation time carries no caution line.
 
     Covers a report persisted before this field existed rather than
-    stating a date this system does not actually know.
+    stating a date this system does not actually know. Checks the
+    provenance line's own wording, not the bare "For research purposes
+    only" phrase -- the R14-4 About disclosure (report_markdown_header.py)
+    carries that same closing phrase unconditionally, on every render.
     """
     markdown = _markdown(None)
 
-    assert "For research purposes only" not in markdown
     assert "Prepared by" not in markdown

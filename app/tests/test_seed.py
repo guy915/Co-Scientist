@@ -40,7 +40,11 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert run.llm_backend == "offline"
         assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
-        assert md is not None and "Research Report" in md
+        assert md is not None and "Research Overview" in md
+        ranking_md = store.read_report_ranking_markdown(
+            run.id, db_path=isolated_db
+        )
+        assert ranking_md is not None and "Top Ranking Hypotheses" in ranking_md
         scenario = DEMO_SCENARIOS[run.research_goal]
         expected_ideas = len(scenario_hypotheses(scenario))
         hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
@@ -134,7 +138,12 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
         {},
         store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
-    store.save_report(run.id, {"legacy": True}, "# Legacy", db_path=isolated_db)
+    store.save_report(
+        run.id,
+        {"legacy": True},
+        store.ReportMarkdownDocuments("# Legacy"),
+        db_path=isolated_db,
+    )
 
     _seed(isolated_db)
 
@@ -142,6 +151,9 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert report is not None
     assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
     assert "Curated demonstration only" in report["markdown_text"]
+    # R14-11: a demo re-seed produces both documents, not just the legacy
+    # combined one.
+    assert "Curated demonstration only" in report["markdown_text_ranking"]
 
 
 def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
@@ -157,7 +169,7 @@ def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
     store.save_report(
         run.id,
         {"demo_seed_version": DEMO_SEED_VERSION},
-        "# Current-looking report",
+        store.ReportMarkdownDocuments("# Current-looking report"),
         db_path=isolated_db,
     )
 
@@ -224,7 +236,12 @@ def test_has_readable_report_reflects_report_presence(
     )
     assert seed._has_readable_report(run, isolated_db) is False
 
-    store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
+    store.save_report(
+        run.id,
+        {"k": "v"},
+        store.ReportMarkdownDocuments("# md"),
+        db_path=isolated_db,
+    )
     assert seed._has_readable_report(run, isolated_db) is True
 
 

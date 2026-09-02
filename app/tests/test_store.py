@@ -303,7 +303,12 @@ def test_redact_hypothesis_fields_rejects_non_redactable_column(
 
 def test_reports_round_trip_markdown_to_disk(db: str) -> None:
     run = store.create_run("report rt", "standard", "mock", {})
-    saved = store.save_report(run.id, {"k": "v"}, "# Hello\nbody", db_path=db)
+    saved = store.save_report(
+        run.id,
+        {"k": "v"},
+        store.ReportMarkdownDocuments("# Hello\nbody"),
+        db_path=db,
+    )
     assert saved["markdown_path"].endswith(".md")
     md = store.read_report_markdown(run.id, db_path=db)
     assert md and "Hello" in md

@@ -22,7 +22,8 @@ Endpoints:
 - POST   /api/runs/{id}/pause             cooperative pause (-> resumable)
 - POST   /api/runs/{id}/resume            resume from the last checkpoint
 - GET    /api/runs/{id}/report            structured report payload (latest)
-- GET    /api/runs/{id}/report.md         rendered Markdown report
+- GET    /api/runs/{id}/report.md         Research Overview document (R14-11)
+- GET    /api/runs/{id}/report-ranking.md Top Ranking Hypotheses document
 
 Cancellation and pause are durable: they revoke the run's queued/leased
 tasks and update the run row, which the workers observe. Streams are backed
@@ -125,6 +126,9 @@ from app.runs_collections import (
 )
 from app.runs_collections import (
     get_report_markdown as get_report_markdown,
+)
+from app.runs_collections import (
+    get_report_ranking_markdown as get_report_ranking_markdown,
 )
 from app.runs_collections import (
     get_reviews as get_reviews,

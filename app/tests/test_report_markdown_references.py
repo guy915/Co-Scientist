@@ -56,7 +56,7 @@ def _markdown(
     evidence: list[dict[str, object]] | None = None,
 ) -> str:
     """Render a minimal report carrying the given hypotheses/citations."""
-    return report_markdown.render_report_markdown(
+    return report_markdown.render_ranking_document_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

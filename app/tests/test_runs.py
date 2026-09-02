@@ -290,7 +290,7 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     # Markdown report file survives.
     md = new_client.get(f"/api/runs/{run_id}/report.md")
     assert md.status_code == 200
-    assert "Research Report" in md.text
+    assert "Research Overview" in md.text
 
 
 def test_legacy_advanced_profile_maps_to_standard_tier(

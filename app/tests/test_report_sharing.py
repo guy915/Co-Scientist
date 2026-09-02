@@ -20,7 +20,7 @@ def _run_with_report(isolated_db: str) -> str:
     store.save_report(
         run.id,
         {"research_goal": run.research_goal, "leaderboard": []},
-        "# Goal Report",
+        store.ReportMarkdownDocuments("# Goal Report"),
         db_path=isolated_db,
     )
     return run.id
@@ -63,6 +63,62 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
         )
         assert revoked.status_code == 204
         assert client.get(f"/api/shared/{share['token']}").status_code == 404
+
+
+# R14-11: shares.py forwards the whole report row (store.get_latest_report)
+# to a public reader unchanged, so both persisted forms of the split --
+# a run with two documents, and an older run with the one legacy combined
+# document -- must keep coming through a share exactly as they are stored.
+
+
+def test_shared_report_carries_both_documents(isolated_db: str) -> None:
+    """A two-document report shares both markdown documents, not just one."""
+    run = store.create_run(
+        "Study a causal pathway",
+        "standard",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="owner-a", db_path=isolated_db),
+    )
+    store.save_report(
+        run.id,
+        {"research_goal": run.research_goal, "leaderboard": []},
+        store.ReportMarkdownDocuments("# Overview doc", "# Ranking doc"),
+        db_path=isolated_db,
+    )
+    with TestClient(app) as client:
+        created = client.post(
+            f"/api/runs/{run.id}/shares",
+            headers={"X-Client-ID": "owner-a"},
+        )
+        report = client.get(f"/api/shared/{created.json()['token']}").json()[
+            "report"
+        ]
+
+    assert report["markdown_text"] == "# Overview doc"
+    assert report["markdown_text_ranking"] == "# Ranking doc"
+
+
+def test_shared_legacy_report_has_no_ranking_document(
+    isolated_db: str,
+) -> None:
+    """An older, single-document report shares with no ranking document.
+
+    Its ``markdown_text`` still holds the one combined document exactly as
+    it was persisted -- a share must not claim a second document exists.
+    """
+    run_id = _run_with_report(isolated_db)
+    with TestClient(app) as client:
+        created = client.post(
+            f"/api/runs/{run_id}/shares",
+            headers={"X-Client-ID": "owner-a"},
+        )
+        report = client.get(f"/api/shared/{created.json()['token']}").json()[
+            "report"
+        ]
+
+    assert report["markdown_text"] == "# Goal Report"
+    assert report["markdown_text_ranking"] is None
 
 
 def _run_with_blocked_and_released_content(
@@ -202,7 +258,7 @@ def _run_with_blocked_and_released_content(
     store.save_report(
         run_id,
         {"research_goal": run.research_goal},
-        "# Goal Report",
+        store.ReportMarkdownDocuments("# Goal Report"),
         db_path=isolated_db,
     )
     return run_id, released_id, cited_id

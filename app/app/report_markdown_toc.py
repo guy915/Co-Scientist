@@ -3,14 +3,16 @@
 R14-1: Google's published ``research-overview.md`` opens with an explicit
 ``#### Table of contents:`` section naming six of its own top-level
 sections as bulleted nav items (docs/CORPUS-EXTRACTION.md R14-1). Our
-combined report renders a different, run-dependent set of top-level
-sections -- each independently conditional (R14-23: a section prints
-nothing, heading included, when it has nothing to say) -- so mirroring
-Google's fixed six items verbatim would as often as not point the reader
-at a heading this render never produced, which is worse than no nav list
-at all. The heading text and level carry over unchanged (structural, not
-branded); the bulleted items are always this run's own populated
-sections, in the order they render.
+Research Overview document (R14-11 split the report into two -- this
+renders only on that one; nothing in the corpus attests a table of
+contents on the Top Ranking Hypotheses document) renders a different,
+run-dependent set of top-level sections -- each independently conditional
+(R14-23: a section prints nothing, heading included, when it has nothing
+to say) -- so mirroring Google's fixed six items verbatim would as often
+as not point the reader at a heading this render never produced, which is
+worse than no nav list at all. The heading text and level carry over
+unchanged (structural, not branded); the bulleted items are always this
+document's own populated sections, in the order they render.
 """
 
 from __future__ import annotations

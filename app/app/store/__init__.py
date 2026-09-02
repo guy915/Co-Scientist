@@ -139,8 +139,10 @@ from app.store.records import (
     safety_stage_is_approved,
 )
 from app.store.reports import (
+    ReportMarkdownDocuments,
     get_latest_report,
     read_report_markdown,
+    read_report_ranking_markdown,
     save_report,
 )
 from app.store.retrieval_calls import (
@@ -237,6 +239,7 @@ __all__ = [
     "NewStagedDocument",
     "NewSupervisorPlan",
     "NewTask",
+    "ReportMarkdownDocuments",
     "RunCreateOptions",
     "RunRow",
     "RunStatus",
@@ -328,6 +331,7 @@ __all__ = [
     "prune_logs",
     "prune_superseded_checkpoints",
     "read_report_markdown",
+    "read_report_ranking_markdown",
     "recent_events",
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",

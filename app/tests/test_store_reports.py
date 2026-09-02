@@ -50,7 +50,10 @@ def test_save_report_logs_warning_on_disk_write_failure(
 
     with caplog.at_level(logging.WARNING, logger="app.store.reports"):
         saved = store.save_report(
-            run.id, {"k": "v"}, "# md body", db_path=isolated_db
+            run.id,
+            {"k": "v"},
+            store.ReportMarkdownDocuments("# md body"),
+            db_path=isolated_db,
         )
 
     assert "Could not write report markdown to disk" in caplog.text
@@ -131,3 +134,93 @@ def test_read_report_markdown_none_when_disk_file_missing(
     )
 
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None
+
+
+# R14-11: a run's report is now two documents (Research Overview +
+# Top Ranking Hypotheses); the tests below pin the persistence side of
+# that split -- both documents round-trip, and a row saved before the
+# split (no markdown_text_ranking) is read as the legacy single document
+# it always was, never as a two-document report missing its second half.
+
+
+def test_save_report_persists_both_documents(isolated_db: str) -> None:
+    """Both documents round-trip through save/read, independently."""
+    run = store.create_run(
+        "two-document goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
+
+    store.save_report(
+        run.id,
+        {"k": "v"},
+        store.ReportMarkdownDocuments("# Overview", "# Ranking"),
+        db_path=isolated_db,
+    )
+
+    report = store.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["markdown_text"] == "# Overview"
+    assert report["markdown_text_ranking"] == "# Ranking"
+    assert store.read_report_markdown(run.id, db_path=isolated_db) == (
+        "# Overview"
+    )
+    assert store.read_report_ranking_markdown(run.id, db_path=isolated_db) == (
+        "# Ranking"
+    )
+
+
+def test_a_legacy_row_has_no_ranking_document(isolated_db: str) -> None:
+    """A row saved before the split reads as one combined document.
+
+    ``markdown_text`` for such a row holds the older, single document
+    (every section that now splits across two, in one file) -- the
+    absence of a second document is the reader's signal to render it as
+    that one document, not as a two-document report with an empty half.
+    """
+    run = store.create_run(
+        "legacy goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
+    store.save_report(
+        run.id,
+        {"k": "v"},
+        store.ReportMarkdownDocuments("# Combined legacy report"),
+        db_path=isolated_db,
+    )
+
+    report = store.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["markdown_text"] == "# Combined legacy report"
+    assert report["markdown_text_ranking"] is None
+    assert (
+        store.read_report_ranking_markdown(run.id, db_path=isolated_db) is None
+    )
+
+
+def test_read_report_ranking_markdown_none_for_a_pre_column_row(
+    isolated_db: str,
+) -> None:
+    """A row inserted before the ranking column existed reads the same way.
+
+    ``_insert_legacy_report_row`` mirrors a report row shaped exactly as
+    production's did before this migration -- no markdown_text_ranking
+    value is ever written for it, so the column defaults to NULL.
+    """
+    run = store.create_run(
+        "pre-column goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
+    _insert_legacy_report_row(isolated_db, run.id, "report-pre-column", None)
+
+    assert (
+        store.read_report_ranking_markdown(run.id, db_path=isolated_db) is None
+    )

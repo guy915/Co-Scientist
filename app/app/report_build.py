@@ -28,7 +28,8 @@ from app.report_markdown import (
     ReportMarkdownInputs,
     ReportPayloadInputs,
     build_report_payload,
-    render_report_markdown,
+    render_overview_document_markdown,
+    render_ranking_document_markdown,
 )
 
 
@@ -130,11 +131,14 @@ class _ReportData(NamedTuple):
 
 
 class _BuiltReport(NamedTuple):
-    """One run's report in both persisted forms.
+    """One run's report in every persisted form.
 
     Attributes:
         payload: The JSON report payload.
-        markdown: The rendered Markdown report.
+        markdown: The rendered Research Overview document (R14-11).
+        ranking_markdown: The rendered Top Ranking Hypotheses document
+            (R14-11) -- the tournament/ranking comparison, rendered from
+            the same gathered data as ``markdown``.
         facts: Durable knowledge-base rows derived from this run's claim-
             evidence graph (audit G14), persisted once the report actually
             publishes; see ``report_render._publish_report``.
@@ -142,6 +146,7 @@ class _BuiltReport(NamedTuple):
 
     payload: dict[str, Any]
     markdown: str
+    ranking_markdown: str
     facts: list[dict[str, Any]]
 
 
@@ -161,14 +166,16 @@ def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
         The report payload and its rendered markdown.
     """
     data = _gather_report_data(run_id, req.db_path)
-    # Computed once and handed to both the payload and the markdown export
-    # -- resolving it twice risks the two surfaces disagreeing on which
-    # topics a run's Knowledge Base actually carries (see the root
-    # AGENTS.md Gotchas entry on counts computed more than once).
+    # Computed once and handed to the payload and both markdown documents
+    # -- resolving it twice risks the surfaces disagreeing on which topics
+    # a run's Knowledge Base actually carries (see the root AGENTS.md
+    # Gotchas entry on counts computed more than once).
     knowledge_base = _resolve_knowledge_base(data, req)
+    inputs = _report_markdown_inputs(data, req, knowledge_base)
     return _BuiltReport(
         payload=_assemble_report_payload(data, req, knowledge_base),
-        markdown=_render_report_content_markdown(data, req, knowledge_base),
+        markdown=render_overview_document_markdown(inputs),
+        ranking_markdown=render_ranking_document_markdown(inputs),
         # Derived from the run's whole claim-evidence graph, not the
         # released subset the payload/markdown are scoped to -- the
         # knowledge base records everything the run found (see
@@ -193,36 +200,34 @@ def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
     }
 
 
-def _render_report_content_markdown(
+def _report_markdown_inputs(
     data: _ReportData,
     req: _ReportBuildArgs,
     knowledge_base: list[dict[str, Any]],
-) -> str:
-    """Render the report markdown from already-gathered store data."""
-    return render_report_markdown(
-        ReportMarkdownInputs(
-            research_goal=req.research_goal,
-            provider=req.provider,
-            # Report body is capped to the top 5 by Elo; the full set remains
-            # available via the leaderboard and the hypotheses API endpoint.
-            top_hypotheses=data.hyps[:5],
-            meta_review=req.meta_review,
-            citation_summary=req.citation_summary,
-            research_overview=req.research_overview,
-            knowledge_base=knowledge_base,
-            setup=req.setup,
-            attributes=req.attributes,
-            critical_criteria=req.critical_criteria,
-            prepared_at=req.prepared_at,
-            summary=req.summary,
-            claim_evidence=data.released_claim_edges,
-            skills_used=req.skills_used,
-            retrieval_calls=data.retrieval_calls,
-            hypothesis_title_by_id=_hypothesis_title_by_id(data.hyps),
-            citations=data.citations,
-            evidence=data.evidence,
-            reviews=data.reviews,
-        )
+) -> ReportMarkdownInputs:
+    """Assemble the shared inputs both markdown documents render from."""
+    return ReportMarkdownInputs(
+        research_goal=req.research_goal,
+        provider=req.provider,
+        # Report body is capped to the top 5 by Elo; the full set remains
+        # available via the leaderboard and the hypotheses API endpoint.
+        top_hypotheses=data.hyps[:5],
+        meta_review=req.meta_review,
+        citation_summary=req.citation_summary,
+        research_overview=req.research_overview,
+        knowledge_base=knowledge_base,
+        setup=req.setup,
+        attributes=req.attributes,
+        critical_criteria=req.critical_criteria,
+        prepared_at=req.prepared_at,
+        summary=req.summary,
+        claim_evidence=data.released_claim_edges,
+        skills_used=req.skills_used,
+        retrieval_calls=data.retrieval_calls,
+        hypothesis_title_by_id=_hypothesis_title_by_id(data.hyps),
+        citations=data.citations,
+        evidence=data.evidence,
+        reviews=data.reviews,
     )
 
 

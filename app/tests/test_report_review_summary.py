@@ -27,7 +27,7 @@ def _markdown(critical_criteria: list[Any] | None) -> str:
         "title": "NHE1 coupling",
         "statement": "NHE1 couples to the RSK axis in HFpEF.",
     }
-    return report_markdown.render_report_markdown(
+    return report_markdown.render_overview_document_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

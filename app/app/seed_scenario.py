@@ -369,12 +369,18 @@ def _save_scenario_report(
         ),
     )
     payload = {**built.payload, "demo_seed_version": DEMO_SEED_VERSION}
-    markdown = (
+    banner = (
         "> **Curated demonstration only.** These are illustrative research "
         "proposals, not validated findings or treatment guidance.\n\n"
-        + built.markdown
     )
-    store.save_report(seed.run.id, payload, markdown, db_path=seed.db_path)
+    store.save_report(
+        seed.run.id,
+        payload,
+        store.ReportMarkdownDocuments(
+            banner + built.markdown, banner + built.ranking_markdown
+        ),
+        db_path=seed.db_path,
+    )
     return meta_review
 
 

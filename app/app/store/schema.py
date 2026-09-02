@@ -273,8 +273,13 @@ CREATE TABLE IF NOT EXISTS reports (
     -- structured report (Overview, Ideas, Tournament, Citations, Safety)
     payload_json TEXT NOT NULL,
     markdown_path TEXT,
-    -- full markdown stored in DB for durability across restarts
+    -- full markdown stored in DB for durability across restarts. Since
+    -- R14-11, this is the Research Overview document; the Top Ranking
+    -- Hypotheses document is markdown_text_ranking. NULL there (a row
+    -- written before that column existed) means this column instead holds
+    -- the older single combined document -- see store/reports.py.
     markdown_text TEXT,
+    markdown_text_ranking TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );

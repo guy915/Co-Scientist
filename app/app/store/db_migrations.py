@@ -80,6 +80,11 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
         )
     # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
+    # R14-11: the second of the two documents a run now produces (see
+    # store/reports.py's module docstring). NULL on every row written
+    # before this column existed -- the discriminator a reader uses to
+    # tell an old single-document report from a new two-document one.
+    _add_column_if_missing(conn, "reports", "markdown_text_ranking", "TEXT")
 
 
 def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
