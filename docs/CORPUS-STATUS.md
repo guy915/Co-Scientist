@@ -73,9 +73,9 @@ partial pass is never lost.
 | R14 | 20 | 11 | 0 | 7 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
-| MO | 5 | 0 | 2 | 3 | 0 |
+| MO | 5 | 1 | 1 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **52** | **5** | **19** | **3** |
+| **Total** | **79** | **53** | **4** | **19** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -310,13 +310,13 @@ Noticed in passing: none.
 
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
-| MO-2 | A 5-theme, 2-3-level-deep critique taxonomy; the state-shaping loss is closed, but `recurring_themes[]` remains a flat `{theme, description, frequency}` — the fix commit itself calls this "an accepted adaptation," which this row does not yet record as a formal decision | **OPEN** | Confirmed unchanged: `engine/src/co_scientist/agents/meta_review/meta_review.py:371` `_normalize_recurring_themes` still produces the flat shape; no PARITY row exists for `recurring_themes`/this 5-theme taxonomy. The judgment call was already made (accepted adaptation, per the row's own account) — what remains is purely the recording step: a PARITY row citing that acceptance |
+| MO-2 | A 5-theme, 2-3-level-deep critique taxonomy; the state-shaping loss is closed, but `recurring_themes[]` remains a flat `{theme, description, frequency}` — the fix commit itself calls this "an accepted adaptation," which this row does not yet record as a formal decision | **BUILT** | Recorded, as the row's own residual asked for — no schema change made. `docs/PARITY.md`'s new `META-CRITIQUE-TAXONOMY-001` row (`partial`, cites `corpus MO-2`) states the flat shape and the acceptance by name, quoting the fix commit (`69d10874`, "an accepted adaptation") and the reason it stands: meta-review runs once per evolve iteration, so a nested 2-3-level taxonomy would multiply structured-output size on every one of those calls. `engine/src/co_scientist/agents/meta_review/meta_review.py:371` `_normalize_recurring_themes` is unchanged — confirmed still flat, per the wave's own instruction not to deepen it |
 | MO-4 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); the enum-disagreement half is closed (one shared `ASSUMPTION_SUPPORT_VALUES` enum), but adopting the published wording is deferred | **DECISION** | Confirmed unchanged: `engine/src/co_scientist/schemas/review.py:20-25` `ASSUMPTION_SUPPORT_VALUES = (supported, uncertain, likely_false)`, still not the published prose labels. Same question as `R12-15` (audited above) — not double-counted |
 | MO-5 | Two appended reviews close with a bare `Answer: 4`/`Answer: 3`; whether the scale is 1-5, 1-10, or something else (a separate reading found values 2-9 for a different block) is unresolved | **DECISION** | Same open scale question as `R10-7` (audited above), which this row explicitly narrows. Re-confirmed: every `Answer: N` value in the verbatim Appendix is 3 or 4 (consistent with either scale, not dispositive); the wider 2-9 range this row cites cannot be independently verified — it is not mirrored anywhere in `docs/CORPUS-EXTRACTION.md`'s Appendix, and this document cannot read `references/` directly. Not double-counted against `R10-7` |
 | MO-11 | The research goal is intake as three named parts (`Title`, `Goal`, `Background`); ours is one free-text field | **DECISION** | Same underlying question as `R1-18`/`R10-9`/`R14-2` (audited above): `app/app/runs_models.py:29` `research_goal: str` remains one field. Not double-counted — one decision (canonical goal-intake shape) closes all four rows |
 | MO-12 | Two published overviews use different vocabularies for the same slot; the ALS third slot (`recent_findings`) is now closed, but both exemplars also use a **doubled structure** (a brief preview list, then full detail) that a single array still cannot express | **OPEN** | The vocabulary half is confirmed built: `engine/src/co_scientist/schemas/synthesis.py:116-122` adds `recent_findings`, explicitly commented `# MO-12`. The doubled-structure half is confirmed still absent: `app/app/report_markdown_overview.py:130-140` (`_render_overview_section`) renders `research_directions` exactly once via `_render_directions_list`, no separate preview-then-detail pass |
 
-**MO: 0 BUILT / 2 OPEN / 3 DECISION / 0 FALSE.**
+**MO: 1 BUILT / 1 OPEN / 3 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 

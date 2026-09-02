@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 83 requirement rows:
-**verified=57, partial=20, missing=3, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 84 requirement rows:
+**verified=57, partial=21, missing=3, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -114,6 +114,14 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > unattested addition; `candidate_id` is unrendered anti-hallucination
 > provenance and `research_direction` already matches the exemplar.
 > Recording only. Row count 81->82.
+
+> **Addition (2026-09-02).** `META-CRITIQUE-TAXONOMY-001` added
+> (`partial`): the published meta-review critique (App. B, ALS example) is
+> a 5-theme, 2-3-level-deep taxonomy; `recurring_themes[]` flattens it to
+> `{theme, description, frequency}`, a deliberate accepted adaptation
+> (commit `69d10874`) -- meta-review runs once per evolve iteration, and a
+> nested taxonomy would multiply structured-output size on every one of
+> those calls. Recording only, no schema change. Row count 83->84.
 
 ---
 
