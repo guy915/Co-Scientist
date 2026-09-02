@@ -142,7 +142,8 @@ async def test_apply_semantic_relevance_preserves_lexical_differentiation() -> (
         result["best"]["retrieval_score"] > result["worst"]["retrieval_score"]
     )
     # The offline router's deterministic filler answers every "number"
-    # field with 4.0 (co_scientist.offline_llm._SCALAR_DEFAULTS), which
+    # field with 4.0 (co_scientist.offline_schema_fill._SCALAR_DEFAULTS;
+    # "literature_relevance" carries no scalar-value override), which
     # combine_hybrid_score clamps to 1.0 -- identical for both candidates,
     # so any observed difference in the final score comes only from the
     # lexical half.

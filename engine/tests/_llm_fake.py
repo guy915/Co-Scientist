@@ -31,25 +31,27 @@ identical to (or a near-duplicate of) the original text. A call with no
 schema (e.g. a debate's free-form intermediate turn) gets a unique
 plain-text reply instead.
 
-One schema needs an array filled to a specific length rather than the
-generic filler's default of one item: the comparative batch-review
-response's "reviews" array must have exactly one entry per hypothesis in
-the batch, since ``review_node`` maps entries back to hypotheses (by
-their ``hypothesis_index`` when valid, else by array position) and
-counts a short response as failed reviews. ``_ARRAY_LENGTH_HINTS``
-(imported from ``co_scientist.offline_llm``) wires a prompt-derived count
-to the "hypothesis_batch_review" schema by name.
+Two schemas need an array filled to a length other than the generic
+filler's default of one item. The comparative batch-review response's
+"reviews" array must have exactly one entry per hypothesis in the batch,
+since ``review_node`` maps entries back to hypotheses (by their
+``hypothesis_index`` when valid, else by array position) and counts a
+short response as failed reviews. The research overview's
+"research_directions" array is filled past the report's directions-
+preview gate instead of to a prompt-derived count -- see
+``co_scientist.offline_llm``'s comment on the two. ``_ARRAY_LENGTH_HINTS``
+(imported from ``co_scientist.offline_llm``) wires each by schema name.
 
-The schema-filling traversal (``_fill_schema``), the
-``supervisor_allocation`` prompt-flag branch
-(``_supervisor_allocation_response``), and the response/prompt shape
-helpers (``_build_response``, ``_prompt_text``) live in
-``co_scientist.offline_llm``, shared with the production offline-model
-router; this module supplies its own leaf-value strategy (``_next_leaf``,
-backed by a process-global counter reset only per test process) rather
-than the router's per-call seeded RNG, since existing tests rely on every
-fake call in a run drawing from one shared sequence, not just leaves
-within a single response.
+The schema-filling traversal (``_fill_schema``, ``_FillHints``) lives in
+``co_scientist.offline_schema_fill``; the ``supervisor_allocation``
+prompt-flag branch (``_supervisor_allocation_response``) and the
+response/prompt shape helpers (``_build_response``, ``_prompt_text``)
+live in ``co_scientist.offline_llm``. Both are shared with the production
+offline-model router; this module supplies its own leaf-value strategy
+(``_next_leaf``, backed by a process-global counter reset only per test
+process) rather than the router's per-call seeded RNG, since existing
+tests rely on every fake call in a run drawing from one shared sequence,
+not just leaves within a single response.
 """
 
 import itertools
@@ -64,13 +66,13 @@ from co_scientist.cache import LLMCache
 from co_scientist.generator import GeneratorOptions, HypothesisGenerator
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
-    _fill_schema,
     _prompt_text,
     _supervisor_allocation_response,
 )
 from co_scientist.offline_llm import (
     _build_response as _fake_response,
 )
+from co_scientist.offline_schema_fill import _fill_schema, _FillHints
 
 # Shared across every fake call in a test run so no two generated leaves
 # (hypothesis text, free-form turns, etc.) ever collide.
@@ -185,10 +187,12 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
             content = _supervisor_allocation_response(_prompt_text(kwargs))
             return _fake_response(content)
         length_hint = _ARRAY_LENGTH_HINTS.get(json_schema.get("name", ""))
-        array_lengths = (
-            length_hint(_prompt_text(kwargs)) if length_hint else None
+        hints = _FillHints(
+            array_lengths=(
+                length_hint(_prompt_text(kwargs)) if length_hint else {}
+            )
         )
-        content = json.dumps(_fill_schema(schema, _next_leaf, array_lengths))
+        content = json.dumps(_fill_schema(schema, _next_leaf, hints))
     elif response_format and response_format.get("type") == "json_object":
         # No production call site reaches this branch (every call site
         # that requests JSON also supplies a schema), but it is kept as a

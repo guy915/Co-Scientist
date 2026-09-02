@@ -33,12 +33,13 @@ The property name is threaded down through ``_fill_schema`` for that
 reason; before, every field from a title to a reviewer's critique received
 the same shape of sentence.
 
-``_fill_schema`` takes the leaf-value generator as a plain callable rather
-than baking in either strategy, so ``tests/_llm_fake.py`` can share this
-exact traversal logic while keeping its own process-global counter (fine
-for a monkeypatch that pytest reverts after every test, and relied on by
-existing tests for uniqueness across separate calls within one test, not
-just within one response).
+``_fill_schema`` (in the sibling ``offline_schema_fill`` module, split out
+once this one grew past the file-length budget) takes the leaf-value
+generator as a plain callable rather than baking in either strategy, so
+``tests/_llm_fake.py`` can share this exact traversal logic while keeping
+its own process-global counter (fine for a monkeypatch that pytest
+reverts after every test, and relied on by existing tests for uniqueness
+across separate calls within one test, not just within one response).
 """
 
 import hashlib
@@ -53,6 +54,7 @@ from typing import Any
 
 from co_scientist import llm_request
 from co_scientist.offline_content import leaf_text, subject_terms
+from co_scientist.offline_schema_fill import _fill_schema, _FillHints
 
 logger = logging.getLogger(__name__)
 
@@ -90,147 +92,82 @@ def _batch_review_length(prompt: str) -> dict[str, int]:
     return {"reviews": max(count, 1)}
 
 
+# Unlike the batch-review count above, a research overview's directions
+# have no 1:1 correspondence with anything the prompt declares -- the
+# model freely decides how many major directions a hypothesis pool
+# resolves into. This hook is therefore a fixed count, not a prompt
+# reading: enough to clear the report's directions-preview gate
+# (report_markdown_overview.py::_render_directions_preview renders
+# nothing below two named directions), so an offline run reads as having
+# found several directions worth pursuing rather than exactly one.
+_RESEARCH_DIRECTIONS_COUNT = 3
+
+
+def _research_overview_directions_length(_prompt: str) -> dict[str, int]:
+    """Sizes ``overview.research_directions`` past the preview gate.
+
+    Args:
+        _prompt: The rendered research-overview prompt (unused; the count
+            is fixed rather than derived from prompt content -- see the
+            module-level comment on ``_RESEARCH_DIRECTIONS_COUNT``).
+
+    Returns:
+        ``{"research_directions": _RESEARCH_DIRECTIONS_COUNT}``.
+    """
+    return {"research_directions": _RESEARCH_DIRECTIONS_COUNT}
+
+
 # Per-schema-name hooks that compute a {property_name: item_count} map from
 # the prompt text, for the few schemas whose array length must match a
 # count baked into the prompt rather than the generic filler's default of
 # one item per array.
 _ARRAY_LENGTH_HINTS: dict[str, Callable[[str], dict[str, int]]] = {
     "hypothesis_batch_review": _batch_review_length,
+    "research_overview": _research_overview_directions_length,
 }
 
-# Placeholder values for scalar schema types this filler special-cases.
-_SCALAR_DEFAULTS: dict[str, Any] = {
-    "integer": 4,
-    "number": 4.0,
-    "boolean": True,
+# The review rubric's eight scored axes (schemas/review.py's private
+# _SCORE_CRITERIA, mirrored here rather than imported across that privacy
+# boundary) plus the descriptive overall_score. Every offline review's
+# every score otherwise defaults through _SCALAR_DEFAULTS to exactly
+# NEEDS_REVISION_SCORE (constants.py, currently 4), which the initial
+# review gate reads with a <=, not a <: every offline-reviewed hypothesis
+# therefore lands in "needs_revision", never "viable" --
+# review_gate._disposition_for -- and only a "viable" hypothesis reaches
+# Reflection's full/simulation/recurrent cascade
+# (mature_reviews.reviews_needed), so that cascade never fires on the
+# offline backend. This override lands every score comfortably inside the
+# rubric's "good" band instead, clear of that boundary, without touching
+# NEEDS_REVISION_SCORE itself or any other schema's integer fields --
+# every other integer this filler fills is a pool index (a batch review's
+# hypothesis_index, a proximity cluster member's index, ...), not a
+# score, and stays at the generic default.
+_REVIEW_SCORE_FIELDS: tuple[str, ...] = (
+    "scientific_soundness",
+    "plausibility",
+    "novelty",
+    "testability",
+    "potential_impact",
+    "relevance",
+    "safety",
+    "clarity",
+    "overall_score",
+)
+_REVIEW_SCORE_VALUE = 7
+
+# Per-schema-name {property_name: value} overrides for a scalar leaf,
+# read ahead of _SCALAR_DEFAULTS. Both REVIEW_SCHEMA and
+# REVIEW_BATCH_SCHEMA share the same scored-axis vocabulary (via
+# schemas/review.py's _SCORES_SCHEMA), so both schema names get the same
+# override table.
+_SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
+    "hypothesis_review": dict.fromkeys(
+        _REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE
+    ),
+    "hypothesis_batch_review": dict.fromkeys(
+        _REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE
+    ),
 }
-
-
-def _fill_schema(
-    schema: dict[str, Any],
-    leaf_fn: Callable[[str], Any],
-    array_lengths: dict[str, int] | None = None,
-    field: str = "",
-) -> Any:
-    """Builds a minimal value satisfying one JSON-schema node.
-
-    Args:
-        schema: A JSON Schema fragment (object, array, or scalar).
-        leaf_fn: Callable taking the property name being filled and
-            returning the next string-leaf value; called once per string
-            leaf encountered. Callers choose the uniqueness strategy (a
-            seeded RNG for the runtime router, a process-global counter for
-            the test fake).
-        array_lengths: Optional property-name -> item-count map (see
-            ``_ARRAY_LENGTH_HINTS``); an array property whose name is a key
-            here is filled to that length instead of the default one item.
-        field: Name of the property this node is filling, passed to
-            ``leaf_fn`` so a leaf can read as the field it lands in.
-            Empty at the schema root.
-
-    Returns:
-        A value satisfying ``schema``: object properties filled
-        recursively, array items filled per ``array_lengths`` (default
-        one), an enum's first allowed value, or a scalar placeholder.
-    """
-    array_lengths = array_lengths or {}
-
-    if "enum" in schema:
-        return schema["enum"][0]
-
-    schema_type = schema.get("type", "object")
-
-    if schema_type == "object":
-        return _fill_object(schema, leaf_fn, array_lengths)
-
-    if schema_type == "array":
-        return _fill_array(schema, 1, leaf_fn, array_lengths, field)
-
-    if schema_type in _SCALAR_DEFAULTS:
-        return _SCALAR_DEFAULTS[schema_type]
-
-    # string, or any type this filler does not special-case.
-    return leaf_fn(field)
-
-
-def _fill_object(
-    schema: dict[str, Any],
-    leaf_fn: Callable[[str], Any],
-    array_lengths: dict[str, int],
-) -> dict[str, Any]:
-    """Fills every required (or, if unspecified, every declared) property.
-
-    Args:
-        schema: The object's JSON Schema fragment.
-        leaf_fn: Zero-argument callable returning the next string-leaf
-            value (see ``_fill_schema``).
-        array_lengths: Property-name -> item-count map, threaded into each
-            property's fill.
-
-    Returns:
-        A dict mapping each filled property name to its value.
-    """
-    properties = schema.get("properties", {})
-    required = schema.get("required") or list(properties.keys())
-    return {
-        name: _fill_property(name, properties[name], leaf_fn, array_lengths)
-        for name in required
-        if name in properties
-    }
-
-
-def _fill_property(
-    name: str,
-    schema: dict[str, Any],
-    leaf_fn: Callable[[str], Any],
-    array_lengths: dict[str, int],
-) -> Any:
-    """Fills one object property, honoring an array-length hint by name.
-
-    Args:
-        name: The property name, checked against ``array_lengths``.
-        schema: The property's own JSON Schema fragment.
-        leaf_fn: Zero-argument callable returning the next string-leaf
-            value (see ``_fill_schema``).
-        array_lengths: Property-name -> item-count map.
-
-    Returns:
-        The filled property value.
-    """
-    if schema.get("type") == "array" and name in array_lengths:
-        return _fill_array(
-            schema, array_lengths[name], leaf_fn, array_lengths, name
-        )
-    return _fill_schema(schema, leaf_fn, array_lengths, name)
-
-
-def _fill_array(
-    schema: dict[str, Any],
-    count: int,
-    leaf_fn: Callable[[str], Any],
-    array_lengths: dict[str, int],
-    field: str = "",
-) -> list[Any]:
-    """Fills an array schema with ``count`` (at least one) filled items.
-
-    Args:
-        schema: The array's JSON Schema fragment (reads "items").
-        count: Desired item count; clamped up to one.
-        leaf_fn: Zero-argument callable returning the next string-leaf
-            value (see ``_fill_schema``).
-        array_lengths: Property-name -> item-count map, threaded into each
-            item's fill so length hints apply at any nesting depth.
-        field: Name of the array property, passed down so an item reads as
-            the field it belongs to.
-
-    Returns:
-        A list of ``max(count, 1)`` filled items.
-    """
-    item_schema = schema.get("items", {"type": "string"})
-    return [
-        _fill_schema(item_schema, leaf_fn, array_lengths, field)
-        for _ in range(max(count, 1))
-    ]
 
 
 def _build_response(content: str) -> Any:
@@ -348,8 +285,11 @@ def _schema_response(
 
     schema = json_schema["schema"]
     length_hint = _ARRAY_LENGTH_HINTS.get(schema_name)
-    array_lengths = length_hint(prompt) if length_hint else None
-    content = json.dumps(_fill_schema(schema, leaf_fn, array_lengths))
+    hints = _FillHints(
+        array_lengths=length_hint(prompt) if length_hint else {},
+        scalar_values=_SCALAR_VALUE_HINTS.get(schema_name, {}),
+    )
+    content = json.dumps(_fill_schema(schema, leaf_fn, hints))
     return _build_response(content)
 
 

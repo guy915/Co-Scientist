@@ -20,7 +20,7 @@ from co_scientist.agents.generation.experiment_plan import (
 )
 from co_scientist.llm_json import validate_json_schema
 from co_scientist.models import Hypothesis
-from co_scientist.offline_llm import _fill_schema
+from co_scientist.offline_schema_fill import _fill_schema
 from co_scientist.schemas.generation import (
     _EXPERIMENT_CRITERION_CHARS,
     _EXPERIMENT_STEP_CHARS,
