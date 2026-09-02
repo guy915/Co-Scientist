@@ -328,6 +328,23 @@ const UNAVAILABLE_SOURCE_SUMMARY =
   'The full source could not be reached when this evidence was gathered, ' +
   'so it is listed without a summary.';
 
+// Summary copy for a retracted source: distinct from the merely-unreachable
+// case above, since collapsing the two here reintroduces on the Knowledge
+// Base tab the exact conflation the References pill was fixed to avoid.
+const RETRACTED_SOURCE_SUMMARY =
+  'This source has been retracted, so it is listed without a summary.';
+
+function evidenceSummary(item: Evidence, fallbackGoal: string): string {
+  if (item.retracted) return RETRACTED_SOURCE_SUMMARY;
+  if (item.available === false) return UNAVAILABLE_SOURCE_SUMMARY;
+  return (
+    item.abstract ||
+    'This section summarizes the concepts, protocols, and ' +
+      'methodological constraints Co-Scientist learned while ' +
+      `studying ${fallbackGoal}.`
+  );
+}
+
 function evidenceSection(
   item: Evidence,
   index: number,
@@ -336,13 +353,7 @@ function evidenceSection(
   return {
     id: `learning-section-${index + 1}`,
     title: learningTitle(item.title, index),
-    summary:
-      item.available === false
-        ? UNAVAILABLE_SOURCE_SUMMARY
-        : item.abstract ||
-          'This section summarizes the concepts, protocols, and ' +
-            'methodological constraints Co-Scientist learned while ' +
-            `studying ${fallbackGoal}.`,
+    summary: evidenceSummary(item, fallbackGoal),
     // Detail expands on the summary with source attribution when available,
     // otherwise a generic note tying the item back to the research goal.
     detail:

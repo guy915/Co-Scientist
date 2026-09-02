@@ -215,6 +215,22 @@ describe('LearningView unreachable sources (D18)', () => {
     ).toBeInTheDocument();
   });
 
+  it('summarizes a retracted evidence section distinctly, not as unreachable', () => {
+    render(
+      <LearningView
+        goal="goal"
+        evidence={[{...unreachable, retracted: true}]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'This source has been retracted, so it is listed without a summary.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/could not be reached/)).toBeNull();
+  });
+
   it('labels a retracted reference distinctly from a merely unreachable one', () => {
     render(
       <LearningView
