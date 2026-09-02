@@ -217,10 +217,12 @@ def hypotheses_with_claim_counts(
 ) -> list[dict[str, Any]]:
     """Return each hypothesis with its claim assessed/verified counts.
 
-    Carries ``created_at`` through unchanged (already present on every row
-    ``store.list_hypotheses`` returns) so ``scaling_eval.temporal_scaling_
-    curve`` can bucket a run's hypotheses in real creation order -- the
-    store itself returns hypotheses Elo-descending, not chronologically.
+    Carries ``generation`` and ``created_at`` through unchanged (both
+    already present on every row ``store.list_hypotheses`` returns) so
+    ``scaling_eval.temporal_scaling_curve`` can bucket a run's hypotheses
+    by cycle -- the store itself returns hypotheses Elo-descending, not
+    chronologically, and ``created_at`` alone is too coarse to use by
+    itself (see that function's docstring for why).
     """
     assessed, verified = _claim_counts_by_hypothesis(claim_edges)
     out = []
@@ -231,6 +233,7 @@ def hypotheses_with_claim_counts(
                 "id": hid,
                 "text": str(h.get("text") or ""),
                 "elo_rating": h.get("elo_rating"),
+                "generation": h.get("generation"),
                 "created_at": h.get("created_at"),
                 "assessed_claims": assessed.get(hid, 0),
                 "verified_claims": verified.get(hid, 0),

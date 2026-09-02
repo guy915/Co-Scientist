@@ -10,8 +10,8 @@ reads, and calls that function so the artifact carries the computed curve
 too, not just the raw per-arm snapshots. Each snapshot also carries
 ``temporal_curve`` (R1-13): Google's own published within-run method
 (``scaling_eval.temporal_scaling_curve``) applied to that arm's own
-hypotheses -- ten equal buckets in creation order, best/top-10-average
-Elo per bucket. It never varies tier.
+hypotheses -- ten equal buckets ordered by generation cycle, best/
+top-10-average Elo per bucket. It never varies tier.
 
 **Offline (default, the only mode CI or a committed test exercises):**
 proves the driver's wiring end-to-end against the deterministic offline LLM
@@ -21,10 +21,13 @@ NOT evidence that a real model's output quality scales with compute budget,
 since the offline backend answers every call the same canned way regardless
 of tier. Every offline artifact this driver writes carries an explicit
 ``offline_disclaimer`` field saying so. That disclaimer covers the
-cross-tier ``curve`` only -- each arm's own ``temporal_curve`` is a real,
-if small, within-run measurement even offline: its Elo ratings come from
-real tournament matches over that arm's own hypotheses, not from
-comparing identical canned answers across tiers.
+cross-tier ``curve`` only -- each arm's own ``temporal_curve`` orders by
+a real signal even offline (``generation``, the engine's own lineage
+ordinal), not by comparing identical canned answers across tiers, though
+it is coarser than the paper's continuous wall-clock partition: see
+``scaling_eval.temporal_scaling_curve``'s docstring for the resolution
+caveat, and note an express/standard arm only ever reaches generation 0
+and 1 (one evolution round).
 
 **Live (``--live``, opt-in only, never run automatically):** needs a real
 provider key (``DEEPSEEK_API_KEY``) and, for literature grounding, a
@@ -79,9 +82,10 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
 
     Also carries ``temporal_curve`` (R1-13): Google's published within-run
     method, applied to this arm's own hypotheses. Unlike the cross-tier
-    ``curve`` this driver already builds, this genuinely means something
-    offline too -- it measures whether *this run's own* Elo ratings trend
-    across its own creation order, not whether tiers differ.
+    ``curve`` this driver already builds, this orders by a real per-arm
+    signal (generation cycle) rather than by tier -- see
+    ``scaling_eval.temporal_scaling_curve`` for what that ordering can and
+    cannot resolve.
     """
     return {
         "run_id": arm["run_id"],

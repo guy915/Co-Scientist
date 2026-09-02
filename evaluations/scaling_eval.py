@@ -10,15 +10,21 @@ see each function's docstring for which is which:
   budget (see ``EVAL-SCALING-001``'s residual).
 - ``temporal_scaling_curve`` is Google's own published method (SSR L141,
   App. D; Figures 4-5): partition ONE run's hypotheses into ten equal
-  temporal buckets in creation order and track best/top-10-average Elo
-  across them. It never varies tier -- it measures whether a single run's
-  own hypothesis quality trends upward over its own generation/evolution
-  cycles. Unlike the tier curve, this genuinely works offline: a run's
-  Elo ratings come from real tournament matches over the run's own
-  hypotheses (the offline backend judges those matches by a deterministic
-  rule, not by literal quality, but the resulting spread across creation
-  order is real signal, not a byproduct of comparing identical canned
-  answers across tiers).
+  temporal buckets in generation-cycle order and track best/top-10-average
+  Elo across them. It never varies tier -- it measures whether a single
+  run's own hypothesis quality trends upward over its own generation/
+  evolution cycles. Unlike the tier curve, the *ordering signal* is real
+  even offline: a hypothesis's ``generation`` (0 for an originally
+  generated hypothesis, N for an evolution descendant N rounds removed)
+  is a genuine cycle ordinal the engine assigns, not a byproduct of
+  comparing identical canned answers across tiers. It is coarser than the
+  paper's own continuous wall-clock partition, though: our schema carries
+  no per-hypothesis authorship timestamp, only an INSERT-time
+  ``created_at`` that lands one generation call's whole batch of siblings
+  within a fraction of a millisecond of each other (confirmed against a
+  real run), and our runs cap at a handful of generation values rather
+  than the paper's long-running multi-hour loop -- see
+  ``_temporal_order_key`` for exactly what is and is not ordered.
 """
 
 from __future__ import annotations
@@ -109,19 +115,32 @@ def _hypothesis_elo(item: dict[str, Any]) -> int | None:
     return int(rating) if rating is not None else None
 
 
-def _creation_order_key(item: dict[str, Any]) -> tuple[float, str]:
-    """Sort key placing a run's hypotheses in creation order.
+def _temporal_order_key(item: dict[str, Any]) -> tuple[int, float, str]:
+    """Sort key approximating a hypothesis's place in a run's timeline.
 
-    ``created_at`` (a float epoch, per ``app.store.schema``) is the primary
-    key; ``id`` breaks ties deterministically for hypotheses inserted in
-    the same instant -- e.g. a batch of siblings from one generation call --
-    the same tie-break ``store.list_hypotheses`` itself uses for its own
-    Elo-descending default order. A missing timestamp sorts first rather
-    than raising, since some callers (tests, older snapshots) may omit it.
+    Ordered primarily by ``generation`` -- the engine's own lineage
+    ordinal (0 for an originally generated hypothesis; ``evolve_results.py``
+    assigns a child ``parent.generation + 1``, so it strictly increases
+    each time a descendant survives another evolution round). This is the
+    only real cycle signal in the persisted schema: the engine's
+    ``Hypothesis`` model carries no timestamp of its own (nothing to read
+    before the drain's own INSERT), so ``created_at`` cannot distinguish
+    hypotheses within one generation call's batch -- confirmed against a
+    real offline run, where an entire ~13-hypothesis generation call
+    landed within under a millisecond of itself. ``created_at`` therefore
+    only breaks ties *within* a generation, as batch-insert order, not as
+    a claim about which hypothesis was "thought of" first; ``id`` breaks
+    any still-remaining tie deterministically. A hypothesis missing
+    either field sorts first on that key rather than raising, since some
+    callers (tests, older snapshots) may omit them.
     """
+    generation = item.get("generation")
     created_at = item.get("created_at")
-    order = float(created_at) if created_at is not None else 0.0
-    return (order, str(item.get("id") or ""))
+    return (
+        int(generation) if generation is not None else 0,
+        float(created_at) if created_at is not None else 0.0,
+        str(item.get("id") or ""),
+    )
 
 
 def _split_into_buckets(
@@ -173,16 +192,26 @@ def temporal_scaling_curve(
     """Google's published within-run scaling method (SSR L141, Figs. 4-5).
 
     Partitions ONE run's hypotheses into ``bucket_count`` (default 10)
-    equal-size temporal buckets in creation order -- the first bucket the
-    earliest-generated tenth, the last the most recent -- and reports each
-    bucket's best (maximum) Elo rating and its top-10-average Elo rating
-    (mean of up to the bucket's own top 10 ratings, matching the paper's
-    "average Elo rating of the top 10 hypotheses" and the same up-to-10
-    pattern ``_scaling_point`` already uses for a whole run). Unlike
-    ``scaling_curve`` (separate runs, different compute tiers), this never
-    varies budget: it measures whether one run's own hypothesis quality
-    trends upward over its own generation/evolution cycles -- exactly what
-    Figures 4 and 5 plot, per goal, before any cross-goal averaging.
+    equal-size temporal buckets ordered by generation cycle (see
+    ``_temporal_order_key``) -- the first bucket the earliest cycle, the
+    last the most recent -- and reports each bucket's best (maximum) Elo
+    rating and its top-10-average Elo rating (mean of up to the bucket's
+    own top 10 ratings, matching the paper's "average Elo rating of the
+    top 10 hypotheses" and the same up-to-10 pattern ``_scaling_point``
+    already uses for a whole run). Unlike ``scaling_curve`` (separate runs,
+    different compute tiers), this never varies budget: it measures
+    whether one run's own hypothesis quality trends upward over its own
+    generation/evolution cycles -- exactly what Figures 4 and 5 plot, per
+    goal, before any cross-goal averaging.
+
+    Resolution caveat: the paper partitions a long-running, continuous
+    generation process by wall-clock time; our schema's only real cycle
+    signal is the discrete ``generation`` ordinal, and a run caps at a
+    handful of generation values (an offline express/standard run reaches
+    only 0 and 1 -- one evolution round). Ten buckets over a small
+    generation range means several buckets typically share a generation
+    and differ only by the coarser, less meaningful ``created_at``/``id``
+    tie-break within it -- the curve is real but coarser than the paper's.
 
     Degenerate cases handled without raising:
         - An empty run (no hypotheses) returns ``[]``.
@@ -193,7 +222,7 @@ def temporal_scaling_curve(
           hypothesis lacks one reports ``best_elo``/``top10_avg_elo`` as
           ``None`` instead of raising.
     """
-    ordered = sorted(hypotheses, key=_creation_order_key)
+    ordered = sorted(hypotheses, key=_temporal_order_key)
     buckets = _split_into_buckets(ordered, bucket_count)
     return [
         _temporal_bucket_point(bucket, i, len(buckets))

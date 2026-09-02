@@ -11,9 +11,18 @@ from evaluations.scaling_eval import (
 )
 
 
-def _hyp(hid: str, created_at: float, elo: int | None) -> dict[str, Any]:
+def _hyp(
+    hid: str,
+    created_at: float,
+    elo: int | None,
+    generation: int = 0,
+) -> dict[str, Any]:
     """Build one bare hypothesis dict for the temporal-bucket tests."""
-    entry: dict[str, Any] = {"id": hid, "created_at": created_at}
+    entry: dict[str, Any] = {
+        "id": hid,
+        "created_at": created_at,
+        "generation": generation,
+    }
     if elo is not None:
         entry["elo_rating"] = elo
     return entry
@@ -59,23 +68,39 @@ def test_scaling_curve_orders_compute_and_uses_expert_quality() -> None:
     assert curve[1]["best_elo"] == 1320
 
 
-def test_temporal_scaling_curve_orders_by_creation_not_by_elo() -> None:
-    """Buckets follow ``created_at``, not the caller's list order or Elo."""
-    # Deliberately shuffled and Elo-descending in list order, so a bug that
-    # bucketed by list position or by Elo instead of creation time would
-    # put "late" in bucket 1 or "mid" last.
+def test_temporal_scaling_curve_orders_primarily_by_generation() -> None:
+    """Generation is the primary key, overriding ``created_at`` and Elo.
+
+    ``early`` has the smallest ``created_at`` but the highest generation
+    (an evolution descendant two rounds removed); a bug that ordered by
+    ``created_at`` or list position instead of the engine's own lineage
+    ordinal would put it first, not last.
+    """
     hypotheses = [
-        _hyp("late", created_at=30.0, elo=1100),
-        _hyp("early", created_at=10.0, elo=1300),
-        _hyp("mid", created_at=20.0, elo=1200),
+        _hyp("late", created_at=30.0, elo=1100, generation=0),
+        _hyp("early", created_at=1.0, elo=1300, generation=2),
+        _hyp("mid", created_at=20.0, elo=1200, generation=1),
+    ]
+
+    curve = temporal_scaling_curve(hypotheses, bucket_count=3)
+
+    assert [b["best_elo"] for b in curve] == [1100, 1200, 1300]
+    assert [b["n_hypotheses"] for b in curve] == [1, 1, 1]
+    assert [b["bucket"] for b in curve] == [1, 2, 3]
+    assert all(b["of"] == 3 for b in curve)
+
+
+def test_temporal_scaling_curve_breaks_generation_ties_by_created_at() -> None:
+    """Within one generation, ``created_at`` (then ``id``) breaks ties."""
+    hypotheses = [
+        _hyp("late", created_at=30.0, elo=1100, generation=0),
+        _hyp("early", created_at=10.0, elo=1300, generation=0),
+        _hyp("mid", created_at=20.0, elo=1200, generation=0),
     ]
 
     curve = temporal_scaling_curve(hypotheses, bucket_count=3)
 
     assert [b["best_elo"] for b in curve] == [1300, 1200, 1100]
-    assert [b["n_hypotheses"] for b in curve] == [1, 1, 1]
-    assert [b["bucket"] for b in curve] == [1, 2, 3]
-    assert all(b["of"] == 3 for b in curve)
 
 
 def test_temporal_scaling_curve_tracks_top_10_average_within_a_bucket() -> None:

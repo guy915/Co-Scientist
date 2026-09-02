@@ -68,6 +68,12 @@ def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
     method's 10 buckets), so this also exercises the "fewer than ten
     hypotheses" degenerate case against a genuine offline durable run
     rather than only synthetic dicts.
+
+    Also asserts the ordering signal (``generation``) actually varies:
+    without this, a passing curve would not prove the bucketing tracks
+    anything temporal rather than an arbitrary, generation-flat order --
+    see ``scaling_eval._temporal_order_key`` for why ``generation``, not
+    ``created_at``, carries the real signal.
     """
     report = run_budget_curve(
         "Explain a plausible mechanism of antibiotic tolerance in "
@@ -77,10 +83,15 @@ def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
     )
     snapshot = report["snapshots"][0]
     curve = snapshot["temporal_curve"]
+    generations = {h["generation"] for h in snapshot["hypotheses"]}
 
     assert curve, "an express run must produce at least one hypothesis"
     assert len(curve) <= 10
     assert sum(b["n_hypotheses"] for b in curve) == len(snapshot["hypotheses"])
+    assert len(generations) >= 2, (
+        "express still runs one evolution round -- generation must vary "
+        "or the temporal curve orders nothing real"
+    )
     for bucket in curve:
         assert bucket["best_elo"] is not None, "offline run always rates"
         assert bucket["of"] == len(curve)
