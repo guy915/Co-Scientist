@@ -265,6 +265,80 @@ def test_malformed_recent_findings_is_flattened() -> None:
     assert '{"gap"' not in text
 
 
+def test_two_or_more_directions_get_a_preview_list() -> None:
+    """MO-12: 2+ directions front-load a named preview before the detail.
+
+    Both published exemplars (ALS, cf-PICI) open with a compact list
+    naming every direction before the full per-direction detail. The
+    preview must name every direction and precede the first full
+    ``### {title}`` detail heading.
+    """
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Mitochondrial dysfunction",
+                    "importance": "Central to the disease's early stages.",
+                },
+                {
+                    "title": "RNA processing defects",
+                    "importance": "Implicated across ALS subtypes.",
+                },
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "We will be focusing on these research directions:" in text
+    assert "- Mitochondrial dysfunction" in text
+    assert "- RNA processing defects" in text
+    preview_at = text.index("We will be focusing")
+    detail_at = text.index("### Mitochondrial dysfunction")
+    assert preview_at < detail_at
+
+
+def test_a_single_direction_gets_no_preview_list() -> None:
+    """One direction is not previewed -- naming it twice just repeats it."""
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {
+                    "title": "Mitochondrial dysfunction",
+                    "importance": "Central to the disease's early stages.",
+                }
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    assert "We will be focusing on these research directions:" not in text
+    assert "### Mitochondrial dysfunction" in text
+
+
+def test_an_untitled_direction_is_dropped_from_the_preview_count() -> None:
+    """A malformed/untitled direction does not count toward the preview."""
+    payload = {
+        "overview": {
+            "summary": "",
+            "research_directions": [
+                {"title": "Mitochondrial dysfunction", "importance": "I"},
+                {"title": "", "importance": "No name given"},
+                "not a dict",
+            ],
+        }
+    }
+
+    text = _markdown(payload)
+
+    # Only one named direction -- same as the single-direction case.
+    assert "We will be focusing on these research directions:" not in text
+    assert "### Mitochondrial dysfunction" in text
+
+
 def test_published_aims_vocabulary_renders_every_block() -> None:
     """The aims page renders the blocks Google's exemplars print."""
     payload = {

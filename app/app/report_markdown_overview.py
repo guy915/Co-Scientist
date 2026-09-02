@@ -127,6 +127,41 @@ def _render_directions_list(directions: list[Any]) -> list[str]:
     return lines
 
 
+def _direction_titles(directions: list[Any]) -> list[str]:
+    """Collect each direction's title, dropping malformed/untitled entries."""
+    titles = []
+    for direction in directions:
+        if not isinstance(direction, dict):
+            continue
+        title = _readable_text(direction.get("title", ""))
+        if title:
+            titles.append(title)
+    return titles
+
+
+def _render_directions_preview(directions: list[Any]) -> list[str]:
+    """Render a compact preview list naming each direction, or nothing.
+
+    MO-12: both published exemplars front-load a named preview list ahead
+    of the full per-direction detail that follows (ALS: "We will be
+    focusing on these interrelated areas"; cf-PICI: "Main Research
+    Directions"). Titles only, no new model output -- naming each
+    direction rather than repeating its prose avoids duplicating the
+    paragraphs the full detail below already carries.
+
+    Renders nothing below two named directions: a "preview" of a single
+    entry duplicates it rather than orienting the reader.
+    """
+    titles = _direction_titles(directions)
+    if len(titles) < 2:
+        return []
+    return (
+        ["We will be focusing on these research directions:\n"]
+        + [f"- {title}" for title in titles]
+        + [""]
+    )
+
+
 def _render_overview_section(ov: dict[str, Any]) -> list[str]:
     """Render the 'Research Overview' section, or nothing when data absent."""
     if not isinstance(ov, dict):
@@ -137,6 +172,7 @@ def _render_overview_section(ov: dict[str, Any]) -> list[str]:
         return []
     lines = ["\n## Research Overview\n"]
     lines += _render_optional_paragraph(summary)
+    lines += _render_directions_preview(directions)
     return lines + _render_directions_list(directions)
 
 

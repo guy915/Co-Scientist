@@ -73,9 +73,9 @@ partial pass is never lost.
 | R14 | 20 | 11 | 0 | 7 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
-| MO | 5 | 1 | 1 | 3 | 0 |
+| MO | 5 | 2 | 0 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **54** | **3** | **19** | **3** |
+| **Total** | **79** | **55** | **2** | **19** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -129,6 +129,26 @@ prompt was weighed against the ranking judge's already-measured ~23%
 answerless-retry rate on this exact prompt family and deliberately not
 added — see the row's own evidence for the full reasoning, recorded
 both there and at the code site.
+
+**Closing pass, `FINAL-THREE` wave (2026-09-02).** The last three
+buildable rows in the campaign, all now **BUILT**. `MO-2` moves
+**OPEN → BUILT**: the flat `recurring_themes[]` shape was already an
+accepted adaptation (the fix commit that carried it through said so by
+name); the only remaining work was recording that acceptance, via a new
+`docs/PARITY.md` row (`META-CRITIQUE-TAXONOMY-001`, `partial`) — no
+schema change. `R8-6` moves **OPEN (half-built) → BUILT**: the `E18`
+correction and the debate-loop docstring fix were already done; the
+remaining framing line — Google's ranking-05 opens by "simulating a
+panel of domain experts engaged in a structured discussion" — now
+renders in `ranking.md`'s opening sentence, measured at ~13 tokens per
+render across ~155 judge renders/run (~2,000 tokens/run). The
+accompanying bias-neutrality assertion stays deliberately unadded, per
+`docs/PROMPT-PRESERVATION.md` §7 item 3's structural-guarantee reasoning.
+`MO-12` moves **OPEN → BUILT**, achieved in the renderer alone as hoped:
+`report_markdown_overview.py` now front-loads a named preview list (the
+directions' existing `title` field, no new model output) ahead of the
+unchanged full per-direction detail, gated to two or more named
+directions so a single direction is never previewed against itself.
 
 ---
 
@@ -314,9 +334,9 @@ Noticed in passing: none.
 | MO-4 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); the enum-disagreement half is closed (one shared `ASSUMPTION_SUPPORT_VALUES` enum), but adopting the published wording is deferred | **DECISION** | Confirmed unchanged: `engine/src/co_scientist/schemas/review.py:20-25` `ASSUMPTION_SUPPORT_VALUES = (supported, uncertain, likely_false)`, still not the published prose labels. Same question as `R12-15` (audited above) — not double-counted |
 | MO-5 | Two appended reviews close with a bare `Answer: 4`/`Answer: 3`; whether the scale is 1-5, 1-10, or something else (a separate reading found values 2-9 for a different block) is unresolved | **DECISION** | Same open scale question as `R10-7` (audited above), which this row explicitly narrows. Re-confirmed: every `Answer: N` value in the verbatim Appendix is 3 or 4 (consistent with either scale, not dispositive); the wider 2-9 range this row cites cannot be independently verified — it is not mirrored anywhere in `docs/CORPUS-EXTRACTION.md`'s Appendix, and this document cannot read `references/` directly. Not double-counted against `R10-7` |
 | MO-11 | The research goal is intake as three named parts (`Title`, `Goal`, `Background`); ours is one free-text field | **DECISION** | Same underlying question as `R1-18`/`R10-9`/`R14-2` (audited above): `app/app/runs_models.py:29` `research_goal: str` remains one field. Not double-counted — one decision (canonical goal-intake shape) closes all four rows |
-| MO-12 | Two published overviews use different vocabularies for the same slot; the ALS third slot (`recent_findings`) is now closed, but both exemplars also use a **doubled structure** (a brief preview list, then full detail) that a single array still cannot express | **OPEN** | The vocabulary half is confirmed built: `engine/src/co_scientist/schemas/synthesis.py:116-122` adds `recent_findings`, explicitly commented `# MO-12`. The doubled-structure half is confirmed still absent: `app/app/report_markdown_overview.py:130-140` (`_render_overview_section`) renders `research_directions` exactly once via `_render_directions_list`, no separate preview-then-detail pass |
+| MO-12 | Two published overviews use different vocabularies for the same slot; the ALS third slot (`recent_findings`) is now closed, but both exemplars also use a **doubled structure** (a brief preview list, then full detail) that a single array still cannot express | **BUILT** | Achieved in the renderer alone, no new model output or schema change. `app/app/report_markdown_overview.py::_render_directions_preview` front-loads a named preview list (`- {title}` per direction, reusing the existing required `title` field) ahead of the unchanged full per-direction detail (`_render_directions_list`), mirroring both exemplars' cadence ("We will be focusing on these interrelated areas" / "Main Research Directions" before their per-direction sections). Gated to 2+ named directions -- a preview of one entry would duplicate it rather than orient the reader, per this wave's own caution against a preview that repeats rather than names. Malformed/untitled directions are dropped from the count the same way the existing per-direction renderer already tolerates them. Pinned by three new tests in `app/tests/test_report_markdown_overview.py`: `test_two_or_more_directions_get_a_preview_list` (preview text precedes the first `### {title}` detail heading), `test_a_single_direction_gets_no_preview_list`, `test_an_untitled_direction_is_dropped_from_the_preview_count` |
 
-**MO: 1 BUILT / 1 OPEN / 3 DECISION / 0 FALSE.**
+**MO: 2 BUILT / 0 OPEN / 3 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
