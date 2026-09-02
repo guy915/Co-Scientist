@@ -65,17 +65,17 @@ partial pass is never lost.
 | R1 | 3 | 2 | 0 | 1 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
 | R8 | 3 | 1 | 2 | 0 | 0 |
-| R9 | 3 | 0 | 2 | 1 | 0 |
+| R9 | 3 | 2 | 0 | 1 | 0 |
 | R10 | 9 | 7 | 0 | 2 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 7 | 2 | 3 | 1 |
-| R13 | 7 | 2 | 4 | 1 | 0 |
+| R13 | 7 | 4 | 2 | 1 | 0 |
 | R14 | 20 | 11 | 0 | 7 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 0 | 2 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **46** | **12** | **18** | **3** |
+| **Total** | **79** | **50** | **8** | **18** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -94,6 +94,22 @@ R13's row count is 7, not the 6-row naive parse: it includes `R13-12`'s
 part (a), which a naive table-column split misreads because the row's own
 text contains a literal `|` inside a quoted video title (part (b) is
 `external`, out of scope). 79 rows classified in total.
+
+**Closing pass, `PRESERVE` wave (2026-09-02).** Four more rows closed:
+`R9-2`, `R9-3`, `R13-6`, `R13-7` are now **BUILT**. All four were framed by
+the wave brief as recording-only, not rescue work — the content they
+describe was already captured elsewhere in `docs/` before this pass, per
+the brief's own check — and each landed exactly that way: an ADR for
+`R9-2`'s live open-source verdicts, a note folded into `docs/PARITY.md`
+for `R9-3`'s undisclosed-stack register (redirected there from FINDINGS by
+the brief, not by this document's own original ask), a citation block in
+`docs/FIDELITY.md` quoting Google's own product copy for `R13-7`, and the
+41-file inert-tooling inventory folded directly into `R13-6`'s own
+Evidence cell so it stands without `references/`. See each row's own
+Evidence cell for what was found along the way — most notably `R9-2`'s
+discovery that `The-Swarm-Corporation`'s INSPECT verdict was already
+carried out in depth by an earlier ADR, and a NOTICE/ADR attribution
+tension on `vendor/science-skills/` this pass flags but does not resolve.
 
 ---
 
@@ -136,11 +152,11 @@ Noticed in passing: none.
 
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
-| R9-2 | Live open-source-project verdicts (Jataware FORK PRIMARY; LLNL/Sakana v2/FutureHouse Robin/OpenScientist-K-Dense/aimclub MINE; The-Swarm-Corporation INSPECT; mims-harvard REJECT) exist nowhere outside the corpus file; needs an ADR so the decisions survive `references/` deletion, per the `references/peripheral/` precedent | **OPEN** | No ADR under `docs/decisions/` (12 files, none of them) mentions any of these projects. The only repo-wide hit outside `references/` is `README.md:201`'s Acknowledgements list, which names Jataware and Sakana as citations, not as recorded FORK/MINE/INSPECT/REJECT decisions — it does not carry the verdicts or the reasoning behind them |
-| R9-3 | `tech-stack-findings.md`'s citation-disciplined uncertainty register (Google never names source languages, frontend/backend framework, storage, queue, or retrieval index) is worth preserving; needs folding into FINDINGS' "Evidence boundaries" table | **OPEN** | `docs/fidelity-audit/FINDINGS.md:520-548` ("Evidence boundaries — unknowable from public sources") has 22 rows and does not include this register — no row for source language, frontend/backend framework, or retrieval-index disclosure status. Not yet folded in |
+| R9-2 | Live open-source-project verdicts (Jataware FORK PRIMARY; LLNL/Sakana v2/FutureHouse Robin/OpenScientist-K-Dense/aimclub MINE; The-Swarm-Corporation INSPECT; mims-harvard REJECT) exist nowhere outside the corpus file; needs an ADR so the decisions survive `references/` deletion, per the `references/peripheral/` precedent | **BUILT** | `docs/decisions/2026-09-02-open-source-coscientist-landscape.md` (PRESERVE wave) records all eight verdicts in a table, cites this row by ID, and confirms directly (not assumed) that none of the eight is vendored or forked anywhere in this tree — Jataware and Sakana appear only in `README.md`'s Acknowledgements as prior-art citations. Two things found along the way, folded into the ADR rather than left for a future reader to rediscover: The-Swarm-Corporation's bare INSPECT verdict was already carried out in depth by `docs/decisions/2026-08-23-chat-interface-reference-drain.md`'s "namesake, head to head" comparison (read in full, this repo ahead on dedup/lineage/durability/safety); and "OpenScientist/K-Dense" (this row's MINE verdict) is not the same product as the tool-skills bundle at `vendor/science-skills/`, whose own attribution is itself inconsistent between `NOTICE` (Google DeepMind) and the 2026-08-23 ADR (K-Dense-AI) — flagged, not resolved |
+| R9-3 | `tech-stack-findings.md`'s citation-disciplined uncertainty register (Google never names source languages, frontend/backend framework, storage, queue, or retrieval index) is worth preserving; needs folding into FINDINGS' "Evidence boundaries" table | **BUILT** | Folded into `docs/PARITY.md`'s "Notes on clone-defined vs Google-specified" section instead of FINDINGS' table — a deliberate re-scoping for the PRESERVE wave, not an oversight: this register is about Google's undisclosed *implementation stack*, which is exactly what that section's closing paragraph already discusses (the reference corpus's proposed-and-rejected stack), so the six categories now sit beside it as a corroborating fact rather than a new requirement, cited to this row (commit `f0be5657`). `docs/fidelity-audit/FINDINGS.md:520-548`'s "Evidence boundaries" table was left untouched — it already covers adjacent ground (queue/DB/retrieval-provider disclosure status) at a different granularity, and duplicating the same six categories into a second table was judged to add confusion, not clarity |
 | R9-4 | Google's own sources confirm ChEMBL and UniProt as named integrations but not PubMed or arXiv, in tension with this repo where PubMed is the primary retrieval path; the row itself frames this as unsettled by any ledger row | **DECISION** | `docs/PARITY.md:235` (`TOOLS-CONFIG-001`) documents the YAML mechanism as a local product implementation but says nothing about PubMed's confirmed-vs-inferred status, and does not mention ChEMBL/UniProt at all — the tension is still unresolved in the ledger. The actual question for the owner: should `TOOLS-CONFIG-001` (or a new row) record PubMed's primacy as a labelled CLONE choice, or leave it as an implicit PRODUCT claim? Nothing in the corpus or code settles which |
 
-**R9: 0 BUILT / 2 OPEN / 1 DECISION / 0 FALSE.**
+**R9: 2 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -208,12 +224,12 @@ because its own text contains a literal `|` inside a quoted video title; part
 | R13-1 | The two live-footage mp4s are gitignored, uncommitted, and unrecoverable once `references/` is deleted; needs an owner decision — archive outside the repo, or extract and commit the cited frames | **DECISION** | Confirmed unchanged: `git check-ignore -v` still matches both mp4s against `.gitignore:46`. No archival or frame-extraction has happened. This is inherently the owner's call, not resolvable from the tree |
 | R13-2 | The 2026-06-21 ADR and the plan-config file read two different tier selectors (three options vs. four) from the same footage folder; needs a note on every row resting on either capture, naming which one | **BUILT** | The note already exists exactly where it is needed: `docs/CORPUS-EXTRACTION.md`'s "Carry this caveat" paragraph, immediately after the R12-1/R12-2 table, names both rows explicitly ("R12-1 and R12-2 rest on the plan-config capture... see R13-2. Any row written from this must name which capture it rests on") |
 | R13-3 | `docs/UI-FIDELITY.md` cites an unrecoverable mp4 frame as evidence for the four-tab mapping; needs re-pointing at the tracked JPG that shows the same tab bar | **BUILT** | `docs/UI-FIDELITY.md:109-111` (the "Evidence for the mapping" note) already re-points to `media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg` ("tracked in git... shows *Ideas · Knowledge Base · Summary · Run Specification*"), explicitly stating the mp4 frame "is unrecoverable" and naming the tracked JPG as "the surviving evidence" |
-| R13-6 | 18 of 41 files in the Google Labs page capture are inert tooling with nothing to extract; the HTML itself carries product copy (R13-7) that must be pulled out before pruning to the HTML, 2 PNGs and 3 SVGs | **OPEN** | Depends on `R13-7`, confirmed still undone below — pruning cannot be considered complete while its own prerequisite (extracting the copy) hasn't happened. (This verdict is reached without inspecting `references/` itself, per this document's hard constraint — it follows directly from R13-7's status) |
-| R13-7 | Google's own Labs page copy for "Hypothesis Generation — Built with Co-Scientist" (tagline, four capability cards, "Express interest" waitlist framing) is nowhere quoted in `docs/`; needs a short quoted block in `docs/FIDELITY.md`, cited to this file | **OPEN** | Confirmed still absent: zero hits anywhere in `docs/FIDELITY.md` or `docs/EXPLAINER.md` for any of "Express interest", "Gemini for Science", "Collaborative Research Partner", "Tournament-Style Evaluation", "Grounded Knowledge Base", or "Critical Flaw Detection" |
+| R13-6 | 18 of 41 files in the Google Labs page capture are inert tooling with nothing to extract; the HTML itself carries product copy (R13-7) that must be pulled out before pruning to the HTML, 2 PNGs and 3 SVGs | **BUILT** | The row's ask was extract-then-prune; extraction is now done (see `R13-7`), and the prune step itself is deliberately not carried out here — the PRESERVE wave's own hard constraint forbids touching `references/` at all, so the actual file deletion stays the owner's action at `references/` deletion time, by design, not a gap. What was missing and is now recorded is the inventory itself, self-contained so a future reader does not need `references/` to trust it: of the capture's 41 `_files/`, 18 are inert tooling carrying nothing extractable — Google Tag Manager (×2), the YouTube player runtime (×2), a widget-API script plus an iframe loader, Lottie, a cookie-consent bar (×2), Fonts CSS (×2), a closure-library bootstrap, site CSS/JS (×2), and `www-player.css` (×2) — leaving the HTML, 2 PNGs, and 3 SVGs as the only files worth keeping. Source: `docs/CORPUS-EXTRACTION.md:389` (this row, verbatim) |
+| R13-7 | Google's own Labs page copy for "Hypothesis Generation — Built with Co-Scientist" (tagline, four capability cards, "Express interest" waitlist framing) is nowhere quoted in `docs/`; needs a short quoted block in `docs/FIDELITY.md`, cited to this file | **BUILT** | `docs/FIDELITY.md`'s new "Google's own framing of this product" section (PRESERVE wave, commit `33379a06`) quotes the `og:title`, the "Express interest" waitlist framing (explicitly noted as a waitlist, not self-serve), the Hypothesis Generation tagline, and all four capability cards verbatim, cited to `docs/CORPUS-EXTRACTION.md:390`. Two existing claims in the same file that paralleled this framing without citing it now point at the new block instead — the "UI exposes hypotheses..." invariant row (also fixing a dangling "see the note below on retired tabs" pointer that resolved to nothing) and the Literature Insights/Computational Discovery out-of-scope note — and `docs/EXPLAINER.md`'s opening paragraph gets one pointer sentence rather than a duplicate quote. Nothing needed correcting on the self-serve point: neither file claimed or implied Google's product is self-serve before this pass |
 | R13-10 | The tracked run-in-progress capture shows a **Time remaining** estimate tile alongside the Activity Log; whether this product estimates remaining time at all needs checking against the run view | **OPEN** | The Activity Log half is already built and shipped (`app/frontend/src/workbench/pages/run_detail_activity_log.tsx`, `ActivityLog` component, covered by `run_detail.test.tsx`). The ETA half is not: zero hits anywhere in `app/frontend/src/workbench/` or `app/app/*.py` for a time-remaining/ETA computation. The row's open question now has a definite answer — no, this product does not estimate remaining time — which is itself the verify-pass result the row asked for; building the feature (if wanted) is the remaining work |
 | R13-12 (a) | A tracked JPG's filename (`esn-poma-hub-hypothesis-full-detail-with-diagram.jpg`) does not match its content (a Computational Discovery splash screen); any future row citing the filename would cite the wrong image | **OPEN** | No rename and no note exists: zero hits for this filename or "Carl Elkin" anywhere in `docs/` outside this row's own text. The mismatch is not yet flagged anywhere a future reader citing the filename would see it |
 
-**R13: 2 BUILT / 4 OPEN / 1 DECISION / 0 FALSE.**
+**R13: 4 BUILT / 2 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
