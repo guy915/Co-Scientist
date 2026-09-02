@@ -146,19 +146,33 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
 // cascade's structured findings -- proof that the offline backend's review
 // scores clear the initial "viable" gate and comprehensive_reflection's
 // full/simulation review batch actually ran for it, not just the quick
-// initial screen. Only the simulation review's fields (failure_points,
-// decisive_step) are unconditionally required in SIMULATION_REVIEW_SCHEMA
-// and so get filled by the offline backend; the full/recurrent review's
-// go_no_go_recommendation/time_to_verdict are optional in FULL_REVIEW_SCHEMA
-// and so stay absent -- see ideas_detail_review_findings.tsx's
-// SimulationFindings/VerdictLines and drain_reviews.py's detail_json build.
+// initial screen. The simulation review's fields (failure_points,
+// decisive_step) are unconditionally required in SIMULATION_REVIEW_SCHEMA;
+// the full/recurrent review's go_no_go_recommendation/time_to_verdict are
+// optional in FULL_REVIEW_SCHEMA but named in offline_llm's
+// _OPTIONAL_FIELD_HINTS, so the offline backend fills them too -- see
+// ideas_detail_review_findings.tsx's SimulationFindings/VerdictLines and
+// drain_reviews.py's detail_json build.
 async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   const detail = page.getByRole('region', {name: 'Hypothesis detail'});
-  await expect(
-    detail.getByRole('heading', {name: 'Full review', exact: true}),
-  ).toBeVisible();
+  const fullReviewHeading = detail.getByRole('heading', {
+    name: 'Full review',
+    exact: true,
+  });
+  await expect(fullReviewHeading).toBeVisible();
   await expect(
     detail.getByRole('heading', {name: 'Simulation review', exact: true}),
+  ).toBeVisible();
+  // Scoped to the Full review row's own container (its parent), not the
+  // whole detail pane: a recurrent review row, if one also rendered, would
+  // carry the same "Verdict:"/"Time to verdict:" lines and break
+  // Playwright's strict single-match mode.
+  const fullReviewSection = fullReviewHeading.locator('xpath=..');
+  await expect(
+    fullReviewSection.getByText('Verdict:', {exact: true}),
+  ).toBeVisible();
+  await expect(
+    fullReviewSection.getByText('Time to verdict:', {exact: true}),
   ).toBeVisible();
   // exact: true, since the simulation critique paragraph also flattens
   // "Failure point: .../Decisive step: ..." into its own prose -- without
