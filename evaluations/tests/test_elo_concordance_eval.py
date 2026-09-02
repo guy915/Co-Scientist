@@ -6,6 +6,7 @@ from evaluations.elo_concordance_eval import (
     Candidate,
     _load_dataset,
     correctness_preferring_comparator,
+    elo_bucket_accuracy,
     evaluate_concordance,
     inverting_comparator,
     kendall_tau_b,
@@ -103,6 +104,91 @@ def test_committed_dataset_has_an_unambiguous_ground_truth_per_item() -> None:
         assert all(0 <= s <= 3 for s in scores), item["id"]
         assert 3 in scores, f"{item['id']} names no correct answer"
         assert 0 in scores, f"{item['id']} names no clearly wrong answer"
+
+
+def test_elo_bucket_accuracy_pools_across_items_in_50_point_increments() -> (
+    None
+):
+    """Google's published method (SSR L141): 1001-1050, 1051-1100, ...
+
+    Four responses land in four distinct 50-point buckets pooled across two
+    items; each bucket's accuracy is the fraction of that bucket's
+    responses matching their own item's best correctness.
+    """
+    per_item = [
+        {
+            "ratings": {"a": 1210, "b": 1190},
+            "correctness": {"a": 3, "b": 1},
+        },
+        {
+            "ratings": {"c": 1150, "d": 1100},
+            "correctness": {"c": 3, "d": 0},
+        },
+    ]
+    buckets = elo_bucket_accuracy(per_item)
+    assert buckets == [
+        {
+            "bucket": "1051-1100",
+            "floor": 1051,
+            "n_responses": 1,
+            "accuracy": 0.0,
+        },
+        {
+            "bucket": "1101-1150",
+            "floor": 1101,
+            "n_responses": 1,
+            "accuracy": 1.0,
+        },
+        {
+            "bucket": "1151-1200",
+            "floor": 1151,
+            "n_responses": 1,
+            "accuracy": 0.0,
+        },
+        {
+            "bucket": "1201-1250",
+            "floor": 1201,
+            "n_responses": 1,
+            "accuracy": 1.0,
+        },
+    ]
+
+
+def test_elo_bucket_accuracy_handles_no_items() -> None:
+    assert elo_bucket_accuracy([]) == []
+
+
+def test_elo_bucket_accuracy_skips_items_with_no_candidates() -> None:
+    """An item with an empty correctness map must not raise on ``max()``."""
+    assert elo_bucket_accuracy([{"ratings": {}, "correctness": {}}]) == []
+
+
+def test_committed_dataset_bucket_accuracy_tracks_comparator_quality() -> (
+    None
+):
+    """Bucket accuracy rises with Elo for a ground-truth-agreeing comparator.
+
+    Mirrors the paper's own finding (higher Elo buckets are more often
+    correct): a comparator that always prefers the more-correct candidate
+    pushes correct answers into higher buckets, so accuracy should be
+    non-decreasing in the bucket floor. An always-wrong comparator inverts
+    that: accuracy should be non-increasing.
+    """
+    dataset = _load_dataset()
+    preferring = evaluate_concordance(
+        dataset["items"],
+        correctness_preferring_comparator,
+        "correctness_preferring",
+    )
+    inverting = evaluate_concordance(
+        dataset["items"], inverting_comparator, "inverting"
+    )
+    preferring_accuracies = [b["accuracy"] for b in preferring["elo_buckets"]]
+    inverting_accuracies = [b["accuracy"] for b in inverting["elo_buckets"]]
+    assert len(preferring_accuracies) >= 2
+    assert preferring_accuracies == sorted(preferring_accuracies)
+    assert inverting_accuracies == sorted(inverting_accuracies, reverse=True)
+    assert preferring_accuracies[-1] > preferring_accuracies[0]
 
 
 def test_committed_dataset_correctness_preferring_beats_chance() -> None:

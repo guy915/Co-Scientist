@@ -22,12 +22,26 @@ real pairwise ranking judge (``co_scientist.agents.ranking.ranking_debate.
 judge_matchup``) for a live, opt-in measurement of the real judge; it needs
 a provider key and is never run in CI.
 
-Concordance is reported as Kendall's tau-b between the final Elo ranking
-and the known correctness ranking (implemented here from scratch: this
-package is stdlib-only), plus top-1 accuracy (does Elo's highest-rated
-candidate carry the item's best correctness label). A coin-flip comparator
-is also run as a chance-level baseline the real numbers should be read
-against, since tau has no other built-in floor here.
+Two concordance methods are reported, side by side, because they answer
+different questions. Kendall's tau-b (implemented here from scratch: this
+package is stdlib-only) is a rank-correlation statistic between the final
+Elo ranking and the known correctness ranking, plus top-1 accuracy (does
+Elo's highest-rated candidate carry the item's best correctness label). A
+coin-flip comparator is also run as a chance-level baseline the real
+numbers should be read against, since tau has no other built-in floor here.
+
+The second method is Google's own published one (SSR L141, App. D): pool
+every candidate response's *final* Elo rating across all questions,
+categorize into discrete 50-point buckets (1001-1050, 1051-1100, ...), and
+report the percentage of responses within each bucket that are the
+question's correct answer -- see ``elo_bucket_accuracy``. This is not a
+rank-correlation statistic at all; it asks whether Elo, read as an absolute
+score, predicts correctness on its own terms, and it is what
+``EVAL-ELO-CALIB-001`` names. Tau-b stays alongside it (not replaced) as an
+independent sanity check of the harness's own Elo/ranking math -- it pins
+"a comparator that always agrees with ground truth must rank in perfect
+agreement with ground truth" the way the committed tests already use it,
+a property the bucket method doesn't check as directly.
 
 Position bias: the committed dataset places the correct answer first in
 most items, so pairing candidates in list order would show any
@@ -53,7 +67,7 @@ import os
 import pathlib
 import random
 import zlib
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from math import sqrt
@@ -72,6 +86,22 @@ _DATASET = (
     / "hypothesis_correctness_concordance_v1.json"
 )
 _INITIAL_ELO = 1200
+
+_EXTERNAL_GAP = (
+    "Not GPQA: GPQA is a licensed, gated benchmark and is not reproduced "
+    "here. This is a small (8-item), hand-authored, synthetic substitute "
+    "with an unambiguous graded-correctness ground truth; it establishes "
+    "only that Google's published method (elo_bucket_accuracy: pool every "
+    "response's final Elo rating across questions, bucket in 50-point "
+    "increments, report percent-correct per bucket -- see 'elo_buckets' "
+    "below) and the Elo mechanism behind it behave sensibly over a few "
+    "candidates per question, not concordance at GPQA-difficulty or "
+    "research-frontier correctness judgments. The paper's companion "
+    "Gemini-2.0 reference-accuracy baseline (32 sampled responses per "
+    "question, used to correct for uneven per-question difficulty across "
+    "buckets) is also not reproduced here -- it needs a live Gemini "
+    "backend this repository is not configured to reach."
+)
 
 
 @dataclass(frozen=True)
@@ -232,6 +262,81 @@ def _mean(values: Sequence[float]) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
+_ELO_BUCKET_WIDTH = 50
+
+
+def _elo_bucket_floor(elo: int) -> int:
+    """Floor of the 50-point Elo bucket containing ``elo``.
+
+    Anchored the same way the paper's own boundaries are (1001-1050,
+    1051-1100, ...): every boundary is congruent to 1 mod 50. The anchor
+    itself is arbitrary -- Elo has no natural zero -- but fixed, so a
+    re-run always buckets the same rating the same way, and it reproduces
+    the paper's own labels whenever ratings happen to fall in that range.
+    """
+    return _ELO_BUCKET_WIDTH * ((elo - 1) // _ELO_BUCKET_WIDTH) + 1
+
+
+def _elo_bucket_label(floor: int) -> str:
+    return f"{floor}-{floor + _ELO_BUCKET_WIDTH - 1}"
+
+
+def elo_bucket_accuracy(
+    per_item: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Google's published Elo-calibration method (SSR L141, App. D).
+
+    Pools every candidate response's final Elo rating across ALL items --
+    "categorized all generated responses across all considered questions
+    based on their Elo rating into discrete buckets ... in 50 point
+    increments" -- then reports, per bucket, "the percentage of correct
+    responses within each bucket".
+
+    A response counts as correct when its graded correctness equals the
+    item's own maximum. GPQA has exactly one correct answer per question;
+    this harness's substitute dataset marks that with the top value of its
+    0-3 scale, so comparing against the item's own max (rather than a
+    hardcoded scale ceiling) generalizes to any dataset shaped the same way.
+
+    Args:
+        per_item: Per-item results as returned inside ``evaluate_concordance``
+            (each with ``ratings`` -- candidate id -> final Elo -- and
+            ``correctness`` -- candidate id -> graded correctness).
+
+    Returns:
+        One entry per non-empty bucket, sorted by Elo ascending, each with
+        the bucket's label, floor, response count, and accuracy. An item
+        with no candidates contributes nothing (guards a possible empty
+        dataset without raising); a dataset with no items yields ``[]``.
+
+    Not implemented: the paper's companion Gemini-2.0 reference-accuracy
+    baseline (32 sampled responses per question, used only to correct for
+    per-question difficulty being unevenly distributed across buckets) --
+    that needs a live Gemini backend this repository is not configured to
+    reach, and is a debiasing refinement layered on top of this method, not
+    the bucketing-and-accuracy method itself.
+    """
+    buckets: dict[int, list[bool]] = defaultdict(list)
+    for item in per_item:
+        correctness = item["correctness"]
+        if not correctness:
+            continue
+        best = max(correctness.values())
+        for candidate_id, elo in item["ratings"].items():
+            buckets[_elo_bucket_floor(elo)].append(
+                correctness[candidate_id] == best
+            )
+    return [
+        {
+            "bucket": _elo_bucket_label(floor),
+            "floor": floor,
+            "n_responses": len(flags),
+            "accuracy": round(sum(flags) / len(flags), 4),
+        }
+        for floor, flags in sorted(buckets.items())
+    ]
+
+
 def evaluate_concordance(
     items: Sequence[dict[str, Any]],
     comparator: Comparator,
@@ -245,7 +350,8 @@ def evaluate_concordance(
         comparator_id: A label for the comparator, carried into the report.
 
     Returns:
-        Per-item results plus mean tau-b and top-1 accuracy.
+        Per-item results, mean tau-b, top-1 accuracy, and the published
+        50-point Elo-bucket accuracy breakdown (``elo_buckets``).
     """
     per_item = [_item_result(item, comparator) for item in items]
     taus = [r["tau_b"] for r in per_item if r["tau_b"] is not None]
@@ -256,6 +362,7 @@ def evaluate_concordance(
         "top1_accuracy": _mean(
             [1.0 if r["top1_correct"] else 0.0 for r in per_item]
         ),
+        "elo_buckets": elo_bucket_accuracy(per_item),
         "per_item": per_item,
     }
 
@@ -332,15 +439,7 @@ def run(*, use_llm: bool) -> dict[str, Any]:
     return {
         "dataset": dataset["name"],
         "dataset_version": dataset["version"],
-        "external_gap": (
-            "Not GPQA: GPQA is a licensed, gated benchmark and is not "
-            "reproduced here. This is a small (8-item), hand-authored, "
-            "synthetic substitute with an unambiguous graded-correctness "
-            "ground truth; it establishes only that the Elo mechanism "
-            "recovers a coarse ordering over a few candidates per question, "
-            "not concordance at GPQA-difficulty or research-frontier "
-            "correctness judgments."
-        ),
+        "external_gap": _EXTERNAL_GAP,
         "results": results,
     }
 
@@ -363,6 +462,11 @@ def main() -> int:
             f"  {comparator_id:<28} mean_tau_b={result['mean_tau_b']!s:<8} "
             f"top1_accuracy={result['top1_accuracy']}"
         )
+        for bucket in result["elo_buckets"]:
+            print(
+                f"      elo {bucket['bucket']:<11} "
+                f"n={bucket['n_responses']:<3} accuracy={bucket['accuracy']}"
+            )
     print(f"wrote {out}")
     return 0
 
