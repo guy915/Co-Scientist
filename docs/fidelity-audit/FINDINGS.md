@@ -503,6 +503,18 @@ targets.
 The local `product-surface-and-ux.md` also renders the fourth tab plural
 ("Run Specifications"); captures show singular, while current Help shows plural.
 
+**A mislabeled media asset, not a clone-authored claim (corpus R13-12(a)).**
+The table above is about clone-authored documents mis-describing Google's
+*requirements*; this is a different failure — a tracked corpus *file* whose
+name mis-describes its own content. `media/hypothesis-generation/`
+`esn-poma-hub-hypothesis-full-detail-with-diagram.jpg` does not show an
+ESN/POMA-Hub hypothesis detail view: it is a Computational Discovery splash
+screen credited to "Carl Elkin". Any future row citing that filename for a
+hypothesis-detail-view claim is citing the wrong image. The file is not
+renamed or moved (it lives under `references/`, which this pass does not
+touch) — this note exists so a reader encounters the mismatch before citing
+it, not after.
+
 ---
 
 ## Open, but not code
