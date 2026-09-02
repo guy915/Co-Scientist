@@ -5,6 +5,7 @@ import type {
   Review,
   SupportSpan,
 } from '@/api/runs';
+import {isRecord, readableText, readableTextList} from '@/lib/text';
 
 // The first review recorded for a hypothesis, if any: the initial
 // peer-review row behind the "Review summary" section.
@@ -164,6 +165,60 @@ export const NO_REVIEW_CRITIQUES_TEXT =
 // row with no critique text still reads as recorded-but-empty.
 export function reviewCritiqueText(review: Review): string {
   return review.critique || 'No critique text was recorded.';
+}
+
+// A review row's structured findings (R14-15/R14-22), parsed out of
+// `detail_json`: the simulation review's named failure points and decisive
+// step, or the full/recurrent review's Go/No-Go verdict framing. Mirrors
+// report_markdown_hypothesis._review_detail's tolerance on the Python side
+// -- production serves this column from a json_object-mode response with no
+// schema enforcement, so every field is coerced through the same readable-
+// text helpers the research-overview fields use rather than trusted as typed.
+export interface ReviewDetail {
+  failurePoints: string[];
+  decisiveStep: string;
+  goNoGo: string;
+  timeToVerdict: string;
+}
+
+const EMPTY_REVIEW_DETAIL: ReviewDetail = {
+  failurePoints: [],
+  decisiveStep: '',
+  goNoGo: '',
+  timeToVerdict: '',
+};
+
+// Parses one JSON-looking string, tolerating anything that isn't one --
+// malformed JSON, or JSON that isn't an object -- by returning null.
+function parseDetailObject(raw: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseReviewDetail(review: Review): ReviewDetail {
+  const detail = review.detail_json && parseDetailObject(review.detail_json);
+  if (!detail) return EMPTY_REVIEW_DETAIL;
+  return {
+    failurePoints: readableTextList(detail.failure_points)
+      .map(p => p.trim())
+      .filter(Boolean),
+    decisiveStep: readableText(detail.decisive_step).trim(),
+    goNoGo: readableText(detail.go_no_go).trim(),
+    timeToVerdict: readableText(detail.time_to_verdict).trim(),
+  };
+}
+
+export function hasReviewDetail(detail: ReviewDetail): boolean {
+  return Boolean(
+    detail.failurePoints.length ||
+    detail.decisiveStep ||
+    detail.goNoGo ||
+    detail.timeToVerdict,
+  );
 }
 
 // "Tournament performance" section text: the win/loss record and win rate,

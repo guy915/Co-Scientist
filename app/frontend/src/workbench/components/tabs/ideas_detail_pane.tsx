@@ -1,22 +1,20 @@
 import {useMemo, type ReactNode} from 'react';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {SECTIONS, sectionSlug, SectionsRail} from './ideas_detail_rail';
 import {
   claimEvidenceSummary,
   debateDepthLabel,
   findHypothesisReview,
   findHypothesisReviews,
   findLatestMatch,
-  NO_REVIEW_CRITIQUES_TEXT,
   normalizeSpans,
   type NormalizedSpan,
   originLabel,
-  reviewCritiqueText,
-  reviewerLabel,
   reviewSummaryText,
   tournamentSummaryText,
 } from './ideas_detail_data';
+import {SECTIONS, sectionSlug, SectionsRail} from './ideas_detail_rail';
+import {ReviewCritiquesContent} from './ideas_detail_review_findings';
 
 // The rail moved to ideas_detail_rail.tsx when this module reached the
 // 500-line ceiling; re-exported here so callers keep importing both halves
@@ -184,27 +182,6 @@ function HypothesisDetailSections({
         <MatchSummaryContent latestMatch={latestMatch} />
       </DetailSection>
     </section>
-  );
-}
-
-// "Review critiques" section body: every review row recorded for the idea,
-// each under its reviewer's own heading, so the initial peer review, the
-// deep verification, and the full/simulation/recurrent results stay
-// visibly distinct findings (audit E1/D13) instead of one collapsed block.
-// Props-only (no hooks).
-function ReviewCritiquesContent({reviews}: {reviews: Review[]}) {
-  if (!reviews.length) {
-    return <p>{NO_REVIEW_CRITIQUES_TEXT}</p>;
-  }
-  return (
-    <>
-      {reviews.map(item => (
-        <div key={item.id} className="mb-3 last:mb-0">
-          <h3>{reviewerLabel(item.reviewer_agent)}</h3>
-          <p>{reviewCritiqueText(item)}</p>
-        </div>
-      ))}
-    </>
   );
 }
 

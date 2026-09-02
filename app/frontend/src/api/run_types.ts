@@ -323,6 +323,13 @@ export interface Review {
   reviewer_agent: string;
   summary: string;
   critique: string;
+  // A JSON-encoded object with one review type's own structured fields
+  // beyond summary/critique -- the simulation review's failure_points/
+  // decisive_step, or the full/recurrent review's go_no_go/
+  // time_to_verdict (see report_markdown_hypothesis._review_detail on the
+  // Python side). Null/absent on a row that predates the column, or a
+  // review with nothing structured to say.
+  detail_json?: string | null;
   novelty: number | null;
   plausibility: number | null;
   testability: number | null;
