@@ -274,3 +274,42 @@ def test_matchup_prompt_is_unchanged_before_the_cascade_runs() -> None:
     )
 
     assert "Mature Review Findings" not in prompt
+
+
+# --- panel framing (corpus R8-6) ----------------------------------------
+
+
+def test_matchup_prompt_frames_the_judge_as_a_panel() -> None:
+    """The published ranking-05 "panel of domain experts" framing renders.
+
+    Google's ranking-05 opens "simulating a panel of domain experts
+    engaged in a structured discussion" (docs/CORPUS-EXTRACTION.md:1210).
+    """
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _matchup_context(),
+    )
+
+    assert "panel of domain experts" in prompt
+    assert "structured discussion" in prompt
+
+
+def test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction() -> (
+    None
+):
+    """Adding the panel framing must not soften the required verdict line.
+
+    Ranking is the run's most expensive call site and already carries a
+    measured ~23% answerless-retry rate on this prompt family (corpus
+    R8-4); the panel framing must not read as an invitation to keep
+    deliberating instead of committing to a verdict.
+    """
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _matchup_context(),
+    )
+
+    assert "Make a clear decision" in prompt
+    assert '"better idea: 1"' in prompt and '"better idea: 2"' in prompt
