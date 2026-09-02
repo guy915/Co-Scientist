@@ -241,11 +241,16 @@ async def _run_debate_turns(
 
     Deliberate local choice (finding E18): the "debate" is one judge
     re-examining the accumulated verdicts each turn, not distinct
-    advocate/opponent personas. The paper specifies debate *turn counts*
-    only and never names personas for the ranking exchange -- the
-    Innovator/Pragmatist/Contrarian persona requirement appears solely in
-    the local reference corpus's clone-authored design and is not treated
-    as a fidelity target (see FINDINGS.md, Corpus-integrity corrections).
+    advocate/opponent personas. The published ranking-05 prompt (App. A,
+    docs/CORPUS-EXTRACTION.md:1210-1214) does frame the judge as
+    "simulating a panel of domain experts" who "possess no pre-existing
+    biases" -- so it names a panel, and this loop implements one voice,
+    not a simulated panel of several. What the paper never does, panel
+    framing or not, is name distinct advocate/opponent *personas* for
+    that panel; the Innovator/Pragmatist/Contrarian persona requirement
+    appears solely in the local reference corpus's clone-authored design
+    and is not treated as a fidelity target (see FINDINGS.md,
+    Corpus-integrity corrections).
 
     Folds the matchup index into the starting presentation order so a
     single-turn (lower-ranked) comparison does not always present
