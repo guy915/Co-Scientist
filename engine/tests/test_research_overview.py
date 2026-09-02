@@ -223,9 +223,7 @@ async def test_research_contact_groups_resolve_indices_to_real_ids(
         "research_contact_groups": [
             {
                 "research_direction": "Epigenetic control of fibrosis",
-                "rationale": (
-                    "Both bring complementary chromatin expertise."
-                ),
+                "rationale": ("Both bring complementary chromatin expertise."),
                 "example_hypothesis_indices": [1, 99],
             },
             {"research_direction": "", "rationale": "unnamed, dropped"},
@@ -250,9 +248,7 @@ async def test_research_contact_groups_resolve_indices_to_real_ids(
 
     groups = out["research_overview"]["research_contact_groups"]
     assert len(groups) == 1
-    assert groups[0]["research_direction"] == (
-        "Epigenetic control of fibrosis"
-    )
+    assert groups[0]["research_direction"] == ("Epigenetic control of fibrosis")
     assert groups[0]["rationale"] == (
         "Both bring complementary chromatin expertise."
     )

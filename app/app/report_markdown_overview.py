@@ -325,8 +325,6 @@ def render_research_overview_markdown(
         callers never emit bare section headers.
     """
     lines: list[str] = []
-    for section in research_overview_sections(
-        overview, hypothesis_title_by_id
-    ):
+    for section in research_overview_sections(overview, hypothesis_title_by_id):
         lines += section
     return lines

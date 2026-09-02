@@ -144,9 +144,7 @@ def test_a_report_with_no_groups_field_is_unaffected() -> None:
     )
 
     assert "### Ada Researcher" in markdown
-    assert (
-        "**Research direction:** Epigenetic control of fibrosis" in markdown
-    )
+    assert "**Research direction:** Epigenetic control of fibrosis" in markdown
     assert "Why they are best for this direction" not in markdown
 
 

@@ -182,9 +182,7 @@ def _resolve_example_hypothesis_ids(
         return []
     ids: list[str] = []
     for raw in itertools.islice(raw_indices, _MAX_GROUP_EXAMPLE_HYPOTHESES):
-        hyp_id = (
-            hypothesis_by_index.get(raw) if isinstance(raw, int) else None
-        )
+        hyp_id = hypothesis_by_index.get(raw) if isinstance(raw, int) else None
         if hyp_id is not None and hyp_id not in ids:
             ids.append(hyp_id)
     return ids

@@ -128,9 +128,7 @@ def _render_contact_group(
     lines = [f"### {direction}\n"]
     rationale = _readable_text(group.get("rationale"))
     if rationale:
-        lines.append(
-            f"**Why they are best for this direction:** {rationale}\n"
-        )
+        lines.append(f"**Why they are best for this direction:** {rationale}\n")
     lines += _render_group_example_titles(
         group.get("example_hypothesis_ids"), hypothesis_title_by_id
     )

@@ -147,8 +147,7 @@ def test_phase_label_prefixes_the_step() -> None:
     )
 
     assert (
-        "1. Phase A: **Validation**: Confirm the mechanism in vivo."
-        in markdown
+        "1. Phase A: **Validation**: Confirm the mechanism in vivo." in markdown
     )
 
 
@@ -168,8 +167,7 @@ def test_recommended_idea_renders_its_own_line() -> None:
     )
 
     assert (
-        "Recommended idea: Hypothesis 1, building on Hypothesis 4"
-        in markdown
+        "Recommended idea: Hypothesis 1, building on Hypothesis 4" in markdown
     )
 
 
