@@ -27,9 +27,20 @@ adoption.
 Sixteen of the seventeen were cloned shallow (single branch, no submodules, no
 dependency installs; 2.5 GB) to `/Users/guy/Code/co-scientist-refs/`, a sibling
 of the repository so nothing lands in git or in the deployed images. The
-seventeenth, `K-Dense-AI/scientific-agent-skills`, was already vendored at
-`vendor/science-skills/`. That directory is disposable; this ADR is what
-outlives it.
+seventeenth was already vendored at `vendor/science-skills/`. That directory
+is disposable; this ADR is what outlives it.
+
+**Correction (2026-09-02).** This paragraph originally named that vendored
+bundle `K-Dense-AI/scientific-agent-skills`. That is wrong, and it matters
+because `NOTICE` is a license-attribution file. The bundle's own metadata
+identifies it unambiguously as Google DeepMind's: `plugin.json` declares
+`"author": {"name": "Google"}` and `"repository":
+"https://github.com/google-deepmind/science-skills"` at version 1.1.0,
+matching `NOTICE`'s pinned revision and plugin version; `README.md` and
+`CONTRIBUTING.md` both point at that same repository. `NOTICE` and
+`AGENTS.md` were right all along. Whether a K-Dense-AI project was
+separately among the sixteen surveyed is not established by this evidence
+either way -- only that it is not what is vendored here.
 
 ## Decisions
 
