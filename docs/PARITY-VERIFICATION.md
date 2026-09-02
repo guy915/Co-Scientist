@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 80 requirement rows:
-**verified=57, partial=18, missing=2, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 81 requirement rows:
+**verified=57, partial=19, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -97,6 +97,14 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > per-idea "Critiques" section — a synthesized negative-critique rollup
 > distinct from both the existing per-review list and the run-level
 > meta-review critique. Recording only, not built; row count 79->80.
+
+> **Addition (2026-09-02).** `SCORE-COMPOSITION-001` added (`partial`):
+> Google's published score composition is printed as an explicit sum
+> of four named terms (`score=novelty+details+usefulness+pairwise
+> rank=11`); ours is the mean of the review rubric's own per-criterion
+> scores. Recording the divergence only, no change proposed -- the
+> published terms' individual definitions and weighting are not
+> disclosed beyond the one printed total. Row count 80->81.
 
 ---
 
