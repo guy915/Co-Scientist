@@ -265,3 +265,15 @@ Noticed in passing: none.
 **MO: 0 BUILT / 2 OPEN / 3 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
+
+## MP — prompts (mirror-fidelity pass)
+
+| Row | Table says (`work`) | Verdict | Evidence |
+|---|---|---|---|
+| MP-6 | Published `ranking-04`/`ranking-05` hand the judge a `{preferences}` slot; we substitute `criteria`, leaving the judge blind to scientist input whenever only `preferences` was supplied | **BUILT** | Commit `245ced81` ("thread the scientist's preferences into the judge prompt") wires `preferences=state.get("preferences")` into `ranking.py:248`, `ranking_debate_turns.py:199-212`, and `ranking_prompt.py:35,241`; pinned by `test_judge_prompt_carries_scientist_preferences` (`engine/tests/test_ranking_debate.py:362`). Already noted as fixed by `docs/PROMPT-PRESERVATION.md`'s own standing rule, cross-checked directly here rather than taken on that document's word |
+| MP-7 | Both published evolution prompts scaffold a four-step reasoning order (domain overview → recent-research synopsis → viability argument → core contribution); dropped entirely, not merely reformatted | **BUILT** | `engine/src/co_scientist/prompts/templates/evolution.md:43-50` ("## Reasoning Order") now carries all four steps near-verbatim, restored by commit `37ff7260` ("restore the published reasoning-order scaffold (MP-7)"). Notable timing: this fix landed *after* `docs/PROMPT-PRESERVATION.md`'s own evolution-06/07 audit was written (audit commit `c2ea5b17`, 22:55:08 on 2026-09-01; fix commit `37ff7260`, 22:58:59, four minutes later) — that document still lists this instruction "missing" for both prompts it audited, correctly as of its own write time, now stale on this one point. Not a defect in that document (a dated point-in-time record, not meant to be updated), but worth flagging here since a reader might otherwise trust its "missing" verdict as current |
+| MP-8 | `OUT_OF_BOX` takes no partner hypotheses, while `INSPIRATION` is the operator that structurally matches published A.7; name and content are attached to different operators; needs a rename or a corrected mapping note | **BUILT** | `engine/src/co_scientist/agents/evolution/evolution_operators.py:15-24`'s module docstring names `MP-8` directly and states the resolution: the mismatch is real and deliberately not renamed (`EvolutionOperator.OUT_OF_BOX` is a persisted value in lineage records and telemetry, so renaming is "a data-migration decision for the owner, not a prompt-content fix") — the docstring itself is the corrected mapping note the row asked for as its other acceptable outcome |
+
+**MP: 3 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
+
+Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its own summary table, "4 present / 1 missing / 0 adapted" for each) are now stale on the MP-7 point, for the timing reason above — not a defect in that document per its own "point-in-time record, not updated" convention (`docs/README.md`), but a reader treating its "1 missing" as current today would be looking for a gap that has since closed (both are now 5/0/0).
