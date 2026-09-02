@@ -23,6 +23,7 @@ import pytest
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.constants import (
+    BUDGET_ESCALATION_MAX_INCREMENT,
     BUDGET_ESCALATION_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
@@ -31,6 +32,10 @@ from co_scientist.exceptions import (
     LLMThinkingOnlyError,
 )
 from co_scientist.llm import CompletionSpec, call_llm, call_llm_json
+from co_scientist.llm_json_escalation import (
+    BudgetEscalation,
+    escalated_max_tokens,
+)
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
@@ -259,6 +264,44 @@ async def test_escalating_recovers_the_call(
     assert calls[1]["max_tokens"] == BUDGET_ESCALATION_MAX_TOKENS
 
 
+async def test_a_call_already_sized_at_the_constant_still_gets_more_room(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rung must not resend a caller's own budget unchanged.
+
+    ``RESEARCH_OVERVIEW_MAX_TOKENS`` sits exactly at
+    ``BUDGET_ESCALATION_MAX_TOKENS`` (both 24000), so a raise expressed as
+    ``max(max_tokens, BUDGET_ESCALATION_MAX_TOKENS)`` returns 24000 for
+    24000: the identical request, billed again on the ``RAISED_BUDGET``
+    attempt for nothing. This call site is sized the same way to catch
+    exactly that regression.
+    """
+    _disable_cache(monkeypatch)
+    calls = _record_acompletion(
+        monkeypatch, [_exhausted(BUDGET_ESCALATION_MAX_TOKENS)]
+    )
+
+    with pytest.raises(LLMBudgetExhaustedError):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(
+                model_name=_MODEL,
+                max_tokens=BUDGET_ESCALATION_MAX_TOKENS,
+                json_schema=_INT_SCHEMA,
+            ),
+            max_attempts=3,
+        )
+
+    assert len(calls) == 3
+    budgets = [call["max_tokens"] for call in calls]
+    # Attempt 1 sends the caller's own budget; attempt 2 (RAISED_BUDGET)
+    # must send strictly more, not the same number again; attempt 3
+    # (NO_THINKING) uses the same raised formula.
+    assert budgets[0] == BUDGET_ESCALATION_MAX_TOKENS
+    assert budgets[1] > BUDGET_ESCALATION_MAX_TOKENS
+    assert budgets[2] == budgets[1]
+
+
 async def test_thinking_only_skips_straight_to_disabling_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -325,3 +368,54 @@ async def test_a_schema_failure_leaves_the_budget_alone(
 
     budgets = {call["max_tokens"] for call in calls}
     assert budgets == {THINKING_FLOOR_MAX_TOKENS}
+
+
+# --- the raised-budget formula itself ----------------------------------------
+
+
+def test_escalated_max_tokens_at_below_at_and_above_the_constant() -> None:
+    """Pins the three shapes a caller's own budget can take.
+
+    8000 sits below ``BUDGET_ESCALATION_MAX_TOKENS`` and lands on the
+    floor, as it always did. 24000 sits exactly at it -- the case that
+    used to no-op -- and must come back strictly larger. 60000 sits above
+    both the floor and ``BUDGET_ESCALATION_MAX_INCREMENT``, so the
+    increment itself is what caps the raise, at ``max_tokens +
+    BUDGET_ESCALATION_MAX_INCREMENT``.
+    """
+    assert (
+        escalated_max_tokens(8000, BudgetEscalation.RAISED_BUDGET)
+        == BUDGET_ESCALATION_MAX_TOKENS
+        == 24000
+    )
+    assert (
+        escalated_max_tokens(
+            BUDGET_ESCALATION_MAX_TOKENS, BudgetEscalation.RAISED_BUDGET
+        )
+        == 36000
+    )
+    assert escalated_max_tokens(60000, BudgetEscalation.RAISED_BUDGET) == 84000
+
+
+def test_a_caller_sized_above_the_floor_is_never_cut_down() -> None:
+    """The promise the docstrings make, checked past the constant itself.
+
+    Any budget at or above ``BUDGET_ESCALATION_MAX_TOKENS`` must come back
+    strictly larger -- never equal (the old no-op) and never smaller.
+    """
+    for max_tokens in (
+        BUDGET_ESCALATION_MAX_TOKENS,
+        BUDGET_ESCALATION_MAX_TOKENS + 1,
+        200_000,
+    ):
+        raised = escalated_max_tokens(
+            max_tokens, BudgetEscalation.RAISED_BUDGET
+        )
+        assert raised > max_tokens
+        assert raised <= max_tokens + BUDGET_ESCALATION_MAX_INCREMENT
+
+
+def test_none_escalation_leaves_the_budget_untouched() -> None:
+    """The first attempt is not a rung, so nothing here should apply to it."""
+    assert escalated_max_tokens(8000, BudgetEscalation.NONE) == 8000
+    assert escalated_max_tokens(60000, BudgetEscalation.NONE) == 60000

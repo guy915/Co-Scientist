@@ -67,22 +67,50 @@ deliberately or not at all.
 """
 
 BUDGET_ESCALATION_MAX_TOKENS: Final = 24000
-"""Budget a retry uses after a call spent its whole allowance reasoning.
+"""Floor a raised-budget retry never sends less than.
 
 The floor below is a floor, not a guarantee: a chain of thought is free to
 fill whatever it is given, and in production these calls came back with
 ``reasoning_tokens`` sitting exactly on ``THINKING_FLOOR_MAX_TOKENS`` and
 ``content`` empty -- then did it again on all five ``call_llm_json``
 attempts, because every attempt re-sent the same budget.
-``llm_json_retry.BudgetEscalation`` answers the second attempt with this
-number instead, and the third by turning thinking off, so the ladder
-terminates whether or not the reasoning would ever have finished.
+``llm_json_escalation.escalated_max_tokens`` answers the second attempt
+with a budget raised from the call's own size (see
+``BUDGET_ESCALATION_MAX_INCREMENT``), floored here, and the third by
+turning thinking off, so the ladder terminates whether or not the
+reasoning would ever have finished.
 
 24000 rather than something larger because it is the budget already proven
 in production (``RESEARCH_OVERVIEW_MAX_TOKENS`` and the scaled batch caps
-run at it); the provider's own output ceiling is far above either. A bigger
-first rung would buy a longer chain of thought on the same wall, which is
-the failure, not the fix.
+run at it); the provider's own output ceiling is far above either. It is a
+floor rather than the whole formula because a caller already sized *at*
+this number -- ``RESEARCH_OVERVIEW_MAX_TOKENS`` is exactly 24000 -- would
+otherwise see ``max(max_tokens, 24000)`` return its own input unchanged: a
+retry rung that resends the identical request, silently, for precisely the
+callers large enough to need a real increase.
+"""
+
+BUDGET_ESCALATION_MAX_INCREMENT: Final = BUDGET_ESCALATION_MAX_TOKENS
+"""Most a single escalation may add on top of the call's own budget.
+
+Derived from ``BUDGET_ESCALATION_MAX_TOKENS`` rather than tuned
+separately, the same way ``THINKING_FLOOR_MAX_TOKENS`` derives from
+``THINKING_MAX_TOKENS``: one proven budget's worth of extra room is
+already known to be safe to ask a provider for, so the increment reuses
+it instead of introducing a second number to justify.
+
+``escalated_max_tokens`` adds ``min(max_tokens // 2, this)`` to the
+call's own budget -- half again as much room, on the reasoning that a
+chain of thought which was close to finishing plausibly needs some more,
+not double, and enough of a step to matter for the small callers this
+constant used to handle alone. Bounding the *increment* rather than the
+result is what keeps the retry a retry: a cap on the final number would
+have to either cut down a caller already sized past it (the exact bug
+this constant fixes) or let an unbounded caller through unchecked, and a
+formula cannot do both. Bounding what gets *added* instead means a
+60000-token caller still escalates, to 84000, four times what a
+24000-token caller adds, but never to something disconnected from what
+it already asked for.
 """
 
 THINKING_FLOOR_MAX_TOKENS: Final = THINKING_MAX_TOKENS

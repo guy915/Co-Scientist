@@ -16,6 +16,9 @@ from typing import Final
 # block below explains the redundant ``X as X`` alias form and why the
 # longest names cannot fit it in 80 columns.
 from co_scientist.constants_tokens import (
+    BUDGET_ESCALATION_MAX_INCREMENT as BUDGET_ESCALATION_MAX_INCREMENT,
+)
+from co_scientist.constants_tokens import (
     BUDGET_ESCALATION_MAX_TOKENS as BUDGET_ESCALATION_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (

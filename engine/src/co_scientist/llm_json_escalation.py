@@ -14,7 +14,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
+from co_scientist.constants import (
+    BUDGET_ESCALATION_MAX_INCREMENT,
+    BUDGET_ESCALATION_MAX_TOKENS,
+)
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
@@ -34,8 +37,10 @@ class BudgetEscalation(enum.Enum):
     instead of being re-sent:
 
     * ``NONE``: the call as its node sized it.
-    * ``RAISED_BUDGET``: resent at ``BUDGET_ESCALATION_MAX_TOKENS``, in
-      case the chain of thought was close to finishing.
+    * ``RAISED_BUDGET``: resent at half again the call's own budget
+      (floored at ``BUDGET_ESCALATION_MAX_TOKENS``, see
+      ``escalated_max_tokens``), in case the chain of thought was close
+      to finishing.
     * ``NO_THINKING``: resent with thinking off, which removes the
       unbounded side of the budget altogether.
 
@@ -96,20 +101,30 @@ def escalation_for_error(
 def escalated_max_tokens(max_tokens: int, escalation: BudgetEscalation) -> int:
     """The budget to send at a rung.
 
-    Raised rather than replaced, so a caller that already sized itself
-    above ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut down by the very
-    step meant to give it room.
+    Scaled off the caller's own budget rather than replaced by a flat
+    constant, so this rung actually changes the request for every caller
+    -- including one already sized at or above
+    ``BUDGET_ESCALATION_MAX_TOKENS``, for whom a flat floor would return
+    the identical budget and silently resend the identical request. See
+    ``BUDGET_ESCALATION_MAX_INCREMENT`` for why the extra room is bounded
+    by an increment rather than by a cap on the result: that is what lets
+    this always raise (never cut down a caller sized above the floor) and
+    always bound (never let a caller sized far below it escalate
+    unboundedly) at once.
 
     Args:
         max_tokens: The budget as its caller sized it.
         escalation: The rung this attempt is being made at.
 
     Returns:
-        The unchanged budget at ``NONE``, otherwise the raised one.
+        The unchanged budget at ``NONE``, otherwise ``max_tokens`` plus up
+        to ``BUDGET_ESCALATION_MAX_INCREMENT`` more, floored at
+        ``BUDGET_ESCALATION_MAX_TOKENS``.
     """
     if escalation is BudgetEscalation.NONE:
         return max_tokens
-    return max(max_tokens, BUDGET_ESCALATION_MAX_TOKENS)
+    increment = min(max_tokens // 2, BUDGET_ESCALATION_MAX_INCREMENT)
+    return max(max_tokens + increment, BUDGET_ESCALATION_MAX_TOKENS)
 
 
 def log_escalation(
@@ -160,9 +175,12 @@ def escalated_spec(
 ) -> _JsonCallSpec:
     """The call spec to send at a given escalation rung.
 
-    Raises the budget rather than replacing it, so a node that already
-    sized itself above ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut down by
-    the very step meant to give it room.
+    Raises the budget off the node's own size (see
+    ``escalated_max_tokens``) rather than replacing it with a flat
+    constant, so a node that already sized itself at or above
+    ``BUDGET_ESCALATION_MAX_TOKENS`` is not cut down by the very step
+    meant to give it room -- and still gets more room, rather than the
+    identical budget sent again.
 
     Args:
         spec: The call spec as the node sized it.
