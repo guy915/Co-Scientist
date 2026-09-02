@@ -318,3 +318,70 @@ async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
     assert first.enrichments["claim_gate"]["claims"]
     assert second.enrichments["claim_gate"]["claims"]
     assert flags["overlapped"], "hypotheses were assessed one after another"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
+    """R14-20's Go/No-Go pilot-plan criteria can never block a hypothesis.
+
+    ``_harvest_hypothesis_claims`` reads ``hypothesis.experiment`` -- which
+    carries R14-20's ``**Go:**``/``**No-Go:**`` threshold lines -- as well as
+    the statement/grounding/explanation fields, and tags every claim it
+    finds there "speculative" (see the field-role tuple in
+    ``_harvest_hypothesis_claims``). ``_apply_gate_verdict`` then calls
+    ``publication_gate`` with ``allow_speculative=True`` and that same role
+    map as ``explicitly_speculative_claims``, which excuses a speculative
+    claim from blocking whether the evidence merely fails to support it
+    (``allow_speculative``) or actively contradicts it (named in
+    ``explicitly_speculative_claims`` -- the one exemption
+    ``publication_gate`` grants a *contradicted* claim). This hypothesis's
+    evidence pool is built to literally contradict its own Go/No-Go
+    criteria, markdown markers and all -- the worst case a pilot-plan
+    threshold statement can put in front of the assessor -- and the gate
+    must still let it through, proving the threshold text cannot gate
+    anything even when the evidence disagrees with it outright.
+
+    The final, report-facing grounding pass
+    (``claim_grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
+    independent guarantee: it never reads ``experiment`` at all, so this
+    threshold text never reaches a persisted ``claim_evidence`` row or the
+    "Unverified" badge either. This test covers the one path that does read
+    it.
+    """
+    hypothesis = Hypothesis(
+        text="Inhibiting the target restores homeostasis in the model.",
+        experiment=(
+            "1. Run the pilot assay in the xenograft model.\n"
+            "**Go:** Tumor regression exceeds fifty percent in the"
+            " xenograft model.\n"
+            "**No-Go:** Tumor regression remains below ten percent in the"
+            " xenograft model."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Xenograft regression trial",
+                abstract=(
+                    "Tumor regression did not exceed fifty percent in the"
+                    " xenograft model in this trial."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    gate = hypothesis.enrichments["claim_gate"]
+    assert gate["decision"] == "allow"
+    go_no_go_claims = [
+        claim for claim in gate["claims"] if "**Go:**" in claim["claim"]
+    ]
+    assert go_no_go_claims, "the Go/No-Go claim was not extracted at all"
+    assert all(claim["role"] == "speculative" for claim in go_no_go_claims)
+    assert any(claim["label"] == "contradicts" for claim in go_no_go_claims), (
+        "test setup did not actually produce a contradiction to be excused"
+    )
