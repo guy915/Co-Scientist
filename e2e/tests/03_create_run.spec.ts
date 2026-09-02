@@ -142,6 +142,52 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
   await expect(page).toHaveURL(/\/runs\/[^/]+\/specifications/);
 }
 
+// The top-ranked idea (auto-selected on desktop) shows the mature review
+// cascade's structured findings -- proof that the offline backend's review
+// scores clear the initial "viable" gate and comprehensive_reflection's
+// full/simulation review batch actually ran for it, not just the quick
+// initial screen. Only the simulation review's fields (failure_points,
+// decisive_step) are unconditionally required in SIMULATION_REVIEW_SCHEMA
+// and so get filled by the offline backend; the full/recurrent review's
+// go_no_go_recommendation/time_to_verdict are optional in FULL_REVIEW_SCHEMA
+// and so stay absent -- see ideas_detail_review_findings.tsx's
+// SimulationFindings/VerdictLines and drain_reviews.py's detail_json build.
+async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
+  const detail = page.getByRole('region', {name: 'Hypothesis detail'});
+  await expect(
+    detail.getByRole('heading', {name: 'Full review', exact: true}),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole('heading', {name: 'Simulation review', exact: true}),
+  ).toBeVisible();
+  // exact: true, since the simulation critique paragraph also flattens
+  // "Failure point: .../Decisive step: ..." into its own prose -- without
+  // it this resolves two elements and Playwright's strict mode fails.
+  await expect(
+    detail.getByText('Failure point:', {exact: true}),
+  ).toBeVisible();
+  await expect(
+    detail.getByText('Decisive step:', {exact: true}),
+  ).toBeVisible();
+}
+
+// The overview report's research-directions preview list, gated on 2+ named
+// directions (report_markdown_overview.py::_render_directions_preview,
+// mirrored in the frontend's DirectionsPreview) -- proof the offline
+// backend's research_overview call is sized past that gate rather than
+// defaulting to the generic filler's one item per array.
+async function assertOverviewTabShowsDirectionsPreview(
+  page: Page,
+): Promise<void> {
+  await expect(
+    page.getByRole('heading', {name: 'Research directions', level: 3}),
+  ).toBeVisible();
+  const preview = page
+    .getByText('We will be focusing on these research directions:')
+    .locator('xpath=following-sibling::ul[1]');
+  await expect(preview.getByRole('listitem')).toHaveCount(3);
+}
+
 // The Goal Report tabs appear only after the run reaches publication. Walk the
 // All Ideas, Research Overview, and Learning tabs to observe the streamed run
 // reaching completion.
@@ -156,6 +202,7 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
+  await assertIdeasTabShowsMatureReviews(page);
   await page
     .getByRole('link', {name: 'Research Overview', exact: true})
     .click();
@@ -165,6 +212,7 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
+  await assertOverviewTabShowsDirectionsPreview(page);
   await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 }
