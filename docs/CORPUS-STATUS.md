@@ -112,3 +112,15 @@ Noticed in passing: `CITE-META-001` (`docs/PARITY.md:167`, `partial`) and FINDIN
 **R8: 1 BUILT / 2 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
+
+## R9 — build methodology and tech-stack findings
+
+| Row | Table says (`work`/`unclear`) | Verdict | Evidence |
+|---|---|---|---|
+| R9-2 | Live open-source-project verdicts (Jataware FORK PRIMARY; LLNL/Sakana v2/FutureHouse Robin/OpenScientist-K-Dense/aimclub MINE; The-Swarm-Corporation INSPECT; mims-harvard REJECT) exist nowhere outside the corpus file; needs an ADR so the decisions survive `references/` deletion, per the `references/peripheral/` precedent | **OPEN** | No ADR under `docs/decisions/` (12 files, none of them) mentions any of these projects. The only repo-wide hit outside `references/` is `README.md:201`'s Acknowledgements list, which names Jataware and Sakana as citations, not as recorded FORK/MINE/INSPECT/REJECT decisions — it does not carry the verdicts or the reasoning behind them |
+| R9-3 | `tech-stack-findings.md`'s citation-disciplined uncertainty register (Google never names source languages, frontend/backend framework, storage, queue, or retrieval index) is worth preserving; needs folding into FINDINGS' "Evidence boundaries" table | **OPEN** | `docs/fidelity-audit/FINDINGS.md:520-548` ("Evidence boundaries — unknowable from public sources") has 22 rows and does not include this register — no row for source language, frontend/backend framework, or retrieval-index disclosure status. Not yet folded in |
+| R9-4 | Google's own sources confirm ChEMBL and UniProt as named integrations but not PubMed or arXiv, in tension with this repo where PubMed is the primary retrieval path; the row itself frames this as unsettled by any ledger row | **DECISION** | `docs/PARITY.md:235` (`TOOLS-CONFIG-001`) documents the YAML mechanism as a local product implementation but says nothing about PubMed's confirmed-vs-inferred status, and does not mention ChEMBL/UniProt at all — the tension is still unresolved in the ledger. The actual question for the owner: should `TOOLS-CONFIG-001` (or a new row) record PubMed's primacy as a labelled CLONE choice, or leave it as an implicit PRODUCT claim? Nothing in the corpus or code settles which |
+
+**R9: 0 BUILT / 2 OPEN / 1 DECISION / 0 FALSE.**
+
+Noticed in passing: none.
