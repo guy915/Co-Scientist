@@ -169,6 +169,31 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
     ),
 }
 
+# Per-schema-name optional properties the filler fills anyway, despite the
+# schema marking them optional (see offline_schema_fill._FillHints.
+# optional_fields). Deliberately scoped, not a global "fill every optional"
+# switch: a real provider genuinely omits optional fields, so defaulting to
+# filling them everywhere would change offline output broadly and stop
+# representing that. Only a schema named here, for only the properties
+# named here, is filled -- every other optional property across every
+# other schema stays absent, as it did before this hint existed.
+#
+# Both entries below were found dark (docs/decisions/2026-09-02-offline-
+# optional-field-reach.md): FULL_REVIEW_SCHEMA's go_no_go_recommendation/
+# time_to_verdict feed drain_reviews._verdict_detail, which
+# ideas_detail_review_findings.tsx's VerdictLines never renders without
+# them; META_REVIEW_SCHEMA's strategic_recommendations[] time_estimate/
+# phase_label/recommended_idea feed report_markdown_meta_review's
+# _render_recommendation the same way. Both are plain free-text fields --
+# no value needs to reference another part of the response -- so a name
+# list alone is enough; see the ADR for the optional fields left out
+# because they need more than that (a value with particular structure, or
+# are blocked upstream by a required field).
+_OPTIONAL_FIELD_HINTS: dict[str, tuple[str, ...]] = {
+    "full_review": ("go_no_go_recommendation", "time_to_verdict"),
+    "meta_review": ("time_estimate", "phase_label", "recommended_idea"),
+}
+
 
 def _build_response(content: str) -> Any:
     """Builds the nested object a litellm completion response exposes.
@@ -288,6 +313,7 @@ def _schema_response(
     hints = _FillHints(
         array_lengths=length_hint(prompt) if length_hint else {},
         scalar_values=_SCALAR_VALUE_HINTS.get(schema_name, {}),
+        optional_fields=frozenset(_OPTIONAL_FIELD_HINTS.get(schema_name, ())),
     )
     content = json.dumps(_fill_schema(schema, leaf_fn, hints))
     return _build_response(content)

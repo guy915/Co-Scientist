@@ -13,7 +13,9 @@ own leaf-value strategy instead of this module's.
 Every "required" property (or, absent a "required" list, every declared
 property) is filled recursively, with enums resolved to their first
 allowed value and an array filled to one item unless a caller's ``hints``
-says otherwise for that property name.
+says otherwise for that property name. An optional property is left
+absent unless a caller's ``hints.optional_fields`` names it -- the same
+scoped-opt-in shape as the array-length and scalar-value hints.
 """
 
 from collections.abc import Callable
@@ -43,10 +45,18 @@ class _FillHints:
         scalar_values: Property-name -> override value for a scalar leaf,
             read ahead of ``_SCALAR_DEFAULTS``. See
             ``offline_llm._SCALAR_VALUE_HINTS``.
+        optional_fields: Property names to fill even though their object
+            node's schema marks them optional. Empty by default -- an
+            optional property is normally left absent, the same way a real
+            provider genuinely omits one. See
+            ``offline_llm._OPTIONAL_FIELD_HINTS``, which is the only
+            producer of a non-empty set here: it is scoped per schema name,
+            not a blanket "fill every optional" switch.
     """
 
     array_lengths: dict[str, int] = field(default_factory=dict)
     scalar_values: dict[str, Any] = field(default_factory=dict)
+    optional_fields: frozenset[str] = frozenset()
 
 
 def _scalar_leaf_value(schema_type: str, field: str, hints: _FillHints) -> Any:
@@ -120,14 +130,16 @@ def _fill_object(
     leaf_fn: Callable[[str], Any],
     hints: _FillHints,
 ) -> dict[str, Any]:
-    """Fills every required (or, if unspecified, every declared) property.
+    """Fills every required property, plus any hinted optional ones.
 
     Args:
         schema: The object's JSON Schema fragment.
         leaf_fn: Zero-argument callable returning the next string-leaf
             value (see ``_fill_schema``).
-        hints: Array-length and scalar-value hints, threaded into each
-            property's fill.
+        hints: Array-length, scalar-value, and optional-field hints,
+            threaded into each property's fill. ``hints.optional_fields``
+            is empty by default, so a property this node's own schema
+            marks optional stays absent unless a caller named it.
 
     Returns:
         A dict mapping each filled property name to its value.
@@ -135,9 +147,9 @@ def _fill_object(
     properties = schema.get("properties", {})
     required = schema.get("required") or list(properties.keys())
     return {
-        name: _fill_property(name, properties[name], leaf_fn, hints)
-        for name in required
-        if name in properties
+        name: _fill_property(name, prop_schema, leaf_fn, hints)
+        for name, prop_schema in properties.items()
+        if name in required or name in hints.optional_fields
     }
 
 
