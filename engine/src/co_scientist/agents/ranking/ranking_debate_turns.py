@@ -157,6 +157,21 @@ def _append_debate_context(
     test-time compute on the top-ranked comparisons (SSR §4). The turn
     figures are single-sourced from the envelope constants the judge loop
     enforces (see the module comment above).
+
+    Deliberate omission (corpus R8-4, docs/CORPUS-STATUS.md): the published
+    ranking-05 prompt's "Subsequent turns" guidance
+    (docs/CORPUS-EXTRACTION.md:1231) opens with "Pose clarifying questions
+    to address any ambiguities or uncertainties" -- not carried here. This
+    is the run's most expensive call site (~46% of a run's tokens) and a
+    live measurement found 13/56 ranking judge calls (~23%) failing
+    ``LLMThinkingOnlyError`` -- reasoning spent, then a stop with no answer
+    -- on this exact prompt family, where a position-based fix that works
+    elsewhere "underperforms badly." Inviting more open-ended deliberation
+    before a verdict is the shape of that exact failure, and the effect
+    cannot be measured offline: the deterministic offline backend fills
+    the schema from ``(model, prompt, schema)`` and never returns
+    answerless, so only a live call against the production model exercises
+    this, at real cost. Recorded as a DECISION for the owner, not built.
     """
     lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
     for entry in transcript:

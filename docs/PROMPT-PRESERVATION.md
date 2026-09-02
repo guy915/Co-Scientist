@@ -256,6 +256,16 @@ buys no behavior the schema doesn't already produce, and 25 of the 90+
 tournament matchups in a full run go through this multi-turn path, so any
 instruction added here is worth being sure of before adding it.
 
+**Correction (corpus R8-4, docs/CORPUS-STATUS.md):** item 7's "present"
+classification bundles the five evaluation dimensions and the
+weakness-identification instruction, but does not cover the "Subsequent
+turns" guidance's own first bullet — "Pose clarifying questions to
+address any ambiguities or uncertainties" — which this table missed and
+which is genuinely absent from `ranking.md`/`ranking_debate*.py`.
+Deliberately not restored: `_append_debate_context`
+(`ranking_debate_turns.py`) records the reasoning and the measured risk
+at the code site.
+
 ## 8. `reflection-03-generate-observations.md`
 
 **Template:** `reflection_observations.md`.

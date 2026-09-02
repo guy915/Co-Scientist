@@ -64,7 +64,7 @@ partial pass is never lost.
 |---|---|---|---|---|---|
 | R1 | 3 | 2 | 0 | 1 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
-| R8 | 3 | 1 | 2 | 0 | 0 |
+| R8 | 3 | 1 | 1 | 1 | 0 |
 | R9 | 3 | 2 | 0 | 1 | 0 |
 | R10 | 9 | 7 | 0 | 2 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ partial pass is never lost.
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 0 | 2 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **52** | **6** | **18** | **3** |
+| **Total** | **79** | **52** | **5** | **19** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -123,7 +123,12 @@ hypothesis detail its filename claims) is now flagged in
 `docs/fidelity-audit/FINDINGS.md`'s "Corpus-integrity corrections"
 section rather than only in this document's own row — the file itself is
 untouched, per the wave's hard constraint against modifying anything
-under `references/`.
+under `references/`. `R8-4` moves **OPEN → DECISION**: the missing
+"Pose clarifying questions" instruction from the published ranking-05
+prompt was weighed against the ranking judge's already-measured ~23%
+answerless-retry rate on this exact prompt family and deliberately not
+added — see the row's own evidence for the full reasoning, recorded
+both there and at the code site.
 
 ---
 
@@ -155,10 +160,10 @@ Noticed in passing: none — the note previously recorded here (`CITE-META-001`'
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
 | R8-2 | The published-prompt→template mapping was recorded but never checked for content preservation; needs "a one-off semantic diff of all eight prompts against their templates" | **BUILT** | `docs/PROMPT-PRESERVATION.md` (dated 2026-09-01) is exactly that diff — all eight prompts, instruction-by-instruction, classified present/missing/adapted with line-cited evidence. Summary: 4 prompts fully preserved, 4 with residual gaps (1–2 missing instructions each). Supersedes this row |
-| R8-4 | 14/19 sentences of `ranking-05` poorly covered; two things unsettled: the turn-count envelope (code vs. prompt) and "Pose clarifying questions to address any ambiguities" (0.0 coverage) | **OPEN** | The turn envelope is settled, as the row itself already concludes: enforced in code (`engine/src/co_scientist/agents/ranking/ranking.py:234`, `RANK-DEBATE-DEPTH-001` `verified`), correctly not restated in the prompt. The clarifying-questions instruction is confirmed still genuinely missing: it is in the verbatim Appendix (`docs/CORPUS-EXTRACTION.md:1231`, "Pose clarifying questions to address any ambiguities or uncertainties") and appears nowhere in `engine/src/co_scientist/prompts/templates/ranking.md` or `agents/ranking/ranking_debate*.py` (zero grep hits). Worth noting: `docs/PROMPT-PRESERVATION.md`'s own 9-item instruction table for this same prompt (§7) does not list this instruction either — its audit missed it too, so this finding survives a second, more careful pass and is not an artifact of the first one being incomplete |
+| R8-4 | 14/19 sentences of `ranking-05` poorly covered; two things unsettled: the turn-count envelope (code vs. prompt) and "Pose clarifying questions to address any ambiguities" (0.0 coverage) | **DECISION** | The turn envelope is settled, as the row itself already concludes: enforced in code (`engine/src/co_scientist/agents/ranking/ranking.py:234`, `RANK-DEBATE-DEPTH-001` `verified`), correctly not restated in the prompt. The clarifying-questions instruction is confirmed still genuinely missing -- verbatim Appendix (`docs/CORPUS-EXTRACTION.md:1231`), zero grep hits in `ranking.md`/`ranking_debate*.py`, and Google places it as the first bullet under ranking-05's "Subsequent turns:" guidance (multi-turn debate turns after the first), not in the verdict step. `docs/PROMPT-PRESERVATION.md`'s own §7 instruction table missed it too, now corrected with a footnote. **Weighed and not built, this wave.** Ranking's judge is the run's most expensive call site (~46% of tokens by an earlier measurement) and already carries a measured ~23% `LLMThinkingOnlyError` rate on this exact prompt family (13/56 calls, live run) -- reasoning spent, then a stop with no answer -- where a fix that works elsewhere "underperforms badly." "Pose clarifying questions" invites more open-ended deliberation before commitment, which is the shape of that exact failure mode; a sibling instruction already ships safely in this codebase's generation-02 debate templates (`generation_after_debate.md:43`), but that is not transferable safety evidence here, since the same live measurement says this specific prompt family behaves worse than others on the underlying failure. The token cost itself is not the concern and was measured offline (`litellm.token_counter`, gpt-4o tokenizer): the one bullet line is ~13 tokens; at ~2.6 subsequent-turn renders per multi-turn matchup (3.6 turns/match measured) across ~25 multi-turn matchups in a full run (`docs/PROMPT-PRESERVATION.md` §7), that is roughly 850 tokens/run -- negligible. What cannot be measured offline is the answerless-rate effect: the deterministic offline backend fills the schema from `(model, prompt, schema)` and never returns answerless regardless of prompt content, so nothing in this repo's offline evals or hermetic CI is sensitive to this change, and a live A/B would cost real money against a cost-sensitive stealth-model deployment. Recorded at the code site (`ranking_debate_turns.py::_append_debate_context` docstring) so a future pass does not re-derive this. The owner's question: accept a paid live A/B measuring the judge's answerless rate before/after, or accept the fidelity gap |
 | R8-6 | Published debate judge is framed as a plurality ("simulating a panel of domain experts", "The experts possess no pre-existing biases") — contradicts FINDINGS `E18`'s "the paper names a single evaluator"; needs a correction to `E18` and one framing line in `ranking.md` | **OPEN** (half-built) | The `E18` half is done: `docs/fidelity-audit/FINDINGS.md:138` now states the paper frames the judge as a plurality, quotes the panel/bias-neutrality sentence verbatim, and cites this row by name (`corpus R8-6`, commit `c310a560`) -- while correctly preserving what stays true, that the paper never names distinct advocate/opponent *personas* for that panel. The docstring `E18` flagged as its own out-of-scope follow-up is also now fixed (`engine/src/co_scientist/agents/ranking/ranking_debate.py::_run_debate_turns`, this wave): it no longer claims the paper "names a single evaluator", stating instead that a panel is named and personas are not. The other deliverable is confirmed still unmet: `engine/src/co_scientist/prompts/templates/ranking.md` still has zero occurrences of "panel", "domain expert", "pre-existing", or "bias" -- the framing line itself was never added to the live prompt, only recorded in FINDINGS |
 
-**R8: 1 BUILT / 2 OPEN / 0 DECISION / 0 FALSE.**
+**R8: 1 BUILT / 1 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
