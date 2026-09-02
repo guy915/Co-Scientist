@@ -23,10 +23,14 @@ noticed in passing to be wrong — logged under "Noticed in passing" at the
 end, per region.
 
 **Method.** For each row: read the cited source/claim text (the verbatim
-Appendix at `docs/CORPUS-EXTRACTION.md:1650+` for paper-text questions —
-never a fresh grep against it, which is exactly how `R1-17`'s false
-correction happened), then check the current code, its tests, and
-`docs/PARITY.md` for the same requirement. Classify into exactly one of:
+Appendix at `docs/CORPUS-EXTRACTION.md:1650+` for paper-text questions),
+then check the current code, its tests, and `docs/PARITY.md` for the same
+requirement. A grep locates a candidate; only reading what it returns (or
+re-running it and reading a fresh result) settles a verdict — never
+conclude a claim is true, or that something is absent, from a grep alone.
+That is exactly how `R1-17`'s false correction happened in the source file,
+and it is the same failure mode caught directly in this pass at `R12-19`,
+`R14-9`, and `R14-21` below. Classify into exactly one of:
 
 - **BUILT** — implemented; cite file:line or commit.
 - **OPEN** — genuine work remaining; state what it needs in one line.
@@ -36,16 +40,17 @@ correction happened), then check the current code, its tests, and
   and state what is actually true.
 
 **BUILT vs. FALSE, when both look like "the row says X, the code has X".**
-The discriminator is which came first. `git log -S'<row text>' --
-docs/CORPUS-EXTRACTION.md` (or the region's bulk-add commit — the checklist
-was written in a handful of large commits, not row by row) dates the row;
-the feature's own commit dates the fix. Feature commit before the row →
-the row was already stale when written, but its *evidence* was still
-accurate at the time → **BUILT**, not FALSE — FALSE is reserved for rows
-whose cited evidence was never true, not rows the table failed to update.
-Feature commit after the row → straightforwardly **BUILT** as unrecorded
-follow-through. A row is **FALSE** only when reading the cited source or
-code today shows the claim itself does not hold, independent of timing.
+The two classifications answer different questions, and neither depends on
+when the row was written relative to when the code changed — this document
+does not date rows against fixing commits, only against the code as it
+reads today. **FALSE** means the row's own cited evidence, or the
+inference it draws from that evidence, does not reproduce on a fresh read:
+its grep returns a hit where it claimed none (`R14-21`), its "never
+renders" is contradicted by a specific line of code (`R12-19`), or it
+names the wrong field as the still-open one (`R12-18`/`R14-9`). **BUILT**
+means the row correctly described a genuine absence — whether or not the
+table was later updated to say so — and the code today fills it, often via
+a commit naming the row by ID in its own message or comment.
 
 **Commit discipline.** One commit per region, immediately after that
 region's section is written — this document is built incrementally so a
@@ -232,7 +237,7 @@ Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`
 
 | Row | Table says (`work`) | Verdict | Evidence |
 |---|---|---|---|
-| MA-1 | 51 of the ledger's rows / 65 citations point at local consolidations (`SSR §n` etc.), none at the papers themselves, and the `PAPER —` prefix conflates the two; needs every row re-sourced against the papers, with what has no published basis dropped or relabelled | **BUILT** | Confirmed by direct count: only 8 of ~87 `docs/PARITY.md` rows now cite a bare consolidation shorthand (`SSR`/`TE`/`ARCH`/`RGV §n`), down from the row's own count of 51 — and all 8 explicitly self-disclose as "local consolidation" / "local-consolidation... not paper text" in their own Source column, rather than carrying a false `PAPER —` prefix. The Legend (`docs/PARITY.md:57-76`) now states the rule explicitly: "Such a row does not carry the `PAPER —` prefix; see `docs/PARITY-SOURCES.md`." The remaining 61 rows cite arXiv/Nature SI/`App.` sections directly. This is exactly "drop or relabel" carried out at ledger scale |
+| MA-1 | 51 of the ledger's rows / 65 citations point at local consolidations (`SSR §n` etc.), none at the papers themselves, and the `PAPER —` prefix conflates the two; needs every row re-sourced against the papers, with what has no published basis dropped or relabelled | **BUILT** | Confirmed by direct count: `docs/PARITY.md` carries 77 requirement rows (matching `make parity`'s own "77 requirement rows" line), of which only 8 (`EVO-LINEAGE-001`, `CITE-CLAIM-001`, `CITE-META-001`, `CITE-GRAPH-001`, `SAFE-INTAKE-001`, `SAFE-FINAL-001`, `SAFE-ADVERSARIAL-SET-001`, `SAFE-GOOGLE-SET-001`) now cite a bare consolidation shorthand (`SSR`/`TE`/`ARCH`/`RGV §n`), down from the row's own count of 51 — and all 8 explicitly self-disclose as "local consolidation" / "local-consolidation... not paper text" in their own Source column, rather than carrying a false `PAPER —` prefix. The Legend (`docs/PARITY.md:57-76`) now states the rule explicitly: "Such a row does not carry the `PAPER —` prefix; see `docs/PARITY-SOURCES.md`." The remaining 69 rows cite arXiv/Nature SI/`App.` sections directly. This is exactly "drop or relabel" carried out at ledger scale |
 | MA-2 | Nature SI's `DecideNextSteps` lets independent `IF`s stack several follow-up tasks (rank + evolve + meta-review + report) in one decision pass; ours is a strict single-winner chain — a real behavioural difference; needs a code change or a recorded divergence | **BUILT** | `docs/PARITY.md:125` `SUP-STACKING-001` (new row, same citation — "Nature SI Note 8, `DecideNextSteps` (L950-972)") records exactly this: `scheduling/policy.py`'s `_ordered_checks`/`required_transition` is confirmed still "a strict single-winner chain, one task per orchestrator cycle, never a stack," recorded `partial`, "Accepted divergence: a real behavioural difference in how fast a run makes progress per cycle" |
 | MA-3 | The paper describes per-hypothesis independent task chaining; this repo's two execution paths (streaming LangGraph engine vs. durable app) diverge from each other on this point, not just from the paper; needs the divergence named and a canonical path decided | **BUILT** | `docs/PARITY.md:131` `EXEC-PATH-CHAIN-001` (new row) names both paths exactly as the row describes and resolves the "which is canonical" question: "The durable path is canonical — it is the only path production runs." Cites `app/AGENTS.md:48` |
 | MA-4 | The paper describes one continuously-adaptive Supervisor; this repo splits it into a one-shot `supervisor_node` and a continuously-running `orchestrator_node`, a name pairing neither primary source uses; needs either mid-run plan revisitation or a recorded deliberate split | **BUILT** | `docs/PARITY.md:121` `SUP-SPLIT-001` (new row, cites "arXiv Figure 2 caption") records the exact split by file:line (`supervisor.py:33`, `orchestrator.py:153`) and its consequence ("the plan `supervisor_node` synthesizes once is never revisited mid-run"), status `partial`, "Accepted divergence" |
@@ -278,3 +283,99 @@ Noticed in passing: none.
 **MP: 3 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its own summary table, "4 present / 1 missing / 0 adapted" for each) are now stale on the MP-7 point, for the timing reason above — not a defect in that document per its own "point-in-time record, not updated" convention (`docs/README.md`), but a reader treating its "1 missing" as current today would be looking for a gap that has since closed (both are now 5/0/0).
+
+---
+
+## Decisions for the owner (deduplicated)
+
+The 18 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged:
+
+1. **Goal-intake shape and the three glossary terms.** `R1-18`, `R10-9`,
+   `R14-2`, `MO-11` (4 rows, 1 question). `app/app/runs_models.py:29`
+   `research_goal: str` is one free-text field; the corpus shows at least
+   three different published shapes (SSR §11's flat glossary; A.1's
+   `Title`/`Goal`/`Background` triple; the protein-assemblies run's 8-part
+   form with `Ground Truth Dataset`/`Your Role`). Is any one canonical, and
+   should "novel repurposing candidate" / "novel target" / "novel
+   mechanistic explanation" be a controlled vocabulary anywhere in the
+   schema?
+2. **Per-assumption wording.** `R12-15`, `MO-4` (2 rows, 1 question). One
+   shared `ASSUMPTION_SUPPORT_VALUES` enum already replaced two drifting
+   enums; should its values render as the published prose (`Plausible:` /
+   `Plausible, but requires careful investigation:` / `Unknown:`) instead
+   of `supported`/`uncertain`/`likely_false`?
+3. **The bare `Answer: N` review-score scale.** `R10-7`, `MO-5` (2 rows, 1
+   question). Every occurrence in the verbatim Appendix is 3 or 4,
+   consistent with either a 1-5 or 1-10 scale; a separately-cited reading
+   of a different block finds values 2-9, not itself in this repo's
+   Appendix and unverifiable from here. Distinct from
+   `EVAL-REVIEW-SCALE-001` (Figure A.23's named "co-scientist review
+   score," already settled at 1-5) — this is a different, still-open
+   score.
+4. **Split the report into two documents.** `R14-11`, with `R14-3` and
+   `R14-4` explicitly blocked on it (3 rows, 1 question). Google's one
+   fully-read run produces `research-overview.md` and
+   `top-ranking-hypotheses.md` as separate documents, with separately-
+   shaped goal rendering and disclaimers on each; this product emits one
+   combined document. Keep one document (accept the divergence), or build
+   two?
+5. **A flat bibliography list.** `R12-12`. The published report's
+   3,259-entry `References` list has no analogue; `Citation audit` and the
+   data-sources view are a different artifact. Add one, or accept the
+   divergence?
+6. **Named `Justification:`-plus-evidence contact fields.** `R14-16`. The
+   `Justification:` label is consistent across all 14 published research
+   contacts; the second, evidence-citing field's label varies freely. Pin
+   two named fields, or keep the current single free-text field?
+7. **A 14-section per-hypothesis document.** `R14-26`, explicitly
+   conditional ("if the owner wants a fuller per-idea artifact"). Build it,
+   or treat the flat entry as the intended local shape?
+8. **Archive or extract the two gitignored mp4s.** `R13-1`. Unrecoverable
+   once `references/` is deleted; archive outside the repo, or extract and
+   commit the cited frames first?
+9. **PubMed's disclosure status.** `R9-4`. Google names ChEMBL and UniProt
+   as confirmed integrations but never confirms PubMed or arXiv, though
+   PubMed is this repo's primary retrieval path. Record that as a labelled
+   local (CLONE) choice on `TOOLS-CONFIG-001`, or leave it as an implicit
+   claim?
+10. **Not an owner decision — blocked on unavailable evidence.** `R14-10`.
+    Whether the published ranking-report's compound structure (report +
+    embedded full proposal + embedded full review) is exemplar-specific or
+    a general shape cannot be settled without a second published exemplar,
+    which does not exist in the corpus. Nothing inside this repo closes
+    it.
+11. **Cosmetic, only if the owner wants it.** `R12-13`. The published
+    report's "Top ideas" heading appears twice; may be a transcription
+    artifact. The row's own framing: "none unless the owner wants it."
+
+---
+
+## Residuals inside BUILT/FALSE rows
+
+Four points are folded into a BUILT or FALSE verdict above rather than
+carrying their own row; listed here so a future pass does not have to
+re-read every evidence cell to find them.
+
+- **`R12-17` / `R12-18` / `R12-23` have no `docs/PARITY.md` row.** All
+  three are genuinely BUILT — `app/app/report_markdown_supervisor.py`,
+  pinned by four app tests — but nothing in `docs/PARITY.md` cites that
+  module (zero hits for "stratification", "evaluation criteria", "review
+  summary", or `critical_criteria`, checked directly). Needs one or three
+  ledger rows, not more code.
+- **`R12-23`'s `Research directions` half is still open.** The row bundled
+  two asks; only `Review summary` was built. A restated-directions-plus-
+  `Unexpected Research Directions` block is unaddressed.
+- **`R14-9`'s table-vs-prose format point survives its FALSE verdict.**
+  The row's central claim ("`R12-18` still absent") is false, but its
+  narrower observation — a second published exemplar renders synthesized
+  criteria as a table, this product always renders prose — is real and
+  unresolved.
+- **`R6-6` surfaced a `CITE-META-001` / `assess_resolvability` orphan.**
+  `claims_gate.assess_resolvability` is never called from any production
+  module; a *different* live resolver (`citation_resolver.resolve_many`)
+  is wired for a related-but-distinct availability check.
+  `CITE-META-001`'s "no live resolver is wired" residual now overstates
+  the gap. Not reclassified here — that ledger row is `partial`, not
+  `work`, so it is outside this document's audit scope — but worth a
+  one-line correction next time the row is touched.
