@@ -10,6 +10,8 @@ A walk through the whole product, focused on the multi-agent engine. For enginee
 
 Co-Scientist is a multi-agent system that takes a research goal and returns a ranked set of literature-grounded hypotheses plus a research overview. The engine is a single compiled LangGraph `StateGraph` whose nodes are async functions over a shared `WorkflowState` typed dict. Around it sit a FastAPI app that streams node events over SSE, a React workbench that renders them, and an optional MCP server that supplies PubMed/INDRA tools.
 
+This paragraph describes the engine's own mechanics, in our own words, not Google's product copy. For Google's own description of this product — quoted, not paraphrased — see [`docs/FIDELITY.md`](FIDELITY.md)'s "Google's own framing of this product" (corpus R13-7).
+
 The public entry point is `HypothesisGenerator` (`engine/src/co_scientist/generator/core.py:54`).
 
 ---

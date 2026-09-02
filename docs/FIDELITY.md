@@ -13,6 +13,39 @@
 
 The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product's own screenshots) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
+## Google's own framing of this product
+
+Distinct from the paper: labs.google's own page for this product family —
+`og:title` **"Gemini for Science"** — offers **"Express interest"**: a
+waitlist, not self-serve access. It presents (at least) three cards, each
+credited to its own underlying technology; ours corresponds to the one
+credited **"Built with Co-Scientist"**:
+
+> **Hypothesis Generation**
+>
+> "Generate novel research ideas through a multi-agent system that
+> simulates the scientific method to help identify knowledge gaps and
+> propose testable research plans."
+
+Its four claimed capabilities, as the page states them:
+
+-   **Collaborative Research Partner** — chat to refine challenge,
+    preferences and focus areas *before* initiating a run
+-   **Tournament-Style Evaluation**
+-   **Grounded Knowledge Base** — "ideas are linked to a comprehensive
+    knowledge base of verified scientific references used by the agent
+    during the run"
+-   **Critical Flaw Detection** — "distinguish high-potential directions
+    from non-viable ones"
+
+Source: `docs/CORPUS-EXTRACTION.md:390` (corpus row R13-7), extracted
+verbatim from Google's own page copy. All four capabilities have analogues
+in this tree — the chat workspace, the Elo tournament, citation-grounded
+evidence, and the review / deep-verification gates — so this is not a gap
+list; it is the primary citation for the framing claims elsewhere in this
+document and in [`EXPLAINER.md`](EXPLAINER.md) that describe what this
+product *is* or *does* in language that parallels Google's own.
+
 ## Invariants preserved exactly
 
 | Invariant | Where | Source |
@@ -28,7 +61,7 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | Research overview + NIH Specific Aims synthesized from the top hypotheses | `agents/meta_review/research_overview.py` terminal node; surfaced in the report payload + markdown (`## Research Overview` / `## NIH Specific Aims`) | "Towards an AI co-scientist" §3.3 — research overview |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
 | Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_tier` / `run_modes.normalize_run_focus` size and steer every run; the old `standard`/`advanced`/`default` run-mode string no longer exists | implementation policy — superseded by the tier (express/standard/extended/ultra) + focus system |
-| UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); `run_detail.tsx` routes to four tab components — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `components/tabs/ideas_tab.tsx` (ideas) | published UX (see the note below on retired tabs) |
+| UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); `run_detail.tsx` routes to four tab components — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `components/tabs/ideas_tab.tsx` (ideas) | Capability framing: Google's own product copy — "Google's own framing of this product" above (corpus R13-7). Four-tab mapping: [`UI-FIDELITY.md`](UI-FIDELITY.md)'s tab-mapping table and its "Evidence for the mapping" note |
 
 > **The citation classifier is an audit label, not a verification gate.**
 > Citation classification (`store.citations.state` ∈ {verified, partial,
@@ -92,7 +125,11 @@ These features are described in the published material but are not implemented h
     researchers viewing or steering the same run together.
 -   **The Literature Insights and Computational Discovery surfaces from the
     Google Labs product family.** Hypothesis Generation is built; neither of
-    the other two is. Computational discovery was built here and then removed
+    the other two is. Google's own labs.google page presents the family as
+    (at least) three cards, each credited to its own underlying technology
+    (see "Google's own framing of this product" above, corpus R13-7); this
+    repo builds only the card credited "Built with Co-Scientist".
+    Computational discovery was built here and then removed
     (`docs/decisions/2026-08-26-remove-computational-discovery.md`): the
     product generates and ranks hypotheses, and evolving a program against a
     measured objective is a second product that shared only the task queue
