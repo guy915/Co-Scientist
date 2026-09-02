@@ -20,12 +20,12 @@ from co_scientist.models import Hypothesis
 from app import store
 from app.elo import INITIAL_ELO
 from app.engine_adapter.drain_evidence_resolution import ResolvedArticle
+from app.engine_adapter.drain_hypothesis_title import _authored_title
 from app.engine_adapter.drain_reviews import (
     _CitationSink,
     _persist_engine_citations,
     _persist_engine_reviews,
 )
-from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
 
@@ -178,13 +178,14 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
     ``origin``) rather than reconstructing lineage from ``evolution_history``.
     Pre-lineage cached payloads (which lack these keys) fall
     back to the old ``evolution_history`` inference so old runs still drain.
-    The title is the first sentence of the statement (see ``first_sentence``).
+    The title prefers the LLM-authored ``title`` field (R14-12), falling
+    back to the first sentence of the statement (see ``_authored_title``).
 
     Returns:
         The hypothesis's persistence identity and lineage.
     """
     text = h.get("text", "")
-    title = first_sentence(text)
+    title = _authored_title(h, text)
     engine_id = h.get("id") or None
 
     if "generation" in h or "parent_id" in h or "origin" in h:
