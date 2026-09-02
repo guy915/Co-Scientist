@@ -86,6 +86,17 @@ _EXPERIMENT_FIELD: dict[str, Any] = obj(
         "steps": {
             "type": "array",
             "items": _EXPERIMENT_STEP_FIELD,
+            # No minItems: the offline backend's schema filler emits one
+            # item per array by default (co_scientist.offline_llm), and
+            # format_experiment_plan renders however many steps arrive
+            # rather than enforcing a floor -- the published "2-5" is
+            # advisory in the description, not a hard lower bound here.
+            # maxItems is enforced server-side wherever a provider
+            # honors it; the formatter caps it again defensively
+            # (MAX_EXPERIMENT_STEPS in experiment_plan.py), since
+            # json_object mode -- the production downgrade path -- does
+            # not enforce maxItems.
+            "maxItems": MAX_EXPERIMENT_STEPS,
             "description": (
                 f"2-{MAX_EXPERIMENT_STEPS} ordered steps of the pilot"
                 " test plan -- typically scripting/automation setup,"

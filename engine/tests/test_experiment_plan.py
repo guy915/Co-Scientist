@@ -18,10 +18,13 @@ import pytest
 from co_scientist.agents.generation.experiment_plan import (
     format_experiment_plan,
 )
+from co_scientist.llm_json import validate_json_schema
 from co_scientist.models import Hypothesis
+from co_scientist.offline_llm import _fill_schema
 from co_scientist.schemas.generation import (
     _EXPERIMENT_CRITERION_CHARS,
     _EXPERIMENT_STEP_CHARS,
+    GENERATION_SCHEMA,
     MAX_EXPERIMENT_STEPS,
 )
 
@@ -133,6 +136,22 @@ def test_criterion_text_is_length_capped() -> None:
 @pytest.mark.parametrize("bad_field", [123, {"nested": "dict"}, ["a", "b"]])
 def test_criteria_of_the_wrong_type_never_crash(bad_field: object) -> None:
     format_experiment_plan({"go_criterion": bad_field})  # must not raise
+
+
+def test_offline_schema_filler_satisfies_the_experiment_field() -> None:
+    """The offline schema filler must be able to satisfy this field.
+
+    _fill_schema fills every array with exactly one item by default;
+    the schema was briefly given a minItems: 2 alongside maxItems, and
+    an offline-backed run failed schema validation on every generation
+    call as a result. maxItems alone (enforced server-side wherever a
+    provider honors it, and again defensively by format_experiment_plan)
+    is the only bound this field carries.
+    """
+    filled = _fill_schema(GENERATION_SCHEMA["schema"], lambda field: "x")
+    validate_json_schema(
+        {"hypotheses": [filled["hypotheses"][0]]}, GENERATION_SCHEMA
+    )  # must not raise
 
 
 # --- No-gate guarantee -------------------------------------------------
