@@ -45,8 +45,12 @@ _SAFETY_AXIS = "safety"
 # criteria say. Matching is substring-on-lowercase, deliberately coarse:
 # the gate only needs to know which axes the scientist cares about, and a
 # criterion that matches nothing simply adds no axis.
+# "correct" was added for R12-4: the app's default run-level criteria now
+# render as "Idea correctness: Required" (mirroring Google's published run
+# plan), which named no existing keyword here and would otherwise have
+# silently stopped gating scientific_soundness on every default run.
 _CRITERION_AXIS_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("scientific_soundness", ("sound", "rigor", "accura")),
+    ("scientific_soundness", ("sound", "rigor", "accura", "correct")),
     ("plausibility", ("plausib",)),
     ("novelty", ("novel", "origin", "innov")),
     ("relevance", ("relevan", "align")),

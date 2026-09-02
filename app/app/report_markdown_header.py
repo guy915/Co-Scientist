@@ -17,18 +17,24 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
+from app.run_modes import criteria_display_strings
+
 # Kept close to Google's published wording ("Prepared by AI co-scientist on
 # 2026-06-12. For research purposes only.") but naming this system, not
 # Google's -- claiming to be Google's product would misattribute the report.
 _SYSTEM_NAME = "Co-Scientist"
 
 
-def _render_setup_list(label: str, items: Any) -> list[str]:
+def _render_setup_list(label: str, values: list[str]) -> list[str]:
     """Render a 'Label:' bullet list, or nothing when there is no content."""
-    values = [str(item) for item in items or [] if str(item).strip()]
     if not values:
         return []
     return [f"**{label}:**\n"] + [f"- {value}" for value in values] + [""]
+
+
+def _plain_setup_strings(items: Any) -> list[str]:
+    """Coerce a Requirements/Attributes setup value into display strings."""
+    return [str(item) for item in items or [] if str(item).strip()]
 
 
 def _render_research_goal_details(
@@ -37,17 +43,24 @@ def _render_research_goal_details(
     """Render 'Research Goal Details': goal, requirements, attributes, criteria.
 
     Nothing renders when the run carries no setup block (a report persisted
-    before this field existed) or an empty one.
+    before this field existed) or an empty one. Criteria may be the legacy
+    free-prose list or the R12-4 ``{"name", "value"}`` pair list a run
+    created after that change stores -- ``criteria_display_strings`` renders
+    both the same way, so an older persisted run keeps reading exactly as
+    it always did.
     """
     if not isinstance(setup, dict):
         return []
     fields = [
-        _render_setup_list(label, setup.get(key))
-        for label, key in (
-            ("Requirements", "requirements"),
-            ("Attributes", "attributes"),
-            ("Criteria", "criteria"),
-        )
+        _render_setup_list(
+            "Requirements", _plain_setup_strings(setup.get("requirements"))
+        ),
+        _render_setup_list(
+            "Attributes", _plain_setup_strings(setup.get("attributes"))
+        ),
+        _render_setup_list(
+            "Criteria", criteria_display_strings(setup.get("criteria"))
+        ),
     ]
     if not any(fields):
         return []

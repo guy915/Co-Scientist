@@ -7,6 +7,18 @@ from collections.abc import Callable
 from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
+from app.run_modes_criteria import (
+    DEFAULT_CRITERIA as DEFAULT_CRITERIA,
+)
+from app.run_modes_criteria import (
+    _default_criteria as _default_criteria,
+)
+from app.run_modes_criteria import (
+    clean_criteria_list as clean_criteria_list,
+)
+from app.run_modes_criteria import (
+    criteria_display_strings as criteria_display_strings,
+)
 
 # Tier controls run size/depth; focus controls ranking emphasis. The
 # *_PATTERN regexes are used by the API's pydantic Field validation, so
@@ -36,12 +48,9 @@ DEFAULT_ATTRIBUTES: tuple[str, ...] = (
     "Evidence-grounded",
     "Experiment-ready",
 )
-DEFAULT_CRITERIA: tuple[str, ...] = (
-    "Scientific soundness",
-    "Novelty over known mechanisms",
-    "Discriminating experimental design",
-    "Translational feasibility",
-)
+# DEFAULT_CRITERIA, clean_criteria_list, and criteria_display_strings live in
+# run_modes_criteria (R12-4: the criteria field's named-setting shape and
+# back-compat), imported above and re-exported for existing importers.
 
 # Reconstructed compute envelopes; every knob scales up together from express
 # to ultra. Google verifies that deeper tiers do more work, but not these exact
@@ -133,12 +142,14 @@ class PlanningLists:
     Attributes:
         requirements: What the run's hypotheses must satisfy.
         attributes: The qualities a good hypothesis should show.
-        criteria: The axes hypotheses are judged on.
+        criteria: The axes hypotheses are judged on -- either the legacy
+            free-prose strings or the ``{"name", "value"}`` pair shape
+            (see ``clean_criteria_list``).
     """
 
     requirements: list[str] | None = None
     attributes: list[str] | None = None
-    criteria: list[str] | None = None
+    criteria: list[Any] | None = None
 
 
 def setup_config(
@@ -172,7 +183,7 @@ def setup_config(
         or list(DEFAULT_REQUIREMENTS),
         "attributes": clean_string_list(lists.attributes)
         or list(DEFAULT_ATTRIBUTES),
-        "criteria": clean_string_list(lists.criteria) or list(DEFAULT_CRITERIA),
+        "criteria": clean_criteria_list(lists.criteria) or _default_criteria(),
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
     }
@@ -205,24 +216,35 @@ def focus_guidance(focus: str | None) -> str:
     )
 
 
-def _setup_field_lines(title: str, raw_values: Any) -> list[str]:
+def _setup_field_lines(title: str, values: list[str]) -> list[str]:
     """Render one setup list field as bullet lines, or nothing if empty.
 
     Args:
         title: Human-readable label for the field, e.g. 'Requirements'.
-        raw_values: The raw JSON value for the field; coerced to a cleaned
-            list of strings before rendering.
+        values: The field's already-cleaned display strings.
 
     Returns:
-        Bullet-point lines for the field, or an empty list once cleaned
-        values are empty.
+        Bullet-point lines for the field, or an empty list when there are
+        no values to show.
     """
-    values = clean_string_list([str(v) for v in raw_values or []])
     if not values:
         return []
     lines = [f"- {title}:"]
     lines.extend(f"  - {value}" for value in values)
     return lines
+
+
+def _setup_field_values(setup: dict[str, Any], key: str) -> list[str]:
+    """Return one setup list field's raw JSON value as display strings.
+
+    Criteria get their own back-compat-aware coercion
+    (``criteria_display_strings``) since their stored shape may be the
+    legacy free-prose list or the R12-4 name/value pair list; the other
+    two fields are always plain strings.
+    """
+    if key == "criteria":
+        return criteria_display_strings(setup.get(key))
+    return clean_string_list([str(v) for v in setup.get(key) or []])
 
 
 def setup_guidance(setup: dict[str, Any] | None) -> str:
@@ -243,7 +265,7 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
         ("Attributes", "attributes"),
         ("Criteria", "criteria"),
     ):
-        lines.extend(_setup_field_lines(title, setup.get(key)))
+        lines.extend(_setup_field_lines(title, _setup_field_values(setup, key)))
     return "\n".join(lines)
 
 

@@ -61,6 +61,26 @@ def test_criteria_resolve_onto_the_matching_scored_axes() -> None:
     )
 
 
+def test_the_apps_published_default_criteria_resolve_onto_axes() -> None:
+    """R12-4: the app's rendered default criteria still gate soundness.
+
+    ``app.run_modes.DEFAULT_CRITERIA`` renders as "Idea correctness:
+    Required" etc. (``criteria_display_strings``) before it ever reaches
+    this gate; this is that exact rendering, so a future edit to either
+    side that stops mapping "correct" onto scientific_soundness is
+    caught here rather than only showing up as a run that stops gating on
+    it.
+    """
+    axes = _gate_axes_for_criteria(
+        [
+            "Idea correctness: Required",
+            "Idea novelty: Required",
+            "Maximize impact: Yes",
+        ]
+    )
+    assert axes == ("scientific_soundness", "novelty", "potential_impact")
+
+
 def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not() -> (
     None
 ):

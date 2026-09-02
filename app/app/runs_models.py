@@ -38,7 +38,10 @@ class CreateRunRequest(BaseModel):
     # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None
     attributes: list[str] | None = None
-    criteria: list[str] | None = None
+    # Each entry is the legacy free-prose string, or the R12-4
+    # ``{"name", "value"}`` pair shape mirroring Google's published run
+    # plan; ``clean_criteria_list`` accepts and validates both.
+    criteria: list[str | dict[str, str]] | None = None
     # Regex-validated enums; invalid values are rejected with a 422 here,
     # while None falls through to normalize_run_* defaults.
     focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)

@@ -75,12 +75,21 @@ export type RunEventActivity =
   | 'synthesis'
   | 'other';
 
+/**
+ * One entry of a run's `criteria` setup list: either the legacy free-prose
+ * string, or the R12-4 named-setting-with-value pair mirroring Google's
+ * published run plan ("Idea correctness: Required"). The UI never renders
+ * criteria item-by-item today (see `RunSpecificationsView`), so both shapes
+ * only ever need to type-check, not be told apart.
+ */
+export type RunCriterion = string | {name: string; value: string};
+
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {
   goal: string;
   requirements: string[];
   attributes: string[];
-  criteria: string[];
+  criteria: RunCriterion[];
   focus: RunFocus;
   tier: RunTier;
 }

@@ -14,6 +14,7 @@ from app import run_corpus, store
 from app.config import settings
 from app.run_modes import (
     clean_string_list,
+    criteria_display_strings,
     focus_guidance,
     normalize_run_focus,
     normalize_run_tier,
@@ -54,7 +55,12 @@ def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
         "run_setup_guidance": setup_guidance(setup),
         "attributes": _clean_list_field(setup, "attributes"),
         "constraints": _clean_list_field(setup, "requirements"),
-        "criteria": _clean_list_field(setup, "criteria"),
+        # Criteria may be stored as the legacy free-prose list or the
+        # R12-4 name/value pair list; the engine's `criteria` state field
+        # is `list[str] | None` (planning/ranking/review-gate prompt
+        # text), so both shapes render down to one display string per
+        # criterion here rather than the generic stringify above.
+        "criteria": criteria_display_strings(setup.get("criteria")),
     }
 
 

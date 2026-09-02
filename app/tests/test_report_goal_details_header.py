@@ -45,6 +45,19 @@ def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
     assert "Scientific soundness" in markdown
 
 
+def test_the_header_renders_r12_4_name_value_criteria() -> None:
+    """A run created after R12-4 stores criteria as name/value pairs."""
+    markdown = _markdown(
+        {
+            "goal": "Explain the cardiac benefit.",
+            "criteria": [{"name": "Idea correctness", "value": "Required"}],
+        }
+    )
+
+    assert "**Criteria:**" in markdown
+    assert "- Idea correctness: Required" in markdown
+
+
 def test_the_header_still_leads_with_the_title_and_provider() -> None:
     """The new section is additive: title and provider line still open."""
     markdown = _markdown({"requirements": ["A requirement."]})

@@ -1,5 +1,6 @@
 import {type ChangeEvent, useState} from 'react';
 import {
+  type RunCriterion,
   type RunWithSummary,
   type SafetyDecision,
   isTerminalStatus,
@@ -23,7 +24,7 @@ const UPLOAD_LABEL_CLASSES =
 function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   requirements: string[];
   attributes: string[];
-  criteria: string[];
+  criteria: RunCriterion[];
 } {
   if (!setup) return {requirements: [], attributes: [], criteria: []};
   return {

@@ -56,6 +56,7 @@ export type {
   Review,
   Run,
   RunConfig,
+  RunCriterion,
   RunFocus,
   RunMessage,
   RunMode,
