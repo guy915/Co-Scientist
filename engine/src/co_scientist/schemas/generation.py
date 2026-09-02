@@ -27,6 +27,35 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
     ),
 }
 
+# R14-12 (docs/CORPUS-EXTRACTION.md): every published hypothesis title is
+# an authored, compact noun phrase ("Rapamycin Suppression of mTOR-Driven
+# Growth Signaling") -- never a truncated first sentence of the body text.
+# Before this field, app/app/engine_adapter/drain_hypotheses.py derived the
+# stored display title by clipping the hypothesis statement at its first
+# sentence boundary (first_sentence). That fallback stays exactly where it
+# was, for the one case it now exists to cover: a run predating this
+# field, or a json_object downgrade whose response omits/mistypes/empties
+# it -- see the single derivation point in drain_hypotheses.py. Shared by
+# identity with EVOLUTION_SCHEMA (schemas/synthesis.py), the same pattern
+# _EXPERIMENT_FIELD below already establishes -- an evolved child needs a
+# fresh title by the same route, since its mechanism may have changed.
+# MAX_TITLE_CHARS bounds the schema description and is enforced again
+# defensively at that same derivation point, since json_object mode does
+# not enforce maxLength server-side.
+MAX_TITLE_CHARS: Final = 100
+
+_TITLE_FIELD: dict[str, Any] = {
+    "type": "string",
+    "maxLength": MAX_TITLE_CHARS,
+    "description": (
+        "A short, authored name for this hypothesis: a compact noun"
+        f" phrase under {MAX_TITLE_CHARS} characters, e.g. 'Rapamycin"
+        " Suppression of mTOR-Driven Growth Signaling'. Never a full"
+        " sentence, never a restatement or truncation of the hypothesis"
+        " text itself, and no trailing period."
+    ),
+}
+
 _EXPLANATION_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
@@ -228,6 +257,7 @@ GENERATION_SCHEMA: dict[str, Any] = {
                 "type": "array",
                 "items": obj(
                     {
+                        "title": _TITLE_FIELD,
                         "introduction": _INTRODUCTION_FIELD,
                         "recent_findings": _RECENT_FINDINGS_FIELD,
                         "hypothesis": _HYPOTHESIS_FIELD,
@@ -320,6 +350,7 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                 "type": "array",
                 "items": obj(
                     {
+                        "title": _TITLE_FIELD,
                         "introduction": _INTRODUCTION_FIELD,
                         "recent_findings": _RECENT_FINDINGS_FIELD,
                         "hypothesis": {

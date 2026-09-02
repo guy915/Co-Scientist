@@ -45,6 +45,7 @@ Consider current scientific literature and knowledge in the domain.
 4. Challenge accepted assumptions or pursue an underexplored literature-backed gap.
 5. Use enough domain detail for expert review; do not force a fixed sentence template.
 6. Explore a UNIQUE approach and preserve meaningful diversity through debate and selection.
+7. Carry a short, authored noun-phrase title naming the idea -- not a restatement of the hypothesis sentence, no trailing period.
 
 ## Novelty Language
 

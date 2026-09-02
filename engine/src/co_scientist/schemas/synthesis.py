@@ -9,12 +9,15 @@ from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
-# Evolution's experiment field asks for exactly what generation's does, so
-# it is the same object rather than a second copy of the wording (schema
-# dicts are never mutated; sharing them by identity is this package's
-# established pattern). The sibling explanation field legitimately differs
-# -- it asks for the refinements -- so it is written out below.
-from co_scientist.schemas.generation import _EXPERIMENT_FIELD
+# Evolution's experiment and title fields ask for exactly what generation's
+# do, so they are the same objects rather than second copies of the wording
+# (schema dicts are never mutated; sharing them by identity is this
+# package's established pattern). _TITLE_FIELD's ask -- a compact authored
+# noun phrase -- reads identically whether the hypothesis is new or refined
+# (R14-12), so it needs no evolution-specific rewording the way explanation
+# does below. The sibling explanation field legitimately differs -- it asks
+# for the refinements -- so it is written out below.
+from co_scientist.schemas.generation import _EXPERIMENT_FIELD, _TITLE_FIELD
 
 # Evolution schema
 # Shapes the "evolution" prompt output, consumed by the
@@ -32,6 +35,7 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
     "strict": False,
     "schema": obj(
         {
+            "title": _TITLE_FIELD,
             "hypothesis": {
                 "type": "string",
                 "description": (

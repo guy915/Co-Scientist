@@ -315,6 +315,34 @@ def test_round_trip_build_then_resolve() -> None:
 # --- hypothesis_from_llm_output ---------------------------------------------
 
 
+def test_hypothesis_from_llm_output_carries_authored_title() -> None:
+    """R14-12: the LLM-authored title reaches the constructed Hypothesis."""
+    hyp = hypothesis_from_llm_output(
+        {
+            "hypothesis": "X inhibits Y.",
+            "title": "X-Mediated Suppression of Y",
+        },
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.title == "X-Mediated Suppression of Y"
+
+
+def test_hypothesis_from_llm_output_defaults_missing_title() -> None:
+    """A payload omitting title (json_object downgrade) degrades safely.
+
+    The engine carries None through unvalidated -- the fallback to a
+    derived title lives at the app's drain, the single point it is
+    resolved, not here.
+    """
+    hyp = hypothesis_from_llm_output(
+        {"hypothesis": "X inhibits Y."},
+        sources={},
+        generation_method=GenerationMethod.DEBATE,
+    )
+    assert hyp.title is None
+
+
 def test_hypothesis_from_llm_output_carries_scene_setting() -> None:
     """The scene-setting fields (MO-6) reach the constructed Hypothesis."""
     hyp = hypothesis_from_llm_output(

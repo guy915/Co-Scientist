@@ -105,24 +105,27 @@ Evidence gathered specifically for the hypothesis being refined:
 
 ## Output Format
 
-**CRITICAL: Provide ALL FOUR components for the refined hypothesis:**
+**CRITICAL: Provide ALL FIVE components for the refined hypothesis:**
 
 Provide your refined hypothesis in JSON format with:
 
-### 1. \[Technical\] Hypothesis (required)
+### 1. Title (required)
+A short, authored noun-phrase name for the refined hypothesis (e.g. "Combinatorial mTOR-Autophagy Rescue") -- update it to reflect what changed, or keep it if the core idea did not. Never a sentence, never a restatement of the hypothesis text itself, no trailing period.
+
+### 2. \[Technical\] Hypothesis (required)
 A dense, testable mechanistic proposition with explicit context and predicted outcome.
 
-### 2. Explanation (required)
+### 3. Explanation (required)
 Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences).
 Reflects any refinements made. Explain mechanisms clearly without oversimplifying.
 
-### 3. \[Practical\] Experiment (required)
+### 4. \[Practical\] Experiment (required)
 An updated pilot test plan for the refined hypothesis, as a structured `experiment` object -- not a free-text paragraph: 2-5 ordered `steps` (models, datasets, metrics), ending with the Go/No-Go initial experiment step itself, plus `go_criterion`/`no_go_criterion` giving the exact quantitative pass/fail threshold for that step.
 
-### 4. Refinement Summary (required)
+### 5. Refinement Summary (required)
 Brief summary explaining what changes were made and why. Describe the key improvements to the hypothesis.
 
-**REMEMBER:** ALL FOUR components must be present in the refined hypothesis.
+**REMEMBER:** ALL FIVE components must be present in the refined hypothesis.
 
 **Text formatting guidelines:**
 - Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)

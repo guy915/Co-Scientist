@@ -91,6 +91,14 @@ class Hypothesis:
 
     Attributes:
         text: The dense technical hypothesis formulation
+        title: A short, authored noun-phrase name for the hypothesis (R14-12;
+            the published '# **<Product> - <Title>**' pattern), distinct from
+            ``text``. None for a run predating this field, or a
+            ``json_object`` downgrade whose response omitted it -- the app's
+            drain is where that absence is resolved to a displayable title
+            (see ``app/app/engine_adapter/drain_hypotheses.py``), so this
+            field is carried through unvalidated exactly as the LLM returned
+            it, the same as ``category``/``introduction`` below.
         id: Stable unique identifier that survives serialization and
             evolution. Excluded from equality/hashing (``compare=False``) so the
             text-based dedup heuristics are unaffected. Minted by
@@ -158,6 +166,7 @@ class Hypothesis:
         default=HypothesisOrigin.GENERATION, compare=False
     )
     creation_iteration: int | None = field(default=None, compare=False)
+    title: str | None = None
     category: str | None = None
     introduction: str | None = None
     recent_findings: str | None = None

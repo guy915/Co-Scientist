@@ -71,6 +71,10 @@ def _claim_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
         The claim, its supporting prose, and the citations it rests on.
     """
     return {
+        # R14-12: the LLM-authored display name, distinct from "text" below;
+        # None until the drain resolves a displayable title (or a run
+        # predating this field).
+        "title": hypothesis.title,
         # Also referred to as "hypothesis" in other contexts.
         "text": hypothesis.text,
         "category": hypothesis.category,

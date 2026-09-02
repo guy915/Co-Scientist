@@ -27,6 +27,7 @@ Instructions:
 4. Challenge existing assumptions or extend current knowledge based on domain expertise.
 5. Remain testable without presenting unsupported details as established facts.
 6. Explore a UNIQUE approach and preserve meaningful diversity throughout selection and refinement.
+7. Carry a short, authored noun-phrase title naming the idea -- not a restatement of the hypothesis sentence, no trailing period.
 
 ## Novelty Language
 

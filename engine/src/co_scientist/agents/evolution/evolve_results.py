@@ -33,6 +33,7 @@ class _RefinedFields:
     """The refined content an evolution LLM response yields for a child."""
 
     refined_text: str
+    title: str | None
     explanation: str | None
     experiment: str | None
     refinement_summary: str
@@ -63,8 +64,15 @@ def _extract_evolution_fields(
     # format_experiment_plan renders it back to the plain-string prose
     # _RefinedFields.experiment expects, falling back to the
     # pre-evolution experiment when the response has nothing usable.
+    #
+    # R14-12: "title" is carried through unvalidated, same as citations.py's
+    # hypothesis_from_llm_output -- a missing/malformed/empty value is left
+    # None here rather than inheriting the parent's (now possibly stale)
+    # title, since the app's drain derives a fresh fallback from the
+    # child's own refined_text when title is absent.
     return _RefinedFields(
         refined_text=refined_text,
+        title=response.get("title"),
         explanation=response.get("explanation", hypothesis.explanation),
         experiment=format_experiment_plan(
             response.get("experiment"), fallback=hypothesis.experiment
@@ -151,6 +159,7 @@ def _build_evolution_child(
     primary = parents[0]
     return Hypothesis(
         text=fields.refined_text,
+        title=fields.title,
         parent_id=primary.id,
         parent_ids=[parent.id for parent in parents],
         generation=primary.generation + 1,

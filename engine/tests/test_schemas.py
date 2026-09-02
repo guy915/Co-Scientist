@@ -3,6 +3,7 @@ from co_scientist.schemas import get_schema_for_prompt
 from co_scientist.schemas.generation import (
     GENERATION_SCHEMA,
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+    MAX_TITLE_CHARS,
 )
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
@@ -10,6 +11,7 @@ from co_scientist.schemas.review import (
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
 )
+from co_scientist.schemas.synthesis import EVOLUTION_SCHEMA
 
 # The paper's five default output criteria (SSR §1). "relevance" is the
 # engine's name for alignment with the research goal.
@@ -163,6 +165,37 @@ def test_generation_category_is_required() -> None:
     for node in (generation_item, synthesis_item):
         assert "category" in node["properties"], "category no longer declared"
         assert "category" in node["required"], "category no longer required"
+
+
+def test_generation_and_evolution_schemas_require_title() -> None:
+    """R14-12: every hypothesis-producing call authors its own title.
+
+    Google's published titles are a compact, authored noun phrase, never a
+    truncated first sentence -- shared by identity across GENERATION_SCHEMA,
+    HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA, and EVOLUTION_SCHEMA, the same
+    three call sites _EXPERIMENT_FIELD already backs (R14-20). Bounded by
+    maxLength so a schema-enforcing provider cannot return an unbounded
+    string; app/app/engine_adapter/drain_hypothesis_title.py clamps again
+    defensively for the json_object downgrade, which does not enforce it.
+    """
+    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+        "items"
+    ]
+    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
+        "properties"
+    ]["hypotheses"]["items"]
+    evolution_node = EVOLUTION_SCHEMA["schema"]
+    for node in (generation_item, synthesis_item, evolution_node):
+        assert "title" in node["properties"], "title no longer declared"
+        assert "title" in node["required"], "title no longer required"
+        assert node["properties"]["title"]["maxLength"] == MAX_TITLE_CHARS
+    # Shared by identity, not restated -- the same pattern _EXPERIMENT_FIELD
+    # already establishes for these three schemas.
+    assert (
+        generation_item["properties"]["title"]
+        is synthesis_item["properties"]["title"]
+        is evolution_node["properties"]["title"]
+    )
 
 
 def test_generation_schemas_require_scene_setting() -> None:

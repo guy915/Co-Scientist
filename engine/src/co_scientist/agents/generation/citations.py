@@ -247,9 +247,13 @@ def hypothesis_from_llm_output(
 ) -> Hypothesis:
     """Build a Hypothesis from a raw LLM hypothesis dict.
 
-    Extracts the shared fields (text/category/introduction/recent_findings/
-    explanation/literature_grounding/experiment), resolves citation keys
-    against ``sources``, and applies the default score and initial Elo.
+    Extracts the shared fields (title/text/category/introduction/
+    recent_findings/explanation/literature_grounding/experiment), resolves
+    citation keys against ``sources``, and applies the default score and
+    initial Elo. ``title`` (R14-12) is carried through unvalidated -- a
+    missing/malformed/empty value degrades to a derived title, but that
+    fallback lives at the app's drain, the single place it is resolved, not
+    here.
     ``experiment`` is rendered through ``format_experiment_plan`` (R14-20),
     which accepts the raw LLM value's structured or (degraded) string
     shape and returns the plain-string prose ``Hypothesis.experiment``
@@ -274,6 +278,7 @@ def hypothesis_from_llm_output(
         # ("hypothesis" vs "text"); support both without requiring every
         # caller to normalize the raw LLM dict first.
         text=hyp_data.get("hypothesis") or hyp_data.get("text", ""),
+        title=hyp_data.get("title"),
         category=hyp_data.get("category"),
         introduction=hyp_data.get("introduction"),
         recent_findings=hyp_data.get("recent_findings"),

@@ -149,6 +149,7 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 {
   "hypotheses": [
     {
+      "title": "A short, authored noun-phrase name for this hypothesis, under 100 characters -- not a sentence, no trailing period",
       "introduction": "2-4 sentences of scene-setting background: the problem area and why it matters, before any mechanism",
       "recent_findings": "2-4 sentences on recent literature findings and related research this hypothesis builds on",
       "hypothesis": "Final dense, falsifiable mechanistic proposition with explicit context and predicted outcome",
@@ -174,6 +175,7 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The novelty
 ```
 
 **Field requirements:**
+- `title`: A short, authored noun-phrase name for the hypothesis (e.g. "Rapamycin Suppression of mTOR-Driven Growth Signaling"), under 100 characters -- never a full sentence, never a restatement or truncation of the `hypothesis` text itself, no trailing period
 - `introduction`: 2-4 sentences of scene-setting background, before any mechanism
 - `recent_findings`: 2-4 sentences on recent literature findings and related research this hypothesis builds on; distinct from `literature_grounding`, which argues the specific hypothesis
 - `hypothesis`: Technical, falsifiable formulation approved, refined, or pivoted from the draft; do not force a fixed sentence template
