@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 79 requirement rows:
-**verified=57, partial=18, missing=1, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 80 requirement rows:
+**verified=57, partial=18, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -91,6 +91,12 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > transcription) shows Google's own product offers the identical four tiers
 > and four focus values, name for name, order for order — an exact match,
 > not a divergence. `B1`/`B2` corrected in FINDINGS.md; row count 77->79.
+
+> **Addition (2026-09-02).** `REVIEW-CRITIQUES-ROLLUP-001` added
+> (`missing`): the published detailed hypothesis output ends in a
+> per-idea "Critiques" section — a synthesized negative-critique rollup
+> distinct from both the existing per-review list and the run-level
+> meta-review critique. Recording only, not built; row count 79->80.
 
 ---
 
