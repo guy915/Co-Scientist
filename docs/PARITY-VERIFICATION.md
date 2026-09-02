@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 81 requirement rows:
-**verified=57, partial=19, missing=2, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 82 requirement rows:
+**verified=57, partial=20, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -105,6 +105,15 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > scores. Recording the divergence only, no change proposed -- the
 > published terms' individual definitions and weighting are not
 > disclosed beyond the one printed total. Row count 80->81.
+
+> **Addition (2026-09-02).** `RESEARCH-CONTACTS-FIELDS-001` added
+> (`partial`): our `research_contacts[]` schema carries five fields
+> against the narrowest published exemplar's three (name, relevance
+> paragraph, and a Research Direction heading -- corpus `R12-16`
+> undercounted its own cited exemplar). Only `expertise` is a genuinely
+> unattested addition; `candidate_id` is unrendered anti-hallucination
+> provenance and `research_direction` already matches the exemplar.
+> Recording only. Row count 81->82.
 
 ---
 
