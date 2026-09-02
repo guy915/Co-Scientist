@@ -250,6 +250,26 @@ async def test_offline_review_scores_clear_the_viable_gate() -> None:
     )
 
 
+def test_review_score_fields_matches_the_schema_criteria() -> None:
+    """``_REVIEW_SCORE_FIELDS`` must track the schema's scored axes exactly.
+
+    It hand-mirrors ``schemas.review``'s private ``_SCORE_CRITERIA`` (a
+    deliberate mirror across the module's own privacy boundary -- see the
+    comment above ``_REVIEW_SCORE_FIELDS``), so a ninth scored axis added
+    to the schema without a matching update here would silently default
+    through ``_SCALAR_DEFAULTS`` to ``NEEDS_REVISION_SCORE`` and re-break
+    the viable gate the surrounding tests pin fixed. Importing the private
+    name is deliberate: this test exists to catch exactly the drift that
+    privacy boundary would otherwise hide.
+    """
+    from co_scientist.schemas.review import _SCORE_CRITERIA
+
+    assert set(offline_llm._REVIEW_SCORE_FIELDS) == {
+        *_SCORE_CRITERIA,
+        "overall_score",
+    }
+
+
 async def test_offline_filler_supplies_the_required_category() -> None:
     """Making ``category`` required made the offline filler deterministic (K7).
 
