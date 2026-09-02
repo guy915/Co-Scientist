@@ -69,13 +69,13 @@ partial pass is never lost.
 | R10 | 9 | 7 | 0 | 2 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 7 | 2 | 3 | 1 |
-| R13 | 7 | 4 | 2 | 1 | 0 |
+| R13 | 7 | 5 | 1 | 1 | 0 |
 | R14 | 20 | 11 | 0 | 7 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 0 | 2 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **50** | **8** | **18** | **3** |
+| **Total** | **79** | **51** | **7** | **18** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -110,6 +110,13 @@ Evidence cell for what was found along the way — most notably `R9-2`'s
 discovery that `The-Swarm-Corporation`'s INSPECT verdict was already
 carried out in depth by an earlier ADR, and a NOTICE/ADR attribution
 tension on `vendor/science-skills/` this pass flags but does not resolve.
+
+**Closing pass, `LAST-OPEN` wave (2026-09-02).** `R13-10` is now **BUILT**:
+the row's own open question (does this product estimate remaining run
+time, having seen a captured Time-remaining tile) is answered by a new
+`docs/PARITY.md` row, `RUN-VIEW-ETA-001` (`missing`) — the Activity Log
+half is shipped, the ETA half is not, and building it is left to the
+owner as a labelled divergence rather than done this wave.
 
 ---
 
@@ -226,10 +233,10 @@ because its own text contains a literal `|` inside a quoted video title; part
 | R13-3 | `docs/UI-FIDELITY.md` cites an unrecoverable mp4 frame as evidence for the four-tab mapping; needs re-pointing at the tracked JPG that shows the same tab bar | **BUILT** | `docs/UI-FIDELITY.md:109-111` (the "Evidence for the mapping" note) already re-points to `media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg` ("tracked in git... shows *Ideas · Knowledge Base · Summary · Run Specification*"), explicitly stating the mp4 frame "is unrecoverable" and naming the tracked JPG as "the surviving evidence" |
 | R13-6 | 18 of 41 files in the Google Labs page capture are inert tooling with nothing to extract; the HTML itself carries product copy (R13-7) that must be pulled out before pruning to the HTML, 2 PNGs and 3 SVGs | **BUILT** | The row's ask was extract-then-prune; extraction is now done (see `R13-7`), and the prune step itself is deliberately not carried out here — the PRESERVE wave's own hard constraint forbids touching `references/` at all, so the actual file deletion stays the owner's action at `references/` deletion time, by design, not a gap. What was missing and is now recorded is the inventory itself, self-contained so a future reader does not need `references/` to trust it: of the capture's 41 `_files/`, 18 are inert tooling carrying nothing extractable — Google Tag Manager (×2), the YouTube player runtime (×2), a widget-API script plus an iframe loader, Lottie, a cookie-consent bar (×2), Fonts CSS (×2), a closure-library bootstrap, site CSS/JS (×2), and `www-player.css` (×2) — leaving the HTML, 2 PNGs, and 3 SVGs as the only files worth keeping. Source: `docs/CORPUS-EXTRACTION.md:389` (this row, verbatim) |
 | R13-7 | Google's own Labs page copy for "Hypothesis Generation — Built with Co-Scientist" (tagline, four capability cards, "Express interest" waitlist framing) is nowhere quoted in `docs/`; needs a short quoted block in `docs/FIDELITY.md`, cited to this file | **BUILT** | `docs/FIDELITY.md`'s new "Google's own framing of this product" section (PRESERVE wave, commit `33379a06`) quotes the `og:title`, the "Express interest" waitlist framing (explicitly noted as a waitlist, not self-serve), the Hypothesis Generation tagline, and all four capability cards verbatim, cited to `docs/CORPUS-EXTRACTION.md:390`. Two existing claims in the same file that paralleled this framing without citing it now point at the new block instead — the "UI exposes hypotheses..." invariant row (also fixing a dangling "see the note below on retired tabs" pointer that resolved to nothing) and the Literature Insights/Computational Discovery out-of-scope note — and `docs/EXPLAINER.md`'s opening paragraph gets one pointer sentence rather than a duplicate quote. Nothing needed correcting on the self-serve point: neither file claimed or implied Google's product is self-serve before this pass |
-| R13-10 | The tracked run-in-progress capture shows a **Time remaining** estimate tile alongside the Activity Log; whether this product estimates remaining time at all needs checking against the run view | **OPEN** | The Activity Log half is already built and shipped (`app/frontend/src/workbench/pages/run_detail_activity_log.tsx`, `ActivityLog` component, covered by `run_detail.test.tsx`). The ETA half is not: zero hits anywhere in `app/frontend/src/workbench/` or `app/app/*.py` for a time-remaining/ETA computation. The row's open question now has a definite answer — no, this product does not estimate remaining time — which is itself the verify-pass result the row asked for; building the feature (if wanted) is the remaining work |
+| R13-10 | The tracked run-in-progress capture shows a **Time remaining** estimate tile alongside the Activity Log; whether this product estimates remaining time at all needs checking against the run view | **BUILT** | Recorded, as the row's own residual asked for -- not built as a feature. `docs/PARITY.md`'s new `RUN-VIEW-ETA-001` row (`missing`, this wave, cites `corpus R13-10`) states the answer by name: the Activity Log half is already built and shipped (`app/frontend/src/workbench/pages/run_detail_activity_log.tsx`, `ActivityLog` component, covered by `run_detail.test.tsx`); the Time-remaining/ETA half does not exist anywhere in `app/frontend/src/workbench/` or `app/app/*.py` -- zero hits. Estimating remaining run time is deliberately not built here; it is a product feature with its own accuracy problems and is left to the owner |
 | R13-12 (a) | A tracked JPG's filename (`esn-poma-hub-hypothesis-full-detail-with-diagram.jpg`) does not match its content (a Computational Discovery splash screen); any future row citing the filename would cite the wrong image | **OPEN** | No rename and no note exists: zero hits for this filename or "Carl Elkin" anywhere in `docs/` outside this row's own text. The mismatch is not yet flagged anywhere a future reader citing the filename would see it |
 
-**R13: 4 BUILT / 2 OPEN / 1 DECISION / 0 FALSE.**
+**R13: 5 BUILT / 1 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
