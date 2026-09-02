@@ -53,28 +53,29 @@ partial pass is never lost.
 
 ---
 
-## Summary (filled in as each region is audited)
+## Summary
 
 | Region | Rows | BUILT | OPEN | DECISION | FALSE |
 |---|---|---|---|---|---|
-| R1 | 3 | | | | |
-| R6 | 2 | | | | |
-| R8 | 3 | | | | |
-| R9 | 3 | | | | |
-| R10 | 9 | | | | |
-| R11 | 4 | | | | |
-| R12 | 13 | | | | |
-| R13 | 6 | | | | |
-| R14 | 20 | | | | |
-| MA | 6 | | | | |
-| MC | 1 | | | | |
-| MO | 5 | | | | |
-| MP | 3 | | | | |
-| **Total** | **78** | | | | |
+| R1 | 3 | 0 | 2 | 1 | 0 |
+| R6 | 2 | 0 | 2 | 0 | 0 |
+| R8 | 3 | 1 | 2 | 0 | 0 |
+| R9 | 3 | 0 | 2 | 1 | 0 |
+| R10 | 9 | 6 | 1 | 2 | 0 |
+| R11 | 4 | 3 | 1 | 0 | 0 |
+| R12 | 13 | 3 | 6 | 3 | 1 |
+| R13 | 7 | 2 | 4 | 1 | 0 |
+| R14 | 20 | 10 | 1 | 7 | 2 |
+| MA | 6 | 6 | 0 | 0 | 0 |
+| MC | 1 | 1 | 0 | 0 | 0 |
+| MO | 5 | 0 | 2 | 3 | 0 |
+| MP | 3 | 3 | 0 | 0 | 0 |
+| **Total** | **79** | **35** | **23** | **18** | **3** |
 
-(R13-12 is tracked half as `work` (part (a)) and half `external` (part (b),
-out of scope); it counts once, under R13, for part (a) only — hence 78, not
-79, rows actually classified.)
+R13's row count is 7, not the 6-row naive parse: it includes `R13-12`'s
+part (a), which a naive table-column split misreads because the row's own
+text contains a literal `|` inside a quoted video title (part (b) is
+`external`, out of scope). 79 rows classified in total.
 
 ---
 
