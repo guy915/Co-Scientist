@@ -265,3 +265,13 @@ implementation stack (Temporal, Celery/Redis, pgvector, specific NLI models).
 These are **not** treated as parity requirements: the clone keeps
 its FastAPI + LangGraph + SQLite deployment and adds only the behaviors the
 paper specifies.
+
+Separately from that proposed stack, Google's own *actual* production stack
+is never confirmed by any public source on six axes: source language(s),
+frontend framework, backend framework, storage engine(s), queue product, and
+retrieval index (`docs/CORPUS-EXTRACTION.md:772`, corpus row R9-3, a
+citation-disciplined survey whose own uncertainty register states this).
+This corroborates rather than extends the list above — it confirms this
+repo's FastAPI + LangGraph + SQLite + React choices are local on every one
+of those six axes too, none of them extracted from any confirmed Google
+disclosure.
