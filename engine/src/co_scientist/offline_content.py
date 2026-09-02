@@ -226,6 +226,37 @@ _SUMMARY_TEMPLATES = (
     "Separates the {term_a} contribution to {term_b} from its context",
 )
 
+# Short, standalone labels, not critique-shaped prose: FULL_REVIEW_SCHEMA's
+# go_no_go_recommendation/time_to_verdict and META_REVIEW_SCHEMA's
+# phase_label/recommended_idea/time_estimate render beside a UI label
+# ("Verdict:", a roadmap step prefix), so leaf_text's _STANDALONE_TEMPLATES
+# check below exempts them from the trailing _SCOPE_CLAUSES sentence every
+# other field gets -- unexempted, they fell through to _SUMMARY_TEMPLATES
+# and read as a stray argument next to a label meant to hold a phrase.
+_GO_NO_GO_TEMPLATES = (
+    "Go -- pursue the {term_a} experiment given the {term_b} evidence",
+    "Go -- advance to validation, using {term_a} as the primary readout",
+    "No-Go -- {term_a} remains unresolved without further {term_b} data",
+    "Hold -- revisit once the {term_b} step clarifies {term_a}",
+)
+
+_TIME_ESTIMATE_TEMPLATES = (
+    "Short (1-2 weeks)",
+    "2-4 weeks",
+    "1-2 months",
+    "2-3 months",
+    "One quarter",
+)
+
+_PHASE_LABEL_TEMPLATES = ("Phase A", "Phase B", "Phase C", "Stage 1", "Stage 2")
+
+_RECOMMENDED_IDEA_TEMPLATES = (
+    "Hypothesis 1",
+    "Hypothesis 2",
+    "Hypothesis 3",
+    "Hypothesis 1, building on Hypothesis 2",
+)
+
 # One of these is appended to every non-title leaf, and it is what keeps two
 # ideas in the same run from reading as the same idea.
 #
@@ -269,6 +300,13 @@ _SCOPE_CLAUSES = (
 )
 
 _FIELD_TEMPLATES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # Exact field names, ahead of the generic fragments below, so a
+    # standalone-label field can never be shadowed by a broader match.
+    ("go_no_go_recommendation", _GO_NO_GO_TEMPLATES),
+    ("time_to_verdict", _TIME_ESTIMATE_TEMPLATES),
+    ("time_estimate", _TIME_ESTIMATE_TEMPLATES),
+    ("phase_label", _PHASE_LABEL_TEMPLATES),
+    ("recommended_idea", _RECOMMENDED_IDEA_TEMPLATES),
     ("experiment", _EXPERIMENT_TEMPLATES),
     ("feedback", _CRITIQUE_TEMPLATES),
     ("critique", _CRITIQUE_TEMPLATES),
@@ -400,6 +438,16 @@ def _templates_for(field: str) -> tuple[str, ...]:
     return _SUMMARY_TEMPLATES
 
 
+# Already a complete, short label -- a _SCOPE_CLAUSES sentence appended to
+# "Phase A" or "2-4 weeks" would turn a label into a run-on.
+_STANDALONE_TEMPLATES: tuple[tuple[str, ...], ...] = (
+    _GO_NO_GO_TEMPLATES,
+    _TIME_ESTIMATE_TEMPLATES,
+    _PHASE_LABEL_TEMPLATES,
+    _RECOMMENDED_IDEA_TEMPLATES,
+)
+
+
 def leaf_text(
     rng: random.Random,
     ordinal: int,
@@ -433,6 +481,8 @@ def leaf_text(
     text = template.format(term_a=term_a, term_b=term_b)
     if templates is _TITLE_TEMPLATES:
         return f"{text[:1].upper()}{text[1:]} ({ordinal})"
+    if templates in _STANDALONE_TEMPLATES:
+        return f"{text[:1].upper()}{text[1:]}"
     # Drawn after the terms, so the clause varies independently of them --
     # see _SCOPE_CLAUSES for why an independent draw is the whole point.
     clause = _SCOPE_CLAUSES[rng.randrange(len(_SCOPE_CLAUSES))]
