@@ -77,14 +77,17 @@ partial pass is never lost.
 | MP | 3 | 3 | 0 | 0 | 0 |
 | **Total** | **79** | **43** | **15** | **18** | **3** |
 
-**Closing pass (2026-09-02).** Nine rows closed since the table above was
-first built: `R6-5`, `R6-6`, `R8-6` (half — see its own row), `R10-8`,
-`R11-1`, `R12-1`, `R12-2`, `R12-14`, `R12-16`. Each region's per-section
-summary line and the counts above reflect the closures; see each row's
-Evidence cell for what actually landed and, for four of the nine, a
-correction to the row's own original claim (`R6-6`'s Crossref-role
-framing, `R8-6`'s docstring follow-up, `R12-14`'s source citation,
-`R12-16`'s field count) rather than only a verdict change.
+**Closing pass (2026-09-02).** Eight rows closed and one half-closed
+since the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
+`R12-1`, `R12-2`, `R12-14`, `R12-16` are now **BUILT**; `R8-6` is half —
+see its own row. Each region's per-section summary line and the counts
+above reflect the closures; see each row's Evidence cell for what
+actually landed and, for three of the eight, a correction to the row's
+own original claim (`R6-6`'s Crossref-role framing, `R12-14`'s source
+citation, `R12-16`'s field count) rather than only a verdict change.
+`R8-6`'s docstring half is a genuine follow-up fix, not a correction to
+the row's original evidence — its original OPEN verdict was already
+accurate (neither deliverable existed yet).
 
 R13's row count is 7, not the 6-row naive parse: it includes `R13-12`'s
 part (a), which a naive table-column split misreads because the row's own
@@ -110,7 +113,7 @@ Noticed in passing: none.
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
 | R6-5 | FINDINGS `G4`'s evidence line claims bioRxiv, Open Targets, and ClinicalTrials "no longer appear" in config; the row says all three are now registered with real backends | **BUILT** | Both `G4` occurrences are now corrected (`docs/fidelity-audit/FINDINGS.md:172,386`, commits `2299c25e`/`6b3c65d2`): the row's own gap line now states the accurate split inline -- bioRxiv (`preprint_search`), OpenTargets, and ClinicalTrials.gov are registered with real, tested MCP backends; arXiv, Semantic Scholar, Crossref, and Google Scholar remain genuinely absent (arXiv/Google Scholar appear only in illustrative `config/examples/*.yaml`, never a live tool). Both `G4` lines cite this row by name (`corpus R6-5`) |
-| R6-6 | Crossref plays two distinct roles in the corpus — literature *search* (deliberately absent, per `G4`) and *retraction lookup* (would close `CITE-META-001`'s residual) — and a future reader must not collapse them | **BUILT** | `docs/PARITY.md:167`'s `CITE-META-001` residual now carries exactly the clarifying line the row asked for (commit `ef7a0bed`, cites `corpus R6-6`): search stays deliberately absent (`G4`), and retraction lookup is *not* absent -- `app/app/citation_resolver.py::resolve_one` already checks a DOI against `app/app/retraction_set.py`'s offline set, itself extracted from the Crossref/Retraction Watch dataset, on every real run (`settings.evidence_resolver == "live"`, the production default). That correction also surfaced a narrower discard the row didn't originally ask about -- the live `RETRACTED` verdict reached `drain_evidence_resolution.py::_resolved_from_requests` and was collapsed into plain `available=False`, indistinguishable from an ordinary dead link. Now fixed in this same wave: `ResolvedArticle.retracted` carries the flag through to a new `evidence.retracted` column (`app/app/store/db_migrations.py`), rendered as a distinct "Retracted" pill (`run_detail_learning_references.tsx`), pinned by `app/tests/test_engine_drain_evidence_identity.py`. `CITE-META-001` stays `partial` regardless -- its remaining residual, that `claims_gate.assess_resolvability`'s swappable `Resolver` seam is itself never invoked outside `app/tests/test_claims.py`, is a distinct, still-open finding this row never asked to close |
+| R6-6 | Crossref plays two distinct roles in the corpus — literature *search* (deliberately absent, per `G4`) and *retraction lookup* (would close `CITE-META-001`'s residual) — and a future reader must not collapse them | **BUILT** | `docs/PARITY.md:167`'s `CITE-META-001` residual now carries exactly the clarifying line the row asked for (commit `ef7a0bed`, cites `corpus R6-6`): search stays deliberately absent (`G4`), and retraction lookup is *not* absent -- `app/app/citation_resolver.py::resolve_one` already checks a DOI against `app/app/retraction_set.py`'s offline set, itself extracted from the Crossref/Retraction Watch dataset, on every real run (`settings.evidence_resolver == "live"`, the production default). The row's own original OPEN-verdict evidence claimed the opposite -- "no `crossref`/`api.crossref.org` reference in either" file -- and that claim does not survive a read: `retraction_set.py` names Crossref twice in its module docstring ("a paper retracted at Crossref can", "the Crossref/Retraction Watch dataset", lines 5 and 7), capitalized, which a case-sensitive grep for lowercase `crossref` missed. That correction also surfaced a narrower discard the row didn't originally ask about -- the live `RETRACTED` verdict reached `drain_evidence_resolution.py::_resolved_from_requests` and was collapsed into plain `available=False`, indistinguishable from an ordinary dead link. Now fixed in this same wave: `ResolvedArticle.retracted` carries the flag through to a new `evidence.retracted` column (`app/app/store/db_migrations.py`), rendered as a distinct "Retracted" pill (`run_detail_learning_references.tsx`), pinned by `app/tests/test_engine_drain_evidence_identity.py`. `CITE-META-001` stays `partial` regardless -- its remaining residual, that `claims_gate.assess_resolvability`'s swappable `Resolver` seam is itself never invoked outside `app/tests/test_claims.py`, is a distinct, still-open finding this row never asked to close |
 
 **R6: 2 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
