@@ -1,4 +1,25 @@
-"""Offline test-time scaling and controlled-ablation evaluation."""
+"""Offline test-time scaling and controlled-ablation evaluation.
+
+Two distinct scaling methods live here, answering different questions --
+see each function's docstring for which is which:
+
+- ``scaling_curve`` compares SEPARATE runs at different compute *tiers*.
+  Offline, this measures the harness's wiring, not the model: the
+  deterministic offline backend answers every call the same canned way
+  regardless of tier, so an offline curve cannot show quality scaling with
+  budget (see ``EVAL-SCALING-001``'s residual).
+- ``temporal_scaling_curve`` is Google's own published method (SSR L141,
+  App. D; Figures 4-5): partition ONE run's hypotheses into ten equal
+  temporal buckets in creation order and track best/top-10-average Elo
+  across them. It never varies tier -- it measures whether a single run's
+  own hypothesis quality trends upward over its own generation/evolution
+  cycles. Unlike the tier curve, this genuinely works offline: a run's
+  Elo ratings come from real tournament matches over the run's own
+  hypotheses (the offline backend judges those matches by a deterministic
+  rule, not by literal quality, but the resulting spread across creation
+  order is real signal, not a byproduct of comparing identical canned
+  answers across tiers).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +31,9 @@ from pathlib import Path
 from typing import Any
 
 from evaluations.metrics import hypothesis_diversity
+
+_TEMPORAL_BUCKET_COUNT = 10
+_TOP_N_ELO = 10
 
 
 def _mean(values: Sequence[float]) -> float | None:
@@ -77,6 +101,104 @@ def scaling_curve(snapshots: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             item["compute"]["tasks"],
         ),
     )
+
+
+def _hypothesis_elo(item: dict[str, Any]) -> int | None:
+    """Return a hypothesis's Elo rating, or None when it carries none."""
+    rating = item.get("elo_rating")
+    return int(rating) if rating is not None else None
+
+
+def _creation_order_key(item: dict[str, Any]) -> tuple[float, str]:
+    """Sort key placing a run's hypotheses in creation order.
+
+    ``created_at`` (a float epoch, per ``app.store.schema``) is the primary
+    key; ``id`` breaks ties deterministically for hypotheses inserted in
+    the same instant -- e.g. a batch of siblings from one generation call --
+    the same tie-break ``store.list_hypotheses`` itself uses for its own
+    Elo-descending default order. A missing timestamp sorts first rather
+    than raising, since some callers (tests, older snapshots) may omit it.
+    """
+    created_at = item.get("created_at")
+    order = float(created_at) if created_at is not None else 0.0
+    return (order, str(item.get("id") or ""))
+
+
+def _split_into_buckets(
+    items: Sequence[dict[str, Any]], bucket_count: int
+) -> list[list[dict[str, Any]]]:
+    """Partition items into up to ``bucket_count`` contiguous equal chunks.
+
+    Fewer than ``bucket_count`` items yields one hypothesis per bucket
+    instead of padding out empty ones -- a run with, say, 4 hypotheses
+    cannot form 10 *equal, non-empty* temporal buckets, and an empty
+    bucket would report a meaningless null point on the curve. Otherwise
+    this is the standard near-equal contiguous partition: the first
+    ``n % bucket_count`` buckets get one extra item.
+    """
+    n = len(items)
+    if n == 0:
+        return []
+    k = min(bucket_count, n)
+    base, remainder = divmod(n, k)
+    buckets: list[list[dict[str, Any]]] = []
+    start = 0
+    for i in range(k):
+        size = base + (1 if i < remainder else 0)
+        buckets.append(list(items[start : start + size]))
+        start += size
+    return buckets
+
+
+def _temporal_bucket_point(
+    bucket: Sequence[dict[str, Any]], index: int, total: int
+) -> dict[str, Any]:
+    """Summarize one temporal bucket's best Elo and top-10-average Elo."""
+    ratings = [r for r in (_hypothesis_elo(h) for h in bucket) if r is not None]
+    ranked = sorted(ratings, reverse=True)
+    return {
+        "bucket": index + 1,
+        "of": total,
+        "n_hypotheses": len(bucket),
+        "best_elo": max(ratings) if ratings else None,
+        "top10_avg_elo": _mean(ranked[:_TOP_N_ELO]),
+    }
+
+
+def temporal_scaling_curve(
+    hypotheses: Sequence[dict[str, Any]],
+    *,
+    bucket_count: int = _TEMPORAL_BUCKET_COUNT,
+) -> list[dict[str, Any]]:
+    """Google's published within-run scaling method (SSR L141, Figs. 4-5).
+
+    Partitions ONE run's hypotheses into ``bucket_count`` (default 10)
+    equal-size temporal buckets in creation order -- the first bucket the
+    earliest-generated tenth, the last the most recent -- and reports each
+    bucket's best (maximum) Elo rating and its top-10-average Elo rating
+    (mean of up to the bucket's own top 10 ratings, matching the paper's
+    "average Elo rating of the top 10 hypotheses" and the same up-to-10
+    pattern ``_scaling_point`` already uses for a whole run). Unlike
+    ``scaling_curve`` (separate runs, different compute tiers), this never
+    varies budget: it measures whether one run's own hypothesis quality
+    trends upward over its own generation/evolution cycles -- exactly what
+    Figures 4 and 5 plot, per goal, before any cross-goal averaging.
+
+    Degenerate cases handled without raising:
+        - An empty run (no hypotheses) returns ``[]``.
+        - A run with fewer than ``bucket_count`` hypotheses returns one
+          bucket per hypothesis rather than padding out empty buckets.
+        - A hypothesis with no Elo yet (missing or None ``elo_rating``) is
+          excluded from its bucket's Elo stats; a bucket where every
+          hypothesis lacks one reports ``best_elo``/``top10_avg_elo`` as
+          ``None`` instead of raising.
+    """
+    ordered = sorted(hypotheses, key=_creation_order_key)
+    buckets = _split_into_buckets(ordered, bucket_count)
+    return [
+        _temporal_bucket_point(bucket, i, len(buckets))
+        for i, bucket in enumerate(buckets)
+    ]
 
 
 def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:

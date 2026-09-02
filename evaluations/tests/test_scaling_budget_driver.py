@@ -59,3 +59,30 @@ def test_offline_snapshots_carry_claim_counts_scaling_eval_expects() -> None:
         assert "elo_rating" in hypothesis
         assert isinstance(hypothesis["assessed_claims"], int)
         assert isinstance(hypothesis["verified_claims"], int)
+
+
+def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
+    """R1-13: each arm's own within-run temporal curve, from a real run.
+
+    Express requests 4 initial hypotheses (fewer than the published
+    method's 10 buckets), so this also exercises the "fewer than ten
+    hypotheses" degenerate case against a genuine offline durable run
+    rather than only synthetic dicts.
+    """
+    report = run_budget_curve(
+        "Explain a plausible mechanism of antibiotic tolerance in "
+        "biofilm-embedded bacteria.",
+        ["express"],
+        live=False,
+    )
+    snapshot = report["snapshots"][0]
+    curve = snapshot["temporal_curve"]
+
+    assert curve, "an express run must produce at least one hypothesis"
+    assert len(curve) <= 10
+    assert sum(b["n_hypotheses"] for b in curve) == len(
+        snapshot["hypotheses"]
+    )
+    for bucket in curve:
+        assert bucket["best_elo"] is not None, "offline run always rates"
+        assert bucket["of"] == len(curve)

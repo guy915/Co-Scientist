@@ -1,6 +1,22 @@
 """Scaling-curve and controlled-ablation evaluation tests."""
 
-from evaluations.scaling_eval import ablation_summary, scaling_curve
+from __future__ import annotations
+
+from typing import Any
+
+from evaluations.scaling_eval import (
+    ablation_summary,
+    scaling_curve,
+    temporal_scaling_curve,
+)
+
+
+def _hyp(hid: str, created_at: float, elo: int | None) -> dict[str, Any]:
+    """Build one bare hypothesis dict for the temporal-bucket tests."""
+    entry: dict[str, Any] = {"id": hid, "created_at": created_at}
+    if elo is not None:
+        entry["elo_rating"] = elo
+    return entry
 
 
 def test_scaling_curve_orders_compute_and_uses_expert_quality() -> None:
@@ -41,6 +57,76 @@ def test_scaling_curve_orders_compute_and_uses_expert_quality() -> None:
     assert curve[1]["top10_expert_quality"] == 4.5
     assert curve[1]["verified_claim_ratio"] == 0.75
     assert curve[1]["best_elo"] == 1320
+
+
+def test_temporal_scaling_curve_orders_by_creation_not_by_elo() -> None:
+    """Buckets follow ``created_at``, not the caller's list order or Elo."""
+    # Deliberately shuffled and Elo-descending in list order, so a bug that
+    # bucketed by list position or by Elo instead of creation time would
+    # put "late" in bucket 1 or "mid" last.
+    hypotheses = [
+        _hyp("late", created_at=30.0, elo=1100),
+        _hyp("early", created_at=10.0, elo=1300),
+        _hyp("mid", created_at=20.0, elo=1200),
+    ]
+
+    curve = temporal_scaling_curve(hypotheses, bucket_count=3)
+
+    assert [b["best_elo"] for b in curve] == [1300, 1200, 1100]
+    assert [b["n_hypotheses"] for b in curve] == [1, 1, 1]
+    assert [b["bucket"] for b in curve] == [1, 2, 3]
+    assert all(b["of"] == 3 for b in curve)
+
+
+def test_temporal_scaling_curve_tracks_top_10_average_within_a_bucket() -> (
+    None
+):
+    """``top10_avg_elo`` averages up to 10 hypotheses per bucket, not more."""
+    bucket_a = [_hyp(f"a{i}", float(i), 1000 + i) for i in range(12)]
+    curve = temporal_scaling_curve(bucket_a, bucket_count=1)
+
+    assert curve[0]["n_hypotheses"] == 12
+    assert curve[0]["best_elo"] == 1011
+    # Top 10 of {1000..1011} are 1002..1011, averaging 1006.5.
+    assert curve[0]["top10_avg_elo"] == 1006.5
+
+
+def test_temporal_scaling_curve_handles_an_empty_run() -> None:
+    assert temporal_scaling_curve([]) == []
+
+
+def test_temporal_scaling_curve_handles_fewer_than_ten_hypotheses() -> None:
+    """One bucket per hypothesis, not ten with mostly-empty buckets."""
+    hypotheses = [_hyp("a", 1.0, 1200), _hyp("b", 2.0, 1250)]
+
+    curve = temporal_scaling_curve(hypotheses)
+
+    assert len(curve) == 2
+    assert [b["of"] for b in curve] == [2, 2]
+    assert [b["n_hypotheses"] for b in curve] == [1, 1]
+
+
+def test_temporal_scaling_curve_handles_no_elo_yet() -> None:
+    """A hypothesis with no elo_rating never crashes max()/mean()."""
+    hypotheses = [_hyp("a", 1.0, None), _hyp("b", 2.0, None)]
+
+    curve = temporal_scaling_curve(hypotheses)
+
+    assert all(b["best_elo"] is None for b in curve)
+    assert all(b["top10_avg_elo"] is None for b in curve)
+
+
+def test_temporal_scaling_curve_skips_unrated_hypotheses_within_a_bucket() -> (
+    None
+):
+    """A bucket with a mix of rated/unrated hypotheses ignores the unrated."""
+    hypotheses = [_hyp("a", 1.0, 1200), _hyp("b", 2.0, None)]
+
+    curve = temporal_scaling_curve(hypotheses, bucket_count=1)
+
+    assert curve[0]["n_hypotheses"] == 2
+    assert curve[0]["best_elo"] == 1200
+    assert curve[0]["top10_avg_elo"] == 1200.0
 
 
 def test_ablation_summary_counts_only_fully_paired_goals() -> None:

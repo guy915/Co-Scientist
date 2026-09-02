@@ -7,7 +7,11 @@ a request-body override may only *raise* a tier baseline, never lower it,
 and a raised knob would stop an arm from differing by budget alone. Emits
 the ``snapshots`` shape ``evaluations.scaling_eval.scaling_curve`` already
 reads, and calls that function so the artifact carries the computed curve
-too, not just the raw per-arm snapshots.
+too, not just the raw per-arm snapshots. Each snapshot also carries
+``temporal_curve`` (R1-13): Google's own published within-run method
+(``scaling_eval.temporal_scaling_curve``) applied to that arm's own
+hypotheses -- ten equal buckets in creation order, best/top-10-average
+Elo per bucket. It never varies tier.
 
 **Offline (default, the only mode CI or a committed test exercises):**
 proves the driver's wiring end-to-end against the deterministic offline LLM
@@ -16,7 +20,11 @@ really do request increasing hypothesis/tournament/evidence counts -- it is
 NOT evidence that a real model's output quality scales with compute budget,
 since the offline backend answers every call the same canned way regardless
 of tier. Every offline artifact this driver writes carries an explicit
-``offline_disclaimer`` field saying so.
+``offline_disclaimer`` field saying so. That disclaimer covers the
+cross-tier ``curve`` only -- each arm's own ``temporal_curve`` is a real,
+if small, within-run measurement even offline: its Elo ratings come from
+real tournament matches over that arm's own hypotheses, not from
+comparing identical canned answers across tiers.
 
 **Live (``--live``, opt-in only, never run automatically):** needs a real
 provider key (``DEEPSEEK_API_KEY``) and, for literature grounding, a
@@ -41,7 +49,7 @@ from typing import Any
 
 from evaluations import _run_driver
 from evaluations._artifacts import write_dated_artifact
-from evaluations.scaling_eval import scaling_curve
+from evaluations.scaling_eval import scaling_curve, temporal_scaling_curve
 
 # Mirrors app.run_modes.RUN_TIER_DEFAULTS's key order (smallest budget
 # first); duplicated as a plain tuple so this module's CLI default does not
@@ -67,12 +75,20 @@ _OFFLINE_DISCLAIMER = (
 
 
 def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
-    """Shape one driven arm into the snapshot ``scaling_curve`` reads."""
+    """Shape one driven arm into the snapshot ``scaling_curve`` reads.
+
+    Also carries ``temporal_curve`` (R1-13): Google's published within-run
+    method, applied to this arm's own hypotheses. Unlike the cross-tier
+    ``curve`` this driver already builds, this genuinely means something
+    offline too -- it measures whether *this run's own* Elo ratings trend
+    across its own creation order, not whether tiers differ.
+    """
     return {
         "run_id": arm["run_id"],
         "goal_id": _GOAL_ID,
         "metrics": arm["metrics"],
         "hypotheses": arm["hypotheses"],
+        "temporal_curve": temporal_scaling_curve(arm["hypotheses"]),
     }
 
 
@@ -138,6 +154,19 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _print_temporal_curves(report: dict[str, Any]) -> None:
+    """Print each arm's within-run temporal Elo curve (R1-13)."""
+    for snapshot in report["snapshots"]:
+        print(f"  temporal curve for {snapshot['run_id']}:")
+        for bucket in snapshot["temporal_curve"]:
+            print(
+                f"      bucket {bucket['bucket']}/{bucket['of']} "
+                f"n={bucket['n_hypotheses']:<2} "
+                f"best_elo={bucket['best_elo']} "
+                f"top10_avg_elo={bucket['top10_avg_elo']}"
+            )
+
+
 def main() -> int:
     """Run the CLI: drive the curve, write the artifact, print a summary."""
     args = _parse_args()
@@ -158,6 +187,7 @@ def main() -> int:
             f"cost_usd={point['cost_usd']} "
             f"latency_s={point['latency_seconds']}"
         )
+    _print_temporal_curves(report)
     if report["offline_disclaimer"]:
         print(f"NOTE: {report['offline_disclaimer']}")
     print(f"wrote {out}")

@@ -62,7 +62,7 @@ partial pass is never lost.
 
 | Region | Rows | BUILT | OPEN | DECISION | FALSE |
 |---|---|---|---|---|---|
-| R1 | 3 | 0 | 2 | 1 | 0 |
+| R1 | 3 | 2 | 0 | 1 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
 | R8 | 3 | 1 | 2 | 0 | 0 |
 | R9 | 3 | 0 | 2 | 1 | 0 |
@@ -75,19 +75,20 @@ partial pass is never lost.
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 0 | 2 | 3 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **44** | **14** | **18** | **3** |
+| **Total** | **79** | **46** | **12** | **18** | **3** |
 
-**Closing pass (2026-09-02).** Eight rows closed and one half-closed
-since the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
-`R12-1`, `R12-2`, `R12-14`, `R12-16` are now **BUILT**; `R8-6` is half —
-see its own row. Each region's per-section summary line and the counts
-above reflect the closures; see each row's Evidence cell for what
-actually landed and, for three of the eight, a correction to the row's
-own original claim (`R6-6`'s Crossref-role framing, `R12-14`'s source
-citation, `R12-16`'s field count) rather than only a verdict change.
-`R8-6`'s docstring half is a genuine follow-up fix, not a correction to
-the row's original evidence — its original OPEN verdict was already
-accurate (neither deliverable existed yet).
+**Closing pass (2026-09-02).** Ten rows closed and one half-closed since
+the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
+`R12-1`, `R12-2`, `R12-14`, `R12-16`, `R1-12`, `R1-13` are now **BUILT**;
+`R8-6` is half — see its own row. Each region's per-section summary line
+and the counts above reflect the closures; see each row's Evidence cell
+for what actually landed and, for three of the ten, a correction to the
+row's own original claim (`R6-6`'s Crossref-role framing, `R12-14`'s
+source citation, `R12-16`'s field count) rather than only a verdict
+change. `R8-6`'s docstring half is a genuine follow-up fix, not a
+correction to the row's original evidence — its original OPEN verdict
+was already accurate (neither deliverable existed yet). `R1-12`/`R1-13`
+closed in the `EVAL-METHODS` fidelity-campaign wave, not this pass.
 
 R13's row count is 7, not the 6-row naive parse: it includes `R13-12`'s
 part (a), which a naive table-column split misreads because the row's own
@@ -100,11 +101,11 @@ text contains a literal `|` inside a quoted video title (part (b) is
 
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
-| R1-12 | Elo-quality concordance should bucket by Elo in 50-point increments and compute accuracy per bucket | **OPEN** | `evaluations/elo_concordance_eval.py` (371 lines) has zero occurrences of "bucket", "increment", or "50" — confirmed by direct grep, not the row's own claim taken on faith. It scores Kendall's tau-b rank concordance instead, a different method entirely. `docs/PARITY.md:207` (`EVAL-ELO-CALIB-001`, `partial`) names the licensed-corpus gap but not this method gap — the two are independent residuals |
-| R1-13 | Scaling should partition one run's hypotheses into ten equal temporal buckets, tracking best/top-10-average Elo across them | **OPEN** | `evaluations/scaling_eval.py:64` — `scaling_curve()` sorts snapshots by `(llm_calls, tasks)` across separate runs at different compute *tiers*; there is no within-run temporal partition anywhere in the file or in `scaling_budget_driver.py`. `docs/PARITY.md:208` (`EVAL-SCALING-001`, `partial`) already states the offline curve "measures the harness rather than the model" — that residual is about credentials, not this structural gap, which is still unaddressed |
+| R1-12 | Elo-quality concordance should bucket by Elo in 50-point increments and compute accuracy per bucket | **BUILT** | `evaluations/elo_concordance_eval.py::elo_bucket_accuracy` (EVAL-METHODS wave) now implements Google's published method exactly: pools every candidate's final Elo across items, buckets in 50-point increments anchored the same way the paper's own boundaries are (1001-1050, 1051-1100, ...), and reports percent-correct per bucket. Kendall's tau-b stays alongside it, kept as an independent sanity check of the harness's own Elo math rather than a substitute for the published method — a deliberate keep-both decision, not an oversight. `docs/PARITY.md:207` (`EVAL-ELO-CALIB-001`, still `partial`) now correctly names only the remaining gap — licensed GPQA corpus, credentials, and the paper's Gemini-2.0 reference-accuracy baseline — not a method difference. Tests: `evaluations/tests/test_elo_concordance_eval.py` |
+| R1-13 | Scaling should partition one run's hypotheses into ten equal temporal buckets, tracking best/top-10-average Elo across them | **BUILT** | `evaluations/scaling_eval.py::temporal_scaling_curve` (EVAL-METHODS wave) implements the published method: partitions ONE run's hypotheses into ten equal temporal buckets in creation order, reporting best Elo and top-10-average Elo per bucket, never varying tier. `scaling_budget_driver.py` wires it per arm (`snapshot["temporal_curve"]`), and — unlike the pre-existing cross-tier `scaling_curve()`, which stays harness-only offline (the deterministic backend answers identically at every tier) — this genuinely measures something offline too, since a run's own Elo ratings come from real tournament matches over its own hypotheses regardless of backend determinism. Degenerate cases handled: an empty run, a run with fewer than ten hypotheses (confirmed against a real offline express run, which produces 8), and hypotheses with no Elo yet. `docs/PARITY.md:208` (`EVAL-SCALING-001`, still `partial`) now describes both methods and what each one does and does not tell us. Tests: `evaluations/tests/test_scaling_eval.py`, `evaluations/tests/test_scaling_budget_driver.py` |
 | R1-18 | Three glossary terms — "novel repurposing candidate", "novel target", "novel mechanistic explanation" — as a controlled vocabulary | **DECISION** | Not implemented as a controlled vocabulary anywhere in engine or app code. One coincidental match: `engine/src/co_scientist/config/examples/indra_ibd.yaml:39` defines "novel mechanistic explanation" as a domain-specific term for one example config (IBD), unrelated to the SSR's system-wide glossary. The open question is unchanged from the row: whether these three terms should be load-bearing (e.g. as an enum somewhere) or are merely descriptive prose the schema doesn't need |
 
-**R1: 0 BUILT / 2 OPEN / 1 DECISION / 0 FALSE.**
+**R1: 2 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
