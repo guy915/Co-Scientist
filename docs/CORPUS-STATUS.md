@@ -177,3 +177,23 @@ Noticed in passing: none.
 **R12: 3 BUILT / 6 OPEN / 3 DECISION / 1 FALSE.**
 
 Noticed in passing: none beyond `R12-23`'s partial resolution (noted inline above — its `Research directions` half stays open, folded into the row's own verdict rather than split into a new row).
+
+## R13 — `media/`
+
+Includes `R13-12`'s part (a) — the naive table-column split misreads this row
+because its own text contains a literal `|` inside a quoted video title; part
+(b) is `external` and out of scope.
+
+| Row | Table says (`work`/`unclear`) | Verdict | Evidence |
+|---|---|---|---|
+| R13-1 | The two live-footage mp4s are gitignored, uncommitted, and unrecoverable once `references/` is deleted; needs an owner decision — archive outside the repo, or extract and commit the cited frames | **DECISION** | Confirmed unchanged: `git check-ignore -v` still matches both mp4s against `.gitignore:46`. No archival or frame-extraction has happened. This is inherently the owner's call, not resolvable from the tree |
+| R13-2 | The 2026-06-21 ADR and the plan-config file read two different tier selectors (three options vs. four) from the same footage folder; needs a note on every row resting on either capture, naming which one | **BUILT** | The note already exists exactly where it is needed: `docs/CORPUS-EXTRACTION.md`'s "Carry this caveat" paragraph, immediately after the R12-1/R12-2 table, names both rows explicitly ("R12-1 and R12-2 rest on the plan-config capture... see R13-2. Any row written from this must name which capture it rests on") |
+| R13-3 | `docs/UI-FIDELITY.md` cites an unrecoverable mp4 frame as evidence for the four-tab mapping; needs re-pointing at the tracked JPG that shows the same tab bar | **BUILT** | `docs/UI-FIDELITY.md:109-111` (the "Evidence for the mapping" note) already re-points to `media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg` ("tracked in git... shows *Ideas · Knowledge Base · Summary · Run Specification*"), explicitly stating the mp4 frame "is unrecoverable" and naming the tracked JPG as "the surviving evidence" |
+| R13-6 | 18 of 41 files in the Google Labs page capture are inert tooling with nothing to extract; the HTML itself carries product copy (R13-7) that must be pulled out before pruning to the HTML, 2 PNGs and 3 SVGs | **OPEN** | Depends on `R13-7`, confirmed still undone below — pruning cannot be considered complete while its own prerequisite (extracting the copy) hasn't happened. (This verdict is reached without inspecting `references/` itself, per this document's hard constraint — it follows directly from R13-7's status) |
+| R13-7 | Google's own Labs page copy for "Hypothesis Generation — Built with Co-Scientist" (tagline, four capability cards, "Express interest" waitlist framing) is nowhere quoted in `docs/`; needs a short quoted block in `docs/FIDELITY.md`, cited to this file | **OPEN** | Confirmed still absent: zero hits anywhere in `docs/FIDELITY.md` or `docs/EXPLAINER.md` for any of "Express interest", "Gemini for Science", "Collaborative Research Partner", "Tournament-Style Evaluation", "Grounded Knowledge Base", or "Critical Flaw Detection" |
+| R13-10 | The tracked run-in-progress capture shows a **Time remaining** estimate tile alongside the Activity Log; whether this product estimates remaining time at all needs checking against the run view | **OPEN** | The Activity Log half is already built and shipped (`app/frontend/src/workbench/pages/run_detail_activity_log.tsx`, `ActivityLog` component, covered by `run_detail.test.tsx`). The ETA half is not: zero hits anywhere in `app/frontend/src/workbench/` or `app/app/*.py` for a time-remaining/ETA computation. The row's open question now has a definite answer — no, this product does not estimate remaining time — which is itself the verify-pass result the row asked for; building the feature (if wanted) is the remaining work |
+| R13-12 (a) | A tracked JPG's filename (`esn-poma-hub-hypothesis-full-detail-with-diagram.jpg`) does not match its content (a Computational Discovery splash screen); any future row citing the filename would cite the wrong image | **OPEN** | No rename and no note exists: zero hits for this filename or "Carl Elkin" anywhere in `docs/` outside this row's own text. The mismatch is not yet flagged anywhere a future reader citing the filename would see it |
+
+**R13: 2 BUILT / 4 OPEN / 1 DECISION / 0 FALSE.**
+
+Noticed in passing: none.
