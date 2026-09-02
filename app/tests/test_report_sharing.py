@@ -264,3 +264,6 @@ def test_shared_payload_is_filtered_to_release_artifact(
     )
     assert "abstract" not in payload["evidence"][0]
     assert payload["evidence"][0]["title"] == "A public pathway paper"
+    # Retraction status travels with `available` into the public payload --
+    # at least as relevant to a public reader as reachability is.
+    assert payload["evidence"][0]["retracted"] is False

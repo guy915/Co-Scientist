@@ -86,7 +86,10 @@ class NewEvidence:
     produced both. ``retrieval_call_id`` names the search that found this
     row (``retrieval_calls.id``); None is a real state rather than a gap
     -- an uploaded document and a directly fetched corpus paper have no
-    query behind them.
+    query behind them. ``retracted`` is reported alongside ``available``
+    rather than folded into it -- a retracted source still persists as
+    unavailable, unchanged, but a reader is told which one it was (see
+    ``engine_adapter.drain_evidence_resolution.ResolvedArticle``).
     """
 
     run_id: str
@@ -97,6 +100,7 @@ class NewEvidence:
     year: int | None = None
     abstract: str = ""
     available: bool = True
+    retracted: bool = False
     mime_type: str | None = None
     sha256: str | None = None
     byte_size: int | None = None
@@ -126,11 +130,11 @@ def _insert_evidence_row(
     """Insert an evidence row for a run on an open connection."""
     conn.execute(
         "INSERT INTO evidence (id, run_id, title, source, url, "
-        "authors_json, year, abstract, available, mime_type, sha256, "
-        "byte_size, document_version, extraction_tool, doi, pmid, "
+        "authors_json, year, abstract, available, retracted, mime_type, "
+        "sha256, byte_size, document_version, extraction_tool, doi, pmid, "
         "passage_text, retrieved_at, retrieval_score, retrieval_rationale, "
         "retriever_version, retrieval_call_id, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             ev_id,
             f.run_id,
@@ -141,6 +145,7 @@ def _insert_evidence_row(
             f.year,
             f.abstract,
             1 if f.available else 0,
+            1 if f.retracted else 0,
             f.mime_type,
             f.sha256,
             f.byte_size,
@@ -194,12 +199,17 @@ def list_evidence(
         conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
-        A list of evidence dicts with decoded authors and available fields.
+        A list of evidence dicts with decoded authors and available/
+        retracted fields. ``retracted`` reads back False for a row
+        persisted before that column existed (NULL), the same as a row
+        that was never flagged -- an old run has no way to know, so it
+        renders exactly as it did before this column existed.
     """
     out = []
     for d in _list_by_run("evidence", run_id, db_path, conn):
         d["authors"] = json.loads(d.pop("authors_json") or "[]")
         d["available"] = bool(d["available"])
+        d["retracted"] = bool(d.get("retracted"))
         out.append(d)
     return out
 

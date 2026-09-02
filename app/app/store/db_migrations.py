@@ -310,6 +310,24 @@ def _migrate_review_detail_column(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "reviews", "detail_json", "TEXT")
 
 
+def _migrate_evidence_retraction_column(conn: sqlite3.Connection) -> None:
+    """Add the evidence table's retraction flag, separate from ``available``.
+
+    A retracted source and a merely-unresolvable one both persisted as
+    ``available=0`` -- every gate that reads ``available`` (citation
+    classification, claim grounding) keeps treating them alike, unchanged
+    -- but a retracted citation is a different fact for a reader than an
+    unreachable one, and nowhere recorded which it was. Both retraction
+    sources (the article's own metadata and the live resolver's
+    ``retraction_set`` check) land here (see
+    ``engine_adapter.drain_evidence_resolution._availability_flags``). NULL
+    for every row persisted before this column existed -- the same as an
+    un-flagged row, since an old run has no way to know, so it renders
+    exactly as it did before this column existed.
+    """
+    _add_column_if_missing(conn, "evidence", "retracted", "INTEGER")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -327,3 +345,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_hypothesis_scene_setting_columns(conn)
     _migrate_hypothesis_safety_toxicity_column(conn)
     _migrate_review_detail_column(conn)
+    _migrate_evidence_retraction_column(conn)

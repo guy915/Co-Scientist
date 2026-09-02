@@ -295,3 +295,28 @@ def test_connect_upgrades_evidence_for_retrieval_provenance(
 
     assert "retrieval_call_id" in _columns(path, "evidence")
     assert [row[0] for row in rows] == [None]
+
+
+def test_connect_upgrades_evidence_for_retraction(tmp_path: object) -> None:
+    """Evidence written before the retraction column opens with it NULL.
+
+    A row drained before this wave has no way to know whether its
+    unavailable evidence was retracted -- the column is additive, so it
+    reads back NULL, which ``store.list_evidence`` then coerces to False
+    (the same as a row that was never flagged retracted).
+    """
+    path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_EVIDENCE)
+    conn.execute(
+        "INSERT INTO evidence (id, run_id, title, created_at) "
+        "VALUES ('e1', 'r1', 'A paper', 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute("SELECT retracted FROM evidence").fetchall()
+
+    assert "retracted" in _columns(path, "evidence")
+    assert [row[0] for row in rows] == [None]

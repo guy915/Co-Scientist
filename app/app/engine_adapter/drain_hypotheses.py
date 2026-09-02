@@ -118,6 +118,7 @@ def _persist_engine_evidence(
                 year=art.get("year"),
                 abstract=abstract,
                 available=res.available,
+                retracted=res.retracted,
                 doi=res.doi,
                 pmid=res.pmid,
                 retrieved_at=art.get("retrieved_at"),

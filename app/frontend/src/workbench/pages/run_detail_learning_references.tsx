@@ -58,6 +58,20 @@ const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 const REFERENCE_UNAVAILABLE_TITLE =
   'The full source could not be reached when this evidence was gathered';
 
+// A retracted source is a stronger and different claim than "unreachable" --
+// the paper was read and the publisher withdrew it -- so it gets its own
+// pill rather than folding into the quiet "Unavailable" state above, which a
+// reader would otherwise misread as a network or access problem.
+const REFERENCE_RETRACTED_CLASSES =
+  'reference-retracted-pill inline-flex items-center gap-[0.35rem] ' +
+  'rounded-full border border-cosci-danger-border bg-cosci-danger-bg ' +
+  'px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium ' +
+  'text-cosci-danger-fg max-[700px]:col-start-2 max-[700px]:w-fit';
+
+const REFERENCE_RETRACTED_TEXT = 'Retracted';
+
+const REFERENCE_RETRACTED_TITLE = 'This source has been retracted';
+
 /** One resolved citation: the reference it names and the number to print. */
 export interface ReferenceCitation {
   id: string;
@@ -201,10 +215,24 @@ function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
 }
 
 // The row's reachability state: an "Open" action when the full source was
-// fetched, else a quiet "Unavailable" pill so a source that was never
-// reachable is plainly labelled instead of reading as a normal reference
-// (D18). `available` is what the store recorded when evidence was gathered.
+// fetched, a "Retracted" pill when the source itself has been withdrawn, else
+// a quiet "Unavailable" pill so a source that was never reachable is plainly
+// labelled instead of reading as a normal reference (D18). `retracted` is
+// checked first because a retracted source also persists `available: false`
+// (the same gates keep treating it as unavailable), so without this order it
+// would read as a plain reachability problem rather than a retraction.
 function ReferenceSourceState({item}: {item: Evidence}) {
+  if (item.retracted) {
+    return (
+      <span
+        className={REFERENCE_RETRACTED_CLASSES}
+        title={REFERENCE_RETRACTED_TITLE}
+        aria-label={REFERENCE_RETRACTED_TITLE}
+      >
+        {REFERENCE_RETRACTED_TEXT}
+      </span>
+    );
+  }
   if (item.available === false) {
     return (
       <span

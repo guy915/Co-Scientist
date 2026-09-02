@@ -157,6 +157,7 @@ const EVIDENCE_ROW = {
   authors: [],
   year: 2024,
   available: true,
+  retracted: false,
 } as Evidence;
 
 // A completed run whose literature retrieval returned nothing still reads

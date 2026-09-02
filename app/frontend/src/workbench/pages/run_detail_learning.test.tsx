@@ -15,6 +15,7 @@ const evidence = [
       'BACKGROUND: Cold stress changes glucose homeostasis. METHODS: Cells ' +
       'were profiled with mitochondrial assays.',
     available: true,
+    retracted: false,
   },
   {
     id: 'ev-2',
@@ -25,6 +26,7 @@ const evidence = [
     year: null,
     abstract: 'Microglia remodel synapses during neuroinflammation.',
     available: true,
+    retracted: false,
   },
 ];
 
@@ -42,6 +44,7 @@ const scientificTermEvidence = [
     year: 2025,
     abstract: '',
     available: true,
+    retracted: false,
   },
   {
     id: 'ev-greek',
@@ -52,6 +55,7 @@ const scientificTermEvidence = [
     year: 2025,
     abstract: '',
     available: true,
+    retracted: false,
   },
 ];
 
@@ -66,6 +70,7 @@ const numberedEvidence = ['ev-a', 'ev-b', 'ev-c', 'ev-d'].map((id, index) => ({
   year: 2025,
   abstract: '',
   available: true,
+  retracted: false,
 }));
 
 function reportCiting(referenceIds: string[]): Report {
@@ -170,6 +175,7 @@ describe('LearningView unreachable sources (D18)', () => {
     year: 2025,
     abstract: '',
     available: false,
+    retracted: false,
   };
 
   it('labels an unavailable reference instead of offering to open it', () => {
@@ -207,6 +213,21 @@ describe('LearningView unreachable sources (D18)', () => {
           'gathered, so it is listed without a summary.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('labels a retracted reference distinctly from a merely unreachable one', () => {
+    render(
+      <LearningView
+        goal="goal"
+        evidence={[{...unreachable, retracted: true}]}
+      />,
+    );
+
+    const pill = screen.getByText('Retracted');
+    expect(pill).toBeInTheDocument();
+    expect(pill).toHaveAttribute('title', 'This source has been retracted');
+    expect(screen.queryByText('Unavailable')).toBeNull();
+    expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
   });
 });
 

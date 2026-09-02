@@ -25,11 +25,19 @@ _PUBMED_URL_PMID = re.compile(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)")
 
 @dataclass(frozen=True)
 class ResolvedArticle:
-    """One article's persisted identity and its resolved availability."""
+    """One article's persisted identity, availability, and retraction.
+
+    ``retracted`` is reported alongside ``available`` rather than folded
+    into it: a retracted source and a merely-unresolvable one both persist
+    as ``available=False`` (every gate that reads ``available`` -- citation
+    classification, claim grounding -- keeps treating them alike), but they
+    are different facts for a reader, who should be told which one it was.
+    """
 
     doi: str | None
     pmid: str | None
     available: bool
+    retracted: bool = False
 
 
 def _article_doi(art: dict[str, Any]) -> str:
@@ -79,25 +87,44 @@ def _offline_available(request: tuple[str, str, str, bool]) -> bool:
     return bool(doi or pmid or url) and not retracted
 
 
+def _availability_flags(
+    verdict: Resolvability | bool, meta_retracted: bool
+) -> tuple[bool, bool]:
+    """Derive (available, retracted) from one request's resolver verdict.
+
+    Live mode's verdict is a :class:`Resolvability`, already RETRACTED for
+    both retraction sources -- the metadata flag (``resolve_one`` checks it
+    first) and the live resolver's own ``retraction_set`` lookup -- so it
+    alone decides both flags. Offline mode's verdict is the plain bool
+    ``_offline_available`` returns; it never distinguishes retraction from
+    plain unavailability, so ``retracted`` there is read straight from the
+    request's own metadata flag instead.
+    """
+    if isinstance(verdict, Resolvability):
+        return (
+            verdict is Resolvability.RESOLVABLE,
+            verdict is Resolvability.RETRACTED,
+        )
+    return bool(verdict), meta_retracted
+
+
 def _resolved_from_requests(
     requests: list[tuple[str, str, str, bool]],
 ) -> list[ResolvedArticle]:
-    """Build the persisted (doi, pmid, available) triple for each request."""
+    """Build the persisted (doi, pmid, available, retracted) row per request."""
     verdicts: Sequence[Resolvability | bool]
     if settings.evidence_resolver == "live":
         verdicts = citation_resolver.resolve_many(requests)
     else:
         verdicts = [_offline_available(r) for r in requests]
     resolved = []
-    for (doi, pmid, _url, _retracted), verdict in zip(
+    for (doi, pmid, _url, meta_retracted), verdict in zip(
         requests, verdicts, strict=True
     ):
-        available = (
-            verdict is Resolvability.RESOLVABLE
-            if isinstance(verdict, Resolvability)
-            else bool(verdict)
+        available, retracted = _availability_flags(verdict, meta_retracted)
+        resolved.append(
+            ResolvedArticle(doi or None, pmid or None, available, retracted)
         )
-        resolved.append(ResolvedArticle(doi or None, pmid or None, available))
     return resolved
 
 

@@ -9,6 +9,7 @@ rather than a bare "is the URL string non-empty" check.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 import pytest
@@ -88,7 +89,9 @@ def test_offline_resolver_available_matches_metadata_heuristic(
     """Offline mode (the hermetic test default) never performs network I/O.
 
     A non-empty identifier/URL and no retraction flag reads ``available``;
-    a retracted article, even with a URL, reads unavailable.
+    a retracted article, even with a URL, reads unavailable *and* carries
+    its own ``retracted`` flag -- distinct from a plain "no identifier"
+    article, which is unavailable but not retracted.
     """
     run = store.create_run("identity goal", "standard", "engine", {})
     final_state = {
@@ -125,8 +128,11 @@ def test_offline_resolver_available_matches_metadata_heuristic(
         e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
     }
     assert evidence["Reachable-by-metadata paper"]["available"] is True
+    assert evidence["Reachable-by-metadata paper"]["retracted"] is False
     assert evidence["Retracted paper"]["available"] is False
+    assert evidence["Retracted paper"]["retracted"] is True
     assert evidence["No identifier at all"]["available"] is False
+    assert evidence["No identifier at all"]["retracted"] is False
 
 
 def test_live_resolver_dereferences_rather_than_inspecting_the_string(
@@ -185,7 +191,110 @@ def test_live_resolver_dereferences_rather_than_inspecting_the_string(
         e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
     }
     assert evidence["Actually reachable"]["available"] is True
+    assert evidence["Actually reachable"]["retracted"] is False
     assert evidence["URL present but dead"]["available"] is False
+    assert evidence["URL present but dead"]["retracted"] is False
+
+
+def test_live_resolver_persists_retraction_from_either_source(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live mode persists ``retracted`` from both retraction sources.
+
+    Neither reaches the resolver's verdict the same way: the drain's own
+    metadata flag (``article["is_retracted"]``) is thread through the
+    request tuple's fourth element into ``resolve_one``, which checks it
+    before ever dereferencing anything; the live resolver's own
+    ``retraction_set`` lookup finds the second article independently, with
+    no metadata flag at all. Both must land as ``retracted=True`` *and*
+    ``available=False`` -- the gate's decision is unchanged either way,
+    only the extra fact is new.
+    """
+    monkeypatch.setattr(settings, "evidence_resolver", "live")
+
+    def fake_resolve_many(
+        requests: list[tuple[str, str, str, bool]],
+    ) -> list[Resolvability]:
+        # Echo the first request's own metadata flag (proves the drain's
+        # fourth tuple element actually reaches the resolver, rather than
+        # being destructured and discarded); force RETRACTED for the second
+        # regardless of its (False) metadata flag, standing in for the live
+        # resolver's independent retraction_set match.
+        first_verdict = (
+            Resolvability.RETRACTED
+            if requests[0][3]
+            else Resolvability.RESOLVABLE
+        )
+        return [first_verdict, Resolvability.RETRACTED]
+
+    monkeypatch.setattr(
+        drain_evidence_resolution.citation_resolver,
+        "resolve_many",
+        fake_resolve_many,
+    )
+
+    run = store.create_run("identity goal", "standard", "engine", {})
+    final_state = {
+        "hypotheses": [],
+        "articles": [
+            {
+                "title": "Flagged by metadata",
+                "source": "pubmed",
+                "url": "https://pubmed.ncbi.nlm.nih.gov/3/",
+                "abstract": "x",
+                "is_retracted": True,
+            },
+            {
+                "title": "Caught by the live retraction set",
+                "source": "pubmed",
+                "url": "https://pubmed.ncbi.nlm.nih.gov/4/",
+                "abstract": "x",
+            },
+        ],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+    }
+    _persist_and_finalize(run, final_state, isolated_db)
+
+    evidence = {
+        e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
+    }
+    for title in ("Flagged by metadata", "Caught by the live retraction set"):
+        assert evidence[title]["available"] is False
+        assert evidence[title]["retracted"] is True
+
+
+def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
+    isolated_db: str,
+) -> None:
+    """A row persisted before this column existed degrades safely.
+
+    ``ALTER TABLE ... ADD COLUMN`` leaves every pre-existing row NULL; a
+    run drained before this wave shipped has no way to know whether its
+    unavailable evidence was retracted, so it must render exactly as it
+    did before -- ``retracted=False``, ``available`` untouched.
+    """
+    run = store.create_run("identity goal", "standard", "engine", {})
+    article = {
+        "title": "Pre-migration paper",
+        "source": "pubmed",
+        "url": "",
+        "abstract": "x",
+    }
+    _persist_and_finalize(run, _final_state_with_article(article), isolated_db)
+
+    with sqlite3.connect(isolated_db) as conn:
+        conn.execute(
+            "UPDATE evidence SET retracted = NULL WHERE run_id = ?", (run.id,)
+        )
+        conn.commit()
+
+    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    assert len(evidence) == 1
+    assert evidence[0]["available"] is False
+    assert evidence[0]["retracted"] is False
 
 
 def test_drain_persists_hybrid_retrieval_score_provenance(

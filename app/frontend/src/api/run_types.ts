@@ -241,6 +241,10 @@ export interface Evidence {
   abstract?: string;
   // whether the full source was reachable when evidence was gathered
   available: boolean;
+  // whether the source itself has been retracted -- distinct from
+  // `available`: a retracted source and one that was simply unreachable
+  // both read `available: false`, but a reader should be told which
+  retracted: boolean;
 }
 
 /** One pairwise tournament match and the Elo changes it produced. */

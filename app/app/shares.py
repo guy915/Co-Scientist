@@ -19,7 +19,9 @@ router = APIRouter(tags=["shares"])
 # identity, which the released report cites by title/url. The ``abstract``
 # column stays out because attachment evidence stores the private document
 # body there, and the report publishes no evidence full text; upload
-# provenance (digests, sizes, extractor) is likewise owner-only.
+# provenance (digests, sizes, extractor) is likewise owner-only. Retraction
+# status is at least as relevant to a public reader as reachability, so it
+# travels with ``available`` rather than being held back as owner-only.
 _PUBLIC_EVIDENCE_FIELDS = (
     "id",
     "title",
@@ -28,6 +30,7 @@ _PUBLIC_EVIDENCE_FIELDS = (
     "authors",
     "year",
     "available",
+    "retracted",
 )
 
 
