@@ -169,6 +169,44 @@ async def test_candidate_and_existing_solutions_comparisons_map_through(
     )
 
 
+async def test_main_research_directions_maps_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R14-27: the narrative directions summary copies through unchanged.
+
+    ``main_research_directions`` is the ranking document's own
+    "Main Research Directions" prose section (two paragraphs weaving the
+    run's directions together, distinct from the itemized per-direction
+    array on the research-overview payload) -- see
+    ``schemas.meta_review_schema.META_REVIEW_SCHEMA``.
+    """
+    stub_call_llm_json(
+        monkeypatch,
+        meta_review,
+        {
+            "meta_review_summary": "s",
+            "main_research_directions": (
+                "Paragraph one names **Direction A** and why it matters.\n\n"
+                "Paragraph two names **Direction B** and closes on an"
+                " unexpected cross-direction observation."
+            ),
+        },
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
+        ]
+    )
+
+    result = await meta_review_node(state)
+
+    assert result["meta_review"]["main_research_directions"] == (
+        "Paragraph one names **Direction A** and why it matters.\n\n"
+        "Paragraph two names **Direction B** and closes on an"
+        " unexpected cross-direction observation."
+    )
+
+
 async def test_state_preferences_reach_the_rendered_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

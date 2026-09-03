@@ -242,6 +242,40 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                     },
                 }
             ),
+            # R14-27: the ranking document's own "Main Research Directions"
+            # section -- narrative prose weaving the run's directions
+            # together, not a second copy of any itemized array. Google's
+            # published ranking report (top-ranking-hypotheses.md:24-28)
+            # carries exactly two paragraphs, cross-cutting the run's
+            # candidate ideas the way the two comparison fields above
+            # already do -- see report_markdown_meta_review.py for the
+            # render and its placement in _ranking_sections
+            # (report_markdown_documents.py), right after Evaluation
+            # Criteria and before Candidate Ideas, matching the published
+            # order. Required, like meta_review_summary, rather than
+            # optional: every run has directions worth naming, so there is
+            # no legitimate case for the model to leave this empty by
+            # design (contrast existing_solutions_comparison.summary
+            # above, which genuinely can be).
+            "main_research_directions": {
+                "type": "string",
+                "description": (
+                    "A narrative synthesis of this run's main research"
+                    " directions, distinct from any itemized"
+                    " per-direction list. Write exactly two flowing prose"
+                    " paragraphs, separated by a blank line -- never a"
+                    " bullet list. Name each direction inline in **bold**"
+                    " the first time it appears (e.g. '**Metabolic State"
+                    " as an Intervention Point**'), explain briefly why"
+                    " it matters, and close the second paragraph with an"
+                    " unanticipated observation that cuts across more"
+                    " than one direction (e.g. 'Unexpectedly, recent"
+                    " synthesis suggests ...'). Mirrors the published"
+                    ' report\'s own "Main Research Directions" section:'
+                    " connected narrative prose, not a restatement of"
+                    " strategic_recommendations above."
+                ),
+            },
         }
     ),
 }

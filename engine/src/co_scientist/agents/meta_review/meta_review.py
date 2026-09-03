@@ -365,6 +365,11 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         "existing_solutions_comparison": response.get(
             "existing_solutions_comparison", {}
         ),
+        # R14-27: the ranking document's own "Main Research Directions"
+        # narrative -- see schemas/meta_review_schema.py.
+        "main_research_directions": response.get(
+            "main_research_directions", ""
+        ),
     }
 
 

@@ -54,6 +54,10 @@ Choose your own comparison axes -- do not default to a fixed, generic vocabulary
 - `existing_solutions_comparison.axes`: 2-5 short axis names for comparing each existing approach against the candidate ideas, following the same discipline-fit guidance as `candidate_comparison.axes`
 - `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method` and `values`: one rating per entry in `existing_solutions_comparison.axes`, in the same order
 
+### 7. Synthesize the run's Main Research Directions
+
+Write `main_research_directions` as exactly two flowing prose paragraphs, separated by a blank line -- never a bulleted list, and never a restatement of section 3's `strategic_recommendations`. Weave the run's main directions together into connected narrative: name each direction inline in **bold** the first time it appears, explain briefly why it matters, and close the second paragraph with an unanticipated observation that cuts across more than one direction (e.g. "Unexpectedly, recent synthesis suggests ..."). This mirrors the published report's own "Main Research Directions" section -- a strategic-landscape narrative, not an itemized list.
+
 Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
 
 ## Input

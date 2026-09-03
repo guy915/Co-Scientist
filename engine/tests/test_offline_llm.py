@@ -27,6 +27,7 @@ from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
 from co_scientist.schemas.generation import GENERATION_SCHEMA
+from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
 from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA, REVIEW_SCHEMA
 from tests._offline_helpers import (
@@ -133,6 +134,33 @@ async def test_offline_acompletion_returns_schema_valid_json(
     content = response.choices[0].message.content
     parsed = json.loads(content)
     jsonschema.validate(instance=parsed, schema=schema)
+
+
+async def test_offline_meta_review_fills_main_research_directions() -> None:
+    """R14-27: the required narrative-directions field is never left empty.
+
+    ``main_research_directions`` is required (unlike the roadmap-step
+    fields ``test_offline_optional_fields.py`` hints in), so the generic
+    filler must already populate it via one leaf draw -- this is what lets
+    ``report_markdown_meta_review``'s renderer show a populated section on
+    every offline run, including every curated demo, with no
+    ``_OPTIONAL_FIELD_HINTS`` entry needed.
+    """
+    schema = META_REVIEW_SCHEMA["schema"]
+
+    response = await offline_llm.offline_acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[{"role": "user", "content": "Meta-review this pool."}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "meta_review", "schema": schema},
+        },
+    )
+
+    parsed = json.loads(response.choices[0].message.content)
+    jsonschema.validate(instance=parsed, schema=schema)
+    assert isinstance(parsed["main_research_directions"], str)
+    assert parsed["main_research_directions"]
 
 
 async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
