@@ -62,20 +62,20 @@ partial pass is never lost.
 
 | Region | Rows | BUILT | OPEN | DECISION | FALSE |
 |---|---|---|---|---|---|
-| R1 | 3 | 2 | 0 | 1 | 0 |
+| R1 | 3 | 3 | 0 | 0 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
 | R8 | 3 | 2 | 0 | 1 | 0 |
 | R9 | 3 | 3 | 0 | 0 | 0 |
-| R10 | 9 | 7 | 0 | 2 | 0 |
+| R10 | 9 | 8 | 0 | 1 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 10 | 0 | 2 | 1 |
 | R13 | 11 | 11 | 0 | 0 | 0 |
-| R14 | 20 | 15 | 0 | 3 | 2 |
+| R14 | 20 | 17 | 0 | 1 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
-| MO | 5 | 3 | 0 | 2 | 0 |
+| MO | 5 | 4 | 0 | 1 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **83** | **69** | **0** | **11** | **3** |
+| **Total** | **83** | **74** | **0** | **6** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -238,6 +238,29 @@ BUILT / 4 DECISION → 15 BUILT / 3 DECISION; the Total row moves 68 → 69
 BUILT, 12 → 11 DECISION (picking up from the live-footage wave's count,
 recorded locally in the R13 section below rather than narrated here).
 
+**Closing pass, owner-accepted-divergence wave (2026-09-03).** Two more
+decisions close, both via an owner call to accept the divergence rather
+than build the published shape.
+
+Owner decision #1 below (goal-intake shape and the three glossary terms)
+is resolved: keep the single free-text `research_goal` field. The
+interview already elicits this kind of structure conversationally and
+writes it into the run plan, which fits the product better than a fixed
+intake form or a load-bearing enum. `R1-18`, `R10-9`, `R14-2`, `MO-11`
+(4 rows, 1 question) all move **DECISION → BUILT**; not double-counted.
+
+Owner decision #7 below (a 14-section per-hypothesis document) is also
+resolved: keep the flat per-idea entry. The Top Ranking Hypotheses
+document already carries mechanism, steps to test, verdict, simulation
+review, and claim evidence per idea (R14-11), so a separate document
+would largely restate it. `R14-26` moves **DECISION → BUILT**.
+
+Per-region moves: R1 2 BUILT / 1 DECISION → 3 BUILT / 0 DECISION; R10 7
+BUILT / 2 DECISION → 8 BUILT / 1 DECISION; R14 15 BUILT / 3 DECISION →
+17 BUILT / 1 DECISION; MO 3 BUILT / 2 DECISION → 4 BUILT / 1 DECISION.
+The Total row moves 69 → 74 BUILT, 11 → 6 DECISION -- five rows closed
+(`R1-18`, `R10-9`, `R14-2`, `R14-26`, `MO-11`).
+
 ---
 
 ## R1 — SSR consolidation
@@ -246,9 +269,9 @@ recorded locally in the R13 section below rather than narrated here).
 |---|---|---|---|
 | R1-12 | Elo-quality concordance should bucket by Elo in 50-point increments and compute accuracy per bucket | **BUILT** | `evaluations/elo_concordance_eval.py::elo_bucket_accuracy` (EVAL-METHODS wave) now implements Google's published method exactly: pools every candidate's final Elo across items, buckets in 50-point increments anchored the same way the paper's own boundaries are (1001-1050, 1051-1100, ...), and reports percent-correct per bucket. Kendall's tau-b stays alongside it, kept as an independent sanity check of the harness's own Elo math rather than a substitute for the published method — a deliberate keep-both decision, not an oversight. `docs/PARITY.md:207` (`EVAL-ELO-CALIB-001`, still `partial`) now correctly names only the remaining gap — licensed GPQA corpus, credentials, and the paper's Gemini-2.0 reference-accuracy baseline — not a method difference. Tests: `evaluations/tests/test_elo_concordance_eval.py` |
 | R1-13 | Scaling should partition one run's hypotheses into ten equal temporal buckets, tracking best/top-10-average Elo across them | **BUILT** | `evaluations/scaling_eval.py::temporal_scaling_curve` (EVAL-METHODS wave) implements the published method: partitions ONE run's hypotheses into ten equal buckets, reporting best Elo and top-10-average Elo per bucket, never varying tier. Its ordering key (`_temporal_order_key`) is `generation` — the engine's own lineage ordinal, not raw `created_at` — after a real offline run showed `created_at` alone lands one generation call's whole batch of siblings within under a millisecond of each other (the engine's `Hypothesis` model carries no per-hypothesis timestamp), which is drain-order noise, not a temporal signal; `generation` is real and confirmed to vary in a real run (`test_offline_snapshot_carries_a_real_temporal_curve` asserts ≥2 distinct values). `scaling_budget_driver.py` wires it per arm (`snapshot["temporal_curve"]`), and — unlike the pre-existing cross-tier `scaling_curve()`, which stays harness-only offline (the deterministic backend answers identically at every tier) — this genuinely orders by cycle even offline, though at coarser resolution than the paper's continuous wall-clock partition (an express/standard arm only ever reaches generation 0 and 1). Degenerate cases handled: an empty run, a run with fewer than ten hypotheses (confirmed against a real offline express run, which produces 8), and hypotheses with no Elo yet. `docs/PARITY.md:208` (`EVAL-SCALING-001`, still `partial`) now describes both methods, the generation-vs-created_at distinction, and what each method does and does not tell us. Tests: `evaluations/tests/test_scaling_eval.py`, `evaluations/tests/test_scaling_budget_driver.py` |
-| R1-18 | Three glossary terms — "novel repurposing candidate", "novel target", "novel mechanistic explanation" — as a controlled vocabulary | **DECISION** | Not implemented as a controlled vocabulary anywhere in engine or app code. One coincidental match: `engine/src/co_scientist/config/examples/indra_ibd.yaml:39` defines "novel mechanistic explanation" as a domain-specific term for one example config (IBD), unrelated to the SSR's system-wide glossary. The open question is unchanged from the row: whether these three terms should be load-bearing (e.g. as an enum somewhere) or are merely descriptive prose the schema doesn't need |
+| R1-18 | Three glossary terms — "novel repurposing candidate", "novel target", "novel mechanistic explanation" — as a controlled vocabulary | **BUILT** | Owner call: accept the divergence. Not implemented as a controlled vocabulary anywhere in engine or app code, and staying that way -- the goal-intake question this row shares with `R10-9`/`R14-2`/`MO-11` decides it: the interview already elicits this kind of structure conversationally and writes it into the run plan, which fits the product better than a fixed intake form or a load-bearing enum. See `R10-9`/`R14-2`/`MO-11` for the shared reasoning; not double-counted separately |
 
-**R1: 2 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
+**R1: 3 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -296,12 +319,12 @@ Noticed in passing: none.
 | R10-3 | Figure A.23's expert-review selection gate implies the published co-scientist review score is on a **1–5** scale, not our 1–10 | **BUILT** | `docs/PARITY.md:218` `EVAL-REVIEW-SCALE-001` (`verified`, commit `6e387043`) records the divergence as a labelled reconstruction — 1-10 (`engine/src/co_scientist/schemas/review.py` `REVIEW_SCORE_MINIMUM`/`MAXIMUM`) vs. the published 1-5 gate — pinned by `engine/tests/test_review_batch_isolation.py::test_score_fields_are_bounded_to_the_rubric_range`. Recording only, as the row's own residual asked for — no scale change made or implied |
 | R10-7 | A bare `Answer: N` closing on a review block; the scale is never stated in the source text, and 3/4 exemplars fit either a 1–5 or 1–10 scale | **DECISION** | Every `Answer: N` occurrence in the verbatim Appendix (`docs/CORPUS-EXTRACTION.md:1650+`) is 3 or 4 (checked directly: `grep -oE 'Answer: ?[0-9]+'` over the whole file returns only values 3 and 4, six times total) — consistent with, but not proof of, either scale. `MO-5` (audited below) cites a "separate reading" finding values 2–9 for a *different* per-dimension block, which would rule out 1–5, but that reading is not itself mirrored anywhere in the Appendix available here, so it cannot be independently verified from this repo's sources. `EVAL-REVIEW-SCALE-001` (R10-3, now `verified`) settles the *named* "co-scientist review score" at 1–5 but is about Figure A.23's selection gate, a different score than this row's bare `Answer: N` closings — it does not resolve this row. Still genuinely unresolved; see `MO-5` for the fuller three-way scale tension |
 | R10-8 | The published detailed output ends in a **Critiques** block — "a summary of the negative critiques from the reviews" — a per-idea rollup distinct from the run-level meta-review critique | **BUILT** | Recorded, as the row's own residual asked for -- not built as a feature. `docs/PARITY.md`'s new `REVIEW-CRITIQUES-ROLLUP-001` row (`missing`, commit `85320235`, cites `corpus R10-8`) states the gap by name: a synthesized per-idea negative-critique rollup, distinct from both the existing per-review list (`ideas_detail_pane.tsx`'s `ReviewCritiquesContent`, still every review rendered verbatim) and the run-level meta-review critique. `docs/PARITY-VERIFICATION.md`'s snapshot moved 79->80 rows to carry it |
-| R10-9 | Three glossary terms — "Novel repurposing candidate", "Novel target", "Novel mechanistic explanation" (source: A.1 Glossary) | **DECISION** | Same question as `R1-18` (source: SSR §11, same three terms). Not implemented as a controlled vocabulary; see `R1-18` above for the one coincidental match and the unresolved decision. Not double-counted as separate work — one decision closes both rows |
+| R10-9 | Three glossary terms — "Novel repurposing candidate", "Novel target", "Novel mechanistic explanation" (source: A.1 Glossary) | **BUILT** | Same question as `R1-18` (source: SSR §11, same three terms) -- owner call: accept the divergence, since the interview already elicits this kind of structure conversationally into the run plan. See `R1-18` above for the full reasoning. Not double-counted as separate work — one decision closes both rows |
 | R10-10 | The 15-axis rubric applied verbatim to two worked exemplars (lapatinib, selinexor) with filled-in Likert ratings; these are the dataset half of R10-1 | **BUILT** | Both exemplars are in `specific_aims_rubric_v1.json` with per-axis ratings (lapatinib 11 Strongly Agree/3 Agree/1 Neutral, selinexor 7/8), plus Givosiran's absent rating block preserved and explained rather than dropped — matching the row's own description exactly. Same evidence as R10-1 |
 | R10-11 | The arXiv paper and the Nature SI disagree on at least three facts (Selinexor panel size/experience, OCT4 validation tool list, an inter-rater Spearman's rho statistic present in only one); nothing in `docs/` records the two sources are different documents | **BUILT** | `docs/PARITY-SOURCES.md` (71 lines, new, commit `6e387043`) records all three divergences by name, added to `docs/README.md`'s index, and cited from `docs/PARITY.md`'s Legend (`:76`, `:87`) plus the two rows that previously cited a bare "Nature paper" (`SCALE-TIER-001:129`, `REFLECT-DEEPVERIFY-ORDER-001:228`) |
 | R10-12 | The rubric's 5-point scale is an **agreement** scale (not a quality score) and does not share a scale with the 1–5/1–10 review score; this caveat must ride the same row as R10-10 | **BUILT** | `specific_aims_rubric_v1.json` and `specific_aims_review.py` both state this explicitly and by name — `AGREEMENT_SCALE` is a distinct constant from `expert_review.py`'s `RATING_AXES` scale, and the module docstring calls out that it "shares no scale with `RATING_AXES`' 1-5 quality ints, nor with the paper's own 1-5 co-scientist review score... nor with this repo's 1-10 review score" |
 
-**R10: 7 BUILT / 0 OPEN / 2 DECISION / 0 FALSE.**
+**R10: 8 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -379,7 +402,7 @@ Noticed in passing: none.
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
 | R14-1 | The published report opens with an explicit `#### Table of contents:` section, six nav items; our report has no navigation aid | **BUILT** | `app/app/report_markdown_toc.py` (new module) renders "#### Table of contents:" naming the report's own top-level sections; wired into `report_markdown.py:483` right after the title/provenance line, cited by name in its own docstring and in `report_markdown_header.py:11,83` |
-| R14-2 | A third, structurally distinct goal-intake shape (8 parts, `Ground Truth Dataset`/`Your Role` fields neither other exemplar has); needs a decision on which shape, if any, is canonical before `MO-11`'s sink is actionable | **DECISION** | Confirmed unchanged: `app/app/runs_models.py:29` `research_goal: str` remains one free-text field, matching none of the three published shapes structurally. Same underlying question as `MO-11`/`R1-18`/`R10-9` — not double-counted separately |
+| R14-2 | A third, structurally distinct goal-intake shape (8 parts, `Ground Truth Dataset`/`Your Role` fields neither other exemplar has); needs a decision on which shape, if any, is canonical before `MO-11`'s sink is actionable | **BUILT** | Owner call: accept the divergence -- no shape is canonical; `app/app/runs_models.py:29` `research_goal: str` stays one free-text field. Same underlying question as `MO-11`/`R1-18`/`R10-9`; see `R1-18` for the full reasoning (the interview elicits structure conversationally into the run plan). Not double-counted separately |
 | R14-3 | The same run's goal renders two different ways across its two report surfaces (raw-flattened vs. synthesized restatement); explicitly blocked on `R14-11` | **BUILT** | The owner's call: synthesize the second restatement. `app/app/report_goal_synthesis.py`'s `synthesize_goal_restatement` makes a new LLM call, once per run at report-build time (not per hypothesis), that produces a narrative restatement of the goal in different words; `report_markdown_documents.py`'s `_ranking_sections` (only) threads it into `_render_research_goal_details` (`report_markdown_header.py`) in place of the raw goal on the Top Ranking Hypotheses document's `**Goal:**` line, while the Research Overview document keeps rendering the raw goal unchanged -- the two documents' goal blocks now genuinely differ. Model resolution follows the run's own persisted offline/real backend (`store.run_offline_backed`, the same signal `engine_adapter/opts.py::_resolve_generator_models` reads), routing an offline-backed run (every curated demo, always) through the engine's deterministic offline router rather than a real provider; a real-backed run is additionally gated on `config.has_provider_credential` before ever calling, which is what keeps the hermetic app test suite from attempting a network call regardless of a bare test-created run row's backend flag. Any failure, timeout, or degenerate/empty answer falls back to the raw goal -- the same duplication this replaces -- so a cosmetic restatement failing never fails the report. Tests: `app/tests/test_report_goal_restatement.py` (unit, incl. the offline backend producing real distinct output with no mocking); `e2e/tests/03_create_run.spec.ts`'s `assertRankingGoalRestatementDiffersFromOverview` (a real offline run, fetching both frozen `.md` documents directly) |
 | R14-4 | A second, longer "About" disclaimer exists on the research-overview report surface, textually distinct from the per-hypothesis one and from the provenance line; unclear whether this is a second required disclaimer or a variant of the same one | **BUILT** | `report_markdown_header.py`'s `_render_about_disclosure` renders it verbatim on the Research Overview document, right after the title/provider line and before the table of contents; byte-identical to the per-hypothesis instance (`R14-13`) by construction — `_ABOUT_DISCLOSURE` is now the one constant, re-exported into `report_markdown_hypothesis.py` as `_HYPOTHESIS_DISCLAIMER` so the two can never drift apart. Confirmed a variant of the same wording, not a second, differently-worded disclaimer; not added to the ranking document, since nothing in the corpus attests a copy there. Pinned by `app/tests/test_report_about_disclosure.py` |
 | R14-6 | Published research contacts are grouped by research direction (4 groups), each with a shared rationale paragraph and up to two example hypothesis titles; `MO-7` only restored the flat per-contact tag | **BUILT** | `engine/src/co_scientist/schemas/synthesis.py:216-254` `research_contact_groups[]` (named by this row ID in its own code comment) carries `research_direction`, `rationale`, and `example_hypothesis_indices` (by 1-based position, never by echoing text — the AGENTS.md envelope-shape lesson applied on purpose); rendered via `_render_research_contacts_section` (`report_markdown_overview.py:311`); pinned by `app/tests/test_report_contact_groups.py` |
@@ -397,9 +420,9 @@ Noticed in passing: none.
 | R14-21 | Two per-hypothesis bibliography forms exist; extends `R12-19` with per-hypothesis evidence that "neither the Generation-side nor Reflection-side citation list renders anywhere," backed by "`grep -rn 'citation_map' app/app/report_markdown*.py` — zero hits" | **FALSE** | The grep result the row states does not reproduce: running the identical command today returns a hit at `app/app/report_markdown_references.py:8` (its own module docstring, naming `citation_map` directly), and that module is a full working renderer — same finding as `R12-19` above, now doubly confirmed. `report_markdown_references.py` resolves each hypothesis's `citation_map` into a rendered References list, wired at `report_markdown.py:343`, pinned by `app/tests/test_report_markdown_references.py` |
 | R14-22 | Where populated, `Deep verification:` is a numbered list of simulated-protocol flaws; original reading said nothing renders it, corrected in-row to say the real gap is that `simulation_review`'s `failure_points`/`decisive_step` (the field that actually matches this shape) has no renderer | **BUILT** | `app/app/report_markdown_hypothesis.py:182-216` (`_render_hypothesis_simulation_review`) renders `simulation_review.failure_points` as a numbered flaw list plus a `**Decisive step:**` line, wired at `:307`; commit `16ebdce2` ("tighten the ledger note and add an end-to-end render test") |
 | R14-24 | Corrects an earlier reading: the 11-vs-8 Deep-verification-populated split is not truncation, verified section-by-section against three files; a footnote is needed wherever the wrong file-length framing might be cited | **BUILT** | The correction is the row itself, positioned exactly where a reader would encounter the original claim — its own "Decided by" column states the correction in full, with the three-file verification recorded inline, satisfying the row's own ask ("a footnote here correcting the file-length framing") |
-| R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **DECISION** | Confirmed unchanged: `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order. The row's own framing is conditional ("if the owner wants a fuller per-idea artifact") — a build-or-not decision, not a pure implementation gap |
+| R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **BUILT** | Owner call: keep the flat per-idea entry, no 14-section document. `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order -- deliberately: the Top Ranking Hypotheses document already carries mechanism, steps to test, verdict, simulation review, and claim evidence per idea (R14-11), so a separate per-hypothesis document would largely restate it |
 
-**R14: 15 BUILT / 0 OPEN / 3 DECISION / 2 FALSE.**
+**R14: 17 BUILT / 0 OPEN / 1 DECISION / 2 FALSE.**
 
 Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`R12-19` respectively as still-open in their own "Decided by" text — both of those underlying rows are now BUILT, which is exactly why the two R14 rows read as false today; nothing further to flag beyond what's already recorded against each.
 
@@ -435,10 +458,10 @@ Noticed in passing: none.
 | MO-2 | A 5-theme, 2-3-level-deep critique taxonomy; the state-shaping loss is closed, but `recurring_themes[]` remains a flat `{theme, description, frequency}` — the fix commit itself calls this "an accepted adaptation," which this row does not yet record as a formal decision | **BUILT** | Recorded, as the row's own residual asked for — no schema change made. `docs/PARITY.md`'s new `META-CRITIQUE-TAXONOMY-001` row (`partial`, cites `corpus MO-2`) states the flat shape and the acceptance by name, quoting the fix commit (`69d10874`, "an accepted adaptation") and the reason it stands: meta-review runs once per evolve iteration, so a nested 2-3-level taxonomy would multiply structured-output size on every one of those calls. `engine/src/co_scientist/agents/meta_review/meta_review.py:371` `_normalize_recurring_themes` is unchanged — confirmed still flat, per the wave's own instruction not to deepen it |
 | MO-4 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); the enum-disagreement half is closed (one shared `ASSUMPTION_SUPPORT_VALUES` enum), but adopting the published wording is deferred | **BUILT** | Same fix as `R12-15` (audited above); not double-counted. `engine/src/co_scientist/schemas/review.py:20-25` `ASSUMPTION_SUPPORT_VALUES` is still `supported`/`uncertain`/`likely_false` -- deliberately: adoption happens at the rendering boundary (`app/app/engine_adapter/drain_reviews.py::_ASSUMPTION_SUPPORT_LABELS`), not the stored value, since a programmatic reader downstream (`mature_reviews._project_full_review`) keys off the literal enum string. See `R12-15`'s evidence cell for the full account, including why the third value renders as "Implausible" rather than the published "Unknown" |
 | MO-5 | Two appended reviews close with a bare `Answer: 4`/`Answer: 3`; whether the scale is 1-5, 1-10, or something else (a separate reading found values 2-9 for a different block) is unresolved | **DECISION** | Same open scale question as `R10-7` (audited above), which this row explicitly narrows. Re-confirmed: every `Answer: N` value in the verbatim Appendix is 3 or 4 (consistent with either scale, not dispositive); the wider 2-9 range this row cites cannot be independently verified — it is not mirrored anywhere in `docs/CORPUS-EXTRACTION.md`'s Appendix, and this document cannot read `references/` directly. Not double-counted against `R10-7` |
-| MO-11 | The research goal is intake as three named parts (`Title`, `Goal`, `Background`); ours is one free-text field | **DECISION** | Same underlying question as `R1-18`/`R10-9`/`R14-2` (audited above): `app/app/runs_models.py:29` `research_goal: str` remains one field. Not double-counted — one decision (canonical goal-intake shape) closes all four rows |
+| MO-11 | The research goal is intake as three named parts (`Title`, `Goal`, `Background`); ours is one free-text field | **BUILT** | Same underlying question as `R1-18`/`R10-9`/`R14-2` (audited above): `app/app/runs_models.py:29` `research_goal: str` stays one field -- owner call: accept the divergence, since the interview already elicits this kind of structure conversationally into the run plan, which fits the product better than a fixed intake form. Not double-counted — one decision (canonical goal-intake shape) closes all four rows |
 | MO-12 | Two published overviews use different vocabularies for the same slot; the ALS third slot (`recent_findings`) is now closed, but both exemplars also use a **doubled structure** (a brief preview list, then full detail) that a single array still cannot express | **BUILT** | Achieved in the renderer alone, no new model output or schema change. `app/app/report_markdown_overview.py::_render_directions_preview` front-loads a named preview list (`- {title}` per direction, reusing the existing required `title` field) ahead of the unchanged full per-direction detail (`_render_directions_list`), mirroring both exemplars' cadence ("We will be focusing on these interrelated areas" / "Main Research Directions" before their per-direction sections). Gated to 2+ named directions -- a preview of one entry would duplicate it rather than orient the reader, per this wave's own caution against a preview that repeats rather than names. Malformed/untitled directions are dropped from the count the same way the existing per-direction renderer already tolerates them. Pinned by three new tests in `app/tests/test_report_markdown_overview.py`: `test_two_or_more_directions_get_a_preview_list` (preview text precedes the first `### {title}` detail heading), `test_a_single_direction_gets_no_preview_list`, `test_an_untitled_direction_is_dropped_from_the_preview_count` |
 
-**MO: 3 BUILT / 0 OPEN / 2 DECISION / 0 FALSE.**
+**MO: 4 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -458,20 +481,23 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 10 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (11 raw DECISION rows in the Summary
+The 4 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (6 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
-1. **Goal-intake shape and the three glossary terms.** `R1-18`, `R10-9`,
-   `R14-2`, `MO-11` (4 rows, 1 question). `app/app/runs_models.py:29`
-   `research_goal: str` is one free-text field; the corpus shows at least
-   three different published shapes (SSR §11's flat glossary; A.1's
+1. ~~Goal-intake shape and the three glossary terms.~~ **Resolved: keep
+   the single free-text field.** `R1-18`, `R10-9`, `R14-2`, `MO-11` (4
+   rows, 1 question) are now **BUILT** — see the owner-accepted-divergence
+   wave closing pass above. `app/app/runs_models.py:29` `research_goal:
+   str` stays one free-text field; the corpus shows at least three
+   different published shapes (SSR §11's flat glossary; A.1's
    `Title`/`Goal`/`Background` triple; the protein-assemblies run's 8-part
-   form with `Ground Truth Dataset`/`Your Role`). Is any one canonical, and
-   should "novel repurposing candidate" / "novel target" / "novel
-   mechanistic explanation" be a controlled vocabulary anywhere in the
-   schema?
+   form with `Ground Truth Dataset`/`Your Role`), but none is adopted as
+   canonical and the three glossary terms stay descriptive prose, not a
+   controlled vocabulary — the interview already elicits this kind of
+   structure conversationally and writes it into the run plan, which fits
+   the product better than a fixed intake form.
 2. ~~Per-assumption wording.~~ **Resolved: mirror the published wording
    at the rendering boundary, stored enum unchanged.** `R12-15`, `MO-4`
    (2 rows) are now **BUILT** — see the owner-directed-wave closing pass
@@ -513,9 +539,13 @@ decision):
    evidence field renders under a fixed name of this repo's own choosing,
    `Supporting article:`, since this schema's version of it is always
    exactly one grounded citation, never free citation prose.
-7. **A 14-section per-hypothesis document.** `R14-26`, explicitly
-   conditional ("if the owner wants a fuller per-idea artifact"). Build it,
-   or treat the flat entry as the intended local shape?
+7. ~~A 14-section per-hypothesis document.~~ **Resolved: keep the flat
+   per-idea entry.** `R14-26`, explicitly conditional ("if the owner
+   wants a fuller per-idea artifact"), is now **BUILT** — see the
+   owner-accepted-divergence wave closing pass above. The Top Ranking
+   Hypotheses document already carries mechanism, steps to test,
+   verdict, simulation review, and claim evidence per idea (R14-11), so
+   a separate per-hypothesis document would largely restate it.
 8. ~~Archive or extract the two gitignored mp4s.~~ **Resolved: extracted
    and committed.** `R13-1`. Both mp4s were watched in full before
    deletion; the frames they were cited for are committed at
