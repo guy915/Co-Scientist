@@ -134,6 +134,55 @@ def test_seed_demo_runs_ranking_goal_line_is_the_curated_restatement(
         assert match.group(1) == scenario.goal_restatement
 
 
+def test_seed_demo_runs_render_criteria_table_and_unexpected_directions(
+    isolated_db: str,
+) -> None:
+    """Both R14-9/R12-23 report sections are populated, not merely wired.
+
+    A report is stored, frozen ``reports.markdown_text``; nothing
+    re-renders it, so a demo only shows a new section once it is re-seeded
+    with curated data that supplies it. This pins that the curated
+    ``critical_criteria`` (``seed_config_synthesis.py``) fill the ranking
+    document's Criterion/Importance table
+    (``_render_evaluation_criteria_table_markdown``) and that the curated
+    ``unexpected_research_directions`` fill the overview document's
+    "Unexpected research directions" bullets
+    (``_render_unexpected_directions_section``) on all three demos.
+    """
+    _seed(isolated_db)
+
+    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    assert len(runs) == 3
+    for run in runs:
+        ranking_md = store.read_report_ranking_markdown(
+            run.id, db_path=isolated_db
+        )
+        assert ranking_md is not None
+        table_match = re.search(
+            r"\| Criterion \| Importance \|\n\|---\|---\|\n((?:\|.+\|\n?)+)",
+            ranking_md,
+        )
+        assert table_match is not None
+        rows = [r for r in table_match.group(1).splitlines() if r.strip()]
+        assert rows
+        for row in rows:
+            cells = [c.strip() for c in row.strip("|").split("|")]
+            assert len(cells) == 2
+            assert cells[0] and cells[1]
+
+        overview_md = store.read_report_markdown(run.id, db_path=isolated_db)
+        assert overview_md is not None
+        assert "\n### Unexpected research directions\n" in overview_md
+        section = overview_md.split("### Unexpected research directions", 1)[1]
+        next_heading = re.search(r"\n#{1,3} ", section)
+        body = section[: next_heading.start()] if next_heading else section
+        bullets = [line for line in body.splitlines() if line.startswith("- ")]
+        assert len(bullets) == 3
+        for bullet in bullets:
+            assert bullet.startswith("- **")
+            assert bullet.count("**") >= 2
+
+
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
     isolated_db: str,
 ) -> None:
