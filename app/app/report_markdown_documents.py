@@ -9,9 +9,15 @@ documents get the run's Research Goal Details and provenance line -- the
 corpus attests a goal opens both (R14-3) -- but the ranking document's
 "Goal:" line carries a freshly synthesized narrative restatement instead of
 the raw goal both documents used to render identically (R14-3, see
-``report_goal_synthesis.py``); the two only ever differ on that one line.
-Anything the corpus does not name for either document defaults to the
-overview document, as the more general of the two.
+``report_goal_synthesis.py``). R14-9: the two documents also genuinely
+differ on Evaluation Criteria -- the overview renders ``critical_criteria``
+as bolded-name-plus-prose (matching MASH's own combined report, this
+repo's other fully-mirrored exemplar), the ranking document renders the
+same data as a Criterion/Importance table (matching the protein-
+assemblies ranking report's own exemplar) -- see
+``report_markdown_supervisor.py``. Anything the corpus does not name for
+either document defaults to the overview document, as the more general
+of the two.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
 every name is re-exported so its namespace keeps resolving.
