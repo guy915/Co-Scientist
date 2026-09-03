@@ -171,6 +171,32 @@ def _overview_contact_groups(
     ]
 
 
+def _overview_nih_aims(top: tuple[DemoHypothesis, ...]) -> dict[str, Any]:
+    """Return the grant-style NIH Specific Aims sub-document."""
+    return {
+        "disease_description": (
+            "This curated demonstration models a grant-style synthesis of a "
+            "condition whose broad phenomenon is established but whose "
+            "driving mechanism is not."
+        ),
+        "unmet_need": (
+            "The central gap is not whether the broad phenomenon exists, but "
+            "which specific causal mechanism is both measurable and "
+            "falsifiable."
+        ),
+        "proposed_solution": (
+            "Separate the competing mechanisms and decide between them with "
+            "perturbation, rescue, and independent-model replication."
+        ),
+        "aims": _overview_aims(top),
+        "pilot_evaluation": (
+            "The intended output is a reproducible decision framework for "
+            "prioritizing a preclinical mechanism. It is illustrative only and "
+            "does not establish a clinical intervention."
+        ),
+    }
+
+
 def _curated_research_overview(
     scenario: DemoScenario,
     evidence: tuple[DemoEvidence, ...],
@@ -190,28 +216,7 @@ def _curated_research_overview(
             ),
             "research_directions": _overview_directions(top),
         },
-        "nih_specific_aims": {
-            "disease_description": (
-                "This curated demonstration models a grant-style synthesis of a "
-                "condition whose broad phenomenon is established but whose "
-                "driving mechanism is not."
-            ),
-            "unmet_need": (
-                "The central gap is not whether the broad phenomenon exists, but "
-                "which specific causal mechanism is both measurable and "
-                "falsifiable."
-            ),
-            "proposed_solution": (
-                "Separate the competing mechanisms and decide between them with "
-                "perturbation, rescue, and independent-model replication."
-            ),
-            "aims": _overview_aims(top),
-            "pilot_evaluation": (
-                "The intended output is a reproducible decision framework for "
-                "prioritizing a preclinical mechanism. It is illustrative only and "
-                "does not establish a clinical intervention."
-            ),
-        },
+        "nih_specific_aims": _overview_nih_aims(top),
         "research_contacts": _overview_contacts(evidence, top, directions),
         "research_contact_groups": _overview_contact_groups(
             top, directions, ids
