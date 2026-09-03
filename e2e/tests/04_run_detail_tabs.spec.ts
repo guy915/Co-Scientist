@@ -62,4 +62,10 @@ test('run detail tabs render hypotheses, Elo, and report content', async ({
   await expect(
     page.getByRole('heading', {name: 'Top hypotheses'}),
   ).toBeVisible();
+  // The curated demo's top idea carries a full-review Go/No-Go verdict and
+  // a simulation review, so this document is more than a bare heading.
+  await expect(page.getByText(/verdict:/i).first()).toBeVisible();
+  await expect(
+    page.getByRole('heading', {name: /simulation review/i}).first(),
+  ).toBeVisible();
 });
