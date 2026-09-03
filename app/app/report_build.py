@@ -84,6 +84,13 @@ class ReportRequest(NamedTuple):
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
             clock.
+        goal_restatement: A pre-authored narrative restatement of
+            ``research_goal`` for the ranking document's own "Goal:" line
+            (R14-3). None (the default) is a real run, which synthesizes
+            one via ``report_goal_synthesis``; a caller supplies this only
+            to carry curated content straight through, exactly as every
+            other synthesized-looking section here is actually authored
+            for the demo scenarios (see ``seed_scenario.py``).
         db_path: Optional override for the SQLite database path.
     """
 
@@ -102,6 +109,7 @@ class ReportRequest(NamedTuple):
     attributes: list[dict[str, Any]] | None = None
     critical_criteria: list[Any] | None = None
     prepared_at: float | None = None
+    goal_restatement: str | None = None
     db_path: str | None = None
 
 
@@ -175,12 +183,17 @@ async def _build_report_content(
     # Gotchas entry on counts computed more than once).
     knowledge_base = _resolve_knowledge_base(data, req)
     # R14-3: the ranking document's own goal restatement, once per run (not
-    # per hypothesis -- see report_goal_synthesis.py). Best-effort: None on
-    # any failure falls back to the raw goal, same as the overview
-    # document, rather than failing the whole report over a cosmetic line.
-    goal_restatement = await synthesize_goal_restatement(
-        run_id, req.research_goal, db_path=req.db_path
-    )
+    # per hypothesis -- see report_goal_synthesis.py). A curated demo
+    # supplies its own authored restatement on the request (see
+    # ``ReportRequest.goal_restatement``); only a real run synthesizes one
+    # here. Best-effort: None on any synthesis failure falls back to the
+    # raw goal, same as the overview document, rather than failing the
+    # whole report over a cosmetic line.
+    goal_restatement = req.goal_restatement
+    if goal_restatement is None:
+        goal_restatement = await synthesize_goal_restatement(
+            run_id, req.research_goal, db_path=req.db_path
+        )
     inputs = _report_markdown_inputs(
         data, req, knowledge_base, goal_restatement
     )

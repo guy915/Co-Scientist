@@ -35,6 +35,14 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "Separate growth-rate effects from biofilm-specific tolerance by "
             "pairing viability, matrix, and antibiotic-kill measurements."
         ),
+        goal_restatement=(
+            "S. aureus biofilms tolerate antibiotics without acquiring "
+            "resistance mutations, so this scenario asks whether shifting "
+            "the population's metabolic state -- rather than disrupting "
+            "the biofilm matrix itself -- can resensitize surviving cells, "
+            "and which metabolic pathway offers the most tractable point "
+            "of intervention."
+        ),
         duration_seconds=1628.0,
         elo_ceiling=1386,
         elo_step=15,
@@ -166,6 +174,13 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "and rule-shift behavior rather than treating adolescence as one "
             "uniform developmental window."
         ),
+        goal_restatement=(
+            "Across adolescence, microglia-driven pruning reshapes "
+            "prefrontal synapses; this scenario asks whether that "
+            "remodeling is what calibrates the circuit-level flexibility "
+            "measured in adult rule-shifting, or whether the two instead "
+            "track a shared but separate developmental timeline."
+        ),
         duration_seconds=2314.0,
         elo_ceiling=1337,
         elo_step=14,
@@ -289,6 +304,14 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
             "Test whether a molecular marker predicts a selective ferroptosis "
             "response, rather than assuming all pancreatic tumors share the "
             "same vulnerability."
+        ),
+        goal_restatement=(
+            "Pancreatic cancer cells resist iron-dependent lipid "
+            "peroxidation through several overlapping molecular "
+            "checkpoints; this scenario asks which regulator is the most "
+            "tractable to disable, and whether doing so can resensitize "
+            "tumors to standard chemotherapy rather than simply adding "
+            "toxicity."
         ),
         duration_seconds=2047.0,
         elo_ceiling=1392,

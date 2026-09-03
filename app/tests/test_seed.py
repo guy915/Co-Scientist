@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 import pytest
 
@@ -92,6 +93,34 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         len(scenario_hypotheses(scenario))
         for scenario in DEMO_SCENARIOS.values()
     ) == [15, 19, 21]
+
+
+def test_seed_demo_runs_ranking_goal_line_is_the_curated_restatement(
+    isolated_db: str,
+) -> None:
+    """The ranking document's "Goal:" line is each scenario's authored text.
+
+    Guards against a regression to R14-3's generated restatement: a demo
+    run is offline-backed, so ``report_goal_synthesis`` would otherwise
+    route it through the engine's deterministic offline router and produce
+    templated filler rather than a real narrative restatement (see
+    ``seed_scenario._scenario_report_request``, which threads the curated
+    ``DemoScenario.goal_restatement`` straight into the report request
+    instead).
+    """
+    _seed(isolated_db)
+
+    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    assert len(runs) == 3
+    for run in runs:
+        scenario = DEMO_SCENARIOS[run.research_goal]
+        ranking_md = store.read_report_ranking_markdown(
+            run.id, db_path=isolated_db
+        )
+        assert ranking_md is not None
+        match = re.search(r"^\*\*Goal:\*\* (.+)$", ranking_md, re.M)
+        assert match is not None
+        assert match.group(1) == scenario.goal_restatement
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
