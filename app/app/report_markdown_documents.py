@@ -45,6 +45,7 @@ from app.report_markdown_hypothesis import (
 )
 from app.report_markdown_knowledge_base import _render_knowledge_base_markdown
 from app.report_markdown_meta_review import (
+    _render_main_research_directions_markdown,
     _render_meta_review_overview_markdown,
     _render_meta_review_ranking_markdown,
 )
@@ -284,11 +285,14 @@ def _ranking_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         ),
         _render_provenance_line(inputs.prepared_at),
         # R14-9: the published order is Research Goal -> Evaluation
-        # Criteria -> Main Research Directions -> Candidate Ideas. This
-        # document has no Main Research Directions section of its own
-        # (docs/CORPUS-STATUS.md records that as a new, unbuilt OPEN row),
-        # so Evaluation Criteria sits directly before Candidate Ideas.
+        # Criteria -> Main Research Directions -> Candidate Ideas.
         _render_evaluation_criteria_table_markdown(inputs.critical_criteria),
+        # R14-27: the narrative directions synthesis -- see
+        # _render_main_research_directions_markdown for why this is a
+        # separate call rather than folded into
+        # _render_meta_review_ranking_markdown below, which renders after
+        # Candidate Ideas, not before it.
+        _render_main_research_directions_markdown(inputs.meta_review or {}),
         # "Candidate Ideas": the full per-idea write-up, the compared
         # candidates the rest of this document's sections evaluate.
         _render_top_hypotheses_markdown(

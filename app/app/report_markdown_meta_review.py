@@ -338,6 +338,31 @@ def _render_unexpected_connections(connections: list[Any]) -> list[str]:
     return ["\n### Unexpected connections\n", *lines]
 
 
+def _render_main_research_directions_markdown(
+    meta_review: dict[str, Any],
+) -> list[str]:
+    """Render the ranking document's "Main Research Directions" (R14-27).
+
+    Google's published ranking report carries its own narrative synthesis
+    here -- two flowing prose paragraphs weaving the run's directions
+    together (``top-ranking-hypotheses.md:24-28``), distinct from the
+    itemized per-direction array the Research Overview document renders
+    (``report_markdown_overview.py::_render_directions_list``). The
+    ``meta_review.main_research_directions`` string already carries any
+    internal paragraph break the model wrote (schemas/meta_review_schema.py
+    asks for two, separated by a blank line), so this renders it verbatim
+    rather than re-splitting it.
+
+    Skips cleanly -- no bare heading -- when the field is absent or blank:
+    a legacy run persisted before this field existed, or a provider
+    response that omits it under json_object mode.
+    """
+    text = str(meta_review.get("main_research_directions") or "").strip()
+    if not text:
+        return []
+    return ["## Main Research Directions\n", text, ""]
+
+
 def _render_meta_review_overview_markdown(
     meta_review: dict[str, Any],
 ) -> list[str]:
