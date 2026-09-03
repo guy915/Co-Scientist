@@ -188,6 +188,8 @@ def test_the_shipped_sources_reserve_no_slots() -> None:
         "openalex_search",
         "europepmc_search",
         "web_search",
+        "arxiv_search",
+        "biorxiv_search",
     }
     assert all(slots == 0 for slots in reserved.values())
 

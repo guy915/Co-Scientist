@@ -106,6 +106,8 @@ def test_lazy_state_is_unset_before_first_run() -> None:
         "openalex_search",
         "europepmc_search",
         "web_search",
+        "arxiv_search",
+        "biorxiv_search",
     ]
 
 

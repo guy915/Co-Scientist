@@ -49,10 +49,12 @@ _RRF_K = 2
 # per-list RRF weight instead of an additive term on an unrelated scale:
 # PubMed (peer-reviewed, curated) outweighs OpenAlex (broad index, has
 # citation counts), which outweighs Europe PMC/literature-tier sources
-# (mixed peer review), which outweighs preprints/arXiv/web (no editorial
-# review, and web carries no citation metadata at all -- the defect this
-# table exists to fix). An unrecognized source name earns no special
-# trust, so it shares the floor weight.
+# (mixed peer review), which outweighs preprints/arXiv/bioRxiv/web (no
+# editorial review, and web carries no citation metadata at all -- the
+# defect this table exists to fix). An unrecognized source name earns no
+# special trust, so it shares the floor weight -- which is exactly the
+# floor weight below, spelled out for every no-editorial-review source
+# rather than left implicit for the ones this table happens to omit.
 _SOURCE_RRF_WEIGHTS = {
     "pubmed": 3.0,
     "openalex": 2.0,
@@ -60,6 +62,7 @@ _SOURCE_RRF_WEIGHTS = {
     "literature": 1.5,
     "preprints": 1.0,
     "arxiv": 1.0,
+    "biorxiv": 1.0,
     "web": 1.0,
 }
 _DEFAULT_SOURCE_RRF_WEIGHT = 1.0

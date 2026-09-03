@@ -305,6 +305,92 @@ tools:
         and it is invisible to a peer-reviewed-only search. Everything it
         returns is unreviewed, and a hypothesis resting on one must say so.
 
+    # The composer's own connector menu (see docs/UI-FIDELITY.md D4)
+    # offers ArXiv and BioRxiv as separate toggles from PubMed; these two
+    # sources back them. Both are free and keyless, so neither needs a
+    # provider-key gate the way search_web does.
+    arxiv_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_arxiv"
+      display_name: "arXiv"
+      description: "Search arXiv for physics, math, CS, and quantitative-biology preprints"
+      category: "search"
+      source_type: "preprint"
+      enabled: true
+      effects: ["read", "network"]
+      # Same envelope shape as europepmc_search/preprint_search above, and
+      # the same consequence if results_path goes unnamed: the three
+      # envelope keys would be taken for paper ids and every real record
+      # dropped.
+      response_format:
+        type: "json"
+        results_path: "records"
+        is_dict: false
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "source_id"
+          source: "'arxiv'"
+      # Search-path vocabulary, matching europepmc_search/preprint_search:
+      # this is a literature-review/validation search source, not an
+      # entity-enrichment tool.
+      parameter_mapping:
+        query: "query"
+        max_papers: "max_results"
+        slug: null
+        recency_years: null
+        run_id: null
+      prompt_snippet: |
+        Use `search_arxiv` for physics, mathematics, computer science, and
+        quantitative-biology preprints -- fields Europe PMC's PubMed-rooted
+        index barely reaches. Everything it returns is unreviewed, and a
+        hypothesis resting on one must say so.
+
+    # bioRxiv-only preprint search. Distinct from preprint_search above,
+    # which spans every server Europe PMC indexes (bioRxiv, medRxiv, and
+    # others): this restricts to bioRxiv specifically, matching the
+    # composer's separate bioRxiv toggle. bioRxiv's own REST API lists
+    # papers by posting date and cannot be queried by subject at all, so
+    # this runs through Europe PMC too (see mcp_server's
+    # europepmc_search.py module docstring), just filtered to one
+    # publisher.
+    biorxiv_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_biorxiv"
+      display_name: "BioRxiv"
+      description: "Search bioRxiv preprints specifically"
+      category: "search"
+      source_type: "preprint"
+      enabled: true
+      effects: ["read", "network"]
+      response_format:
+        type: "json"
+        results_path: "records"
+        is_dict: false
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "source_id"
+          source: "'biorxiv'"
+      parameter_mapping:
+        query: "query"
+        max_papers: "max_results"
+        slug: null
+        recency_years: null
+        run_id: null
+      prompt_snippet: |
+        Use `search_biorxiv` before claiming something is unexplored in
+        biology specifically: the most recent biology work is usually a
+        bioRxiv preprint, invisible to a peer-reviewed-only search.
+        Everything it returns is unreviewed, and a hypothesis resting on
+        one must say so.
+
     # Registered trials, including the terminated and withdrawn ones that
     # were never written up. A gap argued from papers alone is a gap in
     # what somebody published; this is what a registry adds to that.
@@ -579,6 +665,16 @@ workflows:
         # Web hits are snippets; fetch the page so analysis has real text.
         content_tool: "read_url"
         content_url_field: "url"
+      # ArXiv and bioRxiv are narrower, single-domain sources (physics/
+      # math/CS/quantitative-biology; biology preprints specifically), so
+      # they are weighted like web search rather than the broad academic
+      # indexes above.
+      - tool: "arxiv_search"
+        papers_per_query: 2
+        enabled: true
+      - tool: "biorxiv_search"
+        papers_per_query: 2
+        enabled: true
     deduplicate_across_sources: true
     context_enrichment_tools:
       - "chembl_search"
@@ -619,6 +715,8 @@ workflows:
       # months, which is the window that lives on preprint servers and is
       # invisible to a peer-reviewed-only search.
       - "preprint_search"
+      - "arxiv_search"
+      - "biorxiv_search"
 
   # Reflection phase - entity-based evidence lookup against knowledge-graph
   # sources. Web tools do not fit this path (it queries by gene/protein

@@ -122,6 +122,8 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
         "openalex_search",
         "europepmc_search",
         "web_search",
+        "arxiv_search",
+        "biorxiv_search",
     ]
     assert legacy != multi_source
 
