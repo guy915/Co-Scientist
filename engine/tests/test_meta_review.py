@@ -109,10 +109,11 @@ async def test_candidate_and_existing_solutions_comparisons_map_through(
 ) -> None:
     """R12-9: the two comparison fields copy through from the LLM response.
 
-    ``candidate_comparison`` and ``existing_solutions_comparison`` are new
-    meta-review fields (see ``schemas.planning.META_REVIEW_SCHEMA``); this
-    pins that the node's mapping carries them into state unchanged, the
-    same way ``potential_connections`` already does.
+    ``candidate_comparison`` and ``existing_solutions_comparison`` are
+    meta-review fields whose comparison axes follow the run's own subject
+    matter (see ``schemas.meta_review_schema.META_REVIEW_SCHEMA``); this
+    pins that the node's mapping carries them -- axes included -- into
+    state unchanged, the same way ``potential_connections`` already does.
     """
     stub_call_llm_json(
         monkeypatch,
@@ -121,19 +122,21 @@ async def test_candidate_and_existing_solutions_comparisons_map_through(
             "meta_review_summary": "s",
             "candidate_comparison": {
                 "thematic_summary": "Two mechanistic themes emerge.",
+                "axes": ["Off-target risk"],
                 "ideas": [
                     {
                         "idea": "Hypothesis 1: NHE1 blockade",
-                        "distinguishing_attribute": "Established checkpoint.",
+                        "values": ["Low -- selective for cardiac NHE1."],
                     }
                 ],
             },
             "existing_solutions_comparison": {
                 "summary": "Current care slows rather than reverses.",
+                "axes": ["Mechanism targeted"],
                 "rows": [
                     {
                         "method": "Beta-blockade",
-                        "approach": "Reduce afterload.",
+                        "values": ["Afterload, not the NHE1 axis."],
                     }
                 ],
             },
@@ -151,9 +154,13 @@ async def test_candidate_and_existing_solutions_comparisons_map_through(
     assert mr["candidate_comparison"]["thematic_summary"] == (
         "Two mechanistic themes emerge."
     )
+    assert mr["candidate_comparison"]["axes"] == ["Off-target risk"]
     assert mr["candidate_comparison"]["ideas"][0]["idea"] == (
         "Hypothesis 1: NHE1 blockade"
     )
+    assert mr["candidate_comparison"]["ideas"][0]["values"] == [
+        "Low -- selective for cardiac NHE1."
+    ]
     assert mr["existing_solutions_comparison"]["summary"] == (
         "Current care slows rather than reverses."
     )

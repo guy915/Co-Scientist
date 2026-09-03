@@ -37,8 +37,20 @@ from co_scientist.schemas.builders import obj, str_array
 # arrays are capped (_MAX_CANDIDATE_COMPARISON_IDEAS/_MAX_EXISTING_
 # SOLUTIONS_ROWS) so a large reviewed pool cannot scale the response
 # unboundedly, the same caution RESEARCH_OVERVIEW_MAX_SUB_TOPICS documents.
+#
+# The comparison axes (e.g. "computational scalability") used to be a fixed
+# field set, which read as filler whenever a run's own discipline had no
+# use for one of them -- a wet-lab biology idea has no "computational
+# scalability" to report. `axes` lets the model name 2-5 axes that fit
+# *this* run's subject matter, and each idea/row's `values` rates it on
+# those same axes positionally (values[i] answers axes[i]) rather than
+# against a fixed vocabulary -- so the table's shape follows the goal, not
+# the schema. `report_markdown_meta_review.py` on the app side still
+# renders the older fixed-field shape a run persisted before this existed;
+# see its module docstring for that fallback.
 _MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
 _MAX_EXISTING_SOLUTIONS_ROWS: Final = 6
+_MAX_COMPARISON_AXES: Final = 5
 
 META_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "meta_review",
@@ -139,6 +151,23 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                             " supported by the reviewed evidence."
                         ),
                     },
+                    "axes": {
+                        "type": "array",
+                        "maxItems": _MAX_COMPARISON_AXES,
+                        "items": {"type": "string"},
+                        "description": (
+                            "2-5 short axis names to compare the ideas"
+                            " on, chosen to fit THIS run's own"
+                            " discipline -- e.g. 'Off-target risk' for a"
+                            " chemical-biology goal, 'Cohort"
+                            " availability' for a clinical-epidemiology"
+                            " one. Do not default to generic"
+                            " engineering/computational vocabulary"
+                            " ('scalability', 'implementation"
+                            " complexity') for a wet-lab biology"
+                            " question it does not fit."
+                        ),
+                    },
                     "ideas": {
                         "type": "array",
                         "maxItems": _MAX_CANDIDATE_COMPARISON_IDEAS,
@@ -153,10 +182,11 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                                         " full hypothesis text."
                                     ),
                                 },
-                                "distinguishing_attribute": {"type": "string"},
-                                "computational_scalability": {"type": "string"},
-                                "supporting_evidence_basis": {"type": "string"},
-                                "primary_novelty_parameter": {"type": "string"},
+                                "values": str_array(
+                                    "One rating per entry in `axes`, in"
+                                    " the same order -- values[i]"
+                                    " answers axes[i] for this idea."
+                                ),
                             }
                         ),
                     },
@@ -169,7 +199,24 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                         "description": (
                             "How current standard-of-care approaches"
                             " compare to the candidate hypotheses as a"
-                            " group."
+                            " group. Leave this and `rows` empty when"
+                            " this goal has no established"
+                            " standard-of-care or existing-solutions"
+                            " landscape to compare against (e.g. a basic"
+                            " mechanism question) rather than inventing"
+                            " one."
+                        ),
+                    },
+                    "axes": {
+                        "type": "array",
+                        "maxItems": _MAX_COMPARISON_AXES,
+                        "items": {"type": "string"},
+                        "description": (
+                            "2-5 short axis names to compare each"
+                            " existing approach against the candidate"
+                            " ideas on, chosen to fit this run's own"
+                            " discipline -- see candidate_comparison"
+                            "'s axes for the same guidance."
                         ),
                     },
                     "rows": {
@@ -177,10 +224,19 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                         "maxItems": _MAX_EXISTING_SOLUTIONS_ROWS,
                         "items": obj(
                             {
-                                "method": {"type": "string"},
-                                "approach": {"type": "string"},
-                                "sensitivity_to_novelty": {"type": "string"},
-                                "scalability": {"type": "string"},
+                                "method": {
+                                    "type": "string",
+                                    "description": (
+                                        "Name of the existing approach"
+                                        " or standard-of-care baseline"
+                                        " being compared."
+                                    ),
+                                },
+                                "values": str_array(
+                                    "One rating per entry in `axes`, in"
+                                    " the same order -- values[i]"
+                                    " answers axes[i] for this method."
+                                ),
                             }
                         ),
                     },

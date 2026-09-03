@@ -393,7 +393,7 @@ async def _save_scenario_report(
     overview = _curated_research_overview(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
-    meta_review = _curated_meta_review(seed.scenario)
+    meta_review = _curated_meta_review(seed.scenario, seed.hypotheses)
     built = await _build_report_content(
         seed.run.id,
         _scenario_report_request(seed, hypothesis_ids, overview, meta_review),

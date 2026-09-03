@@ -45,10 +45,14 @@ You are an expert in scientific research and meta-analysis. Synthesize a compreh
 
 ### 6. Compare the candidate ideas against each other and against existing solutions
 
+Choose your own comparison axes -- do not default to a fixed, generic vocabulary (e.g. "computational scalability", "implementation complexity") that may not fit this research goal's own discipline. A chemical-biology goal might compare ideas on off-target risk and synthetic accessibility; a clinical-epidemiology goal on cohort availability and confounding risk; a wet-lab mechanism question on which perturbation and readout it needs. Pick 2-5 axes that a reader of *this* goal would actually want to know, name them plainly, and rate every idea/row on the same axes so the table stays comparable across rows.
+
 - `candidate_comparison.thematic_summary`: how the candidate hypotheses group into mechanistic themes, and which is best supported by the evidence reviewed above
-- `candidate_comparison.ideas`: one entry per hypothesis worth distinguishing (not necessarily every one), each naming its `idea` by `hypothesis_index` and subject exactly as in section 5 above (e.g. "Hypothesis 3: LILRB4 blockade" -- never the full hypothesis text), plus its `distinguishing_attribute`, `computational_scalability`, `supporting_evidence_basis`, and `primary_novelty_parameter`
-- `existing_solutions_comparison.summary`: how current standard-of-care approaches for this research goal compare to the candidate hypotheses as a group
-- `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method`, `approach`, `sensitivity_to_novelty` (whether it addresses what the candidate hypotheses target), and `scalability`
+- `candidate_comparison.axes`: 2-5 short axis names fitting this goal's own discipline, as described above
+- `candidate_comparison.ideas`: one entry per hypothesis worth distinguishing (not necessarily every one), each naming its `idea` by `hypothesis_index` and subject exactly as in section 5 above (e.g. "Hypothesis 3: LILRB4 blockade" -- never the full hypothesis text), plus `values`: one rating per entry in `candidate_comparison.axes`, in the same order
+- `existing_solutions_comparison.summary`: how current standard-of-care approaches for this research goal compare to the candidate hypotheses as a group. Leave this and `rows`/`axes` empty when the goal has no established standard-of-care or existing-solutions landscape to compare against (e.g. a basic mechanism question) -- do not invent one
+- `existing_solutions_comparison.axes`: 2-5 short axis names for comparing each existing approach against the candidate ideas, following the same discipline-fit guidance as `candidate_comparison.axes`
+- `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method` and `values`: one rating per entry in `existing_solutions_comparison.axes`, in the same order
 
 Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
 

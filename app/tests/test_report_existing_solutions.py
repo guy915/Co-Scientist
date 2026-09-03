@@ -2,13 +2,15 @@
 
 The MASH Goal Report's ``7 Comparison to Existing Solutions``
 (``docs/CORPUS-EXTRACTION.md`` R12-9) frames current standard-of-care
-practice against the run's proposed approaches. A second published
-exemplar (R14-7) gives the real column vocabulary for this shape --
-Method / Approach / Sensitivity to Novelty / Scalability, against named
-baselines -- which this renderer uses rather than the MASH report's own
-domain-specific columns (Feature / Existing Solutions / Proposed
-Mechanistic Hypotheses), since R14-7's names generalize across research
-goals and R12-9 explicitly points at the R14 rows for real vocabulary.
+practice against the run's proposed approaches. The table's columns follow
+the run's own subject matter (``axes``, chosen per run) rather than a fixed
+vocabulary -- see ``test_a_populated_comparison_renders_domain_aware_axes``
+below. ``test_a_populated_comparison_renders_summary_and_row_columns`` pins
+the older fixed-field shape a run's meta-review carried before that (still
+accepted on read, per the renderer's own fallback). This whole section is
+also expected to render nothing for a goal with no standard-of-care
+landscape to compare against -- see
+``test_no_existing_solutions_comparison_renders_no_section``.
 """
 
 from app import report_markdown
@@ -32,7 +34,7 @@ def _markdown(meta_review: dict[str, object]) -> str:
 
 
 def test_a_populated_comparison_renders_summary_and_row_columns() -> None:
-    """The framing summary and every real R14-7 column name render."""
+    """The legacy fixed-field shape: a run's meta-review predating axes."""
     markdown = _markdown(
         {
             "existing_solutions_comparison": {
@@ -61,6 +63,38 @@ def test_a_populated_comparison_renders_summary_and_row_columns() -> None:
     assert "Reduce afterload pharmacologically." in markdown
     assert "Does not address the RSK-NHE1 axis." in markdown
     assert "Widely available, low cost." in markdown
+
+
+def test_a_populated_comparison_renders_domain_aware_axes() -> None:
+    """The current shape: per-run axes, rated positionally per row."""
+    markdown = _markdown(
+        {
+            "existing_solutions_comparison": {
+                "summary": (
+                    "Current care slows progression rather than reversing it."
+                ),
+                "axes": ["Mechanism targeted", "Availability"],
+                "rows": [
+                    {
+                        "method": "Beta-blockade (standard of care)",
+                        "values": [
+                            "Afterload, not the RSK-NHE1 axis.",
+                            "Widely available, low cost.",
+                        ],
+                    }
+                ],
+            }
+        }
+    )
+
+    assert "### Comparison to existing solutions" in markdown
+    assert "Beta-blockade (standard of care)" in markdown
+    assert (
+        "**Mechanism targeted:** Afterload, not the RSK-NHE1 axis." in markdown
+    )
+    assert "**Availability:** Widely available, low cost." in markdown
+    # Never the legacy fixed vocabulary alongside the domain-aware axes.
+    assert "Sensitivity to novelty" not in markdown
 
 
 def test_no_existing_solutions_comparison_renders_no_section() -> None:

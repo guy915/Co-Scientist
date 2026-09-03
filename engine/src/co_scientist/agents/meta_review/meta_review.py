@@ -359,8 +359,8 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         "potential_connections": response.get("potential_connections", []),
         # R12-9: the published report's per-idea comparison table and its
         # comparison against existing solutions -- see
-        # schemas.planning.META_REVIEW_SCHEMA for the field shapes and
-        # report_markdown_meta_review.py for the render.
+        # schemas/meta_review_schema.py for the domain-aware axes/values
+        # shape and report_markdown_meta_review.py for the render.
         "candidate_comparison": response.get("candidate_comparison", {}),
         "existing_solutions_comparison": response.get(
             "existing_solutions_comparison", {}
