@@ -375,8 +375,8 @@ Engine-specific docs live in `engine/docs/` (`ARCHITECTURE.md`, `CONFIGURATION.m
 
 A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors.
 
-It registers 25 tools (23 without a web-search provider key) in four families:
-- **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary).
+It registers 27 tools (25 without a web-search provider key) in four families:
+- **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary), `search_europepmc` and its `search_preprints`/`search_biorxiv` preprint-restricted siblings, `search_arxiv` (arxiv.org's own export API, keyless).
 - **Open web** — `read_url` (always registered), `search_web` and `check_web_search_available` (both key-gated).
 - **Direct biomedical lookups** — `search_chembl`, `search_uniprot` (EBI REST).
 - **8 INDRA CoGex knowledge-graph queries.**
