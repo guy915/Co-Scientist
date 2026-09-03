@@ -312,8 +312,9 @@ facts; severity DECISION (very likely intentional trim).*
   longer exists); `app/app/engine_adapter/tools.py`'s `_KNOWN_CONNECTORS`
   lists only `web_search` / `pubmed` / `indra` — still short of the
   reference's four scientific sources (no dedicated ArXiv/BioRxiv toggle
-  even though the engine calls both), and still with no master toggle. This
-  row's code citation is stale; a full re-verification against the current
+  even though the engine calls both), and still with no master toggle
+  (`docs/CORPUS-EXTRACTION.md` row `R13-16` records this gap). This row's
+  code citation is stale; a full re-verification against the current
   connectors plumbing is out of scope here.
 - **Verifier note:** the delta (4 scientific connectors + master vs. today's
   narrower set, no master) is real. Most likely an intentional single-agent
