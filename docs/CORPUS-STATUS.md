@@ -70,12 +70,12 @@ partial pass is never lost.
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 12 | 0 | 0 | 1 |
 | R13 | 11 | 11 | 0 | 0 | 0 |
-| R14 | 20 | 17 | 0 | 1 | 2 |
+| R14 | 21 | 17 | 1 | 1 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 5 | 0 | 0 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **83** | **79** | **0** | **1** | **3** |
+| **Total** | **84** | **79** | **1** | **1** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -320,6 +320,44 @@ Total row moves 77 → 79 BUILT, 3 → 1 DECISION -- two rows closed
 section below). `R14-10` also gained a fuller, self-contained record
 this wave without a verdict change -- see its own row.
 
+**Closing pass, `R14-9`/`R12-23` mirror-fidelity wave (2026-09-04).**
+`R14-9` keeps its **FALSE** verdict on its central claim (`R12-18` is
+not absent), but its own earlier correction is itself corrected in-cell,
+the `R6-6`/`R12-14`/`MO-5` style: the surviving table-vs-prose format
+point was never blocked on a missing `importance` value -- that prose
+already exists, as each `critical_criteria` entry's own `description`
+field; "Importance" is the published table's column label for it, not a
+second datum to synthesize. With that premise corrected, the format
+point itself is now closed by mirroring the corpus's own per-document
+split: prose stays on the Research Overview document (MASH's own
+analogue, unchanged), and a Criterion/Importance table now renders on
+the Top Ranking Hypotheses document (the protein-assemblies ranking
+report's own analogue), `docs/PARITY.md` `RANKING-CRITERIA-TABLE-001`.
+`R12-23` also closes fully: its bundled `Research directions` half
+splits into `Unexpected Research Directions` (BUILT --
+`UNEXPECTED-RESEARCH-DIRECTIONS-001`, genuinely new content this repo
+did not previously hold) and the five-main-directions restatement
+(declined as an accepted divergence, citing `R12-13`'s own precedent
+rather than doubling content already rendered in full). Separately,
+`R12-17`/`R12-18`/`R12-23` gain the `docs/PARITY.md` rows their own
+residual asked for -- `STRATIFICATION-ATTRIBUTES-001`,
+`EVALUATION-CRITERIA-001`, `REVIEW-SUMMARY-001` -- all `verified`,
+citing the same four app tests the residual named plus the fifth this
+pass found (`test_report_review_summary.py`). None of the four rows
+above changes verdict, so no BUILT/FALSE/DECISION count moves. **One
+new row is added, honestly, not massaged away**: `R14-27` (**OPEN**),
+the published ranking report's own `Main Research Directions` prose
+section, found while scoping this wave and left unbuilt -- this repo
+holds no data shaped as a synthesized cross-direction summary for that
+document, only the per-direction array the Research Overview document
+already consumes. The R14 per-region row moves 20 rows (17 BUILT / 0
+OPEN / 1 DECISION / 2 FALSE) → 21 rows (17 BUILT / 1 OPEN / 1 DECISION /
+2 FALSE); the Total row moves 83 → 84 rows, 0 → 1 OPEN, every other
+bucket unchanged (79 BUILT / 1 DECISION / 3 FALSE). This is the
+campaign's first OPEN row since the `R12-5` pass above drove every
+region to 0 -- recorded because it is true, not reconciled away to keep
+that streak.
+
 ---
 
 ## R1 — SSR consolidation
@@ -416,7 +454,7 @@ Noticed in passing: none.
 | R12-17 | The published run's Attributes are named 1-5 rating scales with worked anchors, not plain labels; the row found this "half-built and the built half invisible" — the Supervisor already synthesizes `config_synthesis.attributes` and injects it into review prompts, but nothing renders it | **BUILT** | `app/app/report_markdown_supervisor.py` (243 lines) — its own docstring names this row by ID and closes it: `_render_stratification_attributes_markdown` (`:48-76`) renders "## Stratification Attributes" from `config_synthesis.attributes`, deliberately titled to avoid conflating it with the run's plain-string setup attributes. Wired into `report_markdown.py:448` via `report_build.py:214` (`attributes=req.attributes`); pinned by `app/tests/test_report_stratification_attributes.py` and `app/tests/test_drain_stratification_attributes.py`. Only the row's second half ("decide whether reviewers score against them") stays open, and that decision is already effectively made — `prompts/review.py` already injects them into every reviewer prompt as "Stratification attributes (score each 1-5)", per the same docstring |
 | R12-18 | The Supervisor synthesizes goal-specific evaluation criteria (`workflow_plan.review_phase.critical_criteria`) but nothing renders them — "we synthesize the second kind and then hide it" | **BUILT** | Same module, same docstring, names `R12-18` explicitly: `_render_evaluation_criteria_markdown` (`report_markdown_supervisor.py:127-169`) renders "## Evaluation Criteria" from `critical_criteria`, wired into `report_markdown.py:469` via `report_build.py:215`. Pinned by `app/tests/test_report_critical_criteria.py` and `app/tests/test_drain_critical_criteria.py`. The row's separate observation that the *interview* path never populates the plain-string `setup.criteria` field is unaffected — that is a distinct, still-true fact about a different field, not part of what this row asked to fix |
 | R12-19 | An inline citation marker in body prose can carry its own verdict tag (e.g. `[17 (unsupported)]`); claims our nearest analogue is a separate bulleted block, and that `report_markdown.py` "never renders `literature_grounding` at all... so those keys are generated, paid for, and discarded" | **FALSE** | The discarding claim does not survive a read. `app/app/engine_adapter/drain_hypotheses.py:407` sets `mechanism=h.get("literature_grounding") or ""` — the app's `mechanism` field literally **is** `literature_grounding`'s content, `[C1]` markers included, rendered verbatim by `report_markdown_hypothesis.py:97-105` (`_render_hypothesis_mechanism`) under "**Mechanism:**". Those keys are then resolved to a References list by `app/app/report_markdown_references.py` (119 lines, its own module, wired at `report_markdown.py:343` via `references_by_hypothesis`), with its own test file `app/tests/test_report_markdown_references.py`. The row's grep evidently checked `report_markdown.py`'s own render function for a field literally named `literature_grounding` and found only `mechanism`/`expected_effect` — missing that `mechanism` *is* that field under its drain-layer name, and missing the sibling module entirely. What survives: our citation markers appear inline (not absent, as the row implies) but genuinely carry no verdict tag (`(unsupported)`-style) — `_render_claim_evidence` (`report_markdown_hypothesis.py:63-77`) still renders claim verdicts as a **separate** bulleted block after the prose, exactly as the row correctly describes for that narrower point. So: the "discarded" claim is false; the "no inline verdict tag" claim is true |
-| R12-23 | Published `Review summary` restates the run's criteria as 16 yes/no reviewer questions grouped under 5 criteria — the reader-facing form of R12-18, and absent | **BUILT** | Same module again, names `R12-23` explicitly: `_render_review_summary_markdown` (`report_markdown_supervisor.py:212-243`) renders "## Review Summary" — each criterion with its named reviewer questions — wired into `report_markdown.py:469` (shares `critical_criteria` with R12-18), same tests. The row's other half, `Research directions` restating the five main directions with an `Unexpected Research Directions` block, is unaddressed by this module and not otherwise found — the row bundles two asks; only the `Review summary` half is built |
+| R12-23 | Published `Review summary` restates the run's criteria as 16 yes/no reviewer questions grouped under 5 criteria — the reader-facing form of R12-18, and absent | **BUILT** | Same module again, names `R12-23` explicitly: `_render_review_summary_markdown` (`report_markdown_supervisor.py:212-243`) renders "## Review Summary" — each criterion with its named reviewer questions — wired into `report_markdown_documents.py:256` (corrected from this row's own earlier, now-stale citation to `report_markdown.py:469` -- that render moved when the R14-11 document split landed), shares `critical_criteria` with R12-18, same tests. **Closing pass (2026-09-04):** the row's other half is now fully resolved, split into its two genuinely different asks rather than left bundled. `Unexpected Research Directions` — genuinely novel content this repo did not previously hold — is now BUILT: `unexpected_research_directions` on `RESEARCH_OVERVIEW_SCHEMA` (`engine/src/co_scientist/schemas/synthesis.py`), rendered as "### Unexpected research directions" on the Research Overview document (`report_markdown_overview.py::_render_unexpected_directions_section`); see `docs/PARITY.md` `UNEXPECTED-RESEARCH-DIRECTIONS-001`. The restatement of the five main directions is a deliberate accepted divergence, not built: that content already renders once, in full, under "## Research Overview" (`_render_directions_list`) with title/importance/sub_topics/recent_findings/suggested_experiments — a second render of the same content in the same document would read as a rendering bug in this product. This is the exact precedent `R12-13` already sets (the published report's own duplicate "Top hypotheses" heading recorded as a divergence rather than mirrored) |
 
 **R12: 12 BUILT / 0 OPEN / 0 DECISION / 1 FALSE.**
 
@@ -475,7 +513,7 @@ not read as still true.
 | R14-4 | A second, longer "About" disclaimer exists on the research-overview report surface, textually distinct from the per-hypothesis one and from the provenance line; unclear whether this is a second required disclaimer or a variant of the same one | **BUILT** | `report_markdown_header.py`'s `_render_about_disclosure` renders it verbatim on the Research Overview document, right after the title/provider line and before the table of contents; byte-identical to the per-hypothesis instance (`R14-13`) by construction — `_ABOUT_DISCLOSURE` is now the one constant, re-exported into `report_markdown_hypothesis.py` as `_HYPOTHESIS_DISCLAIMER` so the two can never drift apart. Confirmed a variant of the same wording, not a second, differently-worded disclaimer; not added to the ranking document, since nothing in the corpus attests a copy there. Pinned by `app/tests/test_report_about_disclosure.py` |
 | R14-6 | Published research contacts are grouped by research direction (4 groups), each with a shared rationale paragraph and up to two example hypothesis titles; `MO-7` only restored the flat per-contact tag | **BUILT** | `engine/src/co_scientist/schemas/synthesis.py:216-254` `research_contact_groups[]` (named by this row ID in its own code comment) carries `research_direction`, `rationale`, and `example_hypothesis_indices` (by 1-based position, never by echoing text — the AGENTS.md envelope-shape lesson applied on purpose); rendered via `_render_research_contacts_section` (`report_markdown_overview.py:311`); pinned by `app/tests/test_report_contact_groups.py` |
 | R14-8 | "Best Next Steps" richer shape: time estimates, lettered sub-phases, a named winning-idea recommendation — beyond `R12-11`'s base finding | **BUILT** | `app/app/report_markdown_meta_review.py:30-88` (`_RecommendationFields`, `_normalize_recommendation`, `_render_recommendation`) adds `time_estimate`, `phase_label`, `recommended_idea` (by `hypothesis_index`, not text), each explicitly commented `# R14-8`; commit `a0c4a5ec` ("render the strategic roadmap's time estimate, phase, and idea (R14-8)") |
-| R14-9 | The synthesized-criteria section has a table rendering (Criterion/Importance, 5 rows) distinct from MASH's prose paragraphs; decided-by claims "`R12-18` re-confirmed still fully absent" | **FALSE** | The central claim does not survive a read: `R12-18` is now **BUILT** (see the R12 section above) — `report_markdown_supervisor.py`'s `_render_evaluation_criteria_markdown` renders `critical_criteria` as bolded-name-plus-prose, tested by `app/tests/test_report_critical_criteria.py`. What the row's grep found (`runs_crud_resolve.py:83` never sets the interview-derived `setup.criteria` field) is true but is a different fact from "R12-18 is absent" — that row is about the Supervisor's *separately synthesized* `critical_criteria`, which does render. What survives as a genuine, narrower point: our rendering is prose (matching MASH), not the table format this row found in a second exemplar — that specific format choice remains unaddressed. **Re-checked now that `R14-11`'s split has landed**: this renders on the Research Overview document (`_overview_sections`, "Review guidelines"), and prose still matches that document's own analogue (MASH's single combined report). The table format's blocker was never really `R14-11` — it is that `critical_criteria` carries no `importance` value to fill a Criterion/Importance table's second column, and inventing one would fabricate data the Supervisor never synthesized. Still worth a line on `REVIEW-SUMMARY`-adjacent format decisions rather than a full row of its own |
+| R14-9 | The synthesized-criteria section has a table rendering (Criterion/Importance, 5 rows) distinct from MASH's prose paragraphs; decided-by claims "`R12-18` re-confirmed still fully absent" | **FALSE** | The central claim does not survive a read: `R12-18` is now **BUILT** (see the R12 section above) — `report_markdown_supervisor.py`'s `_render_evaluation_criteria_markdown` renders `critical_criteria` as bolded-name-plus-prose, tested by `app/tests/test_report_critical_criteria.py`. What the row's grep found (`runs_crud_resolve.py:83` never sets the interview-derived `setup.criteria` field) is true but is a different fact from "R12-18 is absent" — that row is about the Supervisor's *separately synthesized* `critical_criteria`, which does render. What survives as a genuine, narrower point: our rendering is prose (matching MASH), not the table format this row found in a second exemplar — that specific format choice remains unaddressed. **Re-checked now that `R14-11`'s split has landed**: this renders on the Research Overview document (`_overview_sections`, "Review guidelines"), and prose still matches that document's own analogue (MASH's single combined report). **Correction to this pass's own earlier reasoning:** the table format was never blocked on a missing `importance` value — `critical_criteria` already carries exactly that prose, as each entry's own `description` field (`engine/src/co_scientist/schemas/planning.py:127+`), the same field `_render_evaluation_criteria_markdown` already renders as prose. "Importance" is the published table's column *label* for that existing datum, not a second value the Supervisor would have to synthesize; inventing one was never the blocker this format needed cleared. **Closing pass (2026-09-04):** the surviving format point is now closed by mirroring the corpus's own per-document split (R14-11): the Research Overview document keeps the prose form (matching MASH's combined report, unchanged), and the Top Ranking Hypotheses document now renders the same `critical_criteria` as a Criterion/Importance table (`_render_evaluation_criteria_table_markdown`, `report_markdown_supervisor.py`, wired into `report_markdown_documents.py`'s `_ranking_sections` right before Candidate Ideas — matching the protein-assemblies ranking report's own section order), pinned by `app/tests/test_report_criteria_table.py`. See `docs/PARITY.md` `RANKING-CRITERIA-TABLE-001` |
 | R14-10 | The published ranking-report file is a compound document (report + an embedded full proposal + an embedded full review); whether this composition is exemplar-specific or a general Google shape cannot be settled from one run | **DECISION** | Confirmed unresolvable, now checked directly against the raw tree rather than inferred: `find`/`grep` over all of `references/` for `Top ranking proposals` returns exactly two distinct files (each itself mirrored once) — `research/supplements/ai-guided-discovery-of-atypical-protein-assemblies/reports/top-ranking-hypotheses.md` (397 lines) and `.../top-ranking-hypotheses-existing-export.md` (384 lines). Both carry the identical H1 title ("Comparative Analysis of Structural Novelty Indices (SNI) for Unconventional NRC-NLR Identification"), the same Research Goal, and — checked heading-by-heading — the identical section composition (Research Goal, Evaluation Criteria, Main Research Directions, a 10-idea Candidate Ideas list, Idea Comparison Table, Comparison with Existing Solutions, Unexpected Connections, Research Contacts, Recommendation, References, and the same embedded `Top ranking proposals` compound document ending in an 8-part Reviews summary), differing only in markdown heading-level formatting (the first file renders most sections at H1, the second mostly at H3/H4) — two export formats of one run, not two runs, so they do not constitute a second exemplar. No other research goal in the corpus has a ranking report at all: `research/extracted-artifacts/outputs/research-overviews/` holds three other overviews directly in that directory (`als-research-overview-and-contact.md`, `cf-pici-research-overview.md`/`cf-pici-research-overview-directions-2-to-6.md`, `mash-liver-fibrosis-reversal-therapeutic-hypothesis.md`), none containing `Top ranking proposals`. Stays blocked on external evidence this repo cannot supply, not on an implementation choice |
 | R14-11 | A single run produces two separately-purposed report documents (`research-overview.md`, meta-review-style; `top-ranking-hypotheses.md`, tournament-comparison-style); we emit one combined document | **BUILT** | The owner decided: split. `report_markdown_documents.py`'s `render_overview_document_markdown`/`render_ranking_document_markdown` replace the former single `render_report_markdown`, allocating sections per R14-11's own two lists (corroborated by R14-1's identical six-item table of contents for the overview document, and R14-7/R14-8 for the ranking document's three): overview gets Main Directions, Review guidelines, Open questions, Unexpected connections, Research contacts, and a titles-only Top ranking hypotheses list (R11-4); ranking gets the full per-idea Candidate Ideas write-up, the Idea Comparison Table, Comparison with Existing Solutions, and the Recommendation roadmap. Persisted as one more nullable column on the existing `reports` row (`markdown_text_ranking`) rather than a second table or a second row, since both documents share one payload/timestamp/lifecycle; NULL there is the back-compat discriminator (`store/reports.py`'s docstring) an old single-document report keeps reading and sharing by, unchanged. Surfaced as a fifth "Top Ranking Hypotheses" React tab, shown only when a report carries the second document. See `docs/PARITY.md` `REPORT-DOCUMENT-SPLIT-001`. `R14-4` is now separately BUILT on top of this; `R14-3` and `R14-9`'s table-vs-prose point were re-judged and stay open, now for narrower, specific reasons (see their own rows) rather than being blocked on this one |
 | R14-12 | Every published title is `# **Co-scientist - <Title>**` — bold, H1, product-prefixed, an authored noun phrase, never a full sentence; needs a dedicated LLM-composed `title` field plus a prefix-convention decision | **BUILT** | **The content half now built on top of the prefix half.** A `title` field (`_TITLE_FIELD`, `schemas/generation.py`) rides the existing generation and evolution calls, shared by identity across `GENERATION_SCHEMA`, `HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA`, and `EVOLUTION_SCHEMA` — the same three call sites `_EXPERIMENT_FIELD` (R14-20) already backs — described as a compact noun phrase under 100 characters, no trailing period (commit `3d18b7cd`). `hypothesis_from_llm_output` and evolution's `_extract_evolution_fields` carry it onto `Hypothesis.title`; the app's `_authored_title` (`app/app/engine_adapter/drain_hypothesis_title.py`) is the single point where it is preferred over the pre-existing `first_sentence(text)`, which stays exactly as the sole fallback for a run predating this field or a `json_object` downgrade that omits/mistypes/empties it (commit `3fc45294`). `report_markdown_hypothesis.py:143-153`'s bold/product-prefixed rendering (commit `9521f16a`) now wraps an authored name rather than a truncated sentence -- exercised end-to-end through a real `HypothesisGenerator` run on the offline backend (generation and evolution both) and the drain/report path, e.g. the actually-rendered `### 1. **Co-Scientist - Autophagy as a rate-limiting constraint on disease (1)**` (the trailing `(1)` is the offline filler's own ordinal suffix, not a schema artifact). |
@@ -489,8 +527,9 @@ not read as still true.
 | R14-22 | Where populated, `Deep verification:` is a numbered list of simulated-protocol flaws; original reading said nothing renders it, corrected in-row to say the real gap is that `simulation_review`'s `failure_points`/`decisive_step` (the field that actually matches this shape) has no renderer | **BUILT** | `app/app/report_markdown_hypothesis.py:182-216` (`_render_hypothesis_simulation_review`) renders `simulation_review.failure_points` as a numbered flaw list plus a `**Decisive step:**` line, wired at `:307`; commit `16ebdce2` ("tighten the ledger note and add an end-to-end render test") |
 | R14-24 | Corrects an earlier reading: the 11-vs-8 Deep-verification-populated split is not truncation, verified section-by-section against three files; a footnote is needed wherever the wrong file-length framing might be cited | **BUILT** | The correction is the row itself, positioned exactly where a reader would encounter the original claim — its own "Decided by" column states the correction in full, with the three-file verification recorded inline, satisfying the row's own ask ("a footnote here correcting the file-length framing") |
 | R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **BUILT** | Owner call: keep the flat per-idea entry, no 14-section document. `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order -- deliberately: the Top Ranking Hypotheses document already carries mechanism, steps to test, verdict, simulation review, and claim evidence per idea (R14-11), so a separate per-hypothesis document would largely restate it |
+| R14-27 | New finding, not in the original checklist (found while scoping this wave's Evaluation Criteria table, `R14-9`): the published ranking report carries its own `# **Main Research Directions**` section (`top-ranking-hypotheses.md:24-28`) -- two prose paragraphs summarising the strategic landscape across the run's ideas, distinct from the Research Overview document's five-item expanded directions list | **OPEN** | Genuine gap, not built this wave. `_ranking_sections` (`report_markdown_documents.py`) renders Research Goal Details, provenance, the Evaluation Criteria table (`R14-9`, closed this wave), Candidate Ideas, the Idea Comparison Table / Comparison with Existing Solutions / Recommendation, and the Citation audit -- no cross-direction prose summary anywhere in the document. We hold no data shaped for this: the nearest existing field, `overview.research_directions[]` (`title`/`importance`/`sub_topics`/`recent_findings`/`suggested_experiments` per direction), is itemized per direction rather than a synthesized two-paragraph narrative across all of them, and it already backs the Research Overview document's own directions list (`report_markdown_overview.py`) -- reusing it here would still need a new synthesized value, not only a rendering change. Would need either a new terminal-synthesis field on `RESEARCH_OVERVIEW_SCHEMA` (a short prose summary of the strategic landscape, distinct from the per-direction array) threaded onto the ranking document, or an explicit owner call to decline it as an accepted divergence, the way `R12-13` and this wave's own `R12-23` restatement point were declined |
 
-**R14: 17 BUILT / 0 OPEN / 1 DECISION / 2 FALSE.**
+**R14: 17 BUILT / 1 OPEN / 1 DECISION / 2 FALSE.**
 
 Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`R12-19` respectively as still-open in their own "Decided by" text — both of those underlying rows are now BUILT, which is exactly why the two R14 rows read as false today; nothing further to flag beyond what's already recorded against each.
 
@@ -676,20 +715,38 @@ Four points are folded into a BUILT or FALSE verdict above rather than
 carrying their own row; listed here so a future pass does not have to
 re-read every evidence cell to find them.
 
-- **`R12-17` / `R12-18` / `R12-23` have no `docs/PARITY.md` row.** All
-  three are genuinely BUILT — `app/app/report_markdown_supervisor.py`,
-  pinned by four app tests — but nothing in `docs/PARITY.md` cites that
-  module (zero hits for "stratification", "evaluation criteria", "review
-  summary", or `critical_criteria`, checked directly). Needs one or three
-  ledger rows, not more code.
-- **`R12-23`'s `Research directions` half is still open.** The row bundled
-  two asks; only `Review summary` was built. A restated-directions-plus-
-  `Unexpected Research Directions` block is unaddressed.
-- **`R14-9`'s table-vs-prose format point survives its FALSE verdict.**
-  The row's central claim ("`R12-18` still absent") is false, but its
-  narrower observation — a second published exemplar renders synthesized
-  criteria as a table, this product always renders prose — is real and
-  unresolved.
+- **`R12-17` / `R12-18` / `R12-23` had no `docs/PARITY.md` row — now
+  resolved.** Was: all three genuinely BUILT — `app/app/report_markdown_
+  supervisor.py`, pinned by four app tests — but nothing in
+  `docs/PARITY.md` cited that module (zero hits for "stratification",
+  "evaluation criteria", "review summary", or `critical_criteria`,
+  checked directly). Three ledger rows now cite it:
+  `STRATIFICATION-ATTRIBUTES-001`, `EVALUATION-CRITERIA-001`,
+  `REVIEW-SUMMARY-001` (closing-pass wave, 2026-09-04).
+- **`R12-23`'s `Research directions` half was still open — now resolved.**
+  Was: the row bundled two asks; only `Review summary` was built. Now
+  split into its two genuinely different asks: `Unexpected Research
+  Directions` — genuinely novel content this repo did not previously
+  hold — is BUILT (`docs/PARITY.md` `UNEXPECTED-RESEARCH-DIRECTIONS-001`);
+  the restated-five-main-directions half is an accepted divergence, not
+  built, citing `R12-13`'s own precedent (same closing-pass wave; see
+  `R12-23`'s own evidence cell above).
+- **`R14-9`'s table-vs-prose format point survived its FALSE verdict —
+  now resolved.** Was: the row's central claim ("`R12-18` still absent")
+  is false, but its narrower observation — a second published exemplar
+  renders synthesized criteria as a table, this product always rendered
+  prose — was real and unresolved. Now closed by mirroring the corpus's
+  own per-document split: prose stays on the Research Overview document
+  (matching MASH), and the Top Ranking Hypotheses document now renders
+  the same data as a table (matching the protein-assemblies ranking
+  report), citing `docs/PARITY.md` `RANKING-CRITERIA-TABLE-001` (same
+  closing-pass wave; see `R14-9`'s own evidence cell above). Along the
+  way this pass also found `R14-9`'s own earlier "would fabricate data"
+  reasoning was itself wrong — corrected in-cell, the `R6-6`/`R12-14`/
+  `MO-5` style — and a genuinely new gap: the ranking document's own
+  `Main Research Directions` prose section has no analogue here, now
+  tracked as its own new row, `R14-27` (**OPEN**), not folded into this
+  residual.
 - **`R6-6`'s `CITE-META-001` / `assess_resolvability` orphan is resolved.**
   Was: `claims_gate.assess_resolvability` never called from production, and
   a *different* live resolver (`citation_resolver.resolve_many`) is wired
