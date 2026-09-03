@@ -1,6 +1,6 @@
 # ADR: Gemini polish + Co-Scientist video tweaks
 
-**Status:** Accepted · 2026-06-21
+**Status:** Accepted · 2026-06-21 · correction noted 2026-09-03 (see below)
 **Drains references:** `references/UI:UX/gemini/` and the live-footage videos in
 `references/core/google-co-scientist/media/live-footage/`
 
@@ -39,6 +39,24 @@ from Idea Generator's wording:
   a focus selector (evidence / novelty / balance / breakthrough), a tier
   selector (Explore / Express / Standard), and a "Start session" button — the
   structure our inferred run-spec card + Start gate already mirrors.
+
+  > **Correction (2026-09-03).** This tier reading does not survive a
+  > frame-by-frame re-watch of both live-footage clips (corpus row
+  > `docs/CORPUS-EXTRACTION.md` `R13-2`). Every visible instance of the plan
+  > card's `Tier` section, in either video, shows exactly **Express /
+  > Standard / Extended / Ultra** — the same four options the plan-config
+  > transcription and this repo's `run_modes` already carry. "Explore" never
+  > appears anywhere in either video. This is not proof the three-option
+  > reading above was wrong when written: the source `.mp4` files are
+  > gitignored, so no git history exists to check whether this paragraph
+  > read a since-replaced capture or misread the one now on disk — only
+  > that the reading matches nothing currently in
+  > `references/core/google-co-scientist/media/live-footage/`. Evidence:
+  > `docs/assets/live-footage/plan-card-focus-tier-start-t31.3s.jpg`,
+  > `docs/assets/live-footage/plan-readonly-tier-extended-t54.0s.jpg`. The
+  > paragraph above is left as originally written; any row citing this
+  > ADR's three-option reading should defer to the four-option footage
+  > instead.
 
 ## Decisions
 
