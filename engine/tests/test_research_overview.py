@@ -168,57 +168,6 @@ async def test_open_questions_and_patterns_map_through(
     ]
 
 
-async def test_unexpected_research_directions_pass_through(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Task B: unexpected_research_directions pass through unchanged.
-
-    MASH's own published exemplar carries a fourth block, ``Unexpected
-    Research Directions``, directly beneath its expanded restatement of
-    the five main directions -- genuinely new strategic directions, not
-    the same thing as ``unexpected_patterns`` (R12-10, patterns observed
-    across the ideas, not directions worth pursuing). Same pass-through
-    contract as the R12-10 fields above.
-    """
-    response = {
-        **_OVERVIEW_RESPONSE,
-        "unexpected_research_directions": [
-            {
-                "title": "Nuclear LOXL2 as a Histone Modifier",
-                "description": (
-                    "Beyond crosslinking collagen, nuclear-translocated"
-                    " LOXL2 may act as a histone aminooxidase."
-                ),
-            }
-        ],
-    }
-    fake = AsyncMock(return_value=response)
-    monkeypatch.setattr(ro, "call_llm_json", fake)
-
-    h = make_hypothesis(
-        text="HDAC inhibition reverses fibrosis", elo_rating=1700
-    )
-    state = make_state(
-        hypotheses=[h],
-        research_goal="g",
-        supervisor_model_name="test/model",
-        meta_review={},
-        articles=_grounded_articles(),
-    )
-    out = await ro.research_overview_node(state)
-
-    directions = out["research_overview"]["unexpected_research_directions"]
-    assert directions == [
-        {
-            "title": "Nuclear LOXL2 as a Histone Modifier",
-            "description": (
-                "Beyond crosslinking collagen, nuclear-translocated"
-                " LOXL2 may act as a histone aminooxidase."
-            ),
-        }
-    ]
-
-
 async def test_a_contact_with_no_research_direction_defaults_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

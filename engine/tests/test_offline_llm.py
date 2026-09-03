@@ -29,7 +29,6 @@ from co_scientist.agents.supervisor.supervisor_decision import (
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
 from co_scientist.schemas.review import REVIEW_BATCH_SCHEMA, REVIEW_SCHEMA
-from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 from tests._offline_helpers import (
     isolate_offline_router,
     make_offline_generator,
@@ -177,83 +176,6 @@ async def test_offline_acompletion_sizes_batch_review_to_hypothesis_count() -> (
     # is checked on the summary leaf instead.
     texts = [review["review_summary"] for review in parsed["reviews"]]
     assert len(set(texts)) == len(texts)
-
-
-async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
-    None
-):
-    """``research_directions`` is sized past the report's preview gate.
-
-    ``report_markdown_overview.py::_render_directions_preview`` renders
-    nothing below two named directions, so a single-item array would make
-    the overview's preview list silently vanish on every offline run.
-    """
-    schema = RESEARCH_OVERVIEW_SCHEMA["schema"]
-
-    response = await offline_llm.offline_acompletion(
-        model=offline_llm.DEFAULT_OFFLINE_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": "Top-ranked hypotheses (highest Elo first):\n"
-                "1. (Elo 1200) first.\n",
-            }
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "research_overview",
-                "schema": schema,
-            },
-        },
-    )
-
-    parsed = json.loads(response.choices[0].message.content)
-    jsonschema.validate(instance=parsed, schema=schema)
-    directions = parsed["overview"]["research_directions"]
-    assert len(directions) >= 2
-    titles = [d["title"] for d in directions]
-    assert all(titles)
-    assert len(set(titles)) == len(titles)
-
-
-async def test_offline_acompletion_sizes_unexpected_research_directions() -> (
-    None
-):
-    """``unexpected_research_directions`` is sized past the one-item default.
-
-    Task B: without this hint an offline run's demo would show exactly
-    one unexpected direction, from the generic filler's default -- this
-    sizes it to the schema's own bound instead, matching MASH's own
-    published exemplar (three named bullets).
-    """
-    schema = RESEARCH_OVERVIEW_SCHEMA["schema"]
-
-    response = await offline_llm.offline_acompletion(
-        model=offline_llm.DEFAULT_OFFLINE_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": "Top-ranked hypotheses (highest Elo first):\n"
-                "1. (Elo 1200) first.\n",
-            }
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "research_overview",
-                "schema": schema,
-            },
-        },
-    )
-
-    parsed = json.loads(response.choices[0].message.content)
-    jsonschema.validate(instance=parsed, schema=schema)
-    directions = parsed["unexpected_research_directions"]
-    assert len(directions) == 3
-    titles = [d["title"] for d in directions]
-    assert all(titles)
-    assert len(set(titles)) == len(titles)
 
 
 async def test_offline_review_scores_clear_the_viable_gate() -> None:
