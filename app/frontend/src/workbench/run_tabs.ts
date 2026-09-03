@@ -4,7 +4,17 @@
 // renders the tabs.
 
 // Canonical tab route segments, in the order the nav bar renders them.
-export const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
+// 'ranking' (R14-11's Top Ranking Hypotheses document) is a route every
+// run recognizes, but the nav strip only shows it for a run whose report
+// actually carries that document -- see `visibleTabs` in run_detail.tsx.
+// An old single-document run's four tabs are unaffected either way.
+export const TABS = [
+  'details',
+  'learning',
+  'overview',
+  'ranking',
+  'ideas',
+] as const;
 
 /** Canonical tab names for the goal-report surface's tab routes. */
 export type TabName = (typeof TABS)[number];

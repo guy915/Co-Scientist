@@ -4,13 +4,14 @@ import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {ReportTabNav} from './run_detail_shell';
 import {TABS, type TabName} from '../run_tabs';
 
-// The tab strip is a 4-column grid with min-w-0 cells and no width floor on
-// the label span, sitting inside ancestors that clip horizontal overflow
-// (see the M2 breakpoint/clipping fix) -- so a label that did not fit its
-// column was silently cut off by the ancestor's overflow: hidden rather than
-// shrinking on purpose. Stubbing TruncatedLabel lets the test see which
-// component actually rendered each label without depending on jsdom's
-// (always-zero) layout measurements.
+// The tab strip is a grid (4 or 5 columns, one per rendered tab -- see
+// reportTabsClasses) with min-w-0 cells and no width floor on the label
+// span, sitting inside ancestors that clip horizontal overflow (see the M2
+// breakpoint/clipping fix) -- so a label that did not fit its column was
+// silently cut off by the ancestor's overflow: hidden rather than shrinking
+// on purpose. Stubbing TruncatedLabel lets the test see which component
+// actually rendered each label without depending on jsdom's (always-zero)
+// layout measurements.
 vi.mock('../components/truncated_label', () => ({
   TruncatedLabel: ({text}: {text: string}) => (
     <span data-testid="truncated-label">{text}</span>
@@ -41,7 +42,7 @@ function renderTabs(
 
 it('renders every tab label through TruncatedLabel rather than a bare span', () => {
   renderTabs();
-  expect(screen.getAllByTestId('truncated-label')).toHaveLength(4);
+  expect(screen.getAllByTestId('truncated-label')).toHaveLength(TABS.length);
 });
 
 // TruncatedLabel rewrites its span's textContent imperatively (see its own

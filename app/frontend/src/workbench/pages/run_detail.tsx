@@ -11,6 +11,7 @@ import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
+import {RankingDocumentView} from './run_detail_ranking';
 import {
   AwaitingDecisionNotice,
   isTerminalNonCompletedStatus,
@@ -135,6 +136,17 @@ function awaitingDecisionCount(data: RunDetailData): number {
   return data.run?.awaiting_decision_count ?? 0;
 }
 
+// R14-11: the ranking tab shows only for a run whose report actually
+// carries a Top Ranking Hypotheses document -- null/absent on a run
+// persisted before the split, which keeps its four original tabs exactly
+// as before. `TABS` stays the full five-entry route table (so a direct
+// link to /runs/:id/ranking still resolves) -- only the nav strip's own
+// list is filtered.
+function visibleTabs(data: RunDetailData): readonly TabName[] {
+  if (data.report?.markdown_text_ranking) return TABS;
+  return TABS.filter(tab => tab !== 'ranking');
+}
+
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
@@ -160,7 +172,7 @@ export function RunDetail() {
         <ReportTabNav
           activeTab={activeTab}
           onTabChange={onTabChange}
-          tabs={TABS}
+          tabs={visibleTabs(data)}
         />
       )}
 
@@ -280,6 +292,7 @@ const TAB_SECTIONS: Record<
     />
   ),
   overview: (_key, data) => <OverviewSection data={data} />,
+  ranking: (_key, data) => <RankingDocumentView report={data.report} />,
   ideas: (ideasViewKey, data) => (
     <IdeasSection ideasViewKey={ideasViewKey} data={data} />
   ),

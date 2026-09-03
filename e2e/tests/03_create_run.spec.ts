@@ -227,6 +227,14 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
   await assertOverviewTabShowsDirectionsPreview(page);
+  // R14-11: the run's report now also carries a Top Ranking Hypotheses
+  // document, surfaced as a fifth tab once its content exists.
+  await page
+    .getByRole('link', {name: 'Top Ranking Hypotheses', exact: true})
+    .click();
+  await expect(
+    page.getByRole('heading', {name: 'Top hypotheses'}),
+  ).toBeVisible();
   await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 }

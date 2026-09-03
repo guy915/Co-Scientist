@@ -1,7 +1,8 @@
 import {expect, test} from '../support/fixtures';
 
-// Flow: the run-detail tabs (details / ideas / learning / overview) render a
-// completed run's hypotheses (with Elo scores) and report content.
+// Flow: the run-detail tabs (details / ideas / learning / overview /
+// ranking) render a completed run's hypotheses (with Elo scores) and
+// report content.
 //
 // A seeded demo run is used for stable, fully-synthesized content: the test
 // opens it from the home recents list and walks every tab.
@@ -51,5 +52,14 @@ test('run detail tabs render hypotheses, Elo, and report content', async ({
   ).toBeVisible();
   await expect(
     page.getByText(/tournament matches have been recorded/i),
+  ).toBeVisible();
+
+  // Top Ranking Hypotheses tab (R14-11): the second report document, a
+  // seeded demo carries since it runs through the same finalize path.
+  await page
+    .getByRole('link', {name: 'Top Ranking Hypotheses', exact: true})
+    .click();
+  await expect(
+    page.getByRole('heading', {name: 'Top hypotheses'}),
   ).toBeVisible();
 });
