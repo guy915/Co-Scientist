@@ -68,14 +68,14 @@ partial pass is never lost.
 | R9 | 3 | 2 | 0 | 1 | 0 |
 | R10 | 9 | 7 | 0 | 2 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
-| R12 | 13 | 9 | 0 | 3 | 1 |
+| R12 | 13 | 10 | 0 | 2 | 1 |
 | R13 | 7 | 6 | 0 | 1 | 0 |
 | R14 | 20 | 13 | 0 | 5 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
-| MO | 5 | 2 | 0 | 3 | 0 |
+| MO | 5 | 3 | 0 | 2 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **59** | **0** | **17** | **3** |
+| **Total** | **79** | **61** | **0** | **15** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -178,6 +178,23 @@ splitting the report was itself insufficient. The R14 per-region row
 moves 11 BUILT / 7 DECISION → 13 BUILT / 5 DECISION; the Total row moves
 57 → 59 BUILT, 19 → 17 DECISION.
 
+**Closing pass, owner-directed wave (2026-09-03).** The owner's
+governing directive — where Google published an exact artifact, mirror
+it, adjusted only where genuinely necessary — settles owner decisions
+#2, #6, and #9 below. This entry covers decision #2 (per-assumption
+wording); see the wave's later entries for #6 and #9. `R12-15`/`MO-4`
+move together, **DECISION → BUILT**, mirrored at the rendering boundary
+only (`app/app/engine_adapter/drain_reviews.py`, `docs/PARITY.md`
+`REVIEW-ASSUMPTION-WORDING-001`) — the stored enum stays
+`supported`/`uncertain`/`likely_false` since a programmatic reader keys
+off it, and the third value renders as "Implausible" rather than the
+published "Unknown" since Google's own exemplar never marks a genuinely
+contradicted assumption, only an untested one; see `R12-15`'s own
+evidence cell for the full reasoning. The R12 per-region row moves 9
+BUILT / 3 DECISION → 10 BUILT / 2 DECISION; MO moves 2 BUILT / 3
+DECISION → 3 BUILT / 2 DECISION; the Total row moves 59 → 61 BUILT, 17 →
+15 DECISION.
+
 ---
 
 ## R1 — SSR consolidation
@@ -269,14 +286,14 @@ Noticed in passing: none.
 | R12-12 | The published report's flat 3,259-entry `References` list has no analogue; whether ours (`Citation audit` + data sources, a different artifact) should also get a flat list is explicitly left to the owner | **DECISION** | Confirmed unchanged: no bibliography/reference-list renderer exists anywhere in `app/app/report_markdown*.py` (zero hits for "bibliography"/"reference_list"); `report_markdown_sources.py` still emits only search counts and served questions, not a source list. The row's own framing stands — this needs the owner's call, not more code investigation |
 | R12-13 | The published report's "Top ideas" heading appears twice (open and close); may be a transcription artifact | **DECISION** | Confirmed unchanged: `## Top hypotheses` is still emitted exactly once (`app/app/report_markdown.py:345`). Unresolved by design — the row itself says "none unless the owner wants it" |
 | R12-14 | Published score composition is printed as `score = novelty + details + usefulness + pairwise rank = 11`; ours is a mean of the review rubric's axes — needs a ledger row recording the divergence, not a change | **BUILT** | `docs/PARITY.md`'s new `SCORE-COMPOSITION-001` row (`partial`, commit `1928f03f`, cites `corpus R12-14`) records exactly this, recording only as the row asked. One correction along the way: `docs/CORPUS-EXTRACTION.md`'s own checklist row cites the formula as sourced from `kira6-detailed-output-validated.md`, "corroborated by" the drug-repurposing supplement -- but `kira6` carries only bare per-axis `Answer: N` closings (see `R10-7`/`MO-5`), zero occurrences of this formula. The formula actually appears in `hypotheses/liver-fibrosis-epigenetic-targets.md`'s two worked Generation-agent examples, which is what the new PARITY row cites instead |
-| R12-15 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); ours is the closed enum now unified as `supported`/`uncertain`/`likely_false` (`engine/src/co_scientist/schemas/review.py:20-25`, `ASSUMPTION_SUPPORT_VALUES`) — adopting the published wording is left to the owner | **DECISION** | Same open question as `MO-4` (audited below), which already frames it precisely: the enum-disagreement half is closed (one shared enum across both schemas that used to drift), but "neither enum prints `Plausible:`/`Unknown:` — that adoption decision is still deferred." Not double-counted as separate work — one decision closes both rows |
+| R12-15 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); ours is the closed enum now unified as `supported`/`uncertain`/`likely_false` (`engine/src/co_scientist/schemas/review.py:20-25`, `ASSUMPTION_SUPPORT_VALUES`) — adopting the published wording is left to the owner | **BUILT** | Same fix as `MO-4` (audited below); not double-counted. Mirrored at the rendering boundary rather than the stored value (commit `980dda41`, cites this row by ID): `app/app/engine_adapter/drain_reviews.py::_assumption_line` now maps the value through `_ASSUMPTION_SUPPORT_LABELS` to Google's wording (`docs/CORPUS-EXTRACTION.md:4135-4141`) before it reaches a reader, while `review.py`'s `ASSUMPTION_SUPPORT_VALUES` stays exactly `supported`/`uncertain`/`likely_false` -- `mature_reviews._project_full_review`'s `assumptions_likely_false` filter keys off that literal string, so migrating stored data would break a programmatic reader for no reader-facing gain. Two of three values mirror the published word directly (`supported` to "Plausible", `uncertain` to "Plausible, but requires careful investigation") but the third deliberately does not: `likely_false` means the evidence points against the assumption, a genuine negative verdict Google's own exemplar never marks -- every published "Unknown:" there marks an assumption nothing has tested yet, not one contradicted -- so it renders as "Implausible" instead of a borrowed, understating "Unknown". `docs/PARITY.md`'s new `REVIEW-ASSUMPTION-WORDING-001` row (`verified`) records this two-of-three match and that the label is baked into the persisted `critique` text at drain time, so a run drained before this change keeps its old wording. Deep verification's `sub_assumptions[].status` carries the same enum but is never rendered to a reader anywhere in this codebase, so this fix does not reach it. Tests: `app/tests/test_review_assumption_wording.py` |
 | R12-16 | The one research-contacts exemplar carries exactly two fields (name, free-text relevance paragraph); whether ours invents extra fields needs the same check `test_specific_aims_schema_adds_nothing_the_exemplars_lack` applies elsewhere | **BUILT** | `docs/PARITY.md`'s new `RESEARCH-CONTACTS-FIELDS-001` row (`partial`, commit `537041c7`, cites `corpus R12-16`) records this, and corrects the row's own premise along the way: a direct read of the exemplar (Figure A.22) shows **three** observable fields, not two -- it also carries a Research Direction heading, which this repo's schema already matches deliberately (`MO-7`). Of the schema's five fields, three map onto the exemplar (`name`, `justification`, `research_direction`); `candidate_id` is unrendered anti-hallucination provenance never shown to the reader; `expertise` is the one genuinely unattested addition. Recording only -- the pin test this row's own residual named as the next step (`test_published_artifact_shapes.py`-style) does not yet exist for this schema |
 | R12-17 | The published run's Attributes are named 1-5 rating scales with worked anchors, not plain labels; the row found this "half-built and the built half invisible" — the Supervisor already synthesizes `config_synthesis.attributes` and injects it into review prompts, but nothing renders it | **BUILT** | `app/app/report_markdown_supervisor.py` (243 lines) — its own docstring names this row by ID and closes it: `_render_stratification_attributes_markdown` (`:48-76`) renders "## Stratification Attributes" from `config_synthesis.attributes`, deliberately titled to avoid conflating it with the run's plain-string setup attributes. Wired into `report_markdown.py:448` via `report_build.py:214` (`attributes=req.attributes`); pinned by `app/tests/test_report_stratification_attributes.py` and `app/tests/test_drain_stratification_attributes.py`. Only the row's second half ("decide whether reviewers score against them") stays open, and that decision is already effectively made — `prompts/review.py` already injects them into every reviewer prompt as "Stratification attributes (score each 1-5)", per the same docstring |
 | R12-18 | The Supervisor synthesizes goal-specific evaluation criteria (`workflow_plan.review_phase.critical_criteria`) but nothing renders them — "we synthesize the second kind and then hide it" | **BUILT** | Same module, same docstring, names `R12-18` explicitly: `_render_evaluation_criteria_markdown` (`report_markdown_supervisor.py:127-169`) renders "## Evaluation Criteria" from `critical_criteria`, wired into `report_markdown.py:469` via `report_build.py:215`. Pinned by `app/tests/test_report_critical_criteria.py` and `app/tests/test_drain_critical_criteria.py`. The row's separate observation that the *interview* path never populates the plain-string `setup.criteria` field is unaffected — that is a distinct, still-true fact about a different field, not part of what this row asked to fix |
 | R12-19 | An inline citation marker in body prose can carry its own verdict tag (e.g. `[17 (unsupported)]`); claims our nearest analogue is a separate bulleted block, and that `report_markdown.py` "never renders `literature_grounding` at all... so those keys are generated, paid for, and discarded" | **FALSE** | The discarding claim does not survive a read. `app/app/engine_adapter/drain_hypotheses.py:407` sets `mechanism=h.get("literature_grounding") or ""` — the app's `mechanism` field literally **is** `literature_grounding`'s content, `[C1]` markers included, rendered verbatim by `report_markdown_hypothesis.py:97-105` (`_render_hypothesis_mechanism`) under "**Mechanism:**". Those keys are then resolved to a References list by `app/app/report_markdown_references.py` (119 lines, its own module, wired at `report_markdown.py:343` via `references_by_hypothesis`), with its own test file `app/tests/test_report_markdown_references.py`. The row's grep evidently checked `report_markdown.py`'s own render function for a field literally named `literature_grounding` and found only `mechanism`/`expected_effect` — missing that `mechanism` *is* that field under its drain-layer name, and missing the sibling module entirely. What survives: our citation markers appear inline (not absent, as the row implies) but genuinely carry no verdict tag (`(unsupported)`-style) — `_render_claim_evidence` (`report_markdown_hypothesis.py:63-77`) still renders claim verdicts as a **separate** bulleted block after the prose, exactly as the row correctly describes for that narrower point. So: the "discarded" claim is false; the "no inline verdict tag" claim is true |
 | R12-23 | Published `Review summary` restates the run's criteria as 16 yes/no reviewer questions grouped under 5 criteria — the reader-facing form of R12-18, and absent | **BUILT** | Same module again, names `R12-23` explicitly: `_render_review_summary_markdown` (`report_markdown_supervisor.py:212-243`) renders "## Review Summary" — each criterion with its named reviewer questions — wired into `report_markdown.py:469` (shares `critical_criteria` with R12-18), same tests. The row's other half, `Research directions` restating the five main directions with an `Unexpected Research Directions` block, is unaddressed by this module and not otherwise found — the row bundles two asks; only the `Review summary` half is built |
 
-**R12: 9 BUILT / 0 OPEN / 3 DECISION / 1 FALSE.**
+**R12: 10 BUILT / 0 OPEN / 2 DECISION / 1 FALSE.**
 
 Noticed in passing: none beyond `R12-23`'s partial resolution (noted inline above — its `Research directions` half stays open, folded into the row's own verdict rather than split into a new row).
 
@@ -359,12 +376,12 @@ Noticed in passing: none.
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
 | MO-2 | A 5-theme, 2-3-level-deep critique taxonomy; the state-shaping loss is closed, but `recurring_themes[]` remains a flat `{theme, description, frequency}` — the fix commit itself calls this "an accepted adaptation," which this row does not yet record as a formal decision | **BUILT** | Recorded, as the row's own residual asked for — no schema change made. `docs/PARITY.md`'s new `META-CRITIQUE-TAXONOMY-001` row (`partial`, cites `corpus MO-2`) states the flat shape and the acceptance by name, quoting the fix commit (`69d10874`, "an accepted adaptation") and the reason it stands: meta-review runs once per evolve iteration, so a nested 2-3-level taxonomy would multiply structured-output size on every one of those calls. `engine/src/co_scientist/agents/meta_review/meta_review.py:371` `_normalize_recurring_themes` is unchanged — confirmed still flat, per the wave's own instruction not to deepen it |
-| MO-4 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); the enum-disagreement half is closed (one shared `ASSUMPTION_SUPPORT_VALUES` enum), but adopting the published wording is deferred | **DECISION** | Confirmed unchanged: `engine/src/co_scientist/schemas/review.py:20-25` `ASSUMPTION_SUPPORT_VALUES = (supported, uncertain, likely_false)`, still not the published prose labels. Same question as `R12-15` (audited above) — not double-counted |
+| MO-4 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); the enum-disagreement half is closed (one shared `ASSUMPTION_SUPPORT_VALUES` enum), but adopting the published wording is deferred | **BUILT** | Same fix as `R12-15` (audited above); not double-counted. `engine/src/co_scientist/schemas/review.py:20-25` `ASSUMPTION_SUPPORT_VALUES` is still `supported`/`uncertain`/`likely_false` -- deliberately: adoption happens at the rendering boundary (`app/app/engine_adapter/drain_reviews.py::_ASSUMPTION_SUPPORT_LABELS`), not the stored value, since a programmatic reader downstream (`mature_reviews._project_full_review`) keys off the literal enum string. See `R12-15`'s evidence cell for the full account, including why the third value renders as "Implausible" rather than the published "Unknown" |
 | MO-5 | Two appended reviews close with a bare `Answer: 4`/`Answer: 3`; whether the scale is 1-5, 1-10, or something else (a separate reading found values 2-9 for a different block) is unresolved | **DECISION** | Same open scale question as `R10-7` (audited above), which this row explicitly narrows. Re-confirmed: every `Answer: N` value in the verbatim Appendix is 3 or 4 (consistent with either scale, not dispositive); the wider 2-9 range this row cites cannot be independently verified — it is not mirrored anywhere in `docs/CORPUS-EXTRACTION.md`'s Appendix, and this document cannot read `references/` directly. Not double-counted against `R10-7` |
 | MO-11 | The research goal is intake as three named parts (`Title`, `Goal`, `Background`); ours is one free-text field | **DECISION** | Same underlying question as `R1-18`/`R10-9`/`R14-2` (audited above): `app/app/runs_models.py:29` `research_goal: str` remains one field. Not double-counted — one decision (canonical goal-intake shape) closes all four rows |
 | MO-12 | Two published overviews use different vocabularies for the same slot; the ALS third slot (`recent_findings`) is now closed, but both exemplars also use a **doubled structure** (a brief preview list, then full detail) that a single array still cannot express | **BUILT** | Achieved in the renderer alone, no new model output or schema change. `app/app/report_markdown_overview.py::_render_directions_preview` front-loads a named preview list (`- {title}` per direction, reusing the existing required `title` field) ahead of the unchanged full per-direction detail (`_render_directions_list`), mirroring both exemplars' cadence ("We will be focusing on these interrelated areas" / "Main Research Directions" before their per-direction sections). Gated to 2+ named directions -- a preview of one entry would duplicate it rather than orient the reader, per this wave's own caution against a preview that repeats rather than names. Malformed/untitled directions are dropped from the count the same way the existing per-direction renderer already tolerates them. Pinned by three new tests in `app/tests/test_report_markdown_overview.py`: `test_two_or_more_directions_get_a_preview_list` (preview text precedes the first `### {title}` detail heading), `test_a_single_direction_gets_no_preview_list`, `test_an_untitled_direction_is_dropped_from_the_preview_count` |
 
-**MO: 2 BUILT / 0 OPEN / 3 DECISION / 0 FALSE.**
+**MO: 3 BUILT / 0 OPEN / 2 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -384,8 +401,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 16 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (17 raw DECISION rows in the Summary
+The 14 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (15 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -398,11 +415,16 @@ decision):
    should "novel repurposing candidate" / "novel target" / "novel
    mechanistic explanation" be a controlled vocabulary anywhere in the
    schema?
-2. **Per-assumption wording.** `R12-15`, `MO-4` (2 rows, 1 question). One
-   shared `ASSUMPTION_SUPPORT_VALUES` enum already replaced two drifting
-   enums; should its values render as the published prose (`Plausible:` /
-   `Plausible, but requires careful investigation:` / `Unknown:`) instead
-   of `supported`/`uncertain`/`likely_false`?
+2. ~~Per-assumption wording.~~ **Resolved: mirror the published wording
+   at the rendering boundary, stored enum unchanged.** `R12-15`, `MO-4`
+   (2 rows) are now **BUILT** — see the owner-directed-wave closing pass
+   above and `docs/PARITY.md` `REVIEW-ASSUMPTION-WORDING-001`. Two of
+   the three values render as the published prose (`supported` to
+   "Plausible", `uncertain` to "Plausible, but requires careful
+   investigation"); the third, `likely_false`, keeps a non-published
+   label ("Implausible") since Google's exemplar never marks a
+   genuinely contradicted assumption, only an untested one, and reusing
+   "Unknown" for it would understate the verdict.
 3. **The bare `Answer: N` review-score scale.** `R10-7`, `MO-5` (2 rows, 1
    question). Every occurrence in the verbatim Appendix is 3 or 4,
    consistent with either a 1-5 or 1-10 scale; a separately-cited reading
