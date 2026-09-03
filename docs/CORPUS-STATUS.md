@@ -70,12 +70,12 @@ partial pass is never lost.
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 10 | 0 | 2 | 1 |
 | R13 | 7 | 6 | 0 | 1 | 0 |
-| R14 | 20 | 13 | 0 | 5 | 2 |
+| R14 | 20 | 14 | 0 | 4 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 3 | 0 | 2 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **61** | **0** | **15** | **3** |
+| **Total** | **79** | **62** | **0** | **14** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -194,6 +194,20 @@ evidence cell for the full reasoning. The R12 per-region row moves 9
 BUILT / 3 DECISION → 10 BUILT / 2 DECISION; MO moves 2 BUILT / 3
 DECISION → 3 BUILT / 2 DECISION; the Total row moves 59 → 61 BUILT, 17 →
 15 DECISION.
+
+This entry covers decision #6 (named contact fields; see the next entry
+for #9). `R14-16` moves **DECISION → BUILT** (commit `7df19fa8`, cites
+this row by ID): two named fields pinned at the rendering boundary, no
+schema change -- the relevance paragraph renders under `Justification:`,
+mirroring the published field's one consistent label directly, and the
+second, evidence-citing field renders under `Supporting article:`, a
+fixed name of this repo's own choosing rather than any one of Google's
+freely-varying labels, since this schema's version of that field is
+always exactly one grounded citation, never free citation prose. See
+`R14-16`'s own evidence cell and `docs/PARITY.md`
+`RESEARCH-CONTACTS-FIELDS-001` for the full reasoning. The R14
+per-region row moves 13 BUILT / 5 DECISION → 14 BUILT / 4 DECISION; the
+Total row moves 61 → 62 BUILT, 15 → 14 DECISION.
 
 ---
 
@@ -334,7 +348,7 @@ Noticed in passing: none.
 | R14-13 | Every hypothesis carries a byte-identical one-line "About" disclaimer under its title | **BUILT** | `app/app/report_markdown_hypothesis.py:20-27` `_HYPOTHESIS_DISCLAIMER`, word-for-word the published text, explicitly cited to `R14-13` in its own comment, unconditionally rendered for every entry (`:150`) |
 | R14-14 | Where populated, published `Reviews summary` is an 8-part numbered structure or a simpler two-list form — a structured schema is needed, or the divergence should be accepted and recorded | **BUILT** | The decision this row asked for has been made and recorded: `docs/PARITY.md:230` `REVIEW-SUMMARY-STRUCTURE-001` (`missing`, citing this row by ID) measured Google's own inconsistency (8/19 eight-part, 3/19 two-list, 8/19 empty) and deliberately did not impose either shape, with reasoning — "mandating either shape... would make this system's output *more* rigid than the published one it is modeling." Recording, not code, was always this row's second acceptable outcome |
 | R14-15 | Within the 8-part summary, a bolded free-text Go/No-Go `**Verdict:**` and a `**Time to Verdict:**` timeframe field | **BUILT** | `engine/src/co_scientist/schemas/review.py:440-458` — `go_no_go_recommendation` and `time_to_verdict`, matching the row's own example wording almost verbatim ("Go — pursue wet-lab validation" / "'Short', '2-4 weeks', or '2-3 months'"), both optional to match Google's own 8/19 partial coverage; rendered by `report_markdown_hypothesis.py:219` (`_render_hypothesis_verdict`) |
-| R14-16 | `Justification:` is a consistent first field (14/14) in per-hypothesis research contacts; the evidence-citing second field's label varies freely; whether to pin two named fields or keep one free-text field is an owner call | **DECISION** | Confirmed unchanged: `report_markdown_overview.py:319-336` still renders `### {contact name}` plus one evidence line. The row explicitly frames its own residual as "Owner call" — unresolved by design, not by omission |
+| R14-16 | `Justification:` is a consistent first field (14/14) in per-hypothesis research contacts; the evidence-citing second field's label varies freely; whether to pin two named fields or keep one free-text field is an owner call | **BUILT** | Pinned two named fields at the rendering boundary, no schema change (commit `7df19fa8`, cites this row by ID). `app/app/report_markdown_contact_groups.py::_render_contact_body` now labels the relevance paragraph `**Justification:**`, mirroring the published field directly. The second, evidence-citing field is pinned to a fixed name of this repo's own choosing, `Supporting article:`, rather than any one of Google's varying labels (`Supporting Articles:`/`Relevant Articles:`/`Supporting Excerpt:`/`Support:`/unlabeled) -- chosen because this schema's version of the field (`source_title`/`source_url`, resolved against a real known paper by `research_overview_contacts.py`'s anti-hallucination candidate matching, never model-authored prose) is always exactly one grounded citation, so a singular, source-accurate name fits better than a plural "Articles" label implying free citation text. Kept in step with the frontend's parallel `run_detail_overview.tsx` render of the same fields, and with the demo fixtures in `app/app/seed_overview.py`, unchanged since the schema itself did not move. `docs/PARITY.md`'s `RESEARCH-CONTACTS-FIELDS-001` row (still `partial`) records this; the row's separate `expertise`-field residual is unaffected and stays open. Tests: `app/tests/test_report_contact_field_labels.py`; `app/frontend/src/workbench/pages/run_detail_overview_sections.test.tsx` |
 | R14-17 | The Appendix's `All reviews:` block is always Correctness→Novelty→Feasibility→Impact potential, each with its own fixed, differently-sized sub-schema; record as an accepted divergence or add sub-structure | **BUILT** | Same pattern as `R14-14`: `docs/PARITY.md:231` `REVIEW-AXIS-STRUCTURE-001` (`partial`, citing `R14-17` by name) both *acted* (axis ordering in `schemas/review.py`'s `_SCORE_CRITERIA` now matches Correctness-first) and *recorded* the sub-structure decision, with two measured cost scenarios (41-67% more input tokens, 62-205% more output tokens) rather than assuming one. Commit `37c999a2`; pinned by `engine/tests/test_schemas.py::test_review_score_axes_are_correctness_first` |
 | R14-20 | `Steps to Test the Idea` is a numbered pilot-then-scale-up plan ending in an explicit `**Go:**`/`**No-Go:**` pass/fail threshold; ours is one free-text paragraph | **BUILT** | `engine/src/co_scientist/schemas/generation.py:84-121` `_EXPERIMENT_FIELD` now structures exactly this shape — numbered steps ending in a Go/No-Go step with explicit pass/fail thresholds — commit `9a4fd222` ("structure the experiment field as a Go/No-Go pilot plan"); rendered by `app/app/report_markdown_hypothesis.py:108-125` (`_render_hypothesis_experiment`, "#### Steps to test the idea"), commit `8bb19ade` |
 | R14-21 | Two per-hypothesis bibliography forms exist; extends `R12-19` with per-hypothesis evidence that "neither the Generation-side nor Reflection-side citation list renders anywhere," backed by "`grep -rn 'citation_map' app/app/report_markdown*.py` — zero hits" | **FALSE** | The grep result the row states does not reproduce: running the identical command today returns a hit at `app/app/report_markdown_references.py:8` (its own module docstring, naming `citation_map` directly), and that module is a full working renderer — same finding as `R12-19` above, now doubly confirmed. `report_markdown_references.py` resolves each hypothesis's `citation_map` into a rendered References list, wired at `report_markdown.py:343`, pinned by `app/tests/test_report_markdown_references.py` |
@@ -342,7 +356,7 @@ Noticed in passing: none.
 | R14-24 | Corrects an earlier reading: the 11-vs-8 Deep-verification-populated split is not truncation, verified section-by-section against three files; a footnote is needed wherever the wrong file-length framing might be cited | **BUILT** | The correction is the row itself, positioned exactly where a reader would encounter the original claim — its own "Decided by" column states the correction in full, with the three-file verification recorded inline, satisfying the row's own ask ("a footnote here correcting the file-length framing") |
 | R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **DECISION** | Confirmed unchanged: `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order. The row's own framing is conditional ("if the owner wants a fuller per-idea artifact") — a build-or-not decision, not a pure implementation gap |
 
-**R14: 13 BUILT / 0 OPEN / 5 DECISION / 2 FALSE.**
+**R14: 14 BUILT / 0 OPEN / 4 DECISION / 2 FALSE.**
 
 Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`R12-19` respectively as still-open in their own "Decided by" text — both of those underlying rows are now BUILT, which is exactly why the two R14 rows read as false today; nothing further to flag beyond what's already recorded against each.
 
@@ -401,8 +415,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 14 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (15 raw DECISION rows in the Summary
+The 13 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (14 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -447,10 +461,14 @@ decision):
    3,259-entry `References` list has no analogue; `Citation audit` and the
    data-sources view are a different artifact. Add one, or accept the
    divergence?
-6. **Named `Justification:`-plus-evidence contact fields.** `R14-16`. The
-   `Justification:` label is consistent across all 14 published research
-   contacts; the second, evidence-citing field's label varies freely. Pin
-   two named fields, or keep the current single free-text field?
+6. ~~Named `Justification:`-plus-evidence contact fields.~~ **Resolved:
+   pin two named fields, no schema change.** `R14-16` is now **BUILT** —
+   see the owner-directed-wave closing pass above and `docs/PARITY.md`
+   `RESEARCH-CONTACTS-FIELDS-001`. The relevance paragraph renders under
+   the published `Justification:` label; the second, variably-labeled
+   evidence field renders under a fixed name of this repo's own choosing,
+   `Supporting article:`, since this schema's version of it is always
+   exactly one grounded citation, never free citation prose.
 7. **A 14-section per-hypothesis document.** `R14-26`, explicitly
    conditional ("if the owner wants a fuller per-idea artifact"). Build it,
    or treat the flat entry as the intended local shape?
