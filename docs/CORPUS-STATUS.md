@@ -70,12 +70,12 @@ partial pass is never lost.
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 12 | 0 | 0 | 1 |
 | R13 | 11 | 11 | 0 | 0 | 0 |
-| R14 | 21 | 17 | 1 | 1 | 2 |
+| R14 | 21 | 18 | 0 | 1 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 5 | 0 | 0 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **84** | **79** | **1** | **1** | **3** |
+| **Total** | **84** | **80** | **0** | **1** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -358,6 +358,19 @@ campaign's first OPEN row since the `R12-5` pass above drove every
 region to 0 -- recorded because it is true, not reconciled away to keep
 that streak.
 
+**Closing pass, `R14-27` wave (2026-09-04).** `R14-27` moves **OPEN →
+BUILT** -- see its own row for the implementation. The owner's design
+call resolved the row's own open question (host the field on
+`META_REVIEW_SCHEMA`, not `RESEARCH_OVERVIEW_SCHEMA`) rather than the
+row's two originally-sketched options (a new `RESEARCH_OVERVIEW_SCHEMA`
+field, or declining as an accepted divergence); the corrected reasoning
+is recorded in the row itself, `R6-6`/`R12-14`/`MO-5`-style, not
+papered over. This closes the mirror-fidelity campaign's last OPEN row:
+the R14 per-region row moves 21 rows (17 BUILT / 1 OPEN / 1 DECISION / 2
+FALSE) → 21 rows (18 BUILT / 0 OPEN / 1 DECISION / 2 FALSE); the Total
+row moves 79 → 80 BUILT, 1 → 0 OPEN, every other bucket unchanged (84
+rows total, 1 DECISION / 3 FALSE). Zero OPEN rows remain.
+
 ---
 
 ## R1 — SSR consolidation
@@ -527,9 +540,9 @@ not read as still true.
 | R14-22 | Where populated, `Deep verification:` is a numbered list of simulated-protocol flaws; original reading said nothing renders it, corrected in-row to say the real gap is that `simulation_review`'s `failure_points`/`decisive_step` (the field that actually matches this shape) has no renderer | **BUILT** | `app/app/report_markdown_hypothesis.py:182-216` (`_render_hypothesis_simulation_review`) renders `simulation_review.failure_points` as a numbered flaw list plus a `**Decisive step:**` line, wired at `:307`; commit `16ebdce2` ("tighten the ledger note and add an end-to-end render test") |
 | R14-24 | Corrects an earlier reading: the 11-vs-8 Deep-verification-populated split is not truncation, verified section-by-section against three files; a footnote is needed wherever the wrong file-length framing might be cited | **BUILT** | The correction is the row itself, positioned exactly where a reader would encounter the original claim — its own "Decided by" column states the correction in full, with the three-file verification recorded inline, satisfying the row's own ask ("a footnote here correcting the file-length framing") |
 | R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **BUILT** | Owner call: keep the flat per-idea entry, no 14-section document. `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order -- deliberately: the Top Ranking Hypotheses document already carries mechanism, steps to test, verdict, simulation review, and claim evidence per idea (R14-11), so a separate per-hypothesis document would largely restate it |
-| R14-27 | New finding, not in the original checklist (found while scoping this wave's Evaluation Criteria table, `R14-9`): the published ranking report carries its own `# **Main Research Directions**` section (`top-ranking-hypotheses.md:24-28`) -- two prose paragraphs summarising the strategic landscape across the run's ideas, distinct from the Research Overview document's five-item expanded directions list | **OPEN** | Genuine gap, not built this wave. `_ranking_sections` (`report_markdown_documents.py`) renders Research Goal Details, provenance, the Evaluation Criteria table (`R14-9`, closed this wave), Candidate Ideas, the Idea Comparison Table / Comparison with Existing Solutions / Recommendation, and the Citation audit -- no cross-direction prose summary anywhere in the document. We hold no data shaped for this: the nearest existing field, `overview.research_directions[]` (`title`/`importance`/`sub_topics`/`recent_findings`/`suggested_experiments` per direction), is itemized per direction rather than a synthesized two-paragraph narrative across all of them, and it already backs the Research Overview document's own directions list (`report_markdown_overview.py`) -- reusing it here would still need a new synthesized value, not only a rendering change. Would need either a new terminal-synthesis field on `RESEARCH_OVERVIEW_SCHEMA` (a short prose summary of the strategic landscape, distinct from the per-direction array) threaded onto the ranking document, or an explicit owner call to decline it as an accepted divergence, the way `R12-13` and this wave's own `R12-23` restatement point were declined |
+| R14-27 | New finding, not in the original checklist (found while scoping this wave's Evaluation Criteria table, `R14-9`): the published ranking report carries its own `# **Main Research Directions**` section (`top-ranking-hypotheses.md:24-28`) -- two prose paragraphs summarising the strategic landscape across the run's ideas, distinct from the Research Overview document's five-item expanded directions list | **BUILT** | **Closing pass (2026-09-04).** Built on the owner's own design call: hosted on `META_REVIEW_SCHEMA`, not `RESEARCH_OVERVIEW_SCHEMA` -- every other synthesized section on this same document (Idea Comparison Table, Comparison with Existing Solutions, Recommendation, R14-7/R14-8) already comes from the meta-review payload, and `RESEARCH_OVERVIEW_MAX_TOKENS` (24000, equal to `BUDGET_ESCALATION_MAX_TOKENS`) was the wrong node to grow. `main_research_directions` (`engine/src/co_scientist/schemas/meta_review_schema.py`) is a required two-paragraph prose string, described in the run's own vocabulary (bolded direction names inline, why each matters, a closing cross-direction observation) rather than a restatement of `strategic_recommendations`; `meta_review.md`'s new item 7 asks for it in those terms. `meta_review_node`'s `_build_meta_review` maps it straight through unchanged. `report_markdown_meta_review.py::_render_main_research_directions_markdown` renders "## Main Research Directions" (this repo's plain `##`-heading convention, not the published bold-H1 style), wired into `_ranking_sections` (`report_markdown_documents.py`) right after the Evaluation Criteria table and before Candidate Ideas -- the exact published order this row and `R14-9` both cite. Skips cleanly (no bare heading) when the field is absent or blank -- a legacy run persisted before this field existed, or a `json_object`-mode provider response that omits it. Deliberately left required, not optional, in the schema: every run has directions worth naming, so the offline backend's generic single-leaf filler already populates it with no `_OPTIONAL_FIELD_HINTS` entry needed (confirmed by `test_optional_field_hints_matches_the_schemas_full_optional_set`, which would otherwise force one). The three curated demo runs each carry a scenario-specific two-paragraph narrative grounded in that scenario's own top-3 hypotheses, not a generic template (`app/app/seed_meta_review_directions.py`, following the `seed_overview_directions.py` per-scenario-module precedent); `DEMO_SEED_VERSION` bumped 12→13 so production re-seeds. See `docs/PARITY.md` `MAIN-RESEARCH-DIRECTIONS-001`. Tests: `engine/tests/test_meta_review.py::test_main_research_directions_maps_through`; `engine/tests/test_offline_llm.py::test_offline_meta_review_fills_main_research_directions`; `app/tests/test_report_main_research_directions.py`; `app/tests/test_seed.py::test_seed_demo_runs_render_main_research_directions` |
 
-**R14: 17 BUILT / 1 OPEN / 1 DECISION / 2 FALSE.**
+**R14: 18 BUILT / 0 OPEN / 1 DECISION / 2 FALSE.**
 
 Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`R12-19` respectively as still-open in their own "Decided by" text — both of those underlying rows are now BUILT, which is exactly why the two R14 rows read as false today; nothing further to flag beyond what's already recorded against each.
 
