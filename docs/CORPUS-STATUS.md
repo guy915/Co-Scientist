@@ -442,8 +442,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 12 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (13 raw DECISION rows in the Summary
+The 11 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (12 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -521,6 +521,16 @@ decision):
 11. **Cosmetic, only if the owner wants it.** `R12-13`. The published
     report's "Top ideas" heading appears twice; may be a transcription
     artifact. The row's own framing: "none unless the owner wants it."
+12. **A paid live A/B for ranking-05's missing "Pose clarifying
+    questions" instruction.** `R8-4`, added to this list in the
+    owner-directed wave (2026-09-03) — the `LAST-OPEN` wave moved this
+    row OPEN → DECISION on 2026-09-02 but never added it here. The
+    instruction is confirmed still genuinely missing from `ranking.md`;
+    weighed against the ranking judge's already-measured ~23%
+    answerless-retry rate on this exact prompt family and deliberately
+    not added this wave (see `R8-4`'s own evidence cell for the full
+    reasoning). Accept a paid live A/B measuring the judge's answerless
+    rate before/after adding it, or accept the fidelity gap?
 
 ---
 
