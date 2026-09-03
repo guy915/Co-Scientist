@@ -64,18 +64,18 @@ partial pass is never lost.
 |---|---|---|---|---|---|
 | R1 | 3 | 3 | 0 | 0 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
-| R8 | 3 | 2 | 0 | 1 | 0 |
+| R8 | 3 | 3 | 0 | 0 | 0 |
 | R9 | 3 | 3 | 0 | 0 | 0 |
 | R10 | 9 | 8 | 0 | 1 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
-| R12 | 13 | 10 | 0 | 2 | 1 |
+| R12 | 13 | 11 | 0 | 1 | 1 |
 | R13 | 11 | 11 | 0 | 0 | 0 |
 | R14 | 20 | 17 | 0 | 1 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 4 | 0 | 1 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **83** | **74** | **0** | **6** | **3** |
+| **Total** | **83** | **76** | **0** | **4** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -261,6 +261,41 @@ BUILT / 2 DECISION → 8 BUILT / 1 DECISION; R14 15 BUILT / 3 DECISION →
 The Total row moves 69 → 74 BUILT, 11 → 6 DECISION -- five rows closed
 (`R1-18`, `R10-9`, `R14-2`, `R14-26`, `MO-11`).
 
+**Closing pass, `R8-4`/`R12-13` (2026-09-03).** Two more DECISION rows
+close, both **DECISION → BUILT**.
+
+`R8-4`'s residual (owner decision #12 below) is resolved the same way
+the owner-directed wave settled #2/#6/#9: the governing directive --
+where Google published an exact prompt, mirror it -- now outweighs the
+answerless-rate caution an earlier wave recorded, without waiting on a
+paid live A/B. Ranking-05's "Subsequent turns:" first bullet, "Pose
+clarifying questions to address any ambiguities or uncertainties,"
+renders verbatim as the lead sentence of every follow-up debate turn
+(`ranking_debate_turns.py::_append_debate_context`), pinned by
+`engine/tests/test_ranking_debate.py::test_followup_turns_pose_clarifying_questions`
+(reads the instruction out of `docs/CORPUS-EXTRACTION.md` rather than
+restating it) and recorded by `docs/PARITY.md`'s new
+`RANK-DEBATE-CLARIFY-001` row. Checked that nothing downstream parses
+the debate transcript in a way a clarifying question could break: the
+judge answers every turn against the same schema, the verdict-line
+parser and its position-balanced fallback are unchanged, and the
+reasoning field is read as freeform prose everywhere it is consumed.
+
+`R12-13`'s residual (owner decision #11 below) is resolved as an
+accepted divergence, the same pattern `R12-14` used: `## Top hypotheses`
+stays emitted exactly once (correcting this row's own stale
+`report_markdown.py:345` citation to `report_markdown_documents.py:126`,
+where the R14-11 document split moved the render) rather than doubled to
+match the published capture, since the corpus row itself already flags
+the duplication as probably a transcription artifact, not a shape worth
+mirroring into what would otherwise read as a rendering bug.
+`docs/PARITY.md`'s new `REPORT-HEADING-DUPLICATION-001` row (`partial`)
+records this.
+
+Per-region moves: R8 2 BUILT / 1 DECISION → 3 BUILT / 0 DECISION; R12 10
+BUILT / 2 DECISION → 11 BUILT / 1 DECISION. The Total row moves 74 → 76
+BUILT, 6 → 4 DECISION -- two rows closed (`R8-4`, `R12-13`).
+
 ---
 
 ## R1 — SSR consolidation
@@ -291,10 +326,10 @@ Noticed in passing: none — the note previously recorded here (`CITE-META-001`'
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
 | R8-2 | The published-prompt→template mapping was recorded but never checked for content preservation; needs "a one-off semantic diff of all eight prompts against their templates" | **BUILT** | `docs/PROMPT-PRESERVATION.md` (dated 2026-09-01) is exactly that diff — all eight prompts, instruction-by-instruction, classified present/missing/adapted with line-cited evidence. Summary: 4 prompts fully preserved, 4 with residual gaps (1–2 missing instructions each). Supersedes this row |
-| R8-4 | 14/19 sentences of `ranking-05` poorly covered; two things unsettled: the turn-count envelope (code vs. prompt) and "Pose clarifying questions to address any ambiguities" (0.0 coverage) | **DECISION** | The turn envelope is settled, as the row itself already concludes: enforced in code (`engine/src/co_scientist/agents/ranking/ranking.py:234`, `RANK-DEBATE-DEPTH-001` `verified`), correctly not restated in the prompt. The clarifying-questions instruction is confirmed still genuinely missing -- verbatim Appendix (`docs/CORPUS-EXTRACTION.md:1231`), zero grep hits in `ranking.md`/`ranking_debate*.py`, and Google places it as the first bullet under ranking-05's "Subsequent turns:" guidance (multi-turn debate turns after the first), not in the verdict step. `docs/PROMPT-PRESERVATION.md`'s own §7 instruction table missed it too, now corrected with a footnote. **Weighed and not built, this wave.** Ranking's judge is the run's most expensive call site (~46% of tokens by an earlier measurement) and already carries a measured ~23% `LLMThinkingOnlyError` rate on this exact prompt family (13/56 calls, live run) -- reasoning spent, then a stop with no answer -- where a fix that works elsewhere "underperforms badly." "Pose clarifying questions" invites more open-ended deliberation before commitment, which is the shape of that exact failure mode; a sibling instruction already ships safely in this codebase's generation-02 debate templates (`generation_after_debate.md:43`), but that is not transferable safety evidence here, since the same live measurement says this specific prompt family behaves worse than others on the underlying failure. The token cost itself is not the concern and was measured offline (`litellm.token_counter`, gpt-4o tokenizer): the one bullet line is ~13 tokens; at ~2.6 subsequent-turn renders per multi-turn matchup (3.6 turns/match measured) across ~25 multi-turn matchups in a full run (`docs/PROMPT-PRESERVATION.md` §7), that is roughly 850 tokens/run -- negligible. What cannot be measured offline is the answerless-rate effect: the deterministic offline backend fills the schema from `(model, prompt, schema)` and never returns answerless regardless of prompt content, so nothing in this repo's offline evals or hermetic CI is sensitive to this change, and a live A/B would cost real money against a cost-sensitive stealth-model deployment. Recorded at the code site (`ranking_debate_turns.py::_append_debate_context` docstring) so a future pass does not re-derive this. The owner's question: accept a paid live A/B measuring the judge's answerless rate before/after, or accept the fidelity gap |
+| R8-4 | 14/19 sentences of `ranking-05` poorly covered; two things unsettled: the turn-count envelope (code vs. prompt) and "Pose clarifying questions to address any ambiguities" (0.0 coverage) | **BUILT** | The turn envelope is settled, as the row itself already concludes: enforced in code (`engine/src/co_scientist/agents/ranking/ranking.py:234`, `RANK-DEBATE-DEPTH-001` `verified`), correctly not restated in the prompt. **The clarifying-questions instruction is now built too, closing 2026-09-03.** An earlier wave weighed it against the ranking judge's already-measured ~23% `LLMThinkingOnlyError` rate on this exact prompt family (13/56 calls, live run) and deliberately did not add it -- see the owner-directed wave's decision list, item #12 -- but the owner's governing directive for this campaign (where Google published an exact prompt, mirror it) now settles the question the same way it settled decisions #2/#6/#9: added, without a live A/B first. The bullet renders verbatim, in the published position -- the lead sentence of every follow-up debate turn's guidance (`ranking_debate_turns.py::_append_debate_context`; turn 1 renders no debate context at all, so this is turn-2-onward only, matching ranking-05's own "Subsequent turns" framing). The judge still answers every turn against the unchanged schema (`winner` plus a `decision_summary` ending in the literal verdict line), so nothing downstream that parses the debate transcript is affected -- checked `ranking_debate.py`'s turn loop and `ranking_debate_turns.py::_parse_verdict_line`/`_resolve_turn_winner`/`_finalize_debate_response` directly: the verdict-line parser reads the same field regardless of what else the judge writes into it, malformed output already falls back to the position-balanced tiebreaker, and `ranking_results._extract_reasoning` reads `decision_summary` as freeform prose, never parsed for structure. `docs/PROMPT-PRESERVATION.md`'s own §7 correction footnote is now itself resolved with a follow-up note. Pinned by `engine/tests/test_ranking_debate.py::test_followup_turns_pose_clarifying_questions`, which reads the instruction directly out of `docs/CORPUS-EXTRACTION.md:1244` rather than restating it inline. `docs/PARITY.md`'s new `RANK-DEBATE-CLARIFY-001` row (`verified`) records this; the answerless-rate risk itself stays unmeasured offline (the deterministic offline backend never returns answerless regardless of prompt content), so a live A/B remains the only way to measure any before/after effect, now accepted as a known risk rather than a blocker |
 | R8-6 | Published debate judge is framed as a plurality ("simulating a panel of domain experts", "The experts possess no pre-existing biases") — contradicts FINDINGS `E18`'s "the paper names a single evaluator"; needs a correction to `E18` and one framing line in `ranking.md` | **BUILT** | The `E18` half was already done (`docs/fidelity-audit/FINDINGS.md:138`, commit `c310a560`): states the paper frames the judge as a plurality, quotes the panel/bias-neutrality sentence verbatim, cites this row, and correctly preserves what stays true -- the paper never names distinct advocate/opponent *personas* for that panel. `ranking_debate.py::_run_debate_turns`'s docstring was already fixed too. The remaining deliverable now lands, this wave: `engine/src/co_scientist/prompts/templates/ranking.md`'s opening line now reads "You are a Tournament Judge Agent in the Co-Scientist framework, simulating a panel of domain experts engaged in a structured discussion," echoing the published framing. Deliberately not added: an assertion that "the experts possess no pre-existing biases" -- audited and classified adapted-and-stronger in `docs/PROMPT-PRESERVATION.md` §7 item 3, since this judge already enforces impartiality structurally (both A/B presentation orders via `_render_ordered_prompt(swapped=True)`, a position-balanced fallback on malformed output) rather than asserting a claim the model cannot verify about itself. Pinned by two new tests in `engine/tests/test_ranking_prompt.py` (`test_matchup_prompt_frames_the_judge_as_a_panel`, `test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction` -- the latter confirms "Make a clear decision" and the literal `better idea: 1`/`2` verdict format still render unchanged). Token cost measured (`litellm.token_counter`, gpt-4o tokenizer, same method as `R8-4`): the added clause is 13 tokens versus the unchanged opening sentence, and unlike `R8-4`'s subsequent-turn-only guidance, this line sits in the base prompt every turn re-renders (`ranking_debate_turns.py::_render_ordered_prompt`) -- roughly 65 single-turn matchups x 1 render plus ~25 multi-turn matchups x 3.6 turns/match (`docs/PROMPT-PRESERVATION.md` §7) is ~155 renders/run, so ~2,000 tokens/run, negligible against the run's total spend |
 
-**R8: 2 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
+**R8: 3 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -350,7 +385,7 @@ Noticed in passing: none.
 | R12-4 | Published Criteria are three named settings with explicit values (`Idea correctness: Required`, etc.); ours are four free-prose strings, different in shape and content | **BUILT** | Commit `db6f994b`: `app/app/run_modes.py`'s `DEFAULT_CRITERIA` is now exactly those three name/value pairs. `clean_criteria_list`/`criteria_display_strings` (same file) accept and render both the legacy free-string shape and the new pair shape, so a run persisted before this change keeps rendering under "Research Goal Details" and keeps reaching the engine's `criteria` prompt text unchanged, while a new run's pairs render as one `"Name: Value"` line each. `docs/PARITY.md`'s new `RUN-CRITERIA-001` row (`verified`) cites `app/tests/test_published_plan_config_criteria.py::test_default_criteria_mirrors_the_published_plan_config`, which reads the three pairs directly out of this document's own `## Criteria` block (line 1949) rather than restating them. Scope: only the *default* moved to the pair shape — the three curated demo scenarios (`app/app/seed_planning.py`) and a direct API/CLI caller may still supply their own free-prose criteria, since the published pairs are goal-agnostic (unlike Attributes, `R12-5`, unaffected) and forcing per-goal prose into two fixed fields would lose content rather than mirror the plan |
 | R12-5 | Published Attributes are a structured 1-5 scoring rubric (4 anchored scales + 1 categorical); ours is `list[str]` free text | **BUILT** | `app/app/run_modes_attributes.py` (new module, split from `run_modes.py` mirroring `run_modes_criteria.py`, R12-4's own pattern): `DEFAULT_ATTRIBUTES` is now three scaled 1-5 axes ("Mechanistic specificity", "Evidence grounding", "Experimental readiness"), each with anchor text at points 1, 3, and 5. The published block's one categorical axis (Target Area) is itself goal-*derived* — its three values are literally that run's own focus-area list — so no goal-agnostic categorical default exists to mirror; the shape is fully supported regardless (`clean_attributes_list`/`attribute_display_strings` accept and render both a scaled `{"name", "scale"}` axis and a categorical `{"name", "values"}` axis, plus the legacy free-prose string, so a run persisted before this change keeps rendering exactly as it always did). `docs/PARITY.md`'s new `RUN-ATTRIBUTES-001` row (`verified`) cites `app/tests/test_published_plan_config_attributes.py::test_our_attribute_shape_represents_every_published_item`, which parses the published block's own structure (4 scaled + 1 categorical, including Human Relevance's midpoint-omitting anchors) directly out of this document rather than restating it, and proves our shape can encode every published item intact. (Distinct from `config_synthesis.attributes`, the Supervisor-synthesized field R12-17 covers — this row is about the run's own *setup* attributes; the two stay separate rather than unified, since merging them would mean touching three already-BUILT surfaces — the Supervisor schema, `prompts/review.py`, and the R12-17 renderer — for a field already doing its job) |
 | R12-12 | The published report's flat 3,259-entry `References` list has no analogue; whether ours (`Citation audit` + data sources, a different artifact) should also get a flat list is explicitly left to the owner | **DECISION** | Confirmed unchanged: no bibliography/reference-list renderer exists anywhere in `app/app/report_markdown*.py` (zero hits for "bibliography"/"reference_list"); `report_markdown_sources.py` still emits only search counts and served questions, not a source list. The row's own framing stands — this needs the owner's call, not more code investigation |
-| R12-13 | The published report's "Top ideas" heading appears twice (open and close); may be a transcription artifact | **DECISION** | Confirmed unchanged: `## Top hypotheses` is still emitted exactly once (`app/app/report_markdown.py:345`). Unresolved by design — the row itself says "none unless the owner wants it" |
+| R12-13 | The published report's "Top ideas" heading appears twice (open and close); may be a transcription artifact | **BUILT** | Recorded as an accepted divergence, closing 2026-09-03 -- same pattern as `R12-14`'s "needs a ledger row recording the divergence, not a change." `## Top hypotheses` is still emitted exactly once (`app/app/report_markdown_documents.py:126`, corrected from this row's own earlier, now-stale citation to `report_markdown.py:345` -- that render moved when the R14-11 document split landed). Not built as duplication: doing so would read as a rendering bug in this product, and the row's own framing already treats the published duplication as probably a transcription artifact of the capture, not a shape to mirror. `docs/PARITY.md`'s new `REPORT-HEADING-DUPLICATION-001` row (`partial`) records this |
 | R12-14 | Published score composition is printed as `score = novelty + details + usefulness + pairwise rank = 11`; ours is a mean of the review rubric's axes — needs a ledger row recording the divergence, not a change | **BUILT** | `docs/PARITY.md`'s new `SCORE-COMPOSITION-001` row (`partial`, commit `1928f03f`, cites `corpus R12-14`) records exactly this, recording only as the row asked. One correction along the way: `docs/CORPUS-EXTRACTION.md`'s own checklist row cites the formula as sourced from `kira6-detailed-output-validated.md`, "corroborated by" the drug-repurposing supplement -- but `kira6` carries only bare per-axis `Answer: N` closings (see `R10-7`/`MO-5`), zero occurrences of this formula. The formula actually appears in `hypotheses/liver-fibrosis-epigenetic-targets.md`'s two worked Generation-agent examples, which is what the new PARITY row cites instead |
 | R12-15 | Published per-assumption wording is prose (`Plausible:`, `Plausible, but requires careful investigation:`, `Unknown:`); ours is the closed enum now unified as `supported`/`uncertain`/`likely_false` (`engine/src/co_scientist/schemas/review.py:20-25`, `ASSUMPTION_SUPPORT_VALUES`) — adopting the published wording is left to the owner | **BUILT** | Same fix as `MO-4` (audited below); not double-counted. Mirrored at the rendering boundary rather than the stored value (commit `980dda41`, cites this row by ID): `app/app/engine_adapter/drain_reviews.py::_assumption_line` now maps the value through `_ASSUMPTION_SUPPORT_LABELS` to Google's wording (`docs/CORPUS-EXTRACTION.md:4135-4141`) before it reaches a reader, while `review.py`'s `ASSUMPTION_SUPPORT_VALUES` stays exactly `supported`/`uncertain`/`likely_false` -- `mature_reviews._project_full_review`'s `assumptions_likely_false` filter keys off that literal string, so migrating stored data would break a programmatic reader for no reader-facing gain. Two of three values mirror the published word directly (`supported` to "Plausible", `uncertain` to "Plausible, but requires careful investigation") but the third deliberately does not: `likely_false` means the evidence points against the assumption, a genuine negative verdict Google's own exemplar never marks -- every published "Unknown:" there marks an assumption nothing has tested yet, not one contradicted -- so it renders as "Implausible" instead of a borrowed, understating "Unknown". `docs/PARITY.md`'s new `REVIEW-ASSUMPTION-WORDING-001` row (`verified`) records this two-of-three match and that the label is baked into the persisted `critique` text at drain time, so a run drained before this change keeps its old wording. Deep verification's `sub_assumptions[].status` carries the same enum but is never rendered to a reader anywhere in this codebase, so this fix does not reach it. Tests: `app/tests/test_review_assumption_wording.py` |
 | R12-16 | The one research-contacts exemplar carries exactly two fields (name, free-text relevance paragraph); whether ours invents extra fields needs the same check `test_specific_aims_schema_adds_nothing_the_exemplars_lack` applies elsewhere | **BUILT** | `docs/PARITY.md`'s new `RESEARCH-CONTACTS-FIELDS-001` row (`partial`, commit `537041c7`, cites `corpus R12-16`) records this, and corrects the row's own premise along the way: a direct read of the exemplar (Figure A.22) shows **three** observable fields, not two -- it also carries a Research Direction heading, which this repo's schema already matches deliberately (`MO-7`). Of the schema's five fields, three map onto the exemplar (`name`, `justification`, `research_direction`); `candidate_id` is unrendered anti-hallucination provenance never shown to the reader; `expertise` is the one genuinely unattested addition. Recording only -- the pin test this row's own residual named as the next step (`test_published_artifact_shapes.py`-style) does not yet exist for this schema |
@@ -359,7 +394,7 @@ Noticed in passing: none.
 | R12-19 | An inline citation marker in body prose can carry its own verdict tag (e.g. `[17 (unsupported)]`); claims our nearest analogue is a separate bulleted block, and that `report_markdown.py` "never renders `literature_grounding` at all... so those keys are generated, paid for, and discarded" | **FALSE** | The discarding claim does not survive a read. `app/app/engine_adapter/drain_hypotheses.py:407` sets `mechanism=h.get("literature_grounding") or ""` — the app's `mechanism` field literally **is** `literature_grounding`'s content, `[C1]` markers included, rendered verbatim by `report_markdown_hypothesis.py:97-105` (`_render_hypothesis_mechanism`) under "**Mechanism:**". Those keys are then resolved to a References list by `app/app/report_markdown_references.py` (119 lines, its own module, wired at `report_markdown.py:343` via `references_by_hypothesis`), with its own test file `app/tests/test_report_markdown_references.py`. The row's grep evidently checked `report_markdown.py`'s own render function for a field literally named `literature_grounding` and found only `mechanism`/`expected_effect` — missing that `mechanism` *is* that field under its drain-layer name, and missing the sibling module entirely. What survives: our citation markers appear inline (not absent, as the row implies) but genuinely carry no verdict tag (`(unsupported)`-style) — `_render_claim_evidence` (`report_markdown_hypothesis.py:63-77`) still renders claim verdicts as a **separate** bulleted block after the prose, exactly as the row correctly describes for that narrower point. So: the "discarded" claim is false; the "no inline verdict tag" claim is true |
 | R12-23 | Published `Review summary` restates the run's criteria as 16 yes/no reviewer questions grouped under 5 criteria — the reader-facing form of R12-18, and absent | **BUILT** | Same module again, names `R12-23` explicitly: `_render_review_summary_markdown` (`report_markdown_supervisor.py:212-243`) renders "## Review Summary" — each criterion with its named reviewer questions — wired into `report_markdown.py:469` (shares `critical_criteria` with R12-18), same tests. The row's other half, `Research directions` restating the five main directions with an `Unexpected Research Directions` block, is unaddressed by this module and not otherwise found — the row bundles two asks; only the `Review summary` half is built |
 
-**R12: 10 BUILT / 0 OPEN / 2 DECISION / 1 FALSE.**
+**R12: 11 BUILT / 0 OPEN / 1 DECISION / 1 FALSE.**
 
 Noticed in passing: none beyond `R12-23`'s partial resolution (noted inline above — its `Research directions` half stays open, folded into the row's own verdict rather than split into a new row).
 
@@ -490,8 +525,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 4 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (6 raw DECISION rows in the Summary
+The 2 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (4 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -574,19 +609,25 @@ decision):
     a general shape cannot be settled without a second published exemplar,
     which does not exist in the corpus. Nothing inside this repo closes
     it.
-11. **Cosmetic, only if the owner wants it.** `R12-13`. The published
-    report's "Top ideas" heading appears twice; may be a transcription
-    artifact. The row's own framing: "none unless the owner wants it."
-12. **A paid live A/B for ranking-05's missing "Pose clarifying
-    questions" instruction.** `R8-4`, added to this list in the
-    owner-directed wave (2026-09-03) — the `LAST-OPEN` wave moved this
-    row OPEN → DECISION on 2026-09-02 but never added it here. The
-    instruction is confirmed still genuinely missing from `ranking.md`;
-    weighed against the ranking judge's already-measured ~23%
-    answerless-retry rate on this exact prompt family and deliberately
-    not added this wave (see `R8-4`'s own evidence cell for the full
-    reasoning). Accept a paid live A/B measuring the judge's answerless
-    rate before/after adding it, or accept the fidelity gap?
+11. ~~Cosmetic, only if the owner wants it.~~ **Resolved: accepted as a
+    divergence, recorded rather than built.** `R12-13` is now **BUILT** —
+    see the `R8-4`/`R12-13` closing pass above and `docs/PARITY.md`
+    `REPORT-HEADING-DUPLICATION-001`. `## Top hypotheses` stays emitted
+    exactly once; doubling it to match the published capture would read
+    as a rendering bug in this product, and the row itself already
+    flagged the published duplication as probably a transcription
+    artifact rather than a shape to mirror.
+12. ~~A paid live A/B for ranking-05's missing "Pose clarifying
+    questions" instruction.~~ **Resolved: added, without a live A/B.**
+    `R8-4` is now **BUILT** — see the `R8-4`/`R12-13` closing pass above
+    and `docs/PARITY.md` `RANK-DEBATE-CLARIFY-001`. The owner's governing
+    directive for this campaign (where Google published an exact prompt,
+    mirror it) settles the question the same way it settled decisions
+    #2/#6/#9: the instruction now renders verbatim, in the published
+    position, on every follow-up debate turn
+    (`ranking_debate_turns.py::_append_debate_context`); the
+    answerless-rate risk an earlier wave weighed stays unmeasured
+    offline and is accepted as a known risk rather than a blocker.
 
 ---
 

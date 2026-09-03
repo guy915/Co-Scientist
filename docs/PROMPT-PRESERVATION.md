@@ -266,6 +266,15 @@ Deliberately not restored: `_append_debate_context`
 (`ranking_debate_turns.py`) records the reasoning and the measured risk
 at the code site.
 
+**Resolved 2026-09-03:** the owner's governing directive for this
+campaign — where Google published an exact prompt, mirror it — now
+settles the question `_append_debate_context`'s docstring recorded.
+The bullet is added verbatim as the lead sentence of that function's
+per-turn guidance, pinned by `engine/tests/test_ranking_debate.py::test_followup_turns_pose_clarifying_questions`
+(corpus R8-4, `docs/CORPUS-STATUS.md`; `docs/PARITY.md`
+`RANK-DEBATE-CLARIFY-001`). Item 7 above is now fully present, not
+bundled-and-incomplete.
+
 ## 8. `reflection-03-generate-observations.md`
 
 **Template:** `reflection_observations.md`.
