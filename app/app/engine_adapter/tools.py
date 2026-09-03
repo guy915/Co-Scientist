@@ -24,10 +24,12 @@ logger = logging.getLogger(__name__)
 # composer's connectors menu. Add an entry here when a new connector's tools are
 # wired up so it appears in the menu automatically.
 # Order is the composer menu's top-to-bottom order: web search, then the
-# PubMed literature base, then INDRA.
+# PubMed/arXiv/bioRxiv literature bases, then INDRA.
 _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
     ("web_search", "Web search"),
     ("pubmed", "PubMed"),
+    ("arxiv", "arXiv"),
+    ("biorxiv", "BioRxiv"),
     ("indra", "INDRA"),
 )
 
@@ -48,6 +50,16 @@ def connectors_report(
     enables a matching tool. Falls back to PubMed so the menu is never
     empty.
 
+    arXiv and bioRxiv are neither: they carry no credential of their own
+    to be refused (both are free, keyless APIs), but they run through the
+    same MCP process PubMed does, so an unreachable server takes them down
+    with it. Gating on ``literature_available`` alone would show them
+    whenever MCP is healthy even for a deployment whose tools YAML never
+    configured them (that probe does not know which tools a custom config
+    enables); gating on config membership alone would show them as
+    available with MCP down, the exact failure mode PubMed's own probe
+    exists to avoid. Both together are required.
+
     Args:
         literature_available: Whether the MCP + PubMed literature stack is up.
         enabled_tools: Enabled tool ids from a readable tools config, or None.
@@ -60,6 +72,8 @@ def connectors_report(
     available_by_probe = {
         "pubmed": literature_available,
         "web_search": web_search_available,
+        "arxiv": literature_available and "arxiv" in tool_blob,
+        "biorxiv": literature_available and "biorxiv" in tool_blob,
     }
     connectors: list[dict[str, str]] = []
     for key, display in _KNOWN_CONNECTORS:

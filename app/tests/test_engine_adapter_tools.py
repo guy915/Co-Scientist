@@ -275,6 +275,44 @@ def test_connectors_report_orders_web_then_pubmed() -> None:
     assert [item["id"] for item in connectors] == ["web_search", "pubmed"]
 
 
+def test_connectors_report_lists_arxiv_and_biorxiv_when_configured() -> None:
+    """Both toggles appear once MCP is up and the config enables them."""
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=["pubmed_fulltext", "arxiv_search", "biorxiv_search"],
+    )
+    ids = [item["id"] for item in connectors]
+    assert "arxiv" in ids
+    assert "biorxiv" in ids
+
+
+def test_connectors_report_omits_arxiv_when_not_configured() -> None:
+    """A tools config that never enables arxiv_search omits the row."""
+    connectors = connectors_report(
+        literature_available=True,
+        enabled_tools=["pubmed_fulltext"],
+    )
+    assert all(item["id"] != "arxiv" for item in connectors)
+
+
+def test_connectors_report_omits_arxiv_when_mcp_is_down() -> None:
+    """Configured but unreachable must not read as available.
+
+    Both are keyless -- neither has its own credential to be refused --
+    but they run through the same MCP process PubMed does, so a down
+    server takes them down with it exactly as it does PubMed. Gating on
+    config membership alone (the pattern every other non-probed connector
+    uses) would show them as available here, which is the "the agent
+    never searched the web" failure mode PubMed's own live probe exists
+    to avoid.
+    """
+    connectors = connectors_report(
+        literature_available=False,
+        enabled_tools=["pubmed_fulltext", "arxiv_search", "biorxiv_search"],
+    )
+    assert all(item["id"] not in ("arxiv", "biorxiv") for item in connectors)
+
+
 def test_resolved_run_config_enables_web_search_by_default() -> None:
     """The toggle is on by default, matching the literature stack."""
     from app.run_modes import resolved_run_config
