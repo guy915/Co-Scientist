@@ -26,9 +26,15 @@ from app.demo_seed_data import (
     DemoScenario,
     scenario_evidence,
     scenario_hypotheses,
+    scenario_key,
 )
 from app.report_render import ReportRequest, _build_report_content
+from app.seed_config_synthesis import (
+    curated_critical_criteria,
+    curated_stratification_attributes,
+)
 from app.seed_overview import _curated_meta_review, _curated_research_overview
+from app.seed_review_detail import mature_review_rows
 from app.store import RunRow
 
 
@@ -236,12 +242,20 @@ def _seed_hypotheses(seed: _CuratedSeed, evidence_ids: list[str]) -> list[str]:
     Returns:
         The new hypothesis row ids, in the scenario's ranked order.
     """
+    key = scenario_key(seed.scenario)
     hypothesis_ids: list[str] = []
     for index, item in enumerate(seed.hypotheses):
         lineage = _lineage(seed, index, hypothesis_ids)
         hyp_id = _add_hypothesis(seed, index, item, lineage)
         hypothesis_ids.append(hyp_id)
         _add_reviews(seed, hyp_id, index, item)
+        # Only the scenario's highest-ranked ideas carry a curated
+        # full/simulation review row (audit E1) -- mirroring how a real
+        # run reserves the mature cascade's more expensive review types
+        # for fewer candidates (see the root AGENTS.md per-item-LLM-pass
+        # Gotcha).
+        for review in mature_review_rows(seed.run.id, hyp_id, key, index):
+            store.add_review(review, db_path=seed.db_path)
         _add_claim_rows(seed, hyp_id, item, evidence_ids)
     return hypothesis_ids
 
@@ -351,6 +365,7 @@ def _scenario_report_request(
         if isinstance(seed.run.config, dict)
         else None
     )
+    key = scenario_key(seed.scenario)
     return ReportRequest(
         research_goal=seed.run.research_goal,
         run_mode=seed.run.profile,
@@ -361,6 +376,11 @@ def _scenario_report_request(
         summary=seed.scenario.summary,
         execution_time=seed.scenario.duration_seconds,
         setup=setup if isinstance(setup, dict) else None,
+        # Supervisor-synthesized guidance (R12-17/R12-18/R12-23): a
+        # different, goal-specific field from ``setup`` above -- see
+        # ``report_markdown_supervisor.py``'s vocabulary warning.
+        attributes=curated_stratification_attributes(key),
+        critical_criteria=curated_critical_criteria(key),
         prepared_at=time.time(),
         db_path=seed.db_path,
     )
@@ -371,7 +391,7 @@ def _save_scenario_report(
 ) -> dict[str, Any]:
     """Build and persist the curated report; return its meta-review payload."""
     overview = _curated_research_overview(
-        seed.scenario, seed.evidence, seed.hypotheses
+        seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
     meta_review = _curated_meta_review(seed.scenario)
     built = _build_report_content(

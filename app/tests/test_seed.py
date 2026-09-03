@@ -17,7 +17,9 @@ from app.demo_seed_data import (
     DEMO_SCENARIOS,
     DEMO_SEED_VERSION,
     scenario_hypotheses,
+    scenario_key,
 )
+from app.seed_review_detail import full_review_count, simulation_review_count
 from app.store import DEMO_CLIENT_ID, RunRow
 
 
@@ -50,9 +52,18 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
         assert len(hypotheses) == expected_ideas
         assert len(store.list_evidence(run.id, db_path=isolated_db)) == 6
+        key = scenario_key(scenario)
+        # Every idea carries reflection + deep_verification; only the
+        # highest-ranked ideas additionally carry a curated full/simulation
+        # review row (see app.seed_review_detail).
+        expected_reviews = (
+            expected_ideas * 2
+            + full_review_count(key)
+            + simulation_review_count(key)
+        )
         assert (
             len(store.list_reviews(run.id, db_path=isolated_db))
-            == expected_ideas * 2
+            == expected_reviews
         )
         assert len(store.list_matches(run.id, db_path=isolated_db)) == (
             expected_ideas - 1 + expected_ideas // 2
