@@ -339,6 +339,33 @@ def _seed_proximity(seed: _CuratedSeed, hypothesis_ids: list[str]) -> None:
         )
 
 
+def _scenario_report_request(
+    seed: _CuratedSeed,
+    hypothesis_ids: list[str],
+    overview: dict[str, Any],
+    meta_review: dict[str, Any],
+) -> ReportRequest:
+    """Assemble the curated report's build inputs from the seed scenario."""
+    setup = (
+        seed.run.config.get("setup")
+        if isinstance(seed.run.config, dict)
+        else None
+    )
+    return ReportRequest(
+        research_goal=seed.run.research_goal,
+        run_mode=seed.run.profile,
+        provider=seed.run.provider,
+        citation_summary={"partial": len(hypothesis_ids)},
+        meta_review=meta_review,
+        research_overview=overview,
+        summary=seed.scenario.summary,
+        execution_time=seed.scenario.duration_seconds,
+        setup=setup if isinstance(setup, dict) else None,
+        prepared_at=time.time(),
+        db_path=seed.db_path,
+    )
+
+
 def _save_scenario_report(
     seed: _CuratedSeed, hypothesis_ids: list[str]
 ) -> dict[str, Any]:
@@ -347,26 +374,9 @@ def _save_scenario_report(
         seed.scenario, seed.evidence, seed.hypotheses
     )
     meta_review = _curated_meta_review(seed.scenario)
-    setup = (
-        seed.run.config.get("setup")
-        if isinstance(seed.run.config, dict)
-        else None
-    )
     built = _build_report_content(
         seed.run.id,
-        ReportRequest(
-            research_goal=seed.run.research_goal,
-            run_mode=seed.run.profile,
-            provider=seed.run.provider,
-            citation_summary={"partial": len(hypothesis_ids)},
-            meta_review=meta_review,
-            research_overview=overview,
-            summary=seed.scenario.summary,
-            execution_time=seed.scenario.duration_seconds,
-            setup=setup if isinstance(setup, dict) else None,
-            prepared_at=time.time(),
-            db_path=seed.db_path,
-        ),
+        _scenario_report_request(seed, hypothesis_ids, overview, meta_review),
     )
     payload = {**built.payload, "demo_seed_version": DEMO_SEED_VERSION}
     banner = (

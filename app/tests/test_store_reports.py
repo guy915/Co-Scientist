@@ -1,9 +1,10 @@
-"""Tests for report persistence edge cases in ``app.store.reports``.
+"""Tests for report persistence in ``app.store.reports``.
 
-``save_report``'s happy path and ``read_report_markdown``'s DB-text-preferred
-path are already covered by ``test_store.py``; this file covers the
-disk-write failure branch and the on-disk fallback used for report rows that
-predate the ``markdown_text`` column.
+Covers ``save_report``'s happy path (moved here from ``test_store.py`` to
+keep that file under the 500-line ceiling), the two-document bundle
+``ReportMarkdownDocuments`` introduced by R14-11, the disk-write failure
+branch, and the on-disk fallback used for report rows that predate the
+``markdown_text`` column.
 """
 
 from __future__ import annotations
@@ -27,6 +28,28 @@ def _insert_legacy_report_row(
             "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
             (report_id, run_id, "{}", markdown_path, None, 0.0),
         )
+
+
+def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
+    """The overview document round-trips through both DB text and disk."""
+    run = store.create_run(
+        "report rt",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
+    )
+    saved = store.save_report(
+        run.id,
+        {"k": "v"},
+        store.ReportMarkdownDocuments("# Hello\nbody"),
+        db_path=isolated_db,
+    )
+    assert saved["markdown_path"].endswith(".md")
+    md = store.read_report_markdown(run.id, db_path=isolated_db)
+    assert md and "Hello" in md
+    rep = store.get_latest_report(run.id, db_path=isolated_db)
+    assert rep and rep["payload"] == {"k": "v"}
 
 
 def test_save_report_logs_warning_on_disk_write_failure(
