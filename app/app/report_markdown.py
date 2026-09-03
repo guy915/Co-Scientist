@@ -199,6 +199,9 @@ from app.report_markdown_supervisor import (
     _render_evaluation_criteria_markdown as _render_evaluation_criteria_markdown,  # noqa: E501
 )
 from app.report_markdown_supervisor import (
+    _render_evaluation_criteria_table_markdown as _render_evaluation_criteria_table_markdown,  # noqa: E501
+)
+from app.report_markdown_supervisor import (
     _render_review_summary_markdown as _render_review_summary_markdown,
 )
 from app.report_markdown_supervisor import (

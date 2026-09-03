@@ -47,6 +47,7 @@ from app.report_markdown_references import references_by_hypothesis
 from app.report_markdown_sources import _render_data_sources_section
 from app.report_markdown_supervisor import (
     _render_evaluation_criteria_markdown,
+    _render_evaluation_criteria_table_markdown,
     _render_review_summary_markdown,
     _render_stratification_attributes_markdown,
 )
@@ -276,6 +277,12 @@ def _ranking_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
             inputs.research_goal, inputs.setup, inputs.goal_restatement
         ),
         _render_provenance_line(inputs.prepared_at),
+        # R14-9: the published order is Research Goal -> Evaluation
+        # Criteria -> Main Research Directions -> Candidate Ideas. This
+        # document has no Main Research Directions section of its own
+        # (docs/CORPUS-STATUS.md records that as a new, unbuilt OPEN row),
+        # so Evaluation Criteria sits directly before Candidate Ideas.
+        _render_evaluation_criteria_table_markdown(inputs.critical_criteria),
         # "Candidate Ideas": the full per-idea write-up, the compared
         # candidates the rest of this document's sections evaluate.
         _render_top_hypotheses_markdown(
