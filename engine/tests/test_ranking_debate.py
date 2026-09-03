@@ -9,6 +9,8 @@ and the complete debate turns plus provenance are persisted on the
 matchup detail.
 """
 
+import pathlib
+import re
 from typing import Any
 
 import pytest
@@ -16,6 +18,7 @@ import pytest
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking_debate import (
     _RANKING_DEBATE_MAX_TURNS,
+    _append_debate_context,
     _balanced_invalid_fallback,
     _DebateContext,
     _matchup_debate_turns,
@@ -442,3 +445,51 @@ async def test_followup_turns_carry_the_envelope_guidance(
         f"never runs past {MAX_TURNS}"
     )
     assert all(guidance in prompt for prompt in prompts[1:])
+
+
+# --- "Pose clarifying questions" (corpus R8-4) --------------------------
+
+_CORPUS_EXTRACTION = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "docs"
+    / "CORPUS-EXTRACTION.md"
+)
+
+
+def _published_subsequent_turns_first_bullet() -> str:
+    """Reads ranking-05's "Subsequent turns:" first bullet off disk.
+
+    ``docs/CORPUS-EXTRACTION.md`` is committed repo content, not the
+    optional ``references/`` corpus this module must never touch (see
+    ``_published_corpus.py``), so there is nothing to skip -- it is always
+    present in any checkout that has this test (same reasoning as
+    ``app/tests/test_published_plan_config_criteria.py``, which reads the
+    same file). Anchored on the literal "Subsequent turns:" header so this
+    cannot match generation-02's near-duplicate sibling instruction
+    ("Pose clarifying questions if ambiguities or uncertainties arise.",
+    docs/CORPUS-EXTRACTION.md:1099) elsewhere in the same appendix.
+
+    Returns:
+        The bullet's text, verbatim, without its leading "* " marker.
+    """
+    text = _CORPUS_EXTRACTION.read_text(encoding="utf-8")
+    match = re.search(r"^Subsequent turns:\n {4}\* (.+)$", text, re.M)
+    assert match is not None, (
+        "docs/CORPUS-EXTRACTION.md lost ranking-05's 'Subsequent turns:' bullet"
+    )
+    return match.group(1)
+
+
+def test_followup_turns_pose_clarifying_questions() -> None:
+    """Follow-up turns carry ranking-05's own first "Subsequent turns" ask.
+
+    Read directly out of ``docs/CORPUS-EXTRACTION.md`` rather than
+    restated inline, so a future edit to that appendix cannot drift from
+    this assertion unnoticed.
+    """
+    instruction = _published_subsequent_turns_first_bullet()
+    appended = _append_debate_context(
+        "base prompt",
+        [{"turn": 1, "winner_id": "h1", "reasoning": "some reasoning"}],
+    )
+    assert instruction in appended

@@ -158,20 +158,15 @@ def _append_debate_context(
     figures are single-sourced from the envelope constants the judge loop
     enforces (see the module comment above).
 
-    Deliberate omission (corpus R8-4, docs/CORPUS-STATUS.md): the published
-    ranking-05 prompt's "Subsequent turns" guidance
-    (docs/CORPUS-EXTRACTION.md:1231) opens with "Pose clarifying questions
-    to address any ambiguities or uncertainties" -- not carried here. This
-    is the run's most expensive call site (~46% of a run's tokens) and a
-    live measurement found 13/56 ranking judge calls (~23%) failing
-    ``LLMThinkingOnlyError`` -- reasoning spent, then a stop with no answer
-    -- on this exact prompt family, where a position-based fix that works
-    elsewhere "underperforms badly." Inviting more open-ended deliberation
-    before a verdict is the shape of that exact failure, and the effect
-    cannot be measured offline: the deterministic offline backend fills
-    the schema from ``(model, prompt, schema)`` and never returns
-    answerless, so only a live call against the production model exercises
-    this, at real cost. Recorded as a DECISION for the owner, not built.
+    Mirrors ranking-05's "Subsequent turns:" guidance verbatim on its own
+    first bullet -- "Pose clarifying questions to address any ambiguities
+    or uncertainties" (docs/CORPUS-EXTRACTION.md:1244, corpus R8-4,
+    docs/CORPUS-STATUS.md) -- placed here because only a follow-up turn has
+    a prior exchange to question; turn 1 renders no debate context at all.
+    The judge still answers every turn against the same schema (``winner``
+    plus a ``decision_summary`` ending in the literal verdict line), so
+    this widens what the judge may weigh in that answer without inviting
+    it to withhold one.
     """
     lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
     for entry in transcript:
@@ -181,7 +176,8 @@ def _append_debate_context(
             f"{entry['reasoning']}\n"
         )
     lines.append(
-        f"\nThis debate typically settles in "
+        "\nPose clarifying questions to address any ambiguities or "
+        "uncertainties. This debate typically settles in "
         f"{_RANKING_DEBATE_TYPICAL_MIN_TURNS}-"
         f"{_RANKING_DEBATE_TYPICAL_MAX_TURNS} turns and never runs past "
         f"{_RANKING_DEBATE_MAX_TURNS}. If the turns above already "
