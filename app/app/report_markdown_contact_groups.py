@@ -28,12 +28,27 @@ from app.report_markdown_text import _readable_text
 
 
 def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
-    """Render a contact's source-evidence line, or nothing when unsourced."""
+    """Render a contact's source-evidence line, or nothing when unsourced.
+
+    R14-16: this is the second, evidence-citing field the published
+    19-file sample shows beside every consistent ``Justification:``
+    field, its own label varying freely (``Supporting Articles:`` /
+    ``Relevant Articles:`` / ``Supporting Excerpt:`` / ``Support:`` /
+    unlabeled). "Supporting article" is the fixed name chosen for it:
+    unlike Google's own free-text citation, this field is never model
+    prose -- ``source_title``/``source_url`` are resolved against a real,
+    already-known paper (``research_overview_contacts.py``'s
+    anti-hallucination candidate resolution, same mechanism that keeps
+    ``candidate_id`` itself off the page), always exactly one grounded
+    paper, so the singular, source-accurate name fits better than
+    borrowing a plural "Articles" label that implies free citation prose.
+    """
     title = _readable_text(contact.get("source_title"))
     url = contact.get("source_url")
     if not title:
         return []
-    return [f"Evidence: [{title}]({url})\n" if url else f"Evidence: {title}\n"]
+    source = f"[{title}]({url})" if url else title
+    return [f"**Supporting article:** {source}\n"]
 
 
 def _render_contact_entry(
@@ -63,14 +78,19 @@ def _render_contact_entry(
 
 
 def _render_contact_body(contact: dict[str, Any]) -> list[str]:
-    """Render a contact's expertise and justification lines, or nothing."""
+    """Render a contact's expertise and justification lines, or nothing.
+
+    R14-16: ``Justification:`` is consistent across all 14 published
+    research contacts that carry this section -- a fixed label to mirror
+    directly, unlike the varying evidence-citing field below it.
+    """
     lines: list[str] = []
     expertise = _readable_text(contact.get("expertise"))
     if expertise:
         lines.append(f"**Relevant expertise:** {expertise}\n")
     justification = _readable_text(contact.get("justification"))
     if justification:
-        lines.append(f"{justification}\n")
+        lines.append(f"**Justification:** {justification}\n")
     return lines
 
 

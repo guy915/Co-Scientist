@@ -255,7 +255,7 @@ it('flattens malformed aims and contacts instead of showing raw JSON', () => {
   expect(document.body.textContent).not.toContain('{"why"');
   // The source link keeps its real URL.
   expect(
-    screen.getByRole('link', {name: 'Evidence: A biofilm study'}),
+    screen.getByRole('link', {name: 'Supporting article: A biofilm study'}),
   ).toHaveAttribute('href', 'https://example.org/paper');
 });
 
@@ -276,6 +276,9 @@ it('renders the specific aims and research contacts', () => {
     screen.getByRole('heading', {name: 'Research contacts'}),
   ).toBeInTheDocument();
   expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
+  // R14-16: Justification: is the one label consistent across all 14
+  // published research contacts that carry it.
+  expect(screen.getByText('Justification:')).toBeInTheDocument();
   // MO-7: ties the contact back to the direction that surfaced them.
   // "Direction one" also names the research-direction preview bullet and
   // heading above, so this asserts at least one occurrence rather than an
@@ -283,7 +286,7 @@ it('renders the specific aims and research contacts', () => {
   expect(screen.getByText('Research direction:')).toBeInTheDocument();
   expect(screen.getAllByText('Direction one').length).toBeGreaterThan(0);
   expect(
-    screen.getByRole('link', {name: 'Evidence: A fibrosis study'}),
+    screen.getByRole('link', {name: 'Supporting article: A fibrosis study'}),
   ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
 });
 

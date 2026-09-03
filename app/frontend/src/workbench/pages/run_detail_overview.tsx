@@ -249,7 +249,16 @@ function ResearchContactsSection({
               </p>
             ) : null}
             <p>{readableText(contact.expertise)}</p>
-            <p>{readableText(contact.justification)}</p>
+            {/* R14-16: Justification: is the one label consistent across
+                all 14 published research contacts that carry it. */}
+            <p>
+              <strong>Justification: </strong>
+              {readableText(contact.justification)}
+            </p>
+            {/* R14-16: the second, evidence-citing field's published label
+                varies freely; "Supporting article" is this schema's own
+                fixed name for it -- always exactly one grounded paper
+                (source_title/source_url), never free citation prose. */}
             {contact.source_url ? (
               <a
                 className="text-th-primary underline"
@@ -257,10 +266,10 @@ function ResearchContactsSection({
                 rel="noreferrer"
                 target="_blank"
               >
-                Evidence: {readableText(contact.source_title)}
+                Supporting article: {readableText(contact.source_title)}
               </a>
             ) : (
-              <p>Evidence: {readableText(contact.source_title)}</p>
+              <p>Supporting article: {readableText(contact.source_title)}</p>
             )}
           </div>
         );
