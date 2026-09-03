@@ -20,6 +20,7 @@ from app.demo_seed_data import (
     DemoScenario,
     scenario_key,
 )
+from app.seed_overview_directions import curated_unexpected_directions
 
 
 def _overview_directions(
@@ -222,6 +223,9 @@ def _curated_research_overview(
             top, directions, ids
         ),
         "knowledge_base": _overview_knowledge_base(evidence, hypotheses),
+        "unexpected_research_directions": curated_unexpected_directions(
+            scenario_key(scenario)
+        ),
     }
 
 
