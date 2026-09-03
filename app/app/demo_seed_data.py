@@ -46,7 +46,7 @@ from app.demo_seed_data_types import (
 
 # Versions the whole curated bundle, sibling content modules included: a
 # deployed instance replaces its stored demo artifacts when this changes.
-DEMO_SEED_VERSION = 12
+DEMO_SEED_VERSION = 13
 
 
 def scenario_evidence(scenario: DemoScenario) -> tuple[DemoEvidence, ...]:

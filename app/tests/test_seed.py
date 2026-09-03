@@ -183,6 +183,45 @@ def test_seed_demo_runs_render_criteria_table_and_unexpected_directions(
             assert bullet.count("**") >= 2
 
 
+def test_seed_demo_runs_render_main_research_directions(
+    isolated_db: str,
+) -> None:
+    """R14-27: all three demos show the ranking document's own narrative.
+
+    Pins that the curated ``main_research_directions``
+    (``seed_meta_review_directions.py``) fills the Top Ranking Hypotheses
+    document's "## Main Research Directions" section, sitting between the
+    Evaluation Criteria table and Candidate Ideas, with two genuinely
+    populated paragraphs -- not a bare heading.
+    """
+    _seed(isolated_db)
+
+    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    assert len(runs) == 3
+    for run in runs:
+        ranking_md = store.read_report_ranking_markdown(
+            run.id, db_path=isolated_db
+        )
+        assert ranking_md is not None
+        assert "\n## Main Research Directions\n" in ranking_md
+
+        criteria_index = ranking_md.index("| Criterion | Importance |")
+        directions_index = ranking_md.index("## Main Research Directions")
+        candidates_index = ranking_md.index("## Top hypotheses")
+        assert criteria_index < directions_index < candidates_index
+
+        section = ranking_md.split("## Main Research Directions", 1)[1]
+        next_heading = re.search(r"\n#{1,2} ", section)
+        body = section[: next_heading.start()] if next_heading else section
+        paragraphs = [
+            p.strip() for p in body.strip().split("\n\n") if p.strip()
+        ]
+        assert len(paragraphs) == 2
+        for paragraph in paragraphs:
+            assert paragraph
+            assert "**" in paragraph
+
+
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
     isolated_db: str,
 ) -> None:
