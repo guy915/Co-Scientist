@@ -310,16 +310,23 @@ facts; severity DECISION (very likely intentional trim).*
   `/status`'s connectors list rather than a hardcoded `COMPOSER_CONNECTORS`
   constant (the `chat_composer.tsx:35` line this row originally cited no
   longer exists); `app/app/engine_adapter/tools.py`'s `_KNOWN_CONNECTORS`
-  lists only `web_search` / `pubmed` / `indra` — still short of the
-  reference's four scientific sources (no dedicated ArXiv/BioRxiv toggle
-  even though the engine calls both), and still with no master toggle
-  (`docs/CORPUS-EXTRACTION.md` row `R13-16` records this gap). This row's
-  code citation is stale; a full re-verification against the current
-  connectors plumbing is out of scope here.
+  now lists `web_search` / `pubmed` / `arxiv` / `biorxiv` / `indra` — the
+  reference's four scientific sources are all present (`arxiv_search` and
+  `biorxiv_search` are real MCP search tools now, not just the engine's
+  pre-existing indirect Europe PMC coverage — see `docs/CORPUS-EXTRACTION.md`
+  row `R13-16`), plus INDRA, which the reference does not show. Still no
+  master "Enable all connectors" toggle, and the four non-scientific
+  connectors (Calendar/Chat/Drive/"Geat") remain entirely unbuilt — neither
+  was in this wave's scope.
 - **Verifier note:** the delta (4 scientific connectors + master vs. today's
   narrower set, no master) is real. Most likely an intentional single-agent
   trim (owner's "trimmed settings"), but the connectors trim is not
-  *explicitly* enumerated, so confirm rather than assume. → **Question Q2.**
+  *explicitly* enumerated, so confirm rather than assume. → **Partially
+  RESOLVED (Question Q2).** The scientific-connector gap is closed as of
+  this build; the master toggle and the four non-scientific connectors are
+  unresolved DECISION items still — a scientific-focused tool omitting
+  Calendar/Chat/Drive/Geat may itself be the intentional trim, which
+  remains unconfirmed.
 
 **D5 — Orphaned tab components + stale `CLAUDE.md` (F5).** *Confidence: high;
 internal hygiene; severity DECISION.*
