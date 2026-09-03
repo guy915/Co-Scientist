@@ -241,7 +241,7 @@ test-mcp:
 	@if ! "$(MCP_VENV)/bin/python" -c "import pytest, mypy, fastmcp" >/dev/null 2>&1; then \
 		echo ">> Installing reference MCP server (dev extras + mypy)"; \
 		"$(MCP_VENV)/bin/python" -m pip install -q --upgrade pip >/dev/null; \
-		"$(MCP_VENV)/bin/python" -m pip install -q -e "$(ENGINE)/mcp_server[dev]" mypy; \
+		"$(MCP_VENV)/bin/python" -m pip install -q -e "$(ENGINE)/mcp_server[dev]" mypy types-defusedxml; \
 	fi
 	@cd "$(ENGINE)" && "$(MCP_VENV)/bin/python" -m pytest mcp_server/tests -q
 	@cd "$(ENGINE)/mcp_server" && "$(MCP_VENV)/bin/python" -m mypy .

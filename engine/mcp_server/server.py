@@ -55,7 +55,9 @@ from mcp_server.tools.indra_cogex import (
     query_pathways,
     run_enrichment_analysis,
 )
+from mcp_server.tools.lit_review.arxiv_search import search_arxiv
 from mcp_server.tools.lit_review.europepmc_search import (
+    search_biorxiv,
     search_europepmc,
     search_preprints,
 )
@@ -133,6 +135,8 @@ _MCP_TOOLS = (
     (search_open_targets, "search_open_targets"),
     (search_europepmc, "search_europepmc"),
     (search_preprints, "search_preprints"),
+    (search_arxiv, "search_arxiv"),
+    (search_biorxiv, "search_biorxiv"),
     (search_ensembl_gene, "search_ensembl_gene"),
     (search_gnomad_constraint, "search_gnomad_constraint"),
     (search_clinical_trials, "search_clinical_trials"),

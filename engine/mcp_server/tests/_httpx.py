@@ -27,7 +27,7 @@ class StubResponse:
     """A canned httpx.Response standing in for a real upstream reply."""
 
     def __init__(self, payload: Any) -> None:
-        """Store the payload ``json`` hands back."""
+        """Store the payload ``json``/``text`` hands back."""
         self._payload = payload
 
     def raise_for_status(self) -> None:
@@ -36,6 +36,13 @@ class StubResponse:
     def json(self) -> Any:
         """Return the fixture payload."""
         return self._payload
+
+    @property
+    def text(self) -> str:
+        """Return the fixture payload as text, for an XML/Atom source."""
+        if isinstance(self._payload, str):
+            return self._payload
+        return str(self._payload)
 
 
 class StubClient:

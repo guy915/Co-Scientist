@@ -1,4 +1,4 @@
-"""Tests for Europe PMC search and its preprint-restricted sibling."""
+"""Tests for Europe PMC search and its preprint-restricted siblings."""
 
 import httpx
 import pytest
@@ -75,11 +75,41 @@ async def test_preprint_search_restricts_the_query_to_preprint_servers(
     assert params["query"] == "(PKMYT1) AND SRC:PPR"
 
 
+async def test_biorxiv_search_restricts_to_biorxiv_specifically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Distinct from preprint_search's every-server filter above.
+
+    A live probe confirmed the PUBLISHER field is real (an unrecognized
+    publisher name returns zero hits rather than the unfiltered set), so
+    this pins the query this tool actually sends, not just its shape.
+    """
+    client = stub_responses(monkeypatch, _payload(source="PPR"))
+
+    await europepmc_search.search_biorxiv("PKMYT1")
+
+    (_, params) = client.calls[0]
+    assert params["query"] == ('(PKMYT1) AND SRC:PPR AND PUBLISHER:"bioRxiv"')
+
+
+async def test_biorxiv_search_echoes_the_query_without_the_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The envelope reports the query the caller asked, not EuropePMC's."""
+    stub_responses(monkeypatch, _payload(source="PPR"))
+
+    result = await europepmc_search.search_biorxiv("PKMYT1")
+
+    assert result["query"] == "PKMYT1"
+    assert result["source"] == "bioRxiv"
+
+
 @pytest.mark.parametrize(
     ("tool", "source"),
     [
         (europepmc_search.search_europepmc, "Europe PMC"),
         (europepmc_search.search_preprints, "Preprints"),
+        (europepmc_search.search_biorxiv, "bioRxiv"),
     ],
 )
 async def test_a_failed_request_degrades_instead_of_raising(
@@ -110,6 +140,24 @@ async def test_every_record_carries_a_stable_identifier(
     result = await europepmc_search.search_europepmc("pkmyt1", max_results=1)
 
     assert result["records"][0]["source_id"] == "MED/42387642"
+
+
+async def test_biorxiv_search_returns_a_normalized_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A realistic response yields a real, keyable record.
+
+    Not just an empty envelope that happens to match the failure-path
+    shape below.
+    """
+    stub_responses(monkeypatch, _payload(source="PPR"))
+
+    result = await europepmc_search.search_biorxiv("pkmyt1", max_results=1)
+
+    (record,) = result["records"]
+    assert record["source_id"] == "PPR/42387642"
+    assert record["title"] == "PKMYT1 in Cancer"
+    assert record["is_preprint"] is True
 
 
 async def test_citation_count_uses_the_name_the_ranker_reads(

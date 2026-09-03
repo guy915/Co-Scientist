@@ -28,6 +28,13 @@ _EUROPEPMC_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 # the other servers it indexes).
 _PREPRINT_FILTER = "SRC:PPR"
 
+# Restricts the preprint filter above to bioRxiv specifically, for the
+# composer's separate bioRxiv connector (distinct from the "every server
+# Europe PMC indexes" preprint_search below). Verified live: the same
+# query with an unknown PUBLISHER value returns zero hits, so this is a
+# real filter Europe PMC applies, not an ignored, unrecognized field.
+_BIORXIV_FILTER = 'PUBLISHER:"bioRxiv"'
+
 
 def _empty_result(source: str, query: str) -> dict[str, Any]:
     """Builds the envelope a search returns when it cannot answer."""
@@ -145,5 +152,28 @@ async def search_preprints(query: str, max_results: int = 10) -> dict[str, Any]:
         f"({query}) AND {_PREPRINT_FILTER}",
         max_results,
         "Preprints",
+        echo=query,
+    )
+
+
+async def search_biorxiv(query: str, max_results: int = 10) -> dict[str, Any]:
+    """Search bioRxiv specifically, not the broader preprint set above.
+
+    bioRxiv's own REST API lists papers by posting date and cannot be
+    queried by subject at all (see the module docstring), so a genuine
+    bioRxiv subject search has to run through Europe PMC too, restricted
+    to this one publisher rather than every preprint server it indexes.
+
+    Args:
+        query: Free-text or Europe PMC query syntax.
+        max_results: Maximum records to return, capped at 25.
+
+    Returns:
+        Source-stamped bioRxiv records, or an empty-records envelope.
+    """
+    return await _search(
+        f"({query}) AND {_PREPRINT_FILTER} AND {_BIORXIV_FILTER}",
+        max_results,
+        "bioRxiv",
         echo=query,
     )

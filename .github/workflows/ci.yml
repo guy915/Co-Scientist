@@ -305,9 +305,10 @@ jobs:
           cache: pip
           cache-dependency-path: engine/mcp_server/pyproject.toml
       - name: Install MCP server
-        # mypy is not in the mcp_server [dev] extra, so install it alongside
-        # for the typecheck step below.
-        run: python -m pip install -e "engine/mcp_server[dev]" mypy
+        # mypy is not in the mcp_server [dev] extra, so install it (and the
+        # defusedxml stub package mypy --strict needs for arxiv_search.py)
+        # alongside, for the typecheck step below.
+        run: python -m pip install -e "engine/mcp_server[dev]" mypy types-defusedxml
       - name: Run MCP server test suite
         # Runs from engine/ because the mcp_server editable install exposes
         # no import map; the package resolves as a plain directory package,
