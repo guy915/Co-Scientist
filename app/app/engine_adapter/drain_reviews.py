@@ -234,6 +234,39 @@ def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
     return lines
 
 
+# R12-15/MO-4: Google's own per-assumption reasoning renders each item's
+# support as prose -- "Plausible:", "Plausible, but requires careful
+# investigation:", "Unknown:" (docs/CORPUS-EXTRACTION.md:4135-4141,
+# kira6-detailed-output-validated.md's "Reasoning about assumptions") --
+# not the schema's closed enum name. Two of the three values mirror that
+# wording directly, matching both the published word and the prompts'
+# own definition of the value (full_review.md/deep_verification.md):
+# `supported` ("the evidence backs it") is Google's "Plausible:";
+# `uncertain` ("the evidence is thin or mixed") is Google's "Plausible,
+# but requires careful investigation:". The third does not: `likely_false`
+# means "the evidence points against it" -- a genuine negative verdict --
+# while every "Unknown:" in the published exemplar marks an assumption
+# nothing has tested yet ("limited safety data exists... unknown and
+# needs experiments to verify"), not one the evidence contradicts.
+# Relabeling `likely_false` as "Unknown" would understate that verdict to
+# the reader, so it keeps its own honest label instead of a borrowed,
+# mismatched one -- "Implausible", read alongside "Plausible" as its
+# direct opposite. The published vocabulary simply carries no negative
+# verdict to mirror here; see `docs/PARITY.md` REVIEW-ASSUMPTION-WORDING-001.
+#
+# The stored enum (`review.py`'s ASSUMPTION_SUPPORT_VALUES) is unchanged --
+# `mature_reviews._project_full_review` keys its `assumptions_likely_false`
+# filter (fed into the ranking judge's prompt context) off the literal
+# `"likely_false"` string, so migrating stored values would silently break
+# that filter for a purely cosmetic gain. Only this render-time lookup
+# translates the value a reader sees.
+_ASSUMPTION_SUPPORT_LABELS: dict[str, str] = {
+    "supported": "Plausible",
+    "uncertain": "Plausible, but requires careful investigation",
+    "likely_false": "Implausible",
+}
+
+
 def _assumption_line(item: dict[str, Any]) -> str | None:
     """Render one full-review assumption entry, or None when empty.
 
@@ -241,12 +274,24 @@ def _assumption_line(item: dict[str, Any]) -> str | None:
     support verdict; appended when present so a hypothesis reviewed through
     full review alone still carries it, the way deep verification's
     ``sub_assumptions[].verification`` always has.
+
+    This line is baked into the review's persisted ``critique`` text at
+    drain time (``_format_mature_critique``, below), not recomputed on
+    read -- so a run drained before this label mapping existed keeps
+    reading "Assumption (supported): ..." forever; only a newly drained
+    run picks up the published wording. Deep verification's own
+    ``sub_assumptions[].status`` is a separate field this function never
+    sees -- it is not rendered to a reader anywhere in this codebase (only
+    its sibling ``probes``/``verdict`` are, via
+    ``format_deep_verification_critique``), so this change does not touch
+    it.
     """
     assumption = str(item.get("assumption") or "").strip()
     if not assumption:
         return None
     support = str(item.get("support") or "").strip()
-    line = f"Assumption ({support or 'unrated'}): {assumption}"
+    label = _ASSUMPTION_SUPPORT_LABELS.get(support, support or "unrated")
+    line = f"Assumption ({label}): {assumption}"
     reasoning = str(item.get("reasoning") or "").strip()
     if reasoning:
         line += f" — {reasoning}"
