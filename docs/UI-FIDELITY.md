@@ -27,7 +27,12 @@ earlier partial draft (see "Corrections vs. the prior draft" near the end).
 > claim was measured, not where to look today. To re-open one, check it out of
 > git history (`git log --all -- references/ui-ux/<path>`); deleting it did not
 > remove it from the repository's history. `references/core/` — source A, the
-> functional source of truth — is **untouched and still on disk.**
+> functional source of truth — is **untouched and still on disk**, with one
+> exception: `media/live-footage/*.mp4` was always gitignored (never in git
+> history) and has since been watched in full and drained into committed
+> frames at `docs/assets/live-footage/` (see `docs/CORPUS-EXTRACTION.md` row
+> `R13-1`) — cite those frames, not the mp4 path, since the mp4s themselves
+> do not survive `references/` being deleted.
 
 The repo carried **two** distinct real references plus several secondary skins.
 They play different roles and must not be conflated — the prior audit's failure
@@ -35,10 +40,12 @@ came from auditing against one and inferring "invented" from its absence.
 
 **A. `references/core/google-co-scientist/` — the FUNCTIONAL SOURCE OF TRUTH.**
 This is the real AI Co-Scientist. It carries written specs
-(`product-surface-and-ux.md` et al.) *and*, most importantly,
-`media/live-footage/*.mp4` — the real UI in motion. When a spec still and a
-live-footage frame disagree, **the live footage wins** (it is the newest, and it
-is the running product, not a description of it).
+(`product-surface-and-ux.md` et al.) *and*, most importantly, the live-footage
+recordings of the real UI in motion — now preserved as committed frames at
+`docs/assets/live-footage/` rather than as the (gitignored, ephemeral)
+`media/live-footage/*.mp4` files themselves. When a spec and a live-footage
+frame disagree, **the live footage wins** (it is the newest, and it is the
+running product, not a description of it).
 
 > **Two eras inside the core reference.** The core media set contains **two
 > different report UIs**:
@@ -47,7 +54,8 @@ is the running product, not a description of it).
 >   underline, an "Agent Insights" panel, and a 4-up stat-card row. The written
 >   spec (`product-surface-and-ux.md` §"Stage 5 — The Goal Report", lines 66–79)
 >   describes this same older set.
-> - **Newer (MASH-fibrosis live footage)** — `mash-fibrosis-*.mp4`: tab bar
+> - **Newer (MASH-fibrosis live footage)** —
+>   `docs/assets/live-footage/plan-report-four-tabs-t66.0s.jpg`: tab bar
 >   *Goal Details · Learning · Research Overview · All Ideas*, **blue** active
 >   underline.
 >
@@ -105,14 +113,20 @@ live-footage era, and `run_tabs.ts`'s `TAB_ALIASES` (line 14) absorbs the
 | `overview` → **Research Overview** | Research Overview | Summary → `summary`/`report` | Faithful structure; content lighter (F9) |
 | `ideas` → **All Ideas** | All Ideas | Ideas → `hypotheses` | Faithful (F1); ESN enrichments absent (F3) |
 
-**Evidence for the mapping:** newer era — a frame (≈66 s) from
-`media/live-footage/mash-fibrosis-research-plan-and-run.mp4` showed exactly
-these 4 tabs, icon+label, with "Goal Details" active; that mp4 is gitignored
-and was never committed, so the frame itself is unrecoverable. The surviving
-evidence for a 4-tab bar with an active-tab underline is the older era:
+**Evidence for the mapping:** newer era —
+`docs/assets/live-footage/plan-report-four-tabs-t66.0s.jpg`, extracted and
+committed from the source mp4's frame at exactly 66.0 s (the source mp4 was
+gitignored and is not itself preserved; see `docs/CORPUS-EXTRACTION.md` row
+`R13-3`). It shows exactly these 4 tabs, icon+label, with "Goal Details"
+active and a blue underline. The older era's own tab bar — a different
+label set, and the underline colour this section's era split turns on — is
+attested separately by
 `media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg`
-(tracked in git) shows *Ideas · Knowledge Base · Summary · Run Specification*
-with Knowledge Base active, plus `product-surface-and-ux.md` §Stage 5.
+(tracked in git), which shows *Ideas · Knowledge Base · Summary · Run
+Specification* with Knowledge Base active and a **green** underline, plus
+`product-surface-and-ux.md` §Stage 5. That JPG is evidence for the older
+era's own labels and underline colour, not for the newer era's tab set —
+the two eras do not share tab names.
 
 ---
 
@@ -126,9 +140,9 @@ divergence from the canonical reference). Confidence is stated per item.
 ### WINS (faithful — do not touch)
 
 **W1 — Report tab bar labels + order (F1).** *Confidence: high.*
-- **Reference truth:** `mash-fibrosis-research-plan-and-run.mp4` ≈66 s — 4 tabs,
-  icon+label, L→R: *Goal Details* (active, underlined) / *Learning* /
-  *Research Overview* / *All Ideas*.
+- **Reference truth:** `docs/assets/live-footage/plan-report-four-tabs-t66.0s.jpg`
+  (66.0 s) — 4 tabs, icon+label, L→R: *Goal Details* (active, underlined) /
+  *Learning* / *Research Overview* / *All Ideas*.
 - **Our impl:** `run_tabs.ts:7` `TABS=['details','learning','overview','ideas']`;
   `run_detail_shell.tsx`'s `TAB_META` maps to the four labels above.
 - **Verifier note:** independently re-extracted the frame and read the code —
@@ -209,8 +223,9 @@ question.*
 
 **I2 — Home 3-step explainer copy (F8).** *Confidence: high on facts; verdict
 INTENTIONAL.*
-- **Reference truth:** real Co-Scientist steps (footage `mash-fibrosis-prompt-
-  setup.mp4`, home): *1 Create a Research goal / 2 Generate hypotheses / 3
+- **Reference truth:** real Co-Scientist steps
+  (`docs/assets/live-footage/setup-coscientist-landing-t04.5s.jpg`, 4.5 s,
+  home): *1 Create a Research goal / 2 Generate hypotheses / 3
   Evaluate and rank*. Twin steps (`idea-generator/home-page/home-page.html`): *1
   Getting started / 2 Idea generation / 3 Evaluation and ranking*.
 - **Our impl:** `chat_home_stage.tsx` `SESSION_STEPS` = *Frame the research goal /
@@ -280,20 +295,30 @@ severity DECISION.*
 
 **D4 — Composer connectors: 1 vs. 4 + master toggle (F4).** *Confidence: high on
 facts; severity DECISION (very likely intentional trim).*
-- **Reference truth:** `mash-fibrosis-prompt-setup.mp4` ≈20 s — connectors
-  dropdown with an **"Enable all connectors"** master toggle, then **Google
-  Search** (on) / **Pubmed** (on) / **ArXiv** (on) / **BioRxiv** (on), plus
-  Calendar ("Authorize") / Chat / Drive / Gmail (off), each with a coloured
-  source icon. Spec corroborates multi-source retrieval
-  (`product-surface-and-ux.md` ≈220,229: Web search, PubMed, arXiv, ChEMBL,
-  UniProt).
-- **Our impl:** `chat_composer.tsx:35` `COMPOSER_CONNECTORS = ['PubMed']`; menu
-  (`:346–380`) renders exactly one row (`article` icon + on/off switch), **no**
-  master toggle, no other sources.
-- **Verifier note:** the delta (4 scientific connectors + master vs. 1 PubMed,
-  no master) is real and large. Most likely an intentional single-agent trim
-  (owner's "trimmed settings"), but the connectors trim is not *explicitly*
-  enumerated, so confirm rather than assume. → **Question Q2.**
+- **Reference truth:** `docs/assets/live-footage/setup-connectors-menu-native-crop-t17.5s.jpg`
+  (17.5 s) — connectors dropdown with an **"Enable all connectors"** master
+  toggle, then **Google Search** (on) / **Pubmed** (on) / **ArXiv** (on) /
+  **BioRxiv** (on), plus Calendar ("Authorize") / Chat / Drive / **"Geat"**
+  (off), each with a coloured source icon. **Correction (2026-09-03):** the
+  eighth connector reads **"Geat"**, not "Gmail" as this row previously
+  transcribed — re-read directly off a native-resolution frame extraction
+  (see `docs/CORPUS-EXTRACTION.md` row `R13-13`); "Geat" does not match any
+  known Google Workspace product name and its meaning is unresolved. Spec
+  corroborates multi-source retrieval (`product-surface-and-ux.md` ≈220,229:
+  Web search, PubMed, arXiv, ChEMBL, UniProt).
+- **Our impl:** `chat_composer_connectors.tsx` now derives the menu from
+  `/status`'s connectors list rather than a hardcoded `COMPOSER_CONNECTORS`
+  constant (the `chat_composer.tsx:35` line this row originally cited no
+  longer exists); `app/app/engine_adapter/tools.py`'s `_KNOWN_CONNECTORS`
+  lists only `web_search` / `pubmed` / `indra` — still short of the
+  reference's four scientific sources (no dedicated ArXiv/BioRxiv toggle
+  even though the engine calls both), and still with no master toggle. This
+  row's code citation is stale; a full re-verification against the current
+  connectors plumbing is out of scope here.
+- **Verifier note:** the delta (4 scientific connectors + master vs. today's
+  narrower set, no master) is real. Most likely an intentional single-agent
+  trim (owner's "trimmed settings"), but the connectors trim is not
+  *explicitly* enumerated, so confirm rather than assume. → **Question Q2.**
 
 **D5 — Orphaned tab components + stale `CLAUDE.md` (F5).** *Confidence: high;
 internal hygiene; severity DECISION.*
