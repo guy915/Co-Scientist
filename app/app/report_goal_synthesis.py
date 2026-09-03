@@ -107,7 +107,7 @@ def _clean_restatement(raw: str, research_goal: str) -> str | None:
 def _resolve_model(
     run_id: str, db_path: str | None
 ) -> tuple[str, str | None] | None:
-    """Resolve (model, api_key) for this run's restatement call, or None to skip.
+    """Resolve (model, api_key) for this run's restatement call, or None.
 
     Returns:
         The model to call and an optional BYOK key override, or None when
@@ -132,7 +132,7 @@ def _resolve_model(
 async def _request_goal_restatement(
     research_goal: str, model: str, api_key: str | None
 ) -> Any:
-    """Call ``model`` for a goal restatement, bounded by a thinking-safe budget."""
+    """Call ``model`` for a goal restatement, with a thinking-safe budget."""
     import litellm
 
     return await asyncio.wait_for(

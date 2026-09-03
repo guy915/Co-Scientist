@@ -181,7 +181,9 @@ async def _build_report_content(
     goal_restatement = await synthesize_goal_restatement(
         run_id, req.research_goal, db_path=req.db_path
     )
-    inputs = _report_markdown_inputs(data, req, knowledge_base, goal_restatement)
+    inputs = _report_markdown_inputs(
+        data, req, knowledge_base, goal_restatement
+    )
     return _BuiltReport(
         payload=_assemble_report_payload(data, req, knowledge_base),
         markdown=render_overview_document_markdown(inputs),
