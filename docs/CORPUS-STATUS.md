@@ -65,17 +65,17 @@ partial pass is never lost.
 | R1 | 3 | 2 | 0 | 1 | 0 |
 | R6 | 2 | 2 | 0 | 0 | 0 |
 | R8 | 3 | 2 | 0 | 1 | 0 |
-| R9 | 3 | 2 | 0 | 1 | 0 |
+| R9 | 3 | 3 | 0 | 0 | 0 |
 | R10 | 9 | 7 | 0 | 2 | 0 |
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 10 | 0 | 2 | 1 |
-| R13 | 7 | 6 | 0 | 1 | 0 |
+| R13 | 11 | 11 | 0 | 0 | 0 |
 | R14 | 20 | 14 | 0 | 4 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 3 | 0 | 2 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **79** | **62** | **0** | **14** | **3** |
+| **Total** | **83** | **68** | **0** | **12** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -90,10 +90,12 @@ correction to the row's original evidence — its original OPEN verdict
 was already accurate (neither deliverable existed yet). `R1-12`/`R1-13`
 closed in the `EVAL-METHODS` fidelity-campaign wave, not this pass.
 
-R13's row count is 7, not the 6-row naive parse: it includes `R13-12`'s
+R13's row count is 11, not the 10-row naive parse: it includes `R13-12`'s
 part (a), which a naive table-column split misreads because the row's own
 text contains a literal `|` inside a quoted video title (part (b) is
-`external`, out of scope). 79 rows classified in total.
+`external`, out of scope). The live-footage wave (2026-09-03) added four
+rows (`R13-13`–`R13-16`) and closed `R13-1`'s DECISION. 83 rows classified
+in total.
 
 **Closing pass, `PRESERVE` wave (2026-09-02).** Four more rows closed:
 `R9-2`, `R9-3`, `R13-6`, `R13-7` are now **BUILT**. All four were framed by
@@ -209,6 +211,17 @@ always exactly one grounded citation, never free citation prose. See
 per-region row moves 13 BUILT / 5 DECISION → 14 BUILT / 4 DECISION; the
 Total row moves 61 → 62 BUILT, 15 → 14 DECISION.
 
+This entry covers decision #9, the last of the three. `R9-4` moves
+**DECISION → BUILT**: `docs/PARITY.md`'s `TOOLS-CONFIG-001` residual now
+records PubMed's primacy as an explicitly labelled local (CLONE) choice
+made through the `TOOLS_CONFIG` mechanism, not a disclosed Google
+integration -- Google's own sources confirm only ChEMBL and UniProt by
+name. Documentation only, as the row asked for; no code change, no tool
+disabled. The R9 per-region row moves 2 BUILT / 1 DECISION → 3 BUILT / 0
+DECISION -- the first region in this campaign to reach 0 DECISION. The
+Total row moves 62 → 63 BUILT, 14 → 13 DECISION. All three
+owner-directed decisions (#2, #6, #9) are now closed.
+
 ---
 
 ## R1 — SSR consolidation
@@ -252,9 +265,9 @@ Noticed in passing: none.
 |---|---|---|---|
 | R9-2 | Live open-source-project verdicts (Jataware FORK PRIMARY; LLNL/Sakana v2/FutureHouse Robin/OpenScientist-K-Dense/aimclub MINE; The-Swarm-Corporation INSPECT; mims-harvard REJECT) exist nowhere outside the corpus file; needs an ADR so the decisions survive `references/` deletion, per the `references/peripheral/` precedent | **BUILT** | `docs/decisions/2026-09-02-open-source-coscientist-landscape.md` (PRESERVE wave) records all eight verdicts in a table, cites this row by ID, and confirms directly (not assumed) that none of the eight is vendored or forked anywhere in this tree — Jataware and Sakana appear only in `README.md`'s Acknowledgements as prior-art citations. Two things found along the way, folded into the ADR rather than left for a future reader to rediscover: The-Swarm-Corporation's bare INSPECT verdict was already carried out in depth by `docs/decisions/2026-08-23-chat-interface-reference-drain.md`'s "namesake, head to head" comparison (read in full, this repo ahead on dedup/lineage/durability/safety); and "OpenScientist/K-Dense" (this row's MINE verdict) is not the same product as the tool-skills bundle at `vendor/science-skills/`, whose own attribution is itself inconsistent between `NOTICE` (Google DeepMind) and the 2026-08-23 ADR (K-Dense-AI) — flagged, not resolved |
 | R9-3 | `tech-stack-findings.md`'s citation-disciplined uncertainty register (Google never names source languages, frontend/backend framework, storage, queue, or retrieval index) is worth preserving; needs folding into FINDINGS' "Evidence boundaries" table | **BUILT** | Folded into `docs/PARITY.md`'s "Notes on clone-defined vs Google-specified" section instead of FINDINGS' table — a deliberate re-scoping for the PRESERVE wave, not an oversight: this register is about Google's undisclosed *implementation stack*, which is exactly what that section's closing paragraph already discusses (the reference corpus's proposed-and-rejected stack), so the six categories now sit beside it as a corroborating fact rather than a new requirement, cited to this row (commit `f0be5657`). `docs/fidelity-audit/FINDINGS.md:520-548`'s "Evidence boundaries" table was left untouched — it already covers adjacent ground (queue/DB/retrieval-provider disclosure status) at a different granularity, and duplicating the same six categories into a second table was judged to add confusion, not clarity |
-| R9-4 | Google's own sources confirm ChEMBL and UniProt as named integrations but not PubMed or arXiv, in tension with this repo where PubMed is the primary retrieval path; the row itself frames this as unsettled by any ledger row | **DECISION** | `docs/PARITY.md:235` (`TOOLS-CONFIG-001`) documents the YAML mechanism as a local product implementation but says nothing about PubMed's confirmed-vs-inferred status, and does not mention ChEMBL/UniProt at all — the tension is still unresolved in the ledger. The actual question for the owner: should `TOOLS-CONFIG-001` (or a new row) record PubMed's primacy as a labelled CLONE choice, or leave it as an implicit PRODUCT claim? Nothing in the corpus or code settles which |
+| R9-4 | Google's own sources confirm ChEMBL and UniProt as named integrations but not PubMed or arXiv, in tension with this repo where PubMed is the primary retrieval path; the row itself frames this as unsettled by any ledger row | **BUILT** | Recorded, as the row asked for -- no code change, no tool disabled. `docs/PARITY.md`'s `TOOLS-CONFIG-001` residual now states the tension by name (cites this row): PubMed's primacy as this system's retrieval backbone is an explicitly labelled local (CLONE) choice made through the `TOOLS_CONFIG` mechanism, not a disclosed Google integration -- Google's own sources confirm only ChEMBL and UniProt by name, never PubMed or arXiv. So a future reader of that row cannot mistake PubMed's primacy for a disclosed Google integration; it reads as this clone's own retrieval choice, exercised through the same mechanism that carries the two confirmed integrations |
 
-**R9: 2 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
+**R9: 3 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
 
 Noticed in passing: none.
 
@@ -319,15 +332,29 @@ because its own text contains a literal `|` inside a quoted video title; part
 
 | Row | Table says (`work`/`unclear`) | Verdict | Evidence |
 |---|---|---|---|
-| R13-1 | The two live-footage mp4s are gitignored, uncommitted, and unrecoverable once `references/` is deleted; needs an owner decision — archive outside the repo, or extract and commit the cited frames | **DECISION** | Confirmed unchanged: `git check-ignore -v` still matches both mp4s against `.gitignore:46`. No archival or frame-extraction has happened. This is inherently the owner's call, not resolvable from the tree |
-| R13-2 | The 2026-06-21 ADR and the plan-config file read two different tier selectors (three options vs. four) from the same footage folder; needs a note on every row resting on either capture, naming which one | **BUILT** | The note already exists exactly where it is needed: `docs/CORPUS-EXTRACTION.md`'s "Carry this caveat" paragraph, immediately after the R12-1/R12-2 table, names both rows explicitly ("R12-1 and R12-2 rest on the plan-config capture... see R13-2. Any row written from this must name which capture it rests on") |
-| R13-3 | `docs/UI-FIDELITY.md` cites an unrecoverable mp4 frame as evidence for the four-tab mapping; needs re-pointing at the tracked JPG that shows the same tab bar | **BUILT** | `docs/UI-FIDELITY.md:109-111` (the "Evidence for the mapping" note) already re-points to `media/hypothesis-generation/esn-knowledge-base-analytical-pipelines.jpg` ("tracked in git... shows *Ideas · Knowledge Base · Summary · Run Specification*"), explicitly stating the mp4 frame "is unrecoverable" and naming the tracked JPG as "the surviving evidence" |
+| R13-1 | The two live-footage mp4s are gitignored, uncommitted, and unrecoverable once `references/` is deleted; needs an owner decision — archive outside the repo, or extract and commit the cited frames | **BUILT** | **Closed 2026-09-03.** Both mp4s were watched in full (180 sampled frames, in order) before deletion. 15 curated frames plus a provenance README are committed at `docs/assets/live-footage/` (commit `a2cf38eb`); `docs/CORPUS-EXTRACTION.md`'s `R13-1` row records the extraction. The raw mp4s remain unrecoverable once `references/` is deleted, but nothing depends on the raw files any more — the cited evidence survives independently |
+| R13-2 | The 2026-06-21 ADR and the plan-config file read two different tier selectors (three options vs. four) from the same footage folder; needs a note on every row resting on either capture, naming which one | **BUILT** | The note this row asked for already existed (`docs/CORPUS-EXTRACTION.md`'s "Carry this caveat" paragraph). **Strengthened 2026-09-03**: a full frame-by-frame watch of both live-footage clips found the ADR's three-option reading nowhere on screen — every visible instance of the plan card's `Tier` section, in either video, shows exactly Express/Standard/Extended/Ultra (`docs/assets/live-footage/plan-card-focus-tier-start-t31.3s.jpg`, `plan-readonly-tier-extended-t54.0s.jpg`). The plan-config transcription is confirmed correct; the ADR's reading does not match the footage currently on disk (the ADR body itself is left uncorrected this wave — owner call) |
+| R13-3 | `docs/UI-FIDELITY.md` cites an unrecoverable mp4 frame as evidence for the four-tab mapping; needs re-pointing at the tracked JPG that shows the same tab bar | **BUILT** | **Re-pointed 2026-09-03, at a better target than the row proposed.** The row's own suggested fix (point at the tracked ESN JPG) turned out to be the wrong fix — that JPG shows the *older* era's own, differently-labelled tab bar (`Ideas · Knowledge Base · Summary · Run Specification`, green underline), not the newer era's tabs this citation is actually about. Instead, the cited frame itself is no longer unrecoverable: extracted at exactly t=66.0s and committed as `docs/assets/live-footage/plan-report-four-tabs-t66.0s.jpg`, confirming `docs/UI-FIDELITY.md`'s claim exactly. `docs/UI-FIDELITY.md:36-52`,`:109-123` (commit `70b9f14b`) now cite that committed frame directly; the ESN JPG stays cited, correctly scoped, only for the older era's own tab bar |
+| R13-13 | Native-resolution re-extraction of the composer's connectors menu finds the eighth connector reads "Geat", not "Gmail" as `docs/UI-FIDELITY.md`'s `D4` row had it — a genuine misreading of this exact footage | **BUILT** | Corrected in `docs/UI-FIDELITY.md`'s `D4` row (commit `70b9f14b`), citing `docs/assets/live-footage/setup-connectors-menu-native-crop-t17.5s.jpg`. "Geat" does not match any known Google Workspace product; its referent is unresolved and stated as such rather than guessed |
+| R13-14 | The plan card's selected `Tier` radio differs between two timestamps in the same clip — Standard at 31.3s, Extended at 54.0s (after "Start research" is clicked and the conversation goes read-only) — and neither the session-started message nor the report page states which tier the run actually executed under | **BUILT** | No code or doc in the tree makes a claim this would contradict, so there was nothing to correct — recorded as a corpus-integrity note (`docs/CORPUS-EXTRACTION.md` `R13-14`) so a future reader does not treat either frame's "**Selected**" as proof of which tier a demo run executed under |
+| R13-15 | The rendered Goal Details report page restates `Criteria` as one condensed prose sentence, a different shape from the plan card's `name: value` bullets that `run_modes_criteria.py` mirrors | **BUILT** | `app/app/run_modes_criteria.py`'s `DEFAULT_CRITERIA` and its display renderer mirror only the bulleted plan-card shape (`R12-4`); no renderer in the tree produces the condensed-prose report-page shape. Low severity — recorded (`docs/CORPUS-EXTRACTION.md` `R13-15`) rather than built, since the information is identical and only the presentation differs |
+| R13-16 | The composer's connectors menu shows four separate, default-on scientific-source toggles (Google Search/PubMed/ArXiv/BioRxiv); `app/app/engine_adapter/tools.py`'s `_KNOWN_CONNECTORS` lists only `web_search`/`pubmed`/`indra` — no per-source ArXiv/BioRxiv toggle even though the engine calls both | **BUILT** | Folded into the pre-existing `docs/UI-FIDELITY.md` `D4` row (a DECISION-severity finding already tracking this class of gap) rather than opened as a new PARITY row, per `docs/CORPUS-EXTRACTION.md` `R13-16`'s own proposed sink; `D4` updated this wave (commit `70b9f14b`) to note its prior code citation had gone stale |
 | R13-6 | 18 of 41 files in the Google Labs page capture are inert tooling with nothing to extract; the HTML itself carries product copy (R13-7) that must be pulled out before pruning to the HTML, 2 PNGs and 3 SVGs | **BUILT** | The row's ask was extract-then-prune; extraction is now done (see `R13-7`), and the prune step itself is deliberately not carried out here — the PRESERVE wave's own hard constraint forbids touching `references/` at all, so the actual file deletion stays the owner's action at `references/` deletion time, by design, not a gap. What was missing and is now recorded is the inventory itself, self-contained so a future reader does not need `references/` to trust it: of the capture's 41 `_files/`, 18 are inert tooling carrying nothing extractable — Google Tag Manager (×2), the YouTube player runtime (×2), a widget-API script plus an iframe loader, Lottie, a cookie-consent bar (×2), Fonts CSS (×2), a closure-library bootstrap, site CSS/JS (×2), and `www-player.css` (×2) — leaving the HTML, 2 PNGs, and 3 SVGs as the only files worth keeping. Source: `docs/CORPUS-EXTRACTION.md:389` (this row, verbatim) |
 | R13-7 | Google's own Labs page copy for "Hypothesis Generation — Built with Co-Scientist" (tagline, four capability cards, "Express interest" waitlist framing) is nowhere quoted in `docs/`; needs a short quoted block in `docs/FIDELITY.md`, cited to this file | **BUILT** | `docs/FIDELITY.md`'s new "Google's own framing of this product" section (PRESERVE wave, commit `33379a06`) quotes the `og:title`, the "Express interest" waitlist framing (explicitly noted as a waitlist, not self-serve), the Hypothesis Generation tagline, and all four capability cards verbatim, cited to `docs/CORPUS-EXTRACTION.md:390`. Two existing claims in the same file that paralleled this framing without citing it now point at the new block instead — the "UI exposes hypotheses..." invariant row (also fixing a dangling "see the note below on retired tabs" pointer that resolved to nothing) and the Literature Insights/Computational Discovery out-of-scope note — and `docs/EXPLAINER.md`'s opening paragraph gets one pointer sentence rather than a duplicate quote. Nothing needed correcting on the self-serve point: neither file claimed or implied Google's product is self-serve before this pass |
 | R13-10 | The tracked run-in-progress capture shows a **Time remaining** estimate tile alongside the Activity Log; whether this product estimates remaining time at all needs checking against the run view | **BUILT** | Recorded, as the row's own residual asked for -- not built as a feature. `docs/PARITY.md`'s new `RUN-VIEW-ETA-001` row (`missing`, this wave, cites `corpus R13-10`) states the answer by name: the Activity Log half is already built and shipped (`app/frontend/src/workbench/pages/run_detail_activity_log.tsx`, `ActivityLog` component, covered by `run_detail.test.tsx`); the Time-remaining/ETA half does not exist anywhere in `app/frontend/src/workbench/` or `app/app/*.py` -- zero hits. Estimating remaining run time is deliberately not built here; it is a product feature with its own accuracy problems and is left to the owner |
 | R13-12 (a) | A tracked JPG's filename (`esn-poma-hub-hypothesis-full-detail-with-diagram.jpg`) does not match its content (a Computational Discovery splash screen); any future row citing the filename would cite the wrong image | **BUILT** | Not renamed or moved (it lives under `references/`, which this pass does not touch) -- flagged instead. `docs/fidelity-audit/FINDINGS.md`'s "Corpus-integrity corrections" section now carries a dedicated note (this wave, cites `corpus R13-12(a)`) naming the filename, stating what it actually shows, and warning against citing it for a hypothesis-detail-view claim -- placed there rather than in the section's own "Claimed as Google / Reality" table, since a mislabeled asset is a different failure than a clone-authored document mis-describing a requirement |
 
-**R13: 6 BUILT / 0 OPEN / 1 DECISION / 0 FALSE.**
+**R13: 11 BUILT / 0 OPEN / 0 DECISION / 0 FALSE.**
+
+**Closing pass, live-footage wave (2026-09-03).** Both live-footage mp4s
+were watched in full before deletion. `R13-1` closes DECISION → BUILT (the
+frames are committed); `R13-2`/`R13-3` stay BUILT with their evidence
+strengthened by direct verification; four new rows (`R13-13`–`R13-16`)
+record what watching the footage actually found — a transcription error in
+an existing doc row, a tier-selection discrepancy across two timestamps,
+a second Criteria rendering shape, and the connectors-menu ArXiv/BioRxiv
+gap — all BUILT, since each landed as the record-only or correction ask
+it raised.
 
 Noticed in passing: none.
 
@@ -415,8 +442,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 13 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (14 raw DECISION rows in the Summary
+The 12 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (13 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -472,14 +499,19 @@ decision):
 7. **A 14-section per-hypothesis document.** `R14-26`, explicitly
    conditional ("if the owner wants a fuller per-idea artifact"). Build it,
    or treat the flat entry as the intended local shape?
-8. **Archive or extract the two gitignored mp4s.** `R13-1`. Unrecoverable
-   once `references/` is deleted; archive outside the repo, or extract and
-   commit the cited frames first?
-9. **PubMed's disclosure status.** `R9-4`. Google names ChEMBL and UniProt
-   as confirmed integrations but never confirms PubMed or arXiv, though
-   PubMed is this repo's primary retrieval path. Record that as a labelled
-   local (CLONE) choice on `TOOLS-CONFIG-001`, or leave it as an implicit
-   claim?
+8. ~~Archive or extract the two gitignored mp4s.~~ **Resolved: extracted
+   and committed.** `R13-1`. Both mp4s were watched in full before
+   deletion; the frames they were cited for are committed at
+   `docs/assets/live-footage/` (`docs/CORPUS-EXTRACTION.md` `R13-1`,
+   commit `a2cf38eb`). The raw mp4s remain unrecoverable once
+   `references/` is deleted, but nothing depends on them any more.
+9. ~~PubMed's disclosure status.~~ **Resolved: recorded as a labelled
+   local (CLONE) choice.** `R9-4` is now **BUILT** — see the
+   owner-directed-wave closing pass above and `docs/PARITY.md`
+   `TOOLS-CONFIG-001`'s residual, which now states by name that Google
+   confirms only ChEMBL and UniProt, never PubMed or arXiv, so a future
+   reader cannot mistake PubMed's primacy in this system for a disclosed
+   Google integration.
 10. **Not an owner decision — blocked on unavailable evidence.** `R14-10`.
     Whether the published ranking-report's compound structure (report +
     embedded full proposal + embedded full review) is exemplar-specific or
