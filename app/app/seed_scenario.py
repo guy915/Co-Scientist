@@ -33,6 +33,7 @@ from app.seed_config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
 )
+from app.seed_evidence import insert_scenario_evidence
 from app.seed_overview import _curated_meta_review, _curated_research_overview
 from app.seed_review_detail import mature_review_rows
 from app.store import RunRow
@@ -81,25 +82,6 @@ def _initial_count(seed: _CuratedSeed) -> int:
         - seed.scenario.evolution_count
         - seed.scenario.second_pass_count
     )
-
-
-def _insert_evidence(seed: _CuratedSeed) -> list[str]:
-    """Persist the scenario's sources and return their new row ids."""
-    return [
-        store.add_evidence(
-            store.NewEvidence(
-                run_id=seed.run.id,
-                title=item.title,
-                source="pubmed",
-                url=item.url,
-                authors=item.authors,
-                year=item.year,
-                abstract=item.abstract,
-            ),
-            db_path=seed.db_path,
-        )
-        for item in seed.evidence
-    ]
 
 
 def _lineage(
@@ -480,7 +462,9 @@ async def _seed_curated_scenario(
         hypotheses=scenario_hypotheses(scenario),
         db_path=db_path,
     )
-    evidence_ids = _insert_evidence(seed)
+    evidence_ids = insert_scenario_evidence(
+        seed.run.id, seed.evidence, seed.db_path
+    )
     hypothesis_ids = _seed_hypotheses(seed, evidence_ids)
     matchups = _seed_tournament(seed, hypothesis_ids)
     _seed_proximity(seed, hypothesis_ids)

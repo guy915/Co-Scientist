@@ -32,6 +32,12 @@ from typing import Any
 # statement itself) is recognized as unresolvable rather than mismatched.
 _CLAIM_KEY_PREFIX = re.compile(r"^\[(C\d+)\]")
 
+# Matches a trailing "et al."/"et al" credit some curated author fields
+# write inline (e.g. "Kim et al.") rather than as a separate authors list
+# -- stripped before resolving a first-author surname, or the literal
+# "al." reads as the surname.
+_ET_AL_SUFFIX = re.compile(r"\s+et\s+al\.?\s*$", re.IGNORECASE)
+
 
 def _citation_key(claim: str) -> str | None:
     """Extract a citation row's [C*] key from its fixed-format claim prefix.
@@ -54,7 +60,13 @@ def _reference_label(evidence: dict[str, Any]) -> str:
     title = str(evidence.get("title") or "").strip()
     authors = evidence.get("authors") or []
     year = evidence.get("year")
-    first_author = str(authors[0]).strip().split()[-1] if authors else ""
+    # A curated author credit is sometimes written "Kim et al." rather
+    # than a bare surname -- strip that suffix before taking the last
+    # word, or the literal "al." resolves as the surname.
+    first_author_text = (
+        _ET_AL_SUFFIX.sub("", str(authors[0]).strip()) if authors else ""
+    )
+    first_author = first_author_text.split()[-1] if first_author_text else ""
     if first_author and year:
         prefix = f"{first_author} et al., {year}"
         return f"{prefix} — {title}" if title else prefix

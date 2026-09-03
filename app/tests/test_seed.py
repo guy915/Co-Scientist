@@ -52,7 +52,18 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         expected_ideas = len(scenario_hypotheses(scenario))
         hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
         assert len(hypotheses) == expected_ideas
-        assert len(store.list_evidence(run.id, db_path=isolated_db)) == 6
+        evidence = store.list_evidence(run.id, db_path=isolated_db)
+        assert len(evidence) == 6
+        # R12-12: the demo's real curated sources carry a PubMed id
+        # wired through from their own url, so the run-wide bibliography
+        # is populated with real identifiers rather than empty.
+        assert all(item["pmid"] for item in evidence)
+        assert "\n## References\n" in md
+        assert md.count("\n- [") == 6
+        # The overview document renders the aggregate bibliography; the
+        # ranking document keeps its own per-hypothesis References only
+        # (the "#### References" subsections R14-21 already covers).
+        assert "\n## References\n" not in ranking_md
         key = scenario_key(scenario)
         # Every idea carries reflection + deep_verification; only the
         # highest-ranked ideas additionally carry a curated full/simulation

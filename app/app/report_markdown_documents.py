@@ -22,6 +22,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+from app.report_markdown_bibliography import _render_references_section
 from app.report_markdown_header import (
     _render_about_disclosure,
     _render_research_goal_details,
@@ -260,6 +261,11 @@ def _overview_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         _render_data_sources_section(
             inputs.skills_used or {}, inputs.retrieval_calls or []
         ),
+        # R12-12: the run-wide bibliography, deduplicated -- see
+        # report_markdown_bibliography.py for placement and dedup
+        # rationale. Sits last, matching the published MASH report's own
+        # References span running to the end of the document.
+        _render_references_section(inputs.evidence or []),
     ]
 
 

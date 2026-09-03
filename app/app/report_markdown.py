@@ -11,6 +11,12 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+# The run-wide bibliography (R12-12) lives in its own module to keep
+# report_markdown_documents within the size cap; the name is re-exported so
+# this module's namespace keeps resolving.
+from app.report_markdown_bibliography import (
+    _render_references_section as _render_references_section,
+)
 from app.report_markdown_documents import (
     _NOVELTY_DISCLOSURE as _NOVELTY_DISCLOSURE,
 )
