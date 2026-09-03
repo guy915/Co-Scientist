@@ -70,12 +70,12 @@ partial pass is never lost.
 | R11 | 4 | 4 | 0 | 0 | 0 |
 | R12 | 13 | 10 | 0 | 2 | 1 |
 | R13 | 11 | 11 | 0 | 0 | 0 |
-| R14 | 20 | 14 | 0 | 4 | 2 |
+| R14 | 20 | 15 | 0 | 3 | 2 |
 | MA | 6 | 6 | 0 | 0 | 0 |
 | MC | 1 | 1 | 0 | 0 | 0 |
 | MO | 5 | 3 | 0 | 2 | 0 |
 | MP | 3 | 3 | 0 | 0 | 0 |
-| **Total** | **83** | **68** | **0** | **12** | **3** |
+| **Total** | **83** | **69** | **0** | **11** | **3** |
 
 **Closing pass (2026-09-02).** Ten rows closed and one half-closed since
 the table above was first built: `R6-5`, `R6-6`, `R10-8`, `R11-1`,
@@ -222,6 +222,22 @@ DECISION -- the first region in this campaign to reach 0 DECISION. The
 Total row moves 62 → 63 BUILT, 14 → 13 DECISION. All three
 owner-directed decisions (#2, #6, #9) are now closed.
 
+**Closing pass, `R14-3` (2026-09-03).** `R14-3` moves **DECISION →
+BUILT** on an actual build, not an accepted divergence:
+`app/app/report_goal_synthesis.py` adds the missing LLM call, made once
+per run at report-build time, and `report_markdown_documents.py`'s
+`_ranking_sections` threads its output into the Top Ranking Hypotheses
+document's `**Goal:**` line in place of the raw goal, so the two
+documents' goal blocks now genuinely differ (the Research Overview
+document keeps the raw goal). See `R14-3`'s own evidence cell for the
+model-resolution and graceful-degradation design. Tests:
+`app/tests/test_report_goal_restatement.py`,
+`e2e/tests/03_create_run.spec.ts`. Owner decision #4 below is now fully
+resolved (its `R14-3` residual is gone). The R14 per-region row moves 14
+BUILT / 4 DECISION → 15 BUILT / 3 DECISION; the Total row moves 68 → 69
+BUILT, 12 → 11 DECISION (picking up from the live-footage wave's count,
+recorded locally in the R13 section below rather than narrated here).
+
 ---
 
 ## R1 — SSR consolidation
@@ -364,7 +380,7 @@ Noticed in passing: none.
 |---|---|---|---|
 | R14-1 | The published report opens with an explicit `#### Table of contents:` section, six nav items; our report has no navigation aid | **BUILT** | `app/app/report_markdown_toc.py` (new module) renders "#### Table of contents:" naming the report's own top-level sections; wired into `report_markdown.py:483` right after the title/provenance line, cited by name in its own docstring and in `report_markdown_header.py:11,83` |
 | R14-2 | A third, structurally distinct goal-intake shape (8 parts, `Ground Truth Dataset`/`Your Role` fields neither other exemplar has); needs a decision on which shape, if any, is canonical before `MO-11`'s sink is actionable | **DECISION** | Confirmed unchanged: `app/app/runs_models.py:29` `research_goal: str` remains one free-text field, matching none of the three published shapes structurally. Same underlying question as `MO-11`/`R1-18`/`R10-9` — not double-counted separately |
-| R14-3 | The same run's goal renders two different ways across its two report surfaces (raw-flattened vs. synthesized restatement); explicitly blocked on `R14-11` | **DECISION** | `R14-11`'s blocker is gone (see below): both documents now render, and both carry a goal. But the *specific* published divergence this row names — raw-flatten here, freshly *synthesize* a differently-worded restatement there — is only half built: `report_markdown_documents.py`'s `_overview_sections`/`_ranking_sections` both call the same `_render_research_goal_details` (`report_markdown_header.py`), so the Top Ranking Hypotheses document repeats the identical raw-flattened block rather than a distinct narrative restatement, which would need a new LLM synthesis call this wave did not add. Owner call: synthesize a second goal restatement for the ranking document, or accept the duplicate as the local adaptation |
+| R14-3 | The same run's goal renders two different ways across its two report surfaces (raw-flattened vs. synthesized restatement); explicitly blocked on `R14-11` | **BUILT** | The owner's call: synthesize the second restatement. `app/app/report_goal_synthesis.py`'s `synthesize_goal_restatement` makes a new LLM call, once per run at report-build time (not per hypothesis), that produces a narrative restatement of the goal in different words; `report_markdown_documents.py`'s `_ranking_sections` (only) threads it into `_render_research_goal_details` (`report_markdown_header.py`) in place of the raw goal on the Top Ranking Hypotheses document's `**Goal:**` line, while the Research Overview document keeps rendering the raw goal unchanged -- the two documents' goal blocks now genuinely differ. Model resolution follows the run's own persisted offline/real backend (`store.run_offline_backed`, the same signal `engine_adapter/opts.py::_resolve_generator_models` reads), routing an offline-backed run (every curated demo, always) through the engine's deterministic offline router rather than a real provider; a real-backed run is additionally gated on `config.has_provider_credential` before ever calling, which is what keeps the hermetic app test suite from attempting a network call regardless of a bare test-created run row's backend flag. Any failure, timeout, or degenerate/empty answer falls back to the raw goal -- the same duplication this replaces -- so a cosmetic restatement failing never fails the report. Tests: `app/tests/test_report_goal_restatement.py` (unit, incl. the offline backend producing real distinct output with no mocking); `e2e/tests/03_create_run.spec.ts`'s `assertRankingGoalRestatementDiffersFromOverview` (a real offline run, fetching both frozen `.md` documents directly) |
 | R14-4 | A second, longer "About" disclaimer exists on the research-overview report surface, textually distinct from the per-hypothesis one and from the provenance line; unclear whether this is a second required disclaimer or a variant of the same one | **BUILT** | `report_markdown_header.py`'s `_render_about_disclosure` renders it verbatim on the Research Overview document, right after the title/provider line and before the table of contents; byte-identical to the per-hypothesis instance (`R14-13`) by construction — `_ABOUT_DISCLOSURE` is now the one constant, re-exported into `report_markdown_hypothesis.py` as `_HYPOTHESIS_DISCLAIMER` so the two can never drift apart. Confirmed a variant of the same wording, not a second, differently-worded disclaimer; not added to the ranking document, since nothing in the corpus attests a copy there. Pinned by `app/tests/test_report_about_disclosure.py` |
 | R14-6 | Published research contacts are grouped by research direction (4 groups), each with a shared rationale paragraph and up to two example hypothesis titles; `MO-7` only restored the flat per-contact tag | **BUILT** | `engine/src/co_scientist/schemas/synthesis.py:216-254` `research_contact_groups[]` (named by this row ID in its own code comment) carries `research_direction`, `rationale`, and `example_hypothesis_indices` (by 1-based position, never by echoing text — the AGENTS.md envelope-shape lesson applied on purpose); rendered via `_render_research_contacts_section` (`report_markdown_overview.py:311`); pinned by `app/tests/test_report_contact_groups.py` |
 | R14-8 | "Best Next Steps" richer shape: time estimates, lettered sub-phases, a named winning-idea recommendation — beyond `R12-11`'s base finding | **BUILT** | `app/app/report_markdown_meta_review.py:30-88` (`_RecommendationFields`, `_normalize_recommendation`, `_render_recommendation`) adds `time_estimate`, `phase_label`, `recommended_idea` (by `hypothesis_index`, not text), each explicitly commented `# R14-8`; commit `a0c4a5ec` ("render the strategic roadmap's time estimate, phase, and idea (R14-8)") |
@@ -383,7 +399,7 @@ Noticed in passing: none.
 | R14-24 | Corrects an earlier reading: the 11-vs-8 Deep-verification-populated split is not truncation, verified section-by-section against three files; a footnote is needed wherever the wrong file-length framing might be cited | **BUILT** | The correction is the row itself, positioned exactly where a reader would encounter the original claim — its own "Decided by" column states the correction in full, with the three-file verification recorded inline, satisfying the row's own ask ("a footnote here correcting the file-length framing") |
 | R14-26 | The canonical top-level section sequence of a published hypothesis document is fixed (14 sections in a stated order); we have no per-hypothesis document assembly matching it, conditional on the owner wanting a fuller per-idea artifact | **DECISION** | Confirmed unchanged: `_render_hypothesis_entry` (`report_markdown.py:285-321`) still renders one flat entry, not a 14-section document in this order. The row's own framing is conditional ("if the owner wants a fuller per-idea artifact") — a build-or-not decision, not a pure implementation gap |
 
-**R14: 14 BUILT / 0 OPEN / 4 DECISION / 2 FALSE.**
+**R14: 15 BUILT / 0 OPEN / 3 DECISION / 2 FALSE.**
 
 Noticed in passing: `R14-9` and `R14-21` (both FALSE above) both cite `R12-18`/`R12-19` respectively as still-open in their own "Decided by" text — both of those underlying rows are now BUILT, which is exactly why the two R14 rows read as false today; nothing further to flag beyond what's already recorded against each.
 
@@ -442,8 +458,8 @@ Noticed in passing: `docs/PROMPT-PRESERVATION.md`'s evolution-06/07 rows (its ow
 
 ## Decisions for the owner (deduplicated)
 
-The 11 DECISION verdicts above collapse to fewer questions once rows
-asking the same thing are merged (12 raw DECISION rows in the Summary
+The 10 DECISION verdicts above collapse to fewer questions once rows
+asking the same thing are merged (11 raw DECISION rows in the Summary
 table, less `R14-10`, item 10 below, which is explicitly not an owner
 decision):
 
@@ -474,16 +490,17 @@ decision):
    `EVAL-REVIEW-SCALE-001` (Figure A.23's named "co-scientist review
    score," already settled at 1-5) — this is a different, still-open
    score.
-4. ~~Split the report into two documents.~~ **Resolved: split.**
-   `R14-11` and `R14-4` (2 of the original 3 rows) are now **BUILT** —
-   see the `R14-11` closing pass above and `docs/PARITY.md`
-   `REPORT-DOCUMENT-SPLIT-001`/`REPORT-ABOUT-DISCLOSURE-001`. One
-   narrower question survives, now scoped to `R14-3` alone (1 row): both
-   documents currently render the identical raw-flattened Research Goal
-   Details block; Google's ranking document instead shows a freshly
-   *synthesized* narrative restatement, in different words. Synthesize a
-   second, distinct goal restatement for the ranking document (a new LLM
-   call), or accept the duplicated block as the local adaptation?
+4. ~~Split the report into two documents.~~ **Resolved: split, and
+   synthesize the ranking document's own goal restatement.** `R14-11`,
+   `R14-4`, and now `R14-3` (all 3 of the original rows) are **BUILT** —
+   see the `R14-11` closing pass and the `R14-3` closing pass above, and
+   `docs/PARITY.md`
+   `REPORT-DOCUMENT-SPLIT-001`/`REPORT-ABOUT-DISCLOSURE-001`. The Top
+   Ranking Hypotheses document's `**Goal:**` line now carries a freshly
+   synthesized narrative restatement (`app/app/report_goal_synthesis.py`)
+   instead of the raw-flattened block the Research Overview document
+   still renders — see `R14-3`'s own evidence cell. Fully resolved; no
+   residual.
 5. **A flat bibliography list.** `R12-12`. The published report's
    3,259-entry `References` list has no analogue; `Citation audit` and the
    data-sources view are a different artifact. Add one, or accept the

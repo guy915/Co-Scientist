@@ -448,7 +448,7 @@ def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
     assert topics[0]["uncertainty"].startswith("The causal direction")
 
 
-def test_report_body_opens_with_the_same_idea_as_the_standings(
+async def test_report_body_opens_with_the_same_idea_as_the_standings(
     isolated_db: str,
 ) -> None:
     """The markdown's top ideas must follow the leaderboard's order.
@@ -477,7 +477,7 @@ def test_report_body_opens_with_the_same_idea_as_the_standings(
         db_path=isolated_db,
     )
 
-    payload, markdown = _build_report(run, isolated_db)
+    payload, markdown = await _build_report(run, isolated_db)
 
     assert [row["id"] for row in payload["leaderboard"]] == [sound, doubted]
     assert markdown.index("Sound idea") < markdown.index("Doubted idea")

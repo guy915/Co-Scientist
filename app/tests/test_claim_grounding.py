@@ -182,7 +182,7 @@ def _seed_contradiction_report_run(
     return run, bad_id, ok_id
 
 
-def test_contradicted_hypothesis_excluded_from_report(
+async def test_contradicted_hypothesis_excluded_from_report(
     isolated_db: str,
 ) -> None:
     """End-to-end: a contradicted established-fact claim leaves the report."""
@@ -190,7 +190,7 @@ def test_contradicted_hypothesis_excluded_from_report(
         isolated_db, bad_claim_is_categorical=True
     )
 
-    payload, markdown = _build_report(run, isolated_db)
+    payload, markdown = await _build_report(run, isolated_db)
 
     leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
     assert bad_id not in leaderboard_ids
@@ -198,7 +198,7 @@ def test_contradicted_hypothesis_excluded_from_report(
     assert "kinase X reduces melanoma" not in markdown
 
 
-def test_a_contradicted_proposal_still_reaches_the_report(
+async def test_a_contradicted_proposal_still_reaches_the_report(
     isolated_db: str,
 ) -> None:
     """The same contradiction, on the idea itself, publishes instead.
@@ -213,7 +213,7 @@ def test_a_contradicted_proposal_still_reaches_the_report(
         isolated_db, bad_claim_is_categorical=False
     )
 
-    payload, _markdown = _build_report(run, isolated_db)
+    payload, _markdown = await _build_report(run, isolated_db)
 
     leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
     assert bad_id in leaderboard_ids
@@ -251,7 +251,7 @@ def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
     return run, hypothesis_id
 
 
-def test_speculative_insufficient_hypothesis_remains_visible(
+async def test_speculative_insufficient_hypothesis_remains_visible(
     isolated_db: str,
 ) -> None:
     """Novel proposal text publishes as speculation, never as a finding."""
@@ -260,7 +260,7 @@ def test_speculative_insufficient_hypothesis_remains_visible(
     # The claim-evidence status/quote text checked below is part of the
     # full per-hypothesis write-up, which renders on the Top Ranking
     # Hypotheses document (R14-11), not the Research Overview one.
-    payload, markdown = _build_report_ranking(run, isolated_db)
+    payload, markdown = await _build_report_ranking(run, isolated_db)
 
     assert hypothesis_id in {row["id"] for row in payload["leaderboard"]}
     edge = next(

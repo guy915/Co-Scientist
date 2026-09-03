@@ -12,6 +12,11 @@ Every case here asserts at the transport, not at the answer. A deterministic
 fallback answer is indistinguishable from a real one that failed, so the
 probe replaces ``litellm.acompletion`` with a function that records the
 attempt and raises; "no outbound request" means that recorder stayed empty.
+An ``offline/``-prefixed call (e.g. ``make_client()``'s startup demo
+seeding, which synthesizes each curated demo's R14-3 goal restatement) is
+not such an attempt -- the offline router answers it locally, so it is
+passed through to the real (router-installed) ``acompletion`` rather than
+counted as a leak.
 """
 
 from __future__ import annotations
@@ -36,23 +41,33 @@ def _forced_offline_with_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """Replace litellm.acompletion with a recorder that refuses to call out.
+    """Replace litellm.acompletion with a recorder that refuses real calls.
+
+    An ``offline/``-prefixed model is not a real outbound attempt -- it is
+    passed through to the actual (router-installed) ``acompletion``, which
+    answers it locally -- so only a non-offline model is recorded and
+    refused.
 
     Returns:
-        The list every attempted completion is appended to; it must stay
-        empty for the whole forced-offline posture.
+        The list every attempted *real* completion is appended to; it must
+        stay empty for the whole forced-offline posture.
     """
     import litellm
 
+    from co_scientist.offline_llm import is_offline_model
+
+    original = litellm.acompletion
     recorded: list[dict[str, Any]] = []
 
-    async def _refuse(**kwargs: Any) -> Any:
+    async def _guard(**kwargs: Any) -> Any:
+        if is_offline_model(str(kwargs.get("model") or "")):
+            return await original(**kwargs)
         recorded.append(kwargs)
         raise AssertionError(
             "outbound completion attempted under COSCIENTIST_FORCE_OFFLINE=1"
         )
 
-    monkeypatch.setattr(litellm, "acompletion", _refuse)
+    monkeypatch.setattr(litellm, "acompletion", _guard)
     return recorded
 
 

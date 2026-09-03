@@ -33,6 +33,8 @@ export interface BackendApi {
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
   listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
+  getReportMarkdown(id: string): Promise<string>;
+  getReportRankingMarkdown(id: string): Promise<string>;
 }
 
 // Runs one backend call, throwing a labelled error on any non-2xx so a
@@ -77,6 +79,18 @@ function makeBackendApi(ctx: APIRequestContext): BackendApi {
         runs: {id: string; research_goal: string}[];
       };
       return payload.runs;
+    },
+    async getReportMarkdown(id) {
+      const res = await send('getReportMarkdown', () =>
+        ctx.get(`/api/runs/${id}/report.md`),
+      );
+      return res.text();
+    },
+    async getReportRankingMarkdown(id) {
+      const res = await send('getReportRankingMarkdown', () =>
+        ctx.get(`/api/runs/${id}/report-ranking.md`),
+      );
+      return res.text();
     },
   };
 }

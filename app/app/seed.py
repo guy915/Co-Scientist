@@ -157,7 +157,7 @@ async def _seed_demo_run(
         # Re-seeded demos may predate the setup fields shown in Goal Details.
         # Keep their row configuration in sync with newly created demo rows.
         store.set_run_config(run.id, config, db_path=db_path)
-        _seed_curated_scenario(run, scenario, db_path)
+        await _seed_curated_scenario(run, scenario, db_path)
         logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
         return
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)

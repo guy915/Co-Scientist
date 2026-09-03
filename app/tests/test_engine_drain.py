@@ -298,7 +298,9 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     assert by_id["child-1"]["verification_verdict"] is None
 
 
-def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
+async def test_unsafe_hypothesis_excluded_from_synthesis(
+    isolated_db: str,
+) -> None:
     """A hypothesis a per-hypothesis review blocks never reaches the report.
 
     Milestone 6/M9: the report synthesis excludes prohibited/ethical/uncertain
@@ -307,7 +309,7 @@ def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
     run = store.create_run("safety goal", "standard", "engine", {})
     safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
 
-    payload, markdown = _build_report(run, isolated_db)
+    payload, markdown = await _build_report(run, isolated_db)
 
     # Only the safe hypothesis is synthesized.
     assert payload["hypothesis_count"] == 1

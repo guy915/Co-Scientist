@@ -54,7 +54,9 @@ def _plain_setup_strings(items: Any) -> list[str]:
 
 
 def _render_research_goal_details(
-    research_goal: str, setup: dict[str, Any] | None
+    research_goal: str,
+    setup: dict[str, Any] | None,
+    goal_restatement: str | None = None,
 ) -> list[str]:
     """Render 'Research Goal Details': goal, requirements, attributes, criteria.
 
@@ -65,6 +67,14 @@ def _render_research_goal_details(
     pair list -- ``attribute_display_strings``/``criteria_display_strings``
     render every shape the same way, so an older persisted run keeps
     reading exactly as it always did.
+
+    ``goal_restatement``, when given, replaces the literal ``research_goal``
+    on the "Goal:" line -- R14-3's synthesized narrative restatement for the
+    Top Ranking Hypotheses document (see ``report_goal_synthesis.py``), kept
+    to just this one line since the Requirements/Attributes/Criteria bullets
+    are structured facts, not part of the goal's own prose. The Research
+    Overview document never passes one, so it keeps rendering the raw goal
+    exactly as before.
     """
     if not isinstance(setup, dict):
         return []
@@ -81,7 +91,8 @@ def _render_research_goal_details(
     ]
     if not any(fields):
         return []
-    lines = ["## Research Goal Details\n", f"**Goal:** {research_goal}\n"]
+    goal_line = goal_restatement or research_goal
+    lines = ["## Research Goal Details\n", f"**Goal:** {goal_line}\n"]
     for field_lines in fields:
         lines += field_lines
     return lines

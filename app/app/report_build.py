@@ -24,6 +24,7 @@ from app.report_content import (
     _synthesized_knowledge_base_topics,
     _verified_hypothesis_count,
 )
+from app.report_goal_synthesis import synthesize_goal_restatement
 from app.report_markdown import (
     ReportMarkdownInputs,
     ReportPayloadInputs,
@@ -150,7 +151,9 @@ class _BuiltReport(NamedTuple):
     facts: list[dict[str, Any]]
 
 
-def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
+async def _build_report_content(
+    run_id: str, req: _ReportBuildArgs
+) -> _BuiltReport:
     """Gather store data and build the report payload and markdown.
 
     Leaderboard, top hypotheses, and every row count are read from the store
@@ -171,7 +174,14 @@ def _build_report_content(run_id: str, req: _ReportBuildArgs) -> _BuiltReport:
     # a run's Knowledge Base actually carries (see the root AGENTS.md
     # Gotchas entry on counts computed more than once).
     knowledge_base = _resolve_knowledge_base(data, req)
-    inputs = _report_markdown_inputs(data, req, knowledge_base)
+    # R14-3: the ranking document's own goal restatement, once per run (not
+    # per hypothesis -- see report_goal_synthesis.py). Best-effort: None on
+    # any failure falls back to the raw goal, same as the overview
+    # document, rather than failing the whole report over a cosmetic line.
+    goal_restatement = await synthesize_goal_restatement(
+        run_id, req.research_goal, db_path=req.db_path
+    )
+    inputs = _report_markdown_inputs(data, req, knowledge_base, goal_restatement)
     return _BuiltReport(
         payload=_assemble_report_payload(data, req, knowledge_base),
         markdown=render_overview_document_markdown(inputs),
@@ -204,6 +214,7 @@ def _report_markdown_inputs(
     data: _ReportData,
     req: _ReportBuildArgs,
     knowledge_base: list[dict[str, Any]],
+    goal_restatement: str | None = None,
 ) -> ReportMarkdownInputs:
     """Assemble the shared inputs both markdown documents render from."""
     return ReportMarkdownInputs(
@@ -228,6 +239,7 @@ def _report_markdown_inputs(
         citations=data.citations,
         evidence=data.evidence,
         reviews=data.reviews,
+        goal_restatement=goal_restatement,
     )
 
 

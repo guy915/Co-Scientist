@@ -6,11 +6,12 @@ one -- ``research-overview.md`` (meta-review-style synthesis) and
 ``docs/CORPUS-EXTRACTION.md``'s R14-11/R14-1 (the six/three named sections
 per document) and R14-3/R14-4/R14-9 (what else each carries). Both
 documents get the run's Research Goal Details and provenance line -- the
-corpus attests a goal opens both (R14-3), and duplicating the same real
-block is the honest minimum; synthesizing a second, distinct restatement
-for the ranking document is a further, unbuilt step (see the R14-3 ledger
-entry). Anything the corpus does not name for either document defaults to
-the overview document, as the more general of the two.
+corpus attests a goal opens both (R14-3) -- but the ranking document's
+"Goal:" line carries a freshly synthesized narrative restatement instead of
+the raw goal both documents used to render identically (R14-3, see
+``report_goal_synthesis.py``); the two only ever differ on that one line.
+Anything the corpus does not name for either document defaults to the
+overview document, as the more general of the two.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
 every name is re-exported so its namespace keeps resolving.
@@ -210,6 +211,12 @@ class ReportMarkdownInputs:
     # This run's hypothesis titles by id, for a contact group's example
     # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id.
     hypothesis_title_by_id: dict[str, str] | None = None
+    # R14-3: a freshly synthesized narrative restatement of the goal, used
+    # only on the ranking document's "Goal:" line in place of the raw
+    # ``research_goal`` -- see report_goal_synthesis.py. None (generation
+    # unavailable, or not attempted) falls back to the raw goal, the same
+    # text the overview document always renders.
+    goal_restatement: str | None = None
 
 
 def _overview_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
@@ -259,7 +266,9 @@ def _overview_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
 def _ranking_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
     """The Top Ranking Hypotheses document's sections, each its own list."""
     return [
-        _render_research_goal_details(inputs.research_goal, inputs.setup),
+        _render_research_goal_details(
+            inputs.research_goal, inputs.setup, inputs.goal_restatement
+        ),
         _render_provenance_line(inputs.prepared_at),
         # "Candidate Ideas": the full per-idea write-up, the compared
         # candidates the rest of this document's sections evaluate.

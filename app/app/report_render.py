@@ -160,7 +160,7 @@ async def _build_and_gate_report(
         A tuple of (built report, blocked, safety-gate events to yield in
         order before checking ``blocked``).
     """
-    built = _build_report_content(run_id, req)
+    built = await _build_report_content(run_id, req)
     final = await _screen_final_report(
         run_id,
         built.markdown,

@@ -200,7 +200,7 @@ def _final_state_with_features() -> dict[str, Any]:
     }
 
 
-def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
+async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     """Build report content for a run with the drain's default (None) inputs.
 
     Returns the Research Overview document (R14-11) -- the payload plus
@@ -208,7 +208,7 @@ def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     about full per-hypothesis content (mechanism, references, reviews),
     which renders on the Top Ranking Hypotheses document instead.
     """
-    built = report_render._build_report_content(
+    built = await report_render._build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,
@@ -221,7 +221,9 @@ def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     return built.payload, built.markdown
 
 
-def _build_report_ranking(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
+async def _build_report_ranking(
+    run: Any, db_path: str
+) -> tuple[dict[str, Any], str]:
     """Build report content, returning the Top Ranking Hypotheses document.
 
     Same inputs as :func:`_build_report`; only the returned markdown
@@ -229,7 +231,7 @@ def _build_report_ranking(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     references, reviews) that document carries instead of the overview's
     titles-only list.
     """
-    built = report_render._build_report_content(
+    built = await report_render._build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,

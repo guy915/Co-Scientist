@@ -115,7 +115,7 @@ def test_survives_alongside_the_skills_used_notice() -> None:
     assert "pubmed" in with_skills
 
 
-def test_a_built_report_pulls_its_own_runs_retrieval_calls(
+async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
     isolated_db: str,
 ) -> None:
     """The report reads the store directly -- no field has to feed it in.
@@ -141,7 +141,7 @@ def test_a_built_report_pulls_its_own_runs_retrieval_calls(
         db_path=isolated_db,
     )
 
-    built = report_render._build_report_content(
+    built = await report_render._build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,

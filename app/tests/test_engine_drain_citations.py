@@ -292,7 +292,7 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
     assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
 
 
-def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
+async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     isolated_db: str,
 ) -> None:
     """End to end: a drained run's report resolves its own [C*] keys.
@@ -311,7 +311,7 @@ def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
 
     # The per-hypothesis References subsection renders on the Top Ranking
     # Hypotheses document (R14-11), not the Research Overview one.
-    _payload, markdown = _build_report_ranking(run, isolated_db)
+    _payload, markdown = await _build_report_ranking(run, isolated_db)
 
     assert "#### References" in markdown
     section = markdown.split("#### References", 1)[1]

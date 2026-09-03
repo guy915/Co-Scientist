@@ -386,7 +386,7 @@ def _scenario_report_request(
     )
 
 
-def _save_scenario_report(
+async def _save_scenario_report(
     seed: _CuratedSeed, hypothesis_ids: list[str]
 ) -> dict[str, Any]:
     """Build and persist the curated report; return its meta-review payload."""
@@ -394,7 +394,7 @@ def _save_scenario_report(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
     meta_review = _curated_meta_review(seed.scenario)
-    built = _build_report_content(
+    built = await _build_report_content(
         seed.run.id,
         _scenario_report_request(seed, hypothesis_ids, overview, meta_review),
     )
@@ -466,7 +466,7 @@ def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
     )
 
 
-def _seed_curated_scenario(
+async def _seed_curated_scenario(
     run: RunRow, scenario: DemoScenario, db_path: str | None
 ) -> None:
     """Replace one demo's derived rows with a complete illustrative scenario."""
@@ -483,7 +483,7 @@ def _seed_curated_scenario(
     hypothesis_ids = _seed_hypotheses(seed, evidence_ids)
     matchups = _seed_tournament(seed, hypothesis_ids)
     _seed_proximity(seed, hypothesis_ids)
-    meta_review = _save_scenario_report(seed, hypothesis_ids)
+    meta_review = await _save_scenario_report(seed, hypothesis_ids)
     counts = _ScenarioCounts(
         evidence=len(evidence_ids),
         initial_hypotheses=_initial_count(seed),
