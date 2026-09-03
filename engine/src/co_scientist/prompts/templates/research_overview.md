@@ -28,6 +28,7 @@ Produce:
 7. open_questions - up to 10 of the most important unanswered questions this synthesis leaves open, each a specific testable question grounded in what the hypotheses and evidence above do and do not establish, not a restatement of the research goal itself.
 8. clear_patterns - up to 5 patterns that recur clearly across the hypotheses and evidence above (e.g. a mechanism, a data type, or a constraint several of them share).
 9. unexpected_patterns - up to 5 patterns or connections that were not obvious going in, surfaced only by synthesizing across the hypotheses and evidence together rather than reading any one of them alone. Return an empty list rather than stretching a clear pattern to sound unexpected.
+10. unexpected_research_directions - up to 3 genuinely novel research directions worth pursuing that were not obvious going in and are not among the research_directions listed in #2 above, each with a title and a description paragraph explaining the direction and why it is worth pursuing. These are new strategic directions surfaced by synthesizing across the hypotheses and evidence, not patterns observed across the ideas (that is #9 above) and not a restatement of #2. Return an empty list rather than stretching a main direction to sound unexpected.
 
 ## Novelty Language
 

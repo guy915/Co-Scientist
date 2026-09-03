@@ -103,6 +103,16 @@ RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
 RESEARCH_OVERVIEW_MAX_OPEN_QUESTIONS: Final = 10
 RESEARCH_OVERVIEW_MAX_PATTERNS: Final = 5
 
+# Task B: bound on unexpected_research_directions below, mirroring the
+# published MASH exemplar's own "Unexpected Research Directions" block
+# (docs/CORPUS-EXTRACTION.md, .../mash-liver-fibrosis-reversal-
+# therapeutic-hypothesis.md:418) -- three named bullets. Capped for the
+# same reason as RESEARCH_OVERVIEW_MAX_PATTERNS above: this is the
+# terminal synthesis call, and RESEARCH_OVERVIEW_MAX_TOKENS already sits
+# at the escalation ladder's own ceiling (see AGENTS.md), so a new field
+# here must not scale the response further.
+RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
+
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": obj(
@@ -301,6 +311,43 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     " hypotheses and evidence together."
                 ),
                 "maxItems": RESEARCH_OVERVIEW_MAX_PATTERNS,
+            },
+            # Task B: the published MASH exemplar's own "Unexpected
+            # Research Directions" block -- genuinely novel strategic
+            # directions worth pursuing, surfaced by synthesis. Distinct
+            # from research_directions above (the main directions,
+            # expected and expanded) and from unexpected_patterns above
+            # (a pattern observed across the ideas, not a direction worth
+            # pursuing) -- both kept, neither merged nor repurposed.
+            "unexpected_research_directions": {
+                "type": "array",
+                "maxItems": RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS,
+                "description": (
+                    "Up to 3 genuinely novel research directions worth"
+                    " pursuing that were not anticipated going in and are"
+                    " not among the main research_directions above --"
+                    " surfaced only by synthesizing across the hypotheses"
+                    " and evidence together. Return an empty list rather"
+                    " than restating a main direction or stretching an"
+                    " expected one to sound unexpected."
+                ),
+                "items": obj(
+                    {
+                        "title": {
+                            "type": "string",
+                            "description": (
+                                "short name for the novel direction"
+                            ),
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": (
+                                "one prose paragraph explaining the"
+                                " direction and why it is worth pursuing"
+                            ),
+                        },
+                    }
+                ),
             },
         }
     ),

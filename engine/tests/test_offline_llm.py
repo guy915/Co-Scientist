@@ -217,6 +217,45 @@ async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
     assert len(set(titles)) == len(titles)
 
 
+async def test_offline_acompletion_sizes_unexpected_research_directions() -> (
+    None
+):
+    """``unexpected_research_directions`` is sized past the one-item default.
+
+    Task B: without this hint an offline run's demo would show exactly
+    one unexpected direction, from the generic filler's default -- this
+    sizes it to the schema's own bound instead, matching MASH's own
+    published exemplar (three named bullets).
+    """
+    schema = RESEARCH_OVERVIEW_SCHEMA["schema"]
+
+    response = await offline_llm.offline_acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": "Top-ranked hypotheses (highest Elo first):\n"
+                "1. (Elo 1200) first.\n",
+            }
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "research_overview",
+                "schema": schema,
+            },
+        },
+    )
+
+    parsed = json.loads(response.choices[0].message.content)
+    jsonschema.validate(instance=parsed, schema=schema)
+    directions = parsed["unexpected_research_directions"]
+    assert len(directions) == 3
+    titles = [d["title"] for d in directions]
+    assert all(titles)
+    assert len(set(titles)) == len(titles)
+
+
 async def test_offline_review_scores_clear_the_viable_gate() -> None:
     """An offline review's scores land past ``NEEDS_REVISION_SCORE``.
 

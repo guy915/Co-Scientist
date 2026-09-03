@@ -324,6 +324,9 @@ def _format_research_overview_response(
         "open_questions": response.get("open_questions", []),
         "clear_patterns": response.get("clear_patterns", []),
         "unexpected_patterns": response.get("unexpected_patterns", []),
+        "unexpected_research_directions": response.get(
+            "unexpected_research_directions", []
+        ),
     }
 
 

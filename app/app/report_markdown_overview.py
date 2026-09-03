@@ -162,18 +162,64 @@ def _render_directions_preview(directions: list[Any]) -> list[str]:
     )
 
 
-def _render_overview_section(ov: dict[str, Any]) -> list[str]:
+def _render_unexpected_direction(direction: Any) -> str:
+    """Render one unexpected-research-direction bullet, or "" when unnamed.
+
+    Task B: a bolded name plus prose, matching MASH's own published
+    ``Unexpected Research Directions`` bullets. Degrades a missing
+    description to a bare title bullet, the same contract
+    ``_render_evaluation_criterion`` (report_markdown_supervisor.py)
+    follows for a missing criterion description.
+    """
+    if not isinstance(direction, dict):
+        return ""
+    title = _readable_text(direction.get("title", ""))
+    if not title:
+        return ""
+    description = _readable_text(direction.get("description", ""))
+    return f"- **{title}:** {description}" if description else f"- {title}"
+
+
+def _render_unexpected_directions_section(directions: list[Any]) -> list[str]:
+    """Render 'Unexpected research directions', or [] when nothing usable.
+
+    Task B: MASH's own published exemplar carries this as a fourth block
+    directly beneath its expanded restatement of the five main research
+    directions -- genuinely new strategic directions, not a repeat of
+    ``research_directions`` above and not ``unexpected_patterns``
+    (R12-10, a pattern observed *across the ideas*, not a direction worth
+    pursuing). Rendered adjacent to the directions content, inside this
+    same "## Research Overview" section, by the caller below.
+    """
+    lines = [
+        line
+        for direction in directions
+        if (line := _render_unexpected_direction(direction))
+    ]
+    if not lines:
+        return []
+    return ["\n### Unexpected research directions\n", *lines]
+
+
+def _render_overview_section(
+    ov: dict[str, Any], unexpected_directions: list[Any]
+) -> list[str]:
     """Render the 'Research Overview' section, or nothing when data absent."""
     if not isinstance(ov, dict):
         return []
     summary = _readable_text(ov.get("summary"))
     directions = ov.get("research_directions") or []
-    if not _has_overview_content(summary, directions):
+    unexpected_lines = _render_unexpected_directions_section(
+        unexpected_directions
+    )
+    if not _has_overview_content(summary, directions) and not unexpected_lines:
         return []
     lines = ["\n## Research Overview\n"]
     lines += _render_optional_paragraph(summary)
     lines += _render_directions_preview(directions)
-    return lines + _render_directions_list(directions)
+    lines += _render_directions_list(directions)
+    lines += unexpected_lines
+    return lines
 
 
 def _render_pattern_list(heading: str, items: Any) -> list[str]:
@@ -339,7 +385,10 @@ def research_overview_sections(
     if not isinstance(overview, dict):
         return [[], [], [], []]
     return [
-        _render_overview_section(overview.get("overview") or {}),
+        _render_overview_section(
+            overview.get("overview") or {},
+            overview.get("unexpected_research_directions") or [],
+        ),
         _render_open_questions_section(overview),
         _render_nih_aims_section(overview.get("nih_specific_aims") or {}),
         _render_research_contacts_section(

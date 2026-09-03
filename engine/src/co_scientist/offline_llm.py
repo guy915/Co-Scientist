@@ -102,19 +102,31 @@ def _batch_review_length(prompt: str) -> dict[str, int]:
 # found several directions worth pursuing rather than exactly one.
 _RESEARCH_DIRECTIONS_COUNT = 3
 
+# Task B: sized to the schema's own maxItems
+# (RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS) rather than the bare
+# one-item default, so an offline run's demo reads as having found
+# several unexpected directions -- matching MASH's own published
+# exemplar, which carries exactly three.
+_UNEXPECTED_DIRECTIONS_COUNT = 3
+
 
 def _research_overview_directions_length(_prompt: str) -> dict[str, int]:
-    """Sizes ``overview.research_directions`` past the preview gate.
+    """Sizes both research-overview direction arrays past their defaults.
 
     Args:
-        _prompt: The rendered research-overview prompt (unused; the count
-            is fixed rather than derived from prompt content -- see the
-            module-level comment on ``_RESEARCH_DIRECTIONS_COUNT``).
+        _prompt: The rendered research-overview prompt (unused; both
+            counts are fixed rather than derived from prompt content --
+            see the module-level comments on ``_RESEARCH_DIRECTIONS_COUNT``
+            and ``_UNEXPECTED_DIRECTIONS_COUNT``).
 
     Returns:
-        ``{"research_directions": _RESEARCH_DIRECTIONS_COUNT}``.
+        ``{"research_directions": _RESEARCH_DIRECTIONS_COUNT,
+        "unexpected_research_directions": _UNEXPECTED_DIRECTIONS_COUNT}``.
     """
-    return {"research_directions": _RESEARCH_DIRECTIONS_COUNT}
+    return {
+        "research_directions": _RESEARCH_DIRECTIONS_COUNT,
+        "unexpected_research_directions": _UNEXPECTED_DIRECTIONS_COUNT,
+    }
 
 
 # Per-schema-name hooks that compute a {property_name: item_count} map from
