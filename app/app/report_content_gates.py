@@ -177,11 +177,15 @@ def _exclude_unsafe_hypotheses(
         for hyp in hyps
         if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
     ]
-    _log_gate_outcome(len(kept), len(hyps))
+    _log_gate_outcome(kept, hyps, contradicted)
     return kept
 
 
-def _log_gate_outcome(kept: int, total: int) -> None:
+def _log_gate_outcome(
+    kept: list[dict[str, Any]],
+    hyps: list[dict[str, Any]],
+    contradicted: set[str],
+) -> None:
     """Reports, in one line, what the gate withheld from the report.
 
     The per-hypothesis exclusions above log at info because withholding a
@@ -189,25 +193,154 @@ def _log_gate_outcome(kept: int, total: int) -> None:
     per idea puts a row that needs no action into the warnings band, once
     per excluded idea, and buries the run's narrative under them. The one
     outcome that does need attention is the gate taking everything, which
-    leaves a report with no ideas in it.
+    leaves a report with no ideas in it -- and since that is an operator's
+    first stop, it carries the same cause breakdown as the reader-facing
+    blocked reason (:func:`_empty_leaderboard_reason`), built from data
+    already in hand here rather than a fixed guess at what went wrong.
 
     Args:
-        kept: How many hypotheses cleared the gate.
-        total: How many were offered to it.
+        kept: The hypotheses that cleared the gate.
+        hyps: Every hypothesis offered to it.
+        contradicted: Ids with a claim the evidence contradicts, as
+            computed by the caller.
     """
+    total = len(hyps)
     if total and not kept:
+        tally = _exclusion_tally(hyps, kept, contradicted)
         logger.warning(
-            "Report gate: excluded all %s hypotheses from synthesis; the "
-            "report has no ideas to show.",
+            "Report gate: excluded all %s hypotheses from synthesis (%s); "
+            "the report has no ideas to show.",
             total,
+            _join_clauses(_exclusion_clauses(tally)),
         )
         return
-    if kept < total:
+    if len(kept) < total:
         logger.info(
             "Report gate: excluded %s of %s hypotheses from synthesis.",
-            total - kept,
+            total - len(kept),
             total,
         )
+
+
+# One cause per excluded hypothesis, in the order a summary sentence lists
+# them. Order mirrors where each check sits in _hypothesis_passes_safety_gate
+# (status first, then a contradicting claim, then a blocking safety status),
+# so a mixed run reads causes in the same order the gate applied them.
+_EXCLUSION_CAUSE_ORDER = (
+    "review_rejected",
+    "duplicate",
+    "contradicted",
+    "safety",
+)
+
+# Distinct wording per cause -- the documented rule that "duplicate" and
+# "rejected" (and, here, a safety-review hold) must reach the reader as
+# different words rather than one shared sentence. "unsafe" is named as the
+# *reviewer's own* judgment, not the separate safety-review pipeline, so a
+# sentence naming both causes in a mixed run does not read as saying the
+# same thing twice.
+_EXCLUSION_CAUSE_PHRASES = {
+    "review_rejected": (
+        "rejected by peer review before ranking (the reviewer judged them "
+        "inaccurate, non-novel, unsafe, or evidence-blocked)"
+    ),
+    "duplicate": "folded into a higher-ranked idea that says the same thing",
+    "contradicted": "contradicted by the evidence",
+    "safety": "withheld by the safety review",
+}
+
+
+def _exclusion_cause(hyp: dict[str, Any], contradicted: set[str]) -> str:
+    """Classify why one already-excluded hypothesis left the ranked report.
+
+    Mirrors ``_hypothesis_passes_safety_gate``'s own precedence exactly
+    (status, then a contradicting claim, then a blocking safety status), so
+    a summary built from this never disagrees with which ideas the gate
+    actually excluded. Only meaningful for a hypothesis the gate has
+    already dropped -- every excluded hypothesis matches one of these
+    branches by construction, so the safety fallback at the end is reached
+    only by the gate's own legacy re-review path.
+    """
+    status = hyp.get("status")
+    if status == "duplicate":
+        return "duplicate"
+    if status == "rejected":
+        return "review_rejected"
+    if str(hyp.get("id")) in contradicted:
+        return "contradicted"
+    return "safety"
+
+
+def _exclusion_tally(
+    hyps: list[dict[str, Any]],
+    kept: list[dict[str, Any]],
+    contradicted: set[str],
+) -> dict[str, int]:
+    """Count why each excluded hypothesis left the ranked report."""
+    kept_ids = {str(hyp.get("id")) for hyp in kept}
+    tally = dict.fromkeys(_EXCLUSION_CAUSE_ORDER, 0)
+    for hyp in hyps:
+        if str(hyp.get("id")) in kept_ids:
+            continue
+        tally[_exclusion_cause(hyp, contradicted)] += 1
+    return tally
+
+
+def _exclusion_clauses(tally: dict[str, int]) -> list[str]:
+    """Render each nonzero cause in ``tally`` as one counted clause."""
+    clauses = []
+    for cause in _EXCLUSION_CAUSE_ORDER:
+        count = tally.get(cause, 0)
+        if not count:
+            continue
+        verb = "was" if count == 1 else "were"
+        clauses.append(f"{count} {verb} {_EXCLUSION_CAUSE_PHRASES[cause]}")
+    return clauses
+
+
+def _join_clauses(clauses: list[str]) -> str:
+    """Join clauses with commas and a trailing 'and', English-list style."""
+    if len(clauses) <= 1:
+        return clauses[0] if clauses else ""
+    if len(clauses) == 2:
+        return " and ".join(clauses)
+    return ", ".join(clauses[:-1]) + ", and " + clauses[-1]
+
+
+def _empty_leaderboard_reason(idea_count: int, tally: dict[str, int]) -> str:
+    """One sentence naming why an empty leaderboard blocked the run.
+
+    Derived from the actual per-hypothesis exclusion causes rather than a
+    fixed pair of guesses: a run whose ideas were all rejected by peer
+    review before any evidence or safety pass ever ran used to be told
+    "contradicted by the evidence or withheld by the safety review" --
+    both false, since neither pipeline had touched a single idea. A mix of
+    causes lists every one that applied, each in its own words.
+
+    Args:
+        idea_count: Every idea the run produced (``payload["idea_count"]``;
+            the leaderboard is empty only when none of them passed the
+            gate). Zero is its own case: nothing was withheld because
+            nothing was ever generated.
+        tally: This run's exclusion counts, from :func:`_exclusion_tally`.
+
+    Returns:
+        The reader-facing blocked-run reason, one sentence.
+    """
+    if not idea_count:
+        return "No hypothesis could be published: the run produced no ideas."
+    clauses = _exclusion_clauses(tally)
+    if not clauses:
+        return (
+            "No hypothesis could be published: every idea was withheld "
+            "from the ranked report."
+        )
+    total = sum(tally.values())
+    noun = "idea" if total == 1 else "ideas"
+    return (
+        f"No hypothesis could be published: of {total} {noun}, "
+        f"{_join_clauses(clauses)}."
+    )
 
 
 def _hypothesis_passes_safety_gate(

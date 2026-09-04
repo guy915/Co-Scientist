@@ -31,6 +31,9 @@ from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
 )
 from app.report_content import (
+    _empty_leaderboard_reason as _empty_leaderboard_reason,
+)
+from app.report_content import (
     _exclude_unsafe_hypotheses as _exclude_unsafe_hypotheses,
 )
 from app.report_content import _idea_buckets as _idea_buckets
@@ -141,7 +144,7 @@ async def _gate_readiness_and_publish(
     """
     if _readiness_blocked(built.payload):
         async for event in _block_for_empty_leaderboard(
-            run_id, req.provider, emit, db_path=req.db_path
+            run_id, built, emit, db_path=req.db_path
         ):
             yield event
         return
@@ -213,6 +216,7 @@ def _redacted_report(
         # in claim_evidence and reachable via /claim-evidence regardless, so
         # redacting the report's prose does not need to also redact these.
         facts=built.facts,
+        exclusion_tally=built.exclusion_tally,
     )
 
 
@@ -273,10 +277,11 @@ def _readiness_blocked(payload: dict[str, Any]) -> bool:
     """Return whether the run's empty leaderboard should hard-block release.
 
     Under the rank-and-publish policy the leaderboard is empty only when
-    every idea was withheld -- contradicted by the evidence or blocked by the
-    safety review -- leaving nothing publishable. Unsupported (but
-    non-contradicted) ideas are published with an "Unverified" badge, so they
-    never reach here.
+    every idea was withheld -- by review rejection, deduplication, a
+    contradicting claim, or a safety hold (see
+    ``_empty_leaderboard_reason`` for which one actually applied) --
+    leaving nothing publishable. Unsupported (but non-contradicted) ideas
+    are published with an "Unverified" badge, so they never reach here.
 
     Applies identically whether the run is backed by a real model or the
     offline deterministic router: the offline backend still drives the same
@@ -296,15 +301,14 @@ def _readiness_blocked(payload: dict[str, Any]) -> bool:
 
 async def _block_for_empty_leaderboard(
     run_id: str,
-    provider: str,
+    built: _BuiltReport,
     emit: EmitFn,
     *,
     db_path: str | None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Record the empty-leaderboard block, mark the run blocked, and emit it."""
-    reason = (
-        "No hypothesis could be published: every idea was either "
-        "contradicted by the evidence or withheld by the safety review."
+    reason = _empty_leaderboard_reason(
+        built.payload["idea_count"], built.exclusion_tally
     )
     store.add_safety_decision(
         store.NewSafetyDecision(

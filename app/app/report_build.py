@@ -17,7 +17,9 @@ from app.elo import live_leaderboard, rank_for_publication
 from app.knowledge_facts import derive_knowledge_facts
 from app.report_content import (
     _agent_insights,
+    _contradicted_hypothesis_ids,
     _exclude_unsafe_hypotheses,
+    _exclusion_tally,
     _idea_buckets,
     _knowledge_base_topics,
     _released_claim_evidence,
@@ -127,6 +129,12 @@ class _ReportData(NamedTuple):
     # run. Nothing new is written for the report; this reads what
     # ``retrieval_calls`` already has.
     retrieval_calls: list[dict[str, Any]]
+    # Why each hypothesis NOT in ``hyps`` left the ranked report (review
+    # rejection, duplication, contradiction, or a safety hold), computed
+    # once here from the same data ``_exclude_unsafe_hypotheses`` used --
+    # never by re-running that gate, whose legacy fallback path can write
+    # an audit row as a side effect.
+    exclusion_tally: dict[str, int]
 
 
 class _BuiltReport(NamedTuple):
@@ -138,11 +146,16 @@ class _BuiltReport(NamedTuple):
         facts: Durable knowledge-base rows derived from this run's claim-
             evidence graph (audit G14), persisted once the report actually
             publishes; see ``report_render._publish_report``.
+        exclusion_tally: Why each non-published hypothesis left the ranked
+            report (see ``_ReportData.exclusion_tally``), kept off the JSON
+            payload since it exists only to compose the empty-leaderboard
+            block reason -- see ``report_render._block_for_empty_leaderboard``.
     """
 
     payload: dict[str, Any]
     markdown: str
     facts: list[dict[str, Any]]
+    exclusion_tally: dict[str, int]
 
 
 async def _build_report_content(
@@ -177,6 +190,7 @@ async def _build_report_content(
         # knowledge base records everything the run found (see
         # app.knowledge_facts).
         facts=derive_knowledge_facts(data.claim_edges),
+        exclusion_tally=data.exclusion_tally,
     )
 
 
@@ -258,6 +272,10 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     )
     evidence = store.list_evidence(run_id, db_path=db_path)
     released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
+    # Derived here from the same inputs the gate above just used, rather
+    # than by re-running it: its legacy fallback path writes an audit row
+    # as a side effect, so calling it twice would double that row.
+    contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
     # The payload wants two numbers, and one of them is already in hand:
     # ``summary_counts`` exists to avoid materializing tables the caller has,
     # and asking it here re-counted evidence beside three tables the report
@@ -275,6 +293,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
         # full/simulation/recurrent results (audit E1).
         reviews=store.list_reviews(run_id, db_path=db_path),
         retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
+        exclusion_tally=_exclusion_tally(all_hyps, hyps, contradicted),
     )
 
 

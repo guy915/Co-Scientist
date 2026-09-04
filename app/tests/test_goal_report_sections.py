@@ -1,4 +1,9 @@
-"""Tests for evidence-derived Goal Report sections."""
+"""Tests for evidence-derived Goal Report sections.
+
+The empty-leaderboard blocked-run reason (``_empty_leaderboard_reason``)
+moved to ``test_goal_report_empty_leaderboard.py`` when this file passed
+the module-size budget.
+"""
 
 from app import report_markdown, report_render, store
 from tests._drain_helpers import _build_report

@@ -1,11 +1,13 @@
-"""Engine-drain tests for pre-tournament safety and rank-and-publish gating.
+"""Engine-drain tests for rank-and-publish gating.
 
-Split out of ``test_engine_drain.py`` by concern. These cover the drain's
-per-hypothesis safety screen (writing ``safety_status`` and audit rows before
-finalize), the rank-and-publish split of contradicted versus merely
-unverified ideas, and the persisted-status gate that decides which drained
-ideas the report may publish at all. The PARITY-cited synthesis-exclusion
-case stays in ``test_engine_drain.py``.
+Split out of ``test_engine_drain.py`` by concern. These cover the
+rank-and-publish split of contradicted versus merely unverified ideas and
+the persisted-status gate that decides which drained ideas the report may
+publish at all. The PARITY-cited synthesis-exclusion case stays in
+``test_engine_drain.py``; the drain's per-hypothesis safety screen (writing
+``safety_status`` and held-review audit rows before finalize) moved to
+``test_engine_drain_hypothesis_screening.py`` when this file passed the
+module-size budget.
 """
 
 from __future__ import annotations
@@ -19,7 +21,6 @@ from co_scientist import models as engine_models
 from app import engine_adapter, report_render, store
 from tests._drain_helpers import (
     _final_state_with_lineage,
-    _held_final_state,
     _persist_and_finalize,
 )
 
@@ -191,144 +192,6 @@ def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
     assert unverified == {insufficient_id}
 
 
-def _screening_hypothesis(hyp_id: str, text: str) -> dict[str, Any]:
-    """A minimal engine hypothesis carrying every field the drain reads."""
-    return {
-        "id": hyp_id,
-        "text": text,
-        "parent_id": None,
-        "generation": 0,
-        "origin": "generation",
-        "elo_rating": 1200,
-        "win_count": 0,
-        "loss_count": 0,
-        "reviews": [],
-        "citation_map": {},
-        "evolution_history": [],
-        "deep_verification_probes": [],
-        "deep_verification_verdict": None,
-    }
-
-
-def _screening_state() -> dict[str, Any]:
-    """A final state with one safe and one unsafe hypothesis to screen."""
-    return {
-        "hypotheses": [
-            _screening_hypothesis(
-                "safe-1",
-                "Inhibiting kinase X reduces AML growth via apoptosis.",
-            ),
-            _screening_hypothesis(
-                "unsafe-1",
-                "Weaponize the pathogen to enhance transmissibility.",
-            ),
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "evolution_details": [],
-        "research_overview": {},
-    }
-
-
-def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
-    """The drain persists each hypothesis's safety_status and blocks unsafe.
-
-    Milestone 6/M9: the per-hypothesis safety screen runs inside the drain
-    (before the report is built), so an unsafe hypothesis is marked and audited
-    at persistence time -- not only filtered out later at report synthesis.
-    """
-    run = store.create_run("safety goal", "standard", "engine", {})
-    state = _screening_state()
-
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
-
-    # safety_status is persisted for every hypothesis by the drain itself.
-    by_text = {h["statement"][:8]: h for h in store.list_hypotheses(run.id)}
-    assert by_text["Inhibiti"]["safety_status"] == "allow"
-    assert by_text["Weaponiz"]["safety_status"] == "prohibited"
-
-    # A blocking audit row was recorded during the drain (pre-finalize).
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
-    assert any(
-        d["stage"] == "hypothesis" and d["decision"] == "block"
-        for d in decisions
-    )
-
-
-def test_drain_persists_held_hypotheses_as_reviewable_decisions(
-    isolated_db: str,
-) -> None:
-    """Held UNCERTAIN hypotheses survive the drain as adjudicable decisions.
-
-    The engine's safety screen holds UNCERTAIN hypotheses out of the pool in
-    ``held_for_review``; the drain must persist each one as a ``hold``
-    decision at the hypothesis stage, carrying the screen's rationale and
-    enough of the idea to display -- otherwise the hold vanishes at the app
-    boundary and no person can ever inspect or adjudicate it.
-    """
-    run = store.create_run("held hypotheses goal", "standard", "engine", {})
-
-    engine_adapter._persist_final_state(
-        run_id=run.id,
-        final_state=_held_final_state(),
-        db_path=isolated_db,
-    )
-
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
-    holds = [d for d in decisions if d["decision"] == "hold"]
-    assert len(holds) == 2
-    for row in holds:
-        # The shape the adjudication path requires: a reviewable decision
-        # that no resolution has touched yet.
-        assert row["stage"] == "hypothesis"
-        assert row["requires_review"] is True
-        assert row["resolution"] is None
-        assert row["policy_version"] == "coscientist-safety-v5"
-        assert row["matches"] == ["for research purposes only"]
-        # Identity + rationale: the engine's reason and the held idea's text.
-        assert "uncertain" in row["reason"]
-        assert "obfuscated intent" in row["reason"]
-    reasons = " ".join(row["reason"] for row in holds)
-    assert "held-1" in reasons and "held-2" in reasons
-    assert "enhance pathogen transmissibility" in reasons
-    assert "toxin production line" in reasons
-    # The held ideas never got hypothesis rows -- the engine kept them out
-    # of the pool -- so the decision row is the only record of them.
-    assert [h["id"] for h in store.list_hypotheses(run.id)] == ["safe-1"]
-
-
-def test_drain_records_a_hold_without_an_engine_audit_entry(
-    isolated_db: str,
-) -> None:
-    """A held entry whose audit entry is missing still gets a hold row.
-
-    The engine writes ``held_for_review`` and ``safety_decisions`` in the
-    same node, but the drain must not depend on the join succeeding: a held
-    hypothesis with no matching audit entry records a hold with a fallback
-    rationale rather than being dropped.
-    """
-    run = store.create_run("orphan hold goal", "standard", "engine", {})
-    state = _held_final_state()
-    state["safety_decisions"] = []
-
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
-
-    holds = [
-        d
-        for d in store.list_safety_decisions(run.id, db_path=isolated_db)
-        if d["decision"] == "hold"
-    ]
-    assert len(holds) == 2
-    for row in holds:
-        assert row["requires_review"] is True
-        assert row["reason"]
-
-
 def test_gate_reports_exclusions_once_and_at_info(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -356,7 +219,12 @@ def test_gate_reports_exclusions_once_and_at_info(
 def test_gate_warns_when_it_excludes_everything(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Nothing left to synthesize is the outcome worth a warning."""
+    """Nothing left to synthesize is the outcome worth a warning.
+
+    This hypothesis has no persisted review disposition or safety_status
+    (a legacy row), so it is excluded through the gate's own re-review
+    fallback -- a genuine safety exclusion, and the warning must say so.
+    """
     run = store.create_run("gate empty", "standard", "engine", {})
     store.add_hypothesis(
         store.NewHypothesis(
@@ -376,7 +244,38 @@ def test_gate_warns_when_it_excludes_everything(
     assert kept == []
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
-    assert "no ideas" in warnings[0].getMessage()
+    message = warnings[0].getMessage()
+    assert "no ideas" in message
+    assert "safety review" in message
+    assert "peer review" not in message
+
+
+def test_gate_warning_names_review_rejection_not_safety(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A review-rejected pool warns about peer review, never safety.
+
+    Unlike the legacy-fallback case above, a hypothesis already carrying a
+    persisted ``status="rejected"`` (the engine's own blocking review
+    disposition) is excluded on that status alone -- the gate never
+    re-reviews it, and the warning must not imply it did.
+    """
+    hyps = [
+        {"id": "h1", "status": "rejected", "statement": "Idea one."},
+        {"id": "h2", "status": "rejected", "statement": "Idea two."},
+    ]
+
+    with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
+        kept = report_render._exclude_unsafe_hypotheses(
+            "run-review-rejected", hyps, None, claim_edges=[]
+        )
+
+    assert kept == []
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert "peer review" in message
+    assert "safety review" not in message
 
 
 def _drained_status(
@@ -463,6 +362,13 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     entirely by writing their report row directly (see ``seed.py``); an
     ad-hoc offline run reaches the same ``finalize_report`` path a real run
     does.
+
+    This is production run 44e848fb reproduced: no safety_status was ever
+    set (safety screened 0 blocked) and no claim-evidence edges exist
+    (grounding assessed nothing) -- every idea left the report solely
+    because the initial review gate rejected it. The blocked reason must
+    name that, not the safety review or a contradiction neither pipeline
+    ever ran.
     """
     state = _final_state_with_lineage()
     for hypothesis in state["hypotheses"]:
@@ -481,3 +387,7 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     assert settled is not None
     assert settled.status == store.RunStatus.BLOCKED.value
     assert store.get_latest_report(run.id, db_path=isolated_db) is None
+    assert settled.error is not None
+    assert "peer review" in settled.error
+    assert "safety review" not in settled.error
+    assert "contradicted" not in settled.error

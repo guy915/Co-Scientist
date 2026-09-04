@@ -19,7 +19,13 @@ from app.report_content_gates import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
 )
 from app.report_content_gates import (
+    _empty_leaderboard_reason as _empty_leaderboard_reason,
+)
+from app.report_content_gates import (
     _exclude_unsafe_hypotheses as _exclude_unsafe_hypotheses,
+)
+from app.report_content_gates import (
+    _exclusion_tally as _exclusion_tally,
 )
 from app.report_content_gates import (
     _hypothesis_passes_safety_gate as _hypothesis_passes_safety_gate,
@@ -335,32 +341,42 @@ def _high_potential_bucket(
 def _non_viable_reasons(
     hypothesis: dict[str, Any], edge_reasons: dict[str, set[str]]
 ) -> list[str]:
-    """Return the excluded-idea reasons for one non-viable hypothesis."""
+    """Return the excluded-idea reasons for one non-viable hypothesis.
+
+    Checks status first, then a contradicting claim, then a blocking
+    safety status -- the same precedence
+    ``_hypothesis_passes_safety_gate`` uses to decide exclusion in the
+    first place (see ``_exclusion_cause``, its analogous classifier for
+    the run-level blocked reason). An idea that is both status-rejected
+    and contradicted was excluded by the gate for its status, since the
+    gate never reaches the contradiction check for it; reporting evidence
+    or safety ahead of status here made the per-idea reason and the
+    run's blocked reason name two different causes for the very same
+    exclusion.
+
+    Review rejection and deduplication are reported apart. Merging them
+    told a scientist their idea had failed peer review when it had only
+    been folded into a higher-ranked idea saying the same thing.
+    """
+    if hypothesis.get("status") == "duplicate":
+        return [
+            "Folded into a higher-ranked idea that makes the same proposal."
+        ]
+    if hypothesis.get("status") == "rejected":
+        return [
+            "Set aside during review: the reviewer judged it scientifically"
+            " unsound or already established (a reviewer's own judgment,"
+            " not a literature search)."
+        ]
+    # Under rank-and-publish an idea only leaves the ranked report when it
+    # is contradicted (an edge reason below), blocked by safety, set aside
+    # during review, or deduplicated -- never for being merely unsupported
+    # (those are published and badged "Unverified") and never for scoring
+    # weakly (those rank and publish as "needs_revision").
     hypothesis_id = str(hypothesis.get("id"))
     reasons = sorted(edge_reasons.get(hypothesis_id, set()))
     if is_blocking_status(str(hypothesis.get("safety_status") or "")):
         reasons.append("The scientific safety review blocked this idea.")
-    # Under rank-and-publish an idea only leaves the ranked report when it
-    # is contradicted (an edge reason above), blocked by safety, set aside
-    # during review, or deduplicated -- never for being merely unsupported
-    # (those are published and badged "Unverified") and never for scoring
-    # weakly (those rank and publish as "needs_revision").
-    #
-    # Review rejection and deduplication are reported apart. Merging them
-    # told a scientist their idea had failed peer review when it had only
-    # been folded into a higher-ranked idea saying the same thing.
-    if reasons:
-        return reasons
-    if hypothesis.get("status") == "duplicate":
-        reasons.append(
-            "Folded into a higher-ranked idea that makes the same proposal."
-        )
-    elif hypothesis.get("status") == "rejected":
-        reasons.append(
-            "Set aside during review: the reviewer judged it scientifically"
-            " unsound or already established (a reviewer's own judgment,"
-            " not a literature search)."
-        )
     return reasons
 
 
