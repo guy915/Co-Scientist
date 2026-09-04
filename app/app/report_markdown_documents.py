@@ -1,23 +1,20 @@
-"""Assembles the two Goal Report documents from their rendered sections.
+"""Assembles the Goal Report document from its rendered sections.
 
-R14-11: a single run publishes two separately-purposed documents, not
-one -- ``research-overview.md`` (meta-review-style synthesis) and
-``top-ranking-hypotheses.md`` (tournament/ranking comparison), read from
-``docs/CORPUS-EXTRACTION.md``'s R14-11/R14-1 (the six/three named sections
-per document) and R14-3/R14-4/R14-9 (what else each carries). Both
-documents get the run's Research Goal Details and provenance line -- the
-corpus attests a goal opens both (R14-3) -- but the ranking document's
-"Goal:" line carries a freshly synthesized narrative restatement instead of
-the raw goal both documents used to render identically (R14-3, see
-``report_goal_synthesis.py``). R14-9: the two documents also genuinely
-differ on Evaluation Criteria -- the overview renders ``critical_criteria``
-as bolded-name-plus-prose (matching MASH's own combined report, this
-repo's other fully-mirrored exemplar), the ranking document renders the
-same data as a Criterion/Importance table (matching the protein-
-assemblies ranking report's own exemplar) -- see
-``report_markdown_supervisor.py``. Anything the corpus does not name for
-either document defaults to the overview document, as the more general
-of the two.
+R14-11 split a run's report into two separately-purposed documents
+(``research-overview.md`` and ``top-ranking-hypotheses.md``). That split
+was reversed 2026-09-04: the owner's product-UI evidence (the published
+screen recordings show four run-detail tabs, not five, and one combined
+document) showed the split inverted a section that belonged inside the
+single document rather than attesting a genuine second document -- see
+docs/PARITY.md's REPORT-DOCUMENT-SPLIT-001 row and
+docs/CORPUS-STATUS.md's R14-11 entry. This module now renders that one
+document again, in the skeleton the pre-split renderer used
+(``git show 078f96b1~1:app/app/report_markdown.py``), with every section
+the split era added folded back in at the position that era itself
+established for it: the R14-27 narrative directions synthesis immediately
+before the full hypothesis write-up (its own published "before Candidate
+Ideas" placement), the meta-review's tournament-facing half after that
+write-up, and the run-wide References list last.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
 every name is re-exported so its namespace keeps resolving.
@@ -31,16 +28,13 @@ from typing import Any
 from app.report_markdown_bibliography import _render_references_section
 from app.report_markdown_header import (
     _render_about_disclosure,
+    _render_provenance_line,
     _render_research_goal_details,
     _render_summary_section,
     _render_title_and_provider,
 )
-from app.report_markdown_header import (
-    _render_provenance_line as _render_provenance_line,
-)
 from app.report_markdown_hypothesis import (
     _render_hypothesis_entry,
-    _render_top_ranking_hypotheses_list,
     _reviews_by_hypothesis,
 )
 from app.report_markdown_knowledge_base import _render_knowledge_base_markdown
@@ -54,7 +48,6 @@ from app.report_markdown_references import references_by_hypothesis
 from app.report_markdown_sources import _render_data_sources_section
 from app.report_markdown_supervisor import (
     _render_evaluation_criteria_markdown,
-    _render_evaluation_criteria_table_markdown,
     _render_review_summary_markdown,
     _render_stratification_attributes_markdown,
 )
@@ -162,7 +155,7 @@ def _render_citation_audit(
 
 @dataclasses.dataclass(frozen=True)
 class ReportMarkdownInputs:
-    """Everything the report markdown documents render from.
+    """Everything the report markdown document renders from.
 
     The prose counterpart of ``report_markdown.ReportPayloadInputs``: the
     same run identity plus the already-ranked hypotheses and the sections
@@ -187,18 +180,16 @@ class ReportMarkdownInputs:
     # conflate them under one heading.
     attributes: list[dict[str, Any]] | None = None
     # The Supervisor's synthesized per-goal evaluation criteria
-    # (workflow_plan.review_phase.critical_criteria), rendered as three
-    # sections: "Evaluation Criteria" (bolded-name-plus-prose, R12-18/
-    # R12-23b), the R14-9 Criterion/Importance table (the same data, on
-    # the ranking document only), and "Review Summary" (numbered, with
-    # each criterion's named reviewer questions -- R12-23). A different,
-    # LLM-synthesized field from setup["criteria"] above -- same English
-    # word, differently-shaped published sections (docs/CORPUS-
-    # EXTRACTION.md R12-18, R12-23); do not conflate them under one
-    # heading. Each entry is the legacy bare criterion-name string, the
-    # R12-23 {name, questions} object, or the richer R12-23b {name,
-    # description, questions} object; all three renderers in
-    # report_markdown_supervisor.py handle every shape.
+    # (workflow_plan.review_phase.critical_criteria), rendered as both
+    # "Evaluation Criteria" (bolded-name-plus-prose, R12-18/R12-23b) and
+    # "Review Summary" (numbered, with each criterion's named reviewer
+    # questions -- R12-23). A different, LLM-synthesized field from
+    # setup["criteria"] above -- same English word, differently-shaped
+    # published sections (docs/CORPUS-EXTRACTION.md R12-18, R12-23); do
+    # not conflate them under one heading. Each entry is the legacy bare
+    # criterion-name string, the R12-23 {name, questions} object, or the
+    # richer R12-23b {name, description, questions} object; both
+    # renderers in report_markdown_supervisor.py handle every shape.
     critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
@@ -223,35 +214,32 @@ class ReportMarkdownInputs:
     # This run's hypothesis titles by id, for a contact group's example
     # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id.
     hypothesis_title_by_id: dict[str, str] | None = None
-    # R14-3: a freshly synthesized narrative restatement of the goal, used
-    # only on the ranking document's "Goal:" line in place of the raw
-    # ``research_goal`` -- see report_goal_synthesis.py. None (generation
-    # unavailable, or not attempted) falls back to the raw goal, the same
-    # text the overview document always renders.
-    goal_restatement: str | None = None
 
 
-def _overview_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
-    """The Research Overview document's sections, each its own list.
-
-    One section per possible ``## `` heading -- split apart (rather than
-    one concatenated ``lines`` list) so
-    :func:`render_overview_document_markdown` can hand the same sections
-    to the R14-1 table of contents that it renders with, instead of
-    re-deriving which ones are populated.
-    """
+def _report_sections_goal_and_criteria(
+    inputs: ReportMarkdownInputs,
+) -> list[list[str]]:
+    """Goal details through the earlier meta-review insights section."""
     return [
         _render_research_goal_details(inputs.research_goal, inputs.setup),
         _render_provenance_line(inputs.prepared_at),
         _render_summary_section(inputs.summary),
-        # "Review guidelines" (R14-1's own name for this document's second
-        # section): the Supervisor's synthesized rating/criteria guidance
-        # for reviewers, kept together as one module's output rather than
-        # split across documents (Evaluation Criteria + Stratification
-        # Attributes here, Review Summary further down at its R12-23 slot).
         _render_evaluation_criteria_markdown(inputs.critical_criteria),
         _render_stratification_attributes_markdown(inputs.attributes),
         _render_meta_review_overview_markdown(inputs.meta_review or {}),
+    ]
+
+
+def _report_sections_overview_and_directions(
+    inputs: ReportMarkdownInputs,
+) -> list[list[str]]:
+    """Sections 10-12: research-overview sub-sections through directions.
+
+    The Review Summary, then R14-27's narrative directions synthesis --
+    immediately before Top hypotheses, R14-27's own published "before
+    Candidate Ideas" placement.
+    """
+    return [
         # R14-1: each of the research-overview's own four sub-sections
         # travels as its own entry rather than the one flattened list
         # ``render_research_overview_markdown`` returns, so a report that
@@ -261,43 +249,17 @@ def _overview_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
             inputs.research_overview or {}, inputs.hypothesis_title_by_id
         ),
         # R12-23: the published "Review summary" sits right after the
-        # research directions and before "Knowledge Base" -- the same
-        # slot here.
+        # research directions and before the full hypothesis write-up.
         _render_review_summary_markdown(inputs.critical_criteria),
-        # R11-4/R14-1: this document's own "Top ranking hypotheses" is a
-        # titles-only list, not the full per-idea write-up -- that lives on
-        # the ranking document (see ``_ranking_sections`` below).
-        _render_top_ranking_hypotheses_list(inputs.top_hypotheses),
-        _render_knowledge_base_markdown(inputs.knowledge_base or []),
-        _render_data_sources_section(
-            inputs.skills_used or {}, inputs.retrieval_calls or []
-        ),
-        # R12-12: the run-wide bibliography, deduplicated -- see
-        # report_markdown_bibliography.py for placement and dedup
-        # rationale. Sits last, matching the published MASH report's own
-        # References span running to the end of the document.
-        _render_references_section(inputs.evidence or []),
+        _render_main_research_directions_markdown(inputs.meta_review or {}),
     ]
 
 
-def _ranking_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
-    """The Top Ranking Hypotheses document's sections, each its own list."""
+def _report_sections_ideas_and_sources(
+    inputs: ReportMarkdownInputs,
+) -> list[list[str]]:
+    """The full per-idea write-up through the run-wide References list."""
     return [
-        _render_research_goal_details(
-            inputs.research_goal, inputs.setup, inputs.goal_restatement
-        ),
-        _render_provenance_line(inputs.prepared_at),
-        # R14-9: the published order is Research Goal -> Evaluation
-        # Criteria -> Main Research Directions -> Candidate Ideas.
-        _render_evaluation_criteria_table_markdown(inputs.critical_criteria),
-        # R14-27: the narrative directions synthesis -- see
-        # _render_main_research_directions_markdown for why this is a
-        # separate call rather than folded into
-        # _render_meta_review_ranking_markdown below, which renders after
-        # Candidate Ideas, not before it.
-        _render_main_research_directions_markdown(inputs.meta_review or {}),
-        # "Candidate Ideas": the full per-idea write-up, the compared
-        # candidates the rest of this document's sections evaluate.
         _render_top_hypotheses_markdown(
             inputs.top_hypotheses,
             inputs.claim_evidence or [],
@@ -306,14 +268,43 @@ def _ranking_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
             inputs.reviews or [],
         ),
         # "Idea Comparison Table" / "Comparison with Existing Solutions" /
-        # "Recommendation" (R14-7/R14-8).
+        # "Recommendation" (R14-7/R14-8) -- the tournament-facing half of
+        # the meta-review's synthesis, evaluating the candidates just
+        # rendered above.
         _render_meta_review_ranking_markdown(inputs.meta_review or {}),
+        _render_knowledge_base_markdown(inputs.knowledge_base or []),
+        _render_data_sources_section(
+            inputs.skills_used or {}, inputs.retrieval_calls or []
+        ),
         _render_citation_audit(inputs.citation_summary),
+        # R12-12: the run-wide bibliography, deduplicated -- see
+        # report_markdown_bibliography.py for placement and dedup
+        # rationale. Sits last, matching the published MASH report's own
+        # References span running to the end of the document.
+        _render_references_section(inputs.evidence or []),
     ]
 
 
-def render_overview_document_markdown(inputs: ReportMarkdownInputs) -> str:
-    """Render the Research Overview document (R14-11).
+def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
+    """Every section below the title/About/table-of-contents, in order.
+
+    One section per possible ``## `` heading -- split apart (rather than
+    one concatenated ``lines`` list) so :func:`render_report_markdown` can
+    hand the same sections to the R14-1 table of contents that it renders
+    with, instead of re-deriving which ones are populated. Grouped into
+    three helpers (goal/criteria, overview/directions, ideas/sources) to
+    stay under this module's own function-length cap; the grouping is
+    presentational only -- callers see one flat, ordered list.
+    """
+    return [
+        *_report_sections_goal_and_criteria(inputs),
+        *_report_sections_overview_and_directions(inputs),
+        *_report_sections_ideas_and_sources(inputs),
+    ]
+
+
+def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
+    """Render a run's Goal Report markdown from one skeleton for every provider.
 
     Sections populate only when their data is present, so a provider that
     omits meta-review, citations, or a research overview simply skips those
@@ -329,34 +320,11 @@ def render_overview_document_markdown(inputs: ReportMarkdownInputs) -> str:
         The rendered markdown document.
     """
     title_lines = _render_title_and_provider(
-        inputs.research_goal, inputs.provider, title="Research Overview"
+        inputs.research_goal, inputs.provider
     )
     about_lines = _render_about_disclosure()
-    sections = _overview_sections(inputs)
+    sections = _report_sections(inputs)
     lines = title_lines + about_lines + _render_table_of_contents(sections)
     for section in sections:
-        lines += section
-    return "\n".join(lines)
-
-
-def render_ranking_document_markdown(inputs: ReportMarkdownInputs) -> str:
-    """Render the Top Ranking Hypotheses document (R14-11).
-
-    No table of contents: nothing in the corpus attests one on this
-    document (R14-1 names it only on the Research Overview document).
-
-    Args:
-        inputs: The run identity, top hypotheses, and rendered sections.
-
-    Returns:
-        The rendered markdown document.
-    """
-    title_lines = _render_title_and_provider(
-        inputs.research_goal,
-        inputs.provider,
-        title="Top Ranking Hypotheses",
-    )
-    lines = list(title_lines)
-    for section in _ranking_sections(inputs):
         lines += section
     return "\n".join(lines)

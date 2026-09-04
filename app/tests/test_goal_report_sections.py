@@ -251,7 +251,7 @@ def test_insights_and_markdown_show_one_statement_per_idea() -> None:
     }
 
     insights = report_render._agent_insights([hypothesis], [], {})
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -288,7 +288,7 @@ def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> (
         "mechanism": "The enzyme is allosterically inhibited by its product.",
     }
 
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -320,7 +320,7 @@ def test_markdown_renders_the_proposers_safety_and_toxicity_section() -> None:
         ),
     }
 
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -340,7 +340,7 @@ def test_markdown_omits_safety_and_toxicity_when_absent() -> None:
         "statement": "Blocking the loop raises the steady-state flux.",
     }
 
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -359,7 +359,7 @@ def test_markdown_omits_scene_setting_sections_when_absent() -> None:
         "statement": "Blocking the loop raises the steady-state flux.",
     }
 
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",

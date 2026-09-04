@@ -16,7 +16,6 @@ const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
   details: {icon: 'assignment', label: 'Goal Details'},
   learning: {icon: 'menu_book', label: 'Learning'},
   overview: {icon: 'summarize', label: 'Research Overview'},
-  ranking: {icon: 'emoji_events', label: 'Top Ranking Hypotheses'},
   ideas: {icon: 'lightbulb', label: 'All Ideas'},
 };
 
@@ -53,23 +52,9 @@ const REPORT_TITLE_CLASSES =
 const REPORT_TITLE_TEXT_CLASSES =
   'block min-w-0 overflow-hidden whitespace-nowrap';
 
-const REPORT_TABS_BASE_CLASSES =
-  'reference-report-tabs grid border-b border-cosci-border ' +
+const REPORT_TABS_CLASSES =
+  'reference-report-tabs grid grid-cols-4 border-b border-cosci-border ' +
   'max-[700px]:min-w-0 max-[700px]:overflow-x-hidden';
-
-// Column count tracks how many tabs actually render (four for an old
-// single-document run, five once the R14-11 ranking tab joins them) --
-// literal Tailwind classes, not a template string, so the static class
-// scan that builds the CSS bundle still finds them.
-const REPORT_TABS_COLUMN_CLASSES: Record<number, string> = {
-  4: 'grid-cols-4',
-  5: 'grid-cols-5',
-};
-
-function reportTabsClasses(count: number): string {
-  const columns = REPORT_TABS_COLUMN_CLASSES[count] ?? 'grid-cols-4';
-  return `${REPORT_TABS_BASE_CLASSES} ${columns}`;
-}
 
 // The tabs are anchors (so a middle/cmd-click opens the tab in a new browser
 // tab), hence the explicit no-underline: everything else here matches the
@@ -236,10 +221,7 @@ export function ReportTabNav({
   // its call site) stays as it was.
   const {id} = useParams<{id: string}>();
   return (
-    <nav
-      className={reportTabsClasses(tabs.length)}
-      aria-label="Goal report sections"
-    >
+    <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
       {tabs.map(tabName => (
         <Link
           key={tabName}

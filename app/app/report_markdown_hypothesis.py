@@ -267,12 +267,12 @@ def _render_hypothesis_entry(
     R14-12: the title is bold and product-prefixed, mirroring Google's
     ``# **<Product> - <Title>**`` shape with this system's own name in
     place of Google's. The heading level stays ``###`` rather than
-    Google's H1 -- this entry is a subsection of the Top Ranking
-    Hypotheses document's own ``## Top hypotheses`` section (R14-11), not
-    a standalone per-hypothesis document, and promoting it to H1 would
-    break the document's own heading hierarchy without making it any more
-    like Google's actual per-file shape (see R14-26, still a DECISION, on
-    whether a per-hypothesis document ever exists here at all).
+    Google's H1 -- this entry is a subsection of the Goal Report's own
+    ``## Top hypotheses`` section, not a standalone per-hypothesis
+    document, and promoting it to H1 would break the document's own
+    heading hierarchy without making it any more like Google's actual
+    per-file shape (see R14-26, still a DECISION, on whether a
+    per-hypothesis document ever exists here at all).
     """
     title = hypothesis_title(hyp)
     lines = [
@@ -306,26 +306,4 @@ def _render_hypothesis_entry(
     lines += _render_hypothesis_verdict(reviews)
     lines += _render_hypothesis_simulation_review(reviews)
     lines += _render_claim_evidence(edges)
-    return lines
-
-
-def _render_top_ranking_hypotheses_list(
-    top_hypotheses: list[dict[str, Any]],
-) -> list[str]:
-    """Render the Research Overview document's compact hypothesis list.
-
-    R14-11/R14-1: the Research Overview document's own "Top ranking
-    hypotheses" section is a titles-only list referencing hypothesis IDs
-    (R11-4), distinct from the full per-idea write-up ("## Top
-    hypotheses") that renders on the Top Ranking Hypotheses document
-    instead (``_render_top_hypotheses_markdown`` in ``report_markdown.py``).
-    Same ranked order, same data -- just titles, so a reader on this
-    document knows what was compared without duplicating the full cards.
-    """
-    titles = [hypothesis_title(hyp) for hyp in top_hypotheses if hyp.get("id")]
-    if not titles:
-        return []
-    lines = ["\n## Top ranking hypotheses\n"]
-    lines += [f"{i}. {title}" for i, title in enumerate(titles, 1)]
-    lines.append("")
     return lines

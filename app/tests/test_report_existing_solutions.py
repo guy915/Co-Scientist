@@ -23,7 +23,7 @@ def _markdown(meta_review: dict[str, object]) -> str:
         "title": "NHE1 coupling",
         "statement": "NHE1 couples to the RSK axis in HFpEF.",
     }
-    return report_markdown.render_ranking_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

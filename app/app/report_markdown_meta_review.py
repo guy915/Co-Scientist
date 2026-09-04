@@ -1,15 +1,19 @@
 """Report section rendering the meta-review's cross-hypothesis synthesis.
 
 Split out of ``report_markdown`` to keep that module within the size cap.
-Renders the "## Meta-review insights" heading on each of the two documents
-R14-11 splits the report into: ``_render_meta_review_overview_markdown``
-(Research Overview document) covers common strengths and weaknesses as
-plain bullets, recurring themes (theme + description + frequency, the
-taxonomy MO-2 stopped discarding before it reached this module -- see
-``_render_theme``) falling back to a bare-name bullet list when only the
-flattened ``emerging_themes`` shape is present, and unexpected connections
-(R12-7); ``_render_meta_review_ranking_markdown`` (Top Ranking Hypotheses
-document) covers the candidate/existing-solutions comparisons and the
+Renders two sections of the single Goal Report document (the R14-11
+two-document split was reversed 2026-09-04 -- see docs/PARITY.md's
+REPORT-DOCUMENT-SPLIT-001 row): ``_render_meta_review_overview_markdown``
+("## Meta-review insights", positioned before the research-overview
+sub-sections) covers common strengths and weaknesses as plain bullets,
+recurring themes (theme + description + frequency, the taxonomy MO-2
+stopped discarding before it reached this module -- see ``_render_theme``)
+falling back to a bare-name bullet list when only the flattened
+``emerging_themes`` shape is present, and unexpected connections (R12-7);
+``_render_meta_review_ranking_markdown`` ("## Comparison and
+Recommendation", positioned after Top hypotheses -- a distinct heading
+from the overview half's, so one document with both populated never
+repeats an H2) covers the candidate/existing-solutions comparisons and the
 strategic recommendation roadmap.
 
 R12-7's published exemplar tags each connection with four fixed fields --
@@ -341,13 +345,13 @@ def _render_unexpected_connections(connections: list[Any]) -> list[str]:
 def _render_main_research_directions_markdown(
     meta_review: dict[str, Any],
 ) -> list[str]:
-    """Render the ranking document's "Main Research Directions" (R14-27).
+    """Render "Main Research Directions" (R14-27), right before Top hypotheses.
 
     Google's published ranking report carries its own narrative synthesis
     here -- two flowing prose paragraphs weaving the run's directions
     together (``top-ranking-hypotheses.md:24-28``), distinct from the
-    itemized per-direction array the Research Overview document renders
-    (``report_markdown_overview.py::_render_directions_list``). The
+    itemized per-direction array the earlier research-overview sub-sections
+    render (``report_markdown_overview.py::_render_directions_list``). The
     ``meta_review.main_research_directions`` string already carries any
     internal paragraph break the model wrote (schemas/meta_review_schema.py
     asks for two, separated by a blank line), so this renders it verbatim
@@ -366,57 +370,67 @@ def _render_main_research_directions_markdown(
 def _render_meta_review_overview_markdown(
     meta_review: dict[str, Any],
 ) -> list[str]:
-    """Render the Research Overview document's meta-review insights.
+    """Render the report's earlier meta-review insights section.
 
-    R14-11: cross-run synthesis -- common strengths/weaknesses, recurring
-    themes, and unexpected connections -- belongs on ``research-overview.md``
-    ("meta-review-style synthesis"), which names "Unexpected connections"
-    directly as one of its own six sections. The tournament-facing half of
-    this same payload (candidate comparison, existing-solutions comparison,
-    the recommendation roadmap) renders separately, on the ranking document
-    -- see ``_render_meta_review_ranking_markdown``.
+    Cross-run synthesis -- common strengths/weaknesses, recurring themes,
+    and unexpected connections -- positioned before the research-overview
+    sub-sections, matching Google's own "meta-review-style synthesis"
+    placement. The tournament-facing half of this same payload (candidate
+    comparison, existing-solutions comparison, the recommendation roadmap)
+    renders separately, under its own heading further down -- see
+    ``_render_meta_review_ranking_markdown``.
+
+    A truthy ``meta_review`` dict with nothing this half renders (every
+    field belongs to the other half instead) emits no heading -- R14-23:
+    no section prints an empty heading over nothing.
     """
     if not meta_review:
         return []
-    lines = ["\n## Meta-review insights\n"]
-    lines += _render_optional_paragraph(meta_review.get("summary"))
+    body: list[str] = []
+    body += _render_optional_paragraph(meta_review.get("summary"))
     for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
-        lines += _render_bullet_list(
-            heading, meta_review.get(section_key) or []
-        )
-    lines += _render_emerging_themes(meta_review)
-    lines += _render_unexpected_connections(
+        body += _render_bullet_list(heading, meta_review.get(section_key) or [])
+    body += _render_emerging_themes(meta_review)
+    body += _render_unexpected_connections(
         meta_review.get("potential_connections") or []
     )
-    return lines
+    if not body:
+        return []
+    return ["\n## Meta-review insights\n", *body]
 
 
 def _render_meta_review_ranking_markdown(
     meta_review: dict[str, Any],
 ) -> list[str]:
-    """Render the Top Ranking Hypotheses document's meta-review insights.
+    """Render the report's later, tournament-facing meta-review section.
 
-    R14-11: the tournament/ranking comparison content -- candidate
-    comparison ("Idea Comparison Table"), the existing-solutions comparison,
-    and the recommendation roadmap ("Recommendation") -- are three of that
-    document's own named sections. Kept under the same "Meta-review
-    insights" heading the overview half uses (see
-    ``_render_meta_review_overview_markdown``) rather than promoting each
-    ``###`` to a top-level ``##``: both halves are equally "insights the
-    meta-review agent produced", just addressed to a different document now
-    that there are two, and splitting the heading text as well as the
-    content would be a second, unattested change.
+    The candidate comparison ("Idea Comparison Table"), the existing-
+    solutions comparison, and the recommendation roadmap
+    ("Recommendation") -- positioned after Top hypotheses, the candidates
+    these sections compare. Titled "Comparison and Recommendation" rather
+    than reusing ``_render_meta_review_overview_markdown``'s "Meta-review
+    insights" heading: both halves are equally "insights the meta-review
+    agent produced", but with both now in one document, one heading text
+    stated twice would mislead a reader (and a table-of-contents reader)
+    into thinking the second occurrence repeats the first.
+
+    Same empty-body guard as the overview half, above: a run with a
+    meta-review summary but no tournament comparison (the common case for
+    a small pool) must not leave a bare "Comparison and Recommendation"
+    heading over nothing.
     """
     if not meta_review:
         return []
-    lines = ["\n## Meta-review insights\n"]
-    lines += _render_candidate_comparison(
+    body: list[str] = []
+    body += _render_candidate_comparison(
         meta_review.get("candidate_comparison")
     )
-    lines += _render_existing_solutions_comparison(
+    body += _render_existing_solutions_comparison(
         meta_review.get("existing_solutions_comparison")
     )
-    lines += _render_strategic_recommendations(
+    body += _render_strategic_recommendations(
         meta_review.get("strategic_recommendations") or []
     )
-    return lines
+    if not body:
+        return []
+    return ["\n## Comparison and Recommendation\n", *body]

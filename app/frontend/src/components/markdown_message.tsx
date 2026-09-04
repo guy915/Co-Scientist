@@ -35,16 +35,11 @@ const REHYPE_PLUGINS = [rehypeHighlight];
  * assistant's would: emphasis on the term being asked about, a short list
  * when options are laid out, a table when something is compared.
  *
- * The only other module importing the markdown renderer is
- * `workbench/pages/run_detail_ranking.tsx` (the Top Ranking Hypotheses
- * report tab, R14-11): that document is not a chat turn -- it is
- * multi-section, not streamed, and its h1-h4 headings carry real
- * structural meaning a reader scans by, which this module's deliberately
- * uniform heading style (see `MarkdownHeading` below) is the wrong shape
- * for. Every other surface showing model prose still goes through this
- * one. Raw HTML in the source is *not* rendered: react-markdown ignores
- * it unless `rehype-raw` is added, and it must not be added here, since
- * this renders untrusted model output.
+ * This is the only module that imports the markdown renderer, so the choice
+ * of renderer stays swappable and every surface showing model prose gets
+ * the same typography. Raw HTML in the source is *not* rendered: react-
+ * markdown ignores it unless `rehype-raw` is added, and it must not be
+ * added here, since this renders untrusted model output.
  *
  * User-authored text is deliberately not routed through this. It is input,
  * not model output, and the request bubble's collapse-past-four-lines

@@ -43,12 +43,6 @@ class DemoScenario:
     summary: str
     meta_review: str
     direction: str
-    # The Top Ranking Hypotheses document's own "Goal:" line (R14-3):
-    # authored here, like every other curated field, rather than produced
-    # by ``report_goal_synthesis`` -- see ``seed_scenario._scenario_report_
-    # request``, which threads this straight into the report request
-    # instead of letting the build path call the synthesizer.
-    goal_restatement: str
     duration_seconds: float
     elo_ceiling: int
     elo_step: int

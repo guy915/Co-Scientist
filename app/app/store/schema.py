@@ -273,12 +273,15 @@ CREATE TABLE IF NOT EXISTS reports (
     -- structured report (Overview, Ideas, Tournament, Citations, Safety)
     payload_json TEXT NOT NULL,
     markdown_path TEXT,
-    -- full markdown stored in DB for durability across restarts. Since
-    -- R14-11, this is the Research Overview document; the Top Ranking
-    -- Hypotheses document is markdown_text_ranking. NULL there (a row
-    -- written before that column existed) means this column instead holds
-    -- the older single combined document -- see store/reports.py.
+    -- full markdown (the single Goal Report document) stored in DB for
+    -- durability across restarts.
     markdown_text TEXT,
+    -- Legacy from the R14-11 two-document split, reversed 2026-09-04
+    -- (docs/PARITY.md's REPORT-DOCUMENT-SPLIT-001 row). Never written by
+    -- any code path after the reversal -- kept nullable rather than
+    -- dropped because a forward migration cannot be un-run against the
+    -- production SQLite volume. A row from the split window has its
+    -- second document here; store/reports.py's read path still checks it.
     markdown_text_ranking TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE

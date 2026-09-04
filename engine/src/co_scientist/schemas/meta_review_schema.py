@@ -242,17 +242,16 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                     },
                 }
             ),
-            # R14-27: the ranking document's own "Main Research Directions"
-            # section -- narrative prose weaving the run's directions
-            # together, not a second copy of any itemized array. Google's
-            # published ranking report (top-ranking-hypotheses.md:24-28)
-            # carries exactly two paragraphs, cross-cutting the run's
-            # candidate ideas the way the two comparison fields above
-            # already do -- see report_markdown_meta_review.py for the
-            # render and its placement in _ranking_sections
-            # (report_markdown_documents.py), right after Evaluation
-            # Criteria and before Candidate Ideas, matching the published
-            # order. Required, like meta_review_summary, rather than
+            # R14-27: the report's own "Main Research Directions" section --
+            # narrative prose weaving the run's directions together, not a
+            # second copy of any itemized array. Google's published ranking
+            # report (top-ranking-hypotheses.md:24-28) carries exactly two
+            # paragraphs, cross-cutting the run's candidate ideas the way
+            # the two comparison fields above already do -- see
+            # report_markdown_meta_review.py for the render and its
+            # placement (report_markdown_documents.py), immediately before
+            # Top hypotheses, matching the published "before Candidate
+            # Ideas" order. Required, like meta_review_summary, rather than
             # optional: every run has directions worth naming, so there is
             # no legitimate case for the model to leave this empty by
             # design (contrast existing_solutions_comparison.summary

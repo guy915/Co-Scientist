@@ -24,13 +24,11 @@ from app.report_content import (
     _synthesized_knowledge_base_topics,
     _verified_hypothesis_count,
 )
-from app.report_goal_synthesis import synthesize_goal_restatement
 from app.report_markdown import (
     ReportMarkdownInputs,
     ReportPayloadInputs,
     build_report_payload,
-    render_overview_document_markdown,
-    render_ranking_document_markdown,
+    render_report_markdown,
 )
 
 
@@ -84,13 +82,6 @@ class ReportRequest(NamedTuple):
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
             clock.
-        goal_restatement: A pre-authored narrative restatement of
-            ``research_goal`` for the ranking document's own "Goal:" line
-            (R14-3). None (the default) is a real run, which synthesizes
-            one via ``report_goal_synthesis``; a caller supplies this only
-            to carry curated content straight through, exactly as every
-            other synthesized-looking section here is actually authored
-            for the demo scenarios (see ``seed_scenario.py``).
         db_path: Optional override for the SQLite database path.
     """
 
@@ -109,7 +100,6 @@ class ReportRequest(NamedTuple):
     attributes: list[dict[str, Any]] | None = None
     critical_criteria: list[Any] | None = None
     prepared_at: float | None = None
-    goal_restatement: str | None = None
     db_path: str | None = None
 
 
@@ -144,10 +134,7 @@ class _BuiltReport(NamedTuple):
 
     Attributes:
         payload: The JSON report payload.
-        markdown: The rendered Research Overview document (R14-11).
-        ranking_markdown: The rendered Top Ranking Hypotheses document
-            (R14-11) -- the tournament/ranking comparison, rendered from
-            the same gathered data as ``markdown``.
+        markdown: The rendered Goal Report markdown document.
         facts: Durable knowledge-base rows derived from this run's claim-
             evidence graph (audit G14), persisted once the report actually
             publishes; see ``report_render._publish_report``.
@@ -155,7 +142,6 @@ class _BuiltReport(NamedTuple):
 
     payload: dict[str, Any]
     markdown: str
-    ranking_markdown: str
     facts: list[dict[str, Any]]
 
 
@@ -177,30 +163,15 @@ async def _build_report_content(
         The report payload and its rendered markdown.
     """
     data = _gather_report_data(run_id, req.db_path)
-    # Computed once and handed to the payload and both markdown documents
-    # -- resolving it twice risks the surfaces disagreeing on which topics
-    # a run's Knowledge Base actually carries (see the root AGENTS.md
-    # Gotchas entry on counts computed more than once).
+    # Computed once and handed to the payload and the markdown document --
+    # resolving it twice risks the two disagreeing on which topics a run's
+    # Knowledge Base actually carries (see the root AGENTS.md Gotchas entry
+    # on counts computed more than once).
     knowledge_base = _resolve_knowledge_base(data, req)
-    # R14-3: the ranking document's own goal restatement, once per run (not
-    # per hypothesis -- see report_goal_synthesis.py). A curated demo
-    # supplies its own authored restatement on the request (see
-    # ``ReportRequest.goal_restatement``); only a real run synthesizes one
-    # here. Best-effort: None on any synthesis failure falls back to the
-    # raw goal, same as the overview document, rather than failing the
-    # whole report over a cosmetic line.
-    goal_restatement = req.goal_restatement
-    if goal_restatement is None:
-        goal_restatement = await synthesize_goal_restatement(
-            run_id, req.research_goal, db_path=req.db_path
-        )
-    inputs = _report_markdown_inputs(
-        data, req, knowledge_base, goal_restatement
-    )
+    inputs = _report_markdown_inputs(data, req, knowledge_base)
     return _BuiltReport(
         payload=_assemble_report_payload(data, req, knowledge_base),
-        markdown=render_overview_document_markdown(inputs),
-        ranking_markdown=render_ranking_document_markdown(inputs),
+        markdown=render_report_markdown(inputs),
         # Derived from the run's whole claim-evidence graph, not the
         # released subset the payload/markdown are scoped to -- the
         # knowledge base records everything the run found (see
@@ -229,9 +200,8 @@ def _report_markdown_inputs(
     data: _ReportData,
     req: _ReportBuildArgs,
     knowledge_base: list[dict[str, Any]],
-    goal_restatement: str | None = None,
 ) -> ReportMarkdownInputs:
-    """Assemble the shared inputs both markdown documents render from."""
+    """Assemble the inputs the markdown document renders from."""
     return ReportMarkdownInputs(
         research_goal=req.research_goal,
         provider=req.provider,
@@ -254,7 +224,6 @@ def _report_markdown_inputs(
         citations=data.citations,
         evidence=data.evidence,
         reviews=data.reviews,
-        goal_restatement=goal_restatement,
     )
 
 

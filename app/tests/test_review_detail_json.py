@@ -20,7 +20,7 @@ from app.engine_adapter.drain_reviews import (
     _verdict_detail,
 )
 from tests._drain_helpers import (
-    _build_report_ranking,
+    _build_report,
     _final_state_with_features,
     _persist_and_finalize,
 )
@@ -151,14 +151,12 @@ def test_drain_persists_detail_json_on_the_review_row(
     # and a rename of either side's hardcoded reviewer_agent string
     # ("simulation_review"/"full_review") would render nothing and pass
     # every other test in this file.
-    # The simulation-review subsection renders on the Top Ranking
-    # Hypotheses document (R14-11), not the Research Overview one.
     # A plain sync test (see the module note above on why): the rest of
     # this test drives ``_persist_and_finalize``'s own internal
     # ``asyncio.run``, so this call gets the same wrapper rather than
     # making the whole test async and nesting one event loop inside
     # another.
-    _payload, markdown = asyncio.run(_build_report_ranking(run, isolated_db))
+    _payload, markdown = asyncio.run(_build_report(run, isolated_db))
     assert "#### Simulation review" in markdown
     assert "**Verdict:** Go" in markdown
     assert "**Time to Verdict:** Short" in markdown

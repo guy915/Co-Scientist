@@ -15,7 +15,7 @@ from app import report_markdown
 
 def _markdown(prepared_at: float | None) -> str:
     """Render a minimal report carrying only the given prepared_at."""
-    return report_markdown.render_overview_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

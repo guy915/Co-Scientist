@@ -1,10 +1,10 @@
 """Tests for report persistence in ``app.store.reports``.
 
 Covers ``save_report``'s happy path (moved here from ``test_store.py`` to
-keep that file under the 500-line ceiling), the two-document bundle
-``ReportMarkdownDocuments`` introduced by R14-11, the disk-write failure
-branch, and the on-disk fallback used for report rows that predate the
-``markdown_text`` column.
+keep that file under the 500-line ceiling), the disk-write failure branch,
+the on-disk fallback used for report rows that predate the ``markdown_text``
+column, and the read-side fallback for a row saved during the R14-11
+two-document split window (reversed 2026-09-04).
 """
 
 from __future__ import annotations
@@ -19,19 +19,32 @@ from app import store
 
 
 def _insert_legacy_report_row(
-    db_path: str, run_id: str, report_id: str, markdown_path: str | None
+    db_path: str,
+    run_id: str,
+    report_id: str,
+    markdown_path: str | None,
+    markdown_text_ranking: str | None = None,
 ) -> None:
     """Insert a report row with no ``markdown_text`` (pre-column schema)."""
     with store.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
-            "markdown_text, created_at) VALUES (?,?,?,?,?,?)",
-            (report_id, run_id, "{}", markdown_path, None, 0.0),
+            "markdown_text, markdown_text_ranking, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                report_id,
+                run_id,
+                "{}",
+                markdown_path,
+                None,
+                markdown_text_ranking,
+                0.0,
+            ),
         )
 
 
 def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
-    """The overview document round-trips through both DB text and disk."""
+    """The report round-trips through both DB text and disk."""
     run = store.create_run(
         "report rt",
         "default",
@@ -40,10 +53,7 @@ def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
         store.RunCreateOptions(db_path=isolated_db),
     )
     saved = store.save_report(
-        run.id,
-        {"k": "v"},
-        store.ReportMarkdownDocuments("# Hello\nbody"),
-        db_path=isolated_db,
+        run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db
     )
     assert saved["markdown_path"].endswith(".md")
     md = store.read_report_markdown(run.id, db_path=isolated_db)
@@ -73,10 +83,7 @@ def test_save_report_logs_warning_on_disk_write_failure(
 
     with caplog.at_level(logging.WARNING, logger="app.store.reports"):
         saved = store.save_report(
-            run.id,
-            {"k": "v"},
-            store.ReportMarkdownDocuments("# md body"),
-            db_path=isolated_db,
+            run.id, {"k": "v"}, "# md body", db_path=isolated_db
         )
 
     assert "Could not write report markdown to disk" in caplog.text
@@ -159,91 +166,53 @@ def test_read_report_markdown_none_when_disk_file_missing(
     assert store.read_report_markdown(run.id, db_path=isolated_db) is None
 
 
-# R14-11: a run's report is now two documents (Research Overview +
-# Top Ranking Hypotheses); the tests below pin the persistence side of
-# that split -- both documents round-trip, and a row saved before the
-# split (no markdown_text_ranking) is read as the legacy single document
-# it always was, never as a two-document report missing its second half.
-
-
-def test_save_report_persists_both_documents(isolated_db: str) -> None:
-    """Both documents round-trip through save/read, independently."""
-    run = store.create_run(
-        "two-document goal",
-        "default",
-        "mock",
-        {},
-        store.RunCreateOptions(db_path=isolated_db),
-    )
-
-    store.save_report(
-        run.id,
-        {"k": "v"},
-        store.ReportMarkdownDocuments("# Overview", "# Ranking"),
-        db_path=isolated_db,
-    )
-
-    report = store.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["markdown_text"] == "# Overview"
-    assert report["markdown_text_ranking"] == "# Ranking"
-    assert store.read_report_markdown(run.id, db_path=isolated_db) == (
-        "# Overview"
-    )
-    assert store.read_report_ranking_markdown(run.id, db_path=isolated_db) == (
-        "# Ranking"
-    )
-
-
-def test_a_legacy_row_has_no_ranking_document(isolated_db: str) -> None:
-    """A row saved before the split reads as one combined document.
-
-    ``markdown_text`` for such a row holds the older, single document
-    (every section that now splits across two, in one file) -- the
-    absence of a second document is the reader's signal to render it as
-    that one document, not as a two-document report with an empty half.
-    """
-    run = store.create_run(
-        "legacy goal",
-        "default",
-        "mock",
-        {},
-        store.RunCreateOptions(db_path=isolated_db),
-    )
-    store.save_report(
-        run.id,
-        {"k": "v"},
-        store.ReportMarkdownDocuments("# Combined legacy report"),
-        db_path=isolated_db,
-    )
-
-    report = store.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["markdown_text"] == "# Combined legacy report"
-    assert report["markdown_text_ranking"] is None
-    assert (
-        store.read_report_ranking_markdown(run.id, db_path=isolated_db) is None
-    )
-
-
-def test_read_report_ranking_markdown_none_for_a_pre_column_row(
+def test_save_report_never_writes_the_legacy_ranking_column(
     isolated_db: str,
 ) -> None:
-    """A row inserted before the ranking column existed reads the same way.
-
-    ``_insert_legacy_report_row`` mirrors a report row shaped exactly as
-    production's did before this migration -- no markdown_text_ranking
-    value is ever written for it, so the column defaults to NULL.
-    """
+    """Every write since the reversal leaves markdown_text_ranking NULL."""
     run = store.create_run(
-        "pre-column goal",
+        "no ranking write goal",
         "default",
         "mock",
         {},
         store.RunCreateOptions(db_path=isolated_db),
     )
-    _insert_legacy_report_row(isolated_db, run.id, "report-pre-column", None)
+    store.save_report(run.id, {"k": "v"}, "# Goal Report", db_path=isolated_db)
 
-    assert (
-        store.read_report_ranking_markdown(run.id, db_path=isolated_db) is None
+    report = store.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["markdown_text_ranking"] is None
+
+
+def test_read_report_markdown_appends_a_legacy_split_window_row(
+    isolated_db: str,
+) -> None:
+    """A row saved during the R14-11 split window keeps its full content.
+
+    Such a row's ``markdown_text`` is the overview-only half and its "Top
+    hypotheses" write-up sits only in ``markdown_text_ranking`` -- the
+    reader must not silently drop that half now that nothing else reads
+    the column.
+    """
+    run = store.create_run(
+        "split window goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(db_path=isolated_db),
     )
+    _insert_legacy_report_row(
+        isolated_db,
+        run.id,
+        "report-split-window",
+        None,
+        markdown_text_ranking="# ranking half",
+    )
+    with store.connect(isolated_db) as conn:
+        conn.execute(
+            "UPDATE reports SET markdown_text=? WHERE id=?",
+            ("# overview half", "report-split-window"),
+        )
+
+    text = store.read_report_markdown(run.id, db_path=isolated_db)
+    assert text == "# overview half\n\n# ranking half"

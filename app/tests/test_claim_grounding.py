@@ -18,7 +18,7 @@ from app.claim_grounding import (
     ground_hypotheses,
 )
 from app.claims import as_passages
-from tests._drain_helpers import _build_report, _build_report_ranking
+from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
@@ -258,9 +258,8 @@ async def test_speculative_insufficient_hypothesis_remains_visible(
     run, hypothesis_id = _seed_speculative_run(isolated_db)
 
     # The claim-evidence status/quote text checked below is part of the
-    # full per-hypothesis write-up, which renders on the Top Ranking
-    # Hypotheses document (R14-11), not the Research Overview one.
-    payload, markdown = await _build_report_ranking(run, isolated_db)
+    # full per-hypothesis write-up ("Top hypotheses").
+    payload, markdown = await _build_report(run, isolated_db)
 
     assert hypothesis_id in {row["id"] for row in payload["leaderboard"]}
     edge = next(

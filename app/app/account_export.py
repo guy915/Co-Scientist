@@ -31,9 +31,6 @@ def _run_export(run: store.RunRow) -> dict[str, Any]:
         "updated_at": run.updated_at,
         "completed_at": run.completed_at,
         "report_markdown": store.read_report_markdown(run.id),
-        # R14-11: the second of the two documents a run now produces, or
-        # None on a run whose report predates the split (or has none).
-        "report_markdown_ranking": store.read_report_ranking_markdown(run.id),
     }
 
 

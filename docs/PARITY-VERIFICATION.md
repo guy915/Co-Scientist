@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 100 requirement rows:
-**verified=72, partial=22, missing=3, external=3, undisclosed=0.** Each
+**verified=69, partial=25, missing=3, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -122,6 +122,18 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > (commit `69d10874`) -- meta-review runs once per evolve iteration, and a
 > nested taxonomy would multiply structured-output size on every one of
 > those calls. Recording only, no schema change. Row count 83->84.
+
+> **Reclassification (2026-09-04).** The owner reversed the R14-11
+> two-document report split, by direct product-UI evidence (the published
+> screen recordings show four run-detail sections and one Goal Report
+> document, not five and two). Three rows moved from `verified` to
+> `partial`, no row added or removed (row count unchanged at 100):
+> `REPORT-DOCUMENT-SPLIT-001` (the split itself), `GOAL-RESTATEMENT-001`
+> (the per-run LLM call that existed only to make the two documents' goal
+> lines differ), and `RANKING-CRITERIA-TABLE-001` (the Criterion/Importance
+> table that existed only as the second document's own exemplar --
+> `EVALUATION-CRITERIA-001`'s prose form is now the report's only rendering
+> of `critical_criteria`). See [PARITY.md](PARITY.md) for the updated rows.
 
 ---
 

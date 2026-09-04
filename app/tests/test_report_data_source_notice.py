@@ -23,7 +23,7 @@ def _markdown(skills_used: dict[str, int] | None) -> str:
         "title": "NHE1 coupling",
         "statement": "NHE1 couples to the RSK axis in HFpEF.",
     }
-    return report_markdown.render_overview_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

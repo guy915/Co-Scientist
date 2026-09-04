@@ -203,10 +203,7 @@ def _final_state_with_features() -> dict[str, Any]:
 async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
     """Build report content for a run with the drain's default (None) inputs.
 
-    Returns the Research Overview document (R14-11) -- the payload plus
-    ``built.markdown``. Use :func:`_build_report_ranking` for assertions
-    about full per-hypothesis content (mechanism, references, reviews),
-    which renders on the Top Ranking Hypotheses document instead.
+    Returns the payload plus ``built.markdown``, the rendered Goal Report.
     """
     built = await report_render._build_report_content(
         run.id,
@@ -219,29 +216,6 @@ async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
         ),
     )
     return built.payload, built.markdown
-
-
-async def _build_report_ranking(
-    run: Any, db_path: str
-) -> tuple[dict[str, Any], str]:
-    """Build report content, returning the Top Ranking Hypotheses document.
-
-    Same inputs as :func:`_build_report`; only the returned markdown
-    differs (R14-11) -- the full per-hypothesis write-up (mechanism,
-    references, reviews) that document carries instead of the overview's
-    titles-only list.
-    """
-    built = await report_render._build_report_content(
-        run.id,
-        report_render.ReportRequest(
-            research_goal=run.research_goal,
-            run_mode="standard",
-            provider="engine",
-            execution_time=1.0,
-            db_path=db_path,
-        ),
-    )
-    return built.payload, built.ranking_markdown
 
 
 def _persist_and_finalize(

@@ -11,7 +11,7 @@ the run, deduplicated once, in one place.
 
 Source of truth: the same ``evidence`` rows every other reader already
 gets -- ``store.list_evidence``, read once by ``report_build`` and handed to
-both markdown documents (``ReportMarkdownInputs.evidence``) and the Learning
+the markdown document (``ReportMarkdownInputs.evidence``) and the Learning
 tab's own references list (``run_detail_learning_references.tsx``). No new
 store read, no parallel path.
 
@@ -24,22 +24,16 @@ list_evidence`` orders by ``created_at``, a real per-run fact rather than a
 render-time coincidence, so the winner never changes between renders of the
 same run.
 
-Placement: the Research Overview document, not the Top Ranking Hypotheses
-document. Google's own bibliography sits in
-``research-overviews/mash-....md`` -- the very document type this repo's
-overview document mirrors -- directly after the run's Open Questions /
-Clear Patterns / Unexpected Connections span (MASH L746-818, then
-References at L832; R12-10's own sink is already
+Placement: last in the document, matching the published MASH report's own
+bibliography span (``research-overviews/mash-....md``, directly after the
+run's Open Questions / Clear Patterns / Unexpected Connections span at
+L746-818, then References at L832; R12-10's own sink is already
 ``report_markdown_overview.py``). It is a run-wide list (every source the
 whole run touched), not a per-idea one, so it belongs beside the other
-whole-run sections (Knowledge Base, Data sources) rather than the ranking
-document, which already carries its own per-hypothesis ``#### References``
-subsections (R14-21) -- a second, differently-scoped ``## References``
-heading there would collide with those. (R14-10's empty ``# References:``
-heading on the ranking document is a different fact: it sits between that
-document's ranking report and an embedded hypothesis proposal, i.e. the
-per-hypothesis L1 form R14-21/R14-26 already describe, not a run-wide
-list.)
+whole-run sections (Knowledge Base, Data sources) rather than immediately
+after any one hypothesis's own per-idea ``#### References`` subsections
+(R14-21) -- a second, differently-scoped ``## References`` heading placed
+there would collide with those.
 
 Ordering: alphabetically by the same label text the entry renders
 (``_reference_label(...).casefold()``), not by retrieval time or insertion

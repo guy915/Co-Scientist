@@ -289,8 +289,8 @@ def _curated_meta_review(
         comparison_fields["existing_solutions_comparison"] = existing
     return {
         "summary": scenario.meta_review,
-        # R14-27: the ranking document's own "Main Research Directions"
-        # narrative -- see seed_meta_review_directions.py.
+        # R14-27: the report's "Main Research Directions" narrative -- see
+        # seed_meta_review_directions.py.
         "main_research_directions": curated_main_research_directions(
             scenario_key(scenario)
         ),

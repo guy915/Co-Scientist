@@ -20,7 +20,7 @@ def _markdown(retrieval_calls: list[dict[str, Any]] | None) -> str:
         "title": "NHE1 coupling",
         "statement": "NHE1 couples to the RSK axis in HFpEF.",
     }
-    return report_markdown.render_overview_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -94,7 +94,7 @@ def test_counts_are_right_per_source_with_overlapping_questions() -> None:
 
 def test_survives_alongside_the_skills_used_notice() -> None:
     """Both the skill attribution and the search summary render together."""
-    with_skills = report_markdown.render_overview_document_markdown(
+    with_skills = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",

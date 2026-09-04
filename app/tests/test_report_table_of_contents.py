@@ -2,15 +2,13 @@
 
 Google's published ``research-overview.md`` opens with an explicit
 ``#### Table of contents:`` block, six bulleted nav items pointing at that
-document's own sections (``docs/CORPUS-EXTRACTION.md`` R14-1). Our
-Research Overview document (R14-11 split it from the ranking document,
-which carries no table of contents -- nothing in the corpus attests one
-there) renders a different, run-dependent set of top-level sections, each
-independently conditional (R14-23) -- these pin that the nav list always
-reflects what this particular render actually produced, never a static
-mirror of Google's fixed six, and that it degrades safely rather than
-mistaking a model-authored field's prose for one of the report's own
-section headings.
+document's own sections (``docs/CORPUS-EXTRACTION.md`` R14-1). Our Goal
+Report document renders a different, run-dependent set of top-level
+sections, each independently conditional (R14-23) -- these pin that the
+nav list always reflects what this particular render actually produced,
+never a static mirror of Google's fixed six, and that it degrades safely
+rather than mistaking a model-authored field's prose for one of the
+report's own section headings.
 """
 
 from typing import Any
@@ -28,7 +26,7 @@ def _markdown(**overrides: Any) -> str:
             "statement": "NHE1 couples to the RSK axis in HFpEF.",
         },
     )
-    return report_markdown.render_overview_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -59,7 +57,7 @@ def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
     assert lines[toc_at + 1] == ""
     assert lines[toc_at + 2] == "- Stratification Attributes"
     assert lines[toc_at + 3] == "- Meta-review insights"
-    assert lines[toc_at + 4] == "- Top ranking hypotheses"
+    assert lines[toc_at + 4] == "- Top hypotheses"
     assert lines[toc_at + 5] == "- Knowledge Base"
     # Sections this run never populated stay out of the nav list.
     assert "- Research Goal Details" not in markdown
@@ -74,32 +72,30 @@ def test_table_of_contents_opens_the_report_before_any_section() -> None:
     )
 
     lines = markdown.splitlines()
-    assert lines[0] == "# Research Overview — Explain the cardiac benefit."
+    assert lines[0] == "# Research Report — Explain the cardiac benefit."
     toc_at = lines.index("#### Table of contents:")
     goal_at = markdown.find("## Research Goal Details")
-    ranking_list_at = markdown.find("## Top ranking hypotheses")
+    hypotheses_at = markdown.find("## Top hypotheses")
     # Right after the always-present title/provider line and the R14-4
     # About disclosure -- both unconditional, so this bound just excludes
     # any actual section content, not a fixed line count.
     assert toc_at < 8
     # No populated section renders ahead of the nav list.
     assert goal_at == -1
-    assert markdown.index("#### Table of contents:") < ranking_list_at
+    assert markdown.index("#### Table of contents:") < hypotheses_at
 
 
 def test_table_of_contents_still_lists_the_lone_populated_section() -> None:
     """A minimal report has one always-present section: the hypothesis list.
 
-    "Top ranking hypotheses" (R14-11/R11-4, a titles-only list) is this
-    document's nearest analogue to the old combined report's unconditional
-    "Top hypotheses" -- the full per-idea write-up now renders on the
-    ranking document instead (see ``report_markdown_documents.py``).
+    "Top hypotheses", the full per-idea write-up, is the only section a
+    run with nothing else populated ever produces.
     """
     markdown = _markdown()
 
     lines = markdown.splitlines()
     toc_at = lines.index("#### Table of contents:")
-    assert lines[toc_at + 2] == "- Top ranking hypotheses"
+    assert lines[toc_at + 2] == "- Top hypotheses"
     assert lines[toc_at + 3] == ""
 
 
@@ -137,5 +133,5 @@ def test_table_of_contents_degrades_when_research_overview_is_malformed() -> (
 
     lines = markdown.splitlines()
     toc_at = lines.index("#### Table of contents:")
-    assert lines[toc_at + 2] == "- Top ranking hypotheses"
+    assert lines[toc_at + 2] == "- Top hypotheses"
     assert lines[toc_at + 3] == ""

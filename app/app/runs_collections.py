@@ -292,13 +292,7 @@ async def get_report(run_id: str) -> dict[str, Any]:
 
 @router.get("/{run_id}/report.md", response_class=PlainTextResponse)
 async def get_report_markdown(run_id: str) -> PlainTextResponse:
-    """Return the rendered Research Overview document as a file download.
-
-    R14-11: this is now one of two documents a run's report renders. Its
-    stored column (``markdown_text``) is unchanged, so this endpoint's
-    contract is unchanged for an old single-document report -- it still
-    returns that one combined document.
-    """
+    """Return the rendered Goal Report document as a file download."""
     _require_run(run_id)
     md = store.read_report_markdown(run_id)
     if md is None:
@@ -308,27 +302,5 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
         md,
         headers={
             "Content-Disposition": f'attachment; filename="{run_id}.md"',
-        },
-    )
-
-
-@router.get("/{run_id}/report-ranking.md", response_class=PlainTextResponse)
-async def get_report_ranking_markdown(run_id: str) -> PlainTextResponse:
-    """Return the rendered Top Ranking Hypotheses document as a download.
-
-    R14-11: the second of the two documents a run's report renders. 404s
-    on a run whose latest report has no ranking document -- a run that has
-    not published a report yet, or one whose report predates the split.
-    """
-    _require_run(run_id)
-    md = store.read_report_ranking_markdown(run_id)
-    if md is None:
-        raise HTTPException(status_code=404, detail="no ranking report yet")
-    return PlainTextResponse(
-        md,
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="{run_id}-ranking.md"'
-            ),
         },
     )

@@ -166,19 +166,7 @@ export interface Report {
   run_id: string;
   payload: ReportPayload;
   markdown_path: string;
-  /**
-   * The rendered Research Overview document (R14-11). Always present on a
-   * saved report -- both the current two-document shape and the older,
-   * single combined document a run persisted before the split still land
-   * here unchanged.
-   */
+  /** The rendered Goal Report document. Always present on a saved report. */
   markdown_text?: string;
-  /**
-   * The rendered Top Ranking Hypotheses document (R14-11), or null/absent
-   * on a report saved before the split. This is the back-compat signal a
-   * reader checks: only render a "Top Ranking Hypotheses" tab when this is
-   * present, and leave an older run's four tabs exactly as they were.
-   */
-  markdown_text_ranking?: string | null;
   created_at: number;
 }

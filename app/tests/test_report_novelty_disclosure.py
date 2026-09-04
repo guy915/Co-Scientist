@@ -28,7 +28,7 @@ def _hypothesis(
 
 def test_report_markdown_discloses_unverified_novelty_by_default() -> None:
     """A report with no corpus-checked hypothesis carries the disclosure."""
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -46,7 +46,7 @@ def test_report_markdown_omits_disclosure_when_novelty_is_verified() -> None:
     ``novelty_validation`` through, the blanket disclosure must not still
     claim nothing was checked.
     """
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",
@@ -64,7 +64,7 @@ def test_report_markdown_omits_disclosure_when_novelty_is_verified() -> None:
 
 def test_report_markdown_omits_disclosure_with_no_hypotheses() -> None:
     """An empty 'Top hypotheses' section carries no novelty commentary."""
-    markdown = report_markdown.render_ranking_document_markdown(
+    markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
             provider="engine",

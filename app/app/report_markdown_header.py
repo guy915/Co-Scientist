@@ -56,7 +56,6 @@ def _plain_setup_strings(items: Any) -> list[str]:
 def _render_research_goal_details(
     research_goal: str,
     setup: dict[str, Any] | None,
-    goal_restatement: str | None = None,
 ) -> list[str]:
     """Render 'Research Goal Details': goal, requirements, attributes, criteria.
 
@@ -67,14 +66,6 @@ def _render_research_goal_details(
     pair list -- ``attribute_display_strings``/``criteria_display_strings``
     render every shape the same way, so an older persisted run keeps
     reading exactly as it always did.
-
-    ``goal_restatement``, when given, replaces the literal ``research_goal``
-    on the "Goal:" line -- R14-3's synthesized narrative restatement for the
-    Top Ranking Hypotheses document (see ``report_goal_synthesis.py``), kept
-    to just this one line since the Requirements/Attributes/Criteria bullets
-    are structured facts, not part of the goal's own prose. The Research
-    Overview document never passes one, so it keeps rendering the raw goal
-    exactly as before.
     """
     if not isinstance(setup, dict):
         return []
@@ -91,8 +82,7 @@ def _render_research_goal_details(
     ]
     if not any(fields):
         return []
-    goal_line = goal_restatement or research_goal
-    lines = ["## Research Goal Details\n", f"**Goal:** {goal_line}\n"]
+    lines = ["## Research Goal Details\n", f"**Goal:** {research_goal}\n"]
     for field_lines in fields:
         lines += field_lines
     return lines
@@ -118,23 +108,15 @@ def _render_provenance_line(prepared_at: float | None) -> list[str]:
     ]
 
 
-def _render_title_and_provider(
-    research_goal: str, provider: str, *, title: str = "Research Report"
-) -> list[str]:
+def _render_title_and_provider(research_goal: str, provider: str) -> list[str]:
     """Render the report's H1 title and provider line. Always present.
 
     Split from the rest of the header (R14-1) so the table of contents can
     be inserted right after it: this is the only part of the document that
     is never conditional, so it is always what a reader sees first.
-
-    ``title`` defaults to the pre-split document name so every existing
-    caller keeps reading exactly as before; the two document renderers in
-    ``report_markdown.py`` (R14-11) pass their own name -- "Research
-    Overview" / "Top Ranking Hypotheses" -- so a reader who downloads or
-    opens only one of the two documents can tell which from its own H1.
     """
     return [
-        f"# {title} — {research_goal}",
+        f"# Research Report — {research_goal}",
         "",
         f"_Provider: **{provider}**_",
         "",
@@ -144,16 +126,14 @@ def _render_title_and_provider(
 def _render_about_disclosure() -> list[str]:
     """Render the report-level About disclosure (R14-4).
 
-    Research-overview-document only: nothing in the corpus attests this
-    line on the ranking document, which already carries its own goal and
-    provenance context. Rendered right after the title/provider line and
-    before the table of contents, matching R14-1's already-established
-    convention of putting the always-present opening first -- Google's own
-    line ordering (goal, then About, then the table of contents) is not
-    followed literally here for the same reason R14-1 does not mirror
-    Google's fixed six-item nav: our Research Goal Details block is
-    conditional on the run's setup, so anchoring the disclosure to the
-    unconditional title keeps it from disappearing along with the goal.
+    Rendered right after the title/provider line and before the table of
+    contents, matching R14-1's already-established convention of putting
+    the always-present opening first -- Google's own line ordering (goal,
+    then About, then the table of contents) is not followed literally here
+    for the same reason R14-1 does not mirror Google's fixed six-item nav:
+    our Research Goal Details block is conditional on the run's setup, so
+    anchoring the disclosure to the unconditional title keeps it from
+    disappearing along with the goal.
     """
     return [_ABOUT_DISCLOSURE, ""]
 

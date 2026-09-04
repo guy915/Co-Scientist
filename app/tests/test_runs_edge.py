@@ -208,17 +208,8 @@ def test_report_md_has_attachment_disposition_after_completion() -> None:
     assert res.status_code == 200
     assert "attachment" in res.headers.get("content-disposition", "").lower()
     assert rid in res.headers.get("content-disposition", "")
-    assert "Research Overview" in res.text
-    assert "## Top ranking hypotheses" in res.text
-
-    # R14-11: the second document, downloadable from its own endpoint.
-    ranking_res = c.get(f"/api/runs/{rid}/report-ranking.md")
-    assert ranking_res.status_code == 200
-    assert "attachment" in (
-        ranking_res.headers.get("content-disposition", "").lower()
-    )
-    assert "Top Ranking Hypotheses" in ranking_res.text
-    assert "## Top hypotheses" in ranking_res.text
+    assert "Research Report" in res.text
+    assert "## Top hypotheses" in res.text
 
 
 def test_run_listing_returns_most_recent_first() -> None:

@@ -5,24 +5,19 @@ rendered Markdown kept both in the database (durable across container
 restarts) and as an on-disk file (backwards compatibility and local dev
 convenience).
 
-R14-11: a run now renders two separately-purposed markdown documents (the
-Research Overview and the Top Ranking Hypotheses documents -- see
-``report_markdown_documents.py``). The smaller persistence change wins
-here: one more nullable column (``markdown_text_ranking``) on the existing
-``reports`` row, rather than a second table or a second row per report --
-both documents already share one payload, one ``created_at``, and one
-lifecycle (``get_latest_report`` picks the newest row by that timestamp),
-so splitting the row would only add a join for no gained flexibility. The
-existing ``markdown_text`` column keeps meaning "the Research Overview
-document" going forward; ``markdown_text_ranking`` is the second one. A
-row saved before this column existed has it NULL -- that is the
-discriminator: NULL means ``markdown_text`` instead holds the older,
-single combined document (every hypothesis, meta-review, and comparison
-content in one file), and a reader must render/share it as that one
-document, not assume a Top Ranking Hypotheses document exists to pair
-with it. The on-disk file (``_write_report_markdown``, already a stated
-legacy fallback) is not duplicated for the second document -- the
-markdown_text_ranking column is that document's only durable copy.
+R14-11 split a run's report into two documents for a time, persisted via a
+second column (``markdown_text_ranking``) on this same row rather than a
+second table -- see the reports table's own comment in schema.py. That
+split was reversed 2026-09-04 (docs/PARITY.md's REPORT-DOCUMENT-SPLIT-001
+row); ``save_report`` writes only ``markdown_text`` again, exactly as
+before the split, and ``markdown_text_ranking`` is never written by any
+code path from here on. The column itself stays -- a forward migration
+cannot be un-run against the production SQLite volume, so dropping it is
+not an option -- and ``read_report_markdown`` below still checks it: a
+run whose report was built during the split window has its full "Top
+hypotheses" write-up sitting only in that column, and without this check
+``/report.md`` for that run would silently read as the shorter overview-
+only half.
 """
 
 from __future__ import annotations
@@ -49,28 +44,6 @@ def _write_report_markdown(md_path: Path, markdown: str) -> None:
 
 
 @dataclass(frozen=True)
-class ReportMarkdownDocuments:
-    """The rendered markdown document(s) one report is persisted with.
-
-    R14-11: a run's report is two separately-purposed documents, not one
-    -- bundled here (rather than as two positional ``save_report``
-    parameters) to keep that function's own signature under the
-    5-argument ceiling. ``ranking`` is None for a caller that only has
-    the legacy single combined document -- a direct test/tooling call
-    that pre-dates the split, or one that intentionally persists a
-    reduced report.
-
-    Attributes:
-        overview: The Research Overview document. Also written to disk
-            (``markdown_path``) -- see ``save_report``.
-        ranking: The Top Ranking Hypotheses document, or None.
-    """
-
-    overview: str
-    ranking: str | None = None
-
-
-@dataclass(frozen=True)
 class _NewReportFields:
     """Fields needed to insert one report row."""
 
@@ -78,23 +51,26 @@ class _NewReportFields:
     run_id: str
     payload: dict[str, Any]
     md_path: Path
-    documents: ReportMarkdownDocuments
+    markdown: str
 
 
 def _insert_report_row(conn: sqlite3.Connection, f: _NewReportFields) -> None:
-    """Insert the report row on an open connection."""
+    """Insert the report row on an open connection.
+
+    ``markdown_text_ranking`` is left out of the column list entirely, so
+    it takes its schema default (NULL) -- see this module's docstring for
+    why the column stays but is never written.
+    """
     conn.execute(
         "INSERT INTO reports "
-        "(id, run_id, payload_json, markdown_path, "
-        "markdown_text, markdown_text_ranking, created_at) "
-        "VALUES (?,?,?,?,?,?,?)",
+        "(id, run_id, payload_json, markdown_path, markdown_text, "
+        "created_at) VALUES (?,?,?,?,?,?)",
         (
             f.report_id,
             f.run_id,
             json.dumps(f.payload),
             str(f.md_path),
-            f.documents.overview,
-            f.documents.ranking,
+            f.markdown,
             _now(),
         ),
     )
@@ -103,28 +79,20 @@ def _insert_report_row(conn: sqlite3.Connection, f: _NewReportFields) -> None:
 def save_report(
     run_id: str,
     payload: dict[str, Any],
-    documents: ReportMarkdownDocuments,
+    markdown: str,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, str]:
-    """Persist a report as a JSON row plus its rendered Markdown document(s).
+    """Persist a report as a JSON row plus a rendered Markdown file.
 
-    ``documents.overview`` (the Research Overview document) is stored in
-    both the database (markdown_text column, for durability across
-    container restarts) and on disk (markdown_path, kept for
-    backwards-compatibility and local dev convenience). ``documents.ranking``
-    (the Top Ranking Hypotheses document, R14-11) is stored in the
-    database only (markdown_text_ranking) -- see this module's docstring
-    for why a second on-disk file is not also written. Every caller
-    through the real finalize path supplies both; ``documents.ranking``
-    is None only for direct test/tooling calls that pre-date the split
-    and only want the single legacy document.
+    The markdown is stored in both the database (markdown_text column, for
+    durability across container restarts) and on disk (markdown_path, kept
+    for backwards-compatibility and local dev convenience).
 
     Args:
         run_id: Identifier of the run the report belongs to.
         payload: Structured report payload serialized to JSON.
-        documents: The rendered markdown document(s) -- see
-            :class:`ReportMarkdownDocuments`.
+        markdown: Rendered Markdown report written to disk.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
 
@@ -133,7 +101,7 @@ def save_report(
     """
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
-    _write_report_markdown(md_path, documents.overview)
+    _write_report_markdown(md_path, markdown)
     with _use_conn(conn, db_path) as conn:
         _insert_report_row(
             conn,
@@ -142,7 +110,7 @@ def save_report(
                 run_id=run_id,
                 payload=payload,
                 md_path=md_path,
-                documents=documents,
+                markdown=markdown,
             ),
         )
     return {"id": report_id, "markdown_path": str(md_path)}
@@ -166,11 +134,9 @@ def get_latest_report(
             "payload": json.loads(row["payload_json"]),
             "markdown_path": row["markdown_path"],
             "markdown_text": row["markdown_text"],
-            # R14-11: None on a row saved before this column existed --
-            # that is the back-compat signal a reader checks (see this
-            # module's docstring) to tell a legacy single-document report
-            # from a new two-document one, e.g. shares.py forwards this
-            # whole dict to a public reader unchanged.
+            # Legacy split-window column, kept for the read-side fallback
+            # below -- see this module's docstring. Always None for a row
+            # saved after the split's reversal.
             "markdown_text_ranking": row["markdown_text_ranking"],
             "created_at": row["created_at"],
         }
@@ -188,12 +154,30 @@ def _read_markdown_from_disk(latest: dict[str, Any]) -> str | None:
     return path.read_text(encoding="utf-8") if path.exists() else None
 
 
+def _with_legacy_ranking_half(latest: dict[str, Any], markdown: str) -> str:
+    """Append a legacy split-window row's second document, when present.
+
+    A report saved while the R14-11 split was live has its "Top
+    hypotheses" write-up and tournament comparison sitting only in
+    ``markdown_text_ranking`` (``markdown_text`` there is the overview-only
+    half). Every other row -- pre-split, post-reversal, or the legacy
+    single-document shape -- has this column NULL and passes through
+    unchanged.
+    """
+    ranking_text = latest.get("markdown_text_ranking")
+    if isinstance(ranking_text, str) and ranking_text:
+        return f"{markdown}\n\n{ranking_text}"
+    return markdown
+
+
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     """Return the markdown text for the latest report of a run.
 
     Prefers the markdown_text column stored in the database (durable across
     container restarts). Falls back to reading the on-disk file for rows that
-    predate the markdown_text column.
+    predate the markdown_text column. A row saved during the R14-11 split
+    window gets its ranking-document half appended -- see
+    ``_with_legacy_ranking_half``.
 
     Args:
         run_id: Identifier of the run.
@@ -209,35 +193,5 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     # isinstance check stays inline so mypy narrows the row value to str.
     markdown_text = latest.get("markdown_text")
     if isinstance(markdown_text, str) and markdown_text:
-        return markdown_text
+        return _with_legacy_ranking_half(latest, markdown_text)
     return _read_markdown_from_disk(latest)
-
-
-def read_report_ranking_markdown(
-    run_id: str, db_path: str | None = None
-) -> str | None:
-    """Return the Top Ranking Hypotheses document for a run's latest report.
-
-    R14-11: the second of the two documents a run now produces -- see this
-    module's docstring. Unlike ``read_report_markdown``, there is no
-    on-disk fallback (the second document was never written to disk) and
-    no legacy content to fall back to: a run whose latest report predates
-    this column, or one saved without a ranking document, correctly
-    returns None here rather than the older single combined document --
-    callers that want "whatever this run has" read ``markdown_text``
-    instead, exactly as they did before this column existed.
-
-    Args:
-        run_id: Identifier of the run.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The markdown string, or None if this run has no ranking document.
-    """
-    latest = get_latest_report(run_id, db_path=db_path)
-    if not latest:
-        return None
-    markdown_text = latest.get("markdown_text_ranking")
-    if isinstance(markdown_text, str) and markdown_text:
-        return markdown_text
-    return None

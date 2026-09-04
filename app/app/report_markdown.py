@@ -21,10 +21,9 @@ from app.report_markdown_documents import (
     _NOVELTY_DISCLOSURE as _NOVELTY_DISCLOSURE,
 )
 
-# The two document assemblers (R14-11: Research Overview and Top Ranking
-# Hypotheses) and the input bundle they render from live in their own
-# module to keep this one within the size cap; every name is re-exported
-# so this module's namespace keeps resolving.
+# The document assembler and the input bundle it renders from live in
+# their own module to keep this one within the size cap; every name is
+# re-exported so this module's namespace keeps resolving.
 from app.report_markdown_documents import (
     ReportMarkdownInputs as ReportMarkdownInputs,
 )
@@ -33,12 +32,6 @@ from app.report_markdown_documents import (
 )
 from app.report_markdown_documents import (
     _claim_evidence_by_hypothesis as _claim_evidence_by_hypothesis,
-)
-from app.report_markdown_documents import (
-    _overview_sections as _overview_sections,
-)
-from app.report_markdown_documents import (
-    _ranking_sections as _ranking_sections,
 )
 from app.report_markdown_documents import (
     _render_citation_audit as _render_citation_audit,
@@ -50,10 +43,7 @@ from app.report_markdown_documents import (
     _render_top_hypotheses_markdown as _render_top_hypotheses_markdown,
 )
 from app.report_markdown_documents import (
-    render_overview_document_markdown as render_overview_document_markdown,
-)
-from app.report_markdown_documents import (
-    render_ranking_document_markdown as render_ranking_document_markdown,
+    render_report_markdown as render_report_markdown,
 )
 
 # The header (title, provider line, Research Goal Details) lives in its
@@ -102,9 +92,6 @@ from app.report_markdown_hypothesis import (
     _render_hypothesis_scene_setting as _render_hypothesis_scene_setting,
 )
 from app.report_markdown_hypothesis import (
-    _render_top_ranking_hypotheses_list as _render_top_ranking_hypotheses_list,
-)
-from app.report_markdown_hypothesis import (
     _reviews_by_hypothesis as _reviews_by_hypothesis,
 )
 
@@ -117,10 +104,11 @@ from app.report_markdown_knowledge_base import (
 
 # The meta-review insights section moved to its own module to keep this
 # one within the size cap; every moved name is re-exported so this
-# module's namespace keeps resolving. Split in two (R14-11): the overview
-# document's cross-run synthesis and the ranking document's tournament
-# comparison share the same source payload but render onto different
-# documents.
+# module's namespace keeps resolving. Split in two: the earlier section's
+# cross-run synthesis and the later, tournament-facing comparison share
+# the same source payload but render onto two different headings, at two
+# different positions in the one document -- see
+# report_markdown_meta_review.py.
 from app.report_markdown_meta_review import (
     _render_meta_review_overview_markdown as _render_meta_review_overview_markdown,  # noqa: E501
 )
@@ -197,9 +185,6 @@ from app.report_markdown_sources import (
 # so this module's namespace keeps resolving.
 from app.report_markdown_supervisor import (
     _render_evaluation_criteria_markdown as _render_evaluation_criteria_markdown,  # noqa: E501
-)
-from app.report_markdown_supervisor import (
-    _render_evaluation_criteria_table_markdown as _render_evaluation_criteria_table_markdown,  # noqa: E501
 )
 from app.report_markdown_supervisor import (
     _render_review_summary_markdown as _render_review_summary_markdown,

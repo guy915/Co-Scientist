@@ -14,34 +14,27 @@ Reusing either heading here would present the model's synthesis as the
 user's own setup, so every renderer below picks a heading distinct from
 its user-authored namesake.
 
-``critical_criteria`` backs three sections here: R12-18's "Evaluation
+``critical_criteria`` backs two sections here: R12-18's "Evaluation
 Criteria" (bolded-name-plus-prose per criterion, matching MASH's own
-combined report -- the Research Overview document's analogue), R14-9's
-same criteria rendered instead as a Criterion/Importance table (matching
-the *protein-assemblies* ranking report's own analogue -- the Top
-Ranking Hypotheses document -- rather than MASH's; the two published
-exemplars disagree by document, not by product, and each of ours mirrors
-its own document's exemplar), and R12-23's "Review Summary" (the
-numbered rubric with each criterion's named reviewer questions, matching
-the published document's later, separate section of that name) --
-three genuinely different published sections that happen to derive from
-the same synthesized field. The table's "Importance" column is the same
-``description`` prose the bolded-name form already renders, under the
-published column label -- not a second synthesized value; R14-9
-originally read the *absence* of a distinct importance value as this
-format's blocker, which does not survive a read of the schema this field
-already carries. That field's entries carry three shapes across two
-migrations: the legacy bare criterion-name string (a run persisted
-before R12-23), the R12-23 ``{name, questions}`` object, and the richer
-R12-23b ``{name, description, questions}`` object the Supervisor now
-synthesizes -- ``description`` is this module's prose paragraph and is
-never sent to a reviewer (see ``prompts/review.py``'s
+combined report -- this repo's single combined Goal Report document's own
+exemplar) and R12-23's "Review Summary" (the numbered rubric with each
+criterion's named reviewer questions, matching the published document's
+later, separate section of that name) -- two genuinely different
+published sections that happen to derive from the same synthesized field.
+(R14-9 once also rendered this data as a Criterion/Importance table for a
+second, ranking-only document; that document was folded back into this
+one on 2026-09-04 -- see docs/PARITY.md's RANKING-CRITERIA-TABLE-001 row
+-- and the table renderer removed along with it.) That field's entries
+carry three shapes across two migrations: the legacy bare criterion-name
+string (a run persisted before R12-23), the R12-23 ``{name, questions}``
+object, and the richer R12-23b ``{name, description, questions}`` object
+the Supervisor now synthesizes -- ``description`` is this module's prose
+paragraph and is never sent to a reviewer (see ``prompts/review.py``'s
 ``_format_critical_criterion`` for why). Production's json_object mode
 does not enforce the schema, so a live run can answer with any of the
 three shapes, or a malformed one -- every renderer below handles all of
-them, degrading a missing description to the older bare-name bullet (or,
-for the table, an empty second cell) and a malformed field (not a list,
-or an unnamed entry) to rendering nothing.
+them, degrading a missing description to the older bare-name bullet and a
+malformed field (not a list, or an unnamed entry) to rendering nothing.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
 every name is re-exported so its namespace keeps resolving.
@@ -112,10 +105,8 @@ def _critical_criterion_description(criterion: Any) -> str:
     carries this. A legacy bare-name string has none, and neither does a
     dict predating this change or one whose description came back blank
     under production's json_object downgrade (which enforces no schema).
-    Both prose consumers degrade a blank description rather than drop the
-    entry: ``_render_evaluation_criteria_markdown`` falls back to a bare
-    ``- {name}`` bullet, ``_render_evaluation_criteria_table_markdown``
-    to an empty second cell.
+    ``_render_evaluation_criteria_markdown`` degrades a blank description
+    to a bare ``- {name}`` bullet rather than dropping the entry.
     """
     if not isinstance(criterion, dict):
         return ""
@@ -127,9 +118,10 @@ def _critical_criteria_entries(
 ) -> list[tuple[str, str]]:
     """Extract (name, description) pairs, skipping unusable entries.
 
-    Shared by both critical_criteria renderers below (the prose form and
-    the R14-9 table): both need the same filtered list before choosing how
-    to lay it out, and both treat a non-list field identically -- [].
+    Kept separate from ``_render_evaluation_criteria_markdown`` (its only
+    caller today) so a non-list ``critical_criteria`` field and an
+    unusable entry both filter out here, once, rather than in the
+    renderer's own layout logic.
     """
     if not isinstance(critical_criteria, list):
         return []
@@ -191,49 +183,6 @@ def _render_evaluation_criteria_markdown(
         lines.extend(_render_evaluation_criterion(name, description))
     if lines[-1] != "":
         lines.append("")
-    return lines
-
-
-def _escape_table_cell(text: str) -> str:
-    """Escape a literal ``|`` so it cannot be misread as a column delimiter."""
-    return text.replace("|", "\\|")
-
-
-def _render_evaluation_criteria_table_markdown(
-    critical_criteria: list[Any] | None,
-) -> list[str]:
-    """Render the Supervisor's synthesized criteria as a two-column table.
-
-    R14-9: the published *protein-assemblies* ranking report renders this
-    same ``critical_criteria`` data as a GitHub-flavored Criterion/
-    Importance table
-    (``.../ai-guided-discovery-of-atypical-protein-assemblies/reports/
-    top-ranking-hypotheses.md:9-22``), distinct from
-    ``_render_evaluation_criteria_markdown``'s bolded-name-plus-prose form
-    above, which mirrors MASH's combined report instead -- two published
-    exemplars disagreeing by *document*, not by product, each mirrored on
-    its own document (this renders on the Top Ranking Hypotheses document
-    only; see ``report_markdown_documents.py``). "Importance" is that same
-    entry's ``description`` under the published column label, not a
-    second synthesized value.
-
-    Same degrade-never-drop contract as the prose form: an entry with a
-    name but no description still gets a row (empty second cell), and
-    ``[]`` when nothing is usable -- no bare heading over an empty table.
-    """
-    entries = _critical_criteria_entries(critical_criteria)
-    if not entries:
-        return []
-    lines = [
-        "## Evaluation Criteria\n",
-        "| Criterion | Importance |",
-        "|---|---|",
-    ]
-    for name, description in entries:
-        cell_name = _escape_table_cell(name)
-        cell_description = _escape_table_cell(description)
-        lines.append(f"| {cell_name} | {cell_description} |")
-    lines.append("")
     return lines
 
 

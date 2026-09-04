@@ -1,27 +1,27 @@
-"""R14-27: the ranking document's own "Main Research Directions" section.
+"""R14-27: the report's own "Main Research Directions" section.
 
 Google's published ranking report carries a narrative synthesis distinct
 from any itemized directions array -- two prose paragraphs weaving the
 run's directions together (``.../ai-guided-discovery-of-atypical-protein-
-assemblies/reports/top-ranking-hypotheses.md:24-28``), sitting between the
-Evaluation Criteria table and Candidate Ideas. This pins that
-``meta_review.main_research_directions`` renders there, in that position,
-and skips cleanly (no bare heading) when absent -- a legacy run persisted
-before this field existed, or a provider that omits it under json_object
-mode.
+assemblies/reports/top-ranking-hypotheses.md:24-28``), sitting immediately
+before Candidate Ideas -- this repo's Top hypotheses section. This pins
+that ``meta_review.main_research_directions`` renders there, in that
+position, and skips cleanly (no bare heading) when absent -- a legacy run
+persisted before this field existed, or a provider that omits it under
+json_object mode.
 """
 
 from app import report_markdown
 
 
 def _markdown(meta_review: dict[str, object] | None) -> str:
-    """Render a minimal ranking document carrying only the given meta_review."""
+    """Render a minimal report carrying only the given meta_review."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
         "statement": "NHE1 couples to the RSK axis in HFpEF.",
     }
-    return report_markdown.render_ranking_document_markdown(
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -57,16 +57,15 @@ def test_renders_the_two_paragraph_narrative() -> None:
     ) in markdown
 
 
-def test_sits_after_criteria_table_and_before_candidate_ideas() -> None:
-    """Matches the published order exactly."""
+def test_sits_immediately_before_top_hypotheses() -> None:
+    """Matches the published "before Candidate Ideas" placement."""
     markdown = _markdown(
         {"main_research_directions": "First paragraph.\n\nSecond paragraph."}
     )
 
-    criteria_index = markdown.index("| Criterion | Importance |")
     directions_index = markdown.index("## Main Research Directions")
     candidates_index = markdown.index("## Top hypotheses")
-    assert criteria_index < directions_index < candidates_index
+    assert directions_index < candidates_index
 
 
 def test_no_bare_heading_when_the_field_is_absent() -> None:

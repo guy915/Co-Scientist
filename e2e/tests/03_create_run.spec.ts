@@ -1,5 +1,5 @@
 import {type Page} from '@playwright/test';
-import {type BackendApi, expect, test} from '../support/fixtures';
+import {expect, test} from '../support/fixtures';
 
 const GOAL =
   'What molecular checkpoints govern ferroptosis escape in ' +
@@ -227,47 +227,8 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
   await assertOverviewTabShowsDirectionsPreview(page);
-  // R14-11: the run's report now also carries a Top Ranking Hypotheses
-  // document, surfaced as a fifth tab once its content exists.
-  await page
-    .getByRole('link', {name: 'Top Ranking Hypotheses', exact: true})
-    .click();
-  await expect(
-    page.getByRole('heading', {name: 'Top hypotheses'}),
-  ).toBeVisible();
   await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
-}
-
-// Extracts the "**Goal:** ..." line from a rendered Goal Report document's
-// raw markdown (report_markdown_header._render_research_goal_details).
-function extractGoalLine(markdown: string): string {
-  const match = /^\*\*Goal:\*\* (.+)$/m.exec(markdown);
-  if (!match) {
-    throw new Error(`no "**Goal:**" line found in report markdown`);
-  }
-  return match[1];
-}
-
-// R14-3: the Top Ranking Hypotheses document opens with a freshly
-// synthesized narrative restatement of the goal, in different words, rather
-// than the Research Overview document's identical raw-flattened block.
-// Fetched directly from both frozen .md documents (not the UI, which never
-// renders the Research Overview document's raw markdown text) so this is a
-// genuine observation of the offline goal-restatement call actually
-// producing distinct, non-empty output under the deterministic backend.
-async function assertRankingGoalRestatementDiffersFromOverview(
-  api: BackendApi,
-  id: string,
-): Promise<void> {
-  const [overviewMarkdown, rankingMarkdown] = await Promise.all([
-    api.getReportMarkdown(id),
-    api.getReportRankingMarkdown(id),
-  ]);
-  const overviewGoal = extractGoalLine(overviewMarkdown);
-  const rankingGoal = extractGoalLine(rankingMarkdown);
-  expect(rankingGoal.trim().length).toBeGreaterThan(0);
-  expect(rankingGoal).not.toBe(overviewGoal);
 }
 
 // Flow: create a run from the chat workspace, start it, watch the live
@@ -281,7 +242,6 @@ async function assertRankingGoalRestatementDiffersFromOverview(
 // genuine observation of the streamed run reaching completion.
 test('creates a run from chat, starts it, and watches it complete', async ({
   page,
-  api,
 }) => {
   await page.goto('/');
   await draftGoalInComposer(page);
@@ -290,5 +250,4 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   const id = await startRunFromPlan(page);
   await openRunDetail(page, id);
   await assertStreamedRunCompletes(page);
-  await assertRankingGoalRestatementDiffersFromOverview(api, id);
 });

@@ -12,7 +12,7 @@ from typing import Any
 
 from app import engine_adapter, store
 from tests._drain_helpers import (
-    _build_report_ranking,
+    _build_report,
     _engine_hypothesis,
     _final_state_with_features,
 )
@@ -309,9 +309,7 @@ async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
         db_path=isolated_db,
     )
 
-    # The per-hypothesis References subsection renders on the Top Ranking
-    # Hypotheses document (R14-11), not the Research Overview one.
-    _payload, markdown = await _build_report_ranking(run, isolated_db)
+    _payload, markdown = await _build_report(run, isolated_db)
 
     assert "#### References" in markdown
     section = markdown.split("#### References", 1)[1]

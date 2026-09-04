@@ -364,7 +364,6 @@ def _scenario_report_request(
         attributes=curated_stratification_attributes(key),
         critical_criteria=curated_critical_criteria(key),
         prepared_at=time.time(),
-        goal_restatement=seed.scenario.goal_restatement,
         db_path=seed.db_path,
     )
 
@@ -389,9 +388,7 @@ async def _save_scenario_report(
     store.save_report(
         seed.run.id,
         payload,
-        store.ReportMarkdownDocuments(
-            banner + built.markdown, banner + built.ranking_markdown
-        ),
+        banner + built.markdown,
         db_path=seed.db_path,
     )
     return meta_review

@@ -3,8 +3,8 @@
 Google's published MASH report ends with a flat, deduplicated bibliography
 (docs/CORPUS-EXTRACTION.md R12-12) -- these tests pin the aggregate section
 this repo adds for that: dedup across sources on a stable identity, stable
-alphabetical ordering, placement on the Research Overview document only,
-and a clean degrade when a run retrieved nothing.
+alphabetical ordering, placement last in the document, and a clean degrade
+when a run retrieved nothing.
 """
 
 from typing import Any
@@ -38,20 +38,8 @@ def _evidence(evidence_id: str, **overrides: Any) -> dict[str, Any]:
 
 
 def _overview_markdown(evidence: list[dict[str, Any]] | None) -> str:
-    """Render the Research Overview document with the given evidence."""
-    return report_markdown.render_overview_document_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[_hypothesis()],
-            evidence=evidence,
-        )
-    )
-
-
-def _ranking_markdown(evidence: list[dict[str, Any]] | None) -> str:
-    """Render the Top Ranking Hypotheses document with the given evidence."""
-    return report_markdown.render_ranking_document_markdown(
+    """Render the report with the given evidence."""
+    return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
             provider="engine",
@@ -202,15 +190,3 @@ def test_a_run_with_no_retrieved_sources_renders_no_heading() -> None:
     """
     assert "## References" not in _overview_markdown([])
     assert "## References" not in _overview_markdown(None)
-
-
-def test_the_ranking_document_never_carries_this_section() -> None:
-    """R12-12 belongs on the Research Overview document only.
-
-    The ranking document keeps its own per-hypothesis '#### References'
-    subsections (R14-21) -- a second, run-wide '## References' heading
-    there would be a different scope under a colliding name.
-    """
-    markdown = _ranking_markdown([_evidence("ev-1")])
-
-    assert "\n## References\n" not in markdown

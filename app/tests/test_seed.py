@@ -43,11 +43,7 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert run.llm_backend == "offline"
         assert store.run_used_offline(run)
         md = store.read_report_markdown(run.id, db_path=isolated_db)
-        assert md is not None and "Research Overview" in md
-        ranking_md = store.read_report_ranking_markdown(
-            run.id, db_path=isolated_db
-        )
-        assert ranking_md is not None and "Top Ranking Hypotheses" in ranking_md
+        assert md is not None and "Research Report" in md
         scenario = DEMO_SCENARIOS[run.research_goal]
         expected_ideas = len(scenario_hypotheses(scenario))
         hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
@@ -60,10 +56,6 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert all(item["pmid"] for item in evidence)
         assert "\n## References\n" in md
         assert md.count("\n- [") == 6
-        # The overview document renders the aggregate bibliography; the
-        # ranking document keeps its own per-hypothesis References only
-        # (the "#### References" subsections R14-21 already covers).
-        assert "\n## References\n" not in ranking_md
         key = scenario_key(scenario)
         # Every idea carries reflection + deep_verification; only the
         # highest-ranked ideas additionally carry a curated full/simulation
@@ -106,47 +98,18 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
     ) == [15, 19, 21]
 
 
-def test_seed_demo_runs_ranking_goal_line_is_the_curated_restatement(
+def test_seed_demo_runs_render_criteria_and_unexpected_directions(
     isolated_db: str,
 ) -> None:
-    """The ranking document's "Goal:" line is each scenario's authored text.
-
-    Guards against a regression to R14-3's generated restatement: a demo
-    run is offline-backed, so ``report_goal_synthesis`` would otherwise
-    route it through the engine's deterministic offline router and produce
-    templated filler rather than a real narrative restatement (see
-    ``seed_scenario._scenario_report_request``, which threads the curated
-    ``DemoScenario.goal_restatement`` straight into the report request
-    instead).
-    """
-    _seed(isolated_db)
-
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
-    assert len(runs) == 3
-    for run in runs:
-        scenario = DEMO_SCENARIOS[run.research_goal]
-        ranking_md = store.read_report_ranking_markdown(
-            run.id, db_path=isolated_db
-        )
-        assert ranking_md is not None
-        match = re.search(r"^\*\*Goal:\*\* (.+)$", ranking_md, re.M)
-        assert match is not None
-        assert match.group(1) == scenario.goal_restatement
-
-
-def test_seed_demo_runs_render_criteria_table_and_unexpected_directions(
-    isolated_db: str,
-) -> None:
-    """Both R14-9/R12-23 report sections are populated, not merely wired.
+    """Both R12-18/R12-23 report sections are populated, not merely wired.
 
     A report is stored, frozen ``reports.markdown_text``; nothing
     re-renders it, so a demo only shows a new section once it is re-seeded
     with curated data that supplies it. This pins that the curated
-    ``critical_criteria`` (``seed_config_synthesis.py``) fill the ranking
-    document's Criterion/Importance table
-    (``_render_evaluation_criteria_table_markdown``) and that the curated
-    ``unexpected_research_directions`` fill the overview document's
-    "Unexpected research directions" bullets
+    ``critical_criteria`` (``seed_config_synthesis.py``) fill the report's
+    prose "Evaluation Criteria" section (``_render_evaluation_criteria_
+    markdown``) and that the curated ``unexpected_research_directions``
+    fill the "Unexpected research directions" bullets
     (``_render_unexpected_directions_section``) on all three demos.
     """
     _seed(isolated_db)
@@ -154,29 +117,33 @@ def test_seed_demo_runs_render_criteria_table_and_unexpected_directions(
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     for run in runs:
-        ranking_md = store.read_report_ranking_markdown(
-            run.id, db_path=isolated_db
-        )
-        assert ranking_md is not None
-        table_match = re.search(
-            r"\| Criterion \| Importance \|\n\|---\|---\|\n((?:\|.+\|\n?)+)",
-            ranking_md,
-        )
-        assert table_match is not None
-        rows = [r for r in table_match.group(1).splitlines() if r.strip()]
-        assert rows
-        for row in rows:
-            cells = [c.strip() for c in row.strip("|").split("|")]
-            assert len(cells) == 2
-            assert cells[0] and cells[1]
-
-        overview_md = store.read_report_markdown(run.id, db_path=isolated_db)
-        assert overview_md is not None
-        assert "\n### Unexpected research directions\n" in overview_md
-        section = overview_md.split("### Unexpected research directions", 1)[1]
-        next_heading = re.search(r"\n#{1,3} ", section)
+        md = store.read_report_markdown(run.id, db_path=isolated_db)
+        assert md is not None
+        assert "\n## Evaluation Criteria\n" in md
+        section = md.split("## Evaluation Criteria", 1)[1]
+        next_heading = re.search(r"\n## ", section)
         body = section[: next_heading.start()] if next_heading else section
-        bullets = [line for line in body.splitlines() if line.startswith("- ")]
+        entries = [line for line in body.splitlines() if line.startswith("**")]
+        assert entries
+        for entry in entries:
+            assert entry.startswith("**")
+            assert ":** " in entry
+
+        assert "\n### Unexpected research directions\n" in md
+        directions_section = md.split("### Unexpected research directions", 1)[
+            1
+        ]
+        next_directions_heading = re.search(r"\n#{1,3} ", directions_section)
+        directions_body = (
+            directions_section[: next_directions_heading.start()]
+            if next_directions_heading
+            else directions_section
+        )
+        bullets = [
+            line
+            for line in directions_body.splitlines()
+            if line.startswith("- ")
+        ]
         assert len(bullets) == 3
         for bullet in bullets:
             assert bullet.startswith("- **")
@@ -186,31 +153,29 @@ def test_seed_demo_runs_render_criteria_table_and_unexpected_directions(
 def test_seed_demo_runs_render_main_research_directions(
     isolated_db: str,
 ) -> None:
-    """R14-27: all three demos show the ranking document's own narrative.
+    """R14-27: all three demos show the report's own narrative directions.
 
     Pins that the curated ``main_research_directions``
-    (``seed_meta_review_directions.py``) fills the Top Ranking Hypotheses
-    document's "## Main Research Directions" section, sitting between the
-    Evaluation Criteria table and Candidate Ideas, with two genuinely
-    populated paragraphs -- not a bare heading.
+    (``seed_meta_review_directions.py``) fills the report's "## Main
+    Research Directions" section, sitting immediately before Top
+    hypotheses (R14-27's own published "before Candidate Ideas"
+    placement), with two genuinely populated paragraphs -- not a bare
+    heading.
     """
     _seed(isolated_db)
 
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     for run in runs:
-        ranking_md = store.read_report_ranking_markdown(
-            run.id, db_path=isolated_db
-        )
-        assert ranking_md is not None
-        assert "\n## Main Research Directions\n" in ranking_md
+        md = store.read_report_markdown(run.id, db_path=isolated_db)
+        assert md is not None
+        assert "\n## Main Research Directions\n" in md
 
-        criteria_index = ranking_md.index("| Criterion | Importance |")
-        directions_index = ranking_md.index("## Main Research Directions")
-        candidates_index = ranking_md.index("## Top hypotheses")
-        assert criteria_index < directions_index < candidates_index
+        directions_index = md.index("## Main Research Directions")
+        candidates_index = md.index("## Top hypotheses")
+        assert directions_index < candidates_index
 
-        section = ranking_md.split("## Main Research Directions", 1)[1]
+        section = md.split("## Main Research Directions", 1)[1]
         next_heading = re.search(r"\n#{1,2} ", section)
         body = section[: next_heading.start()] if next_heading else section
         paragraphs = [
@@ -277,12 +242,7 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
         {},
         store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
-    store.save_report(
-        run.id,
-        {"legacy": True},
-        store.ReportMarkdownDocuments("# Legacy"),
-        db_path=isolated_db,
-    )
+    store.save_report(run.id, {"legacy": True}, "# Legacy", db_path=isolated_db)
 
     _seed(isolated_db)
 
@@ -290,9 +250,6 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert report is not None
     assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
     assert "Curated demonstration only" in report["markdown_text"]
-    # R14-11: a demo re-seed produces both documents, not just the legacy
-    # combined one.
-    assert "Curated demonstration only" in report["markdown_text_ranking"]
 
 
 def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
@@ -308,7 +265,7 @@ def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
     store.save_report(
         run.id,
         {"demo_seed_version": DEMO_SEED_VERSION},
-        store.ReportMarkdownDocuments("# Current-looking report"),
+        "# Current-looking report",
         db_path=isolated_db,
     )
 
@@ -375,12 +332,7 @@ def test_has_readable_report_reflects_report_presence(
     )
     assert seed._has_readable_report(run, isolated_db) is False
 
-    store.save_report(
-        run.id,
-        {"k": "v"},
-        store.ReportMarkdownDocuments("# md"),
-        db_path=isolated_db,
-    )
+    store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
     assert seed._has_readable_report(run, isolated_db) is True
 
 
