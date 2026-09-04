@@ -77,6 +77,7 @@ export function useConversationLayout(
     timelineItems,
     session.startedSession,
     session.isAwaitingAgent,
+    session.interview?.id,
   );
 
   // The composer overlays the timeline, so its measured height becomes the

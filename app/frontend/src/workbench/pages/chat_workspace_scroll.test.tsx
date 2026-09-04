@@ -51,6 +51,81 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
+// Mounts the hook empty (the real timing: a fresh mount/reopen renders
+// before rehydration has fetched anything), then lets the test populate it
+// the way rehydration does. Dimensions are defined after render, like every
+// other harness -- jsdom measures a freshly mounted element as zero either
+// way, so what actually matters here is that scrollTop is never touched
+// before `populate` runs: a real browser leaves it at 0 too.
+function renderFreshScroller(conversationId?: string) {
+  let populate: ((items: TimelineItem[]) => void) | undefined;
+  let setConversation: ((id: string | undefined) => void) | undefined;
+  function Harness() {
+    const [items, setItems] = useState<TimelineItem[]>([]);
+    const [id, setId] = useState(conversationId);
+    populate = setItems;
+    setConversation = setId;
+    const ref = useChatTimelineScroll(items, null, false, id);
+    return <div data-testid="scroller" ref={ref} />;
+  }
+  const {getByTestId} = render(<Harness />);
+  const scroller = getByTestId('scroller');
+  Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
+  Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
+  return {
+    scroller,
+    populate: (items: TimelineItem[]) => act(() => populate?.(items)),
+    switchConversation: (id: string, items: TimelineItem[]) =>
+      act(() => {
+        setConversation?.(id);
+        populate?.(items);
+      }),
+  };
+}
+
+test('lands at the bottom the first time a fresh mount gets real content', () => {
+  // Reopening a chat -- from the results tab or straight from the sidebar --
+  // mounts the hook before the transcript has loaded. The reader must never
+  // be left at scrollTop 0 once it arrives.
+  const {scroller, populate} = renderFreshScroller();
+
+  populate(makeItems(20));
+  act(() => void vi.runAllTimers());
+
+  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
+});
+
+test('leaves a reader who scrolled up alone once the initial load has settled', () => {
+  const {scroller, populate} = renderFreshScroller();
+  populate(makeItems(20));
+  act(() => void vi.runAllTimers());
+
+  // The initial land-at-bottom already happened; the reader now scrolls up
+  // to read back, and a further streamed fragment must not haul them down.
+  scroller.scrollTop = 120;
+  populate(makeItems(21));
+  act(() => void vi.runAllTimers());
+
+  expect(scroller.scrollTop).toBe(120);
+});
+
+test('switching to a different chat without remounting still lands at the bottom', () => {
+  // ChatWorkspace does not remount for a sidebar switch between two already-
+  // loaded chats ("/chats/:id" is a param change on the same route), and
+  // rehydration replaces the whole message log in one step rather than
+  // passing through empty -- so a mount-only ref would miss this case.
+  const {scroller, populate, switchConversation} =
+    renderFreshScroller('chat-a');
+  populate(makeItems(20));
+  act(() => void vi.runAllTimers());
+  scroller.scrollTop = 120;
+
+  switchConversation('chat-b', makeItems(5));
+  act(() => void vi.runAllTimers());
+
+  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
+});
+
 test('keeps following the newest content when the reader is at the bottom', () => {
   const {scroller, grow} = renderScroller(BOTTOM);
 

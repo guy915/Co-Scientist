@@ -40,11 +40,13 @@ function timelineScrollTarget(
 // back over the reply was impossible until the turn finished.
 const FOLLOW_THRESHOLD_PX = 64;
 
-// The two refs the scroll effects below share: the scroller itself and the
-// last signature auto-scrolled for.
+// The refs the scroll effects below share: the scroller itself, the last
+// signature auto-scrolled for, and the one-shot "still needs its initial
+// bottom scroll" flag (see armInitialScroll and shouldForceInitialBottom).
 interface TimelineScrollRefs {
   scroller: RefObject<HTMLDivElement | null>;
   previousSignature: RefObject<string>;
+  needsInitialScroll: RefObject<boolean>;
 }
 
 /**
@@ -101,14 +103,65 @@ function scrollItemToTop(scroller: HTMLDivElement, itemId: string): void {
   scroller.scrollTop += offset - ANCHOR_TOP_INSET_PX;
 }
 
+// Whether this signature change is the one-shot initial landing: the first
+// *non-empty* signature since needsInitialScroll was last armed (a mount, or
+// a conversation switch -- see armInitialScroll). It wins over both the
+// follow-threshold guard and the plan anchor, because neither is meant for
+// this moment: the guard exists to protect a reader who is already reading,
+// which nobody is yet, and the plan anchor exists for a plan card *arriving*
+// mid-conversation, not for a reopened chat that happens to end on one.
+// Consumes the flag on a true first-non-empty firing so later signatures
+// (including a later empty-then-non-empty blip) go through the guard as
+// usual.
+function shouldForceInitialBottom(
+  refs: TimelineScrollRefs,
+  timelineSignature: string,
+): boolean {
+  if (timelineSignature === '' || !refs.needsInitialScroll.current) {
+    return false;
+  }
+  refs.needsInitialScroll.current = false;
+  return true;
+}
+
+// Whether a bottom-anchored update should be skipped outright: not the
+// initial landing (which always wins, see shouldForceInitialBottom), anchored
+// to the bottom, and the reader has scrolled away from it -- the case
+// FOLLOW_THRESHOLD_PX exists to protect.
+function shouldSkipFollow(
+  forceInitialBottom: boolean,
+  timelineAnchorMode: 'plan' | 'bottom',
+  scroller: HTMLDivElement,
+): boolean {
+  return (
+    !forceInitialBottom &&
+    timelineAnchorMode === 'bottom' &&
+    !isFollowingBottom(scroller)
+  );
+}
+
+// Performs the deferred scroll once layout has settled. The initial landing
+// and every ordinary bottom-anchored update jump to the very bottom; only a
+// plan card *arriving* mid-conversation (not the initial landing, even when
+// it happens to end on one -- see shouldForceInitialBottom) opens at its own
+// top instead.
+function applyTimelineScroll(
+  scroller: HTMLDivElement,
+  forceInitialBottom: boolean,
+  timelineAnchorMode: 'plan' | 'bottom',
+) {
+  if (!forceInitialBottom && timelineAnchorMode === 'plan') {
+    scrollItemToTop(scroller, DRAFT_SPEC_ITEM_ID);
+    return;
+  }
+  scroller.scrollTop = scroller.scrollHeight;
+}
+
 // Effect body for the signature-based auto-scroll below: fires whenever the
 // timeline's signature changes (new item, or an item's timestamp changed),
 // skipping the very first render's signature and any re-render that doesn't
-// actually change the timeline. A bottom anchor only follows a reader who is
-// already at the bottom; the plan anchor (a tall card arriving) is a discrete
-// event and moves the view regardless. The zero-delay timeout defers until
-// after layout, so both scrollHeight and the anchor's rect reflect the new
-// DOM.
+// actually change the timeline. The zero-delay timeout defers until after
+// layout, so both scrollHeight and the anchor's rect reflect the new DOM.
 function syncTimelineScroll(
   refs: TimelineScrollRefs,
   timelineSignature: string,
@@ -119,15 +172,26 @@ function syncTimelineScroll(
     return;
   }
   refs.previousSignature.current = timelineSignature;
-  if (timelineAnchorMode === 'bottom' && !isFollowingBottom(scroller)) return;
-  const timeout = window.setTimeout(() => {
-    if (timelineAnchorMode === 'plan') {
-      scrollItemToTop(scroller, DRAFT_SPEC_ITEM_ID);
-      return;
-    }
-    scroller.scrollTop = scroller.scrollHeight;
-  }, 0);
+  const forceInitialBottom = shouldForceInitialBottom(refs, timelineSignature);
+  if (shouldSkipFollow(forceInitialBottom, timelineAnchorMode, scroller)) {
+    return;
+  }
+  const timeout = window.setTimeout(
+    () => applyTimelineScroll(scroller, forceInitialBottom, timelineAnchorMode),
+    0,
+  );
   return () => window.clearTimeout(timeout);
+}
+
+// Effect body for the conversation-identity effect below: re-arms the
+// one-shot initial scroll (see shouldForceInitialBottom) whenever the chat on
+// screen changes. A mount-only ref would miss a sidebar switch between two
+// already-loaded chats: ChatWorkspace does not remount for it ("/chats/:id"
+// is a param change on the same route), and rehydration replaces the whole
+// message log in one step rather than passing through empty, so the
+// signature never sees an empty transition to key off.
+function armInitialScroll(refs: TimelineScrollRefs) {
+  refs.needsInitialScroll.current = true;
 }
 
 // Effect body for the scroll that follows sending a turn. Sending is an
@@ -174,25 +238,39 @@ function syncStartedSessionScroll(
  * @param startedSession The started session, if any (always anchors bottom).
  * @param isAwaitingAgent Whether a turn is in flight; its rising edge is the
  *   reader's own send, which re-attaches the view to the bottom.
+ * @param conversationId Identity of the chat currently on screen (its
+ *   interview id). A change re-arms the initial scroll-to-bottom for
+ *   whatever loads next -- see armInitialScroll for why a mount-only ref
+ *   isn't enough.
  * @returns The ref to attach to the scrollable timeline container.
  */
 export function useChatTimelineScroll(
   timelineItems: TimelineItem[],
   startedSession: StartedSession | null,
   isAwaitingAgent = false,
+  conversationId?: string,
 ) {
   // Scrollable timeline container; scrollTop is driven imperatively below.
   const scrollRef = useRef<HTMLDivElement>(null);
   // Last timeline signature we auto-scrolled for, so the effect below only
   // fires when the timeline actually changed shape/order.
   const previousTimelineSignature = useRef('');
+  // Whether the timeline still owes its initial landing at the bottom (see
+  // shouldForceInitialBottom / armInitialScroll).
+  const needsInitialScroll = useRef(true);
   const refs: TimelineScrollRefs = {
     scroller: scrollRef,
     previousSignature: previousTimelineSignature,
+    needsInitialScroll,
   };
 
   const {signature: timelineSignature, anchorMode: timelineAnchorMode} =
     timelineScrollTarget(timelineItems, startedSession);
+
+  // Declared before the signature effect below so that when a conversation
+  // switch and its freshly loaded content land in the same commit, the
+  // re-arm has already happened by the time that effect reads the flag.
+  useEffect(() => armInitialScroll(refs), [conversationId]);
 
   useEffect(
     () => syncTimelineScroll(refs, timelineSignature, timelineAnchorMode),
