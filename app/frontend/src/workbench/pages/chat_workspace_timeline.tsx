@@ -124,9 +124,11 @@ function messageTimelineItems({
 // something still filling.
 //
 // Interview-only: once a run has started, `isAwaitingAgent` covers a run
-// Q&A turn instead (see qaAnswerTimelineItems below), which has no
-// reasoning to disclose -- the interview stream carries a `reasoning`
-// frame, the run's Q&A stream does not (qa.py::stream_answer).
+// Q&A turn instead (see qaAnswerTimelineItems below), which renders its own
+// live reasoning disclosure the same way -- the run's Q&A stream carries a
+// `reasoning` frame too (qa.py::stream_answer), it just arrives into a
+// differently-gated timeline item since a Q&A turn has no plan or session
+// card riding along with it.
 function thinkingTimelineItems({
   startedSession,
   isAwaitingAgent,
@@ -156,26 +158,36 @@ function thinkingTimelineItems({
 }
 
 // The run Q&A answer as it streams in, in the same message an interview
-// turn's live reply grows in -- but with no "Thinking" disclosure, since a
-// Q&A turn never carries reasoning (see thinkingTimelineItems). Renders
-// nothing until the first chunk lands, so a question in flight shows only
-// the Stop control until there is prose to grow.
+// turn's live reply grows in -- including its "Thinking" disclosure, since
+// a Q&A turn carries reasoning too (see thinkingTimelineItems). Renders
+// nothing until either the model's reasoning or its prose starts arriving,
+// so a question in flight shows only the Stop control until there is
+// something to grow.
 function qaAnswerTimelineItems({
   startedSession,
   isAwaitingAgent,
+  agentReasoning,
   agentDraft,
 }: Pick<
   BuildTimelineItemsArgs,
-  'startedSession' | 'isAwaitingAgent' | 'agentDraft'
+  'startedSession' | 'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
 >): TimelineItem[] {
-  if (!startedSession || !isAwaitingAgent || !agentDraft) return [];
+  if (!startedSession || !isAwaitingAgent) return [];
+  if (!agentDraft && !agentReasoning) return [];
   return [
     {
       id: 'qa-answer-draft',
       at: Date.now() / 1000,
       order: 46,
-      revision: agentDraft.length,
-      node: <AssistantMessage content={agentDraft} streaming />,
+      revision: agentDraft.length + agentReasoning.length,
+      node: (
+        <AssistantMessage
+          content={agentDraft}
+          reasoning={agentReasoning}
+          live
+          streaming
+        />
+      ),
     },
   ];
 }

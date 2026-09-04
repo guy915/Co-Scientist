@@ -62,19 +62,22 @@ def test_set_run_title_missing_run_is_noop(isolated_db: str) -> None:
     assert store.get_run("does-not-exist", db_path=isolated_db) is None
 
 
-async def test_title_call_does_not_think_and_stays_within_its_budget(
+async def test_title_call_thinks_and_its_budget_assumes_that(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """Titling opts out of thinking, and its token budget assumes that.
+    """Titling thinks like every app call site now, its budget assumes that.
 
     These two facts are one decision. Reasoning tokens come out of the same
-    ``max_tokens`` and are emitted first, so a thinking title call spends
-    the whole budget on its chain of thought and returns empty content --
-    which surfaces only as runs that are silently untitled, never as an
-    error, because ``generate_run_title`` swallows every failure. Asserting
-    both together means a future edit cannot flip one without the other.
+    ``max_tokens`` and are emitted first, so a thinking title call sent with
+    the answer-sized budget alone would spend the whole thing on its chain
+    of thought and return empty content -- which surfaces only as runs that
+    are silently untitled, never as an error, because ``generate_run_title``
+    swallows every failure. Asserting both together means a future edit
+    cannot flip one without the other.
     """
     import litellm
+
+    from app.config import THINKING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
 
@@ -91,7 +94,44 @@ async def test_title_call_does_not_think_and_stays_within_its_budget(
     title = await generate_run_title("Find ferroptosis regulators in glioma")
 
     assert title == "Ferroptosis In Glioma"
-    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert "reasoning_effort" not in seen
-    # The budget that only works without a reasoning spend.
-    assert seen["max_tokens"] == 24
+    assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert seen["reasoning_effort"] == "high"
+    # The budget lifted to the reasoning floor, since 24 alone would be
+    # spent entirely on the chain of thought.
+    assert seen["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+
+
+async def test_title_call_timeout_is_lifted_for_a_thinking_model(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """The token budget and the deadline are one setting in two places.
+
+    A thinking call funded to reason for up to four minutes must not still
+    be abandoned at the old 15s answer-only deadline.
+    """
+    import asyncio
+
+    import litellm
+
+    from app.config import THINKING_FLOOR_TIMEOUT_SECONDS
+
+    seen_timeout: dict[str, float] = {}
+    real_wait_for = asyncio.wait_for
+
+    async def _capturing_wait_for(aw: Any, timeout: float) -> Any:
+        seen_timeout["value"] = timeout
+        return await real_wait_for(aw, timeout=timeout)
+
+    async def _acompletion(**_kwargs: Any) -> Any:
+        message = types.SimpleNamespace(content="Ferroptosis In Glioma")
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    monkeypatch.setattr(litellm, "acompletion", _acompletion)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+    monkeypatch.setattr(asyncio, "wait_for", _capturing_wait_for)
+
+    await generate_run_title("Find ferroptosis regulators in glioma")
+
+    assert seen_timeout["value"] >= THINKING_FLOOR_TIMEOUT_SECONDS

@@ -72,6 +72,47 @@ test('once a run has started, submit asks it a question instead of the interview
   ]);
 });
 
+test('a Q&A turn relays reasoning live and persists it on the settled bubble', async () => {
+  vi.mocked(askRunQuestion).mockImplementation(async (_id, _q, sinks) => {
+    const s = sinks!;
+    s.onReasoning?.('Checking the evidence first. ');
+    s.onReasoning?.('It supports the claim.');
+    s.onChunk?.('Yes, because of the evidence.');
+    return 9;
+  });
+  const deps = makeDeps({
+    input: 'Does the evidence support this?',
+    startedSession: STARTED,
+  });
+  const handlers = buildChatHandlers(deps);
+
+  await handlers.handleSubmit({preventDefault: vi.fn()} as never);
+
+  expect(askRunQuestion).toHaveBeenCalledWith(
+    'run-1',
+    'Does the evidence support this?',
+    expect.objectContaining({
+      onSources: expect.any(Function),
+      onReasoning: expect.any(Function),
+      onChunk: expect.any(Function),
+    }),
+    expect.any(Object),
+  );
+  // The live draft grows fragment by fragment, mirroring an interview turn.
+  expect(deps.setAgentReasoning).toHaveBeenCalled();
+
+  const secondUpdater = vi.mocked(deps.setMessages).mock.calls[1][0] as (
+    prev: unknown[],
+  ) => {role: string; content: string; reasoning?: string}[];
+  expect(secondUpdater([])).toEqual([
+    expect.objectContaining({
+      role: 'assistant',
+      content: 'Yes, because of the evidence.',
+      reasoning: 'Checking the evidence first. It supports the claim.',
+    }),
+  ]);
+});
+
 test('without a started run, submit still advances the interview as before', async () => {
   vi.mocked(createInterview).mockResolvedValue({
     id: 'interview-1',

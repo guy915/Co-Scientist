@@ -79,6 +79,26 @@ it('renders nothing once the turn resolves', () => {
   expect(screen.queryByText('stale thought')).toBeNull();
 });
 
+// The owner's own complaint: after a run starts, the post-run Q&A chat must
+// show its live thinking exactly as the pre-run interview turn does above.
+it('shows the model reasoning a live post-run Q&A turn has streamed so far', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        startedSession: {id: 'run-9', title: 'A run', at: 100},
+        isAwaitingAgent: true,
+        agentReasoning: 'Checking the tournament record first.',
+        agentDraft: '',
+      }),
+    ),
+  );
+
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
+  expect(
+    screen.getByText('Checking the tournament record first.'),
+  ).toBeInTheDocument();
+});
+
 it('wires each bubble to its own edit/copy/retry handlers', () => {
   const args = transcriptArgs();
   renderItems(buildTimelineItems(args));

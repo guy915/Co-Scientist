@@ -15,19 +15,25 @@ import asyncio
 import logging
 from typing import Any
 
-from app.config import deepseek_non_thinking_extra_body, settings
+from app.config import (
+    deepseek_thinking_kwargs,
+    settings,
+    thinking_safe_max_tokens,
+    thinking_safe_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
 # Bound the generation so a slow/hung model never blocks a run's title
 # indefinitely; on timeout the caller keeps the goal-clause fallback.
+# Passed through thinking_safe_timeout below, which lifts it to the
+# reasoning floor for a model that thinks -- 15s alone would abandon a
+# thinking call before its chain of thought finishes arriving.
 _TITLE_TIMEOUT_SECONDS = 15.0
 
-# Sized to the answer alone, which is only safe because this call does not
-# think: reasoning tokens are drawn from the same budget and are emitted
-# first, so a thinking title call spends all 24 on its chain of thought and
-# returns an empty completion. This ceiling and the thinking opt-out below
-# are one decision -- change either and change both.
+# The answer itself is 3-6 words; thinking_safe_max_tokens below lifts the
+# call's actual budget to the reasoning floor, since a title is now a real
+# reasoning spend rather than a non-thinking completion (owner's call).
 _TITLE_MAX_TOKENS = 24
 
 # Guard against a model that ignores the brevity instruction and returns a
@@ -134,11 +140,11 @@ async def _request_title_completion(goal: str) -> Any:
                 {"role": "user", "content": goal},
             ],
             temperature=0.3,
-            max_tokens=_TITLE_MAX_TOKENS,
-            extra_body=deepseek_non_thinking_extra_body(model),
+            max_tokens=thinking_safe_max_tokens(model, _TITLE_MAX_TOKENS),
+            **deepseek_thinking_kwargs(model),
             api_key=api_key,
         ),
-        timeout=_TITLE_TIMEOUT_SECONDS,
+        timeout=thinking_safe_timeout(model, _TITLE_TIMEOUT_SECONDS),
     )
 
 

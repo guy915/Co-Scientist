@@ -43,13 +43,20 @@ def _is_deepseek(model_name: str) -> bool:
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
-    Used by one call site: title generation, a 3-6 word extraction whose
-    ``max_tokens=24`` a reasoning spend would consume entirely, returning an
-    empty completion and leaving the run untitled. That coupling runs both
-    ways -- a non-thinking call spends its whole budget on the answer, so
-    opting any call site in or out of thinking means revisiting its
-    ``max_tokens`` in the same edit. Every other app call uses the thinking
-    variant below. Non-DeepSeek models get an empty dict.
+    Currently has no caller: title generation was the one app call site
+    that opted out (a 3-6 word extraction whose ``max_tokens=24`` a
+    reasoning spend would have consumed entirely), and it now thinks like
+    every other call site -- see ``deepseek_thinking_kwargs``. Kept as a
+    tested seam rather than deleted, the same way the engine keeps its own
+    ``enable_thinking=False`` disable knob at the top of the budget-
+    escalation ladder (``llm_tool_iteration.py``) even though most calls
+    never take that rung: a future call site sized for a small, fixed
+    extraction where a reasoning spend would blow the budget can opt out
+    without re-deriving this shape. ``test_config_thinking.py`` pins both
+    this and ``deepseek_thinking_kwargs`` against the same engine helper
+    (``deepseek_thinking_extra_body``) so the enable/disable shapes stay in
+    step with each other and with the route. Non-DeepSeek models get an
+    empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -94,9 +101,9 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     pass ``drop_params``; these app call sites reach litellm directly and do
     not, so the redundant field failed the contextual safety screen and
     parked runs for human review. Spread into a completion call
-    (``**deepseek_thinking_kwargs``). Used by every app call except titling:
-    interview, Q&A, safety, and claim verification. Non-DeepSeek models get
-    an empty dict.
+    (``**deepseek_thinking_kwargs``). Used by every app call site that
+    reaches a model directly: interview, Q&A, session announcement, safety,
+    claim verification, and titling. Non-DeepSeek models get an empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -159,13 +166,19 @@ pessimistic 75 tok/s, well under what the provider sustains in practice.
 
 A long deadline is only acceptable where nobody is watching a blank screen
 for the length of it. The safety and claim-verifier calls are background
-durable tasks, and the interview relays its chain of thought to the
-scientist as it arrives. Q&A is the weak case: it streams, so a stalled
-provider is still caught quickly, but it forwards only answer deltas, so a
-long reasoning pass does read as a quiet chat. Before applying this floor
-to another call site, check which of those three it is -- a blocking
-request that shows the caller nothing until it returns needs a different
-answer than a bigger number here.
+durable tasks; the interview, the post-run Q&A chat, and the session
+announcement all relay their chain of thought to the scientist as it
+arrives (``qa_stream.stream_llm_deltas`` yields ``reasoning`` fragments the
+same way ``run_start_announcement`` does), so a stalled provider is caught
+by the stall timeout long before this floor matters and a long reasoning
+pass reads as visible progress rather than a quiet chat. Titling is the
+one call with nobody watching at all -- it runs after the create response,
+as a background task (``runs_crud._populate_run_title``), so a four-minute
+floor costs nothing a caller can see. Before applying this floor to
+another call site, check whether it streams to a live reader or runs
+unwatched in the background -- a blocking request that shows the caller
+nothing until it returns needs a different answer than a bigger number
+here.
 """
 
 

@@ -174,10 +174,10 @@ def _scripted_litellm(rounds: list[list[Any]]) -> Any:
     return SimpleNamespace(acompletion=_acompletion, sent=sent)
 
 
-def _drain(generator: Any) -> list[str]:
+def _drain(generator: Any) -> list[tuple[str, str]]:
     import asyncio
 
-    async def _collect() -> list[str]:
+    async def _collect() -> list[tuple[str, str]]:
         return [delta async for delta in generator]
 
     return asyncio.run(_collect())
@@ -208,7 +208,7 @@ def test_a_model_that_answers_directly_makes_one_call(
         qa.stream_llm_deltas("model", "sys", "how is it?", [_idea("H")])
     )
 
-    assert deltas == ["The run ", "is going well."]
+    assert deltas == [("chunk", "The run "), ("chunk", "is going well.")]
     assert len(fake.sent) == 1
 
 
@@ -226,7 +226,7 @@ def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
         )
     )
 
-    assert deltas == ["Idea one says X."]
+    assert deltas == [("chunk", "Idea one says X.")]
     second = fake.sent[1]
     tool_message = second["messages"][-1]
     assert tool_message["role"] == "tool"
@@ -262,7 +262,7 @@ def test_a_tool_call_after_the_answer_started_is_ignored(
 
     deltas = _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
 
-    assert deltas == ["Half an answer."]
+    assert deltas == [("chunk", "Half an answer.")]
     assert len(fake.sent) == 1
 
 

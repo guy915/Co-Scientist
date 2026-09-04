@@ -1,7 +1,11 @@
 import {type FormEvent} from 'react';
 import {askRunQuestion, type QaSource} from '@/api/runs';
 import {appendChatMessage} from './chat_session_helpers';
-import {beginTurnAbort, isAbortError} from './chat_session_handlers_shared';
+import {
+  beginTurnAbort,
+  isAbortError,
+  settleTurn,
+} from './chat_session_handlers_shared';
 import {type HandlerDeps} from './chat_session_types';
 
 // The composer's *only* submit path once a run has started (see the
@@ -24,6 +28,7 @@ type AskComposerDeps = Pick<
   | 'setMessages'
   | 'setIsStarting'
   | 'setIsAwaitingAgent'
+  | 'setAgentReasoning'
   | 'setAgentDraft'
   | 'turnAbortRef'
 > & {e: FormEvent<HTMLFormElement>};
@@ -48,23 +53,30 @@ function describeAskError(error: unknown): string {
     : 'The Agent could not answer the question.';
 }
 
-// The sinks passed to askRunQuestion: accumulates the answer locally (for
-// the bubble persisted on success) while also feeding the live-growing
-// draft the timeline renders as chunks arrive.
-function buildAskSinks(deps: Pick<AskComposerDeps, 'setAgentDraft'>) {
+// The sinks passed to askRunQuestion: accumulates the answer and its
+// reasoning locally (for the bubble persisted on success) while also
+// feeding the live-growing draft the timeline renders as fragments arrive.
+function buildAskSinks(
+  deps: Pick<AskComposerDeps, 'setAgentReasoning' | 'setAgentDraft'>,
+) {
   let answer = '';
+  let reasoning = '';
   let sources: QaSource[] = [];
   return {
     sinks: {
       onSources: (found: QaSource[]) => {
         sources = found;
       },
+      onReasoning: (fragment: string) => {
+        reasoning += fragment;
+        deps.setAgentReasoning(current => current + fragment);
+      },
       onChunk: (fragment: string) => {
         answer += fragment;
         deps.setAgentDraft(current => current + fragment);
       },
     },
-    result: () => ({answer, sources}),
+    result: () => ({answer, reasoning, sources}),
   };
 }
 
@@ -90,15 +102,19 @@ async function runAskRequest(
   // streams write into the one shared agentDraft, garbling the answer.
   deps.setIsStarting(true);
   deps.setIsAwaitingAgent(true);
+  // Each turn shows only its own thinking and its own reply in progress,
+  // so drop the previous turn's -- mirrors submitComposerMessage.
+  deps.setAgentReasoning('');
   deps.setAgentDraft('');
   const {sinks, result} = buildAskSinks(deps);
   const signal = beginTurnAbort(deps);
   try {
     await askRunQuestion(runId, text, sinks, signal);
-    const {answer, sources} = result();
+    const {answer, reasoning, sources} = result();
     appendChatMessage(deps.setMessages, {
       role: 'assistant',
       content: answer,
+      reasoning: reasoning || undefined,
       sources,
     });
   } catch (error) {
@@ -106,8 +122,7 @@ async function runAskRequest(
   } finally {
     deps.turnAbortRef.current = null;
     deps.setIsStarting(false);
-    deps.setIsAwaitingAgent(false);
-    deps.setAgentDraft('');
+    settleTurn(deps);
   }
 }
 

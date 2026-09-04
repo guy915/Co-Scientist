@@ -3,7 +3,9 @@
 The two helpers translate the thinking toggle into DeepSeek's request
 params: a ``thinking`` object plus ``reasoning_effort``. Getting the
 format wrong is silent rather than an error, so the shape is pinned here.
-Titling is the one caller of the opt-out; everything else thinks.
+Every app call site thinks now, titling included; the opt-out
+(``deepseek_non_thinking_extra_body``) has no live caller but stays
+covered here as a tested seam -- see its docstring.
 """
 
 from __future__ import annotations

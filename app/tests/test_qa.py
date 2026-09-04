@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -148,11 +149,25 @@ def test_effective_chat_model_falls_back_to_worker_model(
 
 def test_citation_meta_wraps_nonempty_manifest() -> None:
     manifest = [{"n": 1, "evidence_id": "e1"}]
-    assert qa._citation_meta(manifest) == {"sources": manifest}
+    assert qa._citation_meta(manifest, "") == {"sources": manifest}
 
 
-def test_citation_meta_is_none_for_empty_manifest() -> None:
-    assert qa._citation_meta([]) is None
+def test_citation_meta_is_none_when_both_are_empty() -> None:
+    assert qa._citation_meta([], "") is None
+
+
+def test_citation_meta_carries_reasoning_without_a_manifest() -> None:
+    assert qa._citation_meta([], "Weighing two mechanisms.") == {
+        "reasoning": "Weighing two mechanisms."
+    }
+
+
+def test_citation_meta_carries_both_when_both_are_present() -> None:
+    manifest = [{"n": 1, "evidence_id": "e1"}]
+    assert qa._citation_meta(manifest, "A thought.") == {
+        "sources": manifest,
+        "reasoning": "A thought.",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -168,8 +183,8 @@ def test_stream_llm_deltas_yields_only_nonempty_chunks(
     )
 
     assert _drain(qa.stream_llm_deltas("model", "sys prompt", "q?", [])) == [
-        "Hello",
-        " world",
+        ("chunk", "Hello"),
+        ("chunk", " world"),
     ]
 
 
@@ -266,6 +281,70 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
     assert not any('"type": "sources"' in f for f in frames)
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert msgs[-1].meta is None
+
+
+def _thinking_litellm(reasoning: str, prose: str) -> SimpleNamespace:
+    """A fake litellm whose stream reasons before it writes, as DeepSeek does.
+
+    Mirrors ``test_run_start_announcement.py::_thinking_litellm`` --
+    ``fake_litellm`` streams content deltas only, so the reasoning channel
+    needs its own stand-in.
+    """
+
+    async def _chunk_stream() -> AsyncIterator[Any]:
+        for field, text in (
+            ("reasoning_content", reasoning),
+            ("content", prose),
+        ):
+            delta = SimpleNamespace(content=None, reasoning_content=None)
+            setattr(delta, field, text)
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
+        return _chunk_stream()
+
+    return SimpleNamespace(acompletion=_acompletion)
+
+
+def test_stream_answer_relays_and_persists_reasoning(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+) -> None:
+    """The post-run chat already pays for reasoning.
+
+    This is where it stops discarding it -- streamed as its own frame and
+    persisted with the answer, exactly as ``run_start_announcement``
+    already does.
+    """
+    monkeypatch.setitem(
+        sys.modules,
+        "litellm",
+        _thinking_litellm("Checking the evidence first.", "Answer."),
+    )
+    store.create_run(
+        "goal",
+        "default",
+        "mock",
+        {},
+        store.RunCreateOptions(client_id="c4", db_path=isolated_db),
+    )
+    run_id = store.list_runs(client_id="c4", db_path=isolated_db)[0].id
+
+    frames = _drain(
+        qa.stream_answer(
+            run_id,
+            qa.QaQuestion(text="Q?", message_id=4),
+            qa.QaAnswerInputs("sys prompt", []),
+        )
+    )
+
+    body = "".join(frames)
+    assert '"type": "reasoning"' in body
+    assert body.index('"type": "reasoning"') < body.index('"type": "chunk"')
+    msgs = store.list_messages(run_id, db_path=isolated_db)
+    assert msgs[-1].content == "Answer."
+    assert msgs[-1].meta == {"reasoning": "Checking the evidence first."}
 
 
 def test_stream_answer_error_path_persists_and_emits_fallback(

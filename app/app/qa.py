@@ -236,23 +236,28 @@ async def _framed_answer(
     run_id: str,
     question_id: int,
     manifest: list[dict[str, Any]],
-    deltas: AsyncIterator[str],
+    deltas: AsyncIterator[tuple[str, str]],
 ) -> AsyncGenerator[str, None]:
     """Frame an answer's deltas as SSE and persist the assembled text.
 
     The single framing of a Q&A answer, shared by the model-backed and the
     offline paths so the workbench chat renders both identically: the cited
     sources first (so the UI can resolve ``[n]`` markers while the answer is
-    still arriving), then one ``chunk`` frame per delta, then ``done``. The
-    persisted text is the exact concatenation of the emitted chunks, written
-    before ``done`` so a reload right after completion shows the exchange.
+    still arriving), then one ``reasoning``/``chunk`` frame per delta (see
+    ``qa_stream.stream_llm_deltas``), then ``done``. The persisted text and
+    reasoning are the exact concatenation of the emitted frames of each
+    kind, written before ``done`` so a reload right after completion shows
+    the exchange -- reasoning included, matching what
+    ``run_start_announcement.stream_announcement`` already does for the
+    session card.
 
     Args:
         run_id: The run being asked about.
         question_id: Message id of the persisted question, echoed on ``done``.
         manifest: The evidence manifest, emitted first and stored with the
             answer.
-        deltas: The answer text, in the order it should stream.
+        deltas: The answer's ``(kind, fragment)`` pairs, in the order they
+            should stream.
 
     Yields:
         SSE ``data:`` frames.
@@ -260,17 +265,22 @@ async def _framed_answer(
     if manifest:
         yield sse_frame({"type": "sources", "sources": manifest})
     full: list[str] = []
-    async for delta in deltas:
-        full.append(delta)
-        yield sse_frame({"type": "chunk", "content": delta})
-    _persist_qa_answer(run_id, full, manifest)
+    reasoning: list[str] = []
+    async for kind, fragment in deltas:
+        (reasoning if kind == "reasoning" else full).append(fragment)
+        yield sse_frame({"type": kind, "content": fragment})
+    _persist_qa_answer(run_id, full, reasoning, manifest)
     yield sse_frame({"type": "done", "question_id": question_id})
 
 
-async def _offline_deltas(answer: str) -> AsyncIterator[str]:
-    """Yield a pre-composed answer line by line, so the UI sees a stream."""
+async def _offline_deltas(answer: str) -> AsyncIterator[tuple[str, str]]:
+    """Yield a pre-composed answer line by line, so the UI sees a stream.
+
+    The offline answer is synthesized text, never a model's reasoning, so
+    every line is a ``"chunk"``.
+    """
     for line in answer.splitlines(keepends=True):
-        yield line
+        yield "chunk", line
 
 
 async def stream_offline_answer(
@@ -296,18 +306,33 @@ async def stream_offline_answer(
         yield frame
 
 
-def _citation_meta(manifest: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Build the persisted-message meta dict carrying sources, if any."""
-    return {"sources": manifest} if manifest else None
+def _citation_meta(
+    manifest: list[dict[str, Any]], reasoning: str
+) -> dict[str, Any] | None:
+    """Build the persisted-message meta dict carrying sources and reasoning.
+
+    Mirrors ``run_start_announcement._persist_announcement``: either field
+    rides in ``meta`` only when non-empty, so a reload shows exactly what
+    the live turn showed, no more.
+    """
+    meta: dict[str, Any] = {}
+    if manifest:
+        meta["sources"] = manifest
+    if reasoning:
+        meta["reasoning"] = reasoning
+    return meta or None
 
 
 def _persist_qa_answer(
-    run_id: str, full: list[str], manifest: list[dict[str, Any]]
+    run_id: str,
+    full: list[str],
+    reasoning: list[str],
+    manifest: list[dict[str, Any]],
 ) -> None:
-    """Persist the accumulated answer text, with its evidence manifest.
+    """Persist the accumulated answer text, with its manifest and reasoning.
 
     Persisted before the caller signals `done`, so a reload right after
-    completion still shows the exchange.
+    completion still shows the exchange -- the chain of thought included.
     """
     answer = "".join(full)
     store.append_message(
@@ -316,7 +341,7 @@ def _persist_qa_answer(
             sender="system",
             content=answer,
             kind="qa",
-            meta=_citation_meta(manifest),
+            meta=_citation_meta(manifest, "".join(reasoning).strip()),
         )
     )
 
@@ -350,10 +375,11 @@ async def stream_answer(
     """Stream the LLM answer as SSE frames and persist the exchange.
 
     Emits the cited-source manifest first (so the UI can resolve ``[n]``
-    references as the answer streams), then answer chunks, then a ``done``
-    frame. On any error, persists and emits a fallback message. A
-    bring-your-own-key credential is scoped around the whole stream so the
-    answer is generated (and billed) on the run's own key.
+    references as the answer streams), then ``reasoning``/``chunk`` frames
+    as the model writes them, then a ``done`` frame. On any error, persists
+    and emits a fallback message. A bring-your-own-key credential is scoped
+    around the whole stream so the answer is generated (and billed) on the
+    run's own key.
 
     Args:
         run_id: The run being asked about.

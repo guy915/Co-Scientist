@@ -32,6 +32,7 @@ function rowToEntry(row: RunMessage): ChatEntry {
     id: `qa-${row.id}`,
     role: qaRole(row.sender),
     content: row.content,
+    reasoning: row.meta?.reasoning,
     sources: row.meta?.sources,
     created_at: row.created_at,
   };

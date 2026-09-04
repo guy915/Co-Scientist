@@ -4,9 +4,10 @@
 //
 // Mirrors runs_interviews.ts's streamInterviewTurn: the transport streams so
 // the chat timeline can show the answer as it is written, but the frame
-// handling stays out of the caller's way. Unlike an interview turn, there is
-// no `reasoning` frame -- see qa.py::stream_answer -- so QaSinks carries one
-// fewer channel than InterviewSinks.
+// handling stays out of the caller's way. A `reasoning` frame precedes the
+// answer's `chunk` frames exactly as an interview turn's does -- see
+// qa.py::stream_answer -- so QaSinks carries the same two live channels as
+// InterviewSinks.
 
 import type {QaSource, RunMessage} from './run_types';
 import {
@@ -20,24 +21,45 @@ import {
 
 export type {QaSource, RunMessage} from './run_types';
 
-/** Where a streamed Q&A answer's two live channels go. */
+/** Where a streamed Q&A answer's three live channels go. */
 export interface QaSinks {
   /** The evidence manifest, delivered once before any chunk arrives. */
   onSources?: (sources: QaSource[]) => void;
+  /** Receives each fragment of the model's chain of thought, before the
+   * answer's own prose starts arriving. */
+  onReasoning?: (fragment: string) => void;
   /** Receives each fragment of the answer's prose as it is written. */
   onChunk?: (fragment: string) => void;
 }
 
 type AskFrame =
   | {type: 'sources'; sources: QaSource[]}
+  | {type: 'reasoning'; content: string}
   | {type: 'chunk'; content: string}
   | {type: 'done'; question_id: number}
   | {type: 'error'; message: string};
 
-/** Relays a sources or chunk frame to its sink; a no-op for any other type. */
-function relayAskFrame(frame: AskFrame, sinks: QaSinks): void {
+// One frame type's own relay, each a no-op for every other type -- kept as
+// three small functions rather than one with a branch per type, since
+// `sources` carries a differently-shaped payload than the other two.
+function relaySources(frame: AskFrame, sinks: QaSinks): void {
   if (frame.type === 'sources') sinks.onSources?.(frame.sources);
+}
+
+function relayReasoning(frame: AskFrame, sinks: QaSinks): void {
+  if (frame.type === 'reasoning') sinks.onReasoning?.(frame.content);
+}
+
+function relayChunk(frame: AskFrame, sinks: QaSinks): void {
   if (frame.type === 'chunk') sinks.onChunk?.(frame.content);
+}
+
+/** Relays a sources/reasoning/chunk frame to its sink; a no-op for any other
+ * type. */
+function relayAskFrame(frame: AskFrame, sinks: QaSinks): void {
+  relaySources(frame, sinks);
+  relayReasoning(frame, sinks);
+  relayChunk(frame, sinks);
 }
 
 /**
@@ -63,7 +85,7 @@ function applyAskFrame(
  *
  * @param runId The run being asked about.
  * @param question The scientist's question.
- * @param sinks Where the streamed sources/chunks are relayed.
+ * @param sinks Where the streamed sources/reasoning/chunks are relayed.
  * @param signal Aborts the turn -- the fetch itself if not yet sent, or the
  *   read loop if the stream is already open; see the composer's Stop
  *   control. The partial answer is never persisted server-side on abort

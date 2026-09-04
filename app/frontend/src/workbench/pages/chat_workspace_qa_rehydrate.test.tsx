@@ -112,6 +112,54 @@ it('shows a run Q&A exchange after reopening the chat', async () => {
   ).not.toBeInTheDocument();
 });
 
+it('shows the reasoning a rehydrated Q&A answer persisted', async () => {
+  apiMock.getInterview.mockResolvedValue(completedInterview());
+  apiMock.listInterviews.mockResolvedValue([
+    {
+      id: 'interview-1',
+      title: 'Cold-stress glucose homeostasis',
+      challenge: 'Investigate glucose homeostasis.',
+      status: 'completed',
+      run_id: 'run-1',
+      created_at: 1,
+      updated_at: 3,
+    },
+  ]);
+  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
+  apiMock.getRunMessages.mockResolvedValue([
+    {
+      id: 20,
+      run_id: 'run-1',
+      sender: 'user',
+      content: 'Why does that hypothesis rank highest?',
+      kind: 'qa',
+      created_at: 20,
+      applied: true,
+      meta: null,
+    },
+    {
+      id: 21,
+      run_id: 'run-1',
+      sender: 'system',
+      content: 'Its Elo rating leads because it won every match.',
+      kind: 'qa',
+      created_at: 21,
+      applied: true,
+      meta: {reasoning: 'Checking the tournament record first.'},
+    },
+  ]);
+
+  renderWorkspace('/chats/interview-1');
+
+  expect(
+    await screen.findByText('Its Elo rating leads because it won every match.'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Thinking')).toBeInTheDocument();
+  expect(
+    screen.getByText('Checking the tournament record first.'),
+  ).toBeInTheDocument();
+});
+
 // The chat's opening exchange -- the scientist's "Start research" and the
 // Agent's reply to it -- reopens the same way its questions do, and the
 // session card carries that reply as its lead-in rather than a canned

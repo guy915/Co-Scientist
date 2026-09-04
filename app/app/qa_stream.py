@@ -68,8 +68,13 @@ def _completion_request(
 async def _stream_completion(
     request: dict[str, Any],
     tool_calls: dict[int, dict[str, Any]],
-) -> AsyncGenerator[str, None]:
-    """Stream one completion, yielding text and collecting tool-call parts.
+) -> AsyncGenerator[tuple[str, str], None]:
+    """Stream one completion, yielding ``(kind, fragment)`` pairs.
+
+    ``kind`` is ``"reasoning"`` for a chain-of-thought delta and ``"chunk"``
+    for prose, mirroring ``run_start_announcement._stream_model_fragments``
+    -- the request already asks for thinking (see ``_completion_request``),
+    so this is the read side of that request rather than a new spend.
 
     Args:
         request: The completion request (see ``_completion_request``).
@@ -77,7 +82,7 @@ async def _stream_completion(
             keyed by their index in the response.
 
     Yields:
-        Non-empty text deltas.
+        Non-empty ``(kind, fragment)`` pairs, in the order they arrive.
     """
     import litellm
 
@@ -91,9 +96,12 @@ async def _stream_completion(
         if delta is None:
             continue
         qa_ideas.accumulate_tool_calls(tool_calls, delta)
+        reasoning = getattr(delta, "reasoning_content", None) or ""
+        if reasoning:
+            yield "reasoning", str(reasoning)
         text = getattr(delta, "content", None) or ""
         if text:
-            yield text
+            yield "chunk", str(text)
 
 
 def _resolved_calls(
@@ -134,7 +142,7 @@ async def stream_llm_deltas(
     system_prompt: str,
     question: str,
     ideas: list[dict[str, Any]],
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[tuple[str, str], None]:
     """Stream the answer, letting the model look up idea bodies once first.
 
     The prompt carries an index of the run's ideas but not their text (see
@@ -146,7 +154,9 @@ async def stream_llm_deltas(
     Deltas already yielded are what closes the loop: a model that wrote part
     of an answer *and then* asked for a tool has its request ignored, since
     the scientist is reading that answer and a second one would be appended
-    to the middle of it.
+    to the middle of it. Only prose counts as "wrote part of an answer" --
+    reasoning alone (a model still thinking, not yet writing) does not skip
+    the tool round.
 
     Args:
         model: The chat model to complete with.
@@ -155,7 +165,8 @@ async def stream_llm_deltas(
         ideas: The run's ideas, which the tool searches.
 
     Yields:
-        Non-empty text deltas of the final answer.
+        Non-empty ``(kind, fragment)`` pairs of the final answer -- see
+        ``_stream_completion``.
     """
     # The endpoint already routes an offline process to the deterministic
     # grounded answer, so this never fires from there. It is here so the
@@ -173,11 +184,12 @@ async def stream_llm_deltas(
     tools = [qa_ideas.tool_declaration()] if ideas else None
     tool_calls: dict[int, dict[str, Any]] = {}
     answered = False
-    async for delta in _stream_completion(
+    async for kind, fragment in _stream_completion(
         _completion_request(model, api_key, messages, tools), tool_calls
     ):
-        answered = True
-        yield delta
+        if kind == "chunk":
+            answered = True
+        yield kind, fragment
     calls = _resolved_calls(tool_calls)
     if answered or not calls:
         return
@@ -185,7 +197,7 @@ async def stream_llm_deltas(
         qa_ideas.assistant_tool_message(calls),
         *_tool_result_messages(calls, ideas),
     ]
-    async for delta in _stream_completion(
+    async for kind, fragment in _stream_completion(
         _completion_request(model, api_key, messages, None), {}
     ):
-        yield delta
+        yield kind, fragment
