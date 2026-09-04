@@ -119,6 +119,25 @@ def _critical_criterion_description(criterion: Any) -> str:
     return str(criterion.get("description") or "").strip()
 
 
+def _critical_criteria_entries(
+    critical_criteria: list[Any] | None,
+) -> list[tuple[str, str]]:
+    """Extract (name, description) pairs, skipping unusable entries.
+
+    Shared by both critical_criteria renderers below (the prose form and
+    the R14-9 table): both need the same filtered list before choosing how
+    to lay it out, and both treat a non-list field identically -- [].
+    """
+    if not isinstance(critical_criteria, list):
+        return []
+    return [
+        (name, _critical_criterion_description(item))
+        for item in critical_criteria
+        for name in [_critical_criterion_name(item)]
+        if name
+    ]
+
+
 def _render_evaluation_criterion(name: str, description: str) -> list[str]:
     """Render one Evaluation Criteria entry.
 
@@ -161,14 +180,7 @@ def _render_evaluation_criteria_markdown(
     per-criterion reviewer questions render separately, in
     ``_render_review_summary_markdown`` below.
     """
-    if not isinstance(critical_criteria, list):
-        return []
-    entries = [
-        (name, _critical_criterion_description(item))
-        for item in critical_criteria
-        for name in [_critical_criterion_name(item)]
-        if name
-    ]
+    entries = _critical_criteria_entries(critical_criteria)
     if not entries:
         return []
     lines = ["## Evaluation Criteria\n"]
@@ -206,14 +218,7 @@ def _render_evaluation_criteria_table_markdown(
     name but no description still gets a row (empty second cell), and
     ``[]`` when nothing is usable -- no bare heading over an empty table.
     """
-    if not isinstance(critical_criteria, list):
-        return []
-    entries = [
-        (name, _critical_criterion_description(item))
-        for item in critical_criteria
-        for name in [_critical_criterion_name(item)]
-        if name
-    ]
+    entries = _critical_criteria_entries(critical_criteria)
     if not entries:
         return []
     lines = [
