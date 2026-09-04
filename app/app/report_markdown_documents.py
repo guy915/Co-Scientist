@@ -187,15 +187,18 @@ class ReportMarkdownInputs:
     # conflate them under one heading.
     attributes: list[dict[str, Any]] | None = None
     # The Supervisor's synthesized per-goal evaluation criteria
-    # (workflow_plan.review_phase.critical_criteria), rendered as both
-    # "Evaluation Criteria" (flat names) and "Review Summary" (numbered,
-    # with each criterion's named reviewer questions -- R12-23). A
-    # different, LLM-synthesized field from setup["criteria"] above --
-    # same English word, differently-shaped published sections
-    # (docs/CORPUS-EXTRACTION.md R12-18, R12-23); do not conflate them
-    # under one heading. Each entry is either the legacy bare criterion-
-    # name string or a richer {name, questions} object; both renderers in
-    # report_markdown_supervisor.py handle either shape.
+    # (workflow_plan.review_phase.critical_criteria), rendered as three
+    # sections: "Evaluation Criteria" (bolded-name-plus-prose, R12-18/
+    # R12-23b), the R14-9 Criterion/Importance table (the same data, on
+    # the ranking document only), and "Review Summary" (numbered, with
+    # each criterion's named reviewer questions -- R12-23). A different,
+    # LLM-synthesized field from setup["criteria"] above -- same English
+    # word, differently-shaped published sections (docs/CORPUS-
+    # EXTRACTION.md R12-18, R12-23); do not conflate them under one
+    # heading. Each entry is the legacy bare criterion-name string, the
+    # R12-23 {name, questions} object, or the richer R12-23b {name,
+    # description, questions} object; all three renderers in
+    # report_markdown_supervisor.py handle every shape.
     critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely

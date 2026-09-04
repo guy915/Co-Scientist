@@ -91,11 +91,12 @@ def _render_stratification_attributes_markdown(
 def _critical_criterion_name(criterion: Any) -> str:
     """Extract a critical criterion's display name, or "" when unusable.
 
-    Shared by both critical_criteria renderers below: a run's entries are
-    either the legacy bare name string (pre-R12-23) or the richer
-    ``{name, questions}`` object the Supervisor now synthesizes. Anything
-    else -- an unnamed dict, or a non-str/non-dict entry from a malformed
-    field -- resolves to "" so the caller can filter it out.
+    Shared by all three critical_criteria renderers below: a run's
+    entries are either the legacy bare name string (pre-R12-23) or a
+    dict shape (the R12-23 ``{name, questions}`` object or the richer
+    R12-23b ``{name, description, questions}`` object). Anything else --
+    an unnamed dict, or a non-str/non-dict entry from a malformed field
+    -- resolves to "" so the caller can filter it out.
     """
     if isinstance(criterion, str):
         return criterion.strip()
@@ -111,8 +112,10 @@ def _critical_criterion_description(criterion: Any) -> str:
     carries this. A legacy bare-name string has none, and neither does a
     dict predating this change or one whose description came back blank
     under production's json_object downgrade (which enforces no schema).
-    ``_render_evaluation_criteria_markdown`` falls back to a bare
-    ``- {name}`` bullet in every such case.
+    Both prose consumers degrade a blank description rather than drop the
+    entry: ``_render_evaluation_criteria_markdown`` falls back to a bare
+    ``- {name}`` bullet, ``_render_evaluation_criteria_table_markdown``
+    to an empty second cell.
     """
     if not isinstance(criterion, dict):
         return ""
