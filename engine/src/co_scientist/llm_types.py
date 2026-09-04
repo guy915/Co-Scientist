@@ -56,11 +56,13 @@ class LLMCallOptions:
         prompt_metadata: Extra metadata saved alongside the prompt.
         enable_thinking: Whether to request provider thinking/reasoning.
             Unused by the tool-calling path.
-        log_failures: Whether ``call_llm`` reports a failed call itself.
-            Off for calls made under ``call_llm_json``, whose retry loop
-            logs the same failure knowing the attempt number and whether
-            another attempt follows -- strictly more than call_llm can say,
-            and one record instead of two.
+        log_failures: Whether the raw single-attempt call reports a failed
+            call itself. Off for calls made under a retry loop -- both
+            ``call_llm_json``'s and ``call_llm``'s own escalation loop (see
+            ``llm_text_retry``) -- whose loop logs the same failure knowing
+            the attempt number and whether another attempt follows,
+            strictly more than the raw call can say, and one record
+            instead of two.
     """
 
     use_cache: bool = True

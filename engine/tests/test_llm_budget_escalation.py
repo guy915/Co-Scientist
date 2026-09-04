@@ -14,6 +14,11 @@ the request going out actually carries the change.
 The seam is the same one the rest of the wrapper tests use,
 ``litellm.acompletion``, patched here with a fake that also records the
 kwargs of every call so the budget on the wire can be asserted.
+
+``test_llm_call_text_retry.py`` (split out on size) pins the same ladder
+driven through plain ``call_llm`` rather than ``call_llm_json`` -- the
+production failure this ladder answers was a direct ``call_llm`` caller
+(literature-review synthesis) that got exactly one attempt.
 """
 
 from types import SimpleNamespace
@@ -71,6 +76,15 @@ def _thinking_only(reasoning: int) -> SimpleNamespace:
         _message(None),
         usage=_usage(3136, reasoning, reasoning_tokens=reasoning),
         finish_reason="stop",
+    )
+
+
+def _provider_error(reasoning: int) -> SimpleNamespace:
+    """A completion OpenRouter aborted mid-stream after some reasoning."""
+    return _completion(
+        _message(None),
+        usage=_usage(3378, reasoning, reasoning_tokens=reasoning),
+        finish_reason="error",
     )
 
 
@@ -155,6 +169,26 @@ async def test_an_empty_response_with_no_reasoning_stays_ordinary(
     assert type(caught.value) is ValueError
 
 
+async def test_a_mid_stream_provider_error_is_not_thinking_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``finish_reason="error"`` is a provider failure, not a chosen stop.
+
+    OpenRouter reports an upstream failure mid-stream this way; the model
+    never chose to stop, so this must not be classified (and escalated) as
+    a thinking-only response. Every attempt hits the same failure here, so
+    the loop exhausts its attempts and the last error surfaces -- what
+    matters is which type that is.
+    """
+    _disable_cache(monkeypatch)
+    _record_acompletion(monkeypatch, [_provider_error(519)])
+
+    with pytest.raises(ValueError) as caught:
+        await call_llm("a prompt", CompletionSpec(model_name=_MODEL))
+    assert not isinstance(caught.value, LLMThinkingOnlyError)
+    assert not isinstance(caught.value, LLMBudgetExhaustedError)
+
+
 async def test_the_failure_log_reports_the_budget_actually_sent(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -164,11 +198,13 @@ async def test_the_failure_log_reports_the_budget_actually_sent(
     "reasoning_tokens=18001" reads as a provider fault. The wire carried
     the floor.
 
-    Captured at WARNING because that is what this layer logs: ``call_llm``
-    re-raises unconditionally and cannot know whether a retry follows, so
-    the error belongs to the attempt that gives up (see
-    ``test_llm_failure_logging``). The budget reported is the property
-    under test either way.
+    Captured at WARNING because attempt 1 of ``call_llm``'s own escalation
+    loop is a non-final attempt (default ``max_attempts=3``), which logs at
+    WARNING rather than ERROR (see ``test_llm_failure_logging``). The
+    assertions read the WARNING and ERROR lines of all three attempts
+    concatenated, so attempt 1's floored number (this test's target) and
+    later attempts' escalated numbers can coexist in the same string --
+    the budget reported by attempt 1 is the property under test.
     """
     _disable_cache(monkeypatch)
     _record_acompletion(monkeypatch, [_exhausted(THINKING_FLOOR_MAX_TOKENS)])
@@ -343,6 +379,33 @@ async def test_disabling_thinking_recovers_a_thinking_only_call(
     assert result == {"a": 2}
     assert len(calls) == 2
     assert "reasoning_effort" not in calls[1]
+
+
+async def test_a_provider_error_recovers_without_disabling_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mid-stream provider error is a plain retry, not a ladder rung.
+
+    Unlike a genuine thinking-only response, this must not climb to
+    ``NO_THINKING`` -- the provider errored, the model never chose to stop,
+    and disabling thinking for a call that needed no such thing would be
+    the wrong remedy for every attempt after it.
+    """
+    _disable_cache(monkeypatch)
+    calls = _record_acompletion(
+        monkeypatch, [_provider_error(519), _completion(_message('{"a":3}'))]
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(model_name=_MODEL, json_schema=_INT_SCHEMA),
+        max_attempts=5,
+    )
+
+    assert result == {"a": 3}
+    assert len(calls) == 2
+    thinking = [call["extra_body"]["thinking"]["type"] for call in calls]
+    assert thinking == ["enabled", "enabled"]
 
 
 async def test_a_schema_failure_leaves_the_budget_alone(

@@ -73,13 +73,20 @@ def escalation_for_error(
     at the ceiling may genuinely have been close to finishing. A
     thinking-only response skips to the top: the model *chose* to stop, so
     it did not want for room, and the intermediate rung would spend a
-    whole attempt proving that.
+    whole attempt proving that. That premise holds only because
+    ``LLMThinkingOnlyError`` is never raised for a completion the provider
+    itself aborted (``finish_reason="error"``) -- see
+    ``llm_response._empty_content_error`` -- so by the time an error
+    reaches this function as ``LLMThinkingOnlyError``, the model did
+    genuinely choose to stop rather than being cut off mid-stream.
 
     Everything else -- a schema failure, a parse failure, an ordinary
-    provider error -- returns None. They say nothing about thinking, and
-    changing the request would spend more tokens on a problem tokens do
-    not solve. None also ends the ladder at its top rung, which is what
-    stops a caller escalating forever.
+    provider error (including a mid-stream provider failure, which is
+    exactly a plain retryable error rather than a thinking-only response)
+    -- returns None. They say nothing about thinking, and changing the
+    request would spend more tokens on a problem tokens do not solve.
+    None also ends the ladder at its top rung, which is what stops a
+    caller escalating forever.
 
     Args:
         error: The failure the attempt raised, if any.

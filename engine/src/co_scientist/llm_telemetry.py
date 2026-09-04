@@ -4,8 +4,9 @@ Every ``litellm.acompletion`` call funnels through
 ``llm_request._acompletion_within_timeout`` (see that module's docstring),
 so that is the single point recording one physical call's tokens, latency,
 and outcome; cache hits/misses are recorded in ``llm_tool_loop`` where the
-cache lookup itself happens, and retries of the ``call_llm_json``
-schema-repair loop are recorded in ``llm``.
+cache lookup itself happens, and retries of ``call_llm_json``'s schema-repair
+loop and ``call_llm``'s own budget-escalation loop (see ``llm_text_retry``)
+are both recorded here via ``record_retry``.
 
 Nothing here writes to a database or a persisted log. AGENTS.md records a
 production incident where a per-call write did exactly that: LiteLLM's own
@@ -61,8 +62,10 @@ class ModelCallStats:
             a tool loop re-sending its transcript.
         cost_usd: Estimated cost in USD (see ``constants_pricing``).
         latency_seconds: Wall-clock time spent in the physical calls.
-        retries: ``call_llm_json`` schema-repair retries, distinct from
-            ``calls`` (a single retried request may cost several calls).
+        retries: Retries of either LLM retry loop -- ``call_llm_json``'s
+            schema-repair loop or ``call_llm``'s own budget-escalation loop
+            -- distinct from ``calls`` (a single retried request may cost
+            several calls).
         cache_hits: Dispatch calls satisfied from the response cache.
         cache_misses: Dispatch calls that reached the provider.
         errors: Failure count by short error-kind string (e.g. the
@@ -276,7 +279,11 @@ def record_completion_failure(
 
 
 def record_retry(model_name: str) -> None:
-    """Record one retry of the ``call_llm_json`` schema-repair loop."""
+    """Record one retry of an LLM retry loop.
+
+    Called from both ``call_llm_json``'s schema-repair loop and
+    ``call_llm``'s own budget-escalation loop (see ``llm_text_retry``).
+    """
     record_call(model_name, ModelCallStats(retries=1))
 
 

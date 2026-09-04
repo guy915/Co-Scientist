@@ -167,8 +167,9 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
         # Logging it as well made one answerless completion write three
         # records saying the same sentence -- an export of a run that
         # recovered fine read as 27 errors and 29 warnings. The layer that
-        # knows whether a retry follows does the logging (llm_json_retry
-        # under call_llm_json, call_llm itself for a direct caller).
+        # knows whether a retry follows does the logging: llm_json_retry's
+        # retry loop, shared by call_llm_json and call_llm's own escalation
+        # loop alike (see llm_text_retry).
         raise _empty_content_error(
             response, model_name, _empty_content_diagnosis(response)
         )
@@ -181,14 +182,25 @@ def _empty_content_error(
 ) -> ValueError:
     """Classify an empty completion by what would answer it.
 
-    Three outcomes, and the split is by remedy rather than by severity:
+    Four outcomes, and the split is by remedy rather than by severity:
 
     * ``finish_reason="length"`` -- the provider stopped at the ceiling, so
       the request needs a different budget.
+    * ``finish_reason="error"`` -- OpenRouter's way of reporting an upstream
+      provider failure mid-stream, not a completion that ran to term. The
+      model did not choose to stop here, so neither of the thinking-related
+      remedies below applies; it is an ordinary provider hiccup like any
+      other, answered by a plain retry. Checked before the reasoning-spent
+      case so a mid-stream failure that happened to spend reasoning tokens
+      first is never mistaken for one.
     * Reasoning spent, no answer, stopped normally -- the model finished
       thinking and wrote nothing, so the request needs thinking off. More
       budget is beside the point (production spent 1149 of 18000), and so
-      is a plain retry (attempts 2 and 3 did exactly the same).
+      is a plain retry (attempts 2 and 3 did exactly the same). This
+      premise -- the model chose to stop -- only holds because the
+      provider-error case above is filtered out first: a completion that
+      stopped for a reason other than its own choice is never charged to
+      "the model didn't want more room".
     * Anything else, including an empty response with no reasoning at all --
       an ordinary provider hiccup, which a plain retry does recover.
 
@@ -200,10 +212,16 @@ def _empty_content_error(
     Returns:
         The error to raise; every kind is a ``ValueError`` subclass.
     """
-    if _finish_reason(response) == "length":
+    finish_reason = _finish_reason(response)
+    if finish_reason == "length":
         return LLMBudgetExhaustedError(
             "LLM spent its entire token budget without answering. "
             f"Model: {model_name} ({diagnosis})"
+        )
+    if finish_reason == "error":
+        return ValueError(
+            "LLM provider reported an error mid-stream and wrote no "
+            f"answer. Model: {model_name} ({diagnosis})"
         )
     if extract_token_usage(response).reasoning_tokens > 0:
         return LLMThinkingOnlyError(

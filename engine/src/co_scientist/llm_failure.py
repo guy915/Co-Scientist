@@ -58,12 +58,17 @@ def _report_call_llm_failure(
     reasoning-token count that exceeds it made a budget failure read as a
     provider one.
 
-    The log is conditional, because ``call_llm`` re-raises unconditionally
-    and cannot tell whether a retry follows. Under ``call_llm_json`` one
-    does, and its retry loop says everything this would plus the attempt
-    number and whether the ladder gave up -- so that caller turns this off
-    (``log_failures``) rather than have one failure written down twice.
-    A direct caller has nothing above it, and keeps the record.
+    The log is conditional (``opt.log_failures``), because the raw call this
+    guards is not the layer that knows whether a retry follows. Both
+    ``call_llm_json`` and ``call_llm``'s own escalation loop (see
+    ``llm_text_retry``) run this raw call once per attempt and say
+    everything this warning would, plus the attempt number and whether the
+    ladder gave up -- so both turn this off and log once per attempt in
+    their own retry loop (``llm_json_retry._handle_json_call_failure``)
+    instead of once here per raw call on top of that. As a result nothing
+    in this codebase sets ``log_failures=True`` today, and the warning here
+    fires only for a caller of the raw single-attempt primitive
+    (``llm_call._call_llm_single_attempt``) that opts back into it directly.
 
     Warning, not error, for the same reason: a single recovered answerless
     completion put four ERROR rows in the diagnostics panel, and eight of

@@ -85,12 +85,16 @@ async def test_call_llm_empty_content_raises(
     """``call_llm`` raises ``ValueError`` when the model returns empty content.
 
     The wrapper treats whitespace-only content as empty (``content.strip()``).
+    ``max_attempts=1`` keeps this test about the empty-content contract, not
+    about the retry ladder (covered by ``test_llm_budget_escalation.py``).
     """
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message("   "))])
 
     with pytest.raises(ValueError, match="None or empty content"):
-        await call_llm("a prompt", CompletionSpec(model_name="test-model"))
+        await call_llm(
+            "a prompt", CompletionSpec(model_name="test-model"), max_attempts=1
+        )
 
 
 async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:

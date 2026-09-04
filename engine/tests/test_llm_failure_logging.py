@@ -237,13 +237,18 @@ async def test_the_failure_record_names_the_call_that_failed(
     assert "ranking_judgment" in failure.getMessage()
 
 
-async def test_a_direct_call_llm_failure_still_logs_once(
+async def test_a_direct_call_llm_failure_logs_once_per_attempt(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Silencing the call layer under the retry loop must not silence it.
+    """Silencing the raw call layer under the retry loop must not silence it.
 
     ``debate`` and the literature-review synthesis call ``call_llm``
-    directly, with no retry loop above them to report anything.
+    directly, and ``call_llm`` now carries its own budget-escalation retry
+    loop (see ``llm_text_retry``) built on the same failure-logging pieces
+    ``call_llm_json`` uses -- so a repeated failure logs once per attempt,
+    not once per underlying raw call PLUS once per attempt, and the raw
+    call layer itself (``co_scientist.llm``/``co_scientist.llm_call``) stays
+    silent under it exactly as it does under ``call_llm_json``.
     """
     from co_scientist.llm import call_llm
 
@@ -254,11 +259,19 @@ async def test_a_direct_call_llm_failure_still_logs_once(
         caplog.at_level(logging.DEBUG, logger="co_scientist"),
         pytest.raises(RuntimeError),
     ):
-        await call_llm("a prompt", CompletionSpec(model_name=_MODEL))
+        await call_llm(
+            "a prompt", CompletionSpec(model_name=_MODEL), max_attempts=3
+        )
 
     failures = [r for r in caplog.records if "LLM call failed" in r.message]
-    assert len(failures) == 1
-    assert failures[0].name == "co_scientist.llm"
+    assert len(failures) == 3
+    assert {r.name for r in failures} == {"co_scientist.llm_json_retry"}
+    assert [r.levelno for r in failures] == [
+        logging.WARNING,
+        logging.WARNING,
+        logging.ERROR,
+    ]
+    assert _llm_layer_records(caplog) == []
 
 
 def test_a_repaired_truncation_reports_the_phase_once(

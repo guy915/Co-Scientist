@@ -8,6 +8,7 @@ pre-call sequence ``_prepare_llm_call`` — and are re-exported here so
 historical import paths keep working.
 """
 
+import dataclasses
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -31,6 +32,12 @@ from co_scientist.cache import (
 from co_scientist.cache import get_cache as get_cache
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
+)
+from co_scientist.llm_call import (
+    _call_llm_and_cache as _call_llm_and_cache,
+)
+from co_scientist.llm_call import (
+    _call_llm_single_attempt as _call_llm_single_attempt,
 )
 from co_scientist.llm_credentials import (
     current_api_key as current_api_key,
@@ -79,6 +86,9 @@ from co_scientist.llm_json_errors import (
 from co_scientist.llm_json_errors import (
     _raise_validation_error as _raise_validation_error,
 )
+from co_scientist.llm_json_escalation import (
+    escalated_max_tokens as escalated_max_tokens,
+)
 from co_scientist.llm_json_retry import (
     BudgetEscalation as BudgetEscalation,
 )
@@ -115,13 +125,6 @@ from co_scientist.llm_request import (
     _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
 )
 from co_scientist.llm_request import (
-    CompletionShape,
-    _acompletion_within_timeout,
-    _apply_api_key,
-    _build_completion_args,
-    _extract_completion_content,
-)
-from co_scientist.llm_request import (
     _apply_response_format as _apply_response_format,
 )
 from co_scientist.llm_request import (
@@ -140,6 +143,9 @@ from co_scientist.llm_request import (
     effective_max_tokens as effective_max_tokens,
 )
 from co_scientist.llm_telemetry import record_retry as _record_retry
+from co_scientist.llm_text_retry import (
+    run_with_budget_escalation as run_with_budget_escalation,
+)
 from co_scientist.llm_tool_loop import (
     ToolLoop as ToolLoop,
 )
@@ -174,68 +180,85 @@ _supports_json_schema_response_format = (
 )
 
 
-async def _call_llm_and_cache(
-    request: LLMCacheRequest,
-    enable_thinking: bool,
-    cache: "LLMCache | NullCache",
-) -> str:
-    """Runs the actual completion call for ``call_llm`` and caches it.
+def _call_for_attempt(
+    prompt: str, spec: CompletionSpec, opt: LLMCallOptions, temperature: float
+) -> Callable[[BudgetEscalation], Awaitable[str]]:
+    """Builds the raw-call callable ``call_llm``'s retry loop injects.
 
-    ``request.temperature`` is assumed already clamped.
-
-    The credential is read from ``llm_credentials.current_api_key`` at
-    call time rather than passed in: ``request`` is deliberately
-    credential-free (it is the cache key), and the entry point already
-    scoped the effective key -- an explicit ``CompletionSpec.api_key``
-    or the run's scoped key -- into the current task's context.
+    Mirrors ``_json_call_for_attempt``: caching and the outer failure log
+    are off for every rung (the retry loop owns both -- a successful rung is
+    cached once, by the caller, under the caller's own unescalated request;
+    a failed one is logged once, by the loop), and only the top rung turns
+    thinking off. ``temperature`` is the already-clamped value from the
+    caller's own cache lookup, so every rung sends the same one.
 
     Args:
-        request: The request to send, and the key its response is cached
-            under.
-        enable_thinking: Whether DeepSeek thinking mode is requested.
-        cache: The cache tier resolved for this call.
+        prompt: The prompt to send on every attempt.
+        spec: The call spec as the caller sized it.
+        opt: The caller's own options; only ``enable_thinking`` matters here.
+        temperature: The clamped temperature to send on every attempt.
 
     Returns:
-        The non-empty response content, having cached it (only reached once
-        content is valid).
+        A callable taking one attempt's escalation rung.
     """
-    completion_args = _build_completion_args(
-        request.prompt,
-        request.model_name,
-        request.max_tokens,
-        request.temperature,
-        CompletionShape(
-            force_json=bool(request.force_json),
-            json_schema=request.json_schema,
-            enable_thinking=enable_thinking,
-        ),
+    inner_opt = LLMCallOptions(
+        use_cache=False, enable_thinking=opt.enable_thinking, log_failures=False
     )
-    _apply_api_key(completion_args, current_api_key())
-    response = await _acompletion_within_timeout(
-        completion_args, request.model_name
-    )
-    content = _extract_completion_content(response, request.model_name)
-    cache.set(request, {"text": content})
-    return content
+
+    async def _attempt(escalation: BudgetEscalation) -> str:
+        attempt_spec = dataclasses.replace(
+            spec,
+            temperature=temperature,
+            max_tokens=escalated_max_tokens(spec.max_tokens, escalation),
+        )
+        attempt_opt = inner_opt
+        if escalation is BudgetEscalation.NO_THINKING:
+            attempt_opt = dataclasses.replace(inner_opt, enable_thinking=False)
+        return await _call_llm_single_attempt(prompt, attempt_spec, attempt_opt)
+
+    return _attempt
 
 
 async def call_llm(
     prompt: str,
     spec: CompletionSpec,
     options: LLMCallOptions | None = None,
+    max_attempts: int = 3,
 ) -> str:
     """Call an LLM via litellm and return the response.
+
+    An answerless completion -- the whole budget spent reasoning
+    (``LLMBudgetExhaustedError``), or reasoning that stopped normally and
+    wrote nothing (``LLMThinkingOnlyError``) -- climbs the same
+    budget-escalation ladder ``call_llm_json`` uses (see
+    ``llm_json_escalation.BudgetEscalation``) instead of failing on the
+    first attempt. A direct caller such as the literature-review synthesis
+    step used to get exactly one attempt and no way to recover from either
+    shape; see ``llm_text_retry.run_with_budget_escalation`` for the loop.
 
     Args:
         prompt: The rendered prompt to send.
         spec: Which model to call and how to sample/shape the output.
         options: Cache, telemetry, and thinking behavior; defaults to
             ``LLMCallOptions()``.
+        max_attempts: How many attempts the escalation ladder makes before
+            giving up. 3, not ``call_llm_json``'s 5: the ladder has exactly
+            three rungs that change the request -- the original call,
+            ``RAISED_BUDGET``, then ``NO_THINKING`` (see
+            ``llm_json_escalation.BudgetEscalation``) -- so three attempts
+            walk it in full, and a fourth or fifth would only resend the
+            identical ``NO_THINKING`` request, which the "a floor is not a
+            guarantee" gotcha (root ``AGENTS.md``) calls the same doomed
+            call billed again, not a retry. ``call_llm_json`` keeps 5
+            because two of its failure kinds -- a schema failure and a
+            parse failure -- hold their current rung and genuinely benefit
+            from asking again (with validation feedback, or simply again);
+            plain ``call_llm`` has neither failure kind, so nothing past
+            the third attempt is answerable by trying again. Still an
+            explicit parameter, so a caller that wants more attempts (for
+            the ordinary-hiccup case a retry does recover) can ask for it.
     """
     opt = options if options is not None else LLMCallOptions()
-    # An explicit spec key temporarily overrides any run-scoped key for
-    # exactly this call; the completion args read the effective key back
-    # from the context (see _call_llm_and_cache).
     with scoped_api_key(spec.api_key):
         request = LLMCacheRequest(
             prompt=prompt,
@@ -249,14 +272,18 @@ async def call_llm(
         if cached_response is not None:
             logger.debug("using cached llm response")
             return cast(str, cached_response["text"])
-        # Never falls back/retries itself; nothing cached on failure.
-        try:
-            return await _call_llm_and_cache(
-                request, opt.enable_thinking, cache
-            )
-        except Exception as e:
-            _report_call_llm_failure(spec, opt, e)
-            raise
+        content = await run_with_budget_escalation(
+            _call_for_attempt(prompt, spec, opt, request.temperature),
+            max_attempts,
+            spec.model_name,
+        )
+        # Cached under the caller's own unescalated request, exactly as
+        # call_llm_json caches under ctx.spec.max_tokens rather than
+        # whatever rung finally answered -- otherwise a call that always
+        # needs escalation would never populate the key its own next call
+        # actually looks up under.
+        cache.set(request, {"text": content})
+        return content
 
 
 async def _call_llm_for_json(
@@ -268,6 +295,10 @@ async def _call_llm_for_json(
     cache of the validated dict and returns from it before ever reaching
     this point, so a raw-text entry would only duplicate every cached
     payload on disk (and could replay an invalid response into the loop).
+    Calls the single-attempt primitive directly (not the public
+    ``call_llm``), so this raw call stays exactly one attempt -- the
+    escalation loop and attempt count are ``call_llm_json``'s own, above
+    this function, and must not also run inside it.
 
     Returns:
         The response text with any markdown code fences stripped.
@@ -275,7 +306,7 @@ async def _call_llm_for_json(
     Raises:
         ValueError: If the LLM returns None or an empty response.
     """
-    response_text = await call_llm(
+    response_text = await _call_llm_single_attempt(
         prompt,
         CompletionSpec(
             model_name=spec.model_name,

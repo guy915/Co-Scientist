@@ -35,10 +35,11 @@ class ResponseParseError(CoScientistError):
 
 # Raised by call_llm when a provider accepts a request and then never
 # answers. Distinct from a generic call failure because it is deliberately
-# not retried: the JSON retry loop re-raises it immediately (see
-# llm_json_retry._run_json_attempt), since a provider that has stopped
-# responding will not answer a second identical request any sooner, and
-# retrying multiplies one stalled call by the attempt count.
+# not retried: both retry loops built on the escalation ladder re-raise it
+# immediately (see llm_json_retry._run_json_attempt and its plain-text
+# counterpart llm_text_retry._run_text_attempt), since a provider that has
+# stopped responding will not answer a second identical request any sooner,
+# and retrying multiplies one stalled call by the attempt count.
 class LLMTimeoutError(CoScientistError):
     """An LLM call exceeded its wall-clock budget without responding."""
 
@@ -47,9 +48,10 @@ class LLMTimeoutError(CoScientistError):
 # max_tokens allowance went on the chain of thought (finish_reason="length"
 # with no content). Distinct from a generic empty response because the
 # answer is deterministic rather than incidental: the same request repeated
-# at the same budget reasons its way into the same wall, so the JSON retry
-# loop answers it by changing the budget instead (see
-# llm_json_retry.BudgetEscalation).
+# at the same budget reasons its way into the same wall, so the retry loop
+# answers it by changing the budget instead (see
+# llm_json_retry.BudgetEscalation, shared by call_llm_json and call_llm's
+# own escalation loop in llm_text_retry alike).
 #
 # Also a ValueError: an empty completion has raised one from
 # _extract_completion_content since before this subclass existed, and
@@ -58,14 +60,17 @@ class LLMBudgetExhaustedError(CoScientistError, ValueError):
     """An LLM spent its whole token budget reasoning and answered nothing."""
 
 
-# Raised when a completion ends normally (finish_reason is not "length")
-# having produced reasoning tokens and no answer tokens at all -- the model
-# thought, decided it was finished, and wrote nothing. Distinct from budget
-# exhaustion because a bigger allowance is not the remedy: production saw a
-# call reason for 1149 tokens against an 18000 budget and return empty, then
-# do the same on attempts 2 and 3, so a plain retry is not the remedy
-# either. The retry loop answers it by turning thinking off (see
-# llm_json_retry.BudgetEscalation).
+# Raised when a completion ends normally (finish_reason is neither "length"
+# nor "error" -- the latter is OpenRouter reporting a mid-stream provider
+# failure, not the model's own choice, and is a plain retryable failure
+# instead; see llm_response._empty_content_error) having produced reasoning
+# tokens and no answer tokens at all -- the model thought, decided it was
+# finished, and wrote nothing. Distinct from budget exhaustion because a
+# bigger allowance is not the remedy: production saw a call reason for 1149
+# tokens against an 18000 budget and return empty, then do the same on
+# attempts 2 and 3, so a plain retry is not the remedy either. The retry
+# loop answers it by turning thinking off (see llm_json_retry.BudgetEscalation
+# and llm_text_retry, which both climb this same ladder).
 #
 # Also a ValueError, for the same reason LLMBudgetExhaustedError is.
 class LLMThinkingOnlyError(CoScientistError, ValueError):

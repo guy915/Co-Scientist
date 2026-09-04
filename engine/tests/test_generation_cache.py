@@ -31,10 +31,14 @@ from tests._state import make_state
 
 
 async def _fresh_call_llm(*_a: Any, **_k: Any) -> str:
-    """Stand-in ``call_llm`` that always returns a fresh (uncached) response.
+    """Stand-in raw call that always returns a fresh (uncached) response.
 
     Accepts whatever ``call_llm_json`` passes through, like the other two
     doubles in this module; the response never depends on the arguments.
+    Patched in as ``_call_llm_single_attempt`` -- the one-attempt primitive
+    ``call_llm_json``'s per-attempt raw call actually runs -- rather than
+    the public ``call_llm``, which now carries its own budget-escalation
+    retry loop and is not what call_llm_json's attempts go through.
     """
     return json.dumps({"hypotheses": [{"hypothesis": "FRESH"}]})
 
@@ -78,7 +82,7 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
         LLMCacheRequest("P", "m", 0.7, 100, json_schema=schema),
         {"hypotheses": [{"hypothesis": "CACHED"}]},
     )
-    monkeypatch.setattr(llm_mod, "call_llm", _fresh_call_llm)
+    monkeypatch.setattr(llm_mod, "_call_llm_single_attempt", _fresh_call_llm)
 
     cached = _run_json_call(schema, use_cache=True)
     assert cached["hypotheses"][0]["hypothesis"] == "CACHED"

@@ -130,11 +130,16 @@ def escalation_after(
     a chain of thought cut off at the ceiling may genuinely have been close
     to finishing. A thinking-only response skips straight to the top:
     the model *chose* to stop, so it did not want for room, and the
-    intermediate rung would spend a whole attempt proving that.
+    intermediate rung would spend a whole attempt proving that -- true
+    only because a completion the provider itself aborted mid-stream
+    (``finish_reason="error"``) never reaches this function as
+    ``LLMThinkingOnlyError`` in the first place (see
+    ``llm_response._empty_content_error``).
 
-    A schema failure, a parse failure or an ordinary provider error all
-    keep the current rung: they say nothing about thinking, and changing
-    the request would spend more tokens on a problem tokens do not solve.
+    A schema failure, a parse failure or an ordinary provider error
+    (mid-stream provider failures included) all keep the current rung:
+    they say nothing about thinking, and changing the request would spend
+    more tokens on a problem tokens do not solve.
 
     Args:
         outcome: The outcome of the attempt that just ran.
@@ -177,7 +182,11 @@ def _apply_json_attempt_outcome(
 async def _handle_json_call_failure(
     error: Exception, attempt: _JsonAttempt
 ) -> _JsonAttemptOutcome:
-    """Converts a non-timeout ``call_llm_json`` call failure to an outcome.
+    """Converts a non-timeout LLM call failure to an outcome.
+
+    Shared by both retry loops -- ``call_llm_json``'s own and ``call_llm``'s
+    escalation loop (see ``llm_text_retry``) -- so the two ladders classify
+    and log a failure identically and cannot drift apart.
 
     Re-raises (via a bare ``raise``, so it must be called from within the
     caller's own ``except`` block) on the final attempt. A throttled failure
