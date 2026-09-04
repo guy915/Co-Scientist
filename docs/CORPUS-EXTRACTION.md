@@ -25,6 +25,15 @@ pseudocode, `MA-*` architecture), and a further pass mining `R14` — the
 corpus's only complete published run, wrongly excluded from the original
 sweep as a duplicate rather than read — added **26 more**.
 
+> **Superseded.** The status column below (`work`/`unclear`/etc.) is a
+> historical audit trail, updated ad hoc as fixes landed and known to be
+> unreliable in both directions — see `docs/CORPUS-STATUS.md:6`. It is
+> **not** current. The mirror-fidelity campaign has since audited every
+> `work`/`unclear` row (`docs/CORPUS-STATUS.md`) and closed at **84 rows,
+> 80 BUILT, 0 OPEN, 1 DECISION, 3 FALSE** (2026-09-04). Read
+> `docs/CORPUS-STATUS.md` for the authoritative, current disposition of
+> every row; do not redo this campaign from the table below.
+
 | Status | Region rows | |
 |---|---|---|
 | `work` | **64** | Real, unrecorded. This is the checklist. |

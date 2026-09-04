@@ -371,6 +371,63 @@ FALSE) → 21 rows (18 BUILT / 0 OPEN / 1 DECISION / 2 FALSE); the Total
 row moves 79 → 80 BUILT, 1 → 0 OPEN, every other bucket unchanged (84
 rows total, 1 DECISION / 3 FALSE). Zero OPEN rows remain.
 
+**Closing audit, published hypothesis documents (2026-09-04).** With
+`references/` due for deletion, all 19 published per-hypothesis documents
+under `.../ai-guided-discovery-of-atypical-protein-assemblies/
+hypotheses/` (byte-identical to their mirror under
+`research/extracted-artifacts/outputs/hypotheses/protein-assemblies/`,
+confirmed by `cmp`, plus that tree's own `SOURCE-NOTE.md` — not
+double-counted) were read as a set, past the five files that R14 rows
+already cite by name (`physico-evolutionary-pe-sni-...`,
+`development-sni-clt-...`, `development-seven-parameter-sni-...-af3`,
+`development-seven-parameter-sni-...-candidates`,
+`development-eight-parameter-sni-...-af3-homology`), into the 14 that were
+not. **Conclusion: nothing new.** A crude heading-frequency count surfaced
+seven section names with no literal-string hit in
+`app/app/report_markdown*.py`/`engine/src/co_scientist/schemas/`/
+`engine/src/co_scientist/prompts/templates/` — Motivation, Reviews
+summary, Related Article Abstracts, Suggested Improvements, Detailed
+Assumptions, Strength of Evidence, Assessment of Goal Requirements — but
+reading each in context (2-3 of the 19 files apiece) and searching by
+meaning rather than name found every one already settled by an existing
+row, just under different words: `Reviews summary` is `R14-14` /
+`docs/PARITY.md` `REVIEW-SUMMARY-STRUCTURE-001` (deliberately not built —
+Google's own 8/19-eight-part/3/19-two-list/8/19-empty split recorded as
+the reason not to impose a shape); `Related Article Abstracts`, `Suggested
+Improvements`, `Strength of Evidence`, and `Assessment of Goal
+Requirements` (published as "Goal Requirement(s) Assessment") are the four
+unbuilt parts of `R14-17` / `REVIEW-AXIS-STRUCTURE-001`'s own Correctness
+sub-schema list, measured at both a maximal and a minimal token cost and
+declined at either — that row's evidence names "Related Article Abstracts"
+specifically as unbuildable at any cost ("literally an echo of input the
+prompt already supplies, the same trap `proximity_dedup` hit"); `Detailed
+Assumptions` is already built at the review level —
+`FULL_REVIEW_SCHEMA.assumptions[]` (`engine/src/co_scientist/schemas/
+review.py`), rendered by `drain_reviews.py::_assumption_line` (MO-9) —
+with only the per-axis duplication (a separate block under Correctness
+*and* under Impact potential) covered by the same `R14-17` decline; and
+the standalone `Motivation:`/`Coherence:`/`Deep verification:` tail
+sections are `R14-22` (BUILT — `Deep verification` renders via
+`simulation_review.failure_points`), `R14-23` (recorded: this codebase's
+renderers omit an empty section's heading, Google's always print it), and
+`R14-24` (corrected population-pattern reading) — their content
+(why-this-hypothesis reasoning, missing-piece explanatory power,
+counterarguments) substantially overlaps existing fields
+(`literature_grounding`, rendered as **Mechanism**; assumptions;
+`constructive_feedback`) and the residual is exactly `R14-26`'s
+already-declined 14-section document assembly, not new missing content. A
+second pass scanned the 14 uncited files' own headings for anything
+outside the 15-name canonical set the campaign already measured
+(`R14-17`'s prose); everything found was either a numbering variant of an
+already-classified section, hypothesis-specific content (parameter names,
+contact names, per-contact `Justification:` prose already covered by
+`R14-16`), or one single-file garbled `Summary Table of Expertise` (broken
+cell-wrapping, the same lossy export signature `R14-25` already named and
+rejected as PDF/Docs-to-Markdown noise, not product formatting) — nothing
+structurally new. No row added, no count moved: this audit closes the
+question rather than reopening it, so a future reader does not need
+`references/` to re-verify that these 19 documents were mined.
+
 ---
 
 ## R1 — SSR consolidation
