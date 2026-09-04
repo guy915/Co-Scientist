@@ -222,8 +222,10 @@ DECISION -- the first region in this campaign to reach 0 DECISION. The
 Total row moves 62 → 63 BUILT, 14 → 13 DECISION. All three
 owner-directed decisions (#2, #6, #9) are now closed.
 
-**Closing pass, `R14-3` (2026-09-03).** `R14-3` moves **DECISION →
-BUILT** on an actual build, not an accepted divergence:
+**Closing pass, `R14-3` (2026-09-03) -- SUPERSEDED, kept for history.**
+Reversed on 2026-09-04 alongside `R14-11`; the tests it cites below are
+deleted. See `R14-3`'s own row for the current verdict. `R14-3` moved
+**DECISION → BUILT** on an actual build, not an accepted divergence:
 `app/app/report_goal_synthesis.py` adds the missing LLM call, made once
 per run at report-build time, and `report_markdown_documents.py`'s
 `_ranking_sections` threads its output into the Top Ranking Hypotheses
