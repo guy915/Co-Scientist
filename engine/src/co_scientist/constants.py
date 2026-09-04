@@ -121,6 +121,15 @@ LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
 generation.
 """
 
+LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS: Final = 8000
+"""Cap on the deterministic roll-up ``_phase4_synthesize`` builds when the
+synthesis LLM call fails but per-paper analyses exist (see
+``agents/generation/literature_review/synthesis.py``). Comparable to what
+the real synthesis call's own ``EXTENDED_MAX_TOKENS`` output budget
+typically produces, so a large paper pool cannot make the fallback blow a
+downstream prompt's token budget the way an unbounded concatenation would.
+"""
+
 
 # Temperature settings
 LOW_TEMPERATURE: Final = 0.3

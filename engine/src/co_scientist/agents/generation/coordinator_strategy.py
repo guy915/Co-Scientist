@@ -244,10 +244,13 @@ def _log_generation_strategy(
             total_count,
         )
     elif case == "degraded":
-        logger.warning("=" * 80)
-        logger.warning("No literature review tools available")
-        logger.warning("Generating hypotheses from model latent knowledge only")
-        logger.warning("=" * 80)
+        # One record, not the four (a decorative "=" * 80 border logged
+        # twice around two message lines) this used to emit: the durable,
+        # user-visible log panel renders every WARNING record verbatim.
+        logger.warning(
+            "No literature review tools available - generating"
+            " hypotheses from model latent knowledge only"
+        )
 
 
 def _start_progress_message(

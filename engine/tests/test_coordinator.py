@@ -11,6 +11,7 @@ precondition, and progress-event lifecycle tests live in the sibling
 ``test_coordinator_assembly.py``.
 """
 
+import logging
 from typing import Any
 
 import pytest
@@ -272,6 +273,34 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
         )
     assert "debate-only" in result["message"]
     assert result["hypothesis_count"] == 2
+
+
+async def test_condition_b_degraded_mode_logs_a_single_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The degraded case used to log a four-record decorative banner.
+
+    ``"=" * 80`` above and below two message lines. A durable,
+    user-visible log panel renders every WARNING record verbatim, so this
+    collapses to exactly one record carrying the same information.
+    """
+    tools = _ToolsRecorder([])
+    debate = _DebateRecorder([make_hypothesis(text="d1")], [])
+    _install(monkeypatch, tools, debate)
+
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=1,
+        mcp_available=False,  # no MCP -> has_literature False -> degraded
+        articles_with_reasoning=None,
+        enable_tool_calling_generation=True,
+    )
+    with caplog.at_level(logging.WARNING):
+        await generate_hypotheses(state)
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "latent knowledge" in warnings[0].getMessage()
 
 
 async def test_failed_lit_review_marker_is_degraded(
