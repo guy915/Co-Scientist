@@ -23,6 +23,7 @@ from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.llm_json import (
     _backfill_required_fields,
     _prune_unknown_properties,
+    _truncate_oversized_arrays,
     _validation_feedback,
     validate_json_schema,
 )
@@ -164,14 +165,18 @@ def _backfill_and_validate(
         ValidationError: If ``result`` doesn't match ``json_schema``.
     """
     # Provider-capability shim: calls downgraded to json_object have no
-    # server-side schema enforcement, so the answer can miss required fields
-    # *and* carry invented ones -- both fail a closed schema, and neither is
-    # fixed by asking again. Reshape to what the schema declares before
-    # validating, keyed on the same condition as the downgrade in call_llm.
+    # server-side schema enforcement, so the answer can miss required fields,
+    # carry invented ones, and overrun a maxItems cap -- all three fail a
+    # closed schema, and none is fixed by asking again. Reshape to what the
+    # schema declares before validating, keyed on the same condition as the
+    # downgrade in call_llm. Where the provider does enforce the schema, an
+    # over-long array is a real anomaly and stays a validation failure --
+    # this shim only runs on the downgrade path.
     if not _supports_json_schema_response_format(model_name):
         schema = json_schema.get("schema", json_schema)
         _prune_unknown_properties(result, schema)
         _backfill_required_fields(result, schema)
+        _truncate_oversized_arrays(result, schema)
     validate_json_schema(result, json_schema)
 
 

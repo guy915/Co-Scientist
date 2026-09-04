@@ -1,12 +1,13 @@
 """JSON handling utilities for LLM responses.
 
 Provides schema validation, fallback responses for non-critical nodes, the
-required-field backfill shim for json_object-only models, and validation
-feedback for retry prompts. The extraction and repair helpers live in
-``co_scientist.llm_json_repair`` and are re-exported here so historical
-import paths keep working. These helpers are pure (no network access) and
-are shared by the LLM call wrappers in ``co_scientist.llm`` and the
-tool-based generation phases.
+json_object-only provider-capability shims (backfilling missing required
+fields, pruning invented properties, truncating over-long arrays), and
+validation feedback for retry prompts. The extraction and repair helpers
+live in ``co_scientist.llm_json_repair`` and are re-exported here so
+historical import paths keep working. These helpers are pure (no network
+access) and are shared by the LLM call wrappers in ``co_scientist.llm`` and
+the tool-based generation phases.
 """
 
 import copy
@@ -420,6 +421,61 @@ def _prune_child(value: Any, property_schema: Any) -> None:
             _prune_unknown_properties(item, item_schema)
         return
     _prune_unknown_properties(value, property_schema)
+
+
+def _truncate_oversized_arrays(obj: Any, schema: Any) -> None:
+    """Recursively truncates arrays that exceed their schema's ``maxItems``.
+
+    Provider-capability shim for json_object-only models (see
+    ``_supports_json_schema_response_format``), alongside
+    ``_prune_unknown_properties`` and ``_backfill_required_fields``: without
+    server-side enforcement ``maxItems`` is advisory only, so an otherwise
+    valid answer one item over the limit fails the whole response.
+    Production returned six good experiment-plan steps against a
+    ``maxItems: 5`` schema and paid for a doomed retry, even though the
+    consuming node already truncates to the same cap defensively
+    (``MAX_EXPERIMENT_STEPS``) -- the sixth step was never surviving anyway.
+
+    Reshapes the OUTPUT only. It runs on a parsed response and must never
+    be pointed at a prompt -- trimming an LLM's input this way is exactly
+    what the "Trim the schema, never the input" gotcha (root ``AGENTS.md``)
+    forbids.
+
+    Args:
+        obj: Parsed JSON value to truncate in place (non-dicts are ignored).
+        schema: JSON schema node describing ``obj``.
+    """
+    if not _is_backfillable(obj, schema):
+        return
+    props = schema.get("properties", {})
+    for key, value in obj.items():
+        if key in props:
+            _truncate_child(value, props[key])
+
+
+def _truncate_child(value: Any, property_schema: Any) -> None:
+    """Truncates one property's array value, then recurses into its items.
+
+    Mirrors ``_prune_child``/``_backfill_child``: cuts an over-long array to
+    its ``maxItems`` in place, then walks each remaining item with the
+    array's own item schema -- covering an array nested inside an object
+    nested inside another array in one recursive call.
+
+    Args:
+        value: The property's value, of any shape.
+        property_schema: The schema node describing that property.
+    """
+    if not isinstance(property_schema, dict):
+        return
+    if isinstance(value, list):
+        max_items = property_schema.get("maxItems")
+        if isinstance(max_items, int) and len(value) > max_items:
+            del value[max_items:]
+        item_schema = property_schema.get("items")
+        for item in value:
+            _truncate_oversized_arrays(item, item_schema)
+        return
+    _truncate_oversized_arrays(value, property_schema)
 
 
 def _validation_feedback(error: ValidationError) -> str:
