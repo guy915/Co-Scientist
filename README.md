@@ -175,7 +175,7 @@ Copy `.env.example` to `.env`. Empty keys keep you in offline mode.
 
 ```
 OPENROUTER_API_KEY=                  # empty = offline mode; any provider key triggers the real LLM backend
-MODEL_NAME=openrouter/z-ai/glm-5.3-flash   # LiteLLM format
+MODEL_NAME=openrouter/z-ai/glm-5.2:free   # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
 SAFETY_MODE=standard                 # 'strict' for dual-use filtering
 ```

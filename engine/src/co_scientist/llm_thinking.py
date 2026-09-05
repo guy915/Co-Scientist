@@ -52,12 +52,13 @@ logger = logging.getLogger(__name__)
 # Checked BEFORE litellm's capability registry: it marks deepseek/* as
 # supporting response schema, but the DeepSeek API only accepts json_object.
 #
-# ``ox-alpha`` is here for a harder reason: no host serving it accepts
-# ``json_schema`` at all, and paired with ``require_parameters`` below
-# that is not a soft degradation -- the gateway finds no eligible host
-# and fails outright ("No endpoints found that can handle the requested
-# parameters"). Measured live: ``json_object`` plus that constraint
-# answers, ``json_schema`` plus it 404s.
+# The free gateway models (``z-ai/glm-5.2:free`` and its fallback chain)
+# don't need an entry here: litellm's own registry already reports no
+# response-schema support for them, so ``_supports_json_schema_response_format``
+# downgrades them via that path, not this family list. If a future model
+# in the chain fails that check the other way (registry says yes, host
+# says no -- a hard 404 paired with ``require_parameters``, not a soft
+# degradation), add it here rather than assuming the registry is right.
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 # Routes that normalize reasoning control into their own parameter rather

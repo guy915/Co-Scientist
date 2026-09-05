@@ -21,7 +21,8 @@ from co_scientist.llm_request import (
 )
 
 _PRIMARY = "openrouter/z-ai/glm-5.3-flash"
-_GLM = "openrouter/z-ai/glm-5.2:free"
+_FREE_PRIMARY = "openrouter/z-ai/glm-5.2:free"
+_GLM = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 _NEMO = "openrouter/minimax/minimax-m3:free"
 
 
@@ -41,10 +42,26 @@ def test_the_primary_model_carries_its_fallback_chain() -> None:
     ]
 
 
-def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
-    """Only the primary names the chain; a member of it must not recurse.
+def test_the_free_primary_carries_its_own_fallback_chain() -> None:
+    """The deployed default (``app.config``) also names a chain to fall through.
 
-    A fallback that re-listed the chain would let the gateway walk back up
+    Its single host answered 1 of 11 live probes on 2026-09-05 -- the
+    saturated-pool shape noted 2026-08-26 -- so in practice this chain,
+    not the primary, serves most calls.
+    """
+    body = deepseek_thinking_extra_body(_FREE_PRIMARY)
+
+    assert body["models"] == [
+        "minimax/minimax-m3:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3.5-lightning:free",
+    ]
+
+
+def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
+    """Only a primary names a chain; a member of one must not recurse.
+
+    A fallback that re-listed a chain would let the gateway walk back up
     to a model the caller had already moved past, and the paid last resort
     is the one it would reach.
     """
@@ -149,16 +166,20 @@ def test_a_direct_non_gateway_route_carries_no_provider_block() -> None:
     assert "provider" not in body
 
 
-def test_the_primary_is_downgraded_to_json_object() -> None:
-    """A model the capability registry does not know gets the safe format.
+def test_every_gateway_model_is_downgraded_to_json_object() -> None:
+    """Every declared gateway model gets the safe format, not just the primary.
 
     ``json_object`` is served by every host in this chain; ``json_schema``
     is not, and paired with ``require_parameters`` an unsupported format
     is a hard 404 rather than a soft degradation to an unconstrained
     answer. Free models turn over faster than litellm's registry does, so
-    the conservative answer is the correct one here.
+    if a future registry bump ever flips one of these to ``True``, this is
+    what would catch it rather than a live 404.
     """
-    assert _supports_json_schema_response_format(_PRIMARY) is False
+    from co_scientist.llm_thinking import _GATEWAY_MODELS
+
+    for model in _GATEWAY_MODELS:
+        assert _supports_json_schema_response_format(model) is False, model
 
 
 def test_the_primary_still_gets_the_thinking_token_floor() -> None:
@@ -241,22 +262,31 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
 
 
 def test_a_priced_primary_arms_the_routing_ceiling() -> None:
-    """The cap only exists when the primary has a rate to be a multiple of.
+    """The cap exists only when the primary has a rate to be a multiple of.
 
-    A primary listed at zero silently drops ``max_price`` -- there is no
-    meaningful multiple of nothing -- and an uncapped route may be served
-    at any price the gateway likes. That is the mechanism behind the
-    $5.23: not the fallback being wrong on its own, but the ceiling that
-    would have refused it never being sent.
+    A priced primary must send ``max_price``: that is the ceiling that
+    would have refused the $5.23 incident's fallback. A *free* primary
+    correctly sends none -- there is no meaningful multiple of nothing --
+    but that is safe only because every rung under it is also free
+    (asserted by ``test_no_fallback_costs_more_than_the_model_above_it``),
+    so an uncapped route still has nothing to overspend on.
     """
+    from co_scientist.constants_pricing import MODEL_PRICING
     from co_scientist.llm_thinking import _GATEWAY_MODELS, _gateway_provider
 
     for primary, declared in _GATEWAY_MODELS.items():
         if not declared.fallbacks:
             continue
-        assert "max_price" in _gateway_provider(primary), (
-            f"{primary} heads a chain but sends no price ceiling"
-        )
+        price = MODEL_PRICING[primary]
+        has_cap = "max_price" in _gateway_provider(primary)
+        if price.prompt_usd_per_million:
+            assert has_cap, (
+                f"{primary} heads a chain but sends no price ceiling"
+            )
+        else:
+            assert not has_cap, (
+                f"{primary} is free but sends a price ceiling anyway"
+            )
 
 
 def test_the_price_cap_excludes_the_2x_tier() -> None:

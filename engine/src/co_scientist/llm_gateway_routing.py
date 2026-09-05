@@ -174,6 +174,13 @@ class GatewayModel:
         fallbacks: Gateway-relative ids to try, in order, when unavailable.
             The gateway walks the list itself: a 429 from a saturated
             pool is not a transport error the engine's retry ladder fixes.
+            One entry, `nvidia/nemotron-3.5-lightning:free`, lists no
+            `response_format` in its own `supported_parameters` (checked
+            against OpenRouter's public model listing 2026-09-05) -- paired
+            with `require_parameters`, a schema'd call cannot land there at
+            all. Pre-existing on the paid chain this deployment inherited
+            it from; not a reason to reorder, just a rung that is
+            effectively text-only if a call ever reaches it.
     """
 
     takes_reasoning_knob: bool
@@ -196,6 +203,41 @@ class GatewayModel:
 # primary arms the ceiling; free rungs below it are safe for the same
 # reason they were dangerous above it.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
+    # The deployed primary (also ``app.config``'s default on every tier).
+    # Its single host (Decart) is a shared free pool that was saturated
+    # most of the day on the date this chain was pinned: 1 of 11 live
+    # probes answered, the rest 429 "temporarily rate-limited upstream"
+    # (2026-09-05, matching the same shape noted here 2026-08-26) -- so in
+    # practice this chain, not the primary, serves most calls. Every rung
+    # is priced 0/0 (``MODEL_PRICING``), so the omitted price cap below
+    # cannot bite: a $0 primary has no multiple to cap at, and every free
+    # rung is safe to fall through to for the same reason. **No paid rung
+    # may ever be appended below a free primary** -- wired that way once,
+    # a $1.25/$4.25 "last resort" served 3.17M tokens and billed $5.23 in
+    # an afternoon because 429 is the normal state of a shared free pool,
+    # not the rare case a last resort assumes (2026-08-26 incident; see
+    # the module-level comment above this table).
+    "openrouter/z-ai/glm-5.2:free": GatewayModel(
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        fallbacks=(
+            "minimax/minimax-m3:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+            "nvidia/nemotron-3.5-lightning:free",
+        ),
+    ),
+    "openrouter/minimax/minimax-m3:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    # The paid alternative chain head, kept for a deployment that opts back
+    # into it (``app.config`` no longer defaults here). Its own chain and
+    # rationale are unchanged.
     "openrouter/z-ai/glm-5.3-flash": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
@@ -203,15 +245,6 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
             "minimax/minimax-m3:free",
             "nvidia/nemotron-3.5-lightning:free",
         ),
-    ),
-    "openrouter/minimax/minimax-m3:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/z-ai/glm-5.2:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
     ),
 }
 
