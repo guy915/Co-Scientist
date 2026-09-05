@@ -6,6 +6,7 @@ import io
 import json
 import logging
 
+from app.litellm_logging import _LITELLM_LOGGER_NAMES
 from app.logging_setup import (
     TEXT_FORMAT,
     JsonFormatter,
@@ -188,3 +189,55 @@ def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
 
     tagged = {getattr(r, "run_id", None) for r in capture.records}
     assert run_id in tagged
+
+
+# --- LiteLLM logging noise ---------------------------------------------------
+
+
+def test_configure_logging_raises_litellm_loggers_to_warning() -> None:
+    """Root's own INFO level must not let LiteLLM's loggers stay chatty.
+
+    LiteLLM attaches its own handler directly to these loggers, bypassing
+    root entirely, so this must be a level set on the logger itself
+    (perturbed to DEBUG first so the assertion cannot pass on stale
+    module-import state).
+    """
+    for name in _LITELLM_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.DEBUG)
+
+    configure_logging()
+
+    for name in _LITELLM_LOGGER_NAMES:
+        assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
+    _restore_default_logging()
+
+
+def test_configure_logging_does_not_touch_warning_and_above() -> None:
+    """The fix silences chatter, not genuine trouble reports.
+
+    Matches ``UNPERSISTED_LOGGERS``'s own boundary: WARNING+ must still
+    reach a handler, since that is what says a dependency is in trouble.
+    """
+    configure_logging()
+    litellm_logger = logging.getLogger("LiteLLM")
+
+    assert litellm_logger.isEnabledFor(logging.WARNING)
+    assert not litellm_logger.isEnabledFor(logging.INFO)
+    _restore_default_logging()
+
+
+def test_configure_logging_suppresses_litellms_debug_print_banner() -> None:
+    """The "Provider List" banner is a plain print(), not a log record.
+
+    ``litellm.suppress_debug_info`` is the only switch guarding it
+    (litellm's ``get_llm_provider_logic.py``), so the logger-level fix
+    above leaves it printing unless this flag is also set.
+    """
+    import litellm
+
+    litellm.suppress_debug_info = False  # perturb first
+
+    configure_logging()
+
+    assert litellm.suppress_debug_info is True
+    _restore_default_logging()

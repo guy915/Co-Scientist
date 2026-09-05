@@ -3,8 +3,9 @@
 Configures the root logger once at startup (``configure_logging``) with
 either the default human-readable text format or one JSON object per
 line, both on stdout. Run-id correlation and the record formatters live
-in ``app.logging_format`` (re-exported here, so this module stays the
-stable import surface).
+in ``app.logging_format``, and silencing LiteLLM's own noisy loggers
+lives in ``app.litellm_logging`` (both re-exported here, so this module
+stays the stable import surface).
 
 ``configure_log_capture`` additionally persists every record that
 reaches the root logger into the ``app_logs`` table: the hot path only
@@ -29,6 +30,9 @@ import sys
 import threading
 
 from app import store
+from app.litellm_logging import (
+    silence_litellm_logging as silence_litellm_logging,
+)
 from app.logging_format import (
     TEXT_FORMAT as TEXT_FORMAT,
 )
@@ -93,6 +97,7 @@ def configure_logging(
     handler.addFilter(_byok_redaction_filter())
     root.addHandler(handler)
     root.setLevel(level)
+    silence_litellm_logging()
     return handler
 
 
