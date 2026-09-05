@@ -60,25 +60,58 @@ def test_the_non_default_free_chain_head_still_carries_its_chain() -> None:
     ]
 
 
-def test_the_deployed_default_carries_no_fallback_chain() -> None:
-    """``minimax-m3:free`` is the sole primary: no chain behind it.
+def test_the_deployed_default_carries_the_all_free_chain() -> None:
+    """``minimax-m3:free`` heads every live free model measured 2026-09-06.
 
-    The 2026-09-06 owner decision was a single free model, not another
-    chain to fall through -- a real express run had already shown this
-    model, not ``glm-5.2:free`` above it, serving nearly all the traffic.
+    Each ``:free`` variant caps at roughly 100 requests/day per model, not
+    "one saturated shared pool" -- the shape the 2026-09-06 single-model
+    switch had assumed. A chain lets a run keep going once the primary's
+    own daily cap is spent, in the order the live probe measured.
     """
-    assert "models" not in deepseek_thinking_extra_body(_NEMO)
+    body = deepseek_thinking_extra_body(_NEMO)
+    chain = [
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "google/gemma-4-31b-it:free",
+        "minimax/minimax-m2.7:free",
+        "dots-studio/dots-3-note-preview:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "z-ai/glm-5.2:free",
+    ]
+    assert body["models"] == chain
+
+    from co_scientist.constants_pricing import MODEL_PRICING
+
+    for gateway_relative in (_NEMO.removeprefix("openrouter/"), *chain):
+        price = MODEL_PRICING[f"openrouter/{gateway_relative}"]
+        assert (
+            price.prompt_usd_per_million,
+            price.completion_usd_per_million,
+        ) == (
+            0.0,
+            0.0,
+        ), gateway_relative
 
 
 def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
     """Only a primary names a chain; a member of one must not recurse.
 
     A fallback that re-listed a chain would let the gateway walk back up
-    to a model the caller had already moved past, and the paid last resort
-    is the one it would reach.
+    to a model the caller had already moved past. ``glm-5.2:free`` is the
+    one deliberate exception -- it heads its own non-default chain -- so
+    it is checked separately, not against this invariant.
     """
-    assert "models" not in deepseek_thinking_extra_body(_GLM)
-    assert "models" not in deepseek_thinking_extra_body(_NEMO)
+    from co_scientist.llm_thinking import _GATEWAY_MODELS
+
+    for gateway_relative in (
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "google/gemma-4-31b-it:free",
+        "minimax/minimax-m2.7:free",
+        "dots-studio/dots-3-note-preview:free",
+        "nvidia/nemotron-3.5-lightning:free",
+    ):
+        model_name = f"openrouter/{gateway_relative}"
+        assert "models" not in deepseek_thinking_extra_body(model_name)
+        assert not _GATEWAY_MODELS[model_name].fallbacks
 
 
 def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:

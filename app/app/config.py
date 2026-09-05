@@ -41,18 +41,20 @@ class Settings(BaseSettings):
     # LLM Configuration
     #
     # One model on every tier, reached through OpenRouter: Minimax M3's free
-    # pool, with no fallback chain behind it. Cost is the binding constraint
-    # on this deployment, so the tier split buys nothing -- there is no
-    # cheaper rung than free for a worker tier to drop to, and no budget
-    # freed by giving the strategic tier something dearer.
+    # pool, heading an all-free fallback chain. Cost is the binding
+    # constraint on this deployment, so the tier split buys nothing -- there
+    # is no cheaper rung than free for a worker tier to drop to, and no
+    # budget freed by giving the strategic tier something dearer.
     #
-    # This replaces the 2026-09-05 GLM 5.2 + free-chain switch: a real
-    # express run measured GLM 5.2's free pool answering only 7 of 85 calls
-    # (its single host stays saturated), against Minimax M3 serving 74 of
-    # those calls at $0. Naming it as the sole primary drops the chain that
-    # was doing the real work anyway, with no fallback and nothing to fall
-    # to. ``llm_gateway_routing._GATEWAY_MODELS`` holds this model's own
-    # declaration (no fallbacks) and what it needs.
+    # This replaces the 2026-09-06 single-model switch, hours later: every
+    # OpenRouter ``:free`` variant caps at roughly 100 requests/day *per
+    # model*, not "one saturated shared pool" that a single healthy model
+    # could stand in for -- so a lone primary stops a run dead the moment
+    # its own ~100/day is spent, however healthy every other free model is.
+    # The chain is back, now covering every free model a live probe found
+    # actually answering. ``llm_gateway_routing._GATEWAY_MODELS`` holds this
+    # model's own declaration (its chain, in the order that probe measured)
+    # and what each rung needs.
     #
     # Two properties of this model are load-bearing and neither is
     # guessable from its name, which is why both are declared rather than

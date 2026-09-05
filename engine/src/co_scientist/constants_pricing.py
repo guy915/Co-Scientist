@@ -112,6 +112,9 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     "openrouter/z-ai/glm-5.2:free": ModelPrice(0.0, 0.0),
     "openrouter/minimax/minimax-m3:free": ModelPrice(0.0, 0.0),
     "openrouter/nvidia/nemotron-3-super-120b-a12b:free": ModelPrice(0.0, 0.0),
+    "openrouter/google/gemma-4-31b-it:free": ModelPrice(0.0, 0.0),
+    "openrouter/minimax/minimax-m2.7:free": ModelPrice(0.0, 0.0),
+    "openrouter/dots-studio/dots-3-note-preview:free": ModelPrice(0.0, 0.0),
     "openrouter/nvidia/nemotron-3.5-lightning:free": ModelPrice(0.0, 0.0),
     # The paid alternative chain head (``app.config`` no longer defaults
     # here). Listing it at a real rate is what arms the routing price

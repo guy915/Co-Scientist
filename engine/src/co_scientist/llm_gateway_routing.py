@@ -222,12 +222,68 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
         ),
     ),
     # The deployed primary (also ``app.config``'s default on every tier),
-    # with no fallback chain: the owner decision behind the 2026-09-06
-    # switch was a single free model, not another chain to fall through.
+    # now heading its own all-free chain again -- a second reversal in one
+    # day. Measured 2026-09-05/06 through this account's OpenRouter key:
+    # every ``:free`` variant carries its own per-model daily cap (~100
+    # requests/day, plus a shared 20 req/min across all free variants), not
+    # the "one saturated pool" shape the 2026-09-06 single-model switch
+    # assumed -- the 429 body for a different free model read "Daily limit
+    # reached... Credits don't affect this cap", `limit_source:
+    # openrouter_shared_capacity`. A single free primary with nothing behind
+    # it therefore stops the whole run dead the moment its own ~100/day is
+    # spent, however healthy every other free model is. OpenRouter's
+    # ``models`` fallback array falls through on a 429 exactly as it does on
+    # a provider error, so a chain of N free models buys roughly N x 100
+    # free calls/day before any of them needs a real spend.
+    #
+    # **Every rung in this chain must be priced $0/$0.** A free primary
+    # disarms ``_gateway_provider``'s price cap outright (see the comment
+    # above ``_GATEWAY_MODELS``): zero has no meaningful multiple, so the
+    # route goes out uncapped. That is safe only because there is nothing
+    # here to overspend on -- a paid rung appended below a free primary was
+    # exactly the 2026-08-26 incident ($1.25/$4.25 "last resort" served
+    # 3.17M tokens, billed $5.23 in an afternoon, because 429 is the
+    # *normal* state of a shared free pool, not the rare case a last resort
+    # assumes). ``test_no_fallback_costs_more_than_the_model_above_it``
+    # holds this chain to that rule over the declared table, not by
+    # inspection.
+    #
+    # Order follows the live probe (3 concurrent JSON requests each,
+    # 2026-09-05/06): Nemotron Super and GLM M2.7 answered 3/3 fast
+    # (~1-3s, GMICloud/Nvidia); Dots Note answered 3/3 at 1-5s (AtlasCloud);
+    # Gemma answered 2/3 (Google AI Studio, one upstream 429); Nemotron
+    # Lightning answered 3/3 but slow (8-23s) and its own listing carries no
+    # ``response_format`` at all (see ``GatewayModel.fallbacks`` above --
+    # paired with ``require_parameters`` a schema'd call cannot land there,
+    # so it is kept as an effectively text-only rung rather than dropped,
+    # matching the precedent already set for the ``glm-5.2:free`` chain
+    # below); GLM 5.2 itself answered 0/3 (saturated) and sits last as the
+    # rung this chain already knows can be exhausted. Every rung reasons
+    # and spends its budget thinking (checked against each model's
+    # ``supported_parameters`` listing, which carries ``reasoning`` for
+    # all seven), so none is inferred rather than declared.
     "openrouter/minimax/minimax-m3:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        fallbacks=(
+            "nvidia/nemotron-3-super-120b-a12b:free",
+            "google/gemma-4-31b-it:free",
+            "minimax/minimax-m2.7:free",
+            "dots-studio/dots-3-note-preview:free",
+            "nvidia/nemotron-3.5-lightning:free",
+            "z-ai/glm-5.2:free",
+        ),
     ),
     "openrouter/nvidia/nemotron-3-super-120b-a12b:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/google/gemma-4-31b-it:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/minimax/minimax-m2.7:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/dots-studio/dots-3-note-preview:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
     "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
