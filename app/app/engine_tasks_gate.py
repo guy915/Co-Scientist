@@ -68,6 +68,7 @@ async def _assess_gate_claims(
     Returns:
         Per plan, its claim assessments in the plan's own claim order.
     """
+    from app.async_bridge import propagate_context
     from app.claim_grounding import assess_claim_groups
 
     call = functools.partial(
@@ -81,8 +82,12 @@ async def _assess_gate_claims(
         # The deterministic assessor makes no call to overlap.
         return call(parallel=False)
     loop = asyncio.get_running_loop()
+    # ``run_in_executor`` does not copy this coroutine's contextvars into
+    # the dedicated thread (unlike ``asyncio.to_thread``) -- wrap the call
+    # so the run's scoped LLM-call budget and telemetry phase (entered by
+    # the caller) reach the entailment calls this wave makes.
     with ThreadPoolExecutor(max_workers=1) as host:
-        return await loop.run_in_executor(host, call)
+        return await loop.run_in_executor(host, propagate_context(call))
 
 
 def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
@@ -324,21 +329,25 @@ def _apply_gate_verdict(
         hypothesis.review_disposition = plan.prior_disposition
 
 
-async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
-    """Quarantine ungrounded ideas before a decisive Elo tournament."""
-    from app.claim_grounding import build_assessor
+@dataclasses.dataclass(frozen=True)
+class _GateWave:
+    """One pass's plans, paired with the counts its log line reports."""
 
-    passages = _build_evidence_passages(state)
-    assessor, assessor_id = build_assessor(
-        settings.claim_assessor,
-        settings.claim_verifier_model or settings.model_name,
-    )
-    # Pass one plans every hypothesis without making a single provider call,
-    # so the claims that actually need assessing can go out together below.
-    # A permanently unrankable idea (initial review already barred it) is
-    # skipped before even the fingerprint check -- it can never reach the
-    # tournament, so nothing here would change its fate.
-    hypotheses = state.get("hypotheses") or []
+    plans: list[_GatePlan]
+    considered: int
+    skipped_unrankable: int
+    skipped_unchanged: int
+
+
+def _build_gate_wave(
+    hypotheses: Sequence[Any], passages: Sequence[Any], assessor_id: str
+) -> _GateWave:
+    """Plan every hypothesis without a single provider call.
+
+    A permanently unrankable idea (initial review already barred it) is
+    skipped before even the fingerprint check -- it can never reach the
+    tournament, so nothing here would change its fate.
+    """
     plans: list[_GatePlan] = []
     skipped_unrankable = 0
     skipped_unchanged = 0
@@ -351,47 +360,71 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             skipped_unchanged += 1
             continue
         plans.append(plan)
+    return _GateWave(
+        plans, len(hypotheses), skipped_unrankable, skipped_unchanged
+    )
 
-    assessed = await _assess_gate_claims(plans, passages, assessor, assessor_id)
-    for plan, assessments in zip(plans, assessed, strict=True):
-        _apply_gate_verdict(plan, assessments, assessor_id)
-    claims_assessed = sum(len(plan.claims) for plan in plans)
+
+def _log_gate_wave(wave: _GateWave) -> None:
+    """Log one INFO line summarizing a gate pass's counts."""
+    claims_assessed = sum(len(plan.claims) for plan in wave.plans)
     logger.info(
         "claim gate pass: considered=%d skipped_unrankable=%d "
         "skipped_unchanged=%d assessed=%d claims_assessed=%d",
-        len(hypotheses),
-        skipped_unrankable,
-        skipped_unchanged,
-        len(plans),
+        wave.considered,
+        wave.skipped_unrankable,
+        wave.skipped_unchanged,
+        len(wave.plans),
         claims_assessed,
     )
 
 
-def _entailment_calls_so_far() -> int:
-    """Return the process-wide entailment judgement count."""
-    from app.claim_verifier import entailment_call_count
+async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
+    """Quarantine ungrounded ideas before a decisive Elo tournament."""
+    from co_scientist.llm_telemetry import scoped_telemetry
 
-    return entailment_call_count()
+    from app.claim_grounding import build_assessor
+
+    passages = _build_evidence_passages(state)
+    assessor, assessor_id = build_assessor(
+        settings.claim_assessor,
+        settings.claim_verifier_model or settings.model_name,
+    )
+    wave = _build_gate_wave(
+        state.get("hypotheses") or [], passages, assessor_id
+    )
+
+    with scoped_telemetry("claim_gate") as telemetry:
+        assessed = await _assess_gate_claims(
+            wave.plans, passages, assessor, assessor_id
+        )
+    for plan, assessments in zip(wave.plans, assessed, strict=True):
+        _apply_gate_verdict(plan, assessments, assessor_id)
+    _fold_gate_telemetry(state, telemetry.snapshot())
+    _log_gate_wave(wave)
 
 
-def _charge_entailment_calls(state: dict[str, Any], calls: int) -> None:
-    """Fold this gate pass's entailment calls into the run's LLM budget.
+def _fold_gate_telemetry(
+    state: dict[str, Any], usage: Mapping[str, Mapping[str, Any]]
+) -> None:
+    """Fold this gate pass's LLM telemetry into the run's live metrics.
 
-    The entailment assessor calls the provider directly rather than through
-    the engine's ``call_llm``, so these never reached a run's metrics --
-    and grounding issues one per extracted claim per hypothesis, hundreds
-    in a real run. The tier's ``max_llm_calls`` exists as a runaway
-    backstop, and it was blind to the largest single source of calls.
-
-    Counted from a process-wide total, so a delta rather than an absolute:
-    several runs share the process, and only this pass's share is this
-    run's to pay.
+    Entailment calls now run through the engine's ``call_llm_json`` seam
+    (``app.claim_verifier``), so ``scoped_telemetry("claim_gate")`` above
+    already captured their tokens/cost/call count -- this replaces the old
+    call-count-only charge (``_charge_entailment_calls``), which existed
+    only because those calls used to bypass the engine's telemetry
+    entirely. A no-op when the pass made no calls (a fully-reused or
+    fully-skipped pass), so it never manufactures a metrics key.
     """
-    if calls <= 0:
+    if not usage:
         return
     from co_scientist.models import MetricDeltas, create_metrics_update
     from co_scientist.models_metrics import merge_metrics
 
-    delta = create_metrics_update(deltas=MetricDeltas(llm_calls=calls))
+    calls = sum(entry.get("calls", 0) for entry in usage.values())
+    delta = create_metrics_update(
+        deltas=MetricDeltas(llm_calls=calls), model_usage=dict(usage)
+    )
     existing = state.get("metrics")
     state["metrics"] = merge_metrics(existing, delta) if existing else delta

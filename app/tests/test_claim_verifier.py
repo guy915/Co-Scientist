@@ -22,10 +22,27 @@ from app.claims import (
 )
 
 
-def _fake_completion(content: str) -> Any:
-    """Return a stand-in for litellm.completion yielding ``content``."""
+@pytest.fixture(autouse=True)
+def _disable_llm_response_cache() -> Any:
+    """Force every call in this file to miss the engine's response cache.
 
-    def _completion(**_kwargs: Any) -> Any:
+    ``claim_verifier`` now routes through ``call_llm_json`` with caching
+    on (by design -- see its module docstring), and several tests here
+    reuse the exact same claim/passage pair with a *different* faked
+    reply to prove a different code path. Without this, the second such
+    test would silently replay the first test's cached response instead
+    of calling the fake at all.
+    """
+    from co_scientist.cache import scoped_cache_override
+
+    with scoped_cache_override(False):
+        yield
+
+
+def _fake_completion(content: str) -> Any:
+    """Return a stand-in for litellm.acompletion yielding ``content``."""
+
+    async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
         choice = types.SimpleNamespace(message=message)
         return types.SimpleNamespace(choices=[choice])
@@ -34,9 +51,15 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
+    """Patch the engine's completion boundary (``litellm.acompletion``).
+
+    ``app.claim_verifier`` routes through ``co_scientist.llm.call_llm_json``
+    now (see the module docstring), so the boundary to fake is the
+    engine's own -- exactly what every other engine LLM test patches.
+    """
     import litellm
 
-    monkeypatch.setattr(litellm, "completion", completion)
+    monkeypatch.setattr(litellm, "acompletion", completion)
 
 
 _PASSAGE = EvidencePassage(
@@ -164,7 +187,7 @@ def test_provider_error_falls_back_to_deterministic(
 ) -> None:
     """A raising provider falls back to the deterministic assessor."""
 
-    def _raising(**_kwargs: Any) -> Any:
+    async def _raising(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
 
     _install(monkeypatch, _raising)
@@ -201,8 +224,8 @@ def test_no_passages_is_insufficient_without_calling_llm(
 ) -> None:
     """With no candidate passages the assessor short-circuits."""
 
-    def _should_not_be_called(**_kwargs: Any) -> Any:
-        raise AssertionError("litellm.completion must not be called")
+    async def _should_not_be_called(**_kwargs: Any) -> Any:
+        raise AssertionError("litellm.acompletion must not be called")
 
     _install(monkeypatch, _should_not_be_called)
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
@@ -210,18 +233,19 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assert draft.label is EntailmentLabel.INSUFFICIENT
 
 
-def test_verdict_call_thinks(
+def test_call_reaches_the_engine_completion_boundary_with_the_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The entailment judge reasons, like every other app call.
+    """The assessor's call is sent to the resolved model via the engine seam.
 
-    Thinking is requested explicitly rather than left to the provider's
-    default, which is not ours to rely on: an omitted field is how a judge
-    ends up reasoning locally and silently not reasoning in production.
+    Thinking/reasoning-argument shaping is the engine's own responsibility
+    now (``co_scientist.llm_thinking``, exercised by the engine's own
+    tests) -- this only pins that this module's call reaches that seam at
+    all, with the model this assessor was built for.
     """
     seen: dict[str, Any] = {}
 
-    def _capturing_completion(**kwargs: Any) -> Any:
+    async def _capturing_completion(**kwargs: Any) -> Any:
         seen.update(kwargs)
         message = types.SimpleNamespace(
             content='{"label": "insufficient", "supporting": [], '
@@ -235,5 +259,4 @@ def test_verdict_call_thinks(
     assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
     assessor("some claim", [_PASSAGE])
 
-    assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
-    assert seen["reasoning_effort"] == "high"
+    assert seen["model"] == "deepseek/deepseek-v4-flash"

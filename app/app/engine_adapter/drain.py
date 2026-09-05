@@ -138,6 +138,9 @@ from app.engine_adapter.drain_safety import (
 from app.engine_adapter.drain_supervisor_plan import (
     _persist_supervisor_plan as _persist_supervisor_plan,
 )
+from app.engine_adapter.drain_telemetry import (
+    fold_grounding_telemetry as fold_grounding_telemetry,
+)
 from app.hypothesis_screening import screen_hypotheses
 from app.text_utils import first_sentence as first_sentence
 
@@ -302,7 +305,7 @@ def _assess_claims(
     grounding_candidates: list[dict[str, Any]],
     passages: list[EvidencePassage],
     gate_records: Mapping[str, Mapping[str, Any]] | None = None,
-) -> Any:
+) -> tuple[Any, dict[str, dict[str, Any]]]:
     """Assess each hypothesis claim against retrieved evidence passages.
 
     Claims the pre-ranking gate already assessed against the same evidence
@@ -313,6 +316,9 @@ def _assess_claims(
     to carry the verdict across.
 
     Must run outside any transaction -- see ``_persist_final_state``.
+    ``scoped_telemetry("claim_grounding")`` attributes this pass's LLM
+    calls in the run's metrics separately from the pre-ranking gate's own
+    ``"claim_gate"`` phase.
 
     Args:
         grounding_candidates: Persisted hypotheses not already rejected.
@@ -321,19 +327,24 @@ def _assess_claims(
             enrichment; omitted means assess everything.
 
     Returns:
-        Per hypothesis id, its ``(assessment, role)`` pairs in claim order.
+        A tuple of (per hypothesis id its ``(assessment, role)`` pairs in
+        claim order, this pass's LLM telemetry snapshot).
     """
+    from co_scientist.llm_telemetry import scoped_telemetry
+
     assessor, assessor_id = build_assessor(
         settings.claim_assessor,
         settings.claim_verifier_model or settings.model_name,
     )
-    return assess_hypothesis_claims(
-        grounding_candidates,
-        passages,
-        assessor=assessor,
-        assessor_id=assessor_id,
-        reuse=_reusable_by_hypothesis(gate_records or {}),
-    )
+    with scoped_telemetry("claim_grounding") as telemetry:
+        assessed = assess_hypothesis_claims(
+            grounding_candidates,
+            passages,
+            assessor=assessor,
+            assessor_id=assessor_id,
+            reuse=_reusable_by_hypothesis(gate_records or {}),
+        )
+    return assessed, telemetry.snapshot()
 
 
 def _gate_records_by_store_id(
@@ -463,11 +474,12 @@ def _persist_final_state(
             run_id, inputs, citation_summary, store_id_by_engine_id, db_path
         )
     )
-    assessed = _assess_claims(
+    assessed, grounding_usage = _assess_claims(
         grounding_candidates,
         passages,
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
+    fold_grounding_telemetry(final_state, grounding_usage)
     escalated = drain_escalation._escalate_screened_hypotheses(
         run_id, screening_result.escalatable, db_path
     )

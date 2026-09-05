@@ -151,11 +151,17 @@ def _assess_flat_claims(
         )
 
     if parallel:
+        from app.async_bridge import propagate_context
+
+        # ``ThreadPoolExecutor`` does not copy this thread's contextvars
+        # into its workers -- the caller's run-scoped LLM-call budget and
+        # telemetry phase (see engine_tasks_gate/drain) would otherwise
+        # silently vanish for every claim an LLM assessor assesses here.
         # ``map`` preserves input order.
         with ThreadPoolExecutor(
             max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
         ) as pool:
-            return list(pool.map(_assess_one, flat))
+            return list(pool.map(propagate_context(_assess_one), flat))
     return [_assess_one(item) for item in flat]
 
 

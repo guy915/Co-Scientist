@@ -191,34 +191,39 @@ def test_no_gate_record_assesses_everything() -> None:
     assert sorted(seen) == sorted([_CLAIM, _OTHER])
 
 
-def test_entailment_calls_are_charged_to_the_run_budget() -> None:
-    """Grounding's provider calls must count against max_llm_calls.
+def test_gate_telemetry_is_folded_into_the_run_metrics() -> None:
+    """Grounding's provider calls must count against a run's telemetry.
 
-    The entailment assessor calls the provider directly rather than through
-    the engine's call_llm, so these never reached a run's metrics -- and
-    grounding issues one per extracted claim per hypothesis, hundreds in a
-    real run. The tier's budget is a runaway backstop; it was blind to the
-    largest single source of calls the app makes.
+    Entailment calls route through the engine's ``call_llm_json`` seam
+    (``app.claim_verifier``), so ``scoped_telemetry`` already captures
+    their tokens/cost/call count per (phase, model); this only has to fold
+    that snapshot into the run's live metrics, the same reducer every
+    engine node commit uses.
     """
     from co_scientist.models import ExecutionMetrics
 
     from app import engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
+    usage = {"claim_gate::llm:test-model": {"calls": 25, "prompt_tokens": 100}}
 
-    engine_tasks_gate._charge_entailment_calls(state, 25)
+    engine_tasks_gate._fold_gate_telemetry(state, usage)
 
+    entry = state["metrics"].model_usage["claim_gate::llm:test-model"]
+    assert entry["calls"] == 25
+    assert entry["prompt_tokens"] == 100
     assert state["metrics"].llm_calls == 32
 
 
 def test_a_gate_pass_that_made_no_calls_charges_nothing() -> None:
-    """A fully-reused gate pass must not inflate the budget."""
+    """A fully-reused gate pass must not manufacture a metrics key."""
     from co_scientist.models import ExecutionMetrics
 
     from app import engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
 
-    engine_tasks_gate._charge_entailment_calls(state, 0)
+    engine_tasks_gate._fold_gate_telemetry(state, {})
 
     assert state["metrics"].llm_calls == 7
+    assert state["metrics"].model_usage == {}

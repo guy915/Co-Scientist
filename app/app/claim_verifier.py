@@ -11,36 +11,52 @@ support is always traceable to a real span in a real source.
 Design choices (documented clone decisions — Google publishes neither model nor
 thresholds, SSR §12):
 - Temperature 0 so the eval and the golden run are reproducible.
-- Strict JSON output; any parse/timeout/provider failure falls back to the
-  deterministic assessor rather than failing the grounding pass (best-effort,
-  mirroring ``title_gen``/``qa``).
-- The assessor is *synchronous* (uses ``litellm.completion``) because grounding
-  runs inside the synchronous drain's persistence path.
+- Schema'd JSON output via the engine's ``call_llm_json`` seam; any
+  parse/schema/timeout/provider failure falls back to the deterministic
+  assessor rather than failing the grounding pass (best-effort, mirroring
+  ``title_gen``/``qa``).
+- The public ``Assessor`` protocol (``app.claims_assessor.Assessor``) stays
+  synchronous -- both claim-assessment paths run many claims at once on a
+  plain ``ThreadPoolExecutor`` (``app.claim_grounding_assess``), so the
+  entailment call bridges to the engine's async seam via
+  ``app.async_bridge.run_coroutine_sync`` rather than making every assessor
+  in the codebase async for this one caller.
 
-This module is exercised end-to-end by the golden run (P0.6); the offline suite
-fakes ``litellm.completion`` to prove prompt/parse/guard behavior.
+Routing through ``co_scientist.llm.call_llm_json`` (rather than calling
+``litellm`` directly, as this module used to) means every entailment call
+now shares the engine's response cache, per-phase telemetry
+(``co_scientist.llm_telemetry.scoped_telemetry`` -- the gate opens
+``"claim_gate"``, the finalize grounding pass opens ``"claim_grounding"``),
+run-scoped call-budget enforcement (``co_scientist.llm_call_budget``, so
+``LLMCallBudgetExceededError`` terminates a run over-spending on claims the
+same way it does an engine node), and the thinking-token floor
+(``co_scientist.llm_thinking``) -- see the root AGENTS.md finding this
+module's docstring used to warn about, now closed.
+
+This module is exercised end-to-end by the golden run (P0.6); the offline
+suite fakes ``litellm.acompletion`` (the engine's own completion boundary) to
+prove prompt/parse/guard behavior.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
 from typing import Any
 
+from co_scientist.exceptions import LLMCallBudgetExceededError
+from co_scientist.llm import call_llm_json
 from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.schemas.builders import obj
 
+from app.async_bridge import run_coroutine_sync
 from app.claims import (
     Assessor,
     AssessorDraft,
     EntailmentLabel,
     EvidencePassage,
     deterministic_assessor,
-)
-from app.config import (
-    deepseek_thinking_kwargs,
-    thinking_safe_max_tokens,
-    thinking_safe_timeout,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,27 +76,49 @@ _SYSTEM_PROMPT = (
     "VERBATIM quote (copied character-for-character from the passage) that "
     "justifies it, together with that passage's evidence_id; put a partial "
     'verdict\'s quote in "supporting". Do not paraphrase quotes. Respond with '
-    "a single JSON object and nothing else, shaped exactly: "
-    '{"label": "supports|partial|contradicts|insufficient", '
-    '"supporting": [{"evidence_id": "...", "quote": "..."}], '
-    '"contradicting": [{"evidence_id": "...", "quote": "..."}]}.'
+    "a single JSON object and nothing else."
 )
 
-# Both budgets cover a reasoning round-trip, not just the verdict. A judge
-# that thinks emits its chain of thought first, against the same token
-# ceiling and the same clock, and every overrun here is silent: the caller
-# falls back to the deterministic assessor, so an under-sized budget reads
-# as "the LLM assessor is configured but never wins" rather than as an error.
-# The two ceilings therefore have to move together -- funding the reasoning
-# and then cutting it off at the old deadline just relabels the failure --
-# so thinking_safe_timeout raises this the way its sibling raises the tokens.
-_DEFAULT_TIMEOUT_SECONDS = 90.0
-# A ceiling, not a reservation: the verdict JSON is short, and the generous cap
-# only matters for an unusually long quote. The chain of thought is not funded
-# from here -- thinking_safe_max_tokens raises the budget it is sent with, so
-# reasoning cannot eat the answer's share and silently hand every claim to the
-# deterministic fallback (the failure the comment above describes).
+# A ceiling, not a reservation: the verdict JSON is short, and the generous
+# cap only matters for an unusually long quote. The chain of thought is not
+# funded from here -- the engine's own thinking floor
+# (``co_scientist.llm_thinking``) raises whatever budget a thinking model is
+# sent with, so reasoning cannot eat the answer's share.
 _MAX_TOKENS = 6000
+
+_CITATION_ITEM = obj(
+    {
+        "evidence_id": {"type": "string"},
+        "quote": {"type": "string"},
+    }
+)
+
+# Accepts a bare citation object as well as the requested array: under the
+# json_object downgrade (no server-side schema enforcement -- see the
+# gateway model note in the root AGENTS.md) a model can plausibly write a
+# single citation unwrapped rather than as a one-element list, and the
+# engine's own local schema validation runs even then (see the "Under the
+# json_object downgrade" gotcha) -- a plain ``array`` type would reject
+# that shape before ``_coerce_pairs`` below ever gets a chance to recover
+# it, silently losing a real verdict to the deterministic fallback.
+_CITATION_LIST = {
+    "oneOf": [{"type": "array", "items": _CITATION_ITEM}, _CITATION_ITEM]
+}
+
+# The assessor's raw verdict shape (``AssessorDraft``), enforced server-side
+# where the model supports json_schema and reshaped into conformance by the
+# engine's json_object downgrade path otherwise (see llm_json._backfill_
+# required_fields / _prune_unknown_properties).
+_ENTAILMENT_DRAFT_SCHEMA = obj(
+    {
+        "label": {
+            "type": "string",
+            "enum": [label.value for label in EntailmentLabel],
+        },
+        "supporting": _CITATION_LIST,
+        "contradicting": _CITATION_LIST,
+    }
+)
 
 
 def _render_passages(passages: Sequence[EvidencePassage]) -> str:
@@ -94,10 +132,10 @@ def _render_passages(passages: Sequence[EvidencePassage]) -> str:
 def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     """Coerce a parsed ``[{evidence_id, quote}]``-shaped value to pairs.
 
-    ``response_format={"type": "json_object"}`` carries no schema
-    enforcement, so a single citation can plausibly arrive as a bare
-    object rather than wrapped in a one-element list; ``coerce_json_list``
-    recovers that shape before the per-item dict fields are read.
+    Even under schema enforcement, a single citation can plausibly arrive
+    as a bare object rather than wrapped in a one-element list;
+    ``coerce_json_list`` recovers that shape before the per-item dict
+    fields are read.
     """
     pairs: list[tuple[str, str]] = []
     for item in coerce_json_list(items, element="dict", site=site):
@@ -108,18 +146,14 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _parse_draft(content: str) -> AssessorDraft | None:
-    """Parse the model's JSON reply into an :class:`AssessorDraft`.
+def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
+    """Parse the model's validated JSON reply into an :class:`AssessorDraft`.
 
-    Returns None on malformed output so the caller can fall back rather than
-    trusting a partial parse.
+    Returns None when the shape is still unusable (an empty/invalid label)
+    so the caller can fall back rather than trusting a partial parse --
+    defensive even though ``call_llm_json`` has already reshaped the reply
+    to satisfy the schema.
     """
-    try:
-        data = json.loads(content)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    if not isinstance(data, dict):
-        return None
     raw_label = str(data.get("label") or "").strip().lower()
     try:
         label = EntailmentLabel(raw_label)
@@ -136,67 +170,68 @@ def _parse_draft(content: str) -> AssessorDraft | None:
     )
 
 
-def _entailment_messages(
-    claim: str, passages: Sequence[EvidencePassage]
-) -> list[dict[str, str]]:
-    """Build the system/user chat messages for the entailment judge."""
-    return [
-        {"role": "system", "content": _SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                f"CLAIM:\n{claim}\n\nEVIDENCE:\n{_render_passages(passages)}"
-            ),
-        },
-    ]
+def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
+    """Build the single-string prompt the engine's LLM seam sends."""
+    return (
+        f"{_SYSTEM_PROMPT}\n\n"
+        f"CLAIM:\n{claim}\n\nEVIDENCE:\n{_render_passages(passages)}"
+    )
 
 
-# Entailment judgements issued in this process. This assessor calls
-# litellm directly rather than going through the engine's ``call_llm``, so
-# nothing folded these into a run's metrics -- and grounding issues one per
-# extracted claim per hypothesis, which is hundreds of calls in a real run.
-# The tier's ``max_llm_calls`` is a runaway backstop, and it was blind to
-# the single largest source of calls the app makes.
-_entailment_calls = 0
+async def _call_llm_entailment_async(
+    model: str, claim: str, passages: Sequence[EvidencePassage]
+) -> dict[str, Any]:
+    """Await one entailment judgement through the engine's LLM seam.
 
+    A scoped bring-your-own-key credential overrides the model and the
+    deployment credential, exactly as the direct-litellm call this
+    replaces did.
+    """
+    from app import credentials
 
-def entailment_call_count() -> int:
-    """Return how many entailment judgements this process has issued."""
-    return _entailment_calls
+    resolved_model, api_key = credentials.byok_model_and_key(model)
+    spec = CompletionSpec(
+        model_name=resolved_model,
+        max_tokens=_MAX_TOKENS,
+        temperature=0,
+        json_schema=_ENTAILMENT_DRAFT_SCHEMA,
+        api_key=api_key,
+    )
+    result: dict[str, Any] = await call_llm_json(
+        _entailment_prompt(claim, passages),
+        spec,
+        max_attempts=2,
+        options=LLMCallOptions(prompt_name="claim_verifier"),
+    )
+    return result
 
 
 def _call_llm_entailment(
     model: str,
     claim: str,
     passages: Sequence[EvidencePassage],
-    timeout: float,
-) -> str | None:
-    """Call the LLM entailment judge and return its raw reply, or None.
+) -> dict[str, Any] | None:
+    """Call the LLM entailment judge and return its parsed reply, or None.
 
-    Returns None (and logs a warning) on any provider failure, so the caller
-    can fall back to the deterministic assessor. A scoped bring-your-own-key
-    credential overrides the model and the deployment credential; this runs
-    on an executor thread, which inherits the scoping context.
+    Returns None (and logs a warning) on any provider/parse failure, so the
+    caller can fall back to the deterministic assessor. Runs on whatever
+    thread the (synchronous) ``Assessor`` protocol is invoked from --
+    typically one of ``claim_grounding_assess``'s pool workers -- and
+    bridges to the engine's async ``call_llm_json`` via
+    ``run_coroutine_sync``.
+
+    A run's LLM-call budget being exhausted is not a provider failure to
+    swallow: falling back silently would hide the exact blindness the
+    engine seam exists to close (the ceiling could not see these calls
+    before this module routed through it). It is left to propagate and
+    terminate the run, like any other engine call over budget.
     """
-    global _entailment_calls
-    _entailment_calls += 1
     try:
-        import litellm
-
-        from app import credentials
-
-        model, api_key = credentials.byok_model_and_key(model)
-        response = litellm.completion(
-            model=model,
-            messages=_entailment_messages(claim, passages),
-            temperature=0,
-            max_tokens=thinking_safe_max_tokens(model, _MAX_TOKENS),
-            timeout=thinking_safe_timeout(model, timeout),
-            response_format={"type": "json_object"},
-            **deepseek_thinking_kwargs(model),
-            api_key=api_key,
+        return run_coroutine_sync(
+            lambda: _call_llm_entailment_async(model, claim, passages)
         )
-        return response.choices[0].message.content or ""
+    except LLMCallBudgetExceededError:
+        raise
     except Exception as exc:
         logger.warning(
             "LLM claim assessor failed (%s); falling back to "
@@ -206,16 +241,11 @@ def _call_llm_entailment(
         return None
 
 
-def make_llm_assessor(
-    model: str,
-    *,
-    timeout: float = _DEFAULT_TIMEOUT_SECONDS,
-) -> tuple[Assessor, str]:
+def make_llm_assessor(model: str) -> tuple[Assessor, str]:
     """Build a synchronous LLM entailment assessor and its provenance id.
 
     Args:
         model: The litellm model id (e.g. ``deepseek/deepseek-chat``).
-        timeout: Per-call timeout in seconds.
 
     Returns:
         ``(assessor, assessor_id)`` where ``assessor`` matches the
@@ -229,21 +259,15 @@ def make_llm_assessor(
     ) -> AssessorDraft:
         if not passages:
             return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-        content = _call_llm_entailment(model, claim, passages, timeout)
-        if content is None:
+        data = _call_llm_entailment(model, claim, passages)
+        if data is None:
             return deterministic_assessor(claim, passages)
-        draft = _parse_draft(content)
+        draft = _parse_draft(data)
         if draft is None:
-            # The reply itself, truncated, because without it this line
-            # is undiagnosable: a run routed through a gateway logged it
-            # eleven times, and 32 calls reproducing the same prompt
-            # shape afterwards all parsed cleanly. Whether the failure is
-            # a wrong label, a leaked chain of thought or a truncated
-            # object decides which fix applies, and only the reply says.
             logger.warning(
                 "LLM claim assessor returned unparseable output; falling "
                 "back to deterministic assessor. Reply began: %.200r",
-                content,
+                data,
             )
             return deterministic_assessor(claim, passages)
         return draft

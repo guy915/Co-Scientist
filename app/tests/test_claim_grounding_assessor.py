@@ -71,10 +71,10 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 
 
 def _ev_completion(ev_id: str) -> Any:
-    """A faked litellm.completion citing ``ev_id`` so its span locates."""
+    """A faked litellm.acompletion citing ``ev_id`` so its span locates."""
     import types
 
-    def _completion(**_kwargs: Any) -> Any:
+    async def _completion(**_kwargs: Any) -> Any:
         content = (
             '{"label": "supports", "supporting": '
             f'[{{"evidence_id": "{ev_id}", '
@@ -118,20 +118,22 @@ def test_ground_with_llm_assessor_persists_provenance(
 ) -> None:
     """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
     import litellm
+    from co_scientist.cache import scoped_cache_override
 
     _may_call_out(monkeypatch)
     run, hyp_id, ev_id = _seed_llm_assessor(isolated_db)
     # The faked model cites the real evidence id so the span locates.
-    monkeypatch.setattr(litellm, "completion", _ev_completion(ev_id))
+    monkeypatch.setattr(litellm, "acompletion", _ev_completion(ev_id))
 
     assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
-    ground_hypotheses(
-        run.id,
-        store.list_hypotheses(run.id),
-        evidence_passages(run.id, db_path=isolated_db),
-        assessment=AssessorSpec(assessor, assessor_id),
-        target=GroundingTarget(db_path=isolated_db),
-    )
+    with scoped_cache_override(False):
+        ground_hypotheses(
+            run.id,
+            store.list_hypotheses(run.id),
+            evidence_passages(run.id, db_path=isolated_db),
+            assessment=AssessorSpec(assessor, assessor_id),
+            target=GroundingTarget(db_path=isolated_db),
+        )
 
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     edge = next(e for e in edges if e["hypothesis_id"] == hyp_id)
