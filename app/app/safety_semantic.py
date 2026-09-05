@@ -9,17 +9,14 @@ established monkeypatch seams -- and calls into the helpers here.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
+from co_scientist.llm import call_llm_json
 from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.schemas.builders import obj
 
-from app.config import (
-    deepseek_thinking_kwargs,
-    thinking_safe_max_tokens,
-    thinking_safe_timeout,
-)
 from app.safety_types import SafetyDecision
 
 logger = logging.getLogger(__name__)
@@ -58,6 +55,59 @@ def _semantic_prompt(text: str, stage: str) -> str:
         f"Stage: {stage}\nContent:\n{text[:16000]}"
     )
 
+
+# "uncertain" is listed first because it is the enum's backfill default:
+# under the json_object downgrade, a model that omits ``category``
+# entirely gets it filled with the enum's first value
+# (``co_scientist.llm_json._default_for_field_schema``), and a missing
+# verdict must read as "needs a human", never as the strictest or the
+# most permissive category by accident of list order.
+_SEMANTIC_CATEGORY_SCHEMA = {
+    "type": "string",
+    "enum": [
+        "uncertain",
+        "prohibited",
+        "ethical_concern",
+        "redacted",
+        "allowed",
+    ],
+}
+
+# Bare-string tolerant, exactly like claim_verifier's citation list: under
+# the json_object downgrade a model can plausibly write one domain
+# unwrapped rather than as a one-element array, and ``coerce_json_list``
+# (below, in ``_merge_risk_domains``) is what recovers that shape -- a
+# plain ``array`` type would fail local schema validation before that
+# recovery ever runs.
+_RISK_DOMAINS_SCHEMA = {
+    "oneOf": [
+        {"type": "array", "items": {"type": "string"}},
+        {"type": "string"},
+    ]
+}
+
+# The fields ``_build_semantic_decision``, ``_offensive_score``,
+# ``_structured_flag_domains`` and ``_merge_risk_domains`` actually read.
+# ``operational_detail`` (asked for in the prompt for the model's own
+# reasoning, per the reference product's shape) is not one of them, so it
+# is left off this closed schema -- an object node built by
+# ``co_scientist.schemas.builders.obj`` prunes any undeclared key under
+# the json_object downgrade rather than failing on it.
+_SEMANTIC_DECISION_SCHEMA = obj(
+    {
+        "category": _SEMANTIC_CATEGORY_SCHEMA,
+        "reason": {"type": "string"},
+        "risk_domains": _RISK_DOMAINS_SCHEMA,
+        "offensive_score": {"type": "number"},
+        "is_personal_medical_recommendation": {"type": "boolean"},
+        "is_personal_finance_recommendation": {"type": "boolean"},
+    },
+    optional=(
+        "risk_domains",
+        "is_personal_medical_recommendation",
+        "is_personal_finance_recommendation",
+    ),
+)
 
 _SEMANTIC_CATEGORY_TO_DECISION = {
     "prohibited": "block",
@@ -136,35 +186,71 @@ def _flag_hold_reason(domains: list[str]) -> str:
 async def _call_semantic_safety_model(
     text: str, stage: str, model: str
 ) -> dict[str, Any]:
-    """Call the semantic safety model and return its parsed JSON response."""
-    import litellm
+    """Call the semantic safety model and return its parsed JSON response.
 
+    Routed through the engine's ``call_llm_json`` seam rather than calling
+    ``litellm`` directly (the shape ``claim_verifier`` moved off of in
+    113218e9): a gateway model that answers a json_object request with the
+    JSON wrapped in a Markdown fence -- reproduced against
+    ``minimax/minimax-m3:free``, the free fallback chain's first rung --
+    used to raise ``json.loads``'s "Expecting value" straight out of this
+    function, which every caller treats as a provider failure and holds
+    for human review (``_assessment_unavailable_decision``). The engine
+    seam already strips fences (``llm_json.extract_response_json``),
+    backfills required fields and prunes invented ones under the
+    json_object downgrade, retries on the shared budget ladder, and
+    raises once every attempt is exhausted -- so the same
+    ``except Exception`` in ``screen_contextual``/``assess_hold_contextually``
+    still catches a persistently bad model and still falls back to the
+    unavailable-assessment hold; it just no longer trips on a
+    well-formed-but-fenced first answer.
+
+    Sending no ``max_tokens`` was not "unbounded" -- it took the
+    provider's own default, small enough for thinking to exhaust before
+    the verdict was written, and that failure was silent all the way to
+    the outcome. The floor is no longer this module's job: the engine's
+    own ``_apply_thinking_args`` raises ``max_tokens`` to its thinking
+    floor (and applies the DeepSeek thinking kwargs) only for a model that
+    actually reasons, so a plain answer-sized budget here is never
+    double-floored. There is likewise no per-call timeout knob in this
+    seam; the process-wide ``COSCIENTIST_LLM_TIMEOUT_SECONDS`` (600s
+    default) governs instead of the 20s this module used to send --
+    generous, but both gates run inside durable background tasks with no
+    caller waiting on a clock.
+    """
     from app import credentials
 
     # A scoped bring-your-own-key credential overrides both the model and
     # the deployment credential for this screen.
-    model, api_key = credentials.byok_model_and_key(model)
-    # Sending no max_tokens was not "unbounded" -- it took the provider's
-    # own default, small enough for thinking to exhaust before the verdict
-    # is written. That failure is silent all the way to the outcome: empty
-    # content parses to {}, {} carries no category, and a missing category
-    # is "uncertain", which is hold-plus-human-review. Runs would park for
-    # adjudication on a truncated call rather than on their content. The
-    # 20s clock could not fund the reasoning either; both gates run inside
-    # durable tasks, so neither ceiling is blocking a request.
-    response = await litellm.acompletion(
-        model=model,
-        messages=[{"role": "user", "content": _semantic_prompt(text, stage)}],
-        response_format={"type": "json_object"},
+    resolved_model, api_key = credentials.byok_model_and_key(model)
+    spec = CompletionSpec(
+        model_name=resolved_model,
+        max_tokens=1_000,
         temperature=0,
-        max_tokens=thinking_safe_max_tokens(model, 1_000),
-        timeout=thinking_safe_timeout(model, 20),
-        **deepseek_thinking_kwargs(model),
+        json_schema=_SEMANTIC_DECISION_SCHEMA,
         api_key=api_key,
     )
-    content = response.choices[0].message.content or "{}"
-    parsed: dict[str, Any] = json.loads(content)
-    return parsed
+    # Caching stays off: the direct-litellm call this replaces was never
+    # cached, and a safety gate re-screened on resume (screen_with_
+    # escalation's approval check aside) should re-evaluate rather than
+    # silently replay an earlier verdict. It also broke a test in
+    # test_hypothesis_safety_escalation.py that fakes a provider failure
+    # after an earlier test's success populated a hit for the same prompt.
+    #
+    # Two attempts, not the default five: the fence case this call exists
+    # to fix resolves on attempt 1, and a second attempt covers one
+    # budget-escalation rung for an ordinary hiccup. Both gates run inside
+    # durable tasks with no caller waiting on a clock, but bootstrap holds
+    # the run's very first lease for the duration -- five attempts at the
+    # 600s process timeout is up to 50 minutes of a stuck lease where the
+    # call this replaced gave up after one attempt at 20s.
+    result: dict[str, Any] = await call_llm_json(
+        _semantic_prompt(text, stage),
+        spec,
+        max_attempts=2,
+        options=LLMCallOptions(use_cache=False, prompt_name="safety_screen"),
+    )
+    return result
 
 
 def _merge_risk_domains(

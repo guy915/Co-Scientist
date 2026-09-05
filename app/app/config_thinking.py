@@ -102,8 +102,12 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     not, so the redundant field failed the contextual safety screen and
     parked runs for human review. Spread into a completion call
     (``**deepseek_thinking_kwargs``). Used by every app call site that
-    reaches a model directly: interview, Q&A, session announcement, safety,
-    claim verification, and titling. Non-DeepSeek models get an empty dict.
+    reaches a model directly and streams: interview, Q&A, session
+    announcement, and titling. Safety and claim verification used to be on
+    this list too; both now route through the engine's ``call_llm_json``
+    seam, which applies its own thinking kwargs and floor, so they no
+    longer call ``litellm`` directly at all. Non-DeepSeek models get an
+    empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -128,8 +132,12 @@ the whole allowance: the call returns ``finish_reason="length"`` with empty
 content, is billed in full, and is retried. The engine hit exactly this on
 every node whose budget predated thinking being switched on
 (``co_scientist.constants.THINKING_FLOOR_MAX_TOKENS``, which this mirrors);
-the app's calls bypass that layer by invoking ``litellm.acompletion``
-directly, so they need the floor applied at their own call sites.
+the app's *streaming* calls bypass that layer by invoking
+``litellm.acompletion`` directly, so they need the floor applied at their
+own call sites. A one-shot call that parses JSON belongs on the engine's
+``call_llm_json`` seam instead (see ``safety_semantic.py`` and
+``claim_verifier.py``), which applies this same floor on its own -- these
+functions are for the call sites that must stream and so cannot use it.
 
 A ceiling is not a spend -- raising it costs nothing on calls that answer
 briefly, and only removes the failure mode on the ones that reason at
@@ -165,8 +173,7 @@ to admit 18k tokens arriving -- 240s is that budget at a deliberately
 pessimistic 75 tok/s, well under what the provider sustains in practice.
 
 A long deadline is only acceptable where nobody is watching a blank screen
-for the length of it. The safety and claim-verifier calls are background
-durable tasks; the interview, the post-run Q&A chat, and the session
+for the length of it. The interview, the post-run Q&A chat, and the session
 announcement all relay their chain of thought to the scientist as it
 arrives (``qa_stream.stream_llm_deltas`` yields ``reasoning`` fragments the
 same way ``run_start_announcement`` does), so a stalled provider is caught
