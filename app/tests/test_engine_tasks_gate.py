@@ -385,3 +385,70 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     assert any(claim["label"] == "contradicts" for claim in go_no_go_claims), (
         "test setup did not actually produce a contradiction to be excused"
     )
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An idea the initial review gate already barred is never assessed.
+
+    ``inaccurate``/``non_novel``/``unsafe`` can never reach the tournament
+    (``Hypothesis.is_rankable``), and the initial review gate never
+    reverses those verdicts -- so spending a wave of provider calls on
+    their claims buys nothing. Only ``evidence_blocked`` (this gate's own,
+    reversible verdict) must still be reassessed; see the sibling test.
+    """
+    calls = _install_counting_assessor(monkeypatch)
+    rejected = Hypothesis(text="A rejected idea about lactate.")
+    rejected.review_disposition = "inaccurate"
+    state = {"hypotheses": [rejected], "articles": []}
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert calls["n"] == 0
+    assert "claim_gate" not in rejected.enrichments
+    assert rejected.review_disposition == "inaccurate"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A previously blocked idea is reassessed once its text changes.
+
+    ``evidence_blocked`` is this gate's own verdict, not the initial
+    review's, so an idea it blocked must stay reassessable -- unlike a
+    disposition the initial review gate decided for good (the sibling
+    test above). Revising the hypothesis's text changes its input
+    fingerprint, so the fingerprint cache cannot be the reason it is
+    skipped; only a disposition-based skip could wrongly bar it here.
+    """
+    calls = _install_counting_assessor(monkeypatch)
+    hypothesis = Hypothesis(text="stale, previously-blocked text")
+    hypothesis.review_disposition = "evidence_blocked"
+    hypothesis.enrichments["claim_gate"] = {
+        "decision": "block",
+        "reason": "a prior contradicted claim",
+        "assessor": "counting-v1",
+        "input_fingerprint": "stale-fingerprint",
+        "prior_review_disposition": "viable",
+        "claims": [],
+    }
+    hypothesis.text = "Astrocyte lactate accelerates synaptic ATP recovery."
+    state: dict[str, Any] = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert calls["n"] > 0
+    assert hypothesis.review_disposition == "viable"

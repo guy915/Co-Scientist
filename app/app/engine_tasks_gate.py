@@ -12,11 +12,14 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import functools
+import logging
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -175,6 +178,35 @@ def _per_claim_fingerprints(
     }
 
 
+def _permanently_unrankable(hypothesis: Any) -> bool:
+    """Return whether review already excluded this idea for good.
+
+    ``Hypothesis.is_rankable`` is false for two different reasons, and only
+    one of them is this gate's to revisit. ``evidence_blocked`` is this
+    gate's *own* verdict -- an idea it blocked can still change (or the
+    retrieved evidence can), so it must stay reassessable, and the
+    fingerprint cache above already skips it cheaply once nothing has.
+    Every other blocking disposition (``inaccurate``, ``non_novel``,
+    ``inaccurate_and_non_novel``, ``unsafe``) was decided once and for all
+    by the initial review gate (``agents/reflection/review.py::
+    _apply_initial_review_gate``), which never reverses it -- so a wave of
+    provider calls over those claims buys nothing. A hypothesis currently
+    ``evidence_blocked`` whose *underlying* disposition was one of these
+    (recorded as ``prior_review_disposition`` the first time this gate
+    blocked it) is still permanently unrankable: the block just happens to
+    read ``evidence_blocked`` on top of it.
+    """
+    if hypothesis.is_rankable():
+        return False
+    if hypothesis.review_disposition != "evidence_blocked":
+        return True
+    from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS
+
+    gate_history = hypothesis.enrichments.get("claim_gate") or {}
+    underlying = gate_history.get("prior_review_disposition")
+    return underlying in BLOCKING_REVIEW_DISPOSITIONS - {"evidence_blocked"}
+
+
 def _plan_hypothesis_gate(
     hypothesis: Any,
     passages: Sequence[Any],
@@ -303,17 +335,36 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     )
     # Pass one plans every hypothesis without making a single provider call,
     # so the claims that actually need assessing can go out together below.
+    # A permanently unrankable idea (initial review already barred it) is
+    # skipped before even the fingerprint check -- it can never reach the
+    # tournament, so nothing here would change its fate.
+    hypotheses = state.get("hypotheses") or []
     plans: list[_GatePlan] = []
-    for hypothesis in state.get("hypotheses") or []:
+    skipped_unrankable = 0
+    skipped_unchanged = 0
+    for hypothesis in hypotheses:
+        if _permanently_unrankable(hypothesis):
+            skipped_unrankable += 1
+            continue
         plan = _plan_hypothesis_gate(hypothesis, passages, assessor_id)
-        if plan is not None:
-            plans.append(plan)
+        if plan is None:
+            skipped_unchanged += 1
+            continue
+        plans.append(plan)
 
-    before = _entailment_calls_so_far()
     assessed = await _assess_gate_claims(plans, passages, assessor, assessor_id)
     for plan, assessments in zip(plans, assessed, strict=True):
         _apply_gate_verdict(plan, assessments, assessor_id)
-    _charge_entailment_calls(state, _entailment_calls_so_far() - before)
+    claims_assessed = sum(len(plan.claims) for plan in plans)
+    logger.info(
+        "claim gate pass: considered=%d skipped_unrankable=%d "
+        "skipped_unchanged=%d assessed=%d claims_assessed=%d",
+        len(hypotheses),
+        skipped_unrankable,
+        skipped_unchanged,
+        len(plans),
+        claims_assessed,
+    )
 
 
 def _entailment_calls_so_far() -> int:
