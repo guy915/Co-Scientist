@@ -18,6 +18,7 @@ from typing import Any
 from app.config import (
     deepseek_thinking_kwargs,
     settings,
+    thinking_off_kwargs,
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
@@ -112,13 +113,21 @@ def clean_title(raw: str) -> str | None:
     return title
 
 
-async def _request_title_completion(goal: str) -> Any:
+async def _request_title_completion(
+    goal: str, *, thinking_enabled: bool = True
+) -> Any:
     """Call the chat model for a title completion.
 
     Bounded by :data:`_TITLE_TIMEOUT_SECONDS` so a slow/hung model never
     blocks a run's title indefinitely; the caller catches any failure. A
     scoped bring-your-own-key credential overrides the model and the
     deployment credential.
+
+    Args:
+        goal: The run's research goal, sent as the user turn.
+        thinking_enabled: False for the one retry a thinking-only response
+            gets (see ``generate_run_title``); ``thinking_off_kwargs``
+            spends nothing on reasoning for that attempt.
     """
     import litellm
 
@@ -132,6 +141,11 @@ async def _request_title_completion(goal: str) -> Any:
     model, api_key = credentials.byok_model_and_key(
         settings.effective_chat_model
     )
+    thinking_kwargs = (
+        deepseek_thinking_kwargs(model)
+        if thinking_enabled
+        else thinking_off_kwargs(model)
+    )
     return await asyncio.wait_for(
         litellm.acompletion(
             model=model,
@@ -141,7 +155,7 @@ async def _request_title_completion(goal: str) -> Any:
             ],
             temperature=0.3,
             max_tokens=thinking_safe_max_tokens(model, _TITLE_MAX_TOKENS),
-            **deepseek_thinking_kwargs(model),
+            **thinking_kwargs,
             api_key=api_key,
         ),
         timeout=thinking_safe_timeout(model, _TITLE_TIMEOUT_SECONDS),
@@ -171,8 +185,45 @@ async def generate_run_title(goal: str) -> str | None:
         # model, API errors); log and fall back rather than failing the run.
         logger.warning("Run title generation failed: %s", exc)
         return None
+    content = _response_content(response)
+    if not content.strip() and _reasoned_with_no_answer(response):
+        # The call spent its budget reasoning and wrote nothing -- not a
+        # provider failure, so one retry with thinking off, exactly as a
+        # streamed turn is retried; see interviews_model._stream_interview_
+        # content and the AGENTS.md gotcha on LLMThinkingOnlyError.
+        logger.warning(
+            "Run title call reasoned and wrote no answer; retrying once "
+            "with thinking off"
+        )
+        try:
+            response = await _request_title_completion(
+                goal, thinking_enabled=False
+            )
+        except Exception as exc:
+            logger.warning("Run title retry without thinking failed: %s", exc)
+            return None
+        content = _response_content(response)
+    return clean_title(content)
+
+
+def _response_content(response: Any) -> str:
+    """The first choice's message text, or "" when there is none."""
     choices = getattr(response, "choices", None) or []
     if not choices:
-        return None
-    content = choices[0].message.content or ""
-    return clean_title(content)
+        return ""
+    return str(choices[0].message.content or "")
+
+
+def _reasoned_with_no_answer(response: Any) -> bool:
+    """Whether this completion spent reasoning tokens and wrote nothing.
+
+    Reads the same usage field the engine's non-streaming ladder raises
+    ``LLMThinkingOnlyError`` from (``co_scientist.llm_response``), without
+    importing that machinery: this module makes one direct ``litellm``
+    call outside the engine's ``call_llm*`` seam, so it needs only the
+    read, not the exception class or the retry ladder built on it.
+    """
+    usage = getattr(response, "usage", None)
+    details = getattr(usage, "completion_tokens_details", None)
+    reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
+    return bool(reasoning_tokens > 0)

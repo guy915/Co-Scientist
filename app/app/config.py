@@ -10,6 +10,9 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config_thinking import (
+    CONVERSATIONAL_REASONING_EFFORT as CONVERSATIONAL_REASONING_EFFORT,
+)
+from app.config_thinking import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
 )
 from app.config_thinking import (
@@ -20,6 +23,9 @@ from app.config_thinking import (
 )
 from app.config_thinking import (
     deepseek_thinking_kwargs as deepseek_thinking_kwargs,
+)
+from app.config_thinking import (
+    thinking_off_kwargs as thinking_off_kwargs,
 )
 from app.config_thinking import (
     thinking_safe_max_tokens as thinking_safe_max_tokens,

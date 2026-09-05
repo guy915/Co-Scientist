@@ -13,6 +13,7 @@ from __future__ import annotations
 from app.config import (
     deepseek_non_thinking_extra_body,
     deepseek_thinking_kwargs,
+    thinking_off_kwargs,
 )
 
 
@@ -191,3 +192,62 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     # call carries. It parked runs at the contextual safety screen.
     assert "reasoning_effort" not in deepseek_thinking_kwargs(routed)
     assert deepseek_thinking_kwargs(direct)["reasoning_effort"] == "high"
+
+
+# --- per-surface effort override, and the thinking-off retry rung -----------
+
+
+def test_effort_override_replaces_the_gateway_s_nested_tier() -> None:
+    """A gateway route carries the tier nested in ``extra_body["reasoning"]``.
+
+    The interview and chat turns pass a lower tier for exactly this route
+    shape (see ``app.config_thinking.CONVERSATIONAL_REASONING_EFFORT``).
+    """
+    routed = "openrouter/deepseek/deepseek-v4-flash"
+
+    kwargs = deepseek_thinking_kwargs(routed, effort="medium")
+
+    assert kwargs["extra_body"]["reasoning"]["effort"] == "medium"
+
+
+def test_effort_override_replaces_the_direct_route_s_top_level_tier() -> None:
+    """A direct, non-gateway route carries the tier as a top-level kwarg."""
+    direct = "deepseek/deepseek-v4-flash"
+
+    kwargs = deepseek_thinking_kwargs(direct, effort="medium")
+
+    assert kwargs["reasoning_effort"] == "medium"
+
+
+def test_effort_override_is_a_no_op_for_a_model_with_no_thinking_mode() -> None:
+    """Nothing to override on a model that carries no thinking params."""
+    assert (
+        deepseek_thinking_kwargs("gemini/gemini-2.5-flash", effort="low") == {}
+    )
+
+
+def test_omitted_effort_keeps_the_engine_s_high_floor() -> None:
+    """No override argument means no change to the existing behavior."""
+    direct = "deepseek/deepseek-v4-flash"
+
+    assert (
+        deepseek_thinking_kwargs(direct)["reasoning_effort"]
+        == deepseek_thinking_kwargs(direct, effort=None)["reasoning_effort"]
+        == "high"
+    )
+
+
+def test_thinking_off_kwargs_wraps_the_disable_body_for_a_completion_call() -> (
+    None
+):
+    """The rung a thinking-only stream is retried at.
+
+    ``deepseek_non_thinking_extra_body`` returns the bare disable knob;
+    this wraps it the way every call site actually spreads kwargs, so a
+    caller cannot forget the ``extra_body`` wrapper one of the two shapes
+    needs.
+    """
+    assert thinking_off_kwargs("deepseek/deepseek-v4-flash") == {
+        "extra_body": {"thinking": {"type": "disabled"}}
+    }
+    assert thinking_off_kwargs("gemini/gemini-2.5-flash") == {}

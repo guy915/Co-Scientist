@@ -27,6 +27,7 @@ from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
     settings,
+    thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
 from app.llm_stream import stream_chunks
@@ -115,9 +116,14 @@ def _delta_text(chunk: Any) -> tuple[str, str]:
 
 
 async def _stream_model_fragments(
-    run: RunRow,
+    run: RunRow, *, thinking_enabled: bool = True
 ) -> AsyncGenerator[tuple[str, str], None]:
     """Stream the announcement, yielding ``(frame type, fragment)`` pairs.
+
+    Args:
+        run: The run whose announcement is being written.
+        thinking_enabled: False for the one retry a turn that reasoned and
+            wrote nothing gets; see ``stream_announcement``.
 
     Raises:
         OfflineModeError: When this process makes no external requests, which
@@ -132,6 +138,11 @@ async def _stream_model_fragments(
     model, api_key = credentials.byok_model_and_key(
         settings.effective_chat_model
     )
+    thinking_kwargs = (
+        deepseek_thinking_kwargs(model)
+        if thinking_enabled
+        else thinking_off_kwargs(model)
+    )
     response = await litellm.acompletion(
         model=model,
         messages=[
@@ -142,7 +153,7 @@ async def _stream_model_fragments(
         max_tokens=thinking_safe_max_tokens(model, _ANNOUNCEMENT_MAX_TOKENS),
         timeout=_TOTAL_SECONDS,
         stream=True,
-        **deepseek_thinking_kwargs(model),
+        **thinking_kwargs,
         api_key=api_key,
     )
     async for chunk in stream_chunks(
@@ -193,6 +204,52 @@ def _persist_announcement(
     )
 
 
+async def _relay_announcement(
+    run: RunRow,
+    prose: list[str],
+    reasoning: list[str],
+    *,
+    thinking_enabled: bool = True,
+) -> AsyncGenerator[str, None]:
+    """Stream one attempt's fragments into ``prose``/``reasoning`` and SSE."""
+    async for kind, fragment in _stream_model_fragments(
+        run, thinking_enabled=thinking_enabled
+    ):
+        (reasoning if kind == "reasoning" else prose).append(fragment)
+        yield sse_frame({"type": kind, "content": fragment})
+
+
+async def _announcement_attempts(
+    run: RunRow,
+    byok: credentials.ByokCredential | None,
+    prose: list[str],
+    reasoning: list[str],
+) -> AsyncGenerator[str, None]:
+    """Run the model attempt(s) and yield their SSE frames.
+
+    A second attempt, with thinking off, follows a first that ended
+    normally having spent reasoning tokens and written no answer at all --
+    not a provider failure, so ``stream_announcement``'s caller-visible
+    fallback is reserved for when this really has nothing to show; see
+    ``interviews_model._stream_interview_content`` for the same shape on
+    the interview's own stream.
+    """
+    with credentials.scoped_byok(byok):
+        async for frame in _relay_announcement(run, prose, reasoning):
+            yield frame
+        if "".join(prose).strip() or not "".join(reasoning).strip():
+            return
+        logger.info(
+            "session announcement for run %s reasoned and wrote nothing; "
+            "retrying without thinking",
+            run.id,
+        )
+        async for frame in _relay_announcement(
+            run, prose, reasoning, thinking_enabled=False
+        ):
+            yield frame
+
+
 async def stream_announcement(
     run: RunRow,
     prompt_message_id: int,
@@ -215,10 +272,8 @@ async def stream_announcement(
     prose: list[str] = []
     reasoning: list[str] = []
     try:
-        with credentials.scoped_byok(byok):
-            async for kind, fragment in _stream_model_fragments(run):
-                (reasoning if kind == "reasoning" else prose).append(fragment)
-                yield sse_frame({"type": kind, "content": fragment})
+        async for frame in _announcement_attempts(run, byok, prose, reasoning):
+            yield frame
     except Exception as exc:
         logger.info(
             "session announcement for run %s falls back: %s", run.id, exc

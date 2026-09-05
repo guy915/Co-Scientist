@@ -19,8 +19,10 @@ from fastapi import HTTPException
 
 from app import credentials, offline_guard
 from app.config import (
+    CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
+    thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
 from app.interviews_prompts import _interview_request, _ready
@@ -59,6 +61,15 @@ _INTERVIEW_STALL_SECONDS = 45.0
 # plus room for the prompt round-trip either side of the reasoning.
 _INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
+# Relayed through the reasoning sink when a turn that spent its whole reply
+# thinking is retried -- so the scientist watching the chain of thought
+# sees the model start over instead of the turn simply going quiet before
+# the 502 that used to follow (see _resolved_turn in app.interviews).
+_THINKING_ONLY_RETRY_NOTE = (
+    "\n\n[Answered nothing after reasoning at length; retrying without "
+    "extended thinking.]\n\n"
+)
+
 
 async def _stream_interview_content(
     interview: dict[str, Any], sinks: TurnSinks
@@ -72,12 +83,15 @@ async def _stream_interview_content(
     are relayed as they arrive, up to the trailing spec block, which is
     withheld and parsed at the end (see ``app.interviews_wire``).
 
+    A turn that spends its whole reply reasoning and writes no answer at
+    all is not a provider failure -- the stream ends clean, just empty --
+    so it is retried once with thinking off rather than surfacing as one;
+    see ``_run_interview_completion``.
+
     Returns:
         The turn's whole prose and its parsed fields, the latter None when
         the turn carried no usable spec block.
     """
-    import litellm
-
     # Refuse before the request is shaped, not after: the prompt carries the
     # scientist's research goal verbatim, and forced offline means it does
     # not leave the process. The raise lands in _call_interview_model's
@@ -88,6 +102,48 @@ async def _stream_interview_content(
     # A scoped bring-your-own-key credential overrides both the model and
     # the deployment credential for this turn.
     model, api_key = credentials.byok_model_and_key(model)
+    prose, fields, reasoned = await _run_interview_completion(
+        model, messages, api_key, sinks, thinking_enabled=True
+    )
+    if prose.strip() or not reasoned:
+        return prose, fields
+    logger.warning(
+        "Interview turn reasoned and wrote no answer; retrying once with "
+        "thinking off"
+    )
+    await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
+    prose, fields, _ = await _run_interview_completion(
+        model, messages, api_key, sinks, thinking_enabled=False
+    )
+    return prose, fields
+
+
+async def _run_interview_completion(
+    model: str,
+    messages: Any,
+    api_key: str | None,
+    sinks: TurnSinks,
+    *,
+    thinking_enabled: bool,
+) -> tuple[str, dict[str, Any] | None, bool]:
+    """Stream one completion request and drain it.
+
+    Split out of ``_stream_interview_content`` so the thinking-only retry
+    is a second call to this, not a second copy of the request.
+
+    Returns:
+        The turn's prose, its parsed fields, and whether the model emitted
+        any reasoning at all -- the caller uses the last to tell a
+        thinking-only turn from one that simply answered with nothing to
+        say.
+    """
+    import litellm
+
+    thinking_kwargs = (
+        deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
+        if thinking_enabled
+        else thinking_off_kwargs(model)
+    )
     response = await litellm.acompletion(
         model=model,
         messages=messages,
@@ -107,7 +163,7 @@ async def _stream_interview_content(
         # below owns the clock.
         timeout=_INTERVIEW_TOTAL_SECONDS,
         stream=True,
-        **deepseek_thinking_kwargs(model),
+        **thinking_kwargs,
         api_key=api_key,
     )
     return await _collect_stream_content(response, sinks)
@@ -121,37 +177,48 @@ async def _emit(sink: ProseSink | None, text: str) -> None:
 
 async def _relay_chunk(
     chunk: Any, splitter: TurnSplitter, sinks: TurnSinks
-) -> None:
+) -> bool:
     """Relay one stream chunk's reasoning and prose to their sinks.
 
     ``reasoning_content`` is absent on non-thinking models and on providers
     that never reason. Content goes through the splitter rather than to the
     sink directly, so the trailing spec block is withheld from the scientist
     instead of appearing and then being retracted.
+
+    Returns:
+        Whether this chunk carried any reasoning text, so the caller can
+        tell a turn that reasoned from one that never did.
     """
     if not chunk.choices:
-        return
+        return False
     delta = chunk.choices[0].delta
-    await _emit(
-        sinks.on_reasoning, getattr(delta, "reasoning_content", "") or ""
-    )
+    reasoning = getattr(delta, "reasoning_content", "") or ""
+    await _emit(sinks.on_reasoning, reasoning)
     await _emit(sinks.on_prose, splitter.feed(delta.content or ""))
+    return bool(reasoning)
 
 
 async def _collect_stream_content(
     response: Any, sinks: TurnSinks
-) -> tuple[str, dict[str, Any] | None]:
-    """Drain a streaming completion into relayed prose and parsed fields."""
+) -> tuple[str, dict[str, Any] | None, bool]:
+    """Drain a streaming completion into relayed prose and parsed fields.
+
+    Returns:
+        The turn's whole prose, its parsed fields (None when the turn
+        carried no usable spec block), and whether the model emitted any
+        reasoning at all.
+    """
     splitter = TurnSplitter()
+    reasoned = False
     async for chunk in stream_chunks(
         response,
         stall_seconds=_INTERVIEW_STALL_SECONDS,
         total_seconds=_INTERVIEW_TOTAL_SECONDS,
     ):
-        await _relay_chunk(chunk, splitter, sinks)
+        reasoned = await _relay_chunk(chunk, splitter, sinks) or reasoned
     trailing, whole, fields = splitter.finish()
     await _emit(sinks.on_prose, trailing)
-    return whole, fields
+    return whole, fields, reasoned
 
 
 def _turn_response(

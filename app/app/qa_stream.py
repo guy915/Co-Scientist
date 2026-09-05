@@ -19,6 +19,7 @@ from typing import Any
 
 from app import credentials, offline_guard, qa_ideas
 from app.config import (
+    CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
     thinking_safe_max_tokens,
@@ -58,7 +59,11 @@ def _completion_request(
         "timeout": _QA_TOTAL_SECONDS,
         "stream": True,
         "api_key": api_key,
-        **deepseek_thinking_kwargs(model),
+        # Post-run chat is a scoping conversation, not the science; see
+        # CONVERSATIONAL_REASONING_EFFORT.
+        **deepseek_thinking_kwargs(
+            model, effort=CONVERSATIONAL_REASONING_EFFORT
+        ),
     }
     if tools:
         request["tools"] = tools

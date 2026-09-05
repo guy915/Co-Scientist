@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from app import engine_adapter, store
+from app.config import settings
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
 
@@ -171,3 +172,64 @@ def test_reasoning_is_relayed_and_kept_with_the_reply(
     assert body.index('"type": "reasoning"') < body.index('"type": "chunk"')
     reply = _start_rows(rid)[1]
     assert reply.meta == {"reasoning": "The run exists, so this confirms it."}
+
+
+def _thinking_only_then_answered_litellm(
+    reasoning: str, prose: str, calls: list[dict[str, Any]]
+) -> types.SimpleNamespace:
+    """A fake litellm whose first stream reasons and writes nothing.
+
+    The second call (thinking off, per ``calls``) answers normally --
+    mirrors production 2026-09-06, where a stream relayed ~68k characters
+    of chain of thought and ended with no answer at all.
+    """
+
+    async def _reasoning_only_stream() -> AsyncIterator[Any]:
+        delta = SimpleNamespace(content=None, reasoning_content=reasoning)
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    async def _answered_stream() -> AsyncIterator[Any]:
+        delta = SimpleNamespace(content=prose, reasoning_content=None)
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    async def _acompletion(**kwargs: Any) -> AsyncIterator[Any]:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return _reasoning_only_stream()
+        return _answered_stream()
+
+    return types.SimpleNamespace(acompletion=_acompletion)
+
+
+def test_thinking_only_announcement_retries_before_the_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stream that reasoned and wrote nothing gets a real answer, not copy.
+
+    Confirms the retry the interview stream also gets (see
+    ``test_interviews_model.test_thinking_only_turn_retries_once_with_
+    thinking_off``): the announcement's own fixed fallback text is
+    reserved for when the retry also comes back empty, not for every
+    thinking-only stream.
+    """
+    rid = _started_run_id()
+    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "litellm",
+        _thinking_only_then_answered_litellm(
+            "brainstorming candidates at length...",
+            "Research is under way.",
+            calls,
+        ),
+    )
+
+    body = _announce(rid).text
+
+    assert len(calls) == 2
+    assert calls[1]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert '"fallback": true' not in body
+    reply = _start_rows(rid)[1]
+    assert reply.content == "Research is under way."

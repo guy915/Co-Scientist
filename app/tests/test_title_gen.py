@@ -135,3 +135,50 @@ async def test_title_call_timeout_is_lifted_for_a_thinking_model(
     await generate_run_title("Find ferroptosis regulators in glioma")
 
     assert seen_timeout["value"] >= THINKING_FLOOR_TIMEOUT_SECONDS
+
+
+async def test_title_call_reasoned_with_no_answer_retries_without_thinking(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """A completion that reasoned and wrote nothing is retried, not lost.
+
+    A non-streaming completion can end normally having spent its whole
+    reasoning budget and answered with nothing at all -- the same shape
+    the engine's ``LLMThinkingOnlyError`` names for its own call sites.
+    Titling used to read this as "no usable title" and fall back to the
+    goal-clause title silently; it now gets one retry with thinking off.
+    """
+    import litellm
+
+    calls: list[dict[str, Any]] = []
+
+    def _thinking_only_response() -> Any:
+        message = types.SimpleNamespace(content="")
+        details = types.SimpleNamespace(reasoning_tokens=900)
+        usage = types.SimpleNamespace(completion_tokens_details=details)
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)], usage=usage
+        )
+
+    def _answered_response() -> Any:
+        message = types.SimpleNamespace(content="Ferroptosis In Glioma")
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    async def _acompletion(**kwargs: Any) -> Any:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return _thinking_only_response()
+        return _answered_response()
+
+    monkeypatch.setattr(litellm, "acompletion", _acompletion)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+
+    title = await generate_run_title("Find ferroptosis regulators in glioma")
+
+    assert title == "Ferroptosis In Glioma"
+    assert len(calls) == 2
+    assert calls[0]["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert calls[1]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in calls[1]

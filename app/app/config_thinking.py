@@ -72,7 +72,24 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
     return knob
 
 
-def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
+CONVERSATIONAL_REASONING_EFFORT = "medium"
+"""Reasoning tier for the interview and post-run chat turns.
+
+These are scoping conversations, not the science: they gate which fields
+the run starts with, not what the run itself concludes. The engine's own
+nodes keep ``_REASONING_EFFORT``'s "high" floor unchanged -- this is a
+per-surface override, passed explicitly by the two call sites that want
+it, not a change to that floor or to any other app call site (titling and
+the session announcement stay on the provider default this module
+requests). A cheaper deliberation also shortens the tail of chains of
+thought long enough to spend the whole answer budget -- see
+``thinking_off_kwargs`` for the retry once one does anyway.
+"""
+
+
+def deepseek_thinking_kwargs(
+    model_name: str, *, effort: str | None = None
+) -> dict[str, Any]:
     """Build litellm kwargs enabling DeepSeek V4 thinking at low effort.
 
     DeepSeek V4 (pro/flash) return chain-of-thought separately as
@@ -111,6 +128,11 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
 
     Args:
         model_name: Model name in litellm format.
+        effort: Override the reasoning tier this call requests (e.g.
+            ``CONVERSATIONAL_REASONING_EFFORT``). None keeps the engine's
+            own "high" floor. A native DeepSeek route aliases anything
+            below "high" back onto it, so the override only changes
+            behavior on a route whose gateway respects a lower tier.
 
     Returns:
         ``extra_body`` in the shape this model's route understands, plus
@@ -119,8 +141,49 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, Any]:
     extra_body = _thinking_body(model_name, enabled=True)
     if not extra_body:
         return {}
-    effort: dict[str, Any] = _effort_args(model_name, enabled=True)
-    return {"extra_body": extra_body, **effort}
+    effort_args: dict[str, Any] = _effort_args(model_name, enabled=True)
+    kwargs: dict[str, Any] = {"extra_body": extra_body, **effort_args}
+    if effort is not None:
+        _set_reasoning_effort(kwargs, effort)
+    return kwargs
+
+
+def _set_reasoning_effort(kwargs: dict[str, Any], effort: str) -> None:
+    """Overwrite the reasoning tier in ``kwargs``, wherever it landed.
+
+    ``deepseek_thinking_kwargs`` builds one of two shapes: a top-level
+    ``reasoning_effort`` string (a direct, non-gateway route) or a nested
+    ``extra_body["reasoning"]["effort"]`` (a gateway route, or DeepSeek
+    reached through one). Mutates in place since the caller already owns
+    a fresh dict for this call.
+    """
+    if "reasoning_effort" in kwargs:
+        kwargs["reasoning_effort"] = effort
+    reasoning = kwargs.get("extra_body", {}).get("reasoning")
+    if isinstance(reasoning, dict) and "effort" in reasoning:
+        reasoning["effort"] = effort
+
+
+def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
+    """Kwargs disabling this model's thinking mode for one call.
+
+    The rung a thinking-only turn is retried at: a streamed turn that
+    reasoned and then wrote no answer at all is retried once with thinking
+    off, mirroring the engine's own non-streaming ladder for
+    ``LLMThinkingOnlyError`` (``llm_json_retry.BudgetEscalation``) without
+    reimplementing it -- these app call sites make one request, not a
+    ladder of them, so one retry at this rung is the whole mechanism they
+    need.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        ``{"extra_body": ...}`` carrying this model's disable knob, or
+        ``{}`` for a model with no thinking mode.
+    """
+    extra_body = deepseek_non_thinking_extra_body(model_name)
+    return {"extra_body": extra_body} if extra_body else {}
 
 
 THINKING_FLOOR_MAX_TOKENS = 18_000

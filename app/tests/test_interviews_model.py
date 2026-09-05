@@ -19,6 +19,28 @@ from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
 from ._interviews_helpers import _fake_stream, _response, _wire_turn
 
 
+def _reasoning_only_stream(reasoning: str) -> Any:
+    """A stream that reasons at length and ends without a content delta.
+
+    Distinct from ``_fake_stream``, which always yields a content chunk
+    (empty or not): the thinking-only shape this reproduces is a stream
+    that never emits ``content`` at all, only ``reasoning_content``, then
+    stops.
+    """
+    from types import SimpleNamespace
+
+    def _chunk(reasoning_content: str) -> SimpleNamespace:
+        delta = SimpleNamespace(
+            reasoning_content=reasoning_content, content=None
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    async def _chunks() -> Any:
+        yield _chunk(reasoning)
+
+    return _chunks()
+
+
 async def test_interview_asks_for_prose_and_a_spec_block(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
@@ -89,6 +111,60 @@ async def test_interview_keeps_fields_when_a_turn_omits_its_block(
     assert result["research_challenge"] == "Restore susceptibility"
     assert result["focus_area"] == ["Efflux-pump regulation"]
     assert result["completed"] is False
+
+
+async def test_thinking_only_turn_retries_once_with_thinking_off(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """A stream that reasons and writes nothing is retried, not surfaced.
+
+    Production incident 2026-09-06: a thinking model spent its whole reply
+    reasoning about the goal and ended the stream with no ``content`` delta
+    at all. The turn used to resolve to an empty message and 502 as
+    "Interview Agent returned no message." -- this asserts the streaming
+    path now retries once with thinking off before that ever surfaces, and
+    that the second stream's answer is what the turn resolves to.
+    """
+    import litellm
+
+    from app.config_thinking import CONVERSATIONAL_REASONING_EFFORT
+
+    calls: list[dict[str, Any]] = []
+    streams = [
+        _reasoning_only_stream("brainstorming dozens of candidate drugs..."),
+        _fake_stream(_wire_turn(_response("Which mechanism?"))),
+    ]
+
+    async def _fake_acompletion(**kwargs: Any) -> Any:
+        calls.append(kwargs)
+        return streams[len(calls) - 1]
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
+
+    reasoning_fragments: list[str] = []
+
+    async def _on_reasoning(fragment: str) -> None:
+        reasoning_fragments.append(fragment)
+
+    interview = {
+        "turns": [{"role": "user", "content": "restore susceptibility"}],
+        "fields": {},
+    }
+    result = await interviews._call_interview_model(
+        interview, on_reasoning=_on_reasoning
+    )
+
+    assert len(calls) == 2
+    # The first request carries the interview's conversational tier, not
+    # the engine's "high" floor.
+    assert calls[0]["reasoning_effort"] == CONVERSATIONAL_REASONING_EFFORT
+    # The retry turns thinking off outright rather than lowering it further.
+    assert calls[1]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in calls[1]
+    # The reader sees the model start over, not silence then an error.
+    assert any("retrying" in fragment for fragment in reasoning_fragments)
+    assert result["assistant_message"] == "Which mechanism?"
 
 
 def test_prompt_tolerates_two_consecutive_scientist_turns() -> None:
