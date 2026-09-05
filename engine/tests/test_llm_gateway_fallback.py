@@ -9,6 +9,8 @@ fallback chain must actually ride on the request rather than existing only
 in a constant.
 """
 
+import pytest
+
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm_request import (
     CompletionShape,
@@ -57,17 +59,85 @@ def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
     assert body["reasoning"] == {"enabled": True, "effort": "high"}
 
 
-def test_every_gateway_call_is_pinned_to_hosts_that_honour_it() -> None:
+def test_every_gateway_call_is_pinned_to_hosts_that_honour_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The routing constraint is the route's, so it applies to all of them.
 
     ``require_parameters`` is what makes every other parameter binding
-    rather than advisory, and a gateway spreads one model over hosts that
-    differ by an order of magnitude in speed.
+    rather than advisory. Hosts differ by an order of magnitude in speed,
+    so ``preferred_min_throughput`` -- the floor that replaced
+    ``sort: throughput`` -- is route-wide too, not just the primary's.
     """
+    monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     for model in (_PRIMARY, _GLM, _NEMO):
         provider = deepseek_thinking_extra_body(model)["provider"]
         assert provider["require_parameters"] is True
-        assert provider["sort"] == "throughput"
+        assert provider["allow_fallbacks"] is True
+        assert provider["preferred_min_throughput"] == 25
+
+
+def test_every_gateway_call_prefers_the_default_upstream_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache locality needs a preference, not a per-call throughput pick.
+
+    Sorting by throughput -- the previous mechanism -- round robins across
+    whichever upstream is fastest at that instant, which is exactly what
+    made a prompt prefix cached on one upstream worthless on the next
+    call. ``order`` is a preference list, not a hard pin: OpenRouter tries
+    it in sequence and only falls through to its own default selection
+    when every listed upstream is unavailable.
+    """
+    monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
+    from co_scientist.llm_thinking import _DEFAULT_UPSTREAM_ORDER
+
+    for model in (_PRIMARY, _GLM, _NEMO):
+        provider = deepseek_thinking_extra_body(model)["provider"]
+        assert provider["order"] == list(_DEFAULT_UPSTREAM_ORDER)
+        assert "sort" not in provider
+
+
+def test_the_upstream_order_is_overridable_without_a_deploy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An operator can retune cache locality live, per the task's design.
+
+    Read per call rather than cached at import, mirroring
+    ``parse_timeout_env``'s own rationale: a regression discovered in
+    production should not need a restart to fix.
+    """
+    monkeypatch.setenv(
+        "COSCIENTIST_GATEWAY_PROVIDER_ORDER", "friendli, together"
+    )
+    provider = deepseek_thinking_extra_body(_PRIMARY)["provider"]
+    assert provider["order"] == ["friendli", "together"]
+
+
+def test_an_empty_upstream_order_env_var_opts_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit empty value disables ordering, distinct from unset.
+
+    ``max_price`` and ``require_parameters`` must survive the opt-out --
+    only the cache-locality preference is what turns off.
+    """
+    monkeypatch.setenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", "")
+    provider = deepseek_thinking_extra_body(_PRIMARY)["provider"]
+    assert "order" not in provider
+    assert provider["require_parameters"] is True
+    assert "max_price" in provider
+
+
+def test_a_direct_non_gateway_route_carries_no_provider_block() -> None:
+    """The routing block is gateway-specific; a direct route sends none.
+
+    Guards against ``order``/``allow_fallbacks`` leaking onto a call that
+    never goes through OpenRouter, where they would be meaningless extra
+    body fields sent straight to the provider's own API.
+    """
+    body = deepseek_thinking_extra_body("deepseek/deepseek-chat")
+    assert "provider" not in body
 
 
 def test_the_primary_is_downgraded_to_json_object() -> None:

@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Final
 
+from co_scientist.config.env_vars import parse_list_env
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.constants_pricing import MODEL_PRICING
 
@@ -20,22 +21,19 @@ logger = logging.getLogger(__name__)
 # invalid-request error). For those models every schema'd call is downgraded,
 # per call, to {"type": "json_object"} with the schema restated as prompt
 # text, and missing required fields are back-filled with empty defaults
-# before schema validation (json_object mode has no server-side schema
-# enforcement, so nested required fields are routinely omitted). Models that
-# support json_schema are untouched.
+# (json_object mode has no server-side schema enforcement, so nested
+# required fields are routinely omitted). Models that support json_schema
+# are untouched.
 #
-# Families listed here are checked BEFORE litellm's capability registry:
-# litellm's cost map marks deepseek/* as supporting response schema, but the
-# DeepSeek API only accepts json_object, so the registry alone cannot be
-# trusted for these providers.
+# Checked BEFORE litellm's capability registry: it marks deepseek/* as
+# supporting response schema, but the DeepSeek API only accepts json_object.
 #
-# ``ox-alpha`` is here for a different reason than DeepSeek, and a harder
-# one: no host serving it accepts ``json_schema`` at all. Paired with
-# ``require_parameters`` below that is not a soft degradation to an
-# unconstrained answer -- the gateway finds no eligible host and the call
-# fails outright ("No endpoints found that can handle the requested
-# parameters"). Measured live: ``json_object`` plus the same routing
-# constraint answers, ``json_schema`` plus it 404s.
+# ``ox-alpha`` is here for a harder reason: no host serving it accepts
+# ``json_schema`` at all, and paired with ``require_parameters`` below
+# that is not a soft degradation -- the gateway finds no eligible host
+# and fails outright ("No endpoints found that can handle the requested
+# parameters"). Measured live: ``json_object`` plus that constraint
+# answers, ``json_schema`` plus it 404s.
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 # Routes that normalize reasoning control into their own parameter rather
@@ -43,11 +41,10 @@ _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 # schema, so it cannot honour each provider's native knob, and the failure
 # is silent in the worst direction: sending DeepSeek's ``thinking`` object
 # through OpenRouter does not disable thinking, it *enables* it. Measured
-# on `openrouter/deepseek/deepseek-v4-flash` -- a max_tokens=24 call
-# carrying ``{"thinking": {"type": "disabled"}}` spent all 24 tokens on
-# reasoning and returned empty content, which is exactly the budget-
-# exhaustion shape documented in AGENTS.md, arriving from a parameter that
-# was asking for the opposite.
+# on `openrouter/deepseek/deepseek-v4-flash`: a max_tokens=24 call carrying
+# ``{"thinking": {"type": "disabled"}}` spent all 24 tokens reasoning and
+# returned empty content -- the budget-exhaustion shape AGENTS.md
+# documents, from a parameter asking for the opposite.
 _REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
 
 # The tier requested when thinking is on. DeepSeek implements only `high`
@@ -56,72 +53,127 @@ _REASONING_EFFORT: Final[str] = "high"
 
 
 # How far above a model's listed rate a routed call may land. A gateway
-# spreads one model across hosts an order of magnitude apart in price as
-# well as speed -- seventeen for `deepseek-v4-flash`, from $0.068 to $0.44
-# per million input tokens -- and ``sort`` below picks on throughput,
-# which does not consider price at all. Without a ceiling a call can be
-# billed at five times what ``constants_pricing`` estimates, so the run
-# cost this project reports is not an upper bound on anything.
+# spreads one model across hosts an order of magnitude apart in price and
+# speed -- seventeen for `deepseek-v4-flash`, $0.068 to $0.44 per million
+# input tokens -- so without a ceiling a call can be billed at five times
+# what ``constants_pricing`` estimates.
 #
-# Two is deliberately loose. It keeps thirteen of the seventeen hosts
-# eligible, so throughput routing still has a real field to choose from
-# and losing a host is not an outage, while excluding the tail that costs
-# 2.7x to 8x the listed rate. A cap tight enough to force the single
-# cheapest host would make every price move a hard 404 on every call.
+# Two is deliberately loose: it keeps thirteen of the seventeen hosts
+# eligible (losing one is not an outage) while excluding the tail costing
+# 2.7x-8x listed rate. Tight enough to force the single cheapest host
+# would make every price move a hard 404 on every call.
 _MAX_PRICE_MULTIPLE: Final[float] = 2.0
 
 
 # How a gateway route is addressed, beyond the reasoning knob itself.
-# ``require_parameters`` is part of the same concern rather than a separate
-# tuning: it restricts routing to hosts that actually accept every
-# parameter sent, which is what makes the reasoning knob above binding
-# instead of advisory. ``sort`` is a latency fix -- a gateway spreads one
-# model across hosts an order of magnitude apart in speed, and by default
-# picks on price, so a call can land on one serving single-digit tokens per
-# second. Measured over six concurrent calls on
-# `openrouter/deepseek/deepseek-v4-flash`: unconstrained, the slowest took
-# 32.9s against a 2.3s median; constrained, 7.1s. The tail is what matters,
-# because a node waits on its slowest call and the engine's own ceiling is
-# 600s -- two calls hit exactly that during the first routed run.
+# ``require_parameters`` makes the reasoning knob above binding instead
+# of advisory, by restricting routing to hosts that accept it.
+#
+# This used to also carry ``"sort": "throughput"`` -- measured over six
+# concurrent calls on `openrouter/deepseek/deepseek-v4-flash`: the
+# slowest took 32.9s unconstrained against a 2.3s median, 7.1s
+# constrained. But throughput-sort repicks the fastest upstream *per
+# call*, scattering consecutive calls across Modal/Friendli/Together --
+# very likely why production's prompt-cache hit rate collapsed to 6.9%
+# (33.7% monthly baseline) on 2026-09-04, the heaviest repeated-prompt
+# day (~1,000 requests, ~28k-token prompts, $4.70): a prefix cached on
+# one upstream is wasted the instant the next call lands elsewhere -- at
+# that length and repeat rate, locality beats chasing the fastest host
+# of the instant.
+#
+# ``order`` (added per call below) replaces ``sort``: a preference list
+# OpenRouter tries in sequence, falling to its own default (price-
+# weighted) selection only once every listed upstream is unavailable,
+# per https://openrouter.ai/docs/features/provider-routing. Either field
+# disables OpenRouter's own load balancing and the docs do not say which
+# wins if both are sent, so only ``order`` is sent.
+#
+# Losing ``sort`` reopens what it closed -- an upstream up but slow,
+# which ``allow_fallbacks`` doesn't catch. ``_MIN_THROUGHPUT_TOKENS_PER_SEC``
+# below is the replacement floor.
 _GATEWAY_PROVIDER: Final[dict[str, Any]] = {
     "require_parameters": True,
-    "sort": "throughput",
+    "allow_fallbacks": True,
 }
+
+# Soft throughput floor replacing what ``sort: throughput`` protected,
+# without its per-call repicking. OpenRouter documents this as
+# *deprioritization* -- "moved to the end of the list, not excluded" --
+# so an undocumented interaction with ``order`` is at worst a no-op (25
+# tok/s sits below every upstream's measured median, lowest Together at
+# 42.65, see ``_DEFAULT_UPSTREAM_ORDER``) and overrides ``order`` only
+# when the ordered host is already the problem.
+#
+# 25 is sized off the incident, not the medians: at the 600s call
+# ceiling, an 8k-token reply (the large-output tier below) clears in
+# 320s at 25 tok/s -- comfortable margin -- while the incident's "single
+# digit tokens per second" still trips it. Applies to p50 (OpenRouter's
+# rolling per-endpoint stat, not this request), so it flags a
+# persistently degraded host, not one slow response.
+_MIN_THROUGHPUT_TOKENS_PER_SEC: Final[int] = 25
+
+# Env var that overrides the preferred upstream order without a deploy.
+# Read per call (see ``parse_list_env``), not cached at import, for the
+# same reason ``parse_timeout_env`` is: an operator retuning this after a
+# cache-locality regression should not need to restart the process.
+_UPSTREAM_ORDER_ENV: Final[str] = "COSCIENTIST_GATEWAY_PROVIDER_ORDER"
+
+# Derived from OpenRouter's per-request log for `z-ai/glm-5.3-flash` on
+# 2026-09-04 (slugs verified against
+# https://openrouter.ai/api/v1/providers). Median tok/s / TTFT: Modal
+# 62.5/0.96s (n=8), Friendli 121.2/6.0s (n=2), Together 42.7/5.25s
+# (n=10). Rough latency (TTFT + out/throughput) by shape: small output
+# (~250 tok, most calls) Modal 5.0s / Friendli 8.1s / Together 11.1s;
+# large output (~7.5k tok, a minority) Modal 121s / Friendli 68s /
+# Together 181s. Modal wins the majority shape and Together loses both,
+# so Together is last regardless of the split. Friendli only overtakes
+# Modal on a call-weighted average once large-output calls exceed ~5.5%
+# of traffic (break-even 5.0+115.95p == 8.06+59.84p); with n=2 it is
+# also too thin a sample to hand nearly all traffic to on a mechanism
+# that only falls through when a host is down. Re-derive if that
+# fraction is ever measured above ~5.5%; until then, Modal first.
+_DEFAULT_UPSTREAM_ORDER: Final[tuple[str, ...]] = (
+    "modal",
+    "friendli",
+    "together",
+)
+
+
+def _upstream_order() -> tuple[str, ...]:
+    """The preferred upstream order for a gateway call, env-overridable.
+
+    Returns:
+        ``COSCIENTIST_GATEWAY_PROVIDER_ORDER`` parsed as a comma-separated
+        list when set, ``_DEFAULT_UPSTREAM_ORDER`` when unset, or an
+        empty tuple for an explicit empty-string value -- a deliberate
+        opt-out that makes ``_gateway_provider`` omit ``order`` entirely.
+    """
+    return parse_list_env(_UPSTREAM_ORDER_ENV, _DEFAULT_UPSTREAM_ORDER)
 
 
 @dataclass(frozen=True)
 class GatewayModel:
     """What a gateway route needs to know about one model.
 
-    Every fact here is a property of the model rather than of the route,
-    and none is discoverable from its name -- which is why they are stated
-    rather than inferred from a family substring. Inferring them is what
-    made a rival vendor's model run with no reasoning configured and no
-    price ceiling while looking exactly like a configured one. The two
-    reasoning fields are separate for the same reason one scale down: a
-    model can decline the parameter and still spend the budget.
+    Every fact here is a property of the model, stated rather than
+    inferred from a family substring -- inferring them is what made a
+    rival vendor's model run with no reasoning knob and no price ceiling
+    while looking configured.
 
     Attributes:
         takes_reasoning_knob: Whether to send the gateway's ``reasoning``
-            parameter. A model that does not accept it gains nothing from
-            being asked.
+            parameter; a model that rejects it gains nothing from asking.
         spends_budget_thinking: Whether the model can consume its whole
-            ``max_tokens`` before writing any answer, and so needs
-            ``THINKING_FLOOR_MAX_TOKENS``. Deliberately separate from the
-            knob above, because the two came apart in production: a model
-            reporting ``reasoning_tokens=0`` and taking no reasoning
+            ``max_tokens`` before answering, needing
+            ``THINKING_FLOOR_MAX_TOKENS``. Separate from the knob above:
+            a model reporting ``reasoning_tokens=0`` and no reasoning
             parameter still returned ``finish_reason="length"`` with
-            empty content at an 8000-token budget -- it spends the
-            allowance on something the API does not itemise. Recording
-            that as "does not reason" cost 24 answerless round-trips in a
-            single express run, each one climbing the escalation ladder to
-            arrive at the budget this floor would have given it first.
-            When unsure, fund it: a ceiling is not a spend.
-        fallbacks: Gateway-relative ids to try, in order, when this model
-            is unavailable. The gateway walks the list itself, which is
-            the only layer that can: a 429 from a saturated free pool is
-            not something the engine's retry ladder fixes by asking the
-            same host again, and it is not a transport error either.
+            empty content at an 8000-token budget in production, costing
+            24 answerless round-trips in one express run. When unsure,
+            fund it: a ceiling is not a spend.
+        fallbacks: Gateway-relative ids to try, in order, when unavailable.
+            The gateway walks the list itself: a 429 from a saturated
+            pool is not a transport error the engine's retry ladder fixes.
     """
 
     takes_reasoning_knob: bool
@@ -135,18 +187,14 @@ class GatewayModel:
 # **A fallback may only ever be cheaper than the model above it.** Wired the
 # other way once -- free primary, paid last resort -- a "last resort" priced
 # at $1.25/$4.25 served 3.17M tokens and billed $5.23 in an afternoon,
-# because 429 is the *normal* state of a shared free pool rather than an
-# exception, so the expensive rung was the routine destination rather than
-# the emergency one.
-#
-# What actually let that happen is worth stating exactly, because the guard
-# against it already existed: ``_gateway_provider`` caps a routed call at
-# ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate, and a primary
+# because 429 is the *normal* state of a shared free pool, so the expensive
+# rung was the routine destination rather than the emergency one. The guard
+# against it already existed -- ``_gateway_provider`` caps a routed call at
+# ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate -- but a primary
 # priced at zero has no meaningful multiple, so the cap was skipped and the
 # request could be served at any price the gateway liked. A *priced*
-# primary arms the ceiling -- here $0.15/$0.50 -- and no rung dearer than
-# that can serve the request however far the chain falls. Free rungs below
-# a priced one are safe for the same reason they were dangerous above one.
+# primary arms the ceiling; free rungs below it are safe for the same
+# reason they were dangerous above it.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     "openrouter/z-ai/glm-5.3-flash": GatewayModel(
         takes_reasoning_knob=True,
@@ -181,12 +229,16 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
         model_name: Model name in litellm format, already lowercased.
 
     Returns:
-        ``_GATEWAY_PROVIDER`` plus a ``max_price`` ceiling derived from
-        the model's listed rate. The ceiling is omitted for a model absent
-        from ``MODEL_PRICING``: an unpriced model has no rate to be a
-        multiple of, and capping it at zero would refuse every host.
+        ``_GATEWAY_PROVIDER`` plus ``preferred_min_throughput``, the
+        preferred upstream ``order`` (unless env-disabled), and a
+        ``max_price`` ceiling from the model's listed rate -- omitted for
+        a model absent from ``MODEL_PRICING``, which has no rate to cap.
     """
     provider = dict(_GATEWAY_PROVIDER)
+    provider["preferred_min_throughput"] = _MIN_THROUGHPUT_TOKENS_PER_SEC
+    order = _upstream_order()
+    if order:
+        provider["order"] = list(order)
     price = MODEL_PRICING.get(model_name)
     if price is None or not price.prompt_usd_per_million:
         return provider
@@ -202,35 +254,29 @@ def deepseek_thinking_extra_body(
 ) -> dict[str, Any]:
     """Return an ``extra_body`` selecting DeepSeek V4 thinking mode.
 
-    DeepSeek V4 (pro/flash) are reasoning models: the chain of thought is
-    returned separately as ``reasoning_content`` and never mixed into
-    ``content``, so structured/JSON parsing is unaffected as long as the
-    ``max_tokens`` budget leaves room for the answer after the reasoning
-    spend. Budgets are not sized for that per node -- most predate thinking
-    being switched on everywhere -- so ``_apply_thinking_args`` raises any
-    thinking call to ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get
-    an empty dict.
+    DeepSeek V4 (pro/flash) are reasoning models: the chain of thought
+    returns separately as ``reasoning_content``, never mixed into
+    ``content``, so JSON parsing is unaffected as long as ``max_tokens``
+    leaves room for the answer after the reasoning spend -- which
+    ``_apply_thinking_args`` ensures by raising any thinking call to
+    ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get an empty dict.
 
     Thinking is on for every node. ``enabled=False`` remains the seam for
-    opting a call site out; nothing uses it today. Any future opt-out is a
-    latency decision, and the two call sites where it would pay are the
-    ranking tournament's pairwise matchups, which run O(n^2) times per cycle
-    (``agents/ranking/ranking_debate.py``), and supervisor allocation, which
-    runs once per loop point on the run's serial spine where nothing else is
-    executing (``agents/supervisor/supervisor_decision.py``).
+    opting a call site out; nothing uses it today. A future opt-out would
+    pay off on the ranking tournament's pairwise matchups (O(n^2) per
+    cycle, ``ranking_debate.py``) and supervisor allocation, alone on the
+    run's serial spine (``supervisor_decision.py``).
 
     Args:
         model_name: Model name in litellm format.
-        enabled: Whether to request thinking mode. False explicitly disables
-            it, which is not the same as omitting the field -- the API's own
-            default is enabled.
+        enabled: Whether to request thinking mode; distinct from omitting
+            the field, since the API's own default is enabled.
 
     Returns:
         The ``extra_body`` this model's route needs: DeepSeek's native
         ``thinking`` object direct, or a gateway's ``reasoning`` object
-        plus the routing constraint that makes it binding (see
-        ``_REASONING_PARAM_ROUTES`` and ``_GATEWAY_PROVIDER``). Empty for
-        a model with no thinking mode.
+        plus the routing constraint that makes it binding. Empty for a
+        model with no thinking mode.
     """
     lowered = model_name.lower()
     declared = _GATEWAY_MODELS.get(lowered)
@@ -300,25 +346,22 @@ def reasoning_effort_args(
 ) -> dict[str, Any]:
     """Kwargs selecting the reasoning tier, when supported.
 
-    ``high`` is the floor, not a high setting. DeepSeek implements exactly
-    two tiers, ``high`` and ``max``, and accepts OpenAI's lower names
-    (``low``, ``medium``) as aliases onto ``high`` -- the parameter and its
-    vocabulary are OpenAI's, and DeepSeek only supports the top of that
-    ladder. There is no cheaper way to think than this; the rung below is
-    ``enabled=False``. ``high`` is also DeepSeek's default once thinking is
-    on, so this field is belt-and-braces: litellm 1.80.x strips
-    ``reasoning_effort`` from the body outright (BerriAI/litellm#27439), and
-    since the value equals the default, that bug is inert. Sending it keeps
-    the intent explicit and the call correct once the fix lands.
+    ``high`` is the floor, not a high setting: DeepSeek implements only
+    ``high`` and ``max`` and aliases OpenAI's lower names onto ``high``,
+    so there is no cheaper way to think than this (the rung below is
+    ``enabled=False``). Also DeepSeek's default once thinking is on, so
+    this field is belt-and-braces against litellm 1.80.x stripping
+    ``reasoning_effort`` outright (BerriAI/litellm#27439) -- inert today
+    since the value equals the default, correct once the fix lands.
 
-    **Direct routes only.** A gateway route already carries the tier inside
-    the ``reasoning`` object ``deepseek_thinking_extra_body`` builds for it,
-    so this field beside it is the same instruction twice -- and the copy
-    the gateway rejects, since litellm raises ``UnsupportedParamsError`` for
-    a model whose OpenRouter support map does not list the parameter. Engine
-    calls pass ``drop_params`` and so never saw it; the app's own call sites
-    invoke litellm directly without that, and the redundant field failed the
-    contextual safety screen outright -- which parks a run for human review
+    **Direct routes only.** A gateway route already carries the tier
+    inside the ``reasoning`` object ``deepseek_thinking_extra_body``
+    builds for it; sending it again is the same instruction twice, and
+    the gateway rejects the copy (litellm raises
+    ``UnsupportedParamsError`` for a model whose OpenRouter support map
+    omits the parameter). Engine calls pass ``drop_params`` and never
+    saw it; the app's direct litellm call sites do not, and the
+    redundant field there failed the contextual safety screen outright
     rather than erroring visibly.
 
     Empty for models without a thinking mode, for gateway routes, and when
@@ -346,11 +389,10 @@ def effective_max_tokens(
 
     The single answer to "what budget did the wire carry", shared by
     ``_apply_thinking_args`` (which imposes it) and the failure logging in
-    ``call_llm`` (which reports it). They were two numbers once: the error
-    log printed the call site's own ``max_tokens`` while the request carried
-    the floored value, so a budget-exhausted DeepSeek call logged
-    "max_tokens: 8000" beside "reasoning_tokens=18001" and read as a
-    provider fault rather than a budget one.
+    ``call_llm`` (which reports it) -- they were two numbers once, so a
+    budget-exhausted DeepSeek call logged "max_tokens: 8000" beside
+    "reasoning_tokens=18001" and read as a provider fault, not a budget
+    one.
 
     Args:
         model_name: Model name in litellm format.
@@ -371,13 +413,12 @@ def _apply_thinking_args(
 ) -> None:
     """Sets the DeepSeek thinking-mode kwargs on a completion call, in place.
 
-    Also lifts ``max_tokens`` to ``THINKING_FLOOR_MAX_TOKENS`` when the call
-    will actually think, because the budget has to cover the chain of thought
-    as well as the answer -- see that constant for why an answer-sized budget
-    silently turns into an empty response. Applied here rather than at the
-    call sites so a node cannot be added later with a budget that predates
-    thinking; the floor only ever raises, so a node that sized itself above
-    it keeps its own number.
+    Also lifts ``max_tokens`` to ``THINKING_FLOOR_MAX_TOKENS`` when the
+    call will think, since the budget must cover the chain of thought as
+    well as the answer -- see that constant for why an answer-sized budget
+    silently returns empty. Applied here, not at call sites, so a node
+    added later cannot predate thinking; the floor only raises, so an
+    already-larger budget keeps its own number.
 
     Args:
         completion_args: The in-progress completion kwargs dict; mutated in
@@ -413,14 +454,13 @@ def annotate_failure_context(
     """Record on ``error`` which call failed and what budget it carried.
 
     Both facts travel on the exception rather than being recovered
-    wherever the failure is finally logged. The budget, because the floor
-    and the retry ladder's own escalations both move it, and a reader
-    comparing ``max_tokens`` against ``reasoning_tokens`` is relying on
-    the two having come from the same request -- a second computation is a
-    second chance to disagree with the wire. The call site, because the
-    layer that writes the record is shared by every node: a production
-    export of fifteen answerless completions could be narrowed to a
-    budget constant, and ten call sites share the commonest one.
+    wherever the failure is finally logged: the budget, because the floor
+    and the retry ladder's escalations both move it, and a second
+    computation is a second chance to disagree with the wire; the call
+    site, because the layer that logs failures is shared by every node --
+    a production export of fifteen answerless completions could be
+    narrowed to a budget constant, and ten call sites share the commonest
+    one.
 
     Args:
         error: The failure to annotate; annotating twice is harmless.

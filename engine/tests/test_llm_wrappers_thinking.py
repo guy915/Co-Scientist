@@ -233,7 +233,9 @@ async def test_ranking_matchup_thinks(
 # --- Gateway routes ----------------------------------------------------------
 
 
-def test_a_gateway_route_gets_its_own_reasoning_parameter() -> None:
+def test_a_gateway_route_gets_its_own_reasoning_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A gateway normalizes reasoning; the provider's own knob is not it.
 
     Measured against `openrouter/deepseek/deepseek-v4-flash`: a call
@@ -245,13 +247,16 @@ def test_a_gateway_route_gets_its_own_reasoning_parameter() -> None:
     the first casualty is title generation, whose 24-token budget a
     chain of thought consumes entirely.
     """
+    monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     from co_scientist.llm_request import deepseek_thinking_extra_body
 
     routed = "openrouter/deepseek/deepseek-v4-flash"
 
     gateway = {
         "require_parameters": True,
-        "sort": "throughput",
+        "allow_fallbacks": True,
+        "preferred_min_throughput": 25,
+        "order": ["modal", "friendli", "together"],
         "max_price": {"prompt": 0.166, "completion": 0.33},
     }
 
@@ -287,7 +292,9 @@ def test_a_model_without_thinking_is_untouched_on_either_route() -> None:
     assert deepseek_thinking_extra_body("openrouter/openai/gpt-4o") == {}
 
 
-def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call() -> None:
+def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A gateway spreads one model over hosts that are not interchangeable.
 
     Three of them matter here. A host that ignores an unsupported
@@ -298,18 +305,35 @@ def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call() -> None:
     slowest of six concurrent calls took 32.9s unconstrained against 7.1s
     constrained, and two calls in the first routed run hit the engine's
     own 600s ceiling outright. And they differ by 6.5x in price, which
-    ``sort: throughput`` does not consider at all, so without a ceiling
-    the run cost this project reports bounds nothing -- the cap is what
-    makes ``constants_pricing`` an estimate of the worst case rather than
-    of one arbitrary host.
+    neither ``order`` nor ``preferred_min_throughput`` considers at all,
+    so without a ceiling the run cost this project reports bounds nothing
+    -- the cap is what makes ``constants_pricing`` an estimate of the
+    worst case rather than of one arbitrary host.
+
+    The mechanism guarding the first risk changed since that measurement:
+    ``sort: throughput`` picked whichever upstream was fastest *per call*,
+    which round-robined consecutive calls across Modal/Friendli/Together
+    and is very likely why production's prompt-cache hit rate collapsed
+    to 6.9% (against a 33.7% monthly baseline) on 2026-09-04, the day
+    with the heaviest repeated-prompt traffic -- a prefix cached on one
+    upstream is wasted the instant the next call lands on another. The
+    replacement, a fixed ``order`` preference plus a
+    ``preferred_min_throughput`` floor (OpenRouter's own documented
+    "deprioritize, don't exclude" semantics for a degraded endpoint),
+    keeps consecutive calls landing on the same host for the cache's
+    sake while still moving off one that has degraded into the "single
+    digit tokens per second" shape of the original incident.
     """
+    monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     from co_scientist.llm_request import deepseek_thinking_extra_body
 
     body = deepseek_thinking_extra_body("openrouter/deepseek/deepseek-v4-flash")
 
     assert body["provider"] == {
         "require_parameters": True,
-        "sort": "throughput",
+        "allow_fallbacks": True,
+        "preferred_min_throughput": 25,
+        "order": ["modal", "friendli", "together"],
         "max_price": {"prompt": 0.166, "completion": 0.33},
     }
     # The direct route has no gateway to constrain, and must not grow one.

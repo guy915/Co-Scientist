@@ -151,12 +151,21 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     direct = "deepseek/deepseek-v4-flash"
 
     # The price ceiling is the engine's too: a gateway spreads one model
-    # over hosts differing 6.5x in price, and `sort: throughput` does not
-    # consider price at all. Restating it here would be the second copy
-    # this test exists to prevent.
+    # over hosts differing 6.5x in price, and neither the host ordering
+    # nor the throughput floor considers price at all. Restating any of
+    # it here would be the second copy this test exists to prevent.
+    #
+    # `order` replaced `sort: throughput` after the latter was measured
+    # scattering consecutive calls across upstreams and collapsing the
+    # prompt-cache hit rate to 6.9% (against 33.7% for the month) on the
+    # run of 2026-09-04; `preferred_min_throughput` keeps the slow-host
+    # protection `sort` used to provide. Full rationale lives with the
+    # engine's own copy in test_llm_wrappers_thinking.py.
     gateway = {
         "require_parameters": True,
-        "sort": "throughput",
+        "allow_fallbacks": True,
+        "preferred_min_throughput": 25,
+        "order": ["modal", "friendli", "together"],
         "max_price": {"prompt": 0.166, "completion": 0.33},
     }
 

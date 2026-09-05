@@ -123,3 +123,26 @@ def parse_timeout_env(env_var: str, default: float) -> float | None:
         )
         return default
     return seconds if seconds > 0 else None
+
+
+def parse_list_env(env_var: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Parse a comma-separated env var into a tuple, or fall back to default.
+
+    Shared shape with ``parse_timeout_env``: read from the environment on
+    every call rather than cached, so a preference list can be retuned in
+    production without a restart.
+
+    Args:
+        env_var: Name of the environment variable to read.
+        default: Tuple to use when the variable is unset.
+
+    Returns:
+        The trimmed, non-empty comma-separated items, in order. An
+        explicitly empty (or whitespace-only) value is a deliberate
+        opt-out -- it returns an empty tuple rather than ``default``, so a
+        caller can turn a preference off without unsetting the variable.
+    """
+    raw = os.environ.get(env_var)
+    if raw is None:
+        return default
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
