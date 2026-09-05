@@ -256,8 +256,8 @@ def test_a_gateway_route_gets_its_own_reasoning_parameter(
         "require_parameters": True,
         "allow_fallbacks": True,
         "preferred_min_throughput": 25,
-        "order": ["modal", "friendli", "together"],
-        "max_price": {"prompt": 0.166, "completion": 0.33},
+        "order": ["z-ai", "deepinfra", "novita", "gmicloud"],
+        "max_price": {"prompt": 0.083 * 1.05, "completion": 0.165 * 1.05},
     }
 
     assert deepseek_thinking_extra_body(routed, enabled=False) == {
@@ -323,6 +323,18 @@ def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call(
     keeps consecutive calls landing on the same host for the cache's
     sake while still moving off one that has degraded into the "single
     digit tokens per second" shape of the original incident.
+
+    The order named above changed again on 2026-09-05: Modal/Friendli/
+    Together were chosen for measured throughput without noticing all
+    three price at 2x `z-ai/glm-5.3-flash`'s listed rate, and a
+    production run routed there was billed $4.70 for work priced at
+    $2.50 headline. The price cap (``_MAX_PRICE_MULTIPLE``, tightened
+    from 2.0 to 1.0 in the same change) is what should have caught this
+    and did not, because 2.0 was loose enough to admit the 2x tier
+    outright. The replacement order -- Z.AI, DeepInfra, Novita, GMICloud
+    -- all bill the headline rate; none of their throughput is measured,
+    which is exactly the gap ``preferred_min_throughput`` and the env
+    override exist to cover without a re-pin.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     from co_scientist.llm_request import deepseek_thinking_extra_body
@@ -333,8 +345,8 @@ def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call(
         "require_parameters": True,
         "allow_fallbacks": True,
         "preferred_min_throughput": 25,
-        "order": ["modal", "friendli", "together"],
-        "max_price": {"prompt": 0.166, "completion": 0.33},
+        "order": ["z-ai", "deepinfra", "novita", "gmicloud"],
+        "max_price": {"prompt": 0.083 * 1.05, "completion": 0.165 * 1.05},
     }
     # The direct route has no gateway to constrain, and must not grow one.
     assert "provider" not in deepseek_thinking_extra_body(

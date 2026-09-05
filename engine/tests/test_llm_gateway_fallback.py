@@ -88,6 +88,15 @@ def test_every_gateway_call_prefers_the_default_upstream_order(
     call. ``order`` is a preference list, not a hard pin: OpenRouter tries
     it in sequence and only falls through to its own default selection
     when every listed upstream is unavailable.
+
+    The order itself changed 2026-09-05: the throughput-derived
+    Modal/Friendli/Together chain all price at 2x `z-ai/glm-5.3-flash`'s
+    listed rate, which a production run paid for directly ($4.70 against
+    $2.50 at the headline rate). The replacement -- Z.AI (first-party),
+    DeepInfra, Novita, GMICloud -- all bill the listed rate; their
+    throughput is unmeasured, which is exactly what
+    ``preferred_min_throughput`` and the env override below exist to
+    cover without needing a re-pin.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     from co_scientist.llm_thinking import _DEFAULT_UPSTREAM_ORDER
@@ -248,3 +257,46 @@ def test_a_priced_primary_arms_the_routing_ceiling() -> None:
         assert "max_price" in _gateway_provider(primary), (
             f"{primary} heads a chain but sends no price ceiling"
         )
+
+
+def test_the_price_cap_excludes_the_2x_tier() -> None:
+    """The multiple must stay tight enough to shut out the 2x hosts.
+
+    OpenRouter's endpoint list for `z-ai/glm-5.3-flash` on 2026-09-05
+    splits into a headline tier (Z.AI, DeepInfra, Novita, GMICloud at
+    $0.075/$0.25), a middle band strictly between 1x and 2x (Morph at
+    1.29x, up to Modal at 1.9998x), and a tier at exactly 2x
+    ($0.15/$0.50, Friendli and Together among them). A multiple of 2.0
+    admitted the whole middle band plus the 2x tier -- Modal, at
+    1.9998x, is what a production run was routed to, billed $4.70 for
+    work priced at $2.50 headline. Pinned so a later "loosen it for
+    throughput" change cannot silently reopen either band without
+    someone reading this: the next host above the headline rate is
+    Morph at 1.29x, well clear of the current cap.
+    """
+    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE
+
+    assert 1.0 <= _MAX_PRICE_MULTIPLE < 1.29
+
+
+def test_the_price_cap_admits_the_headline_rate() -> None:
+    """The ceiling OpenRouter actually enforces is inclusive of the cap.
+
+    Per OpenRouter's provider-routing docs, ``max_price`` reads "<= $x/m
+    ... or less" -- a host billing exactly the listed rate still
+    qualifies. The cap sits a few percent above that rate rather than
+    exactly on it, since the gateway's own price comparison may not
+    represent the listed rate with the same rounding this process does.
+    """
+    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE, _gateway_provider
+
+    primary = "openrouter/z-ai/glm-5.3-flash"
+    price = MODEL_PRICING[primary]
+    provider = _gateway_provider(primary)
+
+    assert provider["max_price"] == {
+        "prompt": price.prompt_usd_per_million * _MAX_PRICE_MULTIPLE,
+        "completion": price.completion_usd_per_million * _MAX_PRICE_MULTIPLE,
+    }
+    assert provider["max_price"]["prompt"] >= price.prompt_usd_per_million

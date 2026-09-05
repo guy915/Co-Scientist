@@ -165,8 +165,8 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
         "require_parameters": True,
         "allow_fallbacks": True,
         "preferred_min_throughput": 25,
-        "order": ["modal", "friendli", "together"],
-        "max_price": {"prompt": 0.166, "completion": 0.33},
+        "order": ["z-ai", "deepinfra", "novita", "gmicloud"],
+        "max_price": {"prompt": 0.083 * 1.05, "completion": 0.165 * 1.05},
     }
 
     assert deepseek_non_thinking_extra_body(routed) == {
