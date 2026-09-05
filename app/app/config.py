@@ -34,26 +34,19 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     #
-    # One model on every tier, reached through OpenRouter: GLM 5.2's free
-    # pool. Cost is the binding constraint on this deployment, so the tier
-    # split buys nothing -- there is no cheaper rung than free for a worker
-    # tier to drop to, and no budget freed by giving the strategic tier
-    # something dearer.
+    # One model on every tier, reached through OpenRouter: Minimax M3's free
+    # pool, with no fallback chain behind it. Cost is the binding constraint
+    # on this deployment, so the tier split buys nothing -- there is no
+    # cheaper rung than free for a worker tier to drop to, and no budget
+    # freed by giving the strategic tier something dearer.
     #
-    # The primary's pool is shared and saturated most of the day (1 of 11
-    # live probes answered, 2026-09-05), so the gateway is given an
-    # all-free chain to fall through: Minimax M3, then Nemotron 3 Super,
-    # then Nemotron 3.5 Lightning. In practice this chain, not the
-    # primary, serves most calls. ``llm_gateway_routing._GATEWAY_MODELS``
-    # holds that order and what each model in it needs. Every rung is
-    # priced $0/$0, so the routing price ceiling (a multiple of the
-    # primary's rate) is never armed here -- that is fine, since there is
-    # nothing a free chain can overspend on -- and it is why no paid rung
-    # may ever be appended below this primary: wired that way once, a
-    # "last resort" priced at $1.25/$4.25 served 3.17M tokens and billed
-    # $5.23 in an afternoon, because 429 is the normal state of a
-    # saturated free pool, not the rare case a last resort assumes
-    # (2026-08-26 incident).
+    # This replaces the 2026-09-05 GLM 5.2 + free-chain switch: a real
+    # express run measured GLM 5.2's free pool answering only 7 of 85 calls
+    # (its single host stays saturated), against Minimax M3 serving 74 of
+    # those calls at $0. Naming it as the sole primary drops the chain that
+    # was doing the real work anyway, with no fallback and nothing to fall
+    # to. ``llm_gateway_routing._GATEWAY_MODELS`` holds this model's own
+    # declaration (no fallbacks) and what it needs.
     #
     # Two properties of this model are load-bearing and neither is
     # guessable from its name, which is why both are declared rather than
@@ -61,8 +54,8 @@ class Settings(BaseSettings):
     # schema'd call is downgraded to ``json_object`` with the schema
     # restated in the prompt (paired with ``require_parameters``, sending
     # the schema is a 404 rather than a soft degradation). And it spends
-    # reasoning tokens like the rest of the chain, so it gets the thinking
-    # token floor rather than keeping the budget its call site chose.
+    # reasoning tokens, so it gets the thinking token floor rather than
+    # keeping the budget its call site chose.
     #
     # Production overrides all four settings below via explicit Railway
     # env vars (see ``docs/DEPLOYMENT.md``); changing prod is an env
@@ -71,16 +64,16 @@ class Settings(BaseSettings):
     # model_name: worker model -- generate, review, ranking, reflection,
     # evolve, proximity, literature_review, claim verification. High-volume,
     # runs many times per iteration.
-    model_name: str = "openrouter/z-ai/glm-5.2:free"
+    model_name: str = "openrouter/minimax/minimax-m3:free"
     # supervisor_model_name: strategic model -- supervisor (research
     # planning), meta_review and research_overview (final report synthesis).
     # Runs once or twice per iteration. The same model as the worker tier.
     # Falls back to model_name only if explicitly cleared.
-    supervisor_model_name: str | None = "openrouter/z-ai/glm-5.2:free"
+    supervisor_model_name: str | None = "openrouter/minimax/minimax-m3:free"
     # chat_model_name: model for all user-facing communication -- the
     # research interview, Chat-tab Q&A, and session titling. Falls back to
     # model_name only if explicitly cleared.
-    chat_model_name: str | None = "openrouter/z-ai/glm-5.2:free"
+    chat_model_name: str | None = "openrouter/minimax/minimax-m3:free"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -119,7 +112,7 @@ class Settings(BaseSettings):
     semantic_safety_enabled: bool = True
     # Kept on the worker tier rather than falling back to the supervisor
     # model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = "openrouter/z-ai/glm-5.2:free"
+    semantic_safety_model: str | None = "openrouter/minimax/minimax-m3:free"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see

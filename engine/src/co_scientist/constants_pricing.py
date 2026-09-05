@@ -94,10 +94,11 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # charging up to 3.4x this on input and 4.7x on output -- DeepSeek's
     # own first-party endpoint among them, at 0.22/0.66 -- is excluded.
     "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
-    # The deployed chain (``app.config`` names the primary,
-    # ``z-ai/glm-5.2:free``; ``llm_gateway_routing._GATEWAY_MODELS`` holds
-    # the order). All four entries below -- the free primary and its three
-    # free rungs -- are priced at zero because they are free, which is a
+    # The deployed default (``app.config`` names the primary,
+    # ``minimax/minimax-m3:free``, with no fallback chain;
+    # ``llm_gateway_routing._GATEWAY_MODELS`` holds the non-default
+    # ``glm-5.2:free`` chain a deployment can opt back into). All four
+    # entries below are priced at zero because they are free, which is a
     # real rate and not a missing entry: a run on them reports $0.00
     # because it cost that. Note the one thing zero costs us:
     # ``_gateway_provider`` derives its routing ceiling as a multiple of

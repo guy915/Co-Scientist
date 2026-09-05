@@ -203,20 +203,15 @@ class GatewayModel:
 # primary arms the ceiling; free rungs below it are safe for the same
 # reason they were dangerous above it.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    # The deployed primary (also ``app.config``'s default on every tier).
-    # Its single host (Decart) is a shared free pool that was saturated
-    # most of the day on the date this chain was pinned: 1 of 11 live
-    # probes answered, the rest 429 "temporarily rate-limited upstream"
-    # (2026-09-05, matching the same shape noted here 2026-08-26) -- so in
-    # practice this chain, not the primary, serves most calls. Every rung
-    # is priced 0/0 (``MODEL_PRICING``), so the omitted price cap below
-    # cannot bite: a $0 primary has no multiple to cap at, and every free
-    # rung is safe to fall through to for the same reason. **No paid rung
-    # may ever be appended below a free primary** -- wired that way once,
-    # a $1.25/$4.25 "last resort" served 3.17M tokens and billed $5.23 in
-    # an afternoon because 429 is the normal state of a shared free pool,
-    # not the rare case a last resort assumes (2026-08-26 incident; see
-    # the module-level comment above this table).
+    # A non-default chain head kept for a deployment that opts back into
+    # it. It was the deployed primary from 2026-09-05 until a real express
+    # run measured its single host (Decart) answering only 7 of 85 calls --
+    # a shared free pool saturated most of the day (1 of 11 live probes
+    # answered, matching the same shape noted 2026-08-26) -- against its
+    # own first fallback rung, Minimax M3, serving 74 of those calls at $0.
+    # ``app.config`` now defaults every tier straight to that rung instead,
+    # with no chain behind it. This entry's own chain is unchanged, for
+    # whoever opts back in.
     "openrouter/z-ai/glm-5.2:free": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
@@ -226,6 +221,9 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
             "nvidia/nemotron-3.5-lightning:free",
         ),
     ),
+    # The deployed primary (also ``app.config``'s default on every tier),
+    # with no fallback chain: the owner decision behind the 2026-09-06
+    # switch was a single free model, not another chain to fall through.
     "openrouter/minimax/minimax-m3:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),

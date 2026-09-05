@@ -42,12 +42,14 @@ def test_the_primary_model_carries_its_fallback_chain() -> None:
     ]
 
 
-def test_the_free_primary_carries_its_own_fallback_chain() -> None:
-    """The deployed default (``app.config``) also names a chain to fall through.
+def test_the_non_default_free_chain_head_still_carries_its_chain() -> None:
+    """``glm-5.2:free`` is no longer ``app.config``'s default but stays wired.
 
     Its single host answered 1 of 11 live probes on 2026-09-05 -- the
-    saturated-pool shape noted 2026-08-26 -- so in practice this chain,
-    not the primary, serves most calls.
+    saturated-pool shape noted 2026-08-26, and the reason the 2026-09-06
+    switch moved the default straight to this chain's own first rung,
+    ``minimax/minimax-m3:free``, with nothing behind it. This entry is kept
+    for a deployment that opts back into the chain.
     """
     body = deepseek_thinking_extra_body(_FREE_PRIMARY)
 
@@ -56,6 +58,16 @@ def test_the_free_primary_carries_its_own_fallback_chain() -> None:
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3.5-lightning:free",
     ]
+
+
+def test_the_deployed_default_carries_no_fallback_chain() -> None:
+    """``minimax-m3:free`` is the sole primary: no chain behind it.
+
+    The 2026-09-06 owner decision was a single free model, not another
+    chain to fall through -- a real express run had already shown this
+    model, not ``glm-5.2:free`` above it, serving nearly all the traffic.
+    """
+    assert "models" not in deepseek_thinking_extra_body(_NEMO)
 
 
 def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
