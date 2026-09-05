@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.exceptions import LLMCallBudgetExceededError
+
 from app import engine_tasks, store
 from app.engine_tasks_portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
@@ -122,6 +124,33 @@ def _fail_unsupported_task(
     logger.error("Task %s rejected: %s", task.id, exc)
 
 
+def _fail_llm_budget_exceeded_task(
+    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
+) -> None:
+    """Permanently fail a task whose run overran its LLM-call ceiling.
+
+    The run has already spent past ``max_llm_calls``; nothing a retry
+    could do reduces that spend, so this is the same shape as
+    ``_fail_unsupported_task`` -- retry budget skipped outright, not
+    exhausted one attempt at a time -- rather than the default retryable
+    branch. ``fail_task``'s error text becomes the run's terminal reason
+    (see ``store.runs_reconcile._settle_run_for_failed_task``), and
+    ``LLMCallBudgetExceededError.__str__`` names the count and the
+    ceiling, so the run's recorded failure reads as a ceiling hit rather
+    than a generic task failure.
+    """
+    from co_scientist.llm_call_budget import release_run_call_budget
+
+    _cancel_downstream_before_terminal_failure(
+        task, retryable=False, db_path=db_path
+    )
+    store.fail_task(
+        task.id, worker_id, str(exc), retryable=False, db_path=db_path
+    )
+    release_run_call_budget(task.run_id)
+    logger.error("Task %s aborted: %s", task.id, exc)
+
+
 def _fail_retryable_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
@@ -145,8 +174,9 @@ def _handle_task_failure(
 
     Preserves the original except-clause priority exactly: a superseded
     checkpoint is a successful idempotent outcome, a safety hold is a
-    durable wait, an unsupported task type is the one permanent failure,
-    and everything else keeps its retry budget.
+    durable wait, an unsupported task type or an exceeded LLM-call
+    ceiling are the two permanent failures, and everything else keeps its
+    retry budget.
     """
     if isinstance(exc, engine_tasks.SupersededTaskError):
         _complete_superseded_task(task, worker_id, exc, db_path)
@@ -154,6 +184,8 @@ def _handle_task_failure(
         _park_held_task(task, worker_id, exc, db_path)
     elif isinstance(exc, UnsupportedTaskError):
         _fail_unsupported_task(task, worker_id, exc, db_path)
+    elif isinstance(exc, LLMCallBudgetExceededError):
+        _fail_llm_budget_exceeded_task(task, worker_id, exc, db_path)
     else:
         _fail_retryable_task(task, worker_id, exc, db_path)
 

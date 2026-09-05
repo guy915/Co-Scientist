@@ -20,6 +20,7 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
     _tournament_round_count,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.llm_call_budget import current_run_call_count
 from co_scientist.models import Hypothesis
 from co_scientist.scheduling import (
     Budget,
@@ -167,9 +168,24 @@ def _rankable_coverage(
 def _scheduler_scalars(
     state: WorkflowState, book: dict[str, Any], pool_size: int
 ) -> tuple[int, float, float, float]:
-    """Return (llm_calls, generation_yield, evolution_yield, elapsed_s)."""
+    """Return (llm_calls, generation_yield, evolution_yield, elapsed_s).
+
+    ``llm_calls`` reads the seam-counted total (``llm_call_budget``,
+    incremented once per actual provider request regardless of which node
+    made it) rather than the self-reported ``metrics.llm_calls``: a dozen
+    nodes never reported into the metric at all, so it structurally
+    under-counted and let ``max_llm_calls`` see spend that never happened.
+    ``max()`` with the self-reported figure covers the one case the seam
+    cannot see on its own -- a process restart resets its in-memory
+    counter to zero while a resumed run's checkpoint still carries the
+    (still merely non-decreasing) self-reported count, so falling back to
+    zero would let a resumed run spend a second full budget.
+    """
     metrics = state.get("metrics")
-    llm_calls = metrics.llm_calls if metrics is not None else 0
+    reported = metrics.llm_calls if metrics is not None else 0
+    run_id = state.get("run_id")
+    seam_count = current_run_call_count(run_id) if run_id else 0
+    llm_calls = max(seam_count, reported)
     gen_yield, evo_yield = _yields(pool_size, book)
     start = state.get("start_time") or time.time()
     return llm_calls, gen_yield, evo_yield, time.time() - start

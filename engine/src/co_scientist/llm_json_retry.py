@@ -16,6 +16,7 @@ from litellm.exceptions import ContextWindowExceededError
 
 from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
     LLMTimeoutError,
     short_error_text,
 )
@@ -260,12 +261,19 @@ async def _run_json_attempt(
     A genuine call failure (network, provider error, etc.) is surfaced to the
     retry loop as an outcome carrying the error, except on the final attempt,
     where it is re-raised so the caller's exception propagates unchanged.
-    Two failures are deliberately never retried, for the same reason: the
+    Three failures are deliberately never retried, for the same reason: the
     identical request cannot succeed, so retrying is one doomed call
     repeated by the attempt count. ``LLMTimeoutError`` is one -- a provider
     that accepted the request and then stopped answering will not answer
     the same request faster next time, which is the unbounded stall the
     timeout ceiling exists to prevent.
+
+    ``LLMCallBudgetExceededError`` is a third: the run has already spent
+    past its ``max_llm_calls`` ceiling, so another attempt only adds to
+    the overrun rather than answering anything, and every attempt after
+    the first would fail identically (the run is already over budget) --
+    exactly the "same doomed call billed again" the escalation ladder
+    exists to avoid for the other two shapes.
 
     ``ContextWindowExceededError`` is the other, and it is the one this
     repo has already been bitten by: a prompt too large for the model's
@@ -288,6 +296,12 @@ async def _run_json_attempt(
     """
     try:
         return await _attempt_call_llm_json(prompt, ctx, attempt)
+    except LLMCallBudgetExceededError:
+        logger.error(
+            "LLM-call ceiling exceeded on attempt %s; not retrying",
+            attempt.number,
+        )
+        raise
     except LLMTimeoutError:
         logger.error(
             "LLM call timed out on attempt %s; not retrying", attempt.number

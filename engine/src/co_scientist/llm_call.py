@@ -13,6 +13,7 @@ import logging
 from typing import cast
 
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
+from co_scientist.llm_call_budget import record_provider_request
 from co_scientist.llm_credentials import current_api_key, scoped_api_key
 from co_scientist.llm_failure import _report_call_llm_failure
 from co_scientist.llm_request import (
@@ -65,6 +66,11 @@ async def _call_llm_and_cache(
         ),
     )
     _apply_api_key(completion_args, current_api_key())
+    # Counted here, immediately before the actual outbound request, so a
+    # cache hit (which returns before this function is ever called) is
+    # correctly never counted, and every retry/escalation rung that
+    # reaches this point -- one call each -- is.
+    record_provider_request()
     response = await _acompletion_within_timeout(
         completion_args, request.model_name
     )

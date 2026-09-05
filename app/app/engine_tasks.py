@@ -432,6 +432,24 @@ async def _dispatch_engine_task(
     raise ValueError(f"unsupported engine task: {task.task_type}")
 
 
+def _llm_call_ceiling_for_run(run_id: str, db_path: str | None) -> int | None:
+    """The run's configured ``max_llm_calls``, or None if unresolvable.
+
+    Read fresh per task rather than cached here: ``scoped_llm_call_budget``
+    itself only honors the *first* value it sees for a run id, so a later
+    task's read is cheap insurance (an indexed primary-key lookup, the
+    same cost as the credential lookup beside it) rather than a source of
+    drift. A run row that has vanished or carries no resolvable tier
+    scopes to no ceiling -- counted, never enforced -- rather than
+    failing the task over a missing backstop.
+    """
+    run = store.get_run(run_id, db_path=db_path)
+    if run is None:
+        return None
+    ceiling = resolved_run_config(run.config).get("max_llm_calls")
+    return int(ceiling) if isinstance(ceiling, int) else None
+
+
 async def execute_engine_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -441,14 +459,22 @@ async def execute_engine_task(
     -- into the app context (the app's own LLM calls) and the engine
     context (every agent completion) -- so it overrides the deployment
     credential for this task only, without touching any shared state.
+
+    The run's LLM-call ceiling is scoped the same way, into the engine's
+    ``llm_call_budget`` context: every completion this task makes,
+    however many retries or tool-loop turns deep, is counted against the
+    run without any of that machinery needing to know the run id.
     """
+    from co_scientist.llm_call_budget import scoped_llm_call_budget
     from co_scientist.llm_credentials import scoped_api_key
 
     from app.credentials import get_run_credential, scoped_byok
 
     credential = get_run_credential(task.run_id, db_path=db_path)
+    ceiling = _llm_call_ceiling_for_run(task.run_id, db_path)
     with (
         scoped_byok(credential),
         scoped_api_key(credential.api_key if credential else None),
+        scoped_llm_call_budget(task.run_id, ceiling),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

@@ -77,6 +77,41 @@ class LLMThinkingOnlyError(CoScientistError, ValueError):
     """An LLM finished its chain of thought and wrote no answer at all."""
 
 
+# Raised by llm_call_budget.record_provider_request once a run's counted
+# provider requests exceed its configured max_llm_calls ceiling (see
+# app.run_modes.RUN_TIER_DEFAULTS and
+# co_scientist.scheduling.policy_checks._llm_call_budget_check, which
+# terminates a run between tasks from the same count). That check only
+# runs between the supervisor's scheduling decisions, so a task that fires
+# hundreds of calls inside one node was never interrupted by it; this is
+# the enforcement point *inside* a task, at the seam every provider
+# request passes through. Deliberately not a ValueError: everything
+# reaching the worker boundary as a bare ValueError is treated as a
+# transient provider hiccup and keeps its retry budget (see
+# UnsupportedTaskError's docstring), and retrying a run that has already
+# overspent its ceiling would only keep spending against it. Both retry
+# loops built on the escalation ladder re-raise it immediately, exactly as
+# they do LLMTimeoutError, since the run is already over its ceiling and
+# another attempt would only add to the overrun.
+class LLMCallBudgetExceededError(CoScientistError):
+    """A run's LLM-call ceiling was exceeded; the run must abort, not retry."""
+
+    def __init__(self, count: int, ceiling: int) -> None:
+        """Records the overrun so callers and log lines can report it.
+
+        Args:
+            count: The provider requests counted for the run, including
+                the one that pushed it past ``ceiling``.
+            ceiling: The run's configured ``max_llm_calls``.
+        """
+        self.count = count
+        self.ceiling = ceiling
+        super().__init__(
+            f"LLM-call ceiling exceeded: {count} provider requests against "
+            f"a budget of {ceiling}; aborting the run"
+        )
+
+
 # Raised when an MCP tool accepts a call and never returns. The LLM timeout
 # covers litellm.acompletion only, which left tool invocations unbounded: a
 # server whose stream broke mid-call parked the awaiting run forever, with no

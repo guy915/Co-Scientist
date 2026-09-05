@@ -479,4 +479,19 @@ async def execute_finalize(
         emit,
     ):
         pass
-    return _settle_finalize_outcome(run.id, db_path)
+    return _settle_and_release(run.id, db_path)
+
+
+def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
+    """Settle the finalized run and drop its LLM-call counter.
+
+    The run is done, so the counter is released here rather than left to
+    the tracking cap's eviction -- that exists for runs which never reach
+    a terminal state through this path at all (cancelled, or failed with
+    their retry budget spent elsewhere).
+    """
+    from co_scientist.llm_call_budget import release_run_call_budget
+
+    outcome = _settle_finalize_outcome(run_id, db_path)
+    release_run_call_budget(run_id)
+    return outcome

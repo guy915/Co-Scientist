@@ -23,7 +23,10 @@ from collections.abc import Awaitable, Callable
 
 from litellm.exceptions import ContextWindowExceededError
 
-from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMTimeoutError,
+)
 from co_scientist.llm_json_attempt import _JsonAttempt
 from co_scientist.llm_json_escalation import (
     BudgetEscalation,
@@ -44,10 +47,11 @@ async def _run_text_attempt(
 
     Mirrors ``llm_json_retry._run_json_attempt`` with no parse/validate step:
     a plain-text call either returns its content (the success case) or the
-    raw call raised, and there is nothing further to check. The same two
+    raw call raised, and there is nothing further to check. The same three
     failures stay unretried for the same reason they do under the JSON
-    loop -- see ``_run_json_attempt`` for why a timeout or an oversized
-    prompt cannot be answered by trying again.
+    loop -- see ``_run_json_attempt`` for why a timeout, an exceeded
+    LLM-call ceiling, or an oversized prompt cannot be answered by trying
+    again.
 
     Args:
         call_for_attempt: Makes one attempt's raw call at a given escalation
@@ -61,6 +65,12 @@ async def _run_text_attempt(
     """
     try:
         return await call_for_attempt(attempt.escalation), None
+    except LLMCallBudgetExceededError:
+        logger.error(
+            "LLM-call ceiling exceeded on attempt %s; not retrying",
+            attempt.number,
+        )
+        raise
     except LLMTimeoutError:
         logger.error(
             "LLM call timed out on attempt %s; not retrying", attempt.number
