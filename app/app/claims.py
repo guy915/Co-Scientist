@@ -10,12 +10,21 @@ requires (SSR §6, §7):
 2. **Claim-specific retrieval** — for each claim, rank the run's evidence
    passages by relevance and assess only the most relevant few (not the whole
    run-wide pool), so a passage that happens to share a word with an unrelated
-   claim cannot ground it.
+   claim cannot ground it. A passage is passage-sized, not whole-article: a
+   long article's fetched full text is split into paragraph/sentence-window
+   chunks before retrieval (``app/evidence_chunking.py``), each carrying its
+   parent article's id (``<article id>#<chunk index>``, recoverable via
+   ``parent_evidence_id``) — see that module's docstring for why whole
+   articles as "passages" made the claim gate the most expensive phase in a
+   production run.
 3. **Per-claim entailment** — for each claim, assess the retrieved evidence as
    SUPPORTS / CONTRADICTS / INSUFFICIENT via a swappable *assessor*, recording
    the exact supporting/contradicting **span** (source evidence id, quoted
    text, and character offsets) plus the assessor provenance. The stored span
-   is what lets a displayed verified claim open its exact supporting passage.
+   is what lets a displayed verified claim open its exact supporting passage;
+   every reader-facing consumer of that id resolves it through
+   ``parent_evidence_id`` first, since a chunked passage's span carries the
+   chunk's id, not the article's.
 4. **Resolvability, separately** — whether a citation's source resolves
    (URL/metadata/retraction) is judged independently of whether it supports the
    claim, via a swappable *resolver* (offline metadata by default; a live

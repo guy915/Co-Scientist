@@ -28,6 +28,8 @@ from co_scientist.agents.reflection.reflection_entities import (
     extract_entity_names,
 )
 
+from app.evidence_chunking import parent_evidence_id
+
 # Only these two labels assert something the knowledge base can hold as
 # settled. "insufficient" means the evidence neither confirmed nor
 # contradicted the claim, so it is not a fact and not a contradiction --
@@ -47,12 +49,18 @@ _MAX_ENTITIES_PER_FACT = 5
 
 
 def _span_evidence_ids(edge: dict[str, Any], span_key: str) -> list[str]:
-    """Evidence ids cited by one claim edge's spans under ``span_key``."""
+    """Evidence ids cited by one claim edge's spans under ``span_key``.
+
+    Resolved to the parent article id (see ``app.evidence_chunking``): a
+    span located inside a chunked passage carries the chunk's id, but a
+    durable fact must be traceable to the article the evidence table
+    knows, not one of its internal chunks.
+    """
     ids: list[str] = []
     for span in edge.get(span_key) or []:
         raw = span.get("evidence_id") if isinstance(span, dict) else None
         if raw:
-            ids.append(str(raw))
+            ids.append(parent_evidence_id(str(raw)))
     return ids
 
 

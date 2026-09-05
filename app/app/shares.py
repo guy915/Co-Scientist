@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import store
 from app.auth import client_id
+from app.evidence_chunking import parent_evidence_id
 from app.report_render import (
     _exclude_unsafe_hypotheses,
     _released_claim_evidence,
@@ -85,7 +86,12 @@ def _public_run_view(run: store.RunRow) -> dict[str, Any]:
 
 
 def _referenced_evidence_ids(edges: list[dict[str, Any]]) -> set[str]:
-    """Evidence ids cited by released claim edges' provenance spans."""
+    """Evidence ids cited by released claim edges' provenance spans.
+
+    Resolved to the parent article id: a span located inside a chunked
+    passage carries the chunk's id, but this set is matched against the
+    evidence table's own article-level ids below.
+    """
     ids: set[str] = set()
     for edge in edges:
         for key in ("supporting", "contradicting"):
@@ -94,7 +100,7 @@ def _referenced_evidence_ids(edges: list[dict[str, Any]]) -> set[str]:
                     span.get("evidence_id") if isinstance(span, dict) else None
                 )
                 if raw:
-                    ids.add(str(raw))
+                    ids.add(parent_evidence_id(str(raw)))
     return ids
 
 

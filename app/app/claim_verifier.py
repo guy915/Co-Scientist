@@ -171,10 +171,26 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
 
 
 def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
-    """Build the single-string prompt the engine's LLM seam sends."""
+    """Build the single-string prompt the engine's LLM seam sends.
+
+    Evidence is rendered before the claim, not after. This does not help
+    the engine's own response cache -- it keys on the full prompt string
+    (``cache_llm._generate_cache_key``), so a different claim is a
+    different key regardless of where it sits. It matters for
+    provider-side prompt-prefix caching (e.g. context/prompt caching a
+    gateway model may offer), which only credits a request for the literal
+    prefix it shares with a prior one: with the claim (which changes every
+    call) first, two calls citing the exact same evidence chunks shared no
+    cacheable prefix at all, since the varying part came first. Evidence
+    chunks recur across many claims in a run (production measured a 6.9%
+    cache hit rate under claim-first ordering, though that number reflects
+    whole-article passages rather than chunks -- see
+    ``app.evidence_chunking``), so putting the stable part first is what
+    lets consecutive calls actually share one.
+    """
     return (
         f"{_SYSTEM_PROMPT}\n\n"
-        f"CLAIM:\n{claim}\n\nEVIDENCE:\n{_render_passages(passages)}"
+        f"EVIDENCE:\n{_render_passages(passages)}\n\nCLAIM:\n{claim}"
     )
 
 

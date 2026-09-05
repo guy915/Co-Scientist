@@ -91,22 +91,31 @@ async def _assess_gate_claims(
 
 
 def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
-    """Build the run's evidence passages from retrieved and private sources."""
-    from app.claims import EvidencePassage
+    """Build the run's evidence passages from retrieved and private sources.
 
-    passages = [
-        EvidencePassage(
-            evidence_id=str(article.source_id or article.title),
-            text=" ".join(
-                part
-                for part in (article.title, article.abstract, article.content)
-                if part
-            ),
-            source=article.source,
-            url=str(article.url or ""),
+    Each article's fetched full text (``article.content``, up to
+    ``PROMPT_PAPER_MAX_CHARS``) is chunked to passage size rather than
+    kept as one whole-article passage -- see ``app.evidence_chunking`` for
+    why. The title + abstract stays one chunk; only the full text, when
+    present, is split into several.
+    """
+    from app.claims import EvidencePassage
+    from app.evidence_chunking import chunk_evidence_passage
+
+    passages: list[EvidencePassage] = []
+    for article in state.get("articles") or []:
+        head_text = " ".join(
+            part for part in (article.title, article.abstract) if part
         )
-        for article in state.get("articles") or []
-    ]
+        passages.extend(
+            chunk_evidence_passage(
+                str(article.source_id or article.title),
+                head_text=head_text,
+                body_text=str(article.content or ""),
+                source=article.source,
+                url=str(article.url or ""),
+            )
+        )
     # The scientist's private corpus is admissible evidence: a hypothesis's
     # claims may be grounded in the uploaded documents, not only in retrieved
     # literature. Including these passages lets scientist-provided evidence
@@ -117,12 +126,11 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
         text = str(source.get("display") or data.get("excerpt") or "").strip()
         if not text:
             continue
-        passages.append(
-            EvidencePassage(
-                evidence_id=str(
-                    data.get("document_id") or data.get("title") or "private"
-                ),
-                text=text,
+        passages.extend(
+            chunk_evidence_passage(
+                str(data.get("document_id") or data.get("title") or "private"),
+                head_text="",
+                body_text=text,
                 source=str(source.get("source_type") or "private_document"),
                 url="",
             )

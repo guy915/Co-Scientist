@@ -276,6 +276,35 @@ def test_retrieval_bounds_the_assessed_pool() -> None:
     assert seen == [3]
 
 
+def test_deep_supporting_sentence_in_a_chunked_article_is_located() -> None:
+    """Evidence buried deep in a long, chunked article is still located.
+
+    Regression for whole-article-as-passage grounding: chunking must not
+    cost retrieval its ability to find and cite text far from an article's
+    start, and the located span must still map back to the parent article.
+    """
+    from app.evidence_chunking import chunk_evidence_passage, parent_evidence_id
+
+    filler = "Unrelated background discussion sentence about other topics. "
+    needle = "Kinase X inhibition reduces tumor growth in AML cell lines."
+    body = (filler * 300) + needle + (" " + filler * 300)
+    chunks = chunk_evidence_passage(
+        "article-99",
+        head_text="Title only, no abstract.",
+        body_text=body,
+        source="pubmed",
+        url="https://example.org/99",
+    )
+    assert len(chunks) > 1  # the chunking actually happened
+
+    claim = "Kinase X inhibition reduces tumor growth in AML cell lines."
+    result = assess_claim(claim, chunks, top_k=3)
+    assert result.label is EntailmentLabel.SUPPORTS
+    span = result.supporting_passages[0]
+    assert needle in span.quote or span.quote in needle
+    assert parent_evidence_id(span.evidence_id) == "article-99"
+
+
 # --- Provenance / span location ---------------------------------------------
 
 

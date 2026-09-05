@@ -126,7 +126,16 @@ def evidence_passages(
     inside it can be traced back to (and opened at) its exact source.
     Callers pass either ``conn`` (the engine drain reuses its open
     transaction) or ``db_path``.
+
+    Routed through ``app.evidence_chunking.chunk_evidence_passage`` for the
+    same reason the pre-ranking gate is (see that module): a persisted
+    evidence row never carries fetched full text (only title + abstract),
+    so this is a no-op today, but it keeps the two claim-assessment paths
+    sharing one chunking policy rather than letting them drift if that
+    ever changes.
     """
+    from app.evidence_chunking import chunk_evidence_passage
+
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
         if not ev.get("available"):
@@ -138,10 +147,11 @@ def evidence_passages(
             ).strip()
         if not text:
             continue
-        passages.append(
-            EvidencePassage(
-                evidence_id=str(ev.get("id") or ""),
-                text=text,
+        passages.extend(
+            chunk_evidence_passage(
+                str(ev.get("id") or ""),
+                head_text=text,
+                body_text="",
                 source=str(ev.get("source") or ""),
                 url=str(ev.get("url") or ""),
             )

@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from app.claim_verifier import make_llm_assessor
+from app.claim_verifier import _entailment_prompt, make_llm_assessor
 from app.claims import (
     EntailmentLabel,
     EvidencePassage,
@@ -231,6 +231,65 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
     draft = assessor("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
+
+
+def test_prompt_renders_evidence_before_the_claim() -> None:
+    """Evidence precedes the claim so recurring passages form a stable prefix.
+
+    Regression for the production ordering (claim first) that defeated the
+    response cache: two calls sharing every retrieved passage but citing a
+    different claim shared no cacheable prefix, since the varying part came
+    first.
+    """
+    prompt = _entailment_prompt(
+        "Kinase X inhibition reduces tumor growth.", [_PASSAGE]
+    )
+    assert prompt.index("EVIDENCE:") < prompt.index("CLAIM:")
+
+
+def test_prompt_size_is_bounded_by_the_retrieved_passages() -> None:
+    """Rendered evidence never exceeds the retrieval budget's own bound.
+
+    Regression for whole-article "passages": five 40k-char articles used to
+    mean a ~200k-char prompt. With chunking, retrieval hands the prompt at
+    most ``top_k`` chunks, each near ``CHUNK_MAX_CHARS`` (plus the small
+    overlap), so the evidence block is bounded by ``k * (max + overlap)``
+    regardless of how long the source articles are.
+    """
+    from app.claims_assessor import _DEFAULT_RETRIEVAL_TOP_K
+    from app.evidence_chunking import (
+        CHUNK_MAX_CHARS,
+        CHUNK_OVERLAP_CHARS,
+        chunk_evidence_passage,
+    )
+
+    claim = "Kinase X inhibition reduces tumor growth in AML cell lines."
+    body = (
+        claim + " Filler discussion sentence unrelated to the claim. "
+    ) * 400
+    passages: list[EvidencePassage] = []
+    for i in range(3):
+        passages.extend(
+            chunk_evidence_passage(
+                f"article-{i}",
+                head_text=f"Title {i}.",
+                body_text=body,
+                source="pubmed",
+                url=f"https://example.org/{i}",
+            )
+        )
+    assert len(passages) > _DEFAULT_RETRIEVAL_TOP_K  # retrieval must narrow
+
+    from app.claims import retrieve_passages
+
+    retrieved = retrieve_passages(claim, passages)
+    rendered = "\n\n".join(p.text for p in retrieved)
+    # +1 per chunk for the overlap prefix's joining space (see
+    # CHUNK_OVERLAP_CHARS); the "\n\n".join separators are additional and
+    # deliberately excluded -- this bounds the evidence text itself.
+    per_chunk_bound = CHUNK_MAX_CHARS + CHUNK_OVERLAP_CHARS + 1
+    bound = _DEFAULT_RETRIEVAL_TOP_K * per_chunk_bound
+    assert len(rendered) <= bound
 
 
 def test_call_reaches_the_engine_completion_boundary_with_the_model(

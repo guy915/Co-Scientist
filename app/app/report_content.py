@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.evidence_chunking import parent_evidence_id
 from app.hypothesis_safety import is_blocking_status
 from app.report_content_gates import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -57,12 +58,16 @@ def _claim_evidence_ids(edge: dict[str, Any]) -> list[str]:
     A stored edge carries its provenance inside the ``supporting`` span
     objects (``{evidence_id, quote, ...}``), never as a flat ``evidence_id``
     column -- reading one off the edge itself silently yields nothing.
+    Resolved to the parent article id (``parent_evidence_id``): a span
+    located inside a chunked passage carries the chunk's id, but every
+    reader-facing reference here is keyed against the evidence table's own
+    article-level id.
     """
     ids: list[str] = []
     for span in edge.get("supporting") or []:
         raw = span.get("evidence_id") if isinstance(span, dict) else None
         if raw:
-            ids.append(str(raw))
+            ids.append(parent_evidence_id(str(raw)))
     return ids
 
 
@@ -433,7 +438,9 @@ def _enrich_claim_span(
     if not isinstance(raw_span, dict):
         return raw_span
     span = dict(raw_span)
-    source = sources.get(str(span.get("evidence_id") or ""), {})
+    source = sources.get(
+        parent_evidence_id(str(span.get("evidence_id") or "")), {}
+    )
     span["source_title"] = str(
         span.get("source_title") or source.get("title") or ""
     )
