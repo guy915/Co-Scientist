@@ -275,3 +275,70 @@ def test_batch_locates_span_in_the_chunked_parent_article(
     span = results[0].supporting_passages[0]
     assert span.evidence_id == chunk.evidence_id
     assert "#" in span.evidence_id  # a chunk id, not the bare article id
+
+
+def test_batch_entailment_call_disables_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The batch entailment call carries thinking disabled from attempt 1.
+
+    A production ultra run (b82f9162, 2026-09-06) spent its whole budget
+    reasoning about a batch of claims and answered nothing on either the
+    original or the raised-budget rung -- judging claims against evidence
+    chunks is classification, not a task a chain of thought earns its
+    keep on (root AGENTS.md gotcha).
+    """
+    seen: dict[str, Any] = {}
+
+    async def _capturing_completion(**kwargs: Any) -> Any:
+        seen.update(kwargs)
+        message = types.SimpleNamespace(content='{"verdicts": []}')
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _capturing_completion)
+    batch_assessor, _ = make_llm_batch_assessor("deepseek/deepseek-v4-flash")
+    batch_assessor(["some claim"], [_PASSAGE])
+
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_batch_answerless_first_attempt_still_yields_a_real_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A parse failure on attempt 1 still yields a real verdict, not a fallback.
+
+    ``max_attempts=3`` keeps a plain re-ask available for a schema/parse
+    failure now that thinking is off from the start, so the ladder's own
+    thinking-off rung is not needed to make that room.
+    """
+    calls = {"n": 0}
+
+    async def _flaky_completion(**_kwargs: Any) -> Any:
+        calls["n"] += 1
+        content = (
+            "not valid json"
+            if calls["n"] == 1
+            else '{"verdicts": [{"index": 1, "label": "supports", '
+            '"supporting": [{"evidence_id": "ev-1", '
+            '"quote": "reduces tumor growth"}], "contradicting": []}]}'
+        )
+        message = types.SimpleNamespace(content=content)
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _flaky_completion)
+    batch_assessor, assessor_id = make_llm_batch_assessor(
+        "deepseek/deepseek-chat"
+    )
+    results = assess_claims_batch(
+        ["Kinase X inhibition reduces tumor growth."],
+        [_PASSAGE],
+        batch_assessor=batch_assessor,
+        assessor_id=assessor_id,
+    )
+    assert calls["n"] == 2
+    assert results[0].label is EntailmentLabel.SUPPORTS
+    assert results[0].assessor == assessor_id

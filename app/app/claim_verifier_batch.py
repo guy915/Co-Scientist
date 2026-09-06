@@ -65,10 +65,12 @@ _BATCH_SYSTEM_PROMPT = (
     "claim is INSUFFICIENT. For a supports, partial, or contradicts verdict "
     "you MUST cite the exact VERBATIM quote (copied character-for-character "
     "from the passage) that justifies it, together with that passage's "
-    'evidence_id; put a partial verdict\'s quote in "supporting". Do not '
-    "paraphrase quotes. Respond with a single JSON object holding one "
-    "verdict per claim, each carrying the claim's own number as its index "
-    "-- never the claim's text -- and nothing else."
+    'evidence_id; put a partial verdict\'s quote in "supporting". Keep each '
+    "quote SHORT -- at most 200 characters, the smallest verbatim span that "
+    "justifies the verdict, never the whole passage. Do not paraphrase "
+    "quotes. Respond with a single JSON object holding one verdict per "
+    "claim, each carrying the claim's own number as its index -- never the "
+    "claim's text -- and nothing else."
 )
 
 # A ceiling, not a reservation, sized for a full batch of claims (up to
@@ -163,7 +165,20 @@ def _parse_batch_drafts(
 async def _call_llm_batch_entailment_async(
     model: str, claims: Sequence[str], passages: Sequence[EvidencePassage]
 ) -> dict[str, Any]:
-    """Await one batched entailment judgement through the engine's LLM seam."""
+    """Await one batched entailment judgement through the engine's LLM seam.
+
+    Thinking is off from the first attempt: a production ultra run
+    (b82f9162, 2026-09-06) burned its whole budget on a free reasoning
+    model reasoning about a batch of ~17 claims -- 21054 reasoning tokens
+    against an 18000-token budget, then 26332 against a raised 24000 on
+    the retry -- and answered nothing either time, so every claim in the
+    batch fell back to the deterministic assessor. Judging claims against
+    evidence chunks is classification, not a task a chain of thought
+    earns its keep on. ``max_attempts=3`` (not the historical 2) keeps a
+    plain re-ask available for a schema or parse failure now that no rung
+    of the escalation ladder needs to spend an attempt turning thinking
+    off -- it already is.
+    """
     from app import credentials
 
     resolved_model, api_key = credentials.byok_model_and_key(model)
@@ -177,8 +192,10 @@ async def _call_llm_batch_entailment_async(
     result: dict[str, Any] = await call_llm_json(
         _batch_entailment_prompt(claims, passages),
         spec,
-        max_attempts=2,
-        options=LLMCallOptions(prompt_name="claim_verifier_batch"),
+        max_attempts=3,
+        options=LLMCallOptions(
+            prompt_name="claim_verifier_batch", enable_thinking=False
+        ),
     )
     return result
 

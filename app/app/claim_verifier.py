@@ -216,6 +216,16 @@ async def _call_llm_entailment_async(
     A scoped bring-your-own-key credential overrides the model and the
     deployment credential, exactly as the direct-litellm call this
     replaces did.
+
+    Thinking is off from the first attempt: judging a claim against a
+    handful of evidence passages is a classification task, not one that
+    benefits from a chain of thought, and a free reasoning model given
+    room to think took it -- a production run measured 21054 reasoning
+    tokens against an 18000-token budget and answered nothing (run
+    b82f9162, 2026-09-06). ``max_attempts=3`` (not the historical 2) keeps
+    a plain re-ask available for a schema or parse failure now that no
+    rung of the escalation ladder needs to spend an attempt turning
+    thinking off -- it already is.
     """
     from app import credentials
 
@@ -230,8 +240,10 @@ async def _call_llm_entailment_async(
     result: dict[str, Any] = await call_llm_json(
         _entailment_prompt(claim, passages),
         spec,
-        max_attempts=2,
-        options=LLMCallOptions(prompt_name="claim_verifier"),
+        max_attempts=3,
+        options=LLMCallOptions(
+            prompt_name="claim_verifier", enable_thinking=False
+        ),
     )
     return result
 

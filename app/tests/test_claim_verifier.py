@@ -315,3 +315,71 @@ def test_call_reaches_the_engine_completion_boundary_with_the_model(
     assessor("some claim", [_PASSAGE])
 
     assert seen["model"] == "deepseek/deepseek-v4-flash"
+
+
+def test_entailment_call_disables_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The entailment call carries thinking disabled from the first attempt.
+
+    A production run (b82f9162, 2026-09-06) spent an 18000-token budget
+    entirely on reasoning and answered nothing -- judging a claim against
+    a handful of passages is classification, not a task a chain of
+    thought earns its keep on (root AGENTS.md gotcha).
+    """
+    seen: dict[str, Any] = {}
+
+    async def _capturing_completion(**kwargs: Any) -> Any:
+        seen.update(kwargs)
+        message = types.SimpleNamespace(
+            content='{"label": "insufficient", "supporting": [], '
+            '"contradicting": []}'
+        )
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _capturing_completion)
+    assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
+    assessor("some claim", [_PASSAGE])
+
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A parse failure on attempt 1 still yields a real verdict, not a fallback.
+
+    With thinking disabled from the first attempt, ``max_attempts=3``
+    keeps a plain re-ask available for a schema/parse failure -- the
+    escalation ladder's own top rung (turning thinking off) is moot here
+    since it already is off.
+    """
+    calls = {"n": 0}
+
+    async def _flaky_completion(**_kwargs: Any) -> Any:
+        calls["n"] += 1
+        content = (
+            "not valid json"
+            if calls["n"] == 1
+            else '{"label": "supports", "supporting": '
+            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '"contradicting": []}'
+        )
+        message = types.SimpleNamespace(content=content)
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _flaky_completion)
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    result = assess_claim(
+        "Kinase X inhibition reduces tumor growth.",
+        [_PASSAGE],
+        assessor=assessor,
+        assessor_id=assessor_id,
+    )
+    assert calls["n"] == 2
+    assert result.label is EntailmentLabel.SUPPORTS
+    assert result.assessor == assessor_id
