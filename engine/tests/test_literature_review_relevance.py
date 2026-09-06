@@ -319,6 +319,38 @@ async def test_apply_semantic_relevance_batch_failure_degrades_like_single(
         assert metadata["retriever_version"] == relevance._HYBRID_VERSION
 
 
+async def test_apply_semantic_relevance_bad_relevance_type_degrades_only_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-numeric ``relevance`` degrades only that one candidate.
+
+    Under the json_object downgrade (no server-side schema enforcement) a
+    field can hold the wrong type entirely. This must not raise out of
+    the batch call -- that would abort every sibling batch through
+    ``asyncio.gather`` and fail the whole search over one bad field.
+    """
+
+    async def fake_call_llm_json(*, prompt: str, spec: Any) -> dict[str, Any]:
+        return {
+            "judgments": [
+                {"index": 1, "relevance": "n/a", "rationale": "bad type"},
+                {"index": 2, "relevance": 0.8, "rationale": "fine"},
+            ]
+        }
+
+    monkeypatch.setattr(relevance, "call_llm_json", fake_call_llm_json)
+
+    ranked = _pool(2)
+    result = await relevance.apply_semantic_relevance(
+        ranked, research_goal="a goal", model_name="stub/model", budget=5
+    )
+
+    assert result["p1"]["retrieval_rationale"] == (
+        relevance._FAILED_JUDGMENT_RATIONALE
+    )
+    assert result["p2"]["retrieval_rationale"] == "fine"
+
+
 async def test_apply_semantic_relevance_handles_short_response_array(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

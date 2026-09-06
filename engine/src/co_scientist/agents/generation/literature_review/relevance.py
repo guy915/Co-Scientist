@@ -101,7 +101,7 @@ _RELEVANCE_BATCH_SIZE = 10
 # Per-candidate abstract truncation inside a batch prompt, so a batch's
 # total prompt size scales with _RELEVANCE_BATCH_SIZE, not with however
 # long any one candidate's abstract happens to be.
-_ABSTRACT_CHAR_BUDGET = 600
+_ABSTRACT_CHAR_BUDGET = 1500
 
 
 def normalize_lexical(raw_score: float) -> float:
@@ -241,13 +241,26 @@ def _score_matched_judgments(
     matched = _match_batch_judgments(judgments, pool_ids)
     scored = []
     for paper_id, entry in zip(pool_ids, matched, strict=True):
-        if not isinstance(entry, dict):
-            scored.append((paper_id, 0.0, _FAILED_JUDGMENT_RATIONALE))
-            continue
-        relevance = float(entry.get("relevance", 0.0))
-        rationale = str(entry.get("rationale") or "")
-        scored.append((paper_id, relevance, rationale))
+        scored.append((paper_id, *_one_judgment(entry)))
     return scored
+
+
+def _one_judgment(entry: Any) -> tuple[float, str]:
+    """Reads one matched entry's relevance/rationale, tolerant of bad types.
+
+    Under the json_object downgrade (no server-side schema enforcement) a
+    field can hold the wrong type entirely -- a non-numeric ``relevance``
+    must degrade only this one candidate, not raise out of the whole
+    batch (which would abort every sibling batch through
+    ``asyncio.gather``, the exact abort this function exists to avoid).
+    """
+    if not isinstance(entry, dict):
+        return 0.0, _FAILED_JUDGMENT_RATIONALE
+    try:
+        relevance = float(entry.get("relevance", 0.0))
+    except (TypeError, ValueError):
+        return 0.0, _FAILED_JUDGMENT_RATIONALE
+    return relevance, str(entry.get("rationale") or "")
 
 
 async def _judge_batch(
