@@ -19,6 +19,10 @@ kwargs of every call so the budget on the wire can be asserted.
 driven through plain ``call_llm`` rather than ``call_llm_json`` -- the
 production failure this ladder answers was a direct ``call_llm`` caller
 (literature-review synthesis) that got exactly one attempt.
+``test_llm_reasoning_mandatory.py`` (also split out on size) pins a third,
+adjacent failure: a provider's flat 400 refusal of a disabled-reasoning
+request, answered by forcing reasoning back on at minimal effort rather
+than resending the identical rejected request.
 """
 
 from types import SimpleNamespace

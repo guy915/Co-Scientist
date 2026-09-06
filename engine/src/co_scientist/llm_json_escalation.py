@@ -43,6 +43,12 @@ class BudgetEscalation(enum.Enum):
       to finishing.
     * ``NO_THINKING``: resent with thinking off, which removes the
       unbounded side of the budget altogether.
+    * ``MINIMAL_REASONING_REQUIRED``: the provider rejected the disabled-
+      reasoning request outright ("reasoning is mandatory... cannot be
+      disabled") rather than answering with an empty completion. Resent
+      with reasoning enabled at the smallest tier the gateway exposes,
+      not the rejected request repeated and not the full reasoning spend
+      ``NO_THINKING`` was trying to avoid in the first place.
 
     The last rung is what makes the ladder terminate: reasoning ends at
     the ceiling, so its natural length is unknown and no finite budget is
@@ -54,6 +60,7 @@ class BudgetEscalation(enum.Enum):
     NONE = "none"
     RAISED_BUDGET = "raised_budget"
     NO_THINKING = "no_thinking"
+    MINIMAL_REASONING_REQUIRED = "minimal_reasoning_required"
 
 
 _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
@@ -63,10 +70,57 @@ _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
 }
 
 
+def _is_reasoning_mandatory_error(error: BaseException | None) -> bool:
+    """Whether this failure is a provider's flat refusal to disable reasoning.
+
+    Matched by substring, the same way ``llm_json_retry._is_rate_limited``
+    matches a 429 -- litellm raises a generic ``BadRequestError`` for
+    every provider's 400, so the message is the only structured signal
+    this failure carries. Observed verbatim from OpenRouter for
+    ``minimax/minimax-m3:free`` (production run b82f9162's recovered
+    finalize, 2026-09-06 04:39:30 UTC): "Reasoning is mandatory for this
+    endpoint and cannot be disabled." Every entailment call failed this
+    way on both of its attempts, because the identical rejected request
+    was simply resent -- exactly what escalating past it now prevents.
+
+    Args:
+        error: The failure to classify, if any.
+
+    Returns:
+        True if the message names both a mandatory reasoning requirement
+        and a refusal to disable it.
+    """
+    if error is None:
+        return False
+    text = str(error).lower()
+    return "reasoning is mandatory" in text and "cannot be disabled" in text
+
+
+def _escalate_once(
+    current: BudgetEscalation, target: BudgetEscalation
+) -> BudgetEscalation | None:
+    """Move to ``target`` once; stay terminal on a repeat from ``target``.
+
+    Shared by both single-attempt escalations below (a thinking-only
+    response, a mandatory-reasoning refusal): each answers with one fixed
+    rung regardless of where the failure came from, and neither should
+    ask again once already there.
+    """
+    return None if current is target else target
+
+
 def escalation_for_error(
     error: BaseException | None, current: BudgetEscalation
 ) -> BudgetEscalation | None:
     """The rung answering this error, or None when no rung answers it.
+
+    A provider's flat refusal to honour disabled reasoning is checked
+    first and independently of the ladder above: it can be raised from
+    any rung that sends ``enabled: False`` (the call's own first attempt,
+    or the ladder's own ``NO_THINKING`` rung), and the answer is always
+    the same escalation regardless of where it came from. Terminal after
+    one attempt -- a provider that rejects minimal reasoning too is not
+    answered by asking again.
 
     The two answerless shapes enter the ladder at different points.
     Budget exhaustion climbs one rung, because a chain of thought cut off
@@ -95,10 +149,12 @@ def escalation_for_error(
     Returns:
         The rung to send next, or None to stop escalating.
     """
+    if _is_reasoning_mandatory_error(error):
+        return _escalate_once(
+            current, BudgetEscalation.MINIMAL_REASONING_REQUIRED
+        )
     if isinstance(error, LLMThinkingOnlyError):
-        if current is BudgetEscalation.NO_THINKING:
-            return None
-        return BudgetEscalation.NO_THINKING
+        return _escalate_once(current, BudgetEscalation.NO_THINKING)
     if not isinstance(error, LLMBudgetExhaustedError):
         return None
     escalated = _ESCALATION_LADDER[current]
@@ -148,6 +204,12 @@ def log_escalation(
         error: The failure that triggered the escalation.
         escalated: The rung the next attempt will be made at.
     """
+    if escalated is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
+        logger.warning(
+            "Provider rejected disabled reasoning as mandatory; retrying "
+            "with reasoning enabled at minimal effort and a raised budget"
+        )
+        return
     if isinstance(error, LLMThinkingOnlyError):
         logger.warning(
             "LLM finished thinking without answering; retrying with "

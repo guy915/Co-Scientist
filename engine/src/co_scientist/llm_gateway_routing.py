@@ -181,11 +181,29 @@ class GatewayModel:
             all. Pre-existing on the paid chain this deployment inherited
             it from; not a reason to reorder, just a rung that is
             effectively text-only if a call ever reaches it.
+        reasoning_can_disable: Whether ``{"enabled": False}`` on this
+            model's own endpoint is honoured rather than 400ing. Default
+            False: every declared model here is an OpenRouter free
+            variant and none has evidence it accepts a disable -- one of
+            them, `minimax/minimax-m3:free`, is *confirmed* to reject it
+            outright ("Reasoning is mandatory for this endpoint and
+            cannot be disabled", production run b82f9162's recovered
+            finalize, 2026-09-06 04:39:30 UTC), and a request can land on
+            any host `models` lists, including this one, from a chain
+            whose head never disables. A model with real evidence of
+            honouring a disable earns ``True`` from a live probe against
+            *every* rung of its own chain, not by assumption -- see
+            ``test_no_chain_head_claims_disable_support_a_fallback_lacks``.
+            When False, a caller asking for disabled reasoning instead
+            gets it enabled at the smallest effort this gateway exposes
+            (see ``llm_thinking._MINIMAL_REASONING_EFFORT``) -- never a
+            bare resend of the rejected request.
     """
 
     takes_reasoning_knob: bool
     spends_budget_thinking: bool
     fallbacks: tuple[str, ...] = ()
+    reasoning_can_disable: bool = False
 
 
 # OpenRouter's own ceiling on the ``models`` fallback array: "'models'

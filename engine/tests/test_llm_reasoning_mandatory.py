@@ -1,0 +1,160 @@
+"""Tests for surviving a provider's "reasoning is mandatory" refusal.
+
+Split out of ``test_llm_budget_escalation.py`` on size. The failure this
+covers is adjacent to that ladder but distinct: a provider that flatly
+refuses a disabled-reasoning request (a 400, not an empty completion) can
+be raised from any rung that sends ``enabled: False`` -- the call's own
+first attempt, or the escalation ladder's own ``NO_THINKING`` rung -- and
+before this fix the identical rejected request was simply resent on every
+remaining attempt, since a raw provider error left the ladder's rung
+unchanged. Production hit exactly that shape: every batched entailment
+call against ``minimax/minimax-m3:free`` failed on both of its attempts
+with "Reasoning is mandatory for this endpoint and cannot be disabled"
+(run b82f9162's recovered finalize, 2026-09-06 04:39:30 UTC).
+"""
+
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+from co_scientist.llm import CompletionSpec, call_llm_json
+from co_scientist.llm_types import LLMCallOptions
+from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_wrapper_fakes import (
+    make_completion as _completion,
+)
+from tests._llm_wrapper_fakes import (
+    make_message as _message,
+)
+
+_INT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"a": {"type": "integer"}},
+    "required": ["a"],
+}
+
+# Not a declared ``_GATEWAY_MODELS`` entry -- the recovery this ladder
+# performs must not depend on the per-model shim in
+# ``llm_thinking._declared_gateway_body`` already knowing to avoid a bare
+# disable; it must also save a caller that reaches this 400 some other way
+# (a model wrongly believed to honour a disable, or one absent from the
+# table entirely).
+_UNDECLARED_GATEWAY_MODEL = "openrouter/deepseek/deepseek-v4-flash"
+
+
+def _reasoning_mandatory_error() -> Exception:
+    """A litellm ``BadRequestError`` shaped like OpenRouter's real refusal.
+
+    Verbatim message observed on ``minimax/minimax-m3:free`` during
+    production run b82f9162's recovered finalize (2026-09-06 04:39:30
+    UTC): every batched entailment call failed this way on both of its
+    attempts, because the identical rejected request was simply resent.
+    """
+    from litellm.exceptions import BadRequestError
+
+    return BadRequestError(
+        message=(
+            'OpenrouterException - {"error":{"message":"Reasoning is '
+            'mandatory for this endpoint and cannot be disabled.",'
+            '"code":400,"metadata":{"provider_name":null}}}'
+        ),
+        model=_UNDECLARED_GATEWAY_MODEL,
+        llm_provider="openrouter",
+    )
+
+
+async def test_a_mandatory_reasoning_refusal_recovers_on_the_next_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 400 refusing a disable gets minimal reasoning, not a repeat.
+
+    Before this fix, a raw provider error kept the current rung (see
+    ``escalation_for_error``'s catch-all), so the identical rejected
+    request went out again on every remaining attempt -- exactly the
+    production shape: two attempts, two identical 400s, then the
+    deterministic fallback.
+    """
+    _disable_cache(monkeypatch)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise _reasoning_mandatory_error()
+        return _completion(_message('{"a": 1}'))
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(
+            model_name=_UNDECLARED_GATEWAY_MODEL,
+            max_tokens=6000,
+            json_schema=_INT_SCHEMA,
+        ),
+        max_attempts=3,
+        options=LLMCallOptions(enable_thinking=False),
+    )
+
+    assert result == {"a": 1}
+    assert len(calls) == 2
+    assert calls[0]["extra_body"]["reasoning"] == {"enabled": False}
+    assert calls[1]["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }
+    # Funded like any other thinking call, not left at the caller's
+    # answer-sized budget -- see the "floor is not a guarantee" gotcha.
+    assert calls[1]["max_tokens"] >= THINKING_FLOOR_MAX_TOKENS
+    assert calls[1]["max_tokens"] > calls[0]["max_tokens"]
+
+
+async def test_a_second_mandatory_reasoning_refusal_still_terminates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider that rejects minimal reasoning too does not loop forever.
+
+    The recovery rung is entered once; a repeat of the same 400 at that
+    rung must exhaust the attempt budget normally rather than escalating
+    forever or resending the same request unbounded.
+    """
+    _disable_cache(monkeypatch)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        raise _reasoning_mandatory_error()
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
+
+    from litellm.exceptions import BadRequestError
+
+    with pytest.raises(BadRequestError):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(
+                model_name=_UNDECLARED_GATEWAY_MODEL,
+                max_tokens=6000,
+                json_schema=_INT_SCHEMA,
+            ),
+            max_attempts=3,
+            options=LLMCallOptions(enable_thinking=False),
+        )
+
+    assert len(calls) == 3
+    assert calls[0]["extra_body"]["reasoning"] == {"enabled": False}
+    assert calls[1]["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }
+    # The rung holds rather than escalating further or reverting.
+    assert calls[2]["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }

@@ -245,7 +245,11 @@ def escalation_after(
 ) -> BudgetEscalation:
     """The escalation the next attempt should use, given this one's outcome.
 
-    Only an answerless attempt escalates, and the two kinds enter the
+    An answerless attempt escalates, and so does a provider's flat refusal
+    to honour disabled reasoning ("reasoning is mandatory... cannot be
+    disabled") -- see ``escalation_for_error`` for that case, which is
+    independent of the ladder below and always resolves to the same rung
+    regardless of where it was raised from. The other two kinds enter the
     ladder at different points. Budget exhaustion climbs one rung, because
     a chain of thought cut off at the ceiling may genuinely have been close
     to finishing. A thinking-only response skips straight to the top:

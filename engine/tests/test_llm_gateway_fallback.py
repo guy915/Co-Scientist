@@ -121,6 +121,43 @@ def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
     assert body["reasoning"] == {"enabled": True, "effort": "high"}
 
 
+def test_a_disable_request_gets_minimal_reasoning_when_mandatory() -> None:
+    """``enabled=False`` never reaches a model that rejects disabling.
+
+    Production run b82f9162 (2026-09-06 04:39:30 UTC): every batched
+    entailment call against ``minimax/minimax-m3:free`` failed on both
+    attempts with "Reasoning is mandatory for this endpoint and cannot be
+    disabled", because ``enable_thinking=False`` reached the wire as a
+    literal ``reasoning: {"enabled": False}``. The model's own declaration
+    (``reasoning_can_disable=False``) now redirects that to the smallest
+    reasoning tier the gateway exposes instead.
+    """
+    from co_scientist.llm_thinking import _MINIMAL_REASONING_EFFORT
+
+    body = deepseek_thinking_extra_body(_NEMO, enabled=False)
+
+    assert body["reasoning"] == {
+        "enabled": True,
+        "effort": _MINIMAL_REASONING_EFFORT,
+    }
+
+
+def test_the_minimal_reasoning_redirect_still_gets_the_token_floor() -> None:
+    """Funding tracks what the wire actually sends, not the caller's ask.
+
+    A call that requested ``enable_thinking=False`` but is going out with
+    reasoning forced on (because the model mandates it) needs the same
+    floor a normal thinking call gets, or the redirect reproduces the
+    exact answerless-completion shape the floor exists to prevent.
+    """
+    from co_scientist.llm_thinking import effective_max_tokens
+
+    assert (
+        effective_max_tokens(_NEMO, 6000, enable_thinking=False)
+        == THINKING_FLOOR_MAX_TOKENS
+    )
+
+
 def test_every_gateway_call_is_pinned_to_hosts_that_honour_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -336,6 +373,33 @@ def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
 
     for primary, declared in _GATEWAY_MODELS.items():
         assert len(declared.fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
+
+
+def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
+    """A disabled-reasoning request can land on any rung ``models`` lists.
+
+    ``reasoning`` is built once, from the primary's own declaration, but
+    OpenRouter's ``models`` fallback array lets the gateway serve the
+    request from *any* host on the list -- the incident this guards
+    against (minimax-m3:free's "Reasoning is mandatory... cannot be
+    disabled") never fell through to a fallback host either; both of its
+    attempts died on the primary's own message. So a chain head that
+    claims ``reasoning_can_disable=True`` while a rung behind it does not
+    would silently 400 the instant the gateway picked that rung. Checked
+    over the whole declared table, not one hand-picked chain, so a rung
+    added later cannot reintroduce the shape.
+    """
+    from co_scientist.llm_thinking import _GATEWAY_MODELS
+
+    for primary, declared in _GATEWAY_MODELS.items():
+        if not declared.reasoning_can_disable:
+            continue
+        for name in declared.fallbacks:
+            fallback = _GATEWAY_MODELS.get(f"openrouter/{name}")
+            assert fallback is not None and fallback.reasoning_can_disable, (
+                f"{primary} claims reasoning_can_disable=True but its "
+                f"fallback {name} does not"
+            )
 
 
 def test_the_routing_body_never_sends_more_than_the_cap() -> None:

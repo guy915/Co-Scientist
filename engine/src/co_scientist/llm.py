@@ -142,6 +142,9 @@ from co_scientist.llm_request import (
 from co_scientist.llm_request import (
     effective_max_tokens as effective_max_tokens,
 )
+from co_scientist.llm_request import (
+    scoped_minimal_reasoning as scoped_minimal_reasoning,
+)
 from co_scientist.llm_telemetry import record_retry as _record_retry
 from co_scientist.llm_text_retry import (
     run_with_budget_escalation as run_with_budget_escalation,
@@ -188,9 +191,12 @@ def _call_for_attempt(
     Mirrors ``_json_call_for_attempt``: caching and the outer failure log
     are off for every rung (the retry loop owns both -- a successful rung is
     cached once, by the caller, under the caller's own unescalated request;
-    a failed one is logged once, by the loop), and only the top rung turns
-    thinking off. ``temperature`` is the already-clamped value from the
-    caller's own cache lookup, so every rung sends the same one.
+    a failed one is logged once, by the loop), the top rung turns thinking
+    off, and the recovery rung (a provider that rejected that disable as
+    mandatory) resends with reasoning forced back on at minimal effort via
+    ``scoped_minimal_reasoning`` rather than the literal rejected request.
+    ``temperature`` is the already-clamped value from the caller's own
+    cache lookup, so every rung sends the same one.
 
     Args:
         prompt: The prompt to send on every attempt.
@@ -214,6 +220,12 @@ def _call_for_attempt(
         attempt_opt = inner_opt
         if escalation is BudgetEscalation.NO_THINKING:
             attempt_opt = dataclasses.replace(inner_opt, enable_thinking=False)
+        if escalation is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
+            attempt_opt = dataclasses.replace(inner_opt, enable_thinking=False)
+            with scoped_minimal_reasoning():
+                return await _call_llm_single_attempt(
+                    prompt, attempt_spec, attempt_opt
+                )
         return await _call_llm_single_attempt(prompt, attempt_spec, attempt_opt)
 
     return _attempt
@@ -348,7 +360,8 @@ def _json_call_for_attempt(
     Args:
         json_spec: The call spec as the calling node sized it.
         enable_thinking: Whether the caller asked for thinking at all; the
-            top escalation rung turns it off regardless.
+            top escalation rung turns it off regardless, and the recovery
+            rung below that forces it back on at minimal effort.
 
     Returns:
         A callable taking one attempt's prompt and escalation rung.
@@ -360,16 +373,27 @@ def _json_call_for_attempt(
         """Raw LLM call (via call_llm) for one attempt's prompt.
 
         ``escalation`` is the loop's answer to a previous attempt that
-        spent its whole budget reasoning: it raises this attempt's
-        token budget and, at the top rung, turns thinking off.
+        came back with no answer: it raises this attempt's token budget,
+        at ``NO_THINKING`` turns thinking off, and at
+        ``MINIMAL_REASONING_REQUIRED`` -- a provider that rejected that
+        disable as mandatory -- resends with reasoning forced back on at
+        the smallest tier the gateway exposes rather than the literal
+        rejected request.
         """
+        call_enable_thinking = (
+            enable_thinking and escalation is not BudgetEscalation.NO_THINKING
+        )
+        if escalation is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
+            with scoped_minimal_reasoning():
+                return await _call_llm_for_json(
+                    attempt_prompt,
+                    escalated_spec(json_spec, escalation),
+                    enable_thinking=False,
+                )
         return await _call_llm_for_json(
             attempt_prompt,
             escalated_spec(json_spec, escalation),
-            enable_thinking=(
-                enable_thinking
-                and escalation is not BudgetEscalation.NO_THINKING
-            ),
+            enable_thinking=call_enable_thinking,
         )
 
     return _call_for_json

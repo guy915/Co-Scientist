@@ -296,15 +296,26 @@ async def _call_llm_entailment_async(
     deployment credential, exactly as the direct-litellm call this
     replaces did.
 
-    Thinking is off from the first attempt: judging a claim against a
-    handful of evidence passages is a classification task, not one that
-    benefits from a chain of thought, and a free reasoning model given
-    room to think took it -- a production run measured 21054 reasoning
-    tokens against an 18000-token budget and answered nothing (run
-    b82f9162, 2026-09-06). ``max_attempts=3`` (not the historical 2) keeps
-    a plain re-ask available for a schema or parse failure now that no
-    rung of the escalation ladder needs to spend an attempt turning
-    thinking off -- it already is.
+    Thinking is *requested* off from the first attempt: judging a claim
+    against a handful of evidence passages is a classification task, not
+    one that benefits from a chain of thought, and a free reasoning model
+    given room to think took it -- a production run measured 21054
+    reasoning tokens against an 18000-token budget and answered nothing
+    (run b82f9162, 2026-09-06). What actually reaches the wire is the
+    engine's decision, not this flag's: the deployed free chain's models
+    reject a disabled-reasoning request outright ("Reasoning is mandatory
+    for this endpoint and cannot be disabled" -- the same run's recovered
+    finalize, every batched call failing identically on both attempts), so
+    ``co_scientist.llm_thinking`` sends the smallest reasoning tier the
+    gateway exposes instead of a bare disable for a model declared unable
+    to honour one, and funds that with the thinking-token floor exactly as
+    it would a normal thinking call -- see
+    ``GatewayModel.reasoning_can_disable`` and
+    ``effective_thinking_enabled``. ``max_attempts=3`` (not the historical
+    2) keeps a plain re-ask available for a schema or parse failure now
+    that no rung of the escalation ladder needs to spend an attempt
+    turning thinking off -- it already is requested off; whether the wire
+    actually goes out that way is the model's call, not this one's.
     """
     from app import credentials
 

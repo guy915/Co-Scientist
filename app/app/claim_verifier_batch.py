@@ -186,17 +186,27 @@ async def _call_llm_batch_entailment_async(
 ) -> dict[str, Any]:
     """Await one batched entailment judgement through the engine's LLM seam.
 
-    Thinking is off from the first attempt: a production ultra run
-    (b82f9162, 2026-09-06) burned its whole budget on a free reasoning
+    Thinking is *requested* off from the first attempt: a production ultra
+    run (b82f9162, 2026-09-06) burned its whole budget on a free reasoning
     model reasoning about a batch of ~17 claims -- 21054 reasoning tokens
     against an 18000-token budget, then 26332 against a raised 24000 on
     the retry -- and answered nothing either time, so every claim in the
     batch fell back to the deterministic assessor. Judging claims against
     evidence chunks is classification, not a task a chain of thought
-    earns its keep on. ``max_attempts=3`` (not the historical 2) keeps a
-    plain re-ask available for a schema or parse failure now that no rung
-    of the escalation ladder needs to spend an attempt turning thinking
-    off -- it already is.
+    earns its keep on. What actually reaches the wire is the engine's
+    decision, not this flag's: the deployed free chain's models reject a
+    disabled-reasoning request outright ("Reasoning is mandatory for this
+    endpoint and cannot be disabled" -- the same run's recovered finalize,
+    every batched call failing identically on both attempts), so
+    ``co_scientist.llm_thinking`` sends the smallest reasoning tier the
+    gateway exposes instead, funded by the same thinking-token floor a
+    normal thinking call gets -- see ``GatewayModel.reasoning_can_disable``
+    and ``effective_thinking_enabled``. ``max_attempts=3`` (not the
+    historical 2) keeps a plain re-ask available for a schema or parse
+    failure now that no rung of the escalation ladder needs to spend an
+    attempt turning thinking off -- it already is requested off; whether
+    the wire actually goes out that way is the model's call, not this
+    one's.
     """
     from app import credentials
 

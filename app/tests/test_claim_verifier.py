@@ -349,6 +349,48 @@ def test_entailment_call_disables_thinking(
     assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
 
 
+def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The deployed free-chain primary never receives a bare disable.
+
+    Production run b82f9162 (2026-09-06 04:39:30 UTC): every batched
+    entailment call against ``openrouter/minimax/minimax-m3:free``
+    (``app.config``'s default model on every tier) failed on both
+    attempts with ``"Reasoning is mandatory for this endpoint and cannot
+    be disabled"``, because ``enable_thinking=False`` reached the wire as
+    a literal ``reasoning: {"enabled": False}``. The engine now redirects
+    that to the smallest reasoning tier the gateway exposes for a model
+    declared unable to honour a disable (``GatewayModel
+    .reasoning_can_disable``) -- and funds it with the same thinking-token
+    floor a normal thinking call gets, or the call reproduces the very
+    answerless-completion shape the floor exists to prevent.
+    """
+    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+
+    seen: dict[str, Any] = {}
+
+    async def _capturing_completion(**kwargs: Any) -> Any:
+        seen.update(kwargs)
+        message = types.SimpleNamespace(
+            content='{"label": "insufficient", "supporting": [], '
+            '"contradicting": []}'
+        )
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _capturing_completion)
+    assessor, _ = make_llm_assessor("openrouter/minimax/minimax-m3:free")
+    assessor("some claim", [_PASSAGE])
+
+    assert seen["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }
+    assert seen["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+
+
 def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

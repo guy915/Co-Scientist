@@ -6,7 +6,10 @@ Split from ``co_scientist.llm_request``: selects the thinking knob
 from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 """
 
+import contextlib
 import logging
+from collections.abc import Iterator
+from contextvars import ContextVar
 from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
@@ -79,6 +82,79 @@ _REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
 # and `max`, so this is the floor rather than a high setting.
 _REASONING_EFFORT: Final[str] = "high"
 
+# The smallest reasoning tier this gateway's unified ``reasoning`` object
+# exposes (OpenRouter's own three-tier "low"/"medium"/"high", mirrored by
+# litellm's `reasoning_effort`) -- requested in place of a bare
+# ``{"enabled": False}`` for a model that mandates reasoning (see
+# ``GatewayModel.reasoning_can_disable``), so the call still asks for as
+# little chain of thought as the endpoint permits rather than none. Unlike
+# ``_REASONING_EFFORT`` this value is unprobed against the four models it
+# is used for: a host that rejects "low" itself fails with a different 400
+# the retry ladder below does not recognise, which is an accepted gap, not
+# a hidden one -- see ``escalation_for_error``.
+_MINIMAL_REASONING_EFFORT: Final[str] = "low"
+
+# Forces the next completion this task makes to request the smallest
+# permitted reasoning tier instead of disabling it outright, however the
+# call site's own ``enable_thinking`` reads. Set only by the retry loop's
+# recovery rung for a "reasoning is mandatory" 400 (``llm_json_escalation
+# .BudgetEscalation.MINIMAL_REASONING_REQUIRED``), scoped to that one
+# attempt -- a ``ContextVar`` rather than a new bool threaded through
+# ``CompletionShape``/``LLMCallOptions`` and every function between the
+# retry loop and this module, mirroring ``llm_credentials.scoped_api_key``:
+# each asyncio task gets its own copy, so one recovery attempt cannot leak
+# into a concurrent call sharing the process.
+_minimal_reasoning_forced: ContextVar[bool] = ContextVar(
+    "minimal_reasoning_forced", default=False
+)
+
+
+@contextlib.contextmanager
+def scoped_minimal_reasoning() -> Iterator[None]:
+    """Force the smallest permitted reasoning tier for calls in this block.
+
+    Entered by the retry loop for exactly one attempt, when a provider has
+    just rejected a disabled-reasoning request as mandatory -- see the
+    module comment on ``_minimal_reasoning_forced``.
+    """
+    token = _minimal_reasoning_forced.set(True)
+    try:
+        yield
+    finally:
+        _minimal_reasoning_forced.reset(token)
+
+
+def effective_thinking_enabled(model_name: str, enable_thinking: bool) -> bool:
+    """Whether this call will actually reason, per what the endpoint requires.
+
+    Distinct from the call site's own ``enable_thinking``: a caller asking
+    to disable reasoning can still be sent a request that reasons, either
+    because the declared model rejects disabling outright
+    (``GatewayModel.reasoning_can_disable``) or because the retry loop is
+    mid-recovery from exactly that rejection (``scoped_minimal_reasoning``).
+    Both funding (``effective_max_tokens``) and failure reporting
+    (``annotate_failure_context``) need this real answer, not the request
+    as asked -- an unfunded mandatory-reasoning call reproduces the same
+    answerless-completion shape the token floor exists to prevent.
+
+    Args:
+        model_name: Model name in litellm format.
+        enable_thinking: Whether the call site itself requested thinking.
+
+    Returns:
+        True if the outgoing request will carry reasoning enabled, for any
+        reason; False only when it will genuinely go out disabled.
+    """
+    if enable_thinking or _minimal_reasoning_forced.get():
+        return True
+    lowered = model_name.lower()
+    declared = _GATEWAY_MODELS.get(lowered)
+    return bool(
+        declared is not None
+        and declared.takes_reasoning_knob
+        and not declared.reasoning_can_disable
+    )
+
 
 def _is_gateway_route(model_name: str) -> bool:
     """Whether this route is served through a model gateway."""
@@ -98,11 +174,15 @@ def deepseek_thinking_extra_body(
     ``_apply_thinking_args`` ensures by raising any thinking call to
     ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get an empty dict.
 
-    Thinking is on for every node. ``enabled=False`` remains the seam for
-    opting a call site out; nothing uses it today. A future opt-out would
-    pay off on the ranking tournament's pairwise matchups (O(n^2) per
-    cycle, ``ranking_debate.py``) and supervisor allocation, alone on the
-    run's serial spine (``supervisor_decision.py``).
+    Thinking is on for every node. ``enabled=False`` opts a call site out
+    of the reasoning spend -- ``app.claim_verifier``'s entailment judge is
+    the one caller today, on a classification task a chain of thought
+    does not earn its keep on. Whether the wire actually carries a
+    disable is this function's decision, not the caller's: a declared
+    gateway model that rejects disabling outright
+    (``GatewayModel.reasoning_can_disable``) is sent minimal reasoning
+    instead, never the literal request already known to 400 -- see
+    ``_declared_gateway_body``.
 
     Args:
         model_name: Model name in litellm format.
@@ -123,6 +203,35 @@ def deepseek_thinking_extra_body(
         return {}
     if not _is_gateway_route(lowered):
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
+    return _undeclared_deepseek_gateway_body(lowered, enabled)
+
+
+def _undeclared_deepseek_gateway_body(
+    lowered: str, enabled: bool
+) -> dict[str, Any]:
+    """The ``extra_body`` for an undeclared DeepSeek model on the gateway.
+
+    Split out of ``deepseek_thinking_extra_body`` to keep that function's
+    branching within the repo's complexity ceiling.
+
+    Args:
+        lowered: Model name in litellm format, already lowercased.
+        enabled: Whether thinking mode is requested for this call.
+
+    Returns:
+        Minimal reasoning, not a bare disable, when the retry loop is
+        mid-recovery from a mandatory-reasoning refusal
+        (``scoped_minimal_reasoning``); otherwise the reasoning knob as
+        requested.
+    """
+    if not enabled and _minimal_reasoning_forced.get():
+        return {
+            "reasoning": {
+                "enabled": True,
+                "effort": _MINIMAL_REASONING_EFFORT,
+            },
+            "provider": _gateway_provider(lowered),
+        }
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
         reasoning["effort"] = _REASONING_EFFORT
@@ -141,12 +250,26 @@ def _declared_gateway_body(
 
     Returns:
         The routing constraint always, the fallback chain when one is
-        declared, and the reasoning knob only for a model that reasons.
+        declared, and the reasoning knob only for a model that reasons --
+        at minimal effort rather than a bare disable when either the
+        model itself rejects disabling
+        (``declared.reasoning_can_disable``) or the retry loop is
+        recovering from exactly that rejection
+        (``scoped_minimal_reasoning``); see ``effective_thinking_enabled``
+        for the matching token-floor decision.
     """
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
     if declared.fallbacks:
         body["models"] = list(declared.fallbacks)
     if not declared.takes_reasoning_knob:
+        return body
+    if not enabled and (
+        not declared.reasoning_can_disable or _minimal_reasoning_forced.get()
+    ):
+        body["reasoning"] = {
+            "enabled": True,
+            "effort": _MINIMAL_REASONING_EFFORT,
+        }
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
@@ -238,9 +361,17 @@ def effective_max_tokens(
 
     Returns:
         ``max_tokens`` raised to ``THINKING_FLOOR_MAX_TOKENS`` when this
-        call will reason, otherwise ``max_tokens`` unchanged.
+        call will reason, otherwise ``max_tokens`` unchanged. "Will
+        reason" is ``effective_thinking_enabled``, not the raw
+        ``enable_thinking`` argument -- a call that asked to disable
+        reasoning but is going out with it forced on (a model that
+        mandates reasoning, or a recovery attempt) still needs the floor,
+        or funding this call reproduces the exact bug the floor exists
+        to prevent.
     """
-    if enable_thinking and model_reasons(model_name):
+    if effective_thinking_enabled(
+        model_name, enable_thinking
+    ) and model_reasons(model_name):
         return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
     return max_tokens
 

@@ -82,6 +82,9 @@ from co_scientist.llm_thinking import (
 from co_scientist.llm_thinking import (
     reasoning_effort_args as reasoning_effort_args,
 )
+from co_scientist.llm_thinking import (
+    scoped_minimal_reasoning as scoped_minimal_reasoning,
+)
 
 logger = logging.getLogger(__name__)
 
