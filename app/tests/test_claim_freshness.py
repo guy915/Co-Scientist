@@ -16,7 +16,7 @@ from app.claim_freshness import (
     claim_fingerprint,
     reusable_assessments,
 )
-from app.claim_grounding_assess import assess_hypothesis_claims
+from app.claim_grounding_assess import AssessorSpec, assess_hypothesis_claims
 from app.claims import AssessorDraft, EntailmentLabel, as_passages
 
 _CLAIM = "Inhibiting kinase X reduces melanoma tumor growth in mouse models."
@@ -126,8 +126,7 @@ def test_matching_claims_skip_the_assessor() -> None:
     result = assess_hypothesis_claims(
         [_hypothesis()],
         passages,
-        assessor=assessor,
-        assessor_id="test-v1",
+        AssessorSpec(assessor, "test-v1"),
         reuse={
             "h1": reusable_assessments(
                 _gate_record([(_CLAIM, "speculative", fingerprint)])
@@ -153,8 +152,7 @@ def test_reuse_preserves_claim_order_and_roles() -> None:
     result = assess_hypothesis_claims(
         [_hypothesis()],
         passages,
-        assessor=assessor,
-        assessor_id="test-v1",
+        AssessorSpec(assessor, "test-v1"),
         reuse={
             "h1": reusable_assessments(
                 _gate_record([(_OTHER, "categorical", fingerprint)])
@@ -183,8 +181,7 @@ def test_no_gate_record_assesses_everything() -> None:
     assess_hypothesis_claims(
         [_hypothesis()],
         passages,
-        assessor=assessor,
-        assessor_id="test-v1",
+        AssessorSpec(assessor, "test-v1"),
         reuse={},
     )
 

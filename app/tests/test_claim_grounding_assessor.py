@@ -241,8 +241,74 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
         {"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED}
         for i in range(8)
     ]
+    from app.claim_grounding_assess import AssessorSpec
+
     assess_hypothesis_claims(
-        hyps, as_passages([_SUPPORTED]), assessor=_slow_assessor
+        hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor)
     )
 
     assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
+
+
+def test_batch_assessor_costs_one_call_per_hypothesis(isolated_db: str) -> None:
+    """13 hypotheses of ~17 claims each cost 13 calls, not 218.
+
+    Regression for the production measurement (ultra run b82f9162): the
+    per-claim path issued one provider call per atomic claim (218 calls
+    across 13 hypotheses in a single pass); the batch path costs one call
+    per hypothesis instead.
+    """
+    calls = {"n": 0}
+
+    from app.claim_grounding import assess_hypothesis_claims
+
+    def _batch(claims: Any, passages: Any) -> Any:
+        calls["n"] += 1
+        return [AssessorDraft(label=EntailmentLabel.INSUFFICIENT)] * len(claims)
+
+    statement = " ".join(
+        f"Claim number {i} about a dietary change improving outcomes."
+        for i in range(17)
+    )
+    hyps = [
+        {"id": f"h{i}", "title": f"H{i}", "statement": statement}
+        for i in range(13)
+    ]
+
+    assessed = assess_hypothesis_claims(
+        hyps,
+        as_passages([_SUPPORTED]),
+        AssessorSpec(assessor_id="llm:test-model", batch_assessor=_batch),
+    )
+
+    assert calls["n"] == 13
+    assert len(assessed) == 13
+    assert all(len(claims) == 17 for _, claims in assessed)
+
+
+def test_batch_assessor_splits_a_claim_dense_hypothesis(
+    isolated_db: str,
+) -> None:
+    """One hypothesis with 25 claims costs two calls, not one giant call."""
+    calls = {"n": 0}
+
+    from app.claim_grounding import assess_hypothesis_claims
+
+    def _batch(claims: Any, passages: Any) -> Any:
+        calls["n"] += 1
+        return [AssessorDraft(label=EntailmentLabel.INSUFFICIENT)] * len(claims)
+
+    statement = " ".join(
+        f"Claim number {i} about a dietary change improving outcomes."
+        for i in range(25)
+    )
+    hyps = [{"id": "h0", "title": "H0", "statement": statement}]
+
+    assessed = assess_hypothesis_claims(
+        hyps,
+        as_passages([_SUPPORTED]),
+        AssessorSpec(assessor_id="llm:test-model", batch_assessor=_batch),
+    )
+
+    assert calls["n"] == 2
+    assert len(assessed[0][1]) == 25

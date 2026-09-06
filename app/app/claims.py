@@ -24,7 +24,11 @@ requires (SSR §6, §7):
    is what lets a displayed verified claim open its exact supporting passage;
    every reader-facing consumer of that id resolves it through
    ``parent_evidence_id`` first, since a chunked passage's span carries the
-   chunk's id, not the article's.
+   chunk's id, not the article's. The LLM assessor judges a whole
+   hypothesis's claims in one call rather than one call per claim
+   (``assess_claims_batch``, ``app/claims_batch.py``) -- a production ultra
+   run measured 218 claims assessed one at a time across 13 hypotheses in a
+   single pass, repeated before every ranking wave.
 4. **Resolvability, separately** — whether a citation's source resolves
    (URL/metadata/retraction) is judged independently of whether it supports the
    claim, via a swappable *resolver* (offline metadata by default; a live
@@ -76,6 +80,17 @@ from app.claims_assessor import (
     retrieve_passages as retrieve_passages,
 )
 
+# One call judging a whole hypothesis's claims (rather than one call per
+# claim) was split into app/claims_batch.py to keep this module within the
+# size budget. Both names are public API and re-exported here exactly as
+# before -- see that module's docstring for the batching rationale.
+from app.claims_batch import (
+    BatchAssessor as BatchAssessor,
+)
+from app.claims_batch import (
+    assess_claims_batch as assess_claims_batch,
+)
+
 # The entailment verdict enum, provenance support span, claim-assessment
 # record, resolvability check, and publication gate were split into
 # app/claims_gate.py to keep this module within the size budget. They are
@@ -113,6 +128,19 @@ from app.claims_gate import (
 )
 from app.claims_gate import (
     publication_gate as publication_gate,
+)
+
+# Locating a cited quote in its passage and the anti-hallucination downgrade
+# were split into app/claims_span.py to keep this module within the size
+# budget; app/claims_batch.py's batched path depends on it too. locate_span
+# is re-exported (public API); the underscore-prefixed helpers are used by
+# assess_claim below.
+from app.claims_span import (
+    _downgrade_unproven_label,
+    _locate_all,
+)
+from app.claims_span import (
+    locate_span as locate_span,
 )
 
 # --- Atomic claim extraction ------------------------------------------------
@@ -191,56 +219,6 @@ def extract_atomic_claims(text: str) -> list[str]:
 _ASSESSOR_DETERMINISTIC = "deterministic-v1"
 
 
-# --- Support spans (provenance) ---------------------------------------------
-
-
-_WHITESPACE_RE = re.compile(r"\s+")
-# Curly quotes/dashes an LLM may substitute for their straight ASCII forms.
-_QUOTE_NORMALIZE = str.maketrans(
-    {"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-"}  # noqa: RUF001
-)
-
-
-def _straighten(text: str) -> str:
-    """Normalize curly quotes/dashes to their straight ASCII forms."""
-    return text.translate(_QUOTE_NORMALIZE)
-
-
-def locate_span(passage: EvidencePassage, quote: str) -> SupportSpan | None:
-    """Locate ``quote`` inside ``passage.text`` and return its exact span.
-
-    Matching is whitespace- and case-insensitive and tolerant of curly-quote
-    substitution, because an LLM assessor commonly returns a quote whose
-    whitespace/casing/punctuation differs slightly from the source. The
-    returned span's ``quote`` is the verbatim source substring at the located
-    offsets (not the assessor's paraphrase), so the offsets are exact.
-
-    Returns:
-        The located :class:`SupportSpan`, or None when the quote cannot be
-        found in the passage (the caller treats an unlocatable quote as
-        unproven).
-    """
-    normalized_quote = _WHITESPACE_RE.sub(" ", _straighten(quote)).strip()
-    if not normalized_quote:
-        return None
-    tokens = normalized_quote.split(" ")
-    # Whitespace-flexible, case-insensitive pattern over the original text so
-    # the match offsets index into passage.text directly.
-    pattern = r"\s+".join(re.escape(t) for t in tokens)
-    match = re.search(pattern, _straighten(passage.text), flags=re.IGNORECASE)
-    if match is None:
-        return None
-    start, end = match.start(), match.end()
-    return SupportSpan(
-        evidence_id=passage.evidence_id,
-        quote=passage.text[start:end],
-        start=start,
-        end=end,
-        source=passage.source,
-        url=passage.url,
-    )
-
-
 def assess_claim(
     claim: str,
     passages: Sequence[EvidencePassage],
@@ -281,39 +259,3 @@ def assess_claim(
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
     )
-
-
-def _downgrade_unproven_label(
-    label: EntailmentLabel,
-    supporting: list[SupportSpan],
-    contradicting: list[SupportSpan],
-) -> EntailmentLabel:
-    """Downgrade a verdict lacking a locatable span to INSUFFICIENT.
-
-    Anti-hallucination provenance guard: a SUPPORTS/PARTIAL/CONTRADICTS verdict
-    must be backed by at least one locatable span, else it is unproven. A
-    PARTIAL claim cites its near-miss passage as a supporting span, so it is
-    guarded against the same ``supporting`` list as SUPPORTS.
-    """
-    supporting_labels = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
-    if (label in supporting_labels and not supporting) or (
-        label is EntailmentLabel.CONTRADICTS and not contradicting
-    ):
-        return EntailmentLabel.INSUFFICIENT
-    return label
-
-
-def _locate_all(
-    cited: Sequence[tuple[str, str]],
-    by_id: dict[str, EvidencePassage],
-) -> list[SupportSpan]:
-    """Locate every ``(evidence_id, quote)`` pair, dropping unlocatable ones."""
-    spans: list[SupportSpan] = []
-    for evidence_id, quote in cited:
-        passage = by_id.get(evidence_id)
-        if passage is None:
-            continue
-        span = locate_span(passage, quote)
-        if span is not None:
-            spans.append(span)
-    return spans

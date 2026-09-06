@@ -33,6 +33,17 @@ same way it does an engine node), and the thinking-token floor
 (``co_scientist.llm_thinking``) -- see the root AGENTS.md finding this
 module's docstring used to warn about, now closed.
 
+``app.claim_verifier_batch`` holds the same judge asked to assess a whole
+group's (hypothesis's) claims in one call rather than one call per claim --
+see ``app.claims.assess_claims_batch``. A production ultra run measured 218
+claims assessed one at a time across 13 hypotheses in a single pass,
+repeated before every ranking wave (~1,000 calls/run); the batch path costs
+one call per hypothesis instead (13, or 26 if a hypothesis's claim count
+forces a split). Split into its own module (rather than living here
+alongside ``make_llm_assessor``) to keep this module within the size
+budget; it imports the citation-pair schema/coercion and evidence-rendering
+helpers back from here, never the reverse, so the two cannot form a cycle.
+
 This module is exercised end-to-end by the golden run (P0.6); the offline
 suite fakes ``litellm.acompletion`` (the engine's own completion boundary) to
 prove prompt/parse/guard behavior.

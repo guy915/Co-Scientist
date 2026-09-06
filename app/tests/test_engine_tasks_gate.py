@@ -1,5 +1,6 @@
 """Pre-ranking evidence-gate and semantic-audit tests for the executor."""
 
+import logging
 import threading
 import time
 from typing import Any
@@ -17,6 +18,7 @@ from app.claims import (
     deterministic_assessor,
 )
 from app.config import settings
+from app.engine_tasks_gate import _GatePlan, _GateWave, _log_gate_wave
 
 
 def _private_corpus_source() -> dict[str, Any]:
@@ -385,3 +387,34 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     assert any(claim["label"] == "contradicts" for claim in go_no_go_claims), (
         "test setup did not actually produce a contradiction to be excused"
     )
+
+
+def test_log_gate_wave_reports_entailment_calls(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The gate's INFO line reports the actual provider calls it spent.
+
+    Separate from ``claims_assessed`` on purpose: under the batch path one
+    call judges a whole hypothesis's claims (see
+    ``app.claims.assess_claims_batch``), so the two numbers are meant to
+    diverge -- that divergence is the batching win a production ultra run
+    measured (218 claims assessed one at a time across 13 hypotheses;
+    batched, the same pass costs 13 calls, or up to 26 with a split).
+    """
+    plan = _GatePlan(
+        hypothesis=object(),
+        claims=("claim one", "claim two"),
+        roles={},
+        fingerprint="f",
+        claim_fingerprints={},
+        prior_disposition="viable",
+    )
+    wave = _GateWave(
+        plans=[plan], considered=1, skipped_unrankable=0, skipped_unchanged=0
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.engine_tasks_gate"):
+        _log_gate_wave(wave, 7)
+
+    assert "claims_assessed=2" in caplog.text
+    assert "entailment_calls=7" in caplog.text

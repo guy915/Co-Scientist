@@ -16,8 +16,10 @@ from typing import Any, NamedTuple
 from app import store
 from app.citations import empty_citation_summary
 from app.claim_grounding import (
+    AssessorSpec,
     assess_hypothesis_claims,
     build_assessor,
+    build_batch_assessor,
     evidence_passages,
     persist_grounding,
 )
@@ -332,16 +334,15 @@ def _assess_claims(
     """
     from co_scientist.llm_telemetry import scoped_telemetry
 
-    assessor, assessor_id = build_assessor(
-        settings.claim_assessor,
-        settings.claim_verifier_model or settings.model_name,
-    )
+    model = settings.claim_verifier_model or settings.model_name
+    assessor, assessor_id = build_assessor(settings.claim_assessor, model)
+    batch_assessor = build_batch_assessor(settings.claim_assessor, model)
+    spec = AssessorSpec(assessor, assessor_id, batch_assessor)
     with scoped_telemetry("claim_grounding") as telemetry:
         assessed = assess_hypothesis_claims(
             grounding_candidates,
             passages,
-            assessor=assessor,
-            assessor_id=assessor_id,
+            spec,
             reuse=_reusable_by_hypothesis(gate_records or {}),
         )
     return assessed, telemetry.snapshot()

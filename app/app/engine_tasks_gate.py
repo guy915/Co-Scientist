@@ -49,8 +49,7 @@ class _GatePlan:
 async def _assess_gate_claims(
     plans: Sequence[_GatePlan],
     passages: Sequence[Any],
-    assessor: Any,
-    assessor_id: str,
+    spec: Any,
 ) -> list[list[Any]]:
     """Assess every pending hypothesis's claims in one bounded wave.
 
@@ -62,8 +61,8 @@ async def _assess_gate_claims(
         plans: The hypotheses whose claims need assessing, in state order.
         passages: Candidate evidence passages every claim is assessed
             against.
-        assessor: The entailment assessor.
-        assessor_id: Provenance id recorded on each assessment.
+        spec: Which assessor to run (and its batch-capable counterpart, if
+            any) plus the provenance id recorded on each assessment.
 
     Returns:
         Per plan, its claim assessments in the plan's own claim order.
@@ -75,8 +74,7 @@ async def _assess_gate_claims(
         assess_claim_groups,
         [list(plan.claims) for plan in plans],
         passages,
-        assessor=assessor,
-        assessor_id=assessor_id,
+        spec,
     )
     if settings.claim_assessor != "llm":
         # The deterministic assessor makes no call to overlap.
@@ -373,17 +371,28 @@ def _build_gate_wave(
     )
 
 
-def _log_gate_wave(wave: _GateWave) -> None:
-    """Log one INFO line summarizing a gate pass's counts."""
+def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
+    """Log one INFO line summarizing a gate pass's counts.
+
+    ``entailment_calls`` is the number of actual provider calls the pass
+    spent, not ``claims_assessed`` -- under the batch path one call judges
+    a whole hypothesis's claims (see ``app.claims.assess_claims_batch``),
+    so the two diverge exactly to show the batching win: a production
+    ultra run measured 218 claims assessed across 13 hypotheses one claim
+    at a time; batched, the same pass costs 13 calls (or up to 26 if a
+    hypothesis's claim count forces a split).
+    """
     claims_assessed = sum(len(plan.claims) for plan in wave.plans)
     logger.info(
         "claim gate pass: considered=%d skipped_unrankable=%d "
-        "skipped_unchanged=%d assessed=%d claims_assessed=%d",
+        "skipped_unchanged=%d assessed=%d claims_assessed=%d "
+        "entailment_calls=%d",
         wave.considered,
         wave.skipped_unrankable,
         wave.skipped_unchanged,
         len(wave.plans),
         claims_assessed,
+        entailment_calls,
     )
 
 
@@ -391,25 +400,30 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     """Quarantine ungrounded ideas before a decisive Elo tournament."""
     from co_scientist.llm_telemetry import scoped_telemetry
 
-    from app.claim_grounding import build_assessor
+    from app.claim_grounding import (
+        AssessorSpec,
+        build_assessor,
+        build_batch_assessor,
+    )
 
     passages = _build_evidence_passages(state)
-    assessor, assessor_id = build_assessor(
-        settings.claim_assessor,
-        settings.claim_verifier_model or settings.model_name,
+    model = settings.claim_verifier_model or settings.model_name
+    assessor, assessor_id = build_assessor(settings.claim_assessor, model)
+    entailment_calls = [0]
+    batch_assessor = build_batch_assessor(
+        settings.claim_assessor, model, call_counter=entailment_calls
     )
+    spec = AssessorSpec(assessor, assessor_id, batch_assessor)
     wave = _build_gate_wave(
         state.get("hypotheses") or [], passages, assessor_id
     )
 
     with scoped_telemetry("claim_gate") as telemetry:
-        assessed = await _assess_gate_claims(
-            wave.plans, passages, assessor, assessor_id
-        )
+        assessed = await _assess_gate_claims(wave.plans, passages, spec)
     for plan, assessments in zip(wave.plans, assessed, strict=True):
         _apply_gate_verdict(plan, assessments, assessor_id)
     _fold_gate_telemetry(state, telemetry.snapshot())
-    _log_gate_wave(wave)
+    _log_gate_wave(wave, entailment_calls[0])
 
 
 def _fold_gate_telemetry(

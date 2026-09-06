@@ -136,13 +136,16 @@ async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
 
 
 def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch the engine's completion boundary with a fake insufficient reply."""
+    """Patch the engine's completion boundary with a fake batch reply.
+
+    An empty ``verdicts`` array is a valid (if uninformative) batch reply --
+    every claim falls back to the deterministic assessor for want of a
+    verdict at its index, which these two tests do not care about; they
+    only need the call to actually reach the boundary.
+    """
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
-        message = types.SimpleNamespace(
-            content='{"label": "insufficient", "supporting": [], '
-            '"contradicting": []}'
-        )
+        message = types.SimpleNamespace(content='{"verdicts": []}')
         return types.SimpleNamespace(
             choices=[types.SimpleNamespace(message=message)]
         )
@@ -168,8 +171,10 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     Before routing through the engine seam these calls were invisible to
     ``co_scientist.llm_call_budget`` -- a production run spent $4.70 over
     ~1,000 provider requests against a 2500-call ceiling that never saw
-    them. Scoping a ceiling of 1 around a two-claim pass and expecting it
-    to raise proves the ceiling now sees this gate's calls.
+    them. Batching judges this hypothesis's several claims in a single
+    call (see ``app.claims.assess_claims_batch``), so a ceiling of 0 --
+    not 1 -- is what the very first call must already exceed to prove the
+    ceiling sees this gate's calls at all.
     """
     from co_scientist.cache import scoped_cache_override
     from co_scientist.exceptions import LLMCallBudgetExceededError
@@ -181,7 +186,7 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     with (
         pytest.raises(LLMCallBudgetExceededError),
         scoped_cache_override(False),
-        scoped_llm_call_budget("gate-budget-test-run", 1),
+        scoped_llm_call_budget("gate-budget-test-run", 0),
     ):
         await engine_tasks._apply_pre_ranking_evidence_gate(state)
 

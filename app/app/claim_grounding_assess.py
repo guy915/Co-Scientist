@@ -26,9 +26,11 @@ from typing import Any
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
+    BatchAssessor,
     ClaimAssessment,
     EvidencePassage,
     assess_claim,
+    assess_claims_batch,
     deterministic_assessor,
     extract_atomic_claims,
 )
@@ -59,10 +61,14 @@ class AssessorSpec:
     Attributes:
         assessor: The entailment assessor (deterministic by default).
         assessor_id: Provenance id recorded on each persisted edge.
+        batch_assessor: The batch-capable assessor, if any -- when set,
+            each hypothesis's claims are judged in one call rather than
+            one call per claim (see ``app.claims.assess_claims_batch``).
     """
 
     assessor: Assessor = deterministic_assessor
     assessor_id: str = _ASSESSOR_DETERMINISTIC
+    batch_assessor: BatchAssessor | None = None
 
 
 def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
@@ -84,9 +90,8 @@ def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
 def assess_claim_groups(
     groups: Sequence[Sequence[str]],
     passages: Sequence[EvidencePassage],
+    spec: AssessorSpec,
     *,
-    assessor: Assessor,
-    assessor_id: str,
     parallel: bool = True,
 ) -> list[list[ClaimAssessment]]:
     """Assess independent groups of claims in one bounded wave.
@@ -98,16 +103,32 @@ def assess_claim_groups(
     provider is not the constraint (twenty-four concurrent completions
     return in the same wall clock as four).
 
+    When ``spec.batch_assessor`` is given, each group (a hypothesis's
+    claims) is judged in one call instead of one call per claim -- see
+    ``app.claims.assess_claims_batch``. ``spec.assessor`` governs the flat,
+    per-claim path used whenever ``spec.batch_assessor`` is None (the
+    deterministic assessor has no call to batch).
+
     Args:
         groups: Per group (typically one hypothesis), its claims in order.
         passages: Candidate evidence passages each claim is assessed against.
-        assessor: The entailment assessor.
-        assessor_id: Provenance id recorded on each assessment.
+        spec: Which assessor to run (and its batch-capable counterpart, if
+            any) plus the provenance id recorded on each assessment.
         parallel: When False, assess serially (no provider call to gain).
 
     Returns:
         Per group, its claim assessments, preserving the group's own order.
     """
+    if not groups:
+        return []
+    if spec.batch_assessor is not None:
+        return _assess_grouped_batches(
+            groups,
+            passages,
+            batch_assessor=spec.batch_assessor,
+            assessor_id=spec.assessor_id,
+            parallel=parallel,
+        )
     flat = [
         (index, claim) for index, group in enumerate(groups) for claim in group
     ]
@@ -116,11 +137,45 @@ def assess_claim_groups(
     results = _assess_flat_claims(
         flat,
         passages,
-        assessor=assessor,
-        assessor_id=assessor_id,
+        assessor=spec.assessor,
+        assessor_id=spec.assessor_id,
         parallel=parallel,
     )
     return _regroup_assessments(groups, flat, results)
+
+
+def _assess_grouped_batches(
+    groups: Sequence[Sequence[str]],
+    passages: Sequence[EvidencePassage],
+    *,
+    batch_assessor: BatchAssessor,
+    assessor_id: str,
+    parallel: bool,
+) -> list[list[ClaimAssessment]]:
+    """Assess each group in its own single (or split) batched call.
+
+    Shares ``ASSESSMENT_CONCURRENCY`` with the flat per-claim path so the
+    two callers cannot drift on how many provider calls run at once; here
+    each unit of work is one hypothesis's whole claim set rather than one
+    claim.
+    """
+
+    def _assess_one(group: Sequence[str]) -> list[ClaimAssessment]:
+        return assess_claims_batch(
+            group,
+            passages,
+            batch_assessor=batch_assessor,
+            assessor_id=assessor_id,
+        )
+
+    if parallel and len(groups) > 1:
+        from app.async_bridge import propagate_context
+
+        with ThreadPoolExecutor(
+            max_workers=min(ASSESSMENT_CONCURRENCY, len(groups))
+        ) as pool:
+            return list(pool.map(propagate_context(_assess_one), groups))
+    return [_assess_one(group) for group in groups]
 
 
 def _regroup_assessments(
@@ -168,9 +223,8 @@ def _assess_flat_claims(
 def assess_hypothesis_claims(
     hyps: Sequence[Mapping[str, Any]],
     passages: Sequence[EvidencePassage],
+    spec: AssessorSpec | None = None,
     *,
-    assessor: Assessor = deterministic_assessor,
-    assessor_id: str = _ASSESSOR_DETERMINISTIC,
     reuse: Mapping[str, Mapping[str, ClaimAssessment]] | None = None,
 ) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
     """Assess every hypothesis's claims against the evidence pool.
@@ -186,8 +240,11 @@ def assess_hypothesis_claims(
             text fields).
         passages: Retrieved evidence passages each claim is assessed
             against.
-        assessor: The entailment assessor (deterministic by default).
-        assessor_id: Provenance id recorded on each persisted edge.
+        spec: Which assessor to run (deterministic when omitted) plus its
+            provenance id and, when set, a batch-capable counterpart that
+            judges each hypothesis's still-pending claims in one call
+            instead of one call per claim (see
+            ``app.claims.assess_claims_batch``).
         reuse: Per hypothesis id, verdicts already produced for these same
             inputs, keyed by claim fingerprint. Matching claims skip the
             assessor; everything else is assessed as usual.
@@ -195,17 +252,17 @@ def assess_hypothesis_claims(
     Returns:
         Per hypothesis id, its ``(assessment, role)`` pairs, in input order.
     """
+    spec = spec or AssessorSpec()
     candidates = [p for p in passages if p.text]
     per_hypothesis = _per_hypothesis_claim_records(hyps)
     plans = [
-        _plan_claim_group(hyp_id, records, candidates, assessor_id, reuse or {})
+        _plan_claim_group(
+            hyp_id, records, candidates, spec.assessor_id, reuse or {}
+        )
         for hyp_id, records in per_hypothesis
     ]
     grouped = assess_claim_groups(
-        [plan.to_assess for plan in plans],
-        candidates,
-        assessor=assessor,
-        assessor_id=assessor_id,
+        [plan.to_assess for plan in plans], candidates, spec
     )
     return [
         (plan.hypothesis_id, plan.merge(assessed))

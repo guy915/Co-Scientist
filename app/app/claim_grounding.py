@@ -64,6 +64,7 @@ from app.claim_grounding_assess import (
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
+    BatchAssessor,
     ClaimAssessment,
     EvidencePassage,
     GateDecision,
@@ -106,6 +107,39 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
 
         return make_llm_assessor(model)
     return deterministic_assessor, _ASSESSOR_DETERMINISTIC
+
+
+def build_batch_assessor(
+    mode: str, model: str, *, call_counter: list[int] | None = None
+) -> BatchAssessor | None:
+    """Return the batch-capable assessor for a grounding mode, or None.
+
+    Mirrors ``build_assessor``'s offline/mode guard exactly -- both gate the
+    same real provider call, so a leak closed on one and left open on the
+    other would just move the bill. ``None`` for the deterministic mode
+    (nothing to batch: it costs no provider call to overlap) and for an
+    offline process regardless of the configured mode.
+
+    Args:
+        mode: ``settings.claim_assessor``.
+        model: The model to build the assessor for.
+        call_counter: Forwarded to ``make_llm_batch_assessor`` -- see its
+            docstring for what it counts.
+
+    Returns:
+        The batch assessor, or None when the flat per-claim path (or the
+        deterministic assessor) applies instead.
+    """
+    from app.engine_adapter.provider import offline_mode
+
+    if mode == "llm" and not offline_mode():
+        from app.claim_verifier_batch import make_llm_batch_assessor
+
+        batch_assessor, _ = make_llm_batch_assessor(
+            model, call_counter=call_counter
+        )
+        return batch_assessor
+    return None
 
 
 def evidence_passages(
@@ -227,12 +261,7 @@ def ground_hypotheses(
     target = target or GroundingTarget()
     return persist_grounding(
         run_id,
-        assess_hypothesis_claims(
-            hyps,
-            passages,
-            assessor=assessment.assessor,
-            assessor_id=assessment.assessor_id,
-        ),
+        assess_hypothesis_claims(hyps, passages, assessment),
         allow_speculative=target.allow_speculative,
         conn=target.conn,
         db_path=target.db_path,

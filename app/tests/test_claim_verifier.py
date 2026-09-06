@@ -15,11 +15,7 @@ from typing import Any
 import pytest
 
 from app.claim_verifier import _entailment_prompt, make_llm_assessor
-from app.claims import (
-    EntailmentLabel,
-    EvidencePassage,
-    assess_claim,
-)
+from app.claims import EntailmentLabel, EvidencePassage, assess_claim
 
 
 @pytest.fixture(autouse=True)
