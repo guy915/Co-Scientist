@@ -89,7 +89,9 @@ async def _run_text_attempt(
 
 
 def _escalation_after_text_failure(
-    error: Exception | None, current: BudgetEscalation
+    error: Exception | None,
+    current: BudgetEscalation,
+    model_name: str,
 ) -> BudgetEscalation:
     """The escalation rung for the next plain-text attempt.
 
@@ -102,6 +104,9 @@ def _escalation_after_text_failure(
     Args:
         error: The failure the attempt just raised, if any.
         current: The rung that attempt was made at.
+        model_name: Model name in litellm format, needed to log what a
+            ``NO_THINKING`` rung actually sends this model (see
+            ``log_escalation``).
 
     Returns:
         The rung for the next attempt, or ``current`` unchanged.
@@ -109,7 +114,7 @@ def _escalation_after_text_failure(
     escalated = escalation_for_error(error, current)
     if escalated is None:
         return current
-    log_escalation(error, escalated)
+    log_escalation(error, escalated, model_name)
     return escalated
 
 
@@ -149,7 +154,9 @@ async def run_with_budget_escalation(
         if error is None:
             assert text is not None  # success carries no error
             return text
-        escalation = _escalation_after_text_failure(error, escalation)
+        escalation = _escalation_after_text_failure(
+            error, escalation, model_name
+        )
     raise AssertionError(
         "unreachable: the final attempt's failure always re-raises"
     )

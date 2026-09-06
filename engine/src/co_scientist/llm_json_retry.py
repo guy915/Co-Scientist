@@ -241,7 +241,9 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
 
 
 def escalation_after(
-    outcome: _JsonAttemptOutcome, current: BudgetEscalation
+    outcome: _JsonAttemptOutcome,
+    current: BudgetEscalation,
+    model_name: str,
 ) -> BudgetEscalation:
     """The escalation the next attempt should use, given this one's outcome.
 
@@ -268,6 +270,9 @@ def escalation_after(
     Args:
         outcome: The outcome of the attempt that just ran.
         current: The escalation that attempt was made at.
+        model_name: Model name in litellm format, needed to log what a
+            ``NO_THINKING`` rung actually sends this model (see
+            ``log_escalation``).
 
     Returns:
         The rung for the next attempt, or ``current`` unchanged.
@@ -275,7 +280,7 @@ def escalation_after(
     escalated = escalation_for_error(outcome.error, current)
     if escalated is None:
         return current
-    log_escalation(outcome.error, escalated)
+    log_escalation(outcome.error, escalated, model_name)
     return escalated
 
 

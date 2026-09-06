@@ -22,6 +22,7 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
+from co_scientist.llm_thinking import effective_thinking_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +191,35 @@ def escalated_max_tokens(max_tokens: int, escalation: BudgetEscalation) -> int:
     return max(max_tokens + increment, BUDGET_ESCALATION_MAX_TOKENS)
 
 
+def _no_thinking_detail_text(model_name: str) -> str:
+    """What the ``NO_THINKING`` rung actually sends this model.
+
+    The rung always requests ``enable_thinking=False``, but a model that
+    cannot honour a disable (``GatewayModel.reasoning_can_disable`` is
+    False) is redirected to the smallest reasoning tier the gateway
+    exposes instead -- never the literal disable already known to 400 --
+    see ``llm_thinking._declared_gateway_body``. That redirect happens on
+    every model in the deployed free chain, so the log has to name what
+    reaches the wire, not what the rung is named for.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        A phrase describing the actual request: minimal-effort reasoning
+        for a model that redirects, a plain disable otherwise.
+    """
+    return (
+        "reasoning enabled at minimal effort"
+        if effective_thinking_enabled(model_name, False)
+        else "thinking disabled"
+    )
+
+
 def log_escalation(
-    error: BaseException | None, escalated: BudgetEscalation
+    error: BaseException | None,
+    escalated: BudgetEscalation,
+    model_name: str,
 ) -> None:
     """Says what the next attempt will do differently, and why.
 
@@ -203,6 +231,9 @@ def log_escalation(
     Args:
         error: The failure that triggered the escalation.
         escalated: The rung the next attempt will be made at.
+        model_name: Model name in litellm format, needed to say what a
+            ``NO_THINKING`` rung actually sends this model (see
+            ``_no_thinking_detail_text``).
     """
     if escalated is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
         logger.warning(
@@ -210,17 +241,20 @@ def log_escalation(
             "with reasoning enabled at minimal effort and a raised budget"
         )
         return
+    detail = (
+        _no_thinking_detail_text(model_name)
+        if escalated is BudgetEscalation.NO_THINKING
+        else "a raised token budget"
+    )
     if isinstance(error, LLMThinkingOnlyError):
         logger.warning(
-            "LLM finished thinking without answering; retrying with "
-            "thinking disabled"
+            "LLM finished thinking without answering; retrying with %s",
+            detail,
         )
         return
     logger.warning(
         "LLM spent its whole token budget reasoning; retrying with %s",
-        "thinking disabled"
-        if escalated is BudgetEscalation.NO_THINKING
-        else "a raised token budget",
+        detail,
     )
 
 

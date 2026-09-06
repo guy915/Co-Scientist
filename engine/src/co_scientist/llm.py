@@ -431,7 +431,7 @@ async def _run_call_llm_json_loop(
         if outcome.value is not None:
             return outcome.value
         last_error = outcome.error
-        escalation = escalation_after(outcome, escalation)
+        escalation = escalation_after(outcome, escalation, ctx.spec.model_name)
         prompt, last_response_text = _apply_json_attempt_outcome(
             outcome, prompt, last_response_text
         )

@@ -198,7 +198,7 @@ async def _answered_completion(
                     exc,
                 )
                 raise
-            log_escalation(exc, escalated)
+            log_escalation(exc, escalated, request.model_name)
             escalation = escalated
 
 
