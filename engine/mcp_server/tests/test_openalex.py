@@ -225,3 +225,34 @@ def test_search_params_exclude_retractions_and_support_api_key(
     assert params["cursor"] == "*"
     assert params["api_key"] == "key"
     assert "is_retracted:false" in params["filter"]
+
+
+def test_wildcards_are_stripped_before_reaching_openalex() -> None:
+    """Wildcards must never reach OpenAlex's default `search` param.
+
+    A live check confirms it 400s there ("Wildcards (* or ?) require
+    exact (no-stem) search... Use the search.exact= parameter instead"),
+    so a model-written query using them must reach the API without them
+    rather than fail the whole call.
+    """
+    params, _ = _build_search_params(
+        "glioblastoma repurpos* drug?", max_papers=10, recency_years=0
+    )
+
+    assert "*" not in params["search"]
+    assert "?" not in params["search"]
+    assert params["search"] == "glioblastoma repurpos drug"
+
+
+def test_wildcard_stripping_collapses_the_resulting_whitespace() -> None:
+    params, _ = _build_search_params("a* * b", max_papers=10, recency_years=0)
+
+    assert params["search"] == "a b"
+
+
+def test_a_clean_query_is_untouched() -> None:
+    params, _ = _build_search_params(
+        '"exact phrase" AND glioblastoma', max_papers=10, recency_years=0
+    )
+
+    assert params["search"] == '"exact phrase" AND glioblastoma'

@@ -6,6 +6,7 @@ namespace callers and tests patch against keeps resolving.
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 from co_scientist.agents.generation.literature_review.outcomes import (
@@ -16,6 +17,18 @@ from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
 logger = logging.getLogger(__name__)
+
+# FastMCP's tool manager formats an unmasked tool-execution exception as
+# "Error calling tool '<name>': <detail>" and returns that text as the
+# tool's own result content (fastmcp.tools.tool_manager.ToolManager.
+# call_tool) rather than raising a transport error -- so it arrives here as
+# an ordinary (non-JSON) string result. Retrying it re-asks the same
+# rejected query and fails identically every time (this is what produced
+# the "JSONDecodeError: Expecting value" warnings for a wildcard query
+# OpenAlex's API had already refused with HTTP 400): the tool answered, it
+# just answered with an error, so this is classified as permanent for the
+# query rather than transient.
+_TOOL_ERROR_ENVELOPE_RE = re.compile(r"^Error calling tool '[^']*':")
 
 # A search source fails transiently for reasons that take seconds to clear --
 # NCBI throttling a burst of concurrent queries, an MCP session reconnecting,
@@ -30,6 +43,21 @@ logger = logging.getLogger(__name__)
 _SEARCH_ATTEMPTS = 4
 _SEARCH_RETRY_BASE_DELAY_SECONDS = 0.5
 _SEARCH_RETRY_MAX_DELAY_SECONDS = 8.0
+
+
+def _is_tool_reported_error(payload: Any) -> bool:
+    """True when payload is the MCP server's own tool-execution error text.
+
+    Args:
+        payload: A raw (pre-decode) tool call result.
+
+    Returns:
+        Whether payload is a string carrying the "Error calling tool
+        '<name>': ..." envelope (see module docstring).
+    """
+    return isinstance(payload, str) and bool(
+        _TOOL_ERROR_ENVELOPE_RE.match(payload.strip())
+    )
 
 
 def _search_retry_delay(attempt: int) -> float:
@@ -73,6 +101,14 @@ async def _call_search_tool(
     for attempt in range(1, _SEARCH_ATTEMPTS + 1):
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
+            if _is_tool_reported_error(result):
+                logger.warning(
+                    "Search call to %s failed permanently (tool-reported "
+                    "error, not retrying): %s",
+                    tool_name,
+                    result,
+                )
+                return {}
             return parse_mcp_result(result)
         except Exception as exc:
             if attempt == _SEARCH_ATTEMPTS:

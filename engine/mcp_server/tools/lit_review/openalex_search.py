@@ -26,6 +26,7 @@ midnight UTC" once a day's allowance is spent.
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -35,6 +36,35 @@ logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 _MAX_PER_PAGE = 100  # Current documented OpenAlex page-size ceiling.
+
+# OpenAlex's default `search` param is stemmed and documents wildcards as
+# unsupported there (a live 400: "Wildcards (* or ?) require exact (no-stem)
+# search... Use the search.exact= parameter instead"). Quoted phrases and
+# boolean AND/NOT/OR pass through unmodified -- only * and ? are rejected.
+_WILDCARD_CHARS_RE = re.compile(r"[*?]")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _sanitize_query(query: str) -> str:
+    """Strips OpenAlex's disallowed wildcard characters from a query.
+
+    A model-written query carrying ``*``/``?`` (glob-style truncation
+    conventions common to other search sources) makes the whole request
+    fail with HTTP 400 rather than degrading to a literal match, so the
+    characters are dropped and any resulting run of whitespace collapsed.
+
+    Args:
+        query: Free-text search query, as generated upstream.
+
+    Returns:
+        The query with wildcard characters removed and whitespace
+        collapsed/trimmed.
+    """
+    stripped = _WILDCARD_CHARS_RE.sub("", query)
+    cleaned = _WHITESPACE_RE.sub(" ", stripped).strip()
+    if cleaned != query:
+        logger.info("Rewrote OpenAlex query %r to %r", query, cleaned)
+    return cleaned
 
 
 class OpenAlexUnavailableError(RuntimeError):
@@ -286,7 +316,7 @@ def _build_search_params(
     # Clamp to at least 1 and at most the API's per-page ceiling.
     per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
     params: dict[str, str] = {
-        "search": query,
+        "search": _sanitize_query(query),
         "per_page": str(per_page),
         "cursor": "*",
     }

@@ -110,6 +110,57 @@ async def test_backoff_grows_and_is_jittered(
     assert first != _no_real_sleep
 
 
+class _ToolErrorClient:
+    """Returns the MCP server's own tool-error envelope, every call."""
+
+    def __init__(self, payload: str) -> None:
+        self.payload = payload
+        self.calls = 0
+
+    async def call_tool(self, _name: str, **_params: Any) -> Any:
+        self.calls += 1
+        return self.payload
+
+
+@pytest.mark.asyncio
+async def test_a_tool_reported_error_is_not_retried() -> None:
+    """A query OpenAlex's API already rejected must not be re-asked.
+
+    FastMCP formats an unmasked tool exception as "Error calling tool
+    '<name>': <detail>" and returns that text as the tool's own result
+    (not a transport failure), so the query -- not the connection -- is
+    what is wrong; retrying it identically wastes the whole attempt
+    budget on a call that can never succeed (this is what produced eight
+    "JSONDecodeError: Expecting value" warnings in two minutes for one
+    OpenAlex wildcard query in production).
+    """
+    client = _ToolErrorClient(
+        "Error calling tool 'search_openalex': OpenAlex could not be "
+        "searched: HTTP 400; Wildcards (* or ?) require exact (no-stem) "
+        "search."
+    )
+
+    result = await search._call_search_tool(
+        cast(MCPToolClient, client), "search_openalex", {}
+    )
+
+    assert result == {}
+    assert client.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_a_timeout_still_retries_despite_the_new_permanent_path() -> None:
+    """The permanent-error short-circuit must not swallow real transients."""
+    client = _FlakyClient(failures=2)
+
+    result = await search._call_search_tool(
+        cast(MCPToolClient, client), "search_openalex", {}
+    )
+
+    assert result == {"papers": []}
+    assert client.calls == 3
+
+
 @pytest.mark.parametrize(
     ("payload", "expected"),
     [
