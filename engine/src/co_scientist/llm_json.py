@@ -1,13 +1,14 @@
 """JSON handling utilities for LLM responses.
 
-Provides schema validation, fallback responses for non-critical nodes, the
-json_object-only provider-capability shims (backfilling missing required
-fields, pruning invented properties, truncating over-long arrays), and
-validation feedback for retry prompts. The extraction and repair helpers
-live in ``co_scientist.llm_json_repair`` and are re-exported here so
-historical import paths keep working. These helpers are pure (no network
-access) and are shared by the LLM call wrappers in ``co_scientist.llm`` and
-the tool-based generation phases.
+Provides schema validation, fallback responses for non-critical nodes, and
+the json_object-only provider-capability shims (backfilling missing
+required fields, pruning invented properties, truncating over-long
+arrays), plus validation feedback for retry prompts. The extraction/repair
+helpers live in ``co_scientist.llm_json_repair`` and are re-exported here
+so historical import paths keep working; a fourth shim (string
+truncation) lives in ``co_scientist.llm_json_truncate_strings`` instead,
+since ``llm_json_attempt`` is its only caller. These helpers are pure (no
+network access), shared by ``co_scientist.llm`` and the tool-based phases.
 """
 
 import copy

@@ -53,8 +53,15 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
 # fresh title by the same route, since its mechanism may have changed.
 # MAX_TITLE_CHARS bounds the schema description and is enforced again
 # defensively at that same derivation point, since json_object mode does
-# not enforce maxLength server-side.
-MAX_TITLE_CHARS: Final = 100
+# not enforce maxLength server-side (and, under that downgrade, is also
+# enforced by llm_json._truncate_oversized_strings when the model overruns
+# it anyway). Raised from 100 to 120 after production run b82f9162: real
+# mechanistic titles naming multiple gene/receptor targets ("Lacosamide-
+# mediated Nav1.6/Nav1.7 slow inactivation...") ran 105-111 chars while
+# complying with the prompt's own "under 100 characters" instruction, so
+# the cap itself -- not the model's compliance -- was too tight for the
+# domain vocabulary the prompt asks for.
+MAX_TITLE_CHARS: Final = 120
 
 _TITLE_FIELD: dict[str, Any] = {
     "type": "string",

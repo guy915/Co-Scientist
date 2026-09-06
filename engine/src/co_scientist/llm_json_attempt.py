@@ -32,6 +32,7 @@ from co_scientist.llm_json_escalation import (
     _JsonCallSpec,
 )
 from co_scientist.llm_json_repair import attempt_json_repair
+from co_scientist.llm_json_truncate_strings import _truncate_oversized_strings
 from co_scientist.llm_request import _supports_json_schema_response_format
 
 logger = logging.getLogger(__name__)
@@ -166,17 +167,19 @@ def _backfill_and_validate(
     """
     # Provider-capability shim: calls downgraded to json_object have no
     # server-side schema enforcement, so the answer can miss required fields,
-    # carry invented ones, and overrun a maxItems cap -- all three fail a
-    # closed schema, and none is fixed by asking again. Reshape to what the
-    # schema declares before validating, keyed on the same condition as the
-    # downgrade in call_llm. Where the provider does enforce the schema, an
-    # over-long array is a real anomaly and stays a validation failure --
-    # this shim only runs on the downgrade path.
+    # carry invented ones, overrun a maxItems cap, or overrun a maxLength cap
+    # -- all four fail a closed schema, and none is fixed by asking again.
+    # Reshape to what the schema declares before validating, keyed on the
+    # same condition as the downgrade in call_llm. Where the provider does
+    # enforce the schema, an over-long array or string is a real anomaly and
+    # stays a validation failure -- this shim only runs on the downgrade
+    # path.
     if not _supports_json_schema_response_format(model_name):
         schema = json_schema.get("schema", json_schema)
         _prune_unknown_properties(result, schema)
         _backfill_required_fields(result, schema)
         _truncate_oversized_arrays(result, schema)
+        _truncate_oversized_strings(result, schema)
     validate_json_schema(result, json_schema)
 
 

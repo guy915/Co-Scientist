@@ -58,8 +58,8 @@ def test_authored_title_is_clipped_past_the_display_cap() -> None:
     """A title over the cap is clipped, not discarded back to the fallback."""
     long_title = "A" * 150
     title = _authored_title({"title": long_title}, _STATEMENT)
-    assert title == "A" * 100
-    assert len(title) == 100
+    assert title == "A" * 120
+    assert len(title) == 120
 
 
 def test_persist_writes_the_authored_title_onto_the_hypothesis_row(

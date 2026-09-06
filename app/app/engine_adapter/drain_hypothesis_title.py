@@ -10,12 +10,13 @@ from typing import Any
 
 from app.text_utils import first_sentence
 
-# Mirrors schemas.generation.MAX_TITLE_CHARS in the engine. Kept as its own
-# constant rather than a cross-package import -- the app has no existing
-# import from co_scientist.schemas, and a json_object-downgraded response
-# is not bound by the schema's maxLength anyway, so this cap has to hold
-# regardless of what the engine's own copy says.
-_TITLE_DISPLAY_CAP = 100
+# Mirrors schemas.generation.MAX_TITLE_CHARS in the engine (raised 100 ->
+# 120 after production run b82f9162 -- see that constant's own comment).
+# Kept as its own constant rather than a cross-package import -- the app has
+# no existing import from co_scientist.schemas, and a json_object-downgraded
+# response is not bound by the schema's maxLength anyway, so this cap has to
+# hold regardless of what the engine's own copy says.
+_TITLE_DISPLAY_CAP = 120
 
 
 def _authored_title(h: dict[str, Any], text: str) -> str:
