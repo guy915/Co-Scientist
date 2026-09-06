@@ -56,6 +56,9 @@ from co_scientist.llm_telemetry import (
     record_completion_response as _record_completion_response,
 )
 from co_scientist.llm_thinking import (
+    _GATEWAY_MODELS as _GATEWAY_MODELS,
+)
+from co_scientist.llm_thinking import (
     _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
 )
 from co_scientist.llm_thinking import (
@@ -284,13 +287,28 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
         model_name: Model name in litellm format.
 
     Returns:
-        False when the model belongs to a known json_object-only family or
-        when litellm's capability registry reports no json_schema support.
-        True otherwise, including when the registry lookup itself raises, so
-        the default json_schema path is preserved for unknown models.
+        False when the model belongs to a known json_object-only family,
+        when it is one of the declared OpenRouter gateway models, or when
+        litellm's capability registry reports no json_schema support. True
+        otherwise, including when the registry lookup itself raises, so the
+        default json_schema path is preserved for unknown models.
     """
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return False
+    if lowered in _GATEWAY_MODELS:
+        # Declared rather than left to the registry lookup below: every
+        # rung in a gateway chain is paired with ``require_parameters``
+        # (see ``llm_gateway_routing._GATEWAY_PROVIDER``), which turns an
+        # unsupported ``response_format`` into a hard 404 instead of a
+        # soft degradation, and litellm's own answer for a free variant
+        # has been observed to flip between True and False across runs on
+        # the same day -- these are volatile stealth/free listings, not
+        # stable capability data. At least one declared fallback
+        # (``nvidia/nemotron-3.5-lightning:free``) lists no
+        # ``response_format`` support at all in its own OpenRouter
+        # listing, so json_object is the only format proven safe across
+        # every rung a chain might actually land on.
         return False
     try:
         return bool(litellm.supports_response_schema(model=model_name))

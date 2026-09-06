@@ -217,9 +217,23 @@ def test_every_gateway_model_is_downgraded_to_json_object() -> None:
     ``json_object`` is served by every host in this chain; ``json_schema``
     is not, and paired with ``require_parameters`` an unsupported format
     is a hard 404 rather than a soft degradation to an unconstrained
-    answer. Free models turn over faster than litellm's registry does, so
-    if a future registry bump ever flips one of these to ``True``, this is
-    what would catch it rather than a live 404.
+    answer.
+
+    This asserts the engine's own downgrade decision, not litellm's
+    registry: every ``_GATEWAY_MODELS`` key is now declared explicitly in
+    ``_supports_json_schema_response_format`` rather than falling through
+    to ``litellm.supports_response_schema``. That fallback made the test
+    non-hermetic in practice -- the registry's answer for
+    ``openrouter/z-ai/glm-5.2:free`` flipped from False to True between
+    two runs on the same day with no code change, because free/stealth
+    listings on these gateways are volatile in a way litellm's static
+    capability table cannot track. A declared override was chosen over
+    patching the registry lookup in the test: the whole point of the
+    downgrade is that gateway chains cannot trust the registry's answer
+    for these models in production either (``require_parameters`` makes a
+    wrong "yes" a hard 404, not a soft degradation), so the fix belongs in
+    the engine's own logic, and this test now pins that logic rather than
+    a mocked stand-in for it.
     """
     from co_scientist.llm_thinking import _GATEWAY_MODELS
 
