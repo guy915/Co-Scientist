@@ -4,7 +4,10 @@ The assessor is exercised end-to-end against a real provider by the golden run;
 here the litellm boundary is faked so the prompt/parse/guard behavior is proven
 offline: a valid verdict with a real quote yields a located support span, a
 hallucinated quote is downgraded, and any provider/parse failure falls back to
-the deterministic assessor rather than breaking grounding.
+the deterministic assessor rather than breaking grounding. The unfounded-
+CONTRADICTS guard (subject overlap + negation-marker check) moved to
+``test_claim_verifier_contradiction.py`` when this file passed the
+module-size budget.
 """
 
 from __future__ import annotations

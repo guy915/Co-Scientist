@@ -342,3 +342,49 @@ def test_batch_answerless_first_attempt_still_yields_a_real_verdict(
     assert calls["n"] == 2
     assert results[0].label is EntailmentLabel.SUPPORTS
     assert results[0].assessor == assessor_id
+
+
+def test_batch_offtarget_contradiction_is_downgraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The batch path guards CONTRADICTS the same way the single-claim path.
+
+    Same real b82f9162 shape as ``test_claim_verifier.py``'s off-target
+    case, but through the batched reply path: the quote is about a
+    different molecule/target entirely, so the verdict must not stand.
+    """
+    passage = EvidencePassage(
+        evidence_id="ev-1",
+        text=(
+            "The same ligand is ineffective at blocking wild-type NaVs and "
+            "does not disrupt action potential signals in neuronal cells or "
+            "brain tissue at working concentrations."
+        ),
+    )
+    claim = (
+        "Donepezil, at clinically achievable human brain free "
+        "concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the "
+        "ER-mitochondria contact site."
+    )
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"verdicts": [{"index": 1, "label": "contradicts", '
+            '"supporting": [], "contradicting": [{"evidence_id": "ev-1", '
+            '"quote": "The same ligand is ineffective at blocking '
+            "wild-type NaVs and does not disrupt action potential signals "
+            'in neuronal cells or brain tissue at working concentrations."'
+            "}]}]}"
+        ),
+    )
+    batch_assessor, assessor_id = make_llm_batch_assessor(
+        "deepseek/deepseek-chat"
+    )
+    results = assess_claims_batch(
+        [claim],
+        [passage],
+        batch_assessor=batch_assessor,
+        assessor_id=assessor_id,
+    )
+    assert results[0].label is EntailmentLabel.INSUFFICIENT
+    assert results[0].contradicting_passages == ()

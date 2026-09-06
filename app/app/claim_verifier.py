@@ -72,6 +72,7 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
+from app.claims_assessor import _CONTRADICTION_MARKERS, _tokens
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +86,20 @@ _SYSTEM_PROMPT = (
     "related mechanism, an adjacent finding, or the claim under narrower "
     "conditions -- but does not fully entail it; partial is for genuine "
     "near-misses, not for passages merely sharing a topic. It CONTRADICTS only "
-    "if it entails the claim's negation. Otherwise the claim is INSUFFICIENT. "
-    "For a supports, partial, or contradicts verdict you MUST cite the exact "
-    "VERBATIM quote (copied character-for-character from the passage) that "
-    "justifies it, together with that passage's evidence_id; put a partial "
-    'verdict\'s quote in "supporting". Do not paraphrase quotes. Respond with '
-    "a single JSON object and nothing else."
+    "if it entails the claim's negation: the passage must be about the same "
+    "molecule, target, or population as the claim AND must assert the "
+    "opposite of what the claim asserts about it. A passage about a different "
+    "molecule, target, or population is never a contradiction, however "
+    "similar the topic -- it is INSUFFICIENT (or PARTIAL if it genuinely "
+    "bears on the claim). A passage that states or agrees with the claim is "
+    "not a contradiction either, even if it also discusses caveats or other "
+    "mechanisms. When in doubt between CONTRADICTS and INSUFFICIENT, choose "
+    "INSUFFICIENT. Otherwise the claim is INSUFFICIENT. For a supports, "
+    "partial, or contradicts verdict you MUST cite the exact VERBATIM quote "
+    "(copied character-for-character from the passage) that justifies it, "
+    "together with that passage's evidence_id; put a partial verdict's quote "
+    'in "supporting". Do not paraphrase quotes. Respond with a single JSON '
+    "object and nothing else."
 )
 
 # A ceiling, not a reservation: the verdict JSON is short, and the generous
@@ -160,7 +169,76 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
+# Coverage (shared concept tokens / claim tokens) a contradicting quote must
+# clear to count as being about the claim's own subject. Set to the same bar
+# the deterministic assessor itself requires before accepting a contradiction
+# (``claims_assessor._classify_passage``: score >= support_threshold / 2,
+# i.e. 0.25) -- not tuned independently against these two examples, which
+# measured 0.167 (off-target: a different molecule/target) and 0.273
+# (confirmatory: same subject, no negation) respectively, cleanly either
+# side of it.
+_MIN_CONTRADICTION_COVERAGE = 0.25
+
+
+def _quote_negates_claim(claim: str, quote: str) -> bool:
+    """Whether a cited contradicting quote is actually founded.
+
+    Two cheap, offline checks a model's own CONTRADICTS verdict must clear
+    before it is trusted: the quote has to cover the claim's subject (at
+    least ``_MIN_CONTRADICTION_COVERAGE`` of the claim's own concept tokens,
+    reusing the deterministic assessor's tokenizer/alias table so "kinase
+    antagonist" and "kinase blocker" count as the same concept), and it has
+    to carry an actual negation/contrast cue -- reusing the deterministic
+    assessor's own contradiction lexicon
+    (``claims_assessor._CONTRADICTION_MARKERS``). Neither check requires
+    the quote to be located in its passage yet, so it runs at parse time,
+    before ``assess_claim``'s span location.
+
+    Measured on a production ultra run (b82f9162, 2026-09-06): 105 of 183
+    claim-evidence edges came back CONTRADICTS, including a quote about a
+    different drug/target entirely (subject overlap far below the bar) and
+    a quote that stated the claim's own gap-filling mechanism (on-topic,
+    but no negation at all -- caught by the marker check instead). Neither
+    would clear both checks here.
+    """
+    claim_tokens = _tokens(claim)
+    if not claim_tokens:
+        return False
+    coverage = len(claim_tokens & _tokens(quote)) / len(claim_tokens)
+    if coverage < _MIN_CONTRADICTION_COVERAGE:
+        return False
+    lowered = quote.lower()
+    return any(marker in lowered for marker in _CONTRADICTION_MARKERS)
+
+
+def _reject_unfounded_contradiction(
+    claim: str, draft: AssessorDraft
+) -> AssessorDraft:
+    """Downgrade a CONTRADICTS verdict none of whose citations hold up.
+
+    Degrades to INSUFFICIENT rather than trusting the draft's ``supporting``
+    citations instead: the model's own verdict was wrong, so its other
+    citations are not more trustworthy just because they point the other
+    way -- see the root AGENTS.md "Never score a short claim against a long
+    document with Jaccard" gotcha, whose closing paragraph names this
+    exact judgement as the LLM entailment assessor's job.
+    """
+    if draft.label is not EntailmentLabel.CONTRADICTS:
+        return draft
+    if any(
+        _quote_negates_claim(claim, quote) for _, quote in draft.contradicting
+    ):
+        return draft
+    logger.warning(
+        "LLM claim assessor's CONTRADICTS verdict failed the subject/negation "
+        "check; downgrading to insufficient rather than inventing support. "
+        "Claim: %.200r",
+        claim,
+    )
+    return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+
+def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
     """Parse the model's validated JSON reply into an :class:`AssessorDraft`.
 
     Returns None when the shape is still unusable (an empty/invalid label)
@@ -173,7 +251,7 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
         label = EntailmentLabel(raw_label)
     except ValueError:
         return None
-    return AssessorDraft(
+    draft = AssessorDraft(
         label=label,
         supporting=_coerce_pairs(
             data.get("supporting"), "claim_verifier.supporting"
@@ -182,6 +260,7 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
             data.get("contradicting"), "claim_verifier.contradicting"
         ),
     )
+    return _reject_unfounded_contradiction(claim, draft)
 
 
 def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
@@ -312,7 +391,7 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
         data = _call_llm_entailment(model, claim, passages)
         if data is None:
             return deterministic_assessor(claim, passages)
-        draft = _parse_draft(data)
+        draft = _parse_draft(data, claim)
         if draft is None:
             logger.warning(
                 "LLM claim assessor returned unparseable output; falling "

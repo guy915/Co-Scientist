@@ -40,7 +40,12 @@ from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
-from app.claim_verifier import _CITATION_LIST, _coerce_pairs, _render_passages
+from app.claim_verifier import (
+    _CITATION_LIST,
+    _coerce_pairs,
+    _reject_unfounded_contradiction,
+    _render_passages,
+)
 from app.claims import (
     AssessorDraft,
     BatchAssessor,
@@ -61,9 +66,17 @@ _BATCH_SYSTEM_PROMPT = (
     "-- evidence for a related mechanism, an adjacent finding, or the claim "
     "under narrower conditions -- but does not fully entail it; partial is "
     "for genuine near-misses, not for passages merely sharing a topic. It "
-    "CONTRADICTS only if it entails the claim's negation. Otherwise the "
-    "claim is INSUFFICIENT. For a supports, partial, or contradicts verdict "
-    "you MUST cite the exact VERBATIM quote (copied character-for-character "
+    "CONTRADICTS only if it entails the claim's negation: the passage must "
+    "be about the same molecule, target, or population as the claim AND "
+    "must assert the opposite of what the claim asserts about it. A passage "
+    "about a different molecule, target, or population is never a "
+    "contradiction, however similar the topic -- it is INSUFFICIENT (or "
+    "PARTIAL if it genuinely bears on the claim). A passage that states or "
+    "agrees with the claim is not a contradiction either, even if it also "
+    "discusses caveats or other mechanisms. When in doubt between "
+    "CONTRADICTS and INSUFFICIENT, choose INSUFFICIENT. Otherwise the claim "
+    "is INSUFFICIENT. For a supports, partial, or contradicts verdict you "
+    "MUST cite the exact VERBATIM quote (copied character-for-character "
     "from the passage) that justifies it, together with that passage's "
     'evidence_id; put a partial verdict\'s quote in "supporting". Keep each '
     "quote SHORT -- at most 200 characters, the smallest verbatim span that "
@@ -122,7 +135,7 @@ def _batch_entailment_prompt(
 
 
 def _parse_batch_drafts(
-    data: dict[str, Any], num_claims: int
+    data: dict[str, Any], claims: Sequence[str]
 ) -> list[AssessorDraft | None]:
     """Fan a batch reply's verdicts back out to per-claim drafts, by index.
 
@@ -131,8 +144,11 @@ def _parse_batch_drafts(
     unparseable verdict leaves that position ``None`` rather than raising,
     so the caller (``claims.assess_claims_batch``) falls only that one
     claim back to the deterministic assessor instead of losing the whole
-    batch to one bad entry.
+    batch to one bad entry. Each parsed draft passes through
+    ``claim_verifier._reject_unfounded_contradiction`` against its own
+    claim before being stored, exactly like the single-claim path.
     """
+    num_claims = len(claims)
     drafts: list[AssessorDraft | None] = [None] * num_claims
     for item in coerce_json_list(
         data.get("verdicts"),
@@ -150,7 +166,7 @@ def _parse_batch_drafts(
             label = EntailmentLabel(raw_label)
         except ValueError:
             continue
-        drafts[position] = AssessorDraft(
+        draft = AssessorDraft(
             label=label,
             supporting=_coerce_pairs(
                 item.get("supporting"), "claim_verifier.batch_supporting"
@@ -158,6 +174,9 @@ def _parse_batch_drafts(
             contradicting=_coerce_pairs(
                 item.get("contradicting"), "claim_verifier.batch_contradicting"
             ),
+        )
+        drafts[position] = _reject_unfounded_contradiction(
+            claims[position], draft
         )
     return drafts
 
@@ -267,6 +286,6 @@ def make_llm_batch_assessor(
         data = _call_llm_batch_entailment(model, claims, passages)
         if data is None:
             return [None] * len(claims)
-        return _parse_batch_drafts(data, len(claims))
+        return _parse_batch_drafts(data, claims)
 
     return _batch_assessor, assessor_id
