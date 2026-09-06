@@ -29,6 +29,12 @@ very next call, surfacing as "Event loop is closed" under concurrent
 claim assessment. One long-lived loop side-steps that entirely; multiple
 callers still run concurrently because ``run_coroutine_threadsafe``
 schedules each awaited coroutine independently on it.
+
+``run_off_loop`` is the third: it hands a whole blocking assessment wave
+to one dedicated thread and awaits it, so the durable task's own event
+loop -- and the lease heartbeat renewing on it -- stays responsive for
+the wave's duration.
+schedules each awaited coroutine independently on it.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ import contextvars
 import functools
 import threading
 from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
 _T = TypeVar("_T")
@@ -104,3 +111,30 @@ def run_coroutine_sync(coro_factory: Callable[[], Awaitable[_T]]) -> _T:
 
     future = asyncio.run_coroutine_threadsafe(_runner(), loop)
     return future.result()
+
+
+async def run_off_loop(call: Callable[[], _T]) -> _T:
+    """Run a blocking claim-assessment wave off the caller's event loop.
+
+    ``call`` is expected to itself fan out across ``ASSESSMENT_CONCURRENCY``
+    worker threads (see ``claim_grounding_assess``), but that inner pool
+    still blocks whichever thread calls it for the wave's whole duration.
+    Both callers of this helper (the pre-ranking claim gate and the
+    finalize grounding pass) run inside a durable task on the cohort's
+    event loop, whose ``task_worker._heartbeat_lease`` renews the task's
+    lease from that same loop -- running the wave there directly starves
+    the heartbeat for the wave's duration, which cost a healthy finalize
+    task its lease and its retry budget in production (run b82f9162,
+    2026-09-06: the wave ran long enough for the 300s lease to expire
+    while the loop thread was blocked). One dedicated single-worker
+    thread, awaited via ``run_in_executor``, keeps the loop free to renew
+    the lease while the wave runs.
+
+    ``run_in_executor`` does not copy this coroutine's contextvars into
+    the dedicated thread (unlike ``asyncio.to_thread``) -- wrap the call so
+    the run's scoped LLM-call budget and telemetry phase (entered by the
+    caller) reach the entailment calls this wave makes.
+    """
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=1) as host:
+        return await loop.run_in_executor(host, propagate_context(call))

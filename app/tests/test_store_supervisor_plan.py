@@ -18,6 +18,7 @@ from app import store
 from app.store import db as store_db
 from tests._drain_helpers import (
     _final_state_with_features,
+    _persist,
     _persist_and_finalize,
 )
 
@@ -314,11 +315,8 @@ def test_re_finalize_replaces_rather_than_accumulates(
     # A resumed run's re-finalize is exercised at the persistence layer
     # directly, the way test_store_knowledge_facts does for the same reason
     # (finalize_report itself no-ops on an already-published run).
-    from app.engine_adapter.drain import _persist_final_state
 
-    _persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
     second = store.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert len(second) == 3
 

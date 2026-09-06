@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, store
-from tests._drain_helpers import _held_final_state
+from app import store
+from tests._drain_helpers import _held_final_state, _persist
 
 
 def _screening_hypothesis(hyp_id: str, text: str) -> dict[str, Any]:
@@ -67,9 +67,7 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
     run = store.create_run("safety goal", "standard", "engine", {})
     state = _screening_state()
 
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     # safety_status is persisted for every hypothesis by the drain itself.
     by_text = {h["statement"][:8]: h for h in store.list_hypotheses(run.id)}
@@ -97,7 +95,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
     """
     run = store.create_run("held hypotheses goal", "standard", "engine", {})
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_held_final_state(),
         db_path=isolated_db,
@@ -140,9 +138,7 @@ def test_drain_records_a_hold_without_an_engine_audit_entry(
     state = _held_final_state()
     state["safety_decisions"] = []
 
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     holds = [
         d

@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, engine_tasks, store
+from app import engine_tasks, store
+from tests._drain_helpers import _persist
 
 
 def _seed_scientist_hypothesis(run_id: str, db_path: str) -> str:
@@ -66,9 +67,7 @@ def _replay_finalize(
 ) -> None:
     """Run the finalizer's publication reset and drain, as its task does."""
     store.clear_publication_artifacts(run_id, db_path=db_path)
-    engine_adapter._persist_final_state(
-        run_id=run_id, final_state=final_state, db_path=db_path
-    )
+    _persist(run_id=run_id, final_state=final_state, db_path=db_path)
 
 
 def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:

@@ -11,9 +11,9 @@ each module within the file-size cap and each concern its own file.
 
 from __future__ import annotations
 
-from app import engine_adapter, store
+from app import store
 from app.engine_adapter.drain_hypothesis_title import _authored_title
-from tests._drain_helpers import _engine_hypothesis
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 _STATEMENT = "Blocking CXCR1 suppresses breast cancer stem cells. It works."
 
@@ -80,9 +80,7 @@ def test_persist_writes_the_authored_title_onto_the_hypothesis_row(
         "meta_review": {},
         "research_overview": {},
     }
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
@@ -125,9 +123,7 @@ def test_persist_derives_the_title_for_an_evolved_child_without_one(
         "evolution_details": [],
         "research_overview": {},
     }
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
     hyps = {
         h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)

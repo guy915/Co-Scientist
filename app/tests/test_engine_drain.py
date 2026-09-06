@@ -22,13 +22,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, report_render, store
+from app import report_render, store
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,
     _engine_hypothesis,
     _final_state_with_features,
     _final_state_with_lineage,
+    _persist,
     _persist_and_finalize,
 )
 
@@ -177,7 +178,7 @@ def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
     lineage rather than an evolution_history inference.
     """
     run = store.create_run("kinase goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_lineage(),
         db_path=isolated_db,
@@ -209,9 +210,7 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
         h for h in state["hypotheses"] if h["id"] != "parent-1"
     ]
     run = store.create_run("kinase goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
@@ -234,9 +233,7 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     state = _archived_parent_state()
     run = store.create_run("kinase archive goal", "standard", "engine", {})
 
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
@@ -257,9 +254,7 @@ def test_drain_persists_evidence_quarantine_as_rejected(
     state["hypotheses"][0]["review_disposition"] = "evidence_blocked"
     run = store.create_run("grounded archive goal", "standard", "engine", {})
 
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
@@ -284,9 +279,7 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
     run = store.create_run("undermined archive goal", "standard", "engine", {})
 
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
@@ -332,7 +325,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
     makes a second finalize a no-op once a report exists.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    drained = engine_adapter._persist_final_state(
+    drained = _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -371,7 +364,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
     """Hypothesis rows carry the engine's stable id (id pass-through)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -405,7 +398,7 @@ def test_persist_writes_scene_setting_onto_the_hypothesis_row(
         "meta_review": {},
         "research_overview": {},
     }
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=final_state,
         db_path=isolated_db,
@@ -434,7 +427,7 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
     state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,
@@ -462,7 +455,7 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
     state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,

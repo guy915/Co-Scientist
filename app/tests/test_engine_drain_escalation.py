@@ -21,7 +21,7 @@ import pytest
 
 from app import engine_adapter, safety, store
 from app.hypothesis_screening import screen_hypotheses
-from tests._drain_helpers import _engine_hypothesis
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 # A control-arm hard-split item the deterministic layer holds as UNCERTAIN
 # via the benign-context marker check ("triage"/"disaster"), carrying
@@ -106,7 +106,7 @@ def test_drain_escalates_and_raises_a_held_verdict(
     monkeypatch.setattr(litellm, "acompletion", block_completion)
     run = _real_run("drain escalation raise")
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
 
@@ -139,7 +139,7 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
     monkeypatch.setattr(litellm, "acompletion", block_completion)
     run = _real_run("drain escalation rescreen")
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
     assert _held_status(run.id, isolated_db) == "prohibited"
@@ -172,7 +172,7 @@ def test_drain_escalation_fails_closed_on_missing_credential(
     )
     run = _real_run("drain escalation no credential")
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
 
@@ -192,7 +192,7 @@ def test_drain_escalation_fails_closed_on_provider_error(
     monkeypatch.setattr(litellm, "acompletion", raise_completion)
     run = _real_run("drain escalation provider error")
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
 
@@ -224,7 +224,7 @@ def test_drain_skips_escalation_cleanly_when_offline(
         store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
     )
 
-    drained = engine_adapter._persist_final_state(
+    drained = _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
 
@@ -261,7 +261,7 @@ def test_escalation_does_not_hold_the_write_lock(
 
     def _run_drain() -> None:
         try:
-            engine_adapter._persist_final_state(
+            _persist(
                 run_id=run.id,
                 final_state=_escalation_state(),
                 db_path=isolated_db,
@@ -310,7 +310,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     monkeypatch.setattr(litellm, "acompletion", _allow)
     run = _real_run("cleared hold audit")
 
-    engine_adapter._persist_final_state(
+    await engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_escalation_state(),
         db_path=isolated_db,

@@ -21,6 +21,7 @@ resolving.
 
 from __future__ import annotations
 
+import functools
 import sqlite3
 
 from app.hypothesis_safety import (
@@ -53,6 +54,27 @@ def _escalate_screened_hypotheses(
         One :class:`~app.hypothesis_safety.EscalatedVerdict` per input.
     """
     return escalate_held_hypotheses(run_id, escalatable, db_path=db_path)
+
+
+async def _escalate_off_loop(
+    run_id: str,
+    escalatable: tuple[HeldHypothesis, ...],
+    db_path: str | None,
+) -> list[EscalatedVerdict]:
+    """Run ``_escalate_screened_hypotheses`` off the caller's event loop.
+
+    A durable finalize task's lease heartbeat renews on that same loop, so
+    a synchronous wave here would starve it for the wave's whole duration
+    -- the same reasoning as ``drain_claim_grounding._assess_claims``, and
+    the same fix (``async_bridge.run_off_loop``).
+    """
+    from app.async_bridge import run_off_loop
+
+    return await run_off_loop(
+        functools.partial(
+            _escalate_screened_hypotheses, run_id, escalatable, db_path
+        )
+    )
 
 
 def _persist_escalated_verdicts(

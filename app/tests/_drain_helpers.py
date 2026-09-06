@@ -8,10 +8,22 @@ concern-clustered modules (``test_engine_drain_citations.py``).
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app import engine_adapter, report_render
 from tests._client import drain as _drain
+
+
+def _persist(**kwargs: Any) -> Any:
+    """Run the (now async) drain to completion, synchronously.
+
+    ``_persist_final_state`` awaits its claim-grounding and safety-
+    escalation waves (see ``async_bridge.run_off_loop``), so every test
+    call site needs an event loop; this is the one-line wrapper the whole
+    drain test suite shares instead of repeating ``asyncio.run(...)``.
+    """
+    return asyncio.run(engine_adapter._persist_final_state(**kwargs))
 
 
 def _engine_hypothesis(
@@ -227,7 +239,7 @@ def _persist_and_finalize(
     report inputs, and ``finalize_report`` builds/screens/saves the report.
     Uses a plain-dict emitter, so no event log is needed.
     """
-    drained = engine_adapter._persist_final_state(
+    drained = _persist(
         run_id=run.id,
         final_state=final_state,
         db_path=db_path,

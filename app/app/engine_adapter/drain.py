@@ -8,25 +8,23 @@ provider-specific report inputs the shared finalize path needs.
 
 from __future__ import annotations
 
+import functools
 import logging
 import sqlite3
-from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 from app import store
 from app.citations import empty_citation_summary
-from app.claim_grounding import (
-    AssessorSpec,
-    assess_hypothesis_claims,
-    build_assessor,
-    build_batch_assessor,
-    evidence_passages,
-    persist_grounding,
-)
+from app.claim_grounding import evidence_passages, persist_grounding
 from app.claims import EvidencePassage
-from app.config import settings
 from app.elo import INITIAL_ELO as INITIAL_ELO
 from app.engine_adapter import drain_escalation
+from app.engine_adapter.drain_claim_grounding import (
+    _assess_claims as _assess_claims,
+)
+from app.engine_adapter.drain_claim_grounding import (
+    _gate_records_by_store_id as _gate_records_by_store_id,
+)
 from app.engine_adapter.drain_evidence_resolution import (
     resolve_articles as resolve_articles,
 )
@@ -303,85 +301,7 @@ def _prepare_final_state_inputs(
     )
 
 
-def _assess_claims(
-    grounding_candidates: list[dict[str, Any]],
-    passages: list[EvidencePassage],
-    gate_records: Mapping[str, Mapping[str, Any]] | None = None,
-) -> tuple[Any, dict[str, dict[str, Any]]]:
-    """Assess each hypothesis claim against retrieved evidence passages.
-
-    Claims the pre-ranking gate already assessed against the same evidence
-    are reused rather than re-derived. The gate assesses a strict superset
-    of these claims (it reads the hypothesis's experiment field too) with
-    the same roles on the overlap, and a claim's verdict depends only on
-    itself and the passages it retrieves -- so a per-claim match is enough
-    to carry the verdict across.
-
-    Must run outside any transaction -- see ``_persist_final_state``.
-    ``scoped_telemetry("claim_grounding")`` attributes this pass's LLM
-    calls in the run's metrics separately from the pre-ranking gate's own
-    ``"claim_gate"`` phase.
-
-    Args:
-        grounding_candidates: Persisted hypotheses not already rejected.
-        passages: The run's evidence passages.
-        gate_records: Per store-id, the hypothesis's stored ``claim_gate``
-            enrichment; omitted means assess everything.
-
-    Returns:
-        A tuple of (per hypothesis id its ``(assessment, role)`` pairs in
-        claim order, this pass's LLM telemetry snapshot).
-    """
-    from co_scientist.llm_telemetry import scoped_telemetry
-
-    model = settings.claim_verifier_model or settings.model_name
-    assessor, assessor_id = build_assessor(settings.claim_assessor, model)
-    batch_assessor = build_batch_assessor(settings.claim_assessor, model)
-    spec = AssessorSpec(assessor, assessor_id, batch_assessor)
-    with scoped_telemetry("claim_grounding") as telemetry:
-        assessed = assess_hypothesis_claims(
-            grounding_candidates,
-            passages,
-            spec,
-            reuse=_reusable_by_hypothesis(gate_records or {}),
-        )
-    return assessed, telemetry.snapshot()
-
-
-def _gate_records_by_store_id(
-    inputs: _FinalStateInputs,
-    store_id_by_engine_id: Mapping[str, str],
-) -> dict[str, Mapping[str, Any]]:
-    """Map each persisted hypothesis to the gate verdict recorded for it.
-
-    The gate's verdicts live on the engine hypothesis's enrichments, but
-    the drain assesses the persisted rows, so the two have to be joined by
-    the engine-to-store id map the persistence pass just built.
-    """
-    records: dict[str, Mapping[str, Any]] = {}
-    for hypothesis in inputs.hyps_parents_first:
-        engine_id = str(hypothesis.get("id") or "")
-        store_id = store_id_by_engine_id.get(engine_id)
-        gate = (hypothesis.get("enrichments") or {}).get("claim_gate")
-        if store_id and isinstance(gate, Mapping):
-            records[store_id] = gate
-    return records
-
-
-def _reusable_by_hypothesis(
-    gate_records: Mapping[str, Mapping[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """Index every hypothesis's reusable gate verdicts by fingerprint."""
-    from app.claim_freshness import reusable_assessments
-
-    indexed = {
-        store_id: reusable_assessments(record)
-        for store_id, record in gate_records.items()
-    }
-    return {key: value for key, value in indexed.items() if value}
-
-
-def _persist_evidence_hypotheses_and_screen(
+async def _persist_evidence_hypotheses_and_screen(
     run_id: str,
     inputs: _FinalStateInputs,
     citation_summary: dict[str, int],
@@ -397,14 +317,26 @@ def _persist_evidence_hypotheses_and_screen(
 
     Evidence availability is resolved before the transaction opens:
     dereferencing a DOI/PMID is network I/O, and this function must never
-    hold the write lock across it (see AGENTS.md).
+    hold the write lock across it (see AGENTS.md). It also must not block
+    the caller's event loop while it runs -- a run retrieving dozens of
+    articles can spend tens of seconds across ``citation_resolver``'s
+    bounded concurrency and per-request timeout, and the durable finalize
+    task's lease heartbeat renews on this same loop (see
+    ``_assess_claims`` for the incident this pattern already fixed for the
+    claim-grounding wave) -- so the resolve runs off it via
+    ``async_bridge.run_off_loop``.
 
     Returns:
         The (screening result, evidence passages, grounding candidates)
         tuple `_screen_and_collect_grounding_inputs` produces.
     """
+    from app.async_bridge import run_off_loop
+
+    resolved = await run_off_loop(
+        functools.partial(resolve_articles, inputs.articles)
+    )
     evidence = ResolvedEvidenceBatch(
-        articles=inputs.articles, resolved=resolve_articles(inputs.articles)
+        articles=inputs.articles, resolved=resolved
     )
     sink = _HypothesisSink(
         citations=_CitationSink(
@@ -449,7 +381,7 @@ def _persist_grounding_matches_proximity_txn(
         return grounding_result
 
 
-def _persist_final_state(
+async def _persist_final_state(
     *,
     run_id: str,
     final_state: dict[str, Any],
@@ -461,7 +393,10 @@ def _persist_final_state(
     and citations), and tournament matches; the report is built separately
     by ``finalize_report``, which consumes the returned inputs. Claim
     assessment and safety escalation both run between transactions,
-    holding no connection -- see ``drain_escalation``.
+    holding no connection -- see ``drain_escalation`` -- and both run off
+    the caller's event loop (``async_bridge.run_off_loop``) rather than
+    directly on it, so a durable finalize task's lease heartbeat keeps
+    renewing while either provider wave runs (see ``_assess_claims``).
 
     Returns:
         A :class:`DrainResult`: the ``finalize_report`` kwargs plus the
@@ -470,18 +405,20 @@ def _persist_final_state(
     inputs = _prepare_final_state_inputs(final_state)
     citation_summary = empty_citation_summary()
     store_id_by_engine_id: dict[str, str] = {}
-    screening_result, passages, grounding_candidates = (
-        _persist_evidence_hypotheses_and_screen(
-            run_id, inputs, citation_summary, store_id_by_engine_id, db_path
-        )
+    (
+        screening_result,
+        passages,
+        grounding_candidates,
+    ) = await _persist_evidence_hypotheses_and_screen(
+        run_id, inputs, citation_summary, store_id_by_engine_id, db_path
     )
-    assessed, grounding_usage = _assess_claims(
+    assessed, grounding_usage = await _assess_claims(
         grounding_candidates,
         passages,
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
     fold_grounding_telemetry(final_state, grounding_usage)
-    escalated = drain_escalation._escalate_screened_hypotheses(
+    escalated = await drain_escalation._escalate_off_loop(
         run_id, screening_result.escalatable, db_path
     )
     grounding_result = _persist_grounding_matches_proximity_txn(

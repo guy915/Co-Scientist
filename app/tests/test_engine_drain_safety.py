@@ -18,9 +18,10 @@ from typing import Any
 import pytest
 from co_scientist import models as engine_models
 
-from app import engine_adapter, report_render, store
+from app import report_render, store
 from tests._drain_helpers import (
     _final_state_with_lineage,
+    _persist,
     _persist_and_finalize,
 )
 
@@ -285,9 +286,7 @@ def _drained_status(
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = disposition
     run = store.create_run(goal, "standard", "engine", {})
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
     by_id = {
         hypothesis["id"]: hypothesis
         for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)

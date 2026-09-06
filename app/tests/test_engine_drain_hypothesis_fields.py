@@ -8,8 +8,8 @@ safety_ethical_concerns and never consulted by the safety gate.
 
 from __future__ import annotations
 
-from app import engine_adapter, store
-from tests._drain_helpers import _engine_hypothesis
+from app import store
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 
 def test_persist_writes_safety_and_toxicity_onto_the_hypothesis_row(
@@ -36,7 +36,7 @@ def test_persist_writes_safety_and_toxicity_onto_the_hypothesis_row(
         "meta_review": {},
         "research_overview": {},
     }
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=final_state,
         db_path=isolated_db,

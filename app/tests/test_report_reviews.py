@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, store
+from app import store
 from tests._drain_helpers import (
     _final_state_with_features,
     _final_state_with_lineage,
+    _persist,
     _persist_and_finalize,
 )
 
@@ -70,7 +71,7 @@ def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
     """Each mature review persists under its own reviewer_agent."""
     run = store.create_run("labeled goal", "standard", "engine", {})
 
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_mature_enrichments(),
         db_path=isolated_db,

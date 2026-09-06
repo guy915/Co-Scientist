@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, store
-from tests._drain_helpers import _engine_hypothesis
+from app import store
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 
 def _review(novelty: float | None, overall: float) -> dict[str, Any]:
@@ -50,9 +50,7 @@ def _state(reviews: list[dict[str, Any]]) -> dict[str, Any]:
 def _persisted_novelty(state: dict[str, Any], db_path: str) -> Any:
     """Drain ``state`` and return the stored novelty score."""
     run = store.create_run("novelty goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=db_path
-    )
+    _persist(run_id=run.id, final_state=state, db_path=db_path)
     rows = store.list_hypotheses(run.id, db_path=db_path)
     return rows[0]["novelty_score"]
 

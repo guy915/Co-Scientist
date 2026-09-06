@@ -367,7 +367,7 @@ async def _halt_finalize_if_blocked(
     return {"run_id": run.id, "status": RunStatus.BLOCKED.value}
 
 
-def _drain_and_persist_final_state(
+async def _drain_and_persist_final_state(
     run: store.RunRow,
     state: dict[str, Any],
     db_path: str | None,
@@ -377,11 +377,12 @@ def _drain_and_persist_final_state(
     Final drain is deterministic and replayable. Clears only this run's
     prior publication rows so a crash after persistence but before task
     acknowledgement cannot duplicate hypotheses, evidence, matches, or
-    verification edges.
+    verification edges. Awaited: its provider waves run off the caller's
+    event loop (see ``drain._persist_final_state``).
     """
     final_state = _plain_final_state(state)
     store.clear_publication_artifacts(run.id, db_path=db_path)
-    drained = _persist_final_state(
+    drained = await _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
     # _metrics_snapshot also folds in the Supervisor's performance_assessment
@@ -458,7 +459,7 @@ async def execute_finalize(
     halted = await _halt_finalize_if_blocked(run, state, db_path)
     if halted is not None:
         return halted
-    drained, execution_time = _drain_and_persist_final_state(
+    drained, execution_time = await _drain_and_persist_final_state(
         run, state, db_path
     )
     emit = make_emitter(run.id, db_path=db_path)

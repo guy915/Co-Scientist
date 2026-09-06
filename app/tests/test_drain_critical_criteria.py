@@ -15,8 +15,8 @@ into ``report_inputs``, and that an old-shaped or absent
 
 from __future__ import annotations
 
-from app import engine_adapter, store
-from tests._drain_helpers import _final_state_with_features
+from app import store
+from tests._drain_helpers import _final_state_with_features, _persist
 
 
 def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
@@ -34,9 +34,7 @@ def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
         }
     }
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["critical_criteria"] == [
         "Kinetic Feasibility and Experimental Readouts",
@@ -50,7 +48,7 @@ def test_drain_result_defaults_to_no_critical_criteria(
     """A run with no supervisor guidance reports an empty list, not a crash."""
     run = store.create_run("no guidance goal", "standard", "engine", {})
 
-    drained = engine_adapter._persist_final_state(
+    drained = _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -89,9 +87,7 @@ def test_drain_result_carries_structured_critical_criteria(
         }
     }
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["critical_criteria"] == [
         {
@@ -126,9 +122,7 @@ def test_drain_result_drops_non_str_non_dict_criteria_entries(
         }
     }
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["critical_criteria"] == [
         "novelty",
@@ -144,8 +138,6 @@ def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
         "workflow_plan": {"review_phase": "not a dict"}
     }
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["critical_criteria"] == []

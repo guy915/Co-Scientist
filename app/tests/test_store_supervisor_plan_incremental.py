@@ -244,7 +244,7 @@ def test_finalize_remains_authoritative_after_incremental_writes(
     isolated_db: str,
 ) -> None:
     """Finalize's terminal write still lands cleanly over incremental ones."""
-    from app.engine_adapter.drain import _persist_final_state
+    from tests._drain_helpers import _persist
 
     run = store.create_run("goal", "standard", "mock", {})
     store.save_checkpoint(
@@ -279,9 +279,7 @@ def test_finalize_remains_authoritative_after_incremental_writes(
             _task("terminate", status="completed"),
         ],
     }
-    _persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
     plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None

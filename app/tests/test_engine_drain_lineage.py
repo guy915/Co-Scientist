@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, store
-from tests._drain_helpers import _engine_hypothesis
+from app import store
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 
 def _multi_parent_state() -> dict[str, Any]:
@@ -52,8 +52,10 @@ def _multi_parent_state() -> dict[str, Any]:
 def test_drain_persists_multi_parent_lineage(isolated_db: str) -> None:
     """A combination child stores every parent, primary leading."""
     run = store.create_run("combine goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=_multi_parent_state(), db_path=isolated_db
+    _persist(
+        run_id=run.id,
+        final_state=_multi_parent_state(),
+        db_path=isolated_db,
     )
 
     hyps = {
@@ -79,9 +81,7 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
         h for h in state["hypotheses"] if h["id"] != "parent-2"
     ]
     run = store.create_run("combine goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     hyps = {
         h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)

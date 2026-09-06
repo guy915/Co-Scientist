@@ -15,13 +15,14 @@ from tests._drain_helpers import (
     _build_report,
     _engine_hypothesis,
     _final_state_with_features,
+    _persist,
 )
 
 
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     """Hypotheses with probes get a deep_verification review row."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -78,7 +79,7 @@ def test_persist_writes_novelty_review_lists_into_critique(
 ) -> None:
     """Already-explored/novel-aspects lists reach the reader (MO-3)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_novelty_review(),
         db_path=isolated_db,
@@ -150,7 +151,7 @@ def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
     distinct reviewer_agent, with the verdict as the summary.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_mature_reviews(),
         db_path=isolated_db,
@@ -253,7 +254,7 @@ def test_persist_classifies_citations_via_shared_classifier(
     resolve to the state its content warrants.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,
@@ -281,7 +282,7 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
     "C3" rather than the statement it names.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,
@@ -303,7 +304,7 @@ async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     with bracketed keys that resolve to nothing.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    await engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,
@@ -393,7 +394,7 @@ def test_each_citation_is_scored_against_the_sentence_that_cites_it(
     the Jaccard fix removed, arriving by a different route.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_final_state_with_multi_source_grounding(),
         db_path=isolated_db,

@@ -9,12 +9,10 @@ names for compatibility.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import functools
 import logging
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.config import settings
@@ -42,10 +40,11 @@ class _GatePlan:
 # In production a hypothesis carries 7-25 atomic claims and a run reaches
 # this gate with dozens, and awaiting them one at a time made this node the
 # longest serial stretch of an express run (21-23% of wall clock). The wave
-# below runs on one dedicated thread rather than ``asyncio.to_thread``: the
-# default executor is shared process-wide and the durable worker cohort
-# parks long-lived calls there for a whole run, so a wave of claims would
-# contend with the workers themselves.
+# runs off this coroutine's event loop (``async_bridge.run_off_loop``)
+# rather than on it, and rather than the default ``asyncio.to_thread``
+# executor: that executor is shared process-wide and the durable worker
+# cohort parks long-lived calls there for a whole run, so a wave of claims
+# would contend with the workers themselves.
 async def _assess_gate_claims(
     plans: Sequence[_GatePlan],
     passages: Sequence[Any],
@@ -67,7 +66,7 @@ async def _assess_gate_claims(
     Returns:
         Per plan, its claim assessments in the plan's own claim order.
     """
-    from app.async_bridge import propagate_context
+    from app.async_bridge import run_off_loop
     from app.claim_grounding import assess_claim_groups
 
     call = functools.partial(
@@ -79,13 +78,7 @@ async def _assess_gate_claims(
     if settings.claim_assessor != "llm":
         # The deterministic assessor makes no call to overlap.
         return call(parallel=False)
-    loop = asyncio.get_running_loop()
-    # ``run_in_executor`` does not copy this coroutine's contextvars into
-    # the dedicated thread (unlike ``asyncio.to_thread``) -- wrap the call
-    # so the run's scoped LLM-call budget and telemetry phase (entered by
-    # the caller) reach the entailment calls this wave makes.
-    with ThreadPoolExecutor(max_workers=1) as host:
-        return await loop.run_in_executor(host, propagate_context(call))
+    return await run_off_loop(call)
 
 
 def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:

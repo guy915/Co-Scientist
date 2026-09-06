@@ -13,8 +13,8 @@ slice into ``report_inputs``, and that an old-shaped or absent
 
 from __future__ import annotations
 
-from app import engine_adapter, store
-from tests._drain_helpers import _final_state_with_features
+from app import store
+from tests._drain_helpers import _final_state_with_features, _persist
 
 
 def test_drain_result_carries_stratification_attributes(
@@ -38,9 +38,7 @@ def test_drain_result_carries_stratification_attributes(
         }
     }
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["attributes"] == [
         {
@@ -57,7 +55,7 @@ def test_drain_result_defaults_to_no_attributes(isolated_db: str) -> None:
     """A run with no supervisor guidance reports an empty list, not a crash."""
     run = store.create_run("no guidance goal", "standard", "engine", {})
 
-    drained = engine_adapter._persist_final_state(
+    drained = _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -74,8 +72,6 @@ def test_drain_result_ignores_malformed_config_synthesis(
     state = _final_state_with_features()
     state["supervisor_guidance"] = {"config_synthesis": "not a dict"}
 
-    drained = engine_adapter._persist_final_state(
-        run_id=run.id, final_state=state, db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     assert drained.report_inputs["attributes"] == []

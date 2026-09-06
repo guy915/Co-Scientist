@@ -6,10 +6,10 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, store
+from app import store
 from tests._client import DEFAULT_TEST_CLIENT_ID, wait_for_status
 from tests._client import make_client as _client
-from tests._drain_helpers import _engine_hypothesis
+from tests._drain_helpers import _engine_hypothesis, _persist
 
 
 def _wait_completed(
@@ -128,7 +128,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(
             client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db
         ),
     )
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run.id,
         final_state=_three_generation_state(),
         db_path=isolated_db,

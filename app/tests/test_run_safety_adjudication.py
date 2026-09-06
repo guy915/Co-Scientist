@@ -84,8 +84,7 @@ def test_held_hypothesis_adjudication_records_without_blocking(
     the pool and the report. Approving or rejecting it flips the recorded
     resolution exactly once, and the run itself is left alone.
     """
-    from app import engine_adapter
-    from tests._drain_helpers import _held_final_state
+    from tests._drain_helpers import _held_final_state, _persist
 
     client = _client()
     headers = {"X-Client-ID": "held-reviewer"}
@@ -95,7 +94,7 @@ def test_held_hypothesis_adjudication_records_without_blocking(
         json={"research_goal": "Adjudicate hypotheses held for review"},
     ).json()
     run_id = created["id"]
-    engine_adapter._persist_final_state(
+    _persist(
         run_id=run_id, final_state=_held_final_state(), db_path=isolated_db
     )
 
