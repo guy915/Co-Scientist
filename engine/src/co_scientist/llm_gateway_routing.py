@@ -188,8 +188,22 @@ class GatewayModel:
     fallbacks: tuple[str, ...] = ()
 
 
+# OpenRouter's own ceiling on the ``models`` fallback array: "'models'
+# array must have 3 items or fewer." Hit in production on run b82f9162
+# (2026-09-06 00:19 UTC): the six-rung ``minimax-m3:free`` chain below
+# (added in 61c4be3d) sent all six as ``models``, every gateway call
+# 400'd on the first request of the run, and the semantic safety screen
+# -- the first caller -- fell back to "assessment unavailable" and held
+# the run at intake. Declared here so the shape is checked once, in
+# ``test_llm_gateway_fallback.py``, rather than re-discovered per chain.
+_GATEWAY_MAX_FALLBACKS: Final[int] = 3
+
 # The models this deployment reaches through the gateway, and the order it
 # falls through them.
+#
+# **No chain's ``fallbacks`` may exceed ``_GATEWAY_MAX_FALLBACKS``** --
+# OpenRouter's own cap on the ``models`` array (see the comment on that
+# constant above).
 #
 # **A fallback may only ever be cheaper than the model above it.** Wired the
 # other way once -- free primary, paid last resort -- a "last resort" priced
@@ -250,18 +264,22 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     #
     # Order follows the live probe (3 concurrent JSON requests each,
     # 2026-09-05/06): Nemotron Super and GLM M2.7 answered 3/3 fast
-    # (~1-3s, GMICloud/Nvidia); Dots Note answered 3/3 at 1-5s (AtlasCloud);
-    # Gemma answered 2/3 (Google AI Studio, one upstream 429); Nemotron
-    # Lightning answered 3/3 but slow (8-23s) and its own listing carries no
-    # ``response_format`` at all (see ``GatewayModel.fallbacks`` above --
-    # paired with ``require_parameters`` a schema'd call cannot land there,
-    # so it is kept as an effectively text-only rung rather than dropped,
-    # matching the precedent already set for the ``glm-5.2:free`` chain
-    # below); GLM 5.2 itself answered 0/3 (saturated) and sits last as the
-    # rung this chain already knows can be exhausted. Every rung reasons
-    # and spends its budget thinking (checked against each model's
-    # ``supported_parameters`` listing, which carries ``reasoning`` for
-    # all seven), so none is inferred rather than declared.
+    # (~1-3s, GMICloud/Nvidia); Gemma answered 2/3 (Google AI Studio, one
+    # upstream 429). Every rung reasons and spends its budget thinking
+    # (checked against each model's ``supported_parameters`` listing,
+    # which carries ``reasoning`` for all of them), so none is inferred
+    # rather than declared.
+    #
+    # Trimmed from six rungs to three (production run b82f9162,
+    # 2026-09-06) to respect ``_GATEWAY_MAX_FALLBACKS`` -- see that
+    # constant's comment above. Dots Note (3/3 at 1-5s, AtlasCloud),
+    # Nemotron Lightning (3/3 but slow, 8-23s, and its own listing
+    # carries no ``response_format`` at all -- paired with
+    # ``require_parameters`` a schema'd call cannot land there) and GLM
+    # 5.2 (0/3, saturated) stay declared below as standalone entries, at
+    # $0/$0, so a deployment can still name one directly as its own
+    # primary or hand-edit it back into a trio; they no longer ride in
+    # this default chain.
     "openrouter/minimax/minimax-m3:free": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
@@ -269,9 +287,6 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
             "nvidia/nemotron-3-super-120b-a12b:free",
             "google/gemma-4-31b-it:free",
             "minimax/minimax-m2.7:free",
-            "dots-studio/dots-3-note-preview:free",
-            "nvidia/nemotron-3.5-lightning:free",
-            "z-ai/glm-5.2:free",
         ),
     ),
     "openrouter/nvidia/nemotron-3-super-120b-a12b:free": GatewayModel(

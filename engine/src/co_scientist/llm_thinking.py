@@ -14,6 +14,9 @@ from co_scientist.llm_gateway_routing import (
     _DEFAULT_UPSTREAM_ORDER as _DEFAULT_UPSTREAM_ORDER,
 )
 from co_scientist.llm_gateway_routing import (
+    _GATEWAY_MAX_FALLBACKS as _GATEWAY_MAX_FALLBACKS,
+)
+from co_scientist.llm_gateway_routing import (
     _GATEWAY_MODELS as _GATEWAY_MODELS,
 )
 from co_scientist.llm_gateway_routing import (

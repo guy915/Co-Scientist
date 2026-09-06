@@ -61,21 +61,21 @@ def test_the_non_default_free_chain_head_still_carries_its_chain() -> None:
 
 
 def test_the_deployed_default_carries_the_all_free_chain() -> None:
-    """``minimax-m3:free`` heads every live free model measured 2026-09-06.
+    """``minimax-m3:free`` heads three live free models measured 2026-09-06.
 
     Each ``:free`` variant caps at roughly 100 requests/day per model, not
     "one saturated shared pool" -- the shape the 2026-09-06 single-model
     switch had assumed. A chain lets a run keep going once the primary's
-    own daily cap is spent, in the order the live probe measured.
+    own daily cap is spent, in the order the live probe measured -- capped
+    at three rungs (``_GATEWAY_MAX_FALLBACKS``): a six-rung version of this
+    chain 400'd every gateway call in production (run b82f9162, 2026-09-06
+    00:19 UTC), since OpenRouter caps the ``models`` array at 3 items.
     """
     body = deepseek_thinking_extra_body(_NEMO)
     chain = [
         "nvidia/nemotron-3-super-120b-a12b:free",
         "google/gemma-4-31b-it:free",
         "minimax/minimax-m2.7:free",
-        "dots-studio/dots-3-note-preview:free",
-        "nvidia/nemotron-3.5-lightning:free",
-        "z-ai/glm-5.2:free",
     ]
     assert body["models"] == chain
 
@@ -318,6 +318,42 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
                 f"{name} costs more than {primary} it falls back from"
             )
             above = below
+
+
+def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
+    """Every declared chain stays at or under OpenRouter's own 3-item cap.
+
+    Production run b82f9162 (2026-09-06 00:19 UTC) sent a six-rung
+    ``minimax-m3:free`` chain as the ``models`` array and every gateway
+    call 400'd: ``"'models' array must have 3 items or fewer."`` Checked
+    over the declared table, not one hand-picked chain, so a rung added
+    later cannot reintroduce the shape.
+    """
+    from co_scientist.llm_thinking import (
+        _GATEWAY_MAX_FALLBACKS,
+        _GATEWAY_MODELS,
+    )
+
+    for primary, declared in _GATEWAY_MODELS.items():
+        assert len(declared.fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
+
+
+def test_the_routing_body_never_sends_more_than_the_cap() -> None:
+    """The same cap holds on the actual request body, not just the table.
+
+    ``test_no_declared_chain_exceeds_openrouters_fallback_cap`` pins the
+    source data; this pins what a call actually sends, so a future bug in
+    ``_declared_gateway_body`` that appended to a chain would be caught
+    here even if the table itself stayed correct.
+    """
+    from co_scientist.llm_thinking import (
+        _GATEWAY_MAX_FALLBACKS,
+        _GATEWAY_MODELS,
+    )
+
+    for model in _GATEWAY_MODELS:
+        body = deepseek_thinking_extra_body(model)
+        assert len(body.get("models", [])) <= _GATEWAY_MAX_FALLBACKS, model
 
 
 def test_a_priced_primary_arms_the_routing_ceiling() -> None:
