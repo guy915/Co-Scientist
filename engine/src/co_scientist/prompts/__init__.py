@@ -53,7 +53,7 @@ from co_scientist.prompts.literature import (
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
     get_literature_review_query_generation_pubmed_prompt,
-    get_literature_review_relevance_prompt,
+    get_literature_review_relevance_batch_prompt,
     get_literature_review_synthesis_prompt,
 )
 from co_scientist.prompts.loading import (
@@ -114,7 +114,7 @@ __all__ = [
     "get_literature_review_paper_analysis_prompt",
     "get_literature_review_query_generation_prompt",
     "get_literature_review_query_generation_pubmed_prompt",
-    "get_literature_review_relevance_prompt",
+    "get_literature_review_relevance_batch_prompt",
     "get_literature_review_synthesis_prompt",
     "get_meta_review_prompt",
     "get_prompt_save_path",

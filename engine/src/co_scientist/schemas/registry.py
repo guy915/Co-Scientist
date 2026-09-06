@@ -20,7 +20,7 @@ from co_scientist.schemas.generation import (
 )
 from co_scientist.schemas.literature import (
     LITERATURE_PAPER_ANALYSIS_SCHEMA,
-    LITERATURE_RELEVANCE_SCHEMA,
+    LITERATURE_RELEVANCE_BATCH_SCHEMA,
 )
 from co_scientist.schemas.planning import (
     META_REVIEW_SCHEMA,
@@ -87,7 +87,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "research_overview_revise": RESEARCH_OVERVIEW_SCHEMA,
     "supervisor": SUPERVISOR_SCHEMA,
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
-    "literature_review_relevance": LITERATURE_RELEVANCE_SCHEMA,
+    "literature_review_relevance_batch": LITERATURE_RELEVANCE_BATCH_SCHEMA,
     "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
     "hypothesis_validation_synthesis": HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
     "hypothesis_validation_synthesis_with_tools": (

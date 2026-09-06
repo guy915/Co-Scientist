@@ -81,32 +81,54 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# Literature review semantic relevance schema
+# Literature review semantic relevance schema (batched)
 # Imported directly by
 # agents/generation/literature_review/relevance.py, the model-judged half
-# of the hybrid retrieval scorer (fidelity-audit G5): one call per
-# candidate paper, so this schema names no pool to identify a candidate by
-# index -- it judges the single paper the prompt already names.
-LITERATURE_RELEVANCE_SCHEMA: dict[str, Any] = {
-    "name": "literature_relevance",
+# of the hybrid retrieval scorer (fidelity-audit G5): one call judges a
+# whole batch of candidates at once (see the module docstring in
+# relevance.py for the per-candidate-call incident this replaced), so
+# each judgment names the candidate it belongs to by the positional
+# index the prompt assigned it -- never by echoing the candidate's title
+# or abstract back, which would scale output with the batch size (the
+# structured-output pitfall AGENTS.md records).
+LITERATURE_RELEVANCE_BATCH_SCHEMA: dict[str, Any] = {
+    "name": "literature_relevance_batch",
     "strict": False,
     "schema": obj(
         {
-            "relevance": {
-                "type": "number",
-                "description": (
-                    "how well this paper's title and abstract bear on the"
-                    " research goal, from 0.0 (unrelated) to 1.0"
-                    " (directly on point)"
+            "judgments": {
+                "type": "array",
+                "description": "One judgment per candidate in the batch.",
+                "items": obj(
+                    {
+                        "index": {
+                            "type": "integer",
+                            "description": (
+                                "The number assigned to the candidate in"
+                                " the prompt: 1 for Candidate 1, 2 for"
+                                " Candidate 2, and so on"
+                            ),
+                        },
+                        "relevance": {
+                            "type": "number",
+                            "description": (
+                                "how well this candidate's title and"
+                                " abstract bear on the research goal,"
+                                " from 0.0 (unrelated) to 1.0 (directly"
+                                " on point)"
+                            ),
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "description": (
+                                "one sentence stating why this candidate"
+                                " does or does not bear on the research"
+                                " goal"
+                            ),
+                        },
+                    }
                 ),
-            },
-            "rationale": {
-                "type": "string",
-                "description": (
-                    "one sentence stating why this paper does or does not"
-                    " bear on the research goal"
-                ),
-            },
+            }
         }
     ),
 }

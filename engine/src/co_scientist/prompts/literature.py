@@ -187,22 +187,23 @@ def get_literature_review_paper_analysis_prompt(
     )
 
 
-# Renders prompts/literature_review_relevance.md, called by
-# agents/generation/literature_review/relevance.py once per candidate paper
-# in the pre-budget pool (paired there with LITERATURE_RELEVANCE_SCHEMA):
-# the semantic half of the hybrid retrieval score (fidelity-audit G5).
-def get_literature_review_relevance_prompt(
+# Renders prompts/literature_review_relevance_batch.md, called by
+# agents/generation/literature_review/relevance.py once per batch of
+# candidate papers in the pre-budget pool (paired there with
+# LITERATURE_RELEVANCE_BATCH_SCHEMA): the semantic half of the hybrid
+# retrieval score (fidelity-audit G5). candidates_block is a
+# pre-formatted text block, not a Python list -- see
+# relevance._build_candidates_block.
+def get_literature_review_relevance_batch_prompt(
     research_goal: str,
-    title: str,
-    abstract: str,
+    candidates_block: str,
 ) -> str:
-    """Get the prompt for judging one candidate paper's semantic relevance."""
+    """Get the prompt for judging one batch of candidates' relevance."""
     return load_prompt(
-        "literature_review_relevance",
+        "literature_review_relevance_batch",
         {
             "research_goal": research_goal,
-            "title": title,
-            "abstract": abstract or "(no abstract available)",
+            "candidates_block": candidates_block,
         },
     )
 

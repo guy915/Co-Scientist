@@ -92,6 +92,27 @@ def _batch_review_length(prompt: str) -> dict[str, int]:
     return {"reviews": max(count, 1)}
 
 
+_CANDIDATE_MARKER_RE = re.compile(r"\*\*Candidate \d+:\*\*")
+
+
+def _relevance_batch_length(prompt: str) -> dict[str, int]:
+    """Counts the "**Candidate N:**" markers in a relevance-batch prompt.
+
+    Args:
+        prompt: The rendered literature-relevance-batch prompt text.
+
+    Returns:
+        ``{"judgments": count}`` sized to the number of candidates in the
+        batch (at least one), matching the property name in
+        ``LITERATURE_RELEVANCE_BATCH_SCHEMA``. Without this hint the
+        generic filler defaults every array to one item, which would
+        leave every candidate past the first unjudged on the offline
+        backend even though a real batch call judges all of them.
+    """
+    count = len(_CANDIDATE_MARKER_RE.findall(prompt))
+    return {"judgments": max(count, 1)}
+
+
 # Unlike the batch-review count above, a research overview's directions
 # have no 1:1 correspondence with anything the prompt declares -- the
 # model freely decides how many major directions a hypothesis pool
@@ -136,6 +157,7 @@ def _research_overview_directions_length(_prompt: str) -> dict[str, int]:
 _ARRAY_LENGTH_HINTS: dict[str, Callable[[str], dict[str, int]]] = {
     "hypothesis_batch_review": _batch_review_length,
     "research_overview": _research_overview_directions_length,
+    "literature_relevance_batch": _relevance_batch_length,
 }
 
 # The review rubric's eight scored axes (schemas/review.py's private
