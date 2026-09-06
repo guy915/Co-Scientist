@@ -52,6 +52,9 @@ from co_scientist.constants_tokens import (
     LONG_MAX_TOKENS as LONG_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (
+    MANDATORY_REASONING_FLOOR_MAX_TOKENS as MANDATORY_REASONING_FLOOR_MAX_TOKENS,  # noqa: E501
+)
+from co_scientist.constants_tokens import (
     RESEARCH_OVERVIEW_MAX_TOKENS as RESEARCH_OVERVIEW_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (

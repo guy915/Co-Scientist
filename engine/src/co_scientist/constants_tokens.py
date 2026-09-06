@@ -136,14 +136,49 @@ sized it.
 
 It applies only where the call actually reasons, which is decided by the
 model, not the call site: ``_apply_thinking_args`` returns early for a model
-with no thinking mode, and no first-party call site passes
-``enable_thinking=False``. So every budget in this module lives in two
-regimes at once -- superseded by the floor on the DeepSeek-family models
-this engine deploys on, and operative as written on any other provider. That
+with no thinking mode. A call site asking ``enable_thinking=False`` still
+lands in this regime when the model forces reasoning back on regardless
+(see ``MANDATORY_REASONING_FLOOR_MAX_TOKENS`` below for that case's own,
+higher floor) -- so every budget in this module lives in two regimes at
+once -- superseded by the floor on the DeepSeek-family models this engine
+deploys on, and operative as written on any other provider. That
 is why a cap below the floor is not merely inert: it is a ceiling that binds
 on one provider and silently does not on another. The caps block at the end
 of this module keeps every cap above the floor so each one means the same
 thing in both regimes; ``tests/test_token_budget_floor.py`` pins that.
+"""
+
+MANDATORY_REASONING_FLOOR_MAX_TOKENS: Final = BUDGET_ESCALATION_MAX_TOKENS
+"""Smallest budget for a call that reasons despite asking not to.
+
+A call site sizes its ``max_tokens`` around ``enable_thinking=False`` --
+no chain-of-thought spend to fund. But a declared gateway model with
+``reasoning_can_disable=False`` (``GatewayModel``) never actually goes out
+disabled: ``effective_thinking_enabled`` forces reasoning back on at the
+gateway's smallest tier (see ``llm_gateway_body._MINIMAL_REASONING_EFFORT``),
+and that tier still spends a full chain of thought on this model.
+``THINKING_FLOOR_MAX_TOKENS`` is not enough room for it: production run
+323ff72c (2026-09-06 06:57 UTC) measured two batched entailment calls to
+``openrouter/minimax/minimax-m3:free`` each spend ~20-21k reasoning
+tokens (20840, then 19761) against the 18000-token floor, so the first
+attempt was guaranteed to exhaust its budget and answer nothing --
+``finish_reason="length"``, paid for in full -- before the escalation
+ladder's ``RAISED_BUDGET`` rung (which happens to land at exactly this
+same 24000 floor, see ``BUDGET_ESCALATION_MAX_TOKENS``) succeeded. Since
+this model cannot be asked to stop reasoning, its first attempt should
+not pay for a rung already known to fail; funding it at the budget the
+ladder would have escalated to anyway turns a two-call round trip into
+one. Reuses ``BUDGET_ESCALATION_MAX_TOKENS`` rather than a third number
+to tune, on the same "one proven budget is enough" reasoning
+``BUDGET_ESCALATION_MAX_INCREMENT`` documents -- and because that is
+where a doomed first attempt would escalate to regardless.
+
+This floor answers only "how much room does a forced-reasoning call get",
+never "should this model be asked to disable reasoning at all" -- that
+redirect decision stays in ``llm_gateway_body._declared_gateway_body``. The
+two are applied together at the same call (``effective_max_tokens``), so
+a model that starts reasoning against its caller's wishes is never
+funded as if it were the answer-only call the caller asked for.
 """
 
 # Token-budget scaling for count-dependent LLM calls. Each per-node pair

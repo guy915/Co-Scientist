@@ -37,7 +37,7 @@ _INT_SCHEMA: dict[str, Any] = {
 
 # Not a declared ``_GATEWAY_MODELS`` entry -- the recovery this ladder
 # performs must not depend on the per-model shim in
-# ``llm_thinking._declared_gateway_body`` already knowing to avoid a bare
+# ``llm_gateway_body._declared_gateway_body`` already knowing to avoid a bare
 # disable; it must also save a caller that reaches this 400 some other way
 # (a model wrongly believed to honour a disable, or one absent from the
 # table entirely).
@@ -158,3 +158,108 @@ async def test_a_second_mandatory_reasoning_refusal_still_terminates(
         "enabled": True,
         "effort": "low",
     }
+
+
+# ``_NEMO`` is declared in ``_GATEWAY_MODELS`` with
+# ``reasoning_can_disable=False``, so a disable request never reaches the
+# wire as a literal ``{"enabled": False}`` at all -- it goes out as minimal
+# reasoning from the very first attempt (see
+# ``llm_gateway_body._declared_gateway_body``), unlike
+# ``_UNDECLARED_GATEWAY_MODEL`` above, which has to be rejected once before
+# the ladder redirects it. This
+# is the shape production run 323ff72c (2026-09-06 06:57 UTC) actually hit:
+# no 400, just a first attempt that reasoned ~20-21k tokens against an
+# 18000-token floor and answered nothing.
+_NEMO = "openrouter/minimax/minimax-m3:free"
+
+
+async def test_a_declared_mandatory_reasoning_model_funds_its_first_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model that never disables is funded at the raised floor.
+
+    Before this fix the first attempt went out at
+    ``THINKING_FLOOR_MAX_TOKENS`` (18000) and reliably exhausted it --
+    production measured ~20-21k reasoning tokens on this exact model --
+    so every batched entailment call paid for a doomed rung before the
+    escalation ladder's own ``RAISED_BUDGET`` rung (24000) answered it.
+    """
+    from co_scientist.constants import MANDATORY_REASONING_FLOOR_MAX_TOKENS
+
+    _disable_cache(monkeypatch)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        return _completion(_message('{"a": 1}'))
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(
+            model_name=_NEMO, max_tokens=12000, json_schema=_INT_SCHEMA
+        ),
+        max_attempts=3,
+        options=LLMCallOptions(enable_thinking=False),
+    )
+
+    assert result == {"a": 1}
+    assert len(calls) == 1
+    assert calls[0]["max_tokens"] == MANDATORY_REASONING_FLOOR_MAX_TOKENS
+    assert calls[0]["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }
+
+
+async def test_the_ladder_still_terminates_when_the_raised_floor_also_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raised first attempt is not a guarantee.
+
+    The ladder must still escalate and terminate if it too comes back
+    empty.
+    """
+    from co_scientist.exceptions import LLMBudgetExhaustedError
+    from tests._llm_wrapper_fakes import make_usage as _usage
+
+    _disable_cache(monkeypatch)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        budget = kwargs["max_tokens"]
+        return _completion(
+            _message(None),
+            usage=_usage(3000, budget, reasoning_tokens=budget),
+            finish_reason="length",
+        )
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
+
+    with pytest.raises(LLMBudgetExhaustedError):
+        await call_llm_json(
+            "a prompt",
+            CompletionSpec(
+                model_name=_NEMO, max_tokens=12000, json_schema=_INT_SCHEMA
+            ),
+            max_attempts=3,
+            options=LLMCallOptions(enable_thinking=False),
+        )
+
+    # Three attempts made, no more -- the ladder terminates rather than
+    # retrying forever once every rung has been tried.
+    assert len(calls) == 3
+    budgets = [call["max_tokens"] for call in calls]
+    # Every rung is funded at or above the raised floor -- it never falls
+    # back to the answer-sized budget that started this measurement.
+    from co_scientist.constants import MANDATORY_REASONING_FLOOR_MAX_TOKENS
+
+    assert all(
+        budget >= MANDATORY_REASONING_FLOOR_MAX_TOKENS for budget in budgets
+    )

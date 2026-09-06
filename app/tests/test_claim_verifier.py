@@ -362,11 +362,14 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
     a literal ``reasoning: {"enabled": False}``. The engine now redirects
     that to the smallest reasoning tier the gateway exposes for a model
     declared unable to honour a disable (``GatewayModel
-    .reasoning_can_disable``) -- and funds it with the same thinking-token
-    floor a normal thinking call gets, or the call reproduces the very
-    answerless-completion shape the floor exists to prevent.
+    .reasoning_can_disable``) -- and funds it, since production later
+    measured this exact redirect still spending ~20-21k reasoning tokens
+    (run 323ff72c, 2026-09-06 06:57 UTC), with the higher
+    ``MANDATORY_REASONING_FLOOR_MAX_TOKENS`` a call forced to reason
+    despite asking not to needs, rather than the ordinary thinking floor
+    it is guaranteed to overrun.
     """
-    from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+    from co_scientist.constants import MANDATORY_REASONING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
 
@@ -388,7 +391,7 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         "enabled": True,
         "effort": "low",
     }
-    assert seen["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
+    assert seen["max_tokens"] == MANDATORY_REASONING_FLOOR_MAX_TOKENS
 
 
 def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(

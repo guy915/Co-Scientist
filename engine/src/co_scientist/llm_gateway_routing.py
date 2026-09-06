@@ -196,7 +196,7 @@ class GatewayModel:
             ``test_no_chain_head_claims_disable_support_a_fallback_lacks``.
             When False, a caller asking for disabled reasoning instead
             gets it enabled at the smallest effort this gateway exposes
-            (see ``llm_thinking._MINIMAL_REASONING_EFFORT``) -- never a
+            (see ``llm_gateway_body._MINIMAL_REASONING_EFFORT``) -- never a
             bare resend of the rejected request.
     """
 

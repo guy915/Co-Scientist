@@ -198,7 +198,7 @@ def _no_thinking_detail_text(model_name: str) -> str:
     cannot honour a disable (``GatewayModel.reasoning_can_disable`` is
     False) is redirected to the smallest reasoning tier the gateway
     exposes instead -- never the literal disable already known to 400 --
-    see ``llm_thinking._declared_gateway_body``. That redirect happens on
+    see ``llm_gateway_body._declared_gateway_body``. That redirect happens on
     every model in the deployed free chain, so the log has to name what
     reaches the wire, not what the rung is named for.
 
