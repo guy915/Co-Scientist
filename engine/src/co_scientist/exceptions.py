@@ -112,6 +112,45 @@ class LLMCallBudgetExceededError(CoScientistError):
         )
 
 
+# Raised by the retry loops (llm_json_retry/llm_text_retry, which share this
+# classification) when a 429 carries evidence of a platform-wide cap --
+# OpenRouter's free-model per-minute/per-day ceiling, not the ordinary
+# transient upstream-provider throttle the jittered backoff already
+# absorbs -- whose reset is too far away for that backoff to wait out. A
+# cap that resets in minutes or hours cannot be answered inside one call's
+# five-attempt, roughly-one-minute retry budget; spending it anyway only
+# fails the task and burns the durable retry budget along with it. Callers
+# that can park a unit of work until ``resume_at`` (a durable task queue,
+# in particular) should catch this instead of treating it as an ordinary
+# transient failure; a caller with nothing to park should let it fail.
+# Deliberately not a ValueError, for the same reason
+# LLMCallBudgetExceededError is not: a bare ValueError reaching the worker
+# boundary is treated as a transient hiccup with its retry budget intact,
+# and retrying against a cap that has not reset yet would only spend that
+# budget for nothing.
+class LLMRateLimitParkError(CoScientistError):
+    """A platform-wide rate-limit cap should park the task, not retry it."""
+
+    def __init__(self, resume_at: float, reason: str) -> None:
+        """Records when the cap resets and why this was classified as one.
+
+        Args:
+            resume_at: Epoch seconds when the platform cap is expected to
+                reset -- from a response header when one was usable,
+                otherwise a conservative default (see
+                ``llm_json_retry._platform_rate_limit_park``).
+            reason: Short machine-readable tag for what was matched (e.g.
+                ``"x_ratelimit_reset_header"``, ``"message_per_day"``),
+                carried through to the parked task's attempt history.
+        """
+        self.resume_at = resume_at
+        self.reason = reason
+        super().__init__(
+            f"platform rate limit hit ({reason}); resume at "
+            f"{resume_at:.0f} (epoch seconds)"
+        )
+
+
 # Raised when an MCP tool accepts a call and never returns. The LLM timeout
 # covers litellm.acompletion only, which left tool invocations unbounded: a
 # server whose stream broke mid-call parked the awaiting run forever, with no

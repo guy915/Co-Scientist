@@ -53,6 +53,9 @@ from app.store.tasks_lifecycle import (
     clamp_task_priority as clamp_task_priority,
 )
 from app.store.tasks_lifecycle import park_task as park_task
+from app.store.tasks_lifecycle import (
+    park_task_for_rate_limit as park_task_for_rate_limit,
+)
 from app.store.tasks_lifecycle import pause_run_tasks as pause_run_tasks
 from app.store.tasks_lifecycle import reprioritize_task as reprioritize_task
 from app.store.tasks_lifecycle import resume_run_tasks as resume_run_tasks
@@ -310,10 +313,20 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
     )
 
 
-def _queued_tasks_query(run_id: str | None) -> tuple[str, list[Any]]:
-    """Build the ready-task query ordered by priority then age."""
-    query = "SELECT * FROM scientific_tasks WHERE status='queued'"
-    params: list[Any] = []
+def _queued_tasks_query(
+    run_id: str | None, now: float
+) -> tuple[str, list[Any]]:
+    """Build the ready-task query ordered by priority then age.
+
+    Excludes a row parked with a future ``available_at`` (see
+    ``tasks_lifecycle.park_task_for_rate_limit``) -- it is ``queued`` so
+    the run reads as making progress, but not yet due.
+    """
+    query = (
+        "SELECT * FROM scientific_tasks WHERE status='queued'"
+        " AND (available_at IS NULL OR available_at<=?)"
+    )
+    params: list[Any] = [now]
     if run_id is not None:
         query += " AND run_id=?"
         params.append(run_id)
@@ -363,7 +376,7 @@ def claim_task(
         now = _now()
         # Expired leases become ready again unless their retry budget is spent.
         _rescue_expired_leases(conn, now)
-        query, params = _queued_tasks_query(run_id)
+        query, params = _queued_tasks_query(run_id, now)
         for row in conn.execute(query, params).fetchall():
             leased = _try_lease_task(
                 conn, _decode(row), worker_id, now, lease_seconds

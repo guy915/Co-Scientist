@@ -14,6 +14,8 @@ import json
 import sqlite3
 
 from app.store.db import _now, _use_conn, transaction
+from app.store.tasks_attempts import _record_failed_attempt
+from app.store.tasks_model import _decode
 from app.store.tasks_probes import _DEAD_LEASE
 
 
@@ -185,6 +187,68 @@ def park_task(
             "lease_owner=NULL, lease_expires_at=NULL, error=?, updated_at=? "
             "WHERE id=? AND lease_owner=? AND status='leased'",
             (reason, now, task_id, worker_id),
+        ).rowcount
+    return bool(changed)
+
+
+def park_task_for_rate_limit(
+    task_id: str,
+    worker_id: str,
+    reason: str,
+    resume_at: float,
+    *,
+    db_path: str | None = None,
+) -> bool:
+    """Return a leased task to the queue, not claimable before resume_at.
+
+    Distinct from :func:`park_task`: that function is the *held-for-a-
+    person* wait (a safety hold), which resets the attempt counter because
+    release is a fresh operator intent, and leaves the row ``paused`` until
+    someone explicitly calls :func:`resume_run_tasks`. This is the
+    *waiting-for-a-clock* case -- an ``LLMRateLimitParkError`` from a
+    platform-wide rate-limit cap -- so the row stays ``queued`` (the run
+    keeps reading as making progress, and the ordinary cohort poll picks it
+    back up on its own once ``available_at`` passes, needing no operator
+    action) and the attempt this claim spent is undone rather than reset,
+    since a park is not a retry and must not consume one -- undoing the
+    increment ``_try_lease_task`` made at claim leaves the count exactly
+    where it was before this attempt.
+
+    The park is also recorded in the bounded attempt history
+    (``retryable=True``) via the same builder ``fail_task`` uses, so
+    ``GET /api/runs/{id}/tasks`` shows why the task is waiting.
+
+    Args:
+        task_id: The leased task to park.
+        worker_id: Identity that must still own the lease.
+        reason: Human-readable reason recorded on the row and in its
+            attempt history.
+        resume_at: Epoch seconds before which the row must not be claimed.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True when this worker still owned the lease and parked the task.
+    """
+    now = _now()
+    with transaction(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
+            "AND lease_owner=?",
+            (task_id, worker_id),
+        ).fetchone()
+        if row is None:
+            return False
+        task = _decode(row)
+        attempts_json = _record_failed_attempt(
+            task, worker_id, reason, True, now
+        )
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='queued', "
+            "attempt=MAX(attempt-1, 0), lease_owner=NULL, "
+            "lease_expires_at=NULL, available_at=?, attempts_json=?, "
+            "error=?, updated_at=? WHERE id=? AND lease_owner=? "
+            "AND status='leased'",
+            (resume_at, attempts_json, reason, now, task_id, worker_id),
         ).rowcount
     return bool(changed)
 

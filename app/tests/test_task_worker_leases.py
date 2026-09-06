@@ -379,6 +379,6 @@ def test_idle_wait_does_not_decode_every_task(
 
     monkeypatch.setattr(store, "list_tasks", _counting_list)
 
-    claimable, active = store.cohort_poll(run.id, db_path=isolated_db)
+    claimable, active, _park = store.cohort_poll(run.id, db_path=isolated_db)
     assert claimable is True and active is False
     assert calls == 0

@@ -44,7 +44,10 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
-from co_scientist.exceptions import LLMCallBudgetExceededError
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
 from co_scientist.llm import call_llm_json
 from co_scientist.llm_json_lists import coerce_json_list
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
@@ -241,12 +244,20 @@ def _call_llm_entailment(
     engine seam exists to close (the ceiling could not see these calls
     before this module routed through it). It is left to propagate and
     terminate the run, like any other engine call over budget.
+
+    A platform-wide rate-limit cap is the same shape for the opposite
+    reason: falling back to the deterministic assessor here would answer
+    every claim for the rest of this task against a cap that has not
+    reset, silently downgrading a run's evidence grounding instead of
+    parking the task until the cap does reset (see
+    ``co_scientist.exceptions.LLMRateLimitParkError`` and
+    ``task_worker_outcomes._park_rate_limited_task``).
     """
     try:
         return run_coroutine_sync(
             lambda: _call_llm_entailment_async(model, claim, passages)
         )
-    except LLMCallBudgetExceededError:
+    except (LLMCallBudgetExceededError, LLMRateLimitParkError):
         raise
     except Exception as exc:
         logger.warning(

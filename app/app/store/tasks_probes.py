@@ -31,6 +31,14 @@ _EXPIRED_LEASE_RESCUABLE = (
     "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
 )
 
+# A queued row is only actually claimable once its not-before instant has
+# passed (see store.tasks_lifecycle.park_task_for_rate_limit); NULL is
+# every ordinarily-enqueued row, claimable immediately as it always was.
+# Binds one parameter: the current time.
+_QUEUED_AND_DUE = (
+    "status='queued' AND (available_at IS NULL OR available_at<=?)"
+)
+
 # The complement of the fragment above, and the reason it needs a name: an
 # expired lease whose retry budget is *spent* is claimable by nobody and
 # owned by nobody. The worker that took it is provably gone (the lease
@@ -64,8 +72,9 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     The claim itself re-checks everything under the write lock, so a race
     here only risks a wasted attempt, never a double lease.
     """
+    now = _now()
     query = (
-        "SELECT 1 FROM scientific_tasks WHERE status='queued'"
+        f"SELECT 1 FROM scientific_tasks WHERE {_QUEUED_AND_DUE}"
         " AND (? IS NULL OR run_id=?)"
         " UNION ALL "
         "SELECT 1 FROM scientific_tasks WHERE (? IS NULL OR run_id=?)"
@@ -74,7 +83,7 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     )
     with connect(db_path) as conn:
         row = conn.execute(
-            query, (run_id, run_id, run_id, run_id, _now())
+            query, (now, run_id, run_id, run_id, run_id, now)
         ).fetchone()
     return row is not None
 
@@ -215,14 +224,18 @@ def queue_health_snapshot(
     return _summarize_queue_rows(rows)
 
 
-def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
-    """One idle-tick snapshot for a cohort worker: (claimable, active lease).
+def cohort_poll(
+    run_id: str, db_path: str | None = None
+) -> tuple[bool, bool, float | None]:
+    """One idle-tick snapshot: (claimable, active lease, parked-until).
 
-    The cohort's idle loop needs both answers every tick -- "is there work
-    to claim" and "is a sibling still holding a lease that may fan out
-    more". Asking them separately opened two connections per tick per
-    worker, sustained for the whole wall clock of every run; one read-only
-    connection answers both from a single consistent snapshot.
+    The cohort's idle loop needs all three answers every tick -- "is there
+    work to claim", "is a sibling still holding a lease that may fan out
+    more", and "is the only remaining work a rate-limit park that will
+    become claimable later". Asking them separately opened extra
+    connections per tick per worker, sustained for the whole wall clock of
+    every run; one read-only connection answers all three from a single
+    consistent snapshot.
 
     A *dead* lease (see ``_DEAD_LEASE``) is excluded from the active
     answer. It is not a sibling that may fan out more work: its owner is
@@ -232,19 +245,37 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool]:
     ever claim -- the run neither progressed nor ended. Excluding it lets
     the cohort reach idle-exit, which is where ``abandon_dead_leases``
     settles the run.
+
+    A row parked by ``park_task_for_rate_limit`` is neither claimable (its
+    ``available_at`` is still in the future) nor an active lease (it was
+    released back to ``queued``), so without the third answer the cohort
+    reads it as no work at all and exits -- exactly the stranding this was
+    built to avoid. ``parked_until`` is the soonest such row's not-before
+    instant, so the idle loop knows how long it may safely sleep.
     """
     query = (
         "SELECT"
-        " EXISTS(SELECT 1 FROM scientific_tasks"
-        "        WHERE run_id=? AND status='queued')"
+        f" EXISTS(SELECT 1 FROM scientific_tasks"
+        f"        WHERE run_id=? AND {_QUEUED_AND_DUE})"
         " OR EXISTS(SELECT 1 FROM scientific_tasks WHERE run_id=?"
         f"        AND {_EXPIRED_LEASE_RESCUABLE}) AS claimable,"
         " EXISTS(SELECT 1 FROM scientific_tasks"
         "        WHERE run_id=? AND status='leased'"
         "        AND (lease_expires_at IS NULL OR lease_expires_at>?"
-        "             OR attempt<max_attempts)) AS active"
+        "             OR attempt<max_attempts)) AS active,"
+        " (SELECT MIN(available_at) FROM scientific_tasks"
+        "        WHERE run_id=? AND status='queued'"
+        "        AND available_at IS NOT NULL"
+        "        AND available_at>?) AS parked_until"
     )
     now = _now()
     with connect(db_path) as conn:
-        row = conn.execute(query, (run_id, run_id, now, run_id, now)).fetchone()
-    return bool(row["claimable"]), bool(row["active"])
+        row = conn.execute(
+            query, (run_id, now, run_id, now, run_id, now, run_id, now)
+        ).fetchone()
+    parked_until = row["parked_until"]
+    return (
+        bool(row["claimable"]),
+        bool(row["active"]),
+        float(parked_until) if parked_until is not None else None,
+    )

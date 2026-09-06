@@ -42,6 +42,12 @@ CREATE TABLE IF NOT EXISTS scientific_tasks (
     -- most recent renewal for exactly the slow failures this history
     -- exists to diagnose.
     attempt_started_at REAL,
+    -- Not-before instant (epoch seconds) for an otherwise-queued row.
+    -- NULL means claimable as soon as queued, which is every pre-existing
+    -- row and every ordinary enqueue; a platform rate-limit park (see
+    -- store.tasks_lifecycle.park_task_for_rate_limit) is the only writer
+    -- that sets it, to the provider's reported cap-reset instant.
+    available_at REAL,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     started_at REAL,

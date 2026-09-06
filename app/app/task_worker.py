@@ -90,6 +90,13 @@ class WorkerPolicy:
     lease_seconds: float = 300.0
 
 
+# Idle-tick sleep while the only remaining work is a rate-limit park (see
+# _cohort_worker_step): long enough that waiting out a multi-hour platform
+# cap does not mean a read every 50ms for hours, short enough that a park
+# becomes claimable within a bounded margin of its own not-before instant.
+_PARKED_POLL_SECONDS = 15.0
+
+
 async def _execute_task_payload(
     task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
@@ -259,7 +266,9 @@ async def _cohort_worker_step(
         Whether the worker should keep polling.
     """
     db_path = policy.db_path
-    claimable, active_lease = store.cohort_poll(run_id, db_path=db_path)
+    claimable, active_lease, parked_until = store.cohort_poll(
+        run_id, db_path=db_path
+    )
     if claimable and await run_once(
         worker_id,
         run_id=run_id,
@@ -269,6 +278,21 @@ async def _cohort_worker_step(
         return True
     if claimable or active_lease:
         await asyncio.sleep(policy.poll_seconds)
+        return True
+    if parked_until is not None:
+        # No claimable work and no live lease, but a rate-limit park (see
+        # store.tasks_lifecycle.park_task_for_rate_limit) is waiting out a
+        # platform cap that has not reset -- it is queued, not leased, so
+        # it shows up here rather than in `active_lease`. Exiting now would
+        # strand the run: startup recovery would relaunch a cohort that
+        # immediately sees the same not-yet-due row and exits again.
+        # Sleeping the ordinary poll cadence would poll a multi-hour cap at
+        # 20/s per worker for nothing, so this waits in longer bounded
+        # slices instead, capped so a park is never missed by more than a
+        # short margin once it comes due.
+        await asyncio.sleep(
+            min(_PARKED_POLL_SECONDS, max(0.0, parked_until - time.time()))
+        )
         return True
     return False
 

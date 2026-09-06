@@ -329,7 +329,7 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
         "the downstream row must be cancelled, or it is permanently "
         "queued and unclaimable"
     )
-    claimable, _ = store.cohort_poll(run.id, db_path=isolated_db)
+    claimable, _, _park = store.cohort_poll(run.id, db_path=isolated_db)
     assert not claimable, "nothing should read as claimable once settled"
 
     settled = store.get_run(run.id, db_path=isolated_db)

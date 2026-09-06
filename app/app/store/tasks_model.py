@@ -46,6 +46,9 @@ class ScientificTask:
     attempts: tuple[dict[str, Any], ...] = ()
     # When the current lease's attempt was claimed; see schema_tasks.py.
     attempt_started_at: float | None = None
+    # Not-before instant (epoch seconds) for an otherwise-queued row; see
+    # schema_tasks.py. NULL for every ordinarily-enqueued row.
+    available_at: float | None = None
 
 
 def _decode(row: sqlite3.Row) -> ScientificTask:
@@ -73,4 +76,5 @@ def _decode(row: sqlite3.Row) -> ScientificTask:
         completed_at=row["completed_at"],
         attempts=tuple(json.loads(row["attempts_json"])),
         attempt_started_at=row["attempt_started_at"],
+        available_at=row["available_at"],
     )

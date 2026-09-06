@@ -12,15 +12,33 @@ callers patch/import against) keeps resolving.
 from __future__ import annotations
 
 import logging
+import random
+from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 
-from co_scientist.exceptions import LLMCallBudgetExceededError
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
 
 from app import engine_tasks, store
 from app.engine_tasks_portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
 
 logger = logging.getLogger(__name__)
+
+# Mirrors store.events._stage_logger's own name, so a rate-limit park reads
+# in the Logs panel/`cosci logs` exactly like an ordinary run-stage line
+# (see store/events.py's module docstring) without going through the
+# run_events/SSE path -- there is nothing here a live viewer needs to see
+# mid-stream, only a durable record of why the task is waiting.
+_stage_logger = logging.getLogger("app.run_stage")
+
+# Spreads several tasks parked at the same platform-cap reset instant
+# across a few seconds of claim polling instead of all becoming due, and
+# racing to claim, in the same tick.
+_RATE_LIMIT_PARK_JITTER_SECONDS = 15.0
 
 
 class _LeaseLostError(RuntimeError):
@@ -72,6 +90,63 @@ def _park_held_task(
         logger.warning("Task %s lost its lease while held", task.id)
     else:
         logger.info("Task %s parked pending safety review", task.id)
+
+
+def _log_rate_limit_park(run_id: str, resume_at: float, reason: str) -> None:
+    """Mirror a rate-limit park into the app log as a run-stage record.
+
+    Imported lazily like ``store.events._log_stage``'s own helper does,
+    for the same reason: ``app.logging_setup`` imports ``app.store``, so a
+    module-level import back the other way would cycle.
+    """
+    from app.logging_setup import run_log_context
+
+    parked_until = datetime.fromtimestamp(
+        resume_at, tz=timezone.utc
+    ).isoformat()
+    with run_log_context(run_id):
+        _stage_logger.info(
+            "rate_limit parked_until=%s reason=%s",
+            parked_until,
+            reason,
+            extra={"run_id": run_id},
+        )
+
+
+def _park_rate_limited_task(
+    task: ScientificTask,
+    worker_id: str,
+    exc: LLMRateLimitParkError,
+    db_path: str | None,
+) -> None:
+    """Return a task to the queue until a platform rate-limit cap resets.
+
+    Neither a failure nor a retry. Not a failure: nothing this worker can
+    do makes the cap reset sooner, so the wait must not spend the retry
+    budget -- the same reasoning ``_park_held_task`` applies to a safety
+    hold, except this one resumes on its own once the clock passes rather
+    than waiting on a person. Not a retry either: the call that raised
+    this already counted itself against ``record_provider_request`` when
+    it made its one doomed attempt, and parking makes no further call, so
+    nothing here double-counts it.
+    """
+    resume_at = exc.resume_at + random.uniform(
+        0, _RATE_LIMIT_PARK_JITTER_SECONDS
+    )
+    if not store.park_task_for_rate_limit(
+        task.id, worker_id, str(exc), resume_at, db_path=db_path
+    ):
+        logger.warning(
+            "Task %s lost its lease while rate-limit parked", task.id
+        )
+        return
+    _log_rate_limit_park(task.run_id, resume_at, exc.reason)
+    logger.info(
+        "Task %s parked for a platform rate-limit cap (%s) until %.0f",
+        task.id,
+        exc.reason,
+        resume_at,
+    )
 
 
 def _is_terminal_failure(task: ScientificTask, *, retryable: bool) -> bool:
@@ -167,6 +242,21 @@ def _fail_retryable_task(
     logger.exception("Task %s failed", task.id)
 
 
+# Ordered exactly like the except-clause chain this replaced: the first
+# matching type wins, and an exception matching none of them falls through
+# to the retryable default below. A table rather than an if/elif chain
+# keeps this dispatch's own complexity flat as failure kinds are added --
+# the classification lives in the table, not in a growing branch count.
+_FailureHandler = Callable[[ScientificTask, str, Any, "str | None"], None]
+_FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler], ...] = (
+    (engine_tasks.SupersededTaskError, _complete_superseded_task),
+    (engine_tasks.SafetyHoldError, _park_held_task),
+    (LLMRateLimitParkError, _park_rate_limited_task),
+    (UnsupportedTaskError, _fail_unsupported_task),
+    (LLMCallBudgetExceededError, _fail_llm_budget_exceeded_task),
+)
+
+
 def _handle_task_failure(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
@@ -174,20 +264,16 @@ def _handle_task_failure(
 
     Preserves the original except-clause priority exactly: a superseded
     checkpoint is a successful idempotent outcome, a safety hold is a
-    durable wait, an unsupported task type or an exceeded LLM-call
-    ceiling are the two permanent failures, and everything else keeps its
-    retry budget.
+    durable wait for a person, a platform rate-limit cap is a durable wait
+    for a clock, an unsupported task type or an exceeded LLM-call ceiling
+    are the two permanent failures, and everything else keeps its retry
+    budget.
     """
-    if isinstance(exc, engine_tasks.SupersededTaskError):
-        _complete_superseded_task(task, worker_id, exc, db_path)
-    elif isinstance(exc, engine_tasks.SafetyHoldError):
-        _park_held_task(task, worker_id, exc, db_path)
-    elif isinstance(exc, UnsupportedTaskError):
-        _fail_unsupported_task(task, worker_id, exc, db_path)
-    elif isinstance(exc, LLMCallBudgetExceededError):
-        _fail_llm_budget_exceeded_task(task, worker_id, exc, db_path)
-    else:
-        _fail_retryable_task(task, worker_id, exc, db_path)
+    for exc_type, handler in _FAILURE_HANDLERS:
+        if isinstance(exc, exc_type):
+            handler(task, worker_id, exc, db_path)
+            return
+    _fail_retryable_task(task, worker_id, exc, db_path)
 
 
 def _record_success(

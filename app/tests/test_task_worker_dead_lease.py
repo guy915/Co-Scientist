@@ -124,7 +124,7 @@ def test_cohort_poll_reports_a_dead_lease_as_inactive(
         isolated_db, expires_at=time.time() - 3600, spend_budget=True
     )
 
-    claimable, active = store.cohort_poll(run_id, db_path=isolated_db)
+    claimable, active, _ = store.cohort_poll(run_id, db_path=isolated_db)
 
     assert not claimable, "a spent-budget lease is claimable by nobody"
     assert not active, "nor is anyone still working on it"
@@ -138,7 +138,7 @@ def test_cohort_poll_still_reports_a_live_lease_as_active(
         isolated_db, expires_at=time.time() + 3600, spend_budget=True
     )
 
-    _, active = store.cohort_poll(run_id, db_path=isolated_db)
+    _, active, _park = store.cohort_poll(run_id, db_path=isolated_db)
 
     assert active
 

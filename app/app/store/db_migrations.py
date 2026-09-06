@@ -333,6 +333,16 @@ def _migrate_evidence_retraction_column(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "evidence", "retracted", "INTEGER")
 
 
+def _migrate_task_available_at(conn: sqlite3.Connection) -> None:
+    """Add the not-before scheduling column to scientific_tasks.
+
+    NULL leaves every pre-existing row claimable as soon as it is queued,
+    exactly as it always was; only a platform rate-limit park (see
+    ``store.tasks_lifecycle.park_task_for_rate_limit``) ever sets it.
+    """
+    _add_column_if_missing(conn, "scientific_tasks", "available_at", "REAL")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -351,3 +361,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_hypothesis_safety_toxicity_column(conn)
     _migrate_review_detail_column(conn)
     _migrate_evidence_retraction_column(conn)
+    _migrate_task_available_at(conn)
