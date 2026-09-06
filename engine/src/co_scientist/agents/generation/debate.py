@@ -191,7 +191,6 @@ def _build_debate_turn_prompt(
     return get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal=state["research_goal"],
-            hypotheses_count=ctx.count,
             transcript=transcript,
             preferences=ctx.preferences,
             attributes=ctx.attributes,

@@ -440,6 +440,10 @@ async def test_followup_turns_carry_the_envelope_guidance(
 
     # The first turn carries no prior context; every follow-up does.
     assert "Prior Debate Turns" not in prompts[0]
+    # ...but turn 1 does see ranking-05's own debate procedure, which
+    # before the template split reached the judge on no turn at all.
+    assert "Debate procedure:" in prompts[0]
+    assert "Turn 1: begin with a concise summary" in prompts[0]
     guidance = (
         f"typically settles in {TYPICAL_MIN}-{TYPICAL_MAX} turns and "
         f"never runs past {MAX_TURNS}"
@@ -488,8 +492,6 @@ def test_followup_turns_pose_clarifying_questions() -> None:
     this assertion unnoticed.
     """
     instruction = _published_subsequent_turns_first_bullet()
-    appended = _append_debate_context(
-        "base prompt",
-        [{"turn": 1, "winner_id": "h1", "reasoning": "some reasoning"}],
-    )
+    entry: dict[str, Any] = {"turn": 1, "winner": "a", "reasoning": "r"}
+    appended = _append_debate_context("base prompt", [entry])
     assert instruction in appended

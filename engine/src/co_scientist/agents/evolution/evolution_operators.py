@@ -13,15 +13,22 @@ feasibility-improvement prompt (SI Note 9.4), and folding it into
 enhancement left enhancement doing two jobs while the paper's grounding
 strategy (live retrieval, see ``evolve_grounding``) went unrepresented.
 
-MP-8 (docs/CORPUS-EXTRACTION.md): the operator whose content structurally
-matches published A.7 ("out-of-the-box thinking" -- generate one
-hypothesis by analogy from supplied partner concepts, adapted rather than
-replicated) is INSPIRATION, not OUT_OF_BOX below. OUT_OF_BOX takes no
-partner hypotheses and is a clone-authored divergent-mechanism strategy
-with no published counterpart. Left as a naming/documentation mismatch,
-not renamed: EvolutionOperator.OUT_OF_BOX is a persisted value (lineage
-records, telemetry), so renaming it is a data-migration decision for the
-owner, not a prompt-content fix.
+MP-8 (docs/CORPUS-EXTRACTION.md) recorded A.7's name and A.7's content
+attached to different operators: OUT_OF_BOX carried the published name
+but received no partner concepts, while INSPIRATION carried the content
+(one hypothesis by analogy from supplied concepts, adapted rather than
+replicated). Resolved by moving the content to the name rather than
+renaming anything: OUT_OF_BOX now receives the partner concepts and
+renders published A.7 (``evolution_out_of_box.md``), and INSPIRATION
+keeps the paper's separately disclosed "inspiration from existing
+hypotheses" strategy on ``evolution.md``. Every persisted operator value
+(lineage records, telemetry) stays valid, so this is not a migration.
+
+Two operators therefore render a *whole* published prompt rather than an
+instruction appended to ``evolution.md``: COHERENCE_FEASIBILITY (A.6) and
+OUT_OF_BOX (A.7). Their brief is the published prompt's own role sentence
+and guidelines, so they carry a template in ``_TEMPLATES`` instead of an
+entry in ``_INSTRUCTIONS``; every other operator is the reverse.
 """
 
 from __future__ import annotations
@@ -49,12 +56,6 @@ _INSTRUCTIONS = {
         "targeted literature supplied for this refinement, while retaining "
         "the scientifically valuable premise."
     ),
-    EvolutionOperator.COHERENCE_FEASIBILITY: (
-        "Improve coherence, practicality, and feasibility: rectify invalid "
-        "initial assumptions, tighten the internal logic, and refine the "
-        "proposal so it is implementable with contemporary technological "
-        "capabilities, retaining its novelty and specific articulation."
-    ),
     EvolutionOperator.INSPIRATION: (
         "Evolve the idea by borrowing the mechanism or structure of one of "
         "the existing top-ranked approaches supplied as partners into this "
@@ -75,17 +76,30 @@ _INSTRUCTIONS = {
         "different biological system or scientific domain, state the mapping, "
         "and identify where the analogy could fail."
     ),
-    EvolutionOperator.OUT_OF_BOX: (
-        "Deliberately depart from the parent's core approach to explore a "
-        "high-value alternative that addresses the same research goal. "
-        "Preserve lineage, but do not preserve the parent mechanism by default."
-    ),
+}
+
+# The two operators Google published a whole prompt for, mapped to the
+# template that carries it. Every other operator renders "evolution.md"
+# with its _INSTRUCTIONS entry appended as the required-operator section.
+_TEMPLATES = {
+    EvolutionOperator.COHERENCE_FEASIBILITY: "evolution_feasibility",
+    EvolutionOperator.OUT_OF_BOX: "evolution_out_of_box",
 }
 
 
 def operator_instruction(operator: EvolutionOperator) -> str:
-    """Return the behavioral instruction for one evolution operator."""
+    """Return the behavioral instruction for one evolution operator.
+
+    Raises:
+        KeyError: For an operator whose brief is a published template
+            rather than an appended instruction (see ``_TEMPLATES``).
+    """
     return _INSTRUCTIONS[operator]
+
+
+def operator_template(operator: EvolutionOperator) -> str:
+    """Return the prompt template one operator renders through."""
+    return _TEMPLATES.get(operator, "evolution")
 
 
 def select_operators(

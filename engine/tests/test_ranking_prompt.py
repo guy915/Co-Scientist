@@ -18,9 +18,15 @@ through this module); the local names here stay in place because
 """
 
 import logging
+import pathlib
 
 import pytest
 
+from co_scientist.agents.ranking.ranking_debate_turns import (
+    _RANKING_DEBATE_MAX_TURNS,
+    _RANKING_DEBATE_TYPICAL_MAX_TURNS,
+    _RANKING_DEBATE_TYPICAL_MIN_TURNS,
+)
 from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt,
     _deep_verification_summary,
@@ -231,6 +237,11 @@ def _matchup_context() -> _MatchupPromptContext:
     return _MatchupPromptContext(research_goal="test goal")
 
 
+def _debate_matchup_context() -> _MatchupPromptContext:
+    """The same context for a top-ranked, multi-turn (ranking-05) matchup."""
+    return _MatchupPromptContext(research_goal="test goal", debate=True)
+
+
 def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
     """A fatal full/simulation result reaches the judge's prompt (E1).
 
@@ -255,13 +266,13 @@ def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
         hypothesis_a, hypothesis_b, _matchup_context()
     )
 
-    assert "Hypothesis A Mature Review Findings" in prompt
+    assert "Hypothesis 1 Mature Review Findings" in prompt
     assert "Full review verdict: rejected" in prompt
     assert "the proposed pathway is circular" in prompt
     assert "Simulation review verdict: breaks_down" in prompt
     assert "ligand binding never occurs" in prompt
     # Side B has no mature reviews: no block, and no retrieval internals.
-    assert "Hypothesis B Mature Review Findings" not in prompt
+    assert "Hypothesis 2 Mature Review Findings" not in prompt
     assert "never shown to a judge" not in prompt
 
 
@@ -283,16 +294,31 @@ def test_matchup_prompt_frames_the_judge_as_a_panel() -> None:
     """The published ranking-05 "panel of domain experts" framing renders.
 
     Google's ranking-05 opens "simulating a panel of domain experts
-    engaged in a structured discussion" (docs/CORPUS-EXTRACTION.md:1210).
+    engaged in a structured discussion" (docs/CORPUS-EXTRACTION.md:1210)
+    -- and that is ranking-05's opening, not ranking-04's. It belongs to
+    the multi-turn debate prompt only; a single-shot comparison renders
+    ranking-04, which names one expert evaluator.
     """
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _debate_matchup_context(),
+    )
+
+    assert "panel of domain experts" in prompt
+    assert "structured discussion" in prompt
+
+
+def test_single_shot_matchup_renders_the_published_single_evaluator() -> None:
+    """A lower-ranked comparison gets ranking-04's own role, not A.5's."""
     prompt, _, _, _ = _build_matchup_prompt(
         make_hypothesis(text="idea A"),
         make_hypothesis(text="idea B"),
         _matchup_context(),
     )
 
-    assert "panel of domain experts" in prompt
-    assert "structured discussion" in prompt
+    assert "You are an expert evaluator tasked with comparing two" in prompt
+    assert "panel of domain experts" not in prompt
 
 
 def test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction() -> (
@@ -308,8 +334,47 @@ def test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction() -> (
     prompt, _, _, _ = _build_matchup_prompt(
         make_hypothesis(text="idea A"),
         make_hypothesis(text="idea B"),
-        _matchup_context(),
+        _debate_matchup_context(),
     )
 
     assert "Make a clear decision" in prompt
     assert '"better idea: 1"' in prompt and '"better idea: 2"' in prompt
+    # Every turn answers, turn 1 included: the published prompt defers
+    # its judgment to termination, but each of our turns is its own call.
+    assert "answer every turn - turn 1 included" in prompt
+
+
+# --- the debate template's own turn envelope ----------------------------
+
+_TEMPLATES = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "co_scientist"
+    / "prompts"
+    / "templates"
+)
+
+
+def test_debate_template_states_the_envelope_the_loop_enforces() -> None:
+    """ranking_debate.md prints the turn envelope the judge loop applies.
+
+    Published ranking-05 carries the numbers as literals, so they are
+    literals in the template; this is what keeps them from drifting from
+    the constants ``_ranking_debate_consensus`` and
+    ``_matchup_debate_turns`` actually enforce. The panel paces itself
+    against whatever number it is told, so a stale figure reads as a real
+    instruction.
+    """
+    template = (_TEMPLATES / "ranking_debate.md").read_text(encoding="utf-8")
+
+    assert (
+        "typically ranging from"
+        f" {_RANKING_DEBATE_TYPICAL_MIN_TURNS} to"
+        f" {_RANKING_DEBATE_TYPICAL_MAX_TURNS}, with a maximum of"
+        f" {_RANKING_DEBATE_MAX_TURNS}." in template
+    )
+    assert (
+        f"(typically {_RANKING_DEBATE_TYPICAL_MIN_TURNS}"
+        f"-{_RANKING_DEBATE_TYPICAL_MAX_TURNS} turns, up to"
+        f" {_RANKING_DEBATE_MAX_TURNS} turns)" in template
+    )

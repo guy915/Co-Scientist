@@ -75,8 +75,16 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "full_review": FULL_REVIEW_SCHEMA,
     "simulation_review": SIMULATION_REVIEW_SCHEMA,
     "evolution": EVOLUTION_SCHEMA,
+    # The two evolution operators that render a published prompt of their
+    # own (A.6 feasibility improvement, A.7 out-of-the-box thinking)
+    # return the same refined-hypothesis object as evolution.md.
+    "evolution_feasibility": EVOLUTION_SCHEMA,
+    "evolution_out_of_box": EVOLUTION_SCHEMA,
     "meta_review": META_REVIEW_SCHEMA,
-    "ranking": RANKING_SCHEMA,
+    # The two published ranking prompts (A.4 single-shot, A.5 simulated
+    # debate) answer against one judgment schema.
+    "ranking_pairwise": RANKING_SCHEMA,
+    "ranking_debate": RANKING_SCHEMA,
     "proximity": PROXIMITY_SCHEMA,
     "reflection_observations": REFLECTION_SCHEMA,
     "deep_verification": DEEP_VERIFICATION_SCHEMA,

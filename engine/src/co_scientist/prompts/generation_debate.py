@@ -116,9 +116,15 @@ _DEBATE_FINAL_TURN_INSTRUCTIONS = """
 ## FINAL TURN - OUTPUT FORMAT
 
 This is the final turn of the debate. Based on the discussion above, output \
-your finalized hypothesis in JSON format with all four required components. \
-Write as a domain expert in the field of the research goal; do not force an \
-engineering or product framing, and do not impose an artificial length limit.
+your finalized hypothesis in JSON format with every required field of the \
+schema. Write as a domain expert in the field of the research goal; do not \
+force an engineering or product framing, and do not impose an artificial \
+length limit.
+
+The termination condition above is satisfied on this turn by the JSON below: \
+the self-contained exposition of the finalized idea is the `hypothesis` \
+field's value. Do not write the bare "HYPOTHESIS" token, or any other text, \
+outside the JSON object.
 
 ### 1. hypothesis (required)
 State the proposed mechanistic claim or relationship and the specific, \
@@ -235,7 +241,6 @@ class DebatePromptRequest:
 
     Attributes:
         research_goal: The run's research goal.
-        hypotheses_count: How many hypotheses the debate must produce.
         transcript: The debate transcript accumulated so far.
         preferences: Free-text user preferences, if any.
         attributes: Desired hypothesis attributes, as text or a list.
@@ -253,7 +258,6 @@ class DebatePromptRequest:
     """
 
     research_goal: str
-    hypotheses_count: int
     transcript: str
     preferences: str | None = None
     attributes: str | list[str] | None = None
@@ -339,9 +343,8 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     instructions fall back to the default task instruction -- neither may
     render as a {{MISSING:...}} sentinel.
     """
-    variables = {
+    variables: dict[str, Any] = {
         "goal": req.research_goal,
-        "hypotheses_count": req.hypotheses_count,
         "transcript": req.transcript or "",
         "preferences": req.preferences
         or "Novel, testable, scientifically sound, specific, and diverse"
@@ -357,26 +360,44 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     return variables
 
 
+def _format_reviews_overview(meta_review: dict[str, Any] | None) -> str:
+    """Fill the published ``{reviews_overview}`` slot of A.2.
+
+    The published debate prompt hands the panel an overview of the reviews
+    of the ideas it is refining. Our equivalent is the meta-review
+    synthesis of the previous cycle's reviews, so the published slot is
+    wired to it rather than left empty. The block keeps the shared
+    formatter's own wording and header, which every other consumer of the
+    meta-review also renders; only the empty case is answered here, so
+    iteration 1 -- which has no reviews yet -- says so rather than leaving
+    the published label standing over nothing.
+    """
+    return _format_meta_review_context(meta_review).strip() or (
+        "No reviews are available yet; this is the first generation cycle"
+        " of the run."
+    )
+
+
 def _build_debate_guidance_variables(
     context: PromptRunContext,
 ) -> dict[str, Any]:
     """Build the guidance/context/domain variables for the debate prompt.
 
-    Covers supervisor guidance, cross-iteration meta-review context (blank
-    on iteration 1), run setup/focus guidance, and the domain-specific
-    prompt customizations from the tool registry.
+    Covers supervisor guidance, the published reviews-overview slot fed
+    from the cross-iteration meta-review, run setup/focus guidance, and
+    the domain-specific prompt customizations from the tool registry.
 
     Args:
         context: Run-scoped prompt context for this debate turn.
 
     Returns:
-        Dict of the guidance, meta-review, and domain template variables.
+        Dict of the guidance, reviews-overview, and domain variables.
     """
     variables: dict[str, Any] = {
         "supervisor_guidance": _format_supervisor_guidance_for_debate(
             context.supervisor_guidance
         ),
-        "meta_review_context": _format_meta_review_context(context.meta_review),
+        "reviews_overview": _format_reviews_overview(context.meta_review),
         "run_guidance": _run_guidance_section(context),
     }
     variables.update(_get_domain_variables(context.tool_registry))

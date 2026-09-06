@@ -148,11 +148,11 @@ def _make_top_k_builder(
     """Map a prompt to a response by matching the primary-slot original."""
 
     def builder(prompt: str) -> dict[str, Any]:
-        # Match the primary slot, not the truncated "other hypotheses" context
-        # block where every sibling original also appears.
+        # Match the primary slot (A.6 names it "Original Conceptualization"),
+        # not the truncated block where every sibling original also appears.
         for original, evolved in evolved_by_original.items():
-            anchor = f"**Original Hypothesis:**\n{original}"
-            if anchor in prompt:
+            slots = ("**Original Hypothesis:**", "Original Conceptualization:")
+            if any(f"{slot}\n{original}" in prompt for slot in slots):
                 return {
                     "hypothesis": evolved,
                     "refinement_summary": f"refined: {evolved}",

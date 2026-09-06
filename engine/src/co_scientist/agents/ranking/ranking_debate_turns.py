@@ -147,8 +147,21 @@ def _balanced_invalid_fallback(
     return "a" if chosen_id == hypothesis_a.id else "b"
 
 
+def _presented_number(entry: dict[str, Any], swapped: bool) -> str:
+    """Name a past turn's winner by the number *this* turn presents it as.
+
+    ``_run_debate_turn`` records ``winner`` as the canonical, un-swapped
+    side and ``winner_id`` as the Hypothesis UUID. The prompt labels its
+    two sides "Hypothesis 1" and "Hypothesis 2" and nothing else, so a
+    UUID names a side the judge cannot locate, and the canonical letter
+    points at the wrong one whenever this turn swapped the presentation
+    order (``_execute_debate_turn`` alternates it every turn).
+    """
+    return "1" if (entry["winner"] == "a") != swapped else "2"
+
+
 def _append_debate_context(
-    prompt: str, transcript: list[dict[str, Any]]
+    prompt: str, transcript: list[dict[str, Any]], *, swapped: bool = False
 ) -> str:
     """Append prior debate turns to the judge prompt for a follow-up turn.
 
@@ -158,11 +171,15 @@ def _append_debate_context(
     figures are single-sourced from the envelope constants the judge loop
     enforces (see the module comment above).
 
-    Mirrors ranking-05's "Subsequent turns:" guidance verbatim on its own
-    first bullet -- "Pose clarifying questions to address any ambiguities
-    or uncertainties" (docs/CORPUS-EXTRACTION.md:1244, corpus R8-4,
-    docs/CORPUS-STATUS.md) -- placed here because only a follow-up turn has
-    a prior exchange to question; turn 1 renders no debate context at all.
+    ``templates/ranking_debate.md`` carries ranking-05's whole debate
+    procedure, on every turn; what only a follow-up turn can carry is the
+    prior exchange, which is why this block exists. It repeats
+    ranking-05's "Subsequent turns:" first bullet verbatim -- "Pose
+    clarifying questions to address any ambiguities or uncertainties"
+    (docs/CORPUS-EXTRACTION.md:1244, corpus R8-4, docs/CORPUS-STATUS.md)
+    -- and restates the turn envelope, because a turn reading a
+    transcript needs both aimed at that transcript; turn 1 renders no
+    debate context at all.
     The judge still answers every turn against the same schema (``winner``
     plus a ``decision_summary`` ending in the literal verdict line), so
     this widens what the judge may weigh in that answer without inviting
@@ -172,7 +189,7 @@ def _append_debate_context(
     for entry in transcript:
         lines.append(
             f"- Turn {entry['turn']} favored hypothesis "
-            f"{entry['winner_id']}: "
+            f"{_presented_number(entry, swapped)}: "
             f"{entry['reasoning']}\n"
         )
     lines.append(
@@ -208,6 +225,10 @@ class _DebateContext(NamedTuple):
     matchup_index: int | None = None
     criteria: list[str] | None = None
     preferences: str | None = None
+    # Set by ``judge_matchup`` once the turn budget is known: a
+    # multi-turn matchup renders published ranking-05's debate prompt,
+    # a single-turn one published ranking-04's.
+    debate: bool = False
 
 
 def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
@@ -221,6 +242,7 @@ def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
         run_focus_guidance=ctx.run_focus_guidance,
         criteria=ctx.criteria,
         preferences=ctx.preferences,
+        debate=ctx.debate,
     )
 
 
@@ -262,7 +284,9 @@ def _build_turn_prompt(
     if turn > 0:
         turn_prompt = dataclasses.replace(
             turn_prompt,
-            prompt=_append_debate_context(turn_prompt.prompt, transcript),
+            prompt=_append_debate_context(
+                turn_prompt.prompt, transcript, swapped=swapped
+            ),
         )
     return turn_prompt
 

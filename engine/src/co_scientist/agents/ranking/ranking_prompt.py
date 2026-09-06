@@ -33,6 +33,10 @@ class _MatchupPromptContext:
     run_focus_guidance: str | None = None
     criteria: list[str] | None = None
     preferences: str | None = None
+    # Which published prompt this matchup renders: ranking-05's
+    # simulated scientific debate for a top-ranked multi-turn matchup,
+    # ranking-04's single-shot comparison otherwise.
+    debate: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -239,8 +243,9 @@ def _render_matchup_prompt(
             run_setup_guidance=context.run_setup_guidance,
             run_focus_guidance=context.run_focus_guidance,
             preferences=context.preferences,
+            criteria=context.criteria,
         ),
-        criteria=context.criteria,
+        debate=context.debate,
     )
 
 

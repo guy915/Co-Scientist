@@ -19,6 +19,17 @@ from co_scientist.prompts._common import (
 from co_scientist.prompts.generation_formatting import format_preferences
 from co_scientist.prompts.loading import _build_prompt
 
+# Published meta-review-08 renders "Additional instructions:" over
+# {instructions} unconditionally, and the node that calls this builder
+# has nothing to put there -- so the label shipped over an empty line in
+# every real run while the fidelity fixture, which passes instructions by
+# hand, showed it filled. A truthful "none" line keeps the published
+# label from standing over nothing, the way _NO_NOTES does for ranking's
+# published {notes} slot and _DEFAULT_DEBATE_INSTRUCTIONS for A.2's.
+_NO_META_REVIEW_INSTRUCTIONS = (
+    "No additional instructions were supplied for this synthesis."
+)
+
 
 # Renders prompts/meta_review.md for
 # agents/meta_review/meta_review.py; all_reviews is
@@ -36,7 +47,8 @@ def get_meta_review_prompt(
     Args:
         research_goal: The run's research goal.
         all_reviews: JSON dump of every review collected so far.
-        instructions: Optional extra synthesis instructions.
+        instructions: Optional extra synthesis instructions; falls back to
+            a "none supplied" line so the published label is never blank.
         preferences: The scientist's stated preferences, if any (published
             meta-review-08's "Preferences: {preferences}"); defaults the
             same way Generation's prompts do (format_preferences).
@@ -52,7 +64,7 @@ def get_meta_review_prompt(
         {
             "research_goal": research_goal,
             "all_reviews": all_reviews,
-            "instructions": instructions or "",
+            "instructions": instructions or _NO_META_REVIEW_INSTRUCTIONS,
             "preferences": format_preferences(preferences),
         },
         sections=PromptSections(

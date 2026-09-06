@@ -84,10 +84,17 @@ logger = logging.getLogger(__name__)
 # no specialist feedback, used when a caller does not specify one.
 _DEFAULT_EVOLUTION_OPERATION = _EvolutionOperation()
 
-# Operators whose brief draws on designated top-ranked partners: combination
-# merges them, inspiration borrows from them.
+# Operators whose brief draws on designated top-ranked partners:
+# combination merges them, inspiration borrows from them, and out-of-box
+# reasons by analogy from them (published A.7's {hypotheses} input -- see
+# evolution_operators.py's MP-8 note; without partners that prompt's
+# central input renders empty).
 _PARTNER_OPERATORS = frozenset(
-    {EvolutionOperator.COMBINATION, EvolutionOperator.INSPIRATION}
+    {
+        EvolutionOperator.COMBINATION,
+        EvolutionOperator.INSPIRATION,
+        EvolutionOperator.OUT_OF_BOX,
+    }
 )
 
 

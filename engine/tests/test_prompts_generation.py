@@ -51,7 +51,6 @@ def test_debate_generation_non_final_turn_has_no_schema() -> None:
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
-            hypotheses_count=3,
             transcript="Expert 1: ... Expert 2: ...",
             is_final_turn=False,
         )
@@ -68,7 +67,6 @@ def test_debate_generation_final_turn_appends_json_block_and_schema() -> None:
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
-            hypotheses_count=1,
             transcript="prior discussion",
             is_final_turn=True,
         )

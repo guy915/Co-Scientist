@@ -390,7 +390,7 @@ def test_ranking_prompt_interpolates_both_hypotheses() -> None:
 
 
 def test_ranking_prompt_review_scores_branch() -> None:
-    """Providing review scores adds a review-scores context section."""
+    """Review scores render inside that side's own published review slot."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(
@@ -398,7 +398,7 @@ def test_ranking_prompt_review_scores_branch() -> None:
         ),
         side_b=RankingSide(text="b", review={"overall_score": 6.0}),
     )
-    assert "Review Scores Context" in prompt
+    assert "Review of hypothesis 1:\nReview scores:" in prompt
     assert "8.5" in prompt
     assert "novelty" in prompt
 
@@ -453,12 +453,12 @@ def test_ranking_prompt_renders_mature_review_findings() -> None:
         ),
         side_b=RankingSide(text="b"),
     )
-    assert "Hypothesis A Mature Review Findings" in prompt
+    assert "Hypothesis 1 Mature Review Findings" in prompt
     assert "Full review verdict: rejected" in prompt
     assert "circular pathway" in prompt
     assert "Simulation review verdict: breaks_down" in prompt
     assert "Decisive step: binding fails" in prompt
-    assert "Hypothesis B Mature Review Findings" not in prompt
+    assert "Hypothesis 2 Mature Review Findings" not in prompt
     assert "{{MISSING" not in prompt
 
 

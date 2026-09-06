@@ -162,11 +162,12 @@ def test_ranking_debate_verdict_matches_published_exemplar() -> None:
     token the parser reads back as the match result.
     """
     template = (
-        Path(co_scientist.__file__).parent / "prompts/templates/ranking.md"
+        Path(co_scientist.__file__).parent
+        / "prompts/templates/ranking_debate.md"
     ).read_text(encoding="utf-8")
     assert "better idea:" in template.lower()
 
-    schema = get_schema_for_prompt("ranking")
+    schema = get_schema_for_prompt("ranking_debate")
     assert schema is not None
     assert "decision_summary" in schema["schema"]["properties"]
 

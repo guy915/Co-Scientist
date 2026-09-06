@@ -33,6 +33,20 @@ _ARTIFACTS = (
 )
 
 
+def corpus_available() -> bool:
+    """True when the reference corpus is checked out beside the engine.
+
+    Callers that read the corpus at *collection* time need this: a
+    ``pytest.skip`` raised while a parametrization is being built is a
+    collection error, not a skip, so the engine-alone checkout this
+    module exists to tolerate would go red instead of quiet.
+
+    Returns:
+        Whether the ``references/`` tree is present.
+    """
+    return _REFERENCES.is_dir()
+
+
 def _require(path: Path) -> Path:
     """Return a published artifact, skipping only outside the repo.
 
@@ -70,4 +84,17 @@ def published_pseudocode(name: str) -> str:
         The file's text, header comment included.
     """
     path = _require(_ARTIFACTS / "pseudocode" / f"{name}.md")
+    return path.read_text(encoding="utf-8")
+
+
+def published_prompt(name: str) -> str:
+    """Return one of the eight prompts the papers publish in full.
+
+    Args:
+        name: The file's stem, e.g. ``ranking-04-pairwise-comparison``.
+
+    Returns:
+        The file's text, header comment included.
+    """
+    path = _require(_ARTIFACTS / "prompts" / f"{name}.md")
     return path.read_text(encoding="utf-8")

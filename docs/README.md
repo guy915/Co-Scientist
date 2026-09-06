@@ -25,7 +25,7 @@ but do not update them to match later changes.
 | Entry | Contents |
 |---|---|
 | [PARITY-VERIFICATION.md](PARITY-VERIFICATION.md) | Point-in-time record (2026-07-10) of how parity claims were verified: commands, results, and honest limitations. The live ledger is [PARITY.md](PARITY.md) |
-| [PROMPT-PRESERVATION.md](PROMPT-PRESERVATION.md) | Point-in-time record (2026-09-01) auditing each of the eight published prompts (`docs/CORPUS-EXTRACTION.md` Appendix A) instruction-by-instruction against its corresponding template, beyond the `MP-*` checklist's spot findings |
+| [PROMPT-PRESERVATION.md](PROMPT-PRESERVATION.md) | Record (2026-09-01, rows updated 2026-09-06) auditing each of the eight published prompts (`docs/CORPUS-EXTRACTION.md` Appendix A) instruction-by-instruction against its corresponding template, beyond the `MP-*` checklist's spot findings. All eight now render verbatim and in published order; the live per-template provenance is `engine/src/co_scientist/prompts/templates/README.md` and the standing check is `engine/tests/test_published_prompt_fidelity.py` |
 | [CORPUS-STATUS.md](CORPUS-STATUS.md) | Point-in-time record (2026-09-02) re-classifying every `work`/`unclear` row in `docs/CORPUS-EXTRACTION.md` as BUILT/OPEN/DECISION/FALSE, checked against the code and git history rather than the table |
 | `decisions/` | Dated decision records |
 | `superpowers/plans/` | Dated implementation plans |

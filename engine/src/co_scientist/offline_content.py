@@ -23,126 +23,7 @@ the product makes.
 import random
 import re
 
-# Words that carry no subject meaning but survive a naive keyword pass over a
-# research goal ("What mechanisms drive antibiotic resistance in ..."), plus
-# the agent/prompt scaffolding vocabulary. Every prompt opens with its
-# agent's name, and a prompt that never labels the goal (evolution.md, say)
-# is scanned from the top -- without these, evolved ideas came out reading
-# "Agent constrains evolution ...".
-_STOPWORDS = frozenset(
-    {
-        "about",
-        "above",
-        "after",
-        "against",
-        "all",
-        "also",
-        "and",
-        "are",
-        "based",
-        "because",
-        "been",
-        "before",
-        "being",
-        "below",
-        "between",
-        "both",
-        "but",
-        "can",
-        "could",
-        "designed",
-        "does",
-        "drive",
-        "driven",
-        "during",
-        "each",
-        "either",
-        "from",
-        "further",
-        "generate",
-        "goal",
-        "task",
-        "meta-review",
-        "reviews",
-        "review",
-        "proximity",
-        "supervisor",
-        "reflection",
-        "ranking",
-        "generation",
-        "evolution",
-        "agents",
-        "agent",
-        "had",
-        "has",
-        "have",
-        "having",
-        "hypotheses",
-        "hypothesis",
-        "help",
-        "here",
-        "how",
-        "however",
-        "identify",
-        "into",
-        "its",
-        "itself",
-        "might",
-        "more",
-        "most",
-        "much",
-        "must",
-        "new",
-        "novel",
-        "only",
-        "other",
-        "over",
-        "own",
-        "particular",
-        "potential",
-        "propose",
-        "research",
-        "same",
-        "should",
-        "since",
-        "some",
-        "such",
-        "suggest",
-        "than",
-        "that",
-        "the",
-        "their",
-        "them",
-        "then",
-        "there",
-        "these",
-        "they",
-        "this",
-        "those",
-        "through",
-        "under",
-        "until",
-        "use",
-        "used",
-        "using",
-        "very",
-        "was",
-        "were",
-        "what",
-        "when",
-        "where",
-        "which",
-        "while",
-        "who",
-        "why",
-        "will",
-        "with",
-        "within",
-        "would",
-        "you",
-        "your",
-    }
-)
+from co_scientist.offline_content_stopwords import _STOPWORDS as _STOPWORDS
 
 # Field-name fragments mapped to the sentence shape that field should carry.
 # Matched as substrings against the property name, longest first, so
@@ -380,10 +261,15 @@ _GENERATED_VOCABULARY = frozenset(
 # "Original Hypothesis" is the evolution prompt's equivalent: it never
 # states the goal, but the parent hypothesis it hands over is about the same
 # subject, so an evolved idea stays on-topic instead of falling back to
-# generic prose. Tried in order, first match wins.
+# generic prose. "Original Conceptualization" is the same slot under the
+# label published evolution-06 gives it (templates/evolution_feasibility.md);
+# without it every offline feasibility refinement fell back to generic
+# prose while its siblings stayed on topic. Tried in order, first match
+# wins.
 _GOAL_HEADING_RE = re.compile(
     r"^[ \t]*(?:#+[ \t]*|\*\*)?"
-    r"(?:research goal|original hypothesis)\b[:*]*[ \t]*",
+    r"(?:research goal|original hypothesis|original conceptualization)"
+    r"\b[:*]*[ \t]*",
     re.IGNORECASE | re.M,
 )
 

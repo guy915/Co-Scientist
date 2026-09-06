@@ -236,6 +236,10 @@ _PARTNER_SECTION_HEADERS = {
         "These top-ranked hypotheses are existing approaches you may borrow "
         "mechanism or structure from. Their full fields follow, untruncated."
     ),
+    # Out-of-box renders published A.7, whose own sentence already
+    # introduces these as the concepts to draw analogy from, so the header
+    # only labels the block; the empty-pool note below still applies.
+    EvolutionOperator.OUT_OF_BOX: "## Provided Concepts",
 }
 
 

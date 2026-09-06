@@ -29,12 +29,12 @@ def _format_judgment_explanation(judgment: dict[str, Any]) -> str:
 def _extract_criteria_comparisons(
     response: dict[str, Any],
 ) -> dict[str, str]:
-    """Collects the judge's seven criterion assessments for the record.
+    """Collects the judge's per-aspect assessments for the record.
 
-    The prompt collects one comparison per criterion under
-    judgment_explanation, but nothing read them back before (audit E17);
-    the match record now carries them so a verdict is inspectable
-    criterion by criterion. Only the seven canonical keys are kept -- a
+    The prompt collects one comparison per published evaluation aspect
+    under judgment_explanation, but nothing read them back before (audit
+    E17); the match record now carries them so a verdict is inspectable
+    aspect by aspect. Only the canonical keys are kept -- a
     closed schema means anything else is model invention -- and empty
     assessments are dropped.
 
@@ -223,7 +223,7 @@ def _build_matchup_detail(
     Returns:
         Matchup detail dict for this pairing, for the UI's "Performance
         against other ideas" view. ``criteria_comparisons`` carries the
-        judge's seven per-criterion assessments (audit E17).
+        judge's per-aspect assessments (audit E17).
     """
     return {
         "hypothesis_a": truncate(hyp_a.text),

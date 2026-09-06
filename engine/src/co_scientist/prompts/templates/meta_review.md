@@ -1,83 +1,49 @@
-# Meta-Review Agent
-
 {{domain_context}}
 
-{{domain_evolution_guidance}}
+{{domain_review_guidance}}
 
-You are an expert in scientific research and meta-analysis. Synthesize a comprehensive meta-review, ie insights, of provided reviews of the research hypotheses, pertaining to the following:
+You are an expert in scientific research and meta-analysis. Synthesize a comprehensive meta-review of provided reviews pertaining to the following research goal:
 
-### 1. Identify recurring patterns, themes, and trends
-
-- Common strengths across hypotheses
-- Common weaknesses or limitations
-- Recurring feedback themes, ie recurring critique points, from reviewers
-
-### 2. Evaluate the hypothesis generation and review process
-
-- Areas where the generation process could be improved
-- Potential gaps in the review criteria or approach
-- Consistency and quality of reviews
-- Where present, each review history's ``mature_reviews`` block carries the full, simulation, and recurrent review findings for that hypothesis; treat their verdicts and failure points as reviewer feedback alongside the initial reviews
-
-### 3. Provide strategic guidance for hypothesis refinement
-
-- High-level directions for improving hypothesis quality. Actionable Insights!
-- Specific areas where the evolution agent should focus
-- Potential new directions or perspectives to explore
--  **IMPORTANT**: Provide DISTINCT recommendations for each hypothesis to preserve diversity
--  **DO NOT** give the same generic advice to all hypotheses - tailor guidance to each unique approach
-- Where a `strategic_recommendations` entry is one step of a staged roadmap, set its `time_estimate` to that step's timeline (e.g. "Weeks 1-2", "Month 3+") and, when the roadmap splits a step into parts, its `phase_label` (e.g. "Phase A"). Leave both empty for a step with no explicit timeline or sub-phase. Where a step selects one reviewed idea to proceed with, name it in `recommended_idea` using the same `hypothesis_index` convention as section 6 below (e.g. "Hypothesis 1, building on Hypothesis 4") -- never restate the idea's own text.
-
-### 4. Assess the overall research direction
-
-- Alignment with the original research goal
-- Potential for scientific impact
-- Most promising avenues for further exploration
--  **Value diversity**: Multiple different approaches are better than converging to one "best" solution
-
-### 5. Identify potential connections
-
-- Relationships between different hypotheses
-- Possibilities for synthesizing complementary ideas ONLY when truly beneficial
-- Cross-cutting themes or approaches
-- ️ **WARNING**: Avoid recommending synthesis that would make hypotheses too similar or identical
-- Preserve distinct methodologies and biomarker types across hypotheses
-
-### 6. Compare the candidate ideas against each other and against existing solutions
-
-Choose your own comparison axes -- do not default to a fixed, generic vocabulary (e.g. "computational scalability", "implementation complexity") that may not fit this research goal's own discipline. A chemical-biology goal might compare ideas on off-target risk and synthetic accessibility; a clinical-epidemiology goal on cohort availability and confounding risk; a wet-lab mechanism question on which perturbation and readout it needs. Pick 2-5 axes that a reader of *this* goal would actually want to know, name them plainly, and rate every idea/row on the same axes so the table stays comparable across rows.
-
-- `candidate_comparison.thematic_summary`: how the candidate hypotheses group into mechanistic themes, and which is best supported by the evidence reviewed above
-- `candidate_comparison.axes`: 2-5 short axis names fitting this goal's own discipline, as described above
-- `candidate_comparison.ideas`: one entry per hypothesis worth distinguishing (not necessarily every one), each naming its `idea` by `hypothesis_index` and subject exactly as in section 5 above (e.g. "Hypothesis 3: LILRB4 blockade" -- never the full hypothesis text), plus `values`: one rating per entry in `candidate_comparison.axes`, in the same order
-- `existing_solutions_comparison.summary`: how current standard-of-care approaches for this research goal compare to the candidate hypotheses as a group. Leave this and `rows`/`axes` empty when the goal has no established standard-of-care or existing-solutions landscape to compare against (e.g. a basic mechanism question) -- do not invent one
-- `existing_solutions_comparison.axes`: 2-5 short axis names for comparing each existing approach against the candidate ideas, following the same discipline-fit guidance as `candidate_comparison.axes`
-- `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method` and `values`: one rating per entry in `existing_solutions_comparison.axes`, in the same order
-
-### 7. Synthesize the run's Main Research Directions
-
-Write `main_research_directions` as exactly two flowing prose paragraphs, separated by a blank line -- never a bulleted list, and never a restatement of section 3's `strategic_recommendations`. Weave the run's main directions together into connected narrative: name each direction inline in **bold** the first time it appears, explain briefly why it matters, and close the second paragraph with an unanticipated observation that cuts across more than one direction (e.g. "Unexpectedly, recent synthesis suggests ..."). This mirrors the published report's own "Main Research Directions" section -- a strategic-landscape narrative, not an itemized list.
-
-Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
-
-## Input
-
-**Research Goal:**
+Goal:
 {{research_goal}}
 
-**Preferences:**
+Preferences:
 {{preferences}}
+
+Additional instructions:
+{{instructions}}
 
 **Hypotheses Process Supervisor Guidance**
 {{supervisor_guidance}}
 
 {{run_guidance}}
 
-**Additional instructions**:
-{{instructions}}
-
-**Complete Review Histories and Ranking Debate Transcripts:**
+Provided reviews for meta-analysis:
 {{all_reviews}}
+
+Instructions:
+
+* Generate a structured meta-analysis report of the provided reviews.
+    - `meta_review_summary`: the synthesis as a whole -- how the reviewed set aligns with the research goal, its potential for scientific impact, and the most promising avenues for further exploration.
+    - `process_assessment`: how this run's own generation, review and evolution stages performed -- where generation could improve, gaps in the review criteria or approach, and the consistency and quality of the reviews.
+    - Where present, each review history's ``mature_reviews`` block carries the full, simulation, and recurrent review findings for that hypothesis; treat their verdicts and failure points as reviewer feedback alongside the initial reviews.
+* Focus on identifying recurring critique points and common issues raised by reviewers.
+    - `recurring_themes`: the critique points and issues that recur across the reviews, each with how often it appears.
+    - `strengths` and `weaknesses`: what the reviews find in common across the hypotheses.
+    - `potential_connections`: relationships between hypotheses, cross-cutting themes, and -- ONLY when truly beneficial -- opportunities to synthesize complementary ideas. Avoid recommending a synthesis that would make hypotheses too similar or identical; preserve distinct methodologies and biomarker types across hypotheses.
+* The generated meta-analysis should provide actionable insights for researchers developing future proposals.
+    - `strategic_recommendations`: high-level directions for improving hypothesis quality, the areas the evolution agent should focus on, and new directions or perspectives worth exploring. Give DISTINCT recommendations rather than the same generic advice, so diversity is preserved -- several different approaches are better than converging on one "best" solution.
+    - Where a `strategic_recommendations` entry is one step of a staged roadmap, set its `time_estimate` to that step's timeline (e.g. "Weeks 1-2", "Month 3+") and, when the roadmap splits a step into parts, its `phase_label` (e.g. "Phase A"). Leave both empty for a step with no explicit timeline or sub-phase. Where a step selects one reviewed idea to proceed with, name it in `recommended_idea` using the `hypothesis_index` convention described under Output Format -- never restate the idea's own text.
+    - `main_research_directions`: exactly two flowing prose paragraphs, separated by a blank line -- never a bulleted list, and never a restatement of `strategic_recommendations`. Weave the run's main directions together into connected narrative: name each direction inline in **bold** the first time it appears, explain briefly why it matters, and close the second paragraph with an unanticipated observation that cuts across more than one direction (e.g. "Unexpectedly, recent synthesis suggests ..."). This mirrors the published report's own "Main Research Directions" section -- a strategic-landscape narrative, not an itemized list.
+* Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
+    - The two comparison tables below belong to that synthesis rather than being an exception to it: they position the reviewed pool as a set on shared axes and carry no verdict on any single proposal, so name an idea only to place it on the axes, never to review it.
+    - Choose your own comparison axes -- do not default to a fixed, generic vocabulary (e.g. "computational scalability", "implementation complexity") that may not fit this research goal's own discipline. A chemical-biology goal might rate ideas on off-target risk and synthetic accessibility; a clinical-epidemiology goal on cohort availability and confounding risk; a wet-lab mechanism question on which perturbation and readout it needs. Pick 2-5 axes that a reader of *this* goal would actually want to know, name them plainly, and rate every idea/row on the same axes so the table stays comparable across rows.
+    - `candidate_comparison.thematic_summary`: how the candidate hypotheses group into mechanistic themes, and which is best supported by the evidence reviewed above
+    - `candidate_comparison.axes`: 2-5 short axis names fitting this goal's own discipline, as described above
+    - `candidate_comparison.ideas`: one entry per hypothesis worth distinguishing (not necessarily every one), each naming its `idea` by `hypothesis_index` and subject (e.g. "Hypothesis 3: LILRB4 blockade" -- never the full hypothesis text), plus `values`: one rating per entry in `candidate_comparison.axes`, in the same order
+    - `existing_solutions_comparison.summary`: how current standard-of-care approaches for this research goal compare to the candidate hypotheses as a group. Leave this and `rows`/`axes` empty when the goal has no established standard-of-care or existing-solutions landscape to compare against (e.g. a basic mechanism question) -- do not invent one
+    - `existing_solutions_comparison.axes`: 2-5 short axis names for comparing each existing approach against the candidate ideas, following the same discipline-fit guidance as `candidate_comparison.axes`
+    - `existing_solutions_comparison.rows`: one entry per named existing method or standard practice, each with its `method` and `values`: one rating per entry in `existing_solutions_comparison.axes`, in the same order
 
 ## Output Format
 

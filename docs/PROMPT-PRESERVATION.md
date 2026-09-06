@@ -2,6 +2,20 @@
 
 Wave `R8-2` of the fidelity campaign (branch `fix/published-prompt-fidelity`,
 starting at HEAD `02278d2f`). Report date: 2026-09-01.
+**Rows updated 2026-09-06** to the state after the verbatim rewrite; see the
+standard note immediately below.
+
+**The standard changed on 2026-09-06.** This audit was run against a "reworded
+is fine — a mirror need not be byte-identical" standard. That standard is
+retired: each of the eight published prompts now renders **word for word, in
+published order**, through the real builders, and a paraphrase of published
+text is a defect rather than a pass. The rows below have been updated to the
+post-rewrite state; where a row's original judgment was overtaken by that
+rewrite, the row says so rather than being deleted, because the reasoning is
+what makes the later decision legible. The machine check is
+`engine/tests/test_published_prompt_fidelity.py`; the per-template account of
+what remains ours, and why, is
+`engine/src/co_scientist/prompts/templates/README.md`.
 
 **What this document is not.** `docs/CORPUS-EXTRACTION.md`'s `MP-*` rows
 record *whether we mapped* each published prompt to a template and whether a
@@ -28,11 +42,23 @@ closed and not re-litigated here. `MP-6` is recorded there as `work` but is
 in fact already fixed on this branch (commit `245ced81`, pinned by
 `test_judge_prompt_carries_scientist_preferences` in
 `engine/tests/test_ranking_debate.py`) — noted below where it's relevant,
-not re-opened. `MP-7` is open and is audited on the same footing as every
-other instruction in this pass. `MP-8` (the `OUT_OF_BOX`/`INSPIRATION`
-naming mismatch) is closed per the owner's decision recorded in
-`engine/src/co_scientist/agents/evolution/evolution_operators.py`; not
-re-litigated.
+not re-opened. `MP-7` was open at the time of this audit and was audited on
+the same footing as every other instruction in this pass; it is now closed,
+the published four imperatives rendering verbatim on `evolution_feasibility.md`
+and `evolution_out_of_box.md`.
+
+**`MP-8` was closed the other way round on 2026-09-06.** This audit worked
+from the earlier decision that `INSPIRATION` was A.7's structural match and
+the enum named `OUT_OF_BOX` a different, clone-authored strategy. The
+resolution moved the content to the name instead: `OUT_OF_BOX` now joins
+`_PARTNER_OPERATORS` (`evolve.py`), so it receives the top-ranked peers that
+are A.7's published `{hypotheses}` input, and it renders
+`evolution_out_of_box.md`. `INSPIRATION` keeps the paper's separately
+disclosed "inspiration from existing hypotheses" strategy on `evolution.md`
+and is **no longer claimed as a counterpart to any published prompt**. No enum
+value moved, so every persisted `"out_of_box"` lineage record stays valid.
+Pinned by `test_out_of_box_task_draws_partners_from_the_ranked_pool` in
+`engine/tests/test_evolution_operators.py`.
 
 ---
 
@@ -40,54 +66,65 @@ re-litigated.
 
 | # | Published prompt | Template(s) | Present | Missing | Adapted |
 |---|---|---|---|---|---|
-| 1 | `evolution-06-feasibility-improvement.md` | `evolution.md` (`COHERENCE_FEASIBILITY` operator) | 4 | 1 | 0 |
-| 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution.md` (`INSPIRATION` operator, MP-8) | 4 | 1 | 0 |
-| 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_debate_and_literature.md` (literature block); `generation_draft_with_tools.md` (reconstruction) | 8 | 0 | 1 |
-| 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 1 |
+| 1 | `evolution-06-feasibility-improvement.md` | `evolution_feasibility.md` (`COHERENCE_FEASIBILITY` operator) | 5 | 0 | 0 |
+| 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution_out_of_box.md` (`OUT_OF_BOX` operator, MP-8) | 6 | 0 | 0 |
+| 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_draft_with_tools.md` (primary); `generation_debate_and_literature.md` (literature block) | 9 | 0 | 0 |
+| 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 0 |
 | 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | 7 | 0 | 0 |
-| 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | 4 | 1 | 0 |
-| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + `agents/ranking/ranking_debate*.py` | 7 | 2 | 1 |
-| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 6 | 0 | 3 |
+| 6 | `ranking-04-pairwise-comparison.md` | `ranking_pairwise.md` | 8 | 0 | 0 |
+| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking_debate.md` + `agents/ranking/ranking_debate*.py` | 9 | 0 | 0 |
+| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 8 | 0 | 1 |
 
 ---
 
 ## 1. `evolution-06-feasibility-improvement.md`
 
-**Template:** `evolution.md`, rendered for the `COHERENCE_FEASIBILITY`
-operator (`engine/src/co_scientist/agents/evolution/evolution_operators.py`
-— this operator is the one the README/checklist maps to A.6, not disputed).
+**Template:** `evolution_feasibility.md`, the whole published prompt, rendered
+for the `COHERENCE_FEASIBILITY` operator only
+(`evolution_operators.py::operator_template`). Before 2026-09-06 this operator
+rendered the shared `evolution.md` with a paraphrased operator instruction; the
+paraphrase is deleted, and `test_every_operator_is_briefed_exactly_once` now
+forbids an operator carrying both a published template and an `_INSTRUCTIONS`
+entry.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Refine the provided conceptual idea, enhancing its practical implementability by leveraging contemporary technological capabilities" | present | `COHERENCE_FEASIBILITY` instruction, `evolution_operators.py:52-57`: "refine the proposal so it is implementable with contemporary technological capabilities" |
-| 2 | "Ensure the revised concept retains its novelty, logical coherence, and specific articulation" | present | same instruction: "retaining its novelty and specific articulation" (logical coherence covered by "tighten the internal logic") |
-| 3 | `Goal: {goal}` | present (MP-2, `done`) | `evolve_prompt.py:385` sets `research_goal` unconditionally; `templates/evolution.md:11` |
-| 4 | `Evaluation Criteria: {preferences}` | present (MP-3, `done`) | `evolve_prompt.py:386`; `templates/evolution.md:56` |
-| 5 | **Reasoning scaffold**: (1) introductory overview of the relevant scientific domain, (2) concise synopsis of recent pertinent research and successful precedents, (3) reasoned argument for how current technological advances enable the concept, (4) CORE CONTRIBUTION — a detailed, innovative, technologically viable alternative, emphasizing simplicity and practicality | **missing** | Not present anywhere in `evolution.md`. This is `MP-7` (`docs/CORPUS-EXTRACTION.md:243`, status `work`). See judgment below. |
+| 1 | "Refine the provided conceptual idea, enhancing its practical implementability by leveraging contemporary technological capabilities" | present, verbatim | the template's role sentence |
+| 2 | "Ensure the revised concept retains its novelty, logical coherence, and specific articulation" | present, verbatim | same sentence |
+| 3 | `Goal: {goal}` | present (MP-2, `done`) | `evolve_prompt.py` sets `research_goal` unconditionally; the published `Goal:` label |
+| 4 | `Evaluation Criteria: {preferences}` | present (MP-3, `done`) | `evolve_prompt.py` sets `preferences`; the published `Evaluation Criteria:` label |
+| 5 | **Reasoning scaffold**: (1) introductory overview of the relevant scientific domain, (2) concise synopsis of recent pertinent research and successful precedents, (3) reasoned argument for how current technological advances enable the concept, (4) CORE CONTRIBUTION — a detailed, innovative, technologically viable alternative, emphasizing simplicity and practicality | present, verbatim (`MP-7` closed) | the published `Guidelines:` block, carried as the four imperatives rather than the paraphrase the "Recommendation" below proposed. Pinned by `test_feasibility_prompt_carries_the_published_guidelines` in `engine/tests/test_evolution_operators.py` |
 
-**4 present / 1 missing / 0 adapted.**
+**5 present / 0 missing / 0 adapted.**
 
 ## 2. `evolution-07-out-of-the-box-thinking.md`
 
-**Template:** `evolution.md`, rendered for the `INSPIRATION` operator. Per
-`MP-8` (closed, `evolution_operators.py:14-22`) `INSPIRATION` is the
-operator that structurally matches this published prompt (single hypothesis
-by analogy from supplied partner concepts); the enum named `OUT_OF_BOX`
-below is a different, clone-authored strategy with no published counterpart
-and is not the mapping target here.
+**Template:** `evolution_out_of_box.md`, the whole published prompt, rendered
+for the `OUT_OF_BOX` operator. This reverses the mapping this audit worked
+from: per the 2026-09-06 `MP-8` resolution (see "Standing rule" above),
+`OUT_OF_BOX` now receives A.7's `{hypotheses}` input and renders A.7's prompt,
+and `INSPIRATION` is no longer claimed as a counterpart to any published
+prompt.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Generate a novel, singular hypothesis inspired by analogous elements from provided concepts" | present | `INSPIRATION` instruction, `evolution_operators.py:58-63`: "borrowing the mechanism or structure of one of the existing top-ranked approaches supplied as partners" |
-| 2 | `Goal: {goal}` | present (MP-2, `done`) | as above |
-| 3 | `Criteria for a robust hypothesis: {preferences}` | present (MP-3, `done`) | as above |
-| 4 | "Inspiration may be drawn from the following concepts (utilize analogy and inspiration, not direct replication): `{hypotheses}`" | present | `### Partner Hypotheses` / `{{partner_context}}`, `templates/evolution.md:90-92`; the instruction's own text — "State what was borrowed, from which approach, and what was adapted rather than replicated" — is the "not direct replication" guard, `evolution_operators.py:61-63` |
-| 5 | "This should not be a mere aggregation of existing methods or entities. Think out-of-the-box." | present (MP-5, `done`) | `templates/evolution.md:15`, template-wide CRITICAL REQUIREMENTS section, reaching every operator |
-| 6 | **Reasoning scaffold**: (1) concise introduction to the relevant scientific domain, (2) summary of recent findings and successful approaches, (3) identify promising avenues for exploration, (4) CORE HYPOTHESIS — a detailed, original, specific hypothesis leveraging analogous principles | **missing** | Same gap as evolution-06's item 5. The `MP-7` checklist row cites only `evolution-06:861`; this prompt carries the identical structure (domain overview -> recent-findings synopsis -> reasoned step -> core deliverable) and loses it for the same reason: `evolution.md` has no equivalent section. |
+| 1 | "Generate a novel, singular hypothesis inspired by analogous elements from provided concepts" | present, verbatim | the template's role sentence |
+| 2 | `Goal: {goal}` | present (MP-2, `done`) | the published `Goal:` label |
+| 3 | `Criteria for a robust hypothesis: {preferences}` | present (MP-3, `done`) | the published label; `evolve_prompt.py` sets `preferences` for every operator |
+| 4 | "Inspiration may be drawn from the following concepts (utilize analogy and inspiration, not direct replication): `{hypotheses}`" | present, verbatim | the published sentence over `{{partner_context}}`, whose `## Provided Concepts` header also carries the empty-pool fallback. The input itself is real since MP-8: `test_out_of_box_task_draws_partners_from_the_ranked_pool` drives `evolve._build_single_evolution_task`, the seam where an operator is granted or denied partners |
+| 5 | "This should not be a mere aggregation of existing methods or entities. Think out-of-the-box." | present, verbatim (MP-5, `done`) | inside the published CORE HYPOTHESIS imperative, where the paper puts it; `evolution.md` keeps its own template-wide copy for the five clone-authored operators |
+| 6 | **Reasoning scaffold**: (1) concise introduction to the relevant scientific domain, (2) summary of recent findings and successful approaches, (3) identify promising avenues for exploration, (4) CORE HYPOTHESIS — a detailed, original, specific hypothesis leveraging analogous principles | present, verbatim (`MP-7` closed) | the published `Instructions:` block. Pinned by `test_out_of_box_prompt_is_the_published_analogy_prompt` in `engine/tests/test_evolution_operators.py` |
 
-**4 present / 1 missing / 0 adapted.**
+**6 present / 0 missing / 0 adapted.**
 
 ### Judgment on the shared loss (both evolution-06 and evolution-07)
+
+**Overtaken 2026-09-06 — the loss is restored, and not the way this section
+recommended.** Both prompts now render whole on their own templates, so the
+scaffold is the published four imperatives rather than a generic "reason in
+this order" instruction, and it reaches the two operators the paper named
+rather than all seven. The reasoning below is kept because it is why the
+scaffold was judged restorable at all.
 
 **What was dropped.** Both published prompts scaffold the model's reasoning
 before it writes the answer: ground the domain, summarize what's recently
@@ -119,27 +156,28 @@ actually restored.
 
 ## 3. `generation-01-hypothesis-after-literature-review.md`
 
-**Templates:** the README maps A.1 to two places — `generation_debate_and_literature.md`
-("also carries A.1's literature block, `articles_with_reasoning`") and
-`generation_draft_with_tools.md` (README: "Reconstruction of A.1's
-literature-grounded generation; the agentic draft-with-tools workflow is
-clone-authored"). Audited against both; the literature-and-debate template is
-the primary mirror target, the draft-with-tools template is a documented
-reconstruction rather than a derivation.
+**Templates:** `generation_draft_with_tools.md` is the primary counterpart —
+it is the node that drafts after a literature review, and since 2026-09-06 it
+carries A.1's text verbatim rather than being a reconstruction of it.
+`generation_debate_and_literature.md` also carries A.1's literature block,
+under A.1's own published label.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Formulate a novel and robust hypothesis to address the objective" | present | `generation_debate_and_literature.md:7` ("develop a novel, relevant, and robust hypothesis, given a research goal"); `generation_draft_with_tools.md:5` |
-| 2 | "Describe the hypothesis in detail, including specific entities, mechanisms, and anticipated outcomes" | present | `generation_debate_and_literature.md:42` ("State a precise causal or mechanistic proposition with the entities, context, intervention or observation, and predicted outcome"); `generation_draft_with_tools.md` schema field `hypothesis` |
-| 3 | "This description is intended for an audience of domain experts" | present (adapted) | Both templates split output into a technical `hypothesis`/`Hypothesis` field plus a separate lay `explanation`/`Explanation` field — a schema convention applied consistently across every generation and evolution template in this repo (`evolution.md` does the same), not a loss specific to this prompt |
-| 4 | "You have conducted a thorough review of relevant literature and developed a logical framework...The articles consulted, along with your analytical reasoning, are provided below" | present | `## Literature Review and Analytical Rationale` (`generation_debate_and_literature.md:59-65`); `## Literature Review Context` (`generation_draft_with_tools.md:26-36`) |
-| 5 | `Goal: {goal}` | present | `{{goal}}`, both templates |
-| 6 | `Criteria for a strong hypothesis: {preferences}` | present | `{{preferences}}`, both templates |
-| 7 | "Existing hypothesis (if applicable): `{source_hypothesis}`" | present | `## User-Provided Starting Hypotheses`, `{{user_hypotheses}}`, both templates |
+| 1 | "You are an expert tasked with formulating a novel and robust hypothesis to address the following objective." | present, verbatim | the opening line of `generation_draft_with_tools.md`; the invented "Hypothesis Drafting Agent - Phase 1" preamble that used to displace it is deleted |
+| 2 | "Describe the proposed hypothesis in detail, including specific entities, mechanisms, and anticipated outcomes." | present, verbatim | published sentence 2, no longer only paraphrased into the JSON `hypothesis` field description |
+| 3 | "This description is intended for an audience of domain experts." | present, verbatim | published sentence 3. The technical/lay field split is unchanged and is additive: the published sentence is now stated as well as implemented |
+| 4 | "You have conducted a thorough review of relevant literature and developed a logical framework...The articles consulted, along with your analytical reasoning, are provided below" | present, verbatim | the published literature-framing pair, replacing the "The literature review node already analyzed papers…" paraphrase |
+| 5 | `Goal: {goal}` | present | the published `Goal:` label over `{{goal}}` |
+| 6 | `Criteria for a strong hypothesis: {preferences}` | present, verbatim label | replaces the invented `## Criteria for Strong Hypotheses` heading |
+| 7 | "Existing hypothesis (if applicable): `{source_hypothesis}`" | present, verbatim label | over `{{user_hypotheses}}`; replaces `## User-Provided Starting Hypotheses` |
 | 8 | `{instructions}` | present | `{{instructions}}`, both templates |
-| 9 | "Literature review...chronologically ordered, beginning with the most recent analysis" | **adapted (architectural), not a loss** | `articles_with_reasoning` is not a literal ordered article list in this engine — it is an LLM-synthesized narrative produced by the literature-review node's Phase 4 synthesis over per-paper analyses (`agents/generation/literature_review/synthesis.py::_phase4_synthesize`). A chronological-ordering instruction has no object to apply to once the representation is a synthesized paragraph rather than a list; this is a pre-existing, documented architectural choice (the literature review pipeline), not something this pass can restore without redesigning that pipeline |
+| 9 | "Literature review and analytical rationale (chronologically ordered, beginning with the most recent analysis):" | present, verbatim label | the label is carried whole, including the ordering promise the old `## Literature Review Context` heading dropped. `articles_with_reasoning` is a single synthesis (`literature_review/synthesis.py::_phase4_synthesize`) overwritten by each later review, i.e. always the run's most recent analysis, so the promise holds trivially for a list of one. **If this block is ever changed to accumulate analyses across cycles, they must be emitted most-recent-first or the published label becomes false.** |
 
-**8 present / 0 missing / 1 adapted.**
+**9 present / 0 missing / 0 adapted.** What remains ours on this template — the
+agentic tool loop, the `[C*]` citation mechanic, the pool-sized draft request,
+the novelty hedging, and the terminal output-format block — is listed with its
+justification in `engine/src/co_scientist/prompts/templates/README.md`.
 
 ## 4. `generation-02-hypothesis-after-scientific-debate.md`
 
@@ -153,8 +191,8 @@ structurally near-identical to each other.
 | 2 | `Goal: {goal}` | present | `{{goal}}` |
 | 3 | `Criteria for a high-quality hypothesis: {preferences}` | present | `{{preferences}}` |
 | 4 | `Instructions: {instructions}` | present | `{{supervisor_guidance}}` / `{{instructions}}` slots |
-| 5 | `Review Overview: {reviews_overview}` | present (adapted) | No literal `reviews_overview` variable exists anywhere in the codebase (confirmed by search). Functionally superseded by `{{meta_review_context}}` (`generation_debate_and_literature.md:16`, `generation_after_debate.md:16`) — the run's cross-hypothesis synthesis of review themes and strategic recommendations, spliced into every generation strategy (`prompts/_common.py::_format_meta_review_context`, docstring: "the run's own synthesis of which areas are already covered and which directions remain open feeds back into the next cycle"). This is richer than a raw review dump and serves the same purpose; not counted as a loss |
-| 6 | Initial contribution: "Propose three distinct hypotheses" | present | "Propose three distinct novel {{attributes}} hypotheses" |
+| 5 | `Review Overview: {reviews_overview}` | present, verbatim slot (2026-09-06) | The published label and a `{{reviews_overview}}` slot now render in both debate templates, filled by `prompts/generation_debate.py::_format_reviews_overview` from the run's meta-review synthesis of the previous cycle's reviews (`_common._format_meta_review_context`, unchanged). Iteration 1 says it has no reviews yet rather than leaving the published label over nothing. Same mechanism as before, under its published name — `docs/PARITY.md` `META-CRITIQUE-APPEND-001` |
+| 6 | Initial contribution: "Propose three distinct hypotheses" | present, verbatim | the inserted word "novel" is deleted; `{{attributes}}` fills the published `{idea_attributes}` slot |
 | 7 | Subsequent contributions: pose clarifying questions | present | both templates, Procedure section |
 | 8 | Critically evaluate on: adherence to attributes, utility/practicality, level of detail/specificity | present | both templates, same three bullets verbatim in structure |
 | 9 | Identify weaknesses/limitations | present | both templates |
@@ -164,7 +202,18 @@ structurally near-identical to each other.
 | 13 | Termination: "typically 3-5 turns, maximum of 10", conclude by writing "HYPOTHESIS" (caps) then a self-contained exposition | present | turn constants `_DEBATE_TYPICAL_MIN_TURNS=3` / `_DEBATE_TYPICAL_MAX_TURNS=5` / `_DEBATE_MAX_DISCUSSION_TURNS=10` (`prompts/generation_debate.py:279-303`), rendered into both templates' Termination condition section verbatim on the numbers |
 | 14 | `#BEGIN TRANSCRIPT# {transcript} #END TRANSCRIPT#` | present | both templates, verbatim markers |
 
-**14 present / 0 missing / 1 adapted** (item 5 counted once, applies to both).
+**14 present / 0 missing / 0 adapted** (item 5 counted once, applies to both).
+
+**One deletion this audit did not ask for, made 2026-09-06.** Both templates
+carried, inside the published `Procedure` list, "Out of the initial 3
+hypotheses, filter out the worse 2 as the debate progresses…", and
+`generation_after_debate.md` compounded it with "a refined iteration of **the
+one final, best,** hypothesis" against the published "…of the hypothesis". The
+published procedure converges on one finalized idea at *termination*; stating
+the narrowing as a per-turn instruction turns a diversity mechanism into a
+within-turn elimination — the failure family the root `CLAUDE.md` records under
+"an early gate that never reverses decides the whole run". Pinned absent by
+`test_debate_does_not_order_the_panel_to_discard_two_ideas`.
 
 ---
 
@@ -175,93 +224,125 @@ structurally near-identical to each other.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Expert in scientific research and meta-analysis" | present | `meta_review.md:7` |
-| 2 | "Synthesize a comprehensive meta-review of provided reviews pertaining to the research goal" | present | `meta_review.md:7` |
-| 3 | `Goal / Preferences / Additional instructions / Provided reviews` slots | present | `{{research_goal}}`, `{{preferences}}` (MP-4, `done` — `planning.py:31-42`, `meta_review.md:57-60`), `{{instructions}}`, `{{all_reviews}}` |
-| 4 | "Generate a structured meta-analysis report of the provided reviews" | present | the six numbered sections, `meta_review.md:9-52` |
-| 5 | "Focus on identifying recurring critique points and common issues raised by reviewers" | present | `meta_review.md:9-13`, section 1 |
-| 6 | "Provide actionable insights for researchers developing future proposals" | present | `meta_review.md:22-28`, section 3 ("Actionable Insights!") |
-| 7 | "Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis" | present, near-verbatim | `meta_review.md:52` |
+| 1 | "Expert in scientific research and meta-analysis" | present, verbatim | the template's opening sentence; the `, ie insights,` and `of the research hypotheses,` insertions are deleted and "research goal" restored |
+| 2 | "Synthesize a comprehensive meta-review of provided reviews pertaining to the research goal" | present, verbatim | same sentence |
+| 3 | `Goal / Preferences / Additional instructions / Provided reviews` slots | present, verbatim labels | `{{research_goal}}`, `{{preferences}}` (MP-4, `done` — `planning.py`), `{{instructions}}`, `{{all_reviews}}`. `Provided reviews for meta-analysis:` replaces the invented `**Complete Review Histories and Ranking Debate Transcripts:**`, and each bolded local label is replaced by its published one |
+| 4 | "Generate a structured meta-analysis report of the provided reviews" | present, verbatim | the published `Instructions:` block, now a real section rather than a substring of `Additional instructions:` |
+| 5 | "Focus on identifying recurring critique points and common issues raised by reviewers" | present, verbatim | published bullet 2 |
+| 6 | "Provide actionable insights for researchers developing future proposals" | present, verbatim | published bullet 3; the "Actionable Insights!" flourish is deleted |
+| 7 | "Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis" | present, verbatim, and **last** | published bullet 4, immediately before `Response:`; it previously sat before every input |
 
-**7 present / 0 missing / 0 adapted.** Clean mirror — every published
-instruction is present, most close to verbatim. Sections 2, 4, 5, and 6 of
-the template (process evaluation, direction assessment, cross-hypothesis
-connections, candidate/existing-solution comparison) are clone-authored
-additions beyond the published prompt's scope, not substitutions for
-anything the published text asked for — they carry no loss.
+**7 present / 0 missing / 0 adapted.** The template follows the published shape
+end to end. The seven clone-authored `### N.` sections are gone as sections:
+each is folded in as a sub-bullet under whichever published bullet it serves,
+so every added instruction now names a schema field the model must fill rather
+than competing with the published four.
+
+**The one contradiction, reconciled rather than deleted.** Old section 6
+(`### 6. Compare the candidate ideas against each other and against existing
+solutions`) ordered exactly the per-proposal evaluation the published
+`Refrain…` directive forbids. It has independent provenance in published
+*outputs* (`docs/PARITY.md` `RANKING-CRITERIA-TABLE-001`,
+`MAIN-RESEARCH-DIRECTIONS-001`), so both comparison objects are now sub-bullets
+*under* the `Refrain…` bullet, introduced by a sentence framing them as
+set-level synthesis: they position the reviewed pool on shared axes and carry
+no verdict on any single proposal. Pinned by
+`test_meta_review_does_not_order_per_proposal_evaluation`.
+
+**One wrong slot corrected.** `{{domain_evolution_guidance}}` was a copy-paste
+from `evolution.md` — visible in a real render as "Refinements should stay
+implementable in an academic laboratory." on a node that reviews reviews. It is
+re-wired to `{{domain_review_guidance}}`, the slot
+`loading.py::_get_domain_variables` already exposes for this kind of node.
 
 ## 6. `ranking-04-pairwise-comparison.md`
 
-**Template:** `ranking.md`, rendered by `get_ranking_prompt`
-(`engine/src/co_scientist/prompts/ranking.py`).
+**Template:** `ranking_pairwise.md`, rendered by `get_ranking_prompt`
+(`engine/src/co_scientist/prompts/ranking.py`) for a lower-ranked, single-turn
+comparison. Until 2026-09-06 A.4 and A.5 shared one `ranking.md`, which
+conflated both published prompts; that file is deleted and each published
+prompt now has its own template, selected by the matchup's turn budget in
+`ranking_debate.py::judge_matchup`.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Expert evaluator...compare two hypotheses...determine which is superior based on the specified attributes" | present | `ranking.md:9`, expanded into the seven named comparison criteria (`ranking.md:15-21`) rather than the paper's single unnamed `{idea_attributes}` slot |
-| 2 | "Concise rationale...concluding with the phrase 'better idea: <1 or 2>'" (the source's own noted inconsistency with "better hypothesis") | present | `ranking.md:70`, and `_VERDICT_LINE_RE` in `agents/ranking/ranking_debate_turns.py` accepts both "better idea" and "better hypothesis" phrasings, resolving the source's own internal inconsistency rather than picking one arbitrarily |
-| 3 | `Goal: {goal}` | present | `{{research_goal}}`, `ranking.md:42` |
-| 4 | `Evaluation criteria: {preferences}` | present (MP-6, fixed on this branch though `docs/CORPUS-EXTRACTION.md` still shows `work` — see "Standing rule" above) | `{{preferences}}` → `_format_ranking_preferences`, `ranking.md:27`; pinned by `test_judge_prompt_carries_scientist_preferences` |
-| 5 | "Considerations: `{notes}`" (a slot distinct from both `{preferences}` and the per-hypothesis `{review N}`) | **missing** | No `notes`/`considerations` variable is rendered anywhere in `ranking.md` or its builders. Judgment below. |
-| 6 | "Each hypothesis includes an independent review. These reviews may contain numerical scores. Disregard these scores...not directly comparable across reviews" | present (MP-1, `done`) | `ranking.py:466-469`, rendered into `{{review_context}}` |
-| 7 | `Hypothesis 1 / Hypothesis 2 / Review of hypothesis 1 / Review of hypothesis 2` | present | `{{hypothesis_a}}` / `{{hypothesis_b}}`, `{{review_context}}` (per-hypothesis review scores) |
-| 8 | "Reasoning and conclusion (end with 'better hypothesis: <1 or 2>')" | present | `ranking.md:70`, see item 2 |
+| 1 | "Expert evaluator...compare two hypotheses...determine which is superior based on the specified attributes" | present, verbatim | the template's opening sentence, replacing the invented "Tournament Judge Agent in the Co-Scientist framework" role. The paper's `{idea_attributes}` resolves onto the criteria block ("…based on the specified evaluation criteria below"), since nothing at the ranking seam carries a separate attributes list. Pinned by `test_single_shot_matchup_renders_the_published_single_evaluator` |
+| 2 | "Concise rationale...concluding with the phrase 'better idea: <1 or 2>'" (the source's own noted inconsistency with "better hypothesis") | present, verbatim | published sentence 2; `_VERDICT_LINE_RE` in `agents/ranking/ranking_debate_turns.py` accepts both phrasings, resolving the source's own inconsistency rather than picking one arbitrarily |
+| 3 | `Goal: {goal}` | present | the published `Goal:` label over `{{research_goal}}` |
+| 4 | `Evaluation criteria: {preferences}` | present (MP-6, fixed on this branch though `docs/CORPUS-EXTRACTION.md` still shows `work` — see "Standing rule" above) | the published label carries two blocks: `_format_ranking_preferences` (always) then `_format_ranking_evaluation_criteria` (the scientist's criteria list, under a governing sub-label, when supplied). Pinned by `test_judge_prompt_carries_scientist_preferences` and `test_judge_prompt_carries_scientist_criteria` |
+| 5 | "Considerations: `{notes}`" (a slot distinct from both `{preferences}` and the per-hypothesis `{review N}`) | present (2026-09-06) | the published label over the new `prompts/ranking.py::_format_ranking_notes`: domain context, domain review guidance, supervisor guidance, meta-review context and run setup/focus guidance, joined; a `_NO_NOTES` line when every block is empty, so the published label always has something under it |
+| 6 | "Each hypothesis includes an independent review. These reviews may contain numerical scores. Disregard these scores...not directly comparable across reviews" | present, verbatim (MP-1, `done`) | now static template text rather than builder output, so it renders even when neither side has a review. Pinned by `test_ranking_does_not_tell_the_judge_to_consider_the_scores` |
+| 7 | `Hypothesis 1 / Hypothesis 2 / Review of hypothesis 1 / Review of hypothesis 2` | present, verbatim labels | each hypothesis gets its own review slot, as the published prompt does, filled by `prompts/ranking_sides.py::format_side_review`; the shared two-sided `## Review Scores Context` block is gone |
+| 8 | "Reasoning and conclusion (end with 'better hypothesis: <1 or 2>')" | present | the published answer cue, see item 2 |
 
-**4 present / 1 missing / 0 adapted** (counting the seven-criteria
-elaboration of item 1, the verdict line, goal, and criteria/review-scores as
-present; "Considerations" as missing).
+**8 present / 0 missing / 0 adapted.**
 
-**Judgment on the missing "Considerations: `{notes}`" slot.** The published
-prompt hands the judge one more free-text field, separate from both the
-evaluation criteria and the per-hypothesis reviews, with no elaboration in
-the paper on what it's meant to carry match-to-match. Our judge prompt
-already carries three general-guidance channels that would be the natural
-home for whatever "considerations" means: `{{evaluation_criteria}}` (the
-scientist's explicit criteria list), `{{preferences}}` (their prose steer,
-MP-6), and `{{supervisor_guidance}}` (key research areas to weigh). Given
-the paper gives this slot no content of its own to lose — it's an empty
-placeholder in every rendered example the corpus contains — and three
-functionally overlapping channels already exist, this is recorded as a real
-gap but not recommended for restoration: adding a fourth "Considerations"
-field with no defined content would pad the template rather than restore an
-instruction. Left for the owner if a concrete source for match-level
-"considerations" ever gets defined.
+**The "Considerations: `{notes}`" slot, reconsidered.** This audit recorded it
+as a real gap but recommended against restoring it, on the reasoning that the
+paper gives the slot no content of its own and three overlapping channels
+(`evaluation_criteria`, `preferences`, `supervisor_guidance`) already reached
+the judge. The 2026-09-06 rewrite restored it anyway, and the reasoning
+inverts cleanly: those three channels were already rendering, under invented
+headings of our own. Relabelling them onto the published slot is not padding —
+it is the published prompt's one slot for "everything else" being used for
+exactly that, and it removed three invented headings rather than adding a
+field.
+
+**Deleted from this prompt in the same pass**, with no published counterpart:
+the pasted paper prose describing the Elo tournament (architecture-section
+text, citation marker included, sent to the judge as if it were an
+instruction); the invented `## Comparison Criteria` items 1-7; and the
+`## Your Task` / `## Input` / `## Reflection Notes` wrapper headings around
+inputs the published prompt labels itself.
 
 ---
 
 ## 7. `ranking-05-comparison-via-scientific-debate.md`
 
-**Templates:** `ranking.md` (shared base prompt for every turn) plus the
-multi-turn debate machinery in `agents/ranking/ranking_debate.py` /
-`ranking_debate_turns.py`, which is what actually implements the "scientific
-debate" half of A.5 that A.4 doesn't have.
+**Template:** `ranking_debate.md`, A.5's own template since 2026-09-06,
+rendered on **every** turn of a multi-turn matchup — turn 1 included — plus the
+debate machinery in `agents/ranking/ranking_debate.py` /
+`ranking_debate_turns.py`. Previously A.5 shared `ranking.md` with A.4, which
+meant A.5's panel framing reached single-shot comparisons that are not debates,
+and A.5's debate procedure reached no turn at all.
 
 | # | Published instruction | Class | Evidence |
 |---|---|---|---|
-| 1 | "Panel of domain experts...structured discussion to evaluate two competing hypotheses" | present | the multi-turn matchup loop itself (`ranking_debate.py`) |
-| 2 | "Rigorously determine which hypothesis is superior based on a predefined set of attributes and criteria" | present | `ranking.md`'s seven comparison criteria, shared with A.4 |
-| 3 | "The experts possess no pre-existing biases toward either hypothesis" | present (adapted) | Not stated as an instruction to the model anywhere. Structurally enforced instead: every matchup is judged in both A/B presentation orders (`_render_ordered_prompt` with `swapped=True`) and a position-balanced fallback (`_balanced_invalid_fallback`) resolves malformed output — an empirical bias countermeasure rather than a claim of impartiality the model can't actually verify about itself. Judged stronger than the published instruction, not a loss |
-| 4 | `Goal / Criteria for hypothesis superiority ({preferences}) / Hypothesis 1,2 / Initial review of hypothesis 1,2` | present | `{{research_goal}}`, `{{preferences}}` (MP-6), `{{hypothesis_a}}`/`{{hypothesis_b}}`, `{{review_context}}` |
-| 5 | Debate procedure: "typically ranging from 3 to 5, with a maximum of 10" turns | present | `_RANKING_DEBATE_TYPICAL_MIN_TURNS=3` / `MAX_TURNS=5` / `_RANKING_DEBATE_MAX_TURNS=10`, `ranking_debate_turns.py:31-39`, echoed into every follow-up turn's prompt by `_append_debate_context` |
-| 6 | "Turn 1: begin with a concise summary of both hypotheses and their respective initial reviews" | **missing** | No instruction anywhere directs the opening turn to summarize before judging; the base `ranking.md` goes straight from presenting the hypotheses to "Make a clear decision" |
-| 7 | Subsequent turns: evaluate on correctness/validity, utility/practicality, sufficiency of detail, novelty/originality, desirability for implementation; identify weaknesses/limitations/flaws | present | the same seven criteria as A.4 (`ranking.md:15-21`) map onto these five dimensions (soundness↔correctness, feasibility/impact↔utility, clarity↔detail sufficiency, novelty↔novelty, feasibility↔desirability); `_append_debate_context`'s "otherwise challenge the weak arguments" carries the weakness-identification instruction into follow-up turns |
-| 8 | "Additional notes: `{notes}`" | **missing** | Same gap as ranking-04 item 5 — no `notes`/considerations channel exists. Not double-counted in the fix recommendation; see judgment under ranking-04 |
-| 9 | Termination: "provide a conclusive judgment...state the rationale...write 'better idea: ' followed by '1' or '2'" | present | `_VERDICT_LINE_RE`, `ranking.md:70`; `_append_debate_context`'s "confirm that verdict decisively" |
+| 1 | "Panel of domain experts...structured discussion to evaluate two competing hypotheses" | present, verbatim | the template's opening sentences, on every turn of a debate matchup. Pinned by `test_matchup_prompt_frames_the_judge_as_a_panel` |
+| 2 | "Rigorously determine which hypothesis is superior based on a predefined set of attributes and criteria" | present, verbatim | published sentence 2 |
+| 3 | "The experts possess no pre-existing biases toward either hypothesis" | present, verbatim, **and** structurally enforced | the published sentence now renders. The structural countermeasure is unchanged and remains the stronger half: every matchup is judged in both A/B presentation orders (`_render_ordered_prompt` with `swapped=True`) and a position-balanced fallback (`_balanced_invalid_fallback`) resolves malformed output |
+| 4 | `Goal / Criteria for hypothesis superiority ({preferences}) / Hypothesis 1,2 / Initial review of hypothesis 1,2` | present, verbatim labels | `{{research_goal}}`, the two-block criteria slot (MP-6), the two hypothesis slots, and a per-side review slot each (`ranking_sides.py::format_side_review`) |
+| 5 | Debate procedure: "typically ranging from 3 to 5, with a maximum of 10" turns | present, verbatim | the template states the envelope the loop enforces; `test_ranking_prompt.py::test_debate_template_states_the_envelope_the_loop_enforces` asserts both published sentences against `_RANKING_DEBATE_TYPICAL_MIN_TURNS` / `_TYPICAL_MAX_TURNS` / `_MAX_TURNS`, so prose and behaviour cannot drift. `_append_debate_context` still restates it on turn ≥ 2, aimed at the transcript above it |
+| 6 | "Turn 1: begin with a concise summary of both hypotheses and their respective initial reviews" | present, verbatim (2026-09-06) | the published `Turn 1:` bullet, which now reaches turn 1 because the debate template renders from turn 1 |
+| 7 | Subsequent turns: evaluate on correctness/validity, utility/practicality, sufficiency of detail, novelty/originality, desirability for implementation; identify weaknesses/limitations/flaws | present, verbatim | the published five aspects, which also replaced the seven invented comparison criteria in `RANKING_SCHEMA` — `correctness_comparison`, `utility_comparison`, `detail_comparison`, `novelty_comparison`, `desirability_comparison` |
+| 8 | "Additional notes: `{notes}`" | present (2026-09-06) | the published label over `_format_ranking_notes`; see ranking-04 item 5 |
+| 9 | Termination: "provide a conclusive judgment...state the rationale...write 'better idea: ' followed by '1' or '2'" | present, verbatim | the published termination bullet; `_VERDICT_LINE_RE` parses the line, `_append_debate_context`'s "confirm that verdict decisively" carries it into follow-up turns |
 
-**7 present / 2 missing / 1 adapted.** The "Turn 1 begins with a summary"
-gap is stylistic pacing, not a decision-changing instruction — the judge
-already writes a structured, both-sides comparison every turn via the seven
-named criteria fields, which functions as the summary the paper asks for.
-Not recommended for restoration: adding a scripted opening-turn instruction
-buys no behavior the schema doesn't already produce, and 25 of the 90+
-tournament matchups in a full run go through this multi-turn path, so any
-instruction added here is worth being sure of before adding it.
+**9 present / 0 missing / 0 adapted.** The "Turn 1 begins with a summary" gap
+this audit judged not worth restoring was restored anyway, as a consequence of
+the template split rather than as a separate decision: once A.5 has its own
+template, its whole procedure renders, and omitting one bullet of it would be
+the exception needing an argument.
+
+**What the split added that the published prompt does not have.** One sentence
+requiring a complete JSON verdict on every turn, turn 1 included ("an earlier
+turn's verdict is provisional; the last turn's is the conclusive judgment"):
+published A.5 is one conversation judged at termination, ours is one call per
+turn, each parsed. Without it a turn-1 answer that obeys the published text
+literally — summary only, no judgment — yields no verdict line and no `winner`,
+and resolves through the position-balanced fallback flagged
+`invalid_output_fallback`. Pinned, together with the decisive-verdict
+instruction, by
+`test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction`. A.4's
+scores caveat is also carried here, because our review blocks contain numerical
+scores A.5's own prompt never anticipated.
 
 **Correction (corpus R8-4, docs/CORPUS-STATUS.md):** item 7's "present"
 classification bundles the five evaluation dimensions and the
 weakness-identification instruction, but does not cover the "Subsequent
 turns" guidance's own first bullet — "Pose clarifying questions to
 address any ambiguities or uncertainties" — which this table missed and
-which is genuinely absent from `ranking.md`/`ranking_debate*.py`.
+which was then genuinely absent from `ranking.md`/`ranking_debate*.py`.
 Deliberately not restored: `_append_debate_context`
 (`ranking_debate_turns.py`) records the reasoning and the measured risk
 at the code site.
@@ -273,7 +354,11 @@ The bullet is added verbatim as the lead sentence of that function's
 per-turn guidance, pinned by `engine/tests/test_ranking_debate.py::test_followup_turns_pose_clarifying_questions`
 (corpus R8-4, `docs/CORPUS-STATUS.md`; `docs/PARITY.md`
 `RANK-DEBATE-CLARIFY-001`). Item 7 above is now fully present, not
-bundled-and-incomplete.
+bundled-and-incomplete. **Since 2026-09-06 the bullet also renders on turn 1**,
+as part of A.5's own `Subsequent turns:` block inside `ranking_debate.md`;
+`_append_debate_context` still leads its per-turn paragraph with it on turn ≥ 2,
+aimed at the transcript above it, which is the position `RANK-DEBATE-CLARIFY-001`
+pins.
 
 ## 8. `reflection-03-generate-observations.md`
 
@@ -283,18 +368,23 @@ bundled-and-incomplete.
 |---|---|---|---|
 | 1 | "Determine if the hypothesis provides a novel causal explanation for the observations, or if they contradict it" | present | `reflection_observations.md:5` |
 | 2 | Step 1, Observation extraction: list relevant observations from the article | present | `reflection_observations.md:9` |
-| 3 | Step 2, Causal analysis (individual): state established cause, assess whether the hypothesis is a causal factor, prefix "would we see this observation if the hypothesis was true:", say "not a missing piece" where a better explanation exists | present (adapted, stricter) | `reflection_observations.md:10-14`. Reworded to require the hypothesis "specifically and uniquely explains this observation beyond established mechanisms" (vs. the published "could be a causal factor") and the prefix gains ", and not otherwise:". This tightening is the documented fix for gap/novelty sentences being entailed as fundamental claims (project history: "Evidence-gap claims collapse" — 6/8 ideas were dying `evidence_blocked` under the looser published wording); it is a deliberate strengthening, not a loss |
-| 4 | Step 3, Causal analysis (summary): novel explanation for a subset of observations, prefix "would we see some of the observations if the hypothesis was true:" | present (adapted) | `reflection_observations.md:15`, reworded to "taken as a whole, does the hypothesis explain observations that known mechanisms cannot:" — same summary-judgment function, tightened the same way as item 3 |
-| 5 | Step 4, Disproof analysis: prefix "does some observations disprove the hypothesis:" | present, verbatim prefix | `reflection_observations.md:16` |
-| 6 | Step 5/6, Conclusion: `"hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>"` | present, verbatim vocabulary | `reflection_observations.md:18` and the Response line, `:40` |
-| 7 | Scoring vocabulary: the five categories with their definitions | present | `reflection_observations.md:20-26`, all five categories preserved with the same names, definitions tightened consistently with items 3-4 |
-| 8 | "If observations are expected regardless of the hypothesis, and don't disprove it, it's neutral" | present | `reflection_observations.md:28` |
+| 3 | Step 2, Causal analysis (individual): state established cause, assess whether the hypothesis is a causal factor, prefix "would we see this observation if the hypothesis was true:", say "not a missing piece" where a better explanation exists | present, verbatim (**reverted 2026-09-06**) | The rewording this row justified — "specifically and uniquely explains this observation beyond established mechanisms", and a prefix carrying ", and not otherwise:" — is deleted, along with the "established mechanisms" rewordings of steps 2a, 2b and 2d. The published wording stands. Pinned by `test_observation_start_phrase_is_not_narrowed` |
+| 4 | Step 3, Causal analysis (summary): novel explanation for a subset of observations, prefix "would we see some of the observations if the hypothesis was true:" | present, verbatim (**reverted 2026-09-06**) | Our replacement literal, "taken as a whole, does the hypothesis explain observations that known mechanisms cannot:", is deleted. Pinned by `test_summary_start_phrase_is_not_replaced` |
+| 5 | Step 4, Disproof analysis: prefix "does some observations disprove the hypothesis:" | present, verbatim prefix | unchanged |
+| 6 | Step 5/6, Conclusion: `"hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>"` | present, verbatim vocabulary | the published `Conclusion:` step, and the `Response:` line. The published step list is exactly five steps again: our invented `Positive observations:` step, which renumbered the published conclusion step to 6, moved into the output block |
+| 7 | Scoring vocabulary: the five categories with their definitions | present, verbatim (**reverted 2026-09-06**) | the five expanded 1-3 sentence definitions and the expanded "neutral vs missing piece" paragraph are deleted; the published definitions stand |
+| 8 | "If observations are expected regardless of the hypothesis, and don't disprove it, it's neutral" | present, verbatim | the published `Important:` sentence, with one calibration sentence appended after it (not replacing it): "Reserve 'missing piece' for a concrete explanatory gap that the established mechanisms in the literature leave open; theoretical consistency alone is not one." That sentence is the surviving trace of the evidence-gap fix items 3, 4 and 7 used to carry |
+| 9 | `Article: {article}` — the published prompt runs **once per article** | **adapted (structural)** | Ours runs once per hypothesis over the whole retrieved corpus. One call per article multiplies provider calls by corpus size, per hypothesis, per cycle — the per-item-LLM-pass failure the root `CLAUDE.md` records, against a free chain capped near 100 requests/day per model. The published `Article:` label is kept verbatim and the fan-out stated in the same line: "each analysis below is one article from the literature review… Run steps 1 and 2 for every article in turn, then steps 3 to 5 once across all of them." The published singular is kept because the fidelity contract admits no paraphrase; the batching line is what disambiguates it |
 
-**6 present / 0 missing / 3 adapted** (items 3, 4, and 7's tightening
-counted together as one adaptation theme; individually listed above). No
-gaps. The one structural addition — step 5, "Positive observations" (list
-confirmed strengths) — is new relative to the published prompt but adds a
-field rather than displacing one; not a loss.
+**8 present / 0 missing / 1 adapted.** The tightening this audit classified as
+"a deliberate strengthening, not a loss" was the campaign's clearest case of a
+paraphrase drifting into a different instruction: two of the three altered
+literals are *mandated start phrases* the model is told to write, and the
+altered version asked a different question. Both are reverted; the production
+fix they carried survives as the single calibration sentence in item 8. The one
+structural addition — "Positive observations" (list confirmed strengths), a
+live feature owned by `agents/reflection/observation_feedback.py` — is kept,
+moved out of the numbered steps and into the output block.
 
 ---
 
@@ -302,34 +392,47 @@ field rather than displacing one; not a loss.
 
 | # | Published prompt | Template(s) | Present | Missing | Adapted |
 |---|---|---|---|---|---|
-| 1 | `evolution-06-feasibility-improvement.md` | `evolution.md` (`COHERENCE_FEASIBILITY`) | 4 | 1 | 0 |
-| 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution.md` (`INSPIRATION`) | 4 | 1 | 0 |
-| 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_debate_and_literature.md`, `generation_draft_with_tools.md` | 8 | 0 | 1 |
-| 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 1 |
+| 1 | `evolution-06-feasibility-improvement.md` | `evolution_feasibility.md` (`COHERENCE_FEASIBILITY`) | 5 | 0 | 0 |
+| 2 | `evolution-07-out-of-the-box-thinking.md` | `evolution_out_of_box.md` (`OUT_OF_BOX`) | 6 | 0 | 0 |
+| 3 | `generation-01-hypothesis-after-literature-review.md` | `generation_draft_with_tools.md`, `generation_debate_and_literature.md` | 9 | 0 | 0 |
+| 4 | `generation-02-hypothesis-after-scientific-debate.md` | `generation_debate_and_literature.md`, `generation_after_debate.md` | 14 | 0 | 0 |
 | 5 | `meta-review-08-meta-review-generation.md` | `meta_review.md` | 7 | 0 | 0 |
-| 6 | `ranking-04-pairwise-comparison.md` | `ranking.md` | 4 | 1 | 0 |
-| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking.md` + debate machinery | 7 | 2 | 1 |
-| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 6 | 0 | 3 |
-| | **Total** | | **54** | **5** | **6** |
+| 6 | `ranking-04-pairwise-comparison.md` | `ranking_pairwise.md` | 8 | 0 | 0 |
+| 7 | `ranking-05-comparison-via-scientific-debate.md` | `ranking_debate.md` + debate machinery | 9 | 0 | 0 |
+| 8 | `reflection-03-generate-observations.md` | `reflection_observations.md` | 8 | 0 | 1 |
+| | **Total** | | **66** | **0** | **1** |
 
-**Bottom line: the eight published prompts preserved their content
-faithfully.** 54 of 65 identified substantive instructions are present
-(most reworded, several already fixed by `MP-1`–`MP-6`), 6 more are
-deliberately and defensibly adapted (three of them documented fixes for
-prior findings — evidence-gap over-triggering, position bias, the source's
-own "better idea"/"better hypothesis" inconsistency), and only 5 are
-genuine gaps. Two cluster into a single finding (`MP-7`'s reasoning
-scaffold, shared by evolution-06 and evolution-07 — **restored below**),
-two more cluster into a second (the ranking prompts' unfilled
-`{notes}`/"Considerations" slot, which the paper itself gives no content to
-lose — left for the owner), and one is standalone (`ranking-05`'s "Turn 1
-begins with a summary" pacing instruction — also left for the owner). None
-of the five was found to be silently load-bearing the way `R8-1`'s
-reversed-scores instruction was.
+**Bottom line, restated after the 2026-09-06 rewrite.** All 67 identified
+substantive instructions are present, 66 of them **verbatim and in published
+order**, with one structural adaptation: A.3 is batched over the run's corpus
+instead of called once per article, for the cost reason recorded in its own
+row.
+
+The original bottom line — "54 of 65 present, mostly reworded; only 5 genuine
+gaps" — was true against the standard of the day and is the reason this
+document exists, but it undercounted the problem twice over. A prompt measured
+against the *template file* rather than the rendered prompt cannot see text that
+lives in a builder or a slot that renders nothing; and "reworded is fine" scored
+as present two mandated start phrases whose rewording asked the model a
+different question. Re-measured against the rendered prompt with paraphrase
+disallowed, the eight opened at **93 absent fragments, 3 contradicted, 3
+reordered**, and now stand at **0 / 0 / 0**
+(`engine/tests/test_published_prompt_fidelity.py`; before/after counts recorded
+in `docs/CORPUS-EXTRACTION.md`'s R8 section).
 
 ---
 
 ## Phase 2 — fixes
+
+**Superseded 2026-09-06.** All three items below are now closed, and the
+`MP-7` restoration took a different shape than the one recorded here: the
+`## Reasoning Order` section stays in `evolution.md` for the five
+clone-authored operators, but `COHERENCE_FEASIBILITY` and `OUT_OF_BOX` no
+longer render that template at all — each carries the published imperatives in
+the published words on its own template. The two "left for the owner" items
+are both built (the `{notes}` slot on both ranking templates; A.5's Turn 1
+summary, which follows from A.5 having its own template). The record below is
+kept for the token-cost and call-multiplicity measurements, which still hold.
 
 **One restoration: `MP-7`'s reasoning scaffold.** Both evolution-06 and
 evolution-07 scaffold the model's reasoning before it writes the answer
@@ -356,13 +459,15 @@ inspiration.
   rounds), the same way every other line already in `evolution.md` does; it
   adds no new LLM call and no new call-site multiplication.
 - **Test:** `test_prompt_carries_the_published_reasoning_order` in
-  `engine/tests/test_evolution_operators.py`, parametrized over every
-  `EvolutionOperator` — mirrors the existing MP-5 pinning test
-  (`test_prompt_carries_the_anti_aggregation_guard_for_combination`) in the
-  same file.
+  `engine/tests/test_evolution_operators.py` — still green, now parametrized
+  over the five operators that render `evolution.md`; the two published-prompt
+  operators are covered by
+  `test_feasibility_prompt_carries_the_published_guidelines` and
+  `test_out_of_box_prompt_is_the_published_analogy_prompt` in the same file.
 
 **Two findings left for the owner, not restored** (both judged in their
-sections above):
+sections above; **both built on 2026-09-06** — see the note at the head of this
+section):
 
 1. **Ranking's `{notes}`/"Considerations" slot** (`ranking-04`, `ranking-05`)
    — the published prompt gives this field no defined content in any

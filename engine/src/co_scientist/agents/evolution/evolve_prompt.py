@@ -8,6 +8,7 @@ from typing import Any
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
+    operator_template,
 )
 from co_scientist.agents.evolution.evolve_context import (
     _format_partner_context as _format_partner_context,
@@ -446,15 +447,21 @@ def _build_evolution_prompt(
         operation,
         grounding_evidence or not_applicable_block(),
     )
-    prompt, schema = load_prompt_with_schema("evolution", variables)
-
-    full_prompt = (
-        prompt
-        + _format_operator_section(operation.operator)
-        + _format_diversity_instruction(
-            other_hypotheses_texts,
-            context.removed_duplicates,
-            operation.operator,
-        )
+    diversity = _format_diversity_instruction(
+        other_hypotheses_texts,
+        context.removed_duplicates,
+        operation.operator,
     )
-    return full_prompt, schema
+    template = operator_template(operation.operator)
+    if template != "evolution":
+        # A published template is a whole prompt: the operator's brief is
+        # its own role sentence, so no operator section is appended, and
+        # the diversity guard renders as a slot inside it rather than
+        # after it -- the published answer cue and the JSON contract have
+        # to stay last.
+        variables["diversity_section"] = diversity
+        return load_prompt_with_schema(template, variables)
+
+    prompt, schema = load_prompt_with_schema(template, variables)
+    operator_section = _format_operator_section(operation.operator)
+    return prompt + operator_section + diversity, schema

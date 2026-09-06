@@ -54,16 +54,18 @@ def test_prompts_name_the_enum_values_their_schema_accepts() -> None:
 
 
 def test_ranking_prompt_names_every_comparison_field() -> None:
-    """The tournament prompt names the seven keys its judgment allows.
+    """Both tournament prompts name the keys their judgment allows.
 
     judgment_explanation is closed, and its keys appeared nowhere but the
     schema block appended to the prompt -- the criteria the prompt itself
-    lists are prose headings ("Novelty and Originality"). A judge asked for
-    seven comparisons in one vocabulary and given seven keys in another
-    answered with an eighth key of its own invention, which cost the match
-    a second call.
+    lists are prose headings ("Novelty and originality"). A judge asked
+    for comparisons in one vocabulary and given keys in another answered
+    with a key of its own invention, which cost the match a second call.
+    Both published ranking prompts answer against this one schema, so
+    both must name every key.
     """
-    template = (_TEMPLATES / "ranking.md").read_text()
     explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
-    for field in explanation["required"]:
-        assert field in template, f"ranking.md does not name {field}"
+    for name in ("ranking_pairwise", "ranking_debate"):
+        template = (_TEMPLATES / f"{name}.md").read_text()
+        for field in explanation["required"]:
+            assert field in template, f"{name}.md does not name {field}"

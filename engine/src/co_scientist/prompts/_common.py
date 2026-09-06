@@ -28,6 +28,9 @@ class PromptRunContext:
         preferences: The scientist's stated preferences for the run. Lives
             here rather than as a builder parameter for the reason above:
             it describes the run, not the node's subject matter.
+        criteria: The scientist's evaluation criteria for the run, if any.
+            Here for the same reason as `preferences`, which it sits
+            beside in the ranking judge's published criteria slot.
     """
 
     supervisor_guidance: dict[str, Any] | None = None
@@ -36,6 +39,7 @@ class PromptRunContext:
     run_setup_guidance: str | None = None
     run_focus_guidance: str | None = None
     preferences: str | None = None
+    criteria: list[str] | None = None
 
 
 @dataclass(frozen=True)

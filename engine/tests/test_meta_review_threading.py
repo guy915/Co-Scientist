@@ -84,8 +84,11 @@ def test_ranking_prompt_empty_optional_slots_are_byte_clean() -> None:
         side_b=RankingSide(text="B"),
         context=PromptRunContext(meta_review=None),
     )
-    assert "No reflection notes available.\n\n## Output Format" in prompt
-    assert "\n\n\n## Output Format" not in prompt
+    assert (
+        'Reasoning and conclusion (end with "better hypothesis: <1 or 2>"):'
+        "\n\n## Output Format" in prompt
+    )
+    assert "\n\n\n" not in prompt
 
 
 def test_ranking_prompt_includes_deep_verification_when_present() -> None:

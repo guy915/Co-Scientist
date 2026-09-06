@@ -9,39 +9,45 @@ from typing import Any
 
 from co_scientist.schemas.builders import obj
 
-# The seven comparison criteria the judge argues, in prompt order. One
-# source for the schema's judgment_explanation keys, the prompt's named
-# fields (prompts/templates/ranking.md), and the parse that collects the
-# assessments onto the match record (agents/ranking/ranking_results.py,
-# audit E17).
+# The five evaluation aspects published ranking-05 tells the panel to
+# consider, in the published order: "Potential for correctness/validity",
+# "Utility and practical applicability", "Sufficiency of detail and
+# specificity", "Novelty and originality", "Desirability for
+# implementation". They replace seven clone-invented criteria that had no
+# published source. One source for the schema's judgment_explanation
+# keys, the aspect-to-key mapping both ranking templates print
+# (prompts/templates/ranking_pairwise.md, ranking_debate.md), and the
+# parse that collects the assessments onto the match record
+# (agents/ranking/ranking_results.py, audit E17).
 RANKING_COMPARISON_CRITERIA: tuple[str, ...] = (
-    "scientific_soundness_comparison",
+    "correctness_comparison",
+    "utility_comparison",
+    "detail_comparison",
     "novelty_comparison",
-    "relevance_comparison",
-    "testability_comparison",
-    "clarity_comparison",
-    "impact_comparison",
-    "feasibility_comparison",
+    "desirability_comparison",
 )
 
 # Ranking schema
-# Shapes the "ranking" prompt output, consumed by the pairwise tournament
+# Shapes both ranking prompts' output (ranking_pairwise = published A.4,
+# ranking_debate = published A.5), consumed by the pairwise tournament
 # comparison in agents/ranking/ranking.py. "winner" drives the Elo update
 # (calculate_elo_update) for the pair; judgment_explanation breaks the
-# comparison down per criterion (mirroring the review criteria, plus
-# feasibility) and is collected onto the persisted match record by
+# comparison down per published evaluation aspect and is collected onto
+# the persisted match record by
 # ranking_results._extract_criteria_comparisons. The judge's concluding
 # "better idea: <1 or 2>" line in decision_summary is the primary verdict
 # (the paper's termination token); "winner" is the machine fallback when
 # the line is absent (ranking_debate_turns._parse_matchup_winner).
+#
+# Echo-free: this schema used to require the model to repeat the research
+# goal and both hypothesis texts back, which nothing read and which made
+# the reply grow with the pool's text -- the failure mode the root
+# CLAUDE.md records for proximity.
 RANKING_SCHEMA: dict[str, Any] = {
     "name": "ranking_judgment",
     "strict": False,
     "schema": obj(
         {
-            "research_goal": {"type": "string"},
-            "hypothesis_a": {"type": "string"},
-            "hypothesis_b": {"type": "string"},
             "winner": {
                 "type": "string",
                 "enum": ["a", "b"],

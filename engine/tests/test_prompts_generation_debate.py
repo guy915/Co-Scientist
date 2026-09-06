@@ -173,7 +173,6 @@ def test_get_debate_generation_prompt_with_list_attributes() -> None:
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=2,
             transcript="",
             attributes=["novel", "field-testable"],
         )
@@ -191,7 +190,6 @@ def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=2,
             transcript="prior turns",
             articles_with_reasoning=(
                 "Prior work suggests ABA signaling matters."
@@ -211,7 +209,6 @@ def test_get_debate_generation_prompt_with_full_supervisor_guidance() -> None:
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=3,
             transcript="",
             context=PromptRunContext(
                 supervisor_guidance={
@@ -237,12 +234,16 @@ def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
     The final-turn instructions must instead ask for a domain-language
     mechanistic claim with a falsification criterion, and may only mention the
     old phrase to prohibit it.
+
+    The contract lives on the final turn, which is the turn that writes the
+    hypothesis; the free-form discussion turns carry the published debate
+    procedure and no output contract at all.
     """
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="reduce cardiac senescence",
-            hypotheses_count=1,
             transcript="prior turns",
+            is_final_turn=True,
         )
     )
     # The phrase may appear only inside a negative instruction ("Do NOT ...").
@@ -258,14 +259,16 @@ def test_research_expansion_feedback_is_wired() -> None:
     The mechanism is the meta-review context threaded into the generation
     prompts (consumed when the orchestrator re-enters generate in a later
     cycle), so assert the placeholder is present in the ``generation_after_
-    debate`` prompt the research-expansion technique re-runs.
+    debate`` prompt the research-expansion technique re-runs. It fills the
+    published A.2 ``{reviews_overview}`` slot, which is where the panel is
+    shown the reviews of what it is refining.
     """
     raw = load_prompt(
         "generation_after_debate",
         {
             "research_goal": "A goal",
             "domain_context": "",
-            "meta_review_context": "META-REVIEW-FEEDBACK-MARKER",
+            "reviews_overview": "META-REVIEW-FEEDBACK-MARKER",
             "num_hypotheses": 2,
             "hypotheses_so_far": "",
             "debate_transcript": "",
@@ -288,7 +291,6 @@ def test_debate_literature_prompt_renders_user_hypotheses() -> None:
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=2,
             transcript="",
             articles_with_reasoning="Prior work suggests ABA signaling.",
             user_hypotheses=[
@@ -307,7 +309,6 @@ def test_debate_literature_prompt_renders_instructions() -> None:
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=2,
             transcript="",
             articles_with_reasoning="Prior work suggests ABA signaling.",
             instructions="Weigh the field-trial data before converging.",
@@ -327,7 +328,6 @@ def test_debate_literature_prompt_fallbacks_when_inputs_absent() -> None:
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
-            hypotheses_count=1,
             transcript="",
             articles_with_reasoning="Prior work suggests ABA signaling.",
         )
@@ -349,7 +349,6 @@ def test_debate_prompts_have_no_missing_slots_on_either_template() -> None:
             prompt, _schema = get_debate_generation_prompt(
                 DebatePromptRequest(
                     research_goal="map a disease pathway",
-                    hypotheses_count=1,
                     transcript="",
                     articles_with_reasoning=articles_with_reasoning,
                     user_hypotheses=user_hypotheses,

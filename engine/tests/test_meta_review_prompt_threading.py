@@ -42,7 +42,6 @@ def test_generation_debate_prompt_includes_meta_review() -> None:
     prompt, _ = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="Find a synthetic-lethal target",
-            hypotheses_count=3,
             transcript="",
             context=PromptRunContext(meta_review=_META_REVIEW),
         )

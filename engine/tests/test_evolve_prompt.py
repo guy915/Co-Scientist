@@ -11,6 +11,8 @@ plus the review-feedback formatter's "has reviews" path.
 
 from typing import Any
 
+import pytest
+
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
@@ -28,6 +30,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _log_meta_review_debug,
 )
 from co_scientist.models import HypothesisReview
+from co_scientist.offline_content import subject_terms
 from tests._state import make_hypothesis, make_state
 
 # --- _log_meta_review_debug (covers the _log_debug_items body) -------------
@@ -310,6 +313,50 @@ def test_evolution_prompt_hedges_novelty_claims() -> None:
     assert "Novelty claims must be hedged" in prompt
     assert "to our knowledge" in prompt
     assert "{{MISSING" not in prompt
+
+
+@pytest.mark.parametrize(
+    "operator",
+    [
+        EvolutionOperator.COHERENCE_FEASIBILITY,
+        EvolutionOperator.OUT_OF_BOX,
+    ],
+)
+def test_published_templates_hedge_novelty_claims(
+    operator: EvolutionOperator,
+) -> None:
+    """K3 applies to the two operators that render a published prompt.
+
+    Their templates are separate files, so the hedging instruction has to
+    be carried into each rather than inherited from evolution.md.
+    """
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(),
+        _EvolutionOperation(operator=operator),
+    )
+    assert "Novelty claims must be hedged" in prompt
+    assert "to our knowledge" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_feasibility_prompt_stays_on_topic_offline() -> None:
+    """The offline backend must find the parent under A.6's own label.
+
+    Published evolution-06 names the parent slot "Original
+    Conceptualization", not "Original Hypothesis"; offline_content mines
+    that slot for the run's subject terms, so a label it does not know
+    silently degrades every offline feasibility refinement to generic
+    prose while its siblings stay on topic.
+    """
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="pirfenidone suppresses myofibroblast activation"),
+        [],
+        _evolution_context(),
+        _EvolutionOperation(operator=EvolutionOperator.COHERENCE_FEASIBILITY),
+    )
+    assert "pirfenidone" in subject_terms(prompt)
 
 
 def test_evolution_prompt_renders_lab_constraints() -> None:

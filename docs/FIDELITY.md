@@ -11,7 +11,7 @@
 > (`verified`/`partial`/`missing`/`external`/`undisclosed`). This document is
 > the narrative companion; where the two differ, PARITY.md and the tests win.
 
-The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product's own screenshots) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
+The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product's own screenshots) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, or persistence schemas. Prompts are the one exception: the paper's appendix publishes **eight** exact prompts (Figures A.1-A.8), and each of the eight now renders verbatim and in published order through this engine's real builders -- see `engine/src/co_scientist/prompts/templates/README.md` for the per-template account and `engine/tests/test_published_prompt_fidelity.py` for the standing check. The rest of Google's prompt library is undisclosed. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
 ## Google's own framing of this product
 
@@ -198,4 +198,4 @@ The "Towards an AI co-scientist" paper is the primary fidelity reference. The im
     the only pre-ranking gate. `SAFE-PERHYP-001`/`SAFE-REMOVE-001` are
     `verified` in [PARITY.md](PARITY.md).
 
-Where the paper is silent (specific Elo K, exact pool sizes, prompt templates, regex patterns), this implementation makes pragmatic choices and documents them here.
+Where the paper is silent (specific Elo K, exact pool sizes, the prompt templates outside the published eight, regex patterns), this implementation makes pragmatic choices and documents them here. The eight published prompts are not in that category: they are mirrored verbatim, and every remaining local addition to them is enumerated in `engine/src/co_scientist/prompts/templates/README.md`.

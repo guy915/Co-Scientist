@@ -33,7 +33,6 @@ def test_generation_after_debate_hedges_novelty_with_no_literature() -> None:
     prompt, _ = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
-            hypotheses_count=3,
             transcript="",
             is_final_turn=False,
             articles_with_reasoning=None,
@@ -50,7 +49,6 @@ def test_generation_debate_and_literature_hedges_novelty() -> None:
     prompt, _ = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
-            hypotheses_count=3,
             transcript="",
             is_final_turn=False,
             articles_with_reasoning="Paper A found X [C1].",

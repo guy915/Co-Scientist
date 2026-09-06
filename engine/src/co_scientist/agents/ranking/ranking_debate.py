@@ -292,8 +292,9 @@ async def judge_matchup(
 ) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
 
-    Single-turn for ``debate_turns == 1`` (lower-ranked matchups); a
-    position-balanced multi-turn scientific debate otherwise (mechanics in
+    Single-turn for ``debate_turns == 1`` (lower-ranked matchups, which
+    render published ranking-04); a position-balanced multi-turn
+    scientific debate otherwise (published ranking-05; mechanics in
     ``_run_debate_turns``), capped at the paper's envelope maximum of
     ``_RANKING_DEBATE_MAX_TURNS`` judged turns. Returns a
     ``(winner, full_response)`` tuple where winner is "a" or "b" -- the
@@ -304,10 +305,15 @@ async def judge_matchup(
     registry, evaluation criteria, and prompt-naming
     (``run_id``/``matchup_index``) fields.
     """
-    base = _build_matchup_prompt_from_ctx(ctx)
     turns = max(SINGLE_TURN_DEBATE_TURNS, debate_turns)
     if turns > SINGLE_TURN_DEBATE_TURNS:
         turns = min(turns, _RANKING_DEBATE_MAX_TURNS)
+    # The turn budget selects the published prompt: ranking-05's
+    # simulated scientific debate for a multi-turn matchup, ranking-04's
+    # single-shot comparison otherwise. Decided once here so every turn
+    # of one matchup -- including the swapped re-renders -- agrees.
+    ctx = ctx._replace(debate=turns > SINGLE_TURN_DEBATE_TURNS)
+    base = _build_matchup_prompt_from_ctx(ctx)
     fallback = _balanced_invalid_fallback(
         ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index
     )
