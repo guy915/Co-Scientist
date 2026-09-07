@@ -151,6 +151,28 @@ class LLMRateLimitParkError(CoScientistError):
         )
 
 
+# The two errors a durable task's own machinery answers, and therefore the
+# two no degrade-to-fallback handler may swallow. An agent that catches
+# `Exception` around an LLM call to keep one bad answer from costing the
+# whole pass catches these with it, and both then mean the opposite of what
+# the fallback assumes: a park is not "this call failed", it is "no call
+# will succeed until the cap resets", and a spent call budget is not a
+# quality problem, it is a run that must stop. Only the worker can park a
+# task or terminate a run, so both have to reach it -- production run
+# bc77950f lost eleven reflection items to a handler that kept them
+# (2026-09-07; see the `_run_review` comment in
+# `agents/reflection/comprehensive_reflection.py`).
+#
+# Named once rather than re-listed at each site so the two cannot drift
+# apart, and so `raise` before a broad handler reads as one rule rather
+# than as a local exception. Spell it `except TASK_CONTROL_FLOW_ERRORS:
+# raise` immediately above the broad handler, never below it.
+TASK_CONTROL_FLOW_ERRORS: tuple[type[CoScientistError], ...] = (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
+
+
 # Raised when an MCP tool accepts a call and never returns. The LLM timeout
 # covers litellm.acompletion only, which left tool invocations unbounded: a
 # server whose stream broke mid-call parked the awaiting run forever, with no

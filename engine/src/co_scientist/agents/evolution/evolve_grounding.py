@@ -27,6 +27,7 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_MAX_QUERIES,
     LOW_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.models import Article, Hypothesis
 from co_scientist.prompts import get_hypothesis_query_generation_prompt
@@ -153,6 +154,8 @@ async def _parent_search_queries(
                 prompt_name=f"evolution_grounding_queries_{hypothesis.id}",
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.warning(
             "Enhancement query generation failed for %s: %s",

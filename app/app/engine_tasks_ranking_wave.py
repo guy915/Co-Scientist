@@ -20,6 +20,7 @@ from typing import Any
 from co_scientist.constants import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm_telemetry import scoped_telemetry
 
 from app.engine_tasks_telemetry import merge_usage_snapshots
@@ -278,7 +279,22 @@ def _surviving_judgements(
     paid for. Letting one exception out of the gather cancelled them all,
     failed the wave task, and spent one of its three attempts re-judging
     work that had already succeeded.
+
+    Neither control-flow error is per-matchup, and neither costs an
+    attempt, so both leave through the gather rather than being dropped
+    with the ordinary failures: a park returns the row to ``queued`` with
+    its attempt *undone*, and a spent call budget ends the run. Dropping
+    them re-runs the rest of the wave against a cap that has not reset --
+    the same trade the mature reviews lost eleven items to in run
+    bc77950f.
+
+    Raises:
+        LLMRateLimitParkError: A platform cap the worker must park on.
+        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
     """
+    for result in judged:
+        if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
+            raise result
     pairs: list[Any] = []
     judgements: list[tuple[str, dict[str, Any]]] = []
     kept_depths: list[int] = []

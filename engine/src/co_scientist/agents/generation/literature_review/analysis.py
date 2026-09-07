@@ -18,6 +18,7 @@ from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
@@ -83,6 +84,8 @@ async def _analyze_single_paper(
         return await _run_paper_analysis_llm(
             paper_id, metadata, research_goal, model_name
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         # Returning None (not raising) lets _phase3_analyze_papers filter
         # this paper out and continue synthesizing from the rest.

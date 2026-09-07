@@ -41,6 +41,7 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
@@ -374,6 +375,8 @@ async def _maybe_review_overview(
     )
     try:
         return await review_research_overview(context, response)
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception:
         logger.error(
             "Research overview review failed; publishing the drafted "

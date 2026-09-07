@@ -68,6 +68,7 @@ import logging
 from typing import Any
 
 from co_scientist.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, call_llm_json
 from co_scientist.prompts import get_literature_review_relevance_batch_prompt
 from co_scientist.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
@@ -291,6 +292,8 @@ async def _judge_batch(
                 json_schema=LITERATURE_RELEVANCE_BATCH_SCHEMA,
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:  # Never abort the pool over one bad call.
         logger.warning(
             "Semantic relevance batch scoring failed for %s candidates: %s",

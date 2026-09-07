@@ -26,6 +26,7 @@ from co_scientist.constants import (
     get_validate_max_iterations,
     scaled_max_tokens,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm_json import parse_tool_loop_json
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
@@ -257,7 +258,19 @@ def _partition_synthesis_results(
     Returns:
         Tuple of (validated hypothesis dicts from batches that succeeded,
         list of (batch_index, batch) pairs for batches that raised).
+
+    Raises:
+        LLMRateLimitParkError: A platform cap the worker must park on.
+        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
     """
+    # A gather collecting exceptions as values swallows a control-flow
+    # error exactly as a bare handler would, and this one is worse than
+    # most: a park routed into `failed_batches` is answered by retrying
+    # its hypotheses *one at a time* against the cap that just refused
+    # the batch. Neither error is per-batch (see TASK_CONTROL_FLOW_ERRORS).
+    for result in raw_results:
+        if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
+            raise result
     all_validated_hypotheses: list[dict[str, Any]] = []
     failed_batches: list[tuple[int, list[dict[str, Any]]]] = []
 
@@ -363,6 +376,8 @@ async def _retry_one_hypothesis(
         single_result = await retry_state.call_synthesis(
             [hyp_data], label, context
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.error(
             "Individual retry failed for batch %s, hypothesis %s: %s",

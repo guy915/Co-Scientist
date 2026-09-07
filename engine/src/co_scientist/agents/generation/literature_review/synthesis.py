@@ -20,6 +20,7 @@ from co_scientist.constants import (
     LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS,
     truncate,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -216,6 +217,8 @@ async def _phase4_synthesize(
             paper_analyses, state, background_context
         )
 
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         # The analyses themselves are real, LLM-costly retrieval output;
         # losing the synthesis prose must not also discard them, so this

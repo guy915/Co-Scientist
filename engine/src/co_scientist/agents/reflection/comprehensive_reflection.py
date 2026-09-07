@@ -61,6 +61,7 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -101,7 +102,27 @@ async def _run_review(
     hypothesis: Hypothesis,
     review_type: ReviewType,
 ) -> _ReviewRun:
-    """Execute one independently meaningful Reflection review call."""
+    """Execute one independently meaningful Reflection review call.
+
+    A failed call degrades to "no review" rather than raising, so one bad
+    answer does not cost the pass its other reviews -- but that answers a
+    *bad* answer, not "no answer is coming". Production run bc77950f
+    (2026-09-07, extended tier) hit the free chain's per-day cap: the
+    ranking node parked and waited it out while eleven
+    ``engine.fanout.reflection.item`` tasks caught the park here, returned
+    None, and were failed permanently at attempt 3/3 by the
+    ``RuntimeError`` the fan-out raises for an empty result -- three
+    doomed calls each against a cap that had not reset. Both control-flow
+    errors belong to the worker (only it can park a task or end a run), so
+    they leave by the door they came in. On the in-process path this is a
+    visible change -- a park now fails the node instead of degrading one
+    review -- and that is the point: every later review in that pass would
+    have failed the same way.
+
+    Raises:
+        LLMRateLimitParkError: A platform cap the worker must park on.
+        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
+    """
     evidence = await _review_evidence_for(state, hypothesis, review_type)
     targeted_articles = evidence.articles
     observations = await _observations_for(state, hypothesis, review_type)
@@ -122,6 +143,8 @@ async def _run_review(
                 prompt_name=f"reflection_{review_type.value}_{hypothesis.id}",
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.error(
             "%s review failed for %s: %s", review_type.value, hypothesis.id, exc

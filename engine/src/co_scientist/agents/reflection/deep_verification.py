@@ -9,6 +9,9 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
     _MAX_PROBE_SOURCES as _MAX_PROBE_SOURCES,
 )
 from co_scientist.agents.reflection.deep_verification_evidence import (
+    _augment_evidence_context_with_meta_review,
+)
+from co_scientist.agents.reflection.deep_verification_evidence import (
     _probe_queries as _probe_queries,
 )
 from co_scientist.agents.reflection.deep_verification_evidence import (
@@ -45,6 +48,7 @@ from co_scientist.constants import (
     PROGRESS_DEEP_VERIFICATION_COMPLETE,
     PROGRESS_DEEP_VERIFICATION_START,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
@@ -58,7 +62,6 @@ from co_scientist.models import (
 )
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
-from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
     DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
@@ -157,36 +160,24 @@ async def _verify_within_semaphore(
     Bounds concurrent verifications across the whole top-k batch. Broad
     except by design: one hypothesis's failure should not abort the batch;
     None means the batch records an explicit ``unverified`` verdict for it
-    (audit E9) rather than passing it silently.
+    (audit E9) rather than passing it silently. The two control-flow
+    errors are not one hypothesis's failure and are re-raised -- see
+    ``TASK_CONTROL_FLOW_ERRORS``.
+
+    Raises:
+        LLMRateLimitParkError: A platform cap the worker must park on.
+        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
     """
     async with semaphore:
         try:
             return await _verify_with_probes(
                 hypothesis, context, evidence_context
             )
+        except TASK_CONTROL_FLOW_ERRORS:
+            raise
         except Exception as e:
             logger.error("Deep verification failed: %s", e)
             return None
-
-
-def _augment_evidence_context_with_meta_review(
-    evidence_context: str, state: WorkflowState
-) -> str:
-    """Appends cross-agent meta-review feedback to the evidence context.
-
-    Cross-agent meta-review feedback names recurring error patterns across
-    the run; appending it lets deep verification's probing questions target
-    those patterns, so meta-review reaches this agent too (the disclosed
-    all-agent feedback loop, audit E28). Returns evidence_context unchanged
-    when no meta-review exists yet.
-    """
-    meta_context = _format_meta_review_context(state.get("meta_review"))
-    if not meta_context:
-        return evidence_context
-    return (
-        f"{evidence_context}\n\nCross-agent meta-review feedback "
-        f"(recurring patterns to probe):\n{meta_context}"
-    )
 
 
 async def _verify_with_probes(

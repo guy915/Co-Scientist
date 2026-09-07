@@ -36,6 +36,7 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_MAX_QUERIES,
     LOW_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -120,6 +121,8 @@ async def _call_hypothesis_query_llm(
                 prompt_name=f"hypothesis_queries_{hypothesis.id}",
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.warning("Query generation failed for %s: %s", hypothesis.id, exc)
         return None
@@ -242,6 +245,8 @@ async def _research_for_review(
     """
     try:
         return await research_for_review(state, hypothesis)
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.warning("Review research failed for %s: %s", hypothesis.id, exc)
         return None

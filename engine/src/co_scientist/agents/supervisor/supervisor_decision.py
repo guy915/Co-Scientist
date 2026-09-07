@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from co_scientist.constants import MEDIUM_TEMPERATURE
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -377,6 +378,8 @@ async def choose_supervisor_task(
             state, stats, budget, baseline, validated
         )
         return decision, provenance, 1
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)
         fallback = validate_decision(baseline, stats)

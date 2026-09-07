@@ -60,6 +60,7 @@ from co_scientist.constants import (
     PROGRESS_REVIEW_COMPLETE,
     PROGRESS_REVIEW_START,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -174,7 +175,20 @@ def _individual_review_result(
     result: HypothesisReview | BaseException,
     hypothesis_index: int,
 ) -> HypothesisReview | None:
-    """Maps one gathered individual-review result, logging failures."""
+    """Maps one gathered individual-review result, logging failures.
+
+    ``gather(return_exceptions=True)`` collects a control-flow error as a
+    value, which swallows it exactly as a bare handler would, so it is
+    re-raised rather than recorded as a missing review: a rate-limit park
+    is the worker's to wait out and a spent call budget ends the run, and
+    neither describes *this* hypothesis (see ``TASK_CONTROL_FLOW_ERRORS``).
+
+    Raises:
+        LLMRateLimitParkError: A platform cap the worker must park on.
+        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
+    """
+    if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
+        raise result
     if isinstance(result, BaseException):
         logger.warning(
             "Review failed for hypothesis %s: %s", hypothesis_index, result

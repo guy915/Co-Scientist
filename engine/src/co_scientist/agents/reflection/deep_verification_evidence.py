@@ -19,7 +19,9 @@ from co_scientist.agents.reflection.evidence_context import (
     build_evidence_context,
     showable_articles,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.models import Article, Hypothesis
+from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
@@ -237,6 +239,8 @@ async def _collect_probe_papers(
         metadata, _ = await _phase2_collect_papers(
             queries, state, config, client, errors
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         logger.warning("Probe evidence retrieval unavailable: %s", exc)
         return {}, errors, [*errors, str(exc)]
@@ -295,3 +299,23 @@ def with_researched(
         for article in researched_articles_for(state, hypothesis)
         if article.source_id not in known
     ]
+
+
+def _augment_evidence_context_with_meta_review(
+    evidence_context: str, state: WorkflowState
+) -> str:
+    """Appends cross-agent meta-review feedback to the evidence context.
+
+    Cross-agent meta-review feedback names recurring error patterns across
+    the run; appending it lets deep verification's probing questions target
+    those patterns, so meta-review reaches this agent too (the disclosed
+    all-agent feedback loop, audit E28). Returns evidence_context unchanged
+    when no meta-review exists yet.
+    """
+    meta_context = _format_meta_review_context(state.get("meta_review"))
+    if not meta_context:
+        return evidence_context
+    return (
+        f"{evidence_context}\n\nCross-agent meta-review feedback "
+        f"(recurring patterns to probe):\n{meta_context}"
+    )

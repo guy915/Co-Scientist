@@ -69,6 +69,7 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
     scaled_max_tokens,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -292,6 +293,8 @@ async def _evolve_or_none(
             hypothesis_index=hypothesis_index,
             operation=operation,
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.error(
             "Evolution failed for hypothesis %s: %s", hypothesis_index, e

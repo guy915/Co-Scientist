@@ -66,6 +66,7 @@ from co_scientist.constants import (
     LOW_TEMPERATURE,
     truncate_for_prompt,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -315,6 +316,8 @@ async def _observe(
                 prompt_name=f"simulation_execution_{hypothesis.id}",
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as exc:
         # Rare now that the loop harvests a partial answer at its
         # ceilings rather than raising at them: what reaches here is a

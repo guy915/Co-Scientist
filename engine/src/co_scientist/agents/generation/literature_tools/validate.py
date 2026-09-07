@@ -128,6 +128,7 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -193,6 +194,8 @@ async def _analyze_paper_novelty(
 
     try:
         analysis = await _call_novelty_analysis_llm(prompt, model_name)
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.error(
             "Failed to analyze paper %s for hypothesis %s: %s",

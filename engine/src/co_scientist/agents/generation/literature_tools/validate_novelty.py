@@ -21,6 +21,7 @@ from co_scientist.constants import (
     strip_citation_markers,
     truncate_for_prompt,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
 from co_scientist.state import WorkflowState
 
@@ -167,6 +168,8 @@ async def _search_papers_for_draft(
         )
         logger.info("Found %s papers for hypothesis %s", len(papers), idx)
         return papers
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.error("Failed to search papers for hypothesis %s: %s", idx, e)
         return {}

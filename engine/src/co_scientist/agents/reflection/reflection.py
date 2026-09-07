@@ -16,6 +16,7 @@ from co_scientist.constants import (
     PROGRESS_REFLECTION_COMPLETE,
     PROGRESS_REFLECTION_START,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -95,6 +96,8 @@ async def _run_reflection_llm_or_none(
         return _format_reflection_result(
             response, call.indra_data, hypothesis_index
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.error(
             "Reflection failed for hypothesis %s: %s", hypothesis_index, e

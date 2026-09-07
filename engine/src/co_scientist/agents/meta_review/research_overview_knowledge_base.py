@@ -53,6 +53,7 @@ from co_scientist.constants import (
     KNOWLEDGE_BASE_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, call_llm_json
 from co_scientist.prompts import PromptRunContext, get_knowledge_base_prompt
 from co_scientist.schemas.synthesis import (
@@ -149,6 +150,8 @@ async def synthesize_knowledge_base(
                 json_schema=schema,
             ),
         )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception:
         logger.error(
             "Knowledge-base synthesis failed; publishing the research "

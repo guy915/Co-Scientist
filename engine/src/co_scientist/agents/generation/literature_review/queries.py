@@ -23,6 +23,7 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
     LITERATURE_REVIEW_MAX_QUERIES,
 )
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
@@ -116,6 +117,8 @@ async def _generate_queries_via_llm(
             ),
         )
         return cast(list[str], result.get("queries", []))
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
     except Exception as e:
         logger.warning("LLM query generation failed: %s", e)
         return []
