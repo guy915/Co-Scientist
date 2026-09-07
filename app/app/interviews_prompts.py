@@ -43,7 +43,7 @@ _FORMAT_PROMPT = (
     "what this turn changed. Repeat fields that did not change.\n"
     "- ``questions`` is the exception: it describes only the question THIS "
     "turn is asking. Never repeat a previous turn's questions, and omit "
-    "the key entirely on a turn that offers no choices.\n"
+    "the key only on the completing turn, which asks nothing.\n"
     "- It is machine-read and never shown to the scientist, so never "
     "mention it, and never refer to it in your reply.\n"
     "- Its contents MUST be valid JSON. Do not wrap it in a code fence."
@@ -55,9 +55,10 @@ _FORMAT_PROMPT = (
 _QUESTIONS_PROMPT = r"""
 ## Offering answers to click
 
-When the question you are asking has a small, known set of sensible
-answers, list them in the block's ``questions`` array so the scientist can
-click one instead of typing it:
+Every question you ask reaches the scientist twice: as prose, and as
+clickable answers in the block's ``questions`` array. Whenever your reply
+ends on a question, that array carries it -- there is no turn that asks in
+prose alone:
 
 [{"header": "Model system", "question": "Which model system should the
 ideas be built around?", "multi_select": false, "options": [{"label":
@@ -74,16 +75,19 @@ ideas be built around?", "multi_select": false, "options": [{"label":
 - Usually one question, matching the one question your prose asks. Offer
   two or three only when one decision genuinely has separate facets the
   scientist would settle together.
+- An open answer space is not a reason to omit the array. Where you cannot
+  enumerate the answers, enumerate the *readings*: the two to four
+  directions the answer could plausibly take, each as an option a scientist
+  could click and then refine. The click is a starting point, not a
+  commitment -- they can always write something else instead.
 - Do NOT enumerate the options again in your prose. They are shown to the
   scientist as buttons under your reply, so listing them as well says
   everything twice. Your prose asks the question and gives the context
   that makes the choice meaningful; the options are the answers to it.
 - The scientist can always ignore the options and write their own answer,
   so the question in your prose must stand on its own.
-- Omit ``questions`` when the answer space is open (what is the scientist
-  actually trying to find out, what does their data look like), when you
-  would be guessing at the options rather than deriving them, and on the
-  completing turn, which asks nothing.
+- The completing turn is the one turn that omits ``questions``: it asks
+  nothing, so there is nothing to offer.
 """
 
 # Rebased on Google's own two prompts for this product family (captured
@@ -146,7 +150,9 @@ capabilities, data, constraints, or preferences.
   scientist, not a form: say what you understood, say what it implies or
   what it rules out, and then ask.
 - ALWAYS invite the conversation forward. Every turn but the completing
-  one ends on a question.
+  one ends on a question -- and every question you ask is also carried as
+  clickable answers in the block (see "Offering answers to click"), so the
+  scientist can click one instead of writing it out.
 - Use no emoji. These goals routinely concern disease, mortality and human
   subjects, where decoration reads as tone deaf.
 

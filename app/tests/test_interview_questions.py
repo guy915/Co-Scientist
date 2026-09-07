@@ -13,11 +13,12 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
+from app import interviews, store
 from app.interviews_questions import normalized_questions
 from app.main import app
 
 from ._interviews_helpers import (
+    InterviewFields,
     _fake_stream,
     _interview_payload,
     _response,
@@ -168,9 +169,77 @@ def test_the_options_never_leak_into_the_prose_the_scientist_reads(
     assert turn["content"] == "Which model system should we build around?"
 
 
+def _patch_repair(
+    monkeypatch: pytest.MonkeyPatch, questions: list[dict[str, Any]]
+) -> list[str]:
+    """Answer the repair call with ``questions``; return the messages it saw."""
+    seen: list[str] = []
+
+    async def _fake_repair(message: str) -> list[dict[str, Any]]:
+        seen.append(message)
+        return questions
+
+    monkeypatch.setattr(interviews, "repair_questions", _fake_repair)
+    return seen
+
+
 def test_a_turn_offering_no_questions_persists_none(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """Questions are per turn, never cumulative: an omission means none."""
+    """Questions are per turn, never cumulative: an omission means none.
+
+    And a repair that finds nothing to offer -- the model could not be
+    reached, or the prose asks nothing -- leaves the turn exactly as it
+    was rather than failing it.
+    """
+    seen = _patch_repair(monkeypatch, [])
     turn = _created_turn(monkeypatch, _wire_turn(_response("Which one?")))
     assert turn["questions"] == []
+    assert seen == ["Which one?"]
+
+
+def test_a_question_asked_in_prose_alone_gets_its_options_back(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """The block is last in the reply, so it is what a short turn loses.
+
+    The prose asked correctly either way, so the question is read back out
+    of it rather than the whole turn being re-derived.
+    """
+    seen = _patch_repair(monkeypatch, _QUESTIONS)
+
+    turn = _created_turn(monkeypatch, _wire_turn(_response("Which one?")))
+
+    assert turn["questions"] == _QUESTIONS
+    assert seen == ["Which one?"]
+
+
+def test_a_turn_that_offered_its_own_questions_is_not_repaired(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    seen = _patch_repair(monkeypatch, [])
+
+    turn = _created_turn(monkeypatch, _turn_offering(_QUESTIONS))
+
+    assert turn["questions"] == _QUESTIONS
+    assert seen == []
+
+
+def test_the_completing_turn_is_never_repaired(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """It asks nothing by contract, so there is nothing to offer."""
+    seen = _patch_repair(monkeypatch, _QUESTIONS)
+    completing = _response(
+        "That is enough to start.",
+        InterviewFields(
+            focus=["Efflux pumps"],
+            preferences=["Mechanistic novelty"],
+            completed=True,
+        ),
+    )
+
+    turn = _created_turn(monkeypatch, _wire_turn(completing))
+
+    assert turn["questions"] == []
+    assert seen == []

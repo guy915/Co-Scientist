@@ -157,8 +157,14 @@ async def _run_interview_completion(
         # label and a description for each on top of the five fields it
         # already restates every turn, and a budget that funds the prose but
         # truncates the block loses the whole turn's state, not just the
-        # options.
-        max_tokens=thinking_safe_max_tokens(model, 4_000),
+        # options. Raised again to 6k once the block became mandatory on
+        # every question-asking turn: on a model that does not reason this
+        # number is the *whole* turn, and the guide asks for several
+        # paragraphs and often a table before the block is even opened --
+        # the block is last, so it is what a tight ceiling eats. A ceiling
+        # is not a reservation, so the headroom costs nothing on the turns
+        # that do not need it.
+        max_tokens=thinking_safe_max_tokens(model, 6_000),
         # Bounds establishing the stream; once chunks flow, stream_chunks
         # below owns the clock.
         timeout=_INTERVIEW_TOTAL_SECONDS,

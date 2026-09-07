@@ -25,7 +25,10 @@ answer.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # How many questions one turn may offer. The interview asks about one thing
 # at a time (see the system prompt's "Turn taking"), so the usual number is
@@ -99,7 +102,18 @@ def normalized_questions(raw: Any) -> list[dict[str, Any]]:
         model asked them. Empty for a turn that offered no usable choice,
         which is the common case and never an error.
     """
+    if raw is None:
+        return []
     if not isinstance(raw, list):
+        logger.warning("Interview questions block is not a list; dropping it")
         return []
     questions = [q for q in map(_normalized_question, raw) if q]
+    if raw and not questions:
+        # A turn that tried to offer a choice and lost it to normalization
+        # is invisible otherwise: the scientist just sees prose. The repair
+        # pass (app.interviews_question_repair) recovers the click, but the
+        # count of these is how a malformed-block regression is noticed.
+        logger.warning(
+            "Interview turn offered %d question(s), none usable", len(raw)
+        )
     return questions[:MAX_QUESTIONS]

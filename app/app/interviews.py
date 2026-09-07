@@ -90,6 +90,9 @@ from app.interviews_prompts import (
 from app.interviews_prompts import (
     _ready as _ready,
 )
+from app.interviews_question_repair import (
+    repair_questions as repair_questions,
+)
 from app.interviews_questions import (
     normalized_questions as normalized_questions,
 )
@@ -184,7 +187,9 @@ async def _advance(
     response, used_fallback = await _run_interview_turn(
         interview, sink, on_prose
     )
-    turn = _resolved_turn(response, used_fallback, "".join(fragments))
+    turn = await _with_repaired_questions(
+        _resolved_turn(response, used_fallback, "".join(fragments))
+    )
     _persist_interview_turn(interview_id, turn)
     updated = store.get_interview(interview_id)
     assert updated is not None
@@ -248,6 +253,30 @@ def _resolved_turn(
         fallback=used_fallback,
         questions=normalized_questions(response.get("questions")),
     )
+
+
+async def _with_repaired_questions(turn: _ResolvedTurn) -> _ResolvedTurn:
+    """Return ``turn`` with the clickable answers its question was missing.
+
+    A turn that asks a question is supposed to carry that question's options
+    (see ``app.interviews_prompts``); the block is last in the reply, so it
+    is what a truncated turn loses, and a model that ignores the instruction
+    loses it too. Either way the prose already asked correctly, so the
+    question is read back out of it rather than the turn being retried --
+    see ``app.interviews_question_repair``, which returns nothing for a turn
+    whose prose asks nothing and never invents a question.
+
+    Skipped for a completing turn, which asks nothing by contract, and for a
+    fallback turn, whose script is deterministic and has no model behind it
+    to ask.
+    """
+    if turn.questions or turn.completed or turn.fallback:
+        return turn
+    questions = await repair_questions(turn.message)
+    if not questions:
+        return turn
+    logger.info("Recovered %d interview question(s) from prose", len(questions))
+    return dataclasses.replace(turn, questions=questions)
 
 
 def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
