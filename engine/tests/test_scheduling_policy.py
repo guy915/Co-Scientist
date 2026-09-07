@@ -47,8 +47,16 @@ def test_verification_backlogged_state_reviews() -> None:
 
 
 def test_converged_state_terminates() -> None:
-    """A stable leaderboard with no backlog terminates as converged."""
-    stats = healthy_stats(rank_stable_cycles=2, iteration=2)
+    """A stable leaderboard with no backlog terminates as converged.
+
+    ``evolved_since_stable`` is what says the listing's own response to
+    stagnation (evolve, L55-58) has already been tried on this episode;
+    without it the run owes one evolve cycle before it may stop. See
+    ``test_scheduling_policy_convergence.py``.
+    """
+    stats = healthy_stats(
+        rank_stable_cycles=2, iteration=2, evolved_since_stable=True
+    )
     decision = decide_next_task(stats, BUDGET, convergence_cycles=2)
     assert decision.terminate
     assert decision.termination_reason is TerminationReason.CONVERGED

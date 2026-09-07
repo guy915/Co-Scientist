@@ -9,6 +9,8 @@ empty.
 """
 
 from co_scientist.agents.proximity.proximity_graph import (
+    _DEGREE_WEIGHT,
+    PROXIMITY_FLOOR_NEIGHBOUR_CAP,
     PROXIMITY_METHOD,
     PROXIMITY_METHOD_VERSION,
     SurvivorIndex,
@@ -228,3 +230,116 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
         "h-1",
         "h-2",
     }
+
+
+# --- Total graph: a floor edge for every pair the clustering left apart ---
+#
+# Listing 06 quantifies over every pair ("FOR EACH pair of hypotheses in the
+# HypothesesList"), so a pair the clustering did not relate must carry a
+# low-weight edge rather than no edge. These pin the shape of that, not its
+# numbers: the floor edges live under their own key, are capped per node, and
+# are deterministic.
+
+
+def _pair_keys(edges: list[dict[str, object]]) -> set[frozenset[str]]:
+    """Unordered endpoint pairs of a graph edge list."""
+    return {frozenset({str(e["source"]), str(e["target"])}) for e in edges}
+
+
+def test_unclustered_pairs_get_a_floor_edge() -> None:
+    """A pair no cluster related is connected at the floor weight."""
+    graph = build_proximity_graph(
+        _clusters(),
+        _SURVIVORS,
+        research_goal="goal",
+        model="fake/model",
+        updated_at=1.0,
+    )
+    floor = graph["floor_edges"]
+    assert _pair_keys(floor) == {
+        frozenset({"h-a", "h-c"}),
+        frozenset({"h-b", "h-c"}),
+    }
+    assert all(edge["similarity"] < _DEGREE_WEIGHT["low"] for edge in floor)
+    assert all(edge["cluster_id"] is None for edge in floor)
+
+
+def test_floor_edges_never_shadow_a_cluster_edge() -> None:
+    """A pair the clustering related keeps its judged weight only."""
+    graph = build_proximity_graph(
+        _clusters(),
+        _SURVIVORS,
+        research_goal="goal",
+        model="fake/model",
+        updated_at=1.0,
+    )
+    judged = _pair_keys(graph["edges"])
+    assert judged & _pair_keys(graph["floor_edges"]) == set()
+
+
+def test_floor_edges_are_capped_per_node() -> None:
+    """No node exceeds the neighbour cap once floor edges are added."""
+    survivors = _survivors(*[f"h-{i}" for i in range(22)])
+    graph = build_proximity_graph(
+        [], survivors, research_goal="goal", model="m", updated_at=1.0
+    )
+    degrees: dict[str, int] = {}
+    for edge in graph["floor_edges"]:
+        for side in ("source", "target"):
+            node = str(edge[side])
+            degrees[node] = degrees.get(node, 0) + 1
+    assert degrees, "a 22-node pool must gain floor edges"
+    assert max(degrees.values()) <= PROXIMITY_FLOOR_NEIGHBOUR_CAP
+    # Capped, so the graph is far short of the 231 pairs a complete graph has.
+    assert len(graph["floor_edges"]) < 22 * 21 // 2
+
+
+def test_floor_edges_are_deterministic() -> None:
+    """The same pool yields byte-identical floor edges."""
+    survivors = _survivors(*[f"h-{i}" for i in range(9)])
+    graphs = [
+        build_proximity_graph(
+            [], survivors, research_goal="goal", model="m", updated_at=1.0
+        )
+        for _ in range(2)
+    ]
+    assert graphs[0]["floor_edges"] == graphs[1]["floor_edges"]
+
+
+def test_floor_edges_do_not_reach_the_evolution_duplicate_guard() -> None:
+    """Evolution's peer similarity must not read a floor edge as a judgement.
+
+    ``find_nearest_peer`` prefers a proximity edge's weight over its own
+    token-coverage measurement, so a floor edge under ``edges`` would replace
+    a real measurement with a placeholder and let a near-duplicate child pass
+    the guard. That is why the floor edges carry their own key. Imported from
+    the evolution package on purpose: this fails the moment someone folds the
+    two lists together.
+    """
+    from co_scientist.agents.evolution.evolve_context import (
+        proximity_weights_for,
+    )
+
+    survivors = _survivors("h-a", "h-b", "h-c")
+    graph = build_proximity_graph(
+        [], survivors, research_goal="goal", model="m", updated_at=1.0
+    )
+    assert graph["floor_edges"], "the pool must have gained floor edges"
+    assert proximity_weights_for(graph, "h-a") == {}
+
+
+def test_graph_meta_records_the_floor_edges() -> None:
+    """Meta reports the floor edge count and the cap that bounded it."""
+    graph = build_proximity_graph(
+        _clusters(),
+        _SURVIVORS,
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
+    )
+    meta = graph["meta"]
+    assert meta["floor_edge_count"] == len(graph["floor_edges"])
+    assert meta["neighbour_cap"] == PROXIMITY_FLOOR_NEIGHBOUR_CAP
+    # Version 1 edges are unchanged; the floor list is additive.
+    assert meta["version"] == PROXIMITY_METHOD_VERSION
+    assert meta["edge_count"] == len(graph["edges"])

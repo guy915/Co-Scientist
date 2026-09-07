@@ -12,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Any
+from typing import Any, NamedTuple
 
 from app import store
 from app.engine_tasks_fanout_aggregates import (
@@ -158,7 +158,24 @@ def _enqueue_review_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Materialize one independently leasable task per unreviewed hypothesis."""
+    """Materialize one independently leasable task per unreviewed hypothesis.
+
+    **This is the canonical mirror of the published review chaining
+    (FIX-9).** ``02-generation.md`` L24-26 and ``01-supervisor.md`` L34-38
+    create one ``Reflection / ReviewHypothesis`` task per new hypothesis
+    and add each to the global task queue; ``03-reflection.md`` L12 then
+    fetches that hypothesis by id. This function is that step: one queue
+    row per hypothesis, keyed and leased independently, which is also what
+    production runs.
+
+    The LangGraph engine's ``review_node`` reviews the whole batch behind
+    one synchronous barrier instead. That divergence is deliberate and
+    reference-only: for a pool of five it is a single comparative call
+    against five, on a path with no production cost pressure to justify
+    the 5x. Neither side is drifting -- the decision is that the durable
+    path owns the mirror, so changes to per-hypothesis chaining belong
+    here, not there.
+    """
     unreviewed = [
         hypothesis
         for hypothesis in state["hypotheses"]
@@ -269,23 +286,71 @@ def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
     ]
 
 
-def _mature_reflection_specs(state: dict[str, Any]) -> list[tuple[str, str]]:
-    """Return (hypothesis_id, review_mode) specs for reflection by maturity."""
+class _ReflectionSpec(NamedTuple):
+    """One reflection item this fan-out will materialize.
+
+    Attributes:
+        hypothesis_id: The hypothesis the review runs against.
+        review_mode: The ``ReviewType`` value to issue.
+        recheck: Whether this is a blocked idea's one recheck for the run
+            rather than part of the mature cascade. Carried into the
+            item's inputs so the aggregate can record the attempt even
+            when the item never completed.
+    """
+
+    hypothesis_id: str
+    review_mode: str
+    recheck: bool = False
+
+
+def _viable_specs(
+    hypothesis: Any, iteration: int, literature: Any
+) -> list[_ReflectionSpec]:
+    """Return the cascade specs due for one viable hypothesis."""
+    specs: list[_ReflectionSpec] = []
+    if literature and not hypothesis.reflection_notes:
+        specs.append(_ReflectionSpec(hypothesis.id, "observation"))
+    return specs + [
+        _ReflectionSpec(hypothesis_id, review_mode)
+        for hypothesis_id, review_mode in _maturity_specs(hypothesis, iteration)
+    ]
+
+
+def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
+    """Return the one recurrent review each blocked idea is still owed.
+
+    The cascade above selects on ``viable``, so nothing in it can ever
+    reach an idea the initial review gate blocked -- which leaves the
+    derived disposition (FIX-4) with no later verdict to derive from. The
+    engine owns both bounds (once per hypothesis for the whole run, and a
+    run-wide ceiling), read off the pool so they survive a checkpoint
+    round trip and a resume.
+    """
+    from co_scientist.agents.reflection.review_recheck import (
+        RECHECK_REVIEW_TYPE,
+        recheck_targets,
+    )
+
+    return [
+        _ReflectionSpec(hypothesis.id, RECHECK_REVIEW_TYPE.value, True)
+        for hypothesis in recheck_targets(state["hypotheses"])
+    ]
+
+
+def _mature_reflection_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
+    """Return the reflection specs due: the cascade, then the rechecks."""
     iteration = int(state.get("current_iteration", 0))
     literature = state.get("articles_with_reasoning")
-    specs: list[tuple[str, str]] = []
+    specs: list[_ReflectionSpec] = []
     for hypothesis in state["hypotheses"]:
-        if hypothesis.review_disposition != "viable":
-            continue
-        if literature and not hypothesis.reflection_notes:
-            specs.append((hypothesis.id, "observation"))
-        specs += _maturity_specs(hypothesis, iteration)
-    return specs
+        if hypothesis.review_disposition == "viable":
+            specs += _viable_specs(hypothesis, iteration, literature)
+    return specs + _recheck_specs(state)
 
 
 def _enqueue_mature_reflection_item_tasks(
     task: ScientificTask,
-    specs: Sequence[tuple[str, str]],
+    specs: Sequence[_ReflectionSpec],
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
@@ -297,20 +362,21 @@ def _enqueue_mature_reflection_item_tasks(
                 task_type=MATURE_REFLECTION_ITEM_TASK,
                 inputs={
                     "checkpoint_seq": checkpoint_seq,
-                    "hypothesis_id": hypothesis_id,
-                    "review_mode": review_mode,
+                    "hypothesis_id": spec.hypothesis_id,
+                    "review_mode": spec.review_mode,
+                    "recheck": spec.recheck,
                 },
-                idempotency_key=f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}",
+                idempotency_key=f"reflection:{spec.review_mode}:{checkpoint_seq}:{spec.hypothesis_id}",
                 priority=86,
                 dependencies=(task.id,),
                 provenance={
                     "scheduled_by": task.task_type,
-                    "reflection_mode": review_mode,
+                    "reflection_mode": spec.review_mode,
                 },
             ),
             conn=conn,
         )
-        for hypothesis_id, review_mode in specs
+        for spec in specs
     ]
 
 

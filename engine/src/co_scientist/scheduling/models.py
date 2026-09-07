@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+from collections.abc import Iterable
 from typing import Any
 
 
@@ -172,9 +173,26 @@ class SchedulerStats:
     # Proximity refresh: pool grew (generate/evolve added rows) since the last
     # proximity pass, so clustering/matchmaking should be refreshed.
     pool_grew_since_proximity: bool = False
+    # Meta-review cadence (listing 01 L60-63, "IF enough time has passed").
+    # Two observables rather than a wall clock: how many work cycles have
+    # completed since the last firing, and how much new critique material
+    # (reviews plus tournament participations) has accumulated since it.
+    # The iteration clock is what keeps this to at most one firing per work
+    # cycle -- a decision-count clock fires once before a ranking wave and
+    # again the moment it returns with new matches. The material count is
+    # what terminates it: meta-review is not a work task, so it never
+    # advances the iteration counter itself.
+    iterations_since_meta_review: int = 0
+    feedback_since_meta_review: int = 0
     # Convergence signal.
     top_elo: int = 0
     rank_stable_cycles: int = 0
+    # Whether EVOLVE has been scheduled since the leaderboard settled.
+    # Listing 01 L55-58 answers stagnation with evolution, so convergence
+    # may not terminate a run that has not yet tried it (see
+    # ``policy_checks._check_convergence``). Reset whenever the leaderboard
+    # moves again, so each stagnation episode earns its own evolve attempt.
+    evolved_since_stable: bool = False
     # Yield since the previous cycle.
     generation_yield: float = 0.0
     evolution_yield: float = 0.0
@@ -241,6 +259,36 @@ class SupervisorDecision:
         if self.termination_reason is not None:
             data["termination_reason"] = self.termination_reason.value
         return data
+
+
+# The queue-action kind that *stacks* a follow-up task rather than mutating
+# an existing queue row. Listing 01's DecideNextSteps queues several tasks
+# from one pass; our precedence chain returns one, and this is how the rest
+# of that pass travels with it (see ``policy.stack_companions``).
+ENQUEUE_ACTION = "enqueue"
+
+
+def stacked_task_values(
+    queue_actions: Iterable[dict[str, Any]],
+) -> tuple[str, ...]:
+    """Return the task values a pass stacked alongside its primary decision.
+
+    One reader in each place the shape is consumed -- the graph's loop-point
+    router, the durable route table, and the orchestrator's own bookkeeping
+    -- so the action vocabulary is stated once here rather than three times.
+
+    Args:
+        queue_actions: A decision's ``queue_actions``, or the same list as
+            it travels on ``WorkflowState["supervisor_queue_actions"]``.
+
+    Returns:
+        The stacked ``TaskType`` values, in the order they were requested.
+    """
+    return tuple(
+        str(action["task_type"])
+        for action in queue_actions
+        if action.get("action") == ENQUEUE_ACTION and action.get("task_type")
+    )
 
 
 @dataclasses.dataclass

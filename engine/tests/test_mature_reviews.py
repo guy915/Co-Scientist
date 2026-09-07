@@ -133,13 +133,35 @@ def test_only_the_not_viable_band_blocks(
     assert hypothesis.is_rankable()
 
 
-def test_blocking_dispositions_are_never_downgraded() -> None:
-    """A later sound review cannot un-block an already-blocked idea."""
+def test_a_deeper_review_reverses_the_initial_screen() -> None:
+    """A full review finding the idea sound un-blocks it (FIX-4).
+
+    The initial screen is one shallow call and no published listing has it
+    at all; the full review asks the same question in depth, so its
+    verdict replaces the screen's rather than being unable to reach it.
+    """
     hypothesis = make_hypothesis(text="idea", review_disposition="inaccurate")
 
     _store(hypothesis, ReviewType.FULL, _full_review("sound"))
 
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.is_rankable()
+
+
+def test_a_narrower_review_does_not_reverse_a_fatal_one() -> None:
+    """Reversal is between layers, not within the mature cascade.
+
+    A simulation whose mechanism holds answers a narrower question than
+    the correctness a full review rejected, so it asserts no disposition
+    and the rejection stands.
+    """
+    hypothesis = make_hypothesis(text="idea", review_disposition="viable")
+
+    _store(hypothesis, ReviewType.FULL, _full_review("rejected"))
+    _store(hypothesis, ReviewType.SIMULATION, _simulation_review("holds"))
+
     assert hypothesis.review_disposition == "inaccurate"
+    assert not hypothesis.is_rankable()
 
 
 def test_a_fatal_simulation_wins_over_a_revising_full_review() -> None:

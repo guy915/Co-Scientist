@@ -45,6 +45,11 @@ from co_scientist.agents.reflection.review_prompt_context import (
 from co_scientist.agents.reflection.review_prompt_context import (
     _recurrent_review_suffix as _recurrent_review_suffix,
 )
+from co_scientist.agents.reflection.review_recheck import (
+    RECHECK_REVIEW_TYPE,
+    mark_recheck_issued,
+    recheck_targets,
+)
 from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
@@ -277,6 +282,49 @@ def _distinct(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return unique
 
 
+async def _recheck_hypothesis(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> int:
+    """Give one blocked idea its single recurrent review for the run.
+
+    The attempt is recorded before the call, so a failure spends it too
+    (``review_recheck.mark_recheck_issued``). The result is stored
+    through the same write path as every other mature review, so the
+    disposition it changes is derived exactly as it is everywhere else.
+
+    Returns:
+        1 when the review produced a verdict, 0 when the call failed.
+    """
+    mark_recheck_issued(hypothesis)
+    run = await _run_review(state, hypothesis, RECHECK_REVIEW_TYPE)
+    if run.result is None:
+        return 0
+    store_mature_review_result(
+        hypothesis,
+        run.review_type,
+        run.result,
+        int(state.get("current_iteration", 0)),
+    )
+    return 1
+
+
+async def _run_blocked_rechecks(
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> int:
+    """Re-examine the blocked ideas still owed a recheck, within budget.
+
+    Returns:
+        How many rechecks produced a verdict.
+    """
+    targets = recheck_targets(hypotheses)
+    if not targets:
+        return 0
+    results = await asyncio.gather(
+        *[_recheck_hypothesis(state, hypothesis) for hypothesis in targets]
+    )
+    return sum(results)
+
+
 async def _run_missing_observation_reviews(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
@@ -316,20 +364,30 @@ async def _run_missing_observation_reviews(
 
 
 async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
-    """Run full review cascade and recurrent reviews over viable hypotheses."""
+    """Run the mature cascade over viable ideas, and recheck blocked ones.
+
+    The cascade selects on ``viable``, which is why the blocked ideas need
+    their own arm: without it no deeper verdict can ever reach an idea the
+    initial screen barred, and the derived disposition has nothing later to
+    derive from (``review_recheck``).
+    """
     hypotheses = state["hypotheses"]
     viable = [
         hypothesis
         for hypothesis in hypotheses
         if hypothesis.review_disposition == "viable"
     ]
-    # The observation reviews and the full/simulation/recurrent review batch
-    # have no data dependency on each other, so overlap their LLM latency.
-    observation_calls, reviewed = await asyncio.gather(
+    # The observation reviews, the full/simulation/recurrent review batch and
+    # the blocked-idea rechecks have no data dependency on each other, so
+    # overlap their LLM latency.
+    observation_calls, reviewed, recheck_calls = await asyncio.gather(
         _run_missing_observation_reviews(state, viable),
         asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),
+        _run_blocked_rechecks(state, hypotheses),
     )
-    calls = observation_calls + sum(count for count, _ in reviewed)
+    calls = (
+        observation_calls + sum(count for count, _ in reviewed) + recheck_calls
+    )
     return {
         "hypotheses": hypotheses,
         "articles": state.get("articles") or [],

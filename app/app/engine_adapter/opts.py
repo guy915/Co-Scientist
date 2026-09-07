@@ -364,6 +364,23 @@ def _resolve_generator_models(
     return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
 
 
+def _generator_budget(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Build the engine's ``GeneratorOptions.budget`` termination ceilings.
+
+    Hard termination ceilings on top of max_iterations. Present even for
+    runs created before the knobs existed: resolved_run_config seeds every
+    load from the tier table. ``max_ideas``/``max_matches_per_idea`` are the
+    Supervisor listing's own two loop predicates; forwarding them here is
+    what arms the published WHILE guard, which was dead on every run while
+    this dict carried only the call ceiling.
+    """
+    return {
+        "max_llm_calls": int(cfg["max_llm_calls"]),
+        "max_ideas": int(cfg["max_ideas"]),
+        "max_matches_per_idea": float(cfg["max_matches_per_idea"]),
+    }
+
+
 def _generator_kwargs(
     cfg: dict[str, Any],
     model_name: str,
@@ -391,10 +408,7 @@ def _generator_kwargs(
         "options": GeneratorOptions(
             supervisor_model_name=supervisor_model_name,
             enable_cache=enable_cache,
-            # Hard termination ceiling on top of max_iterations. Present
-            # even for runs created before the knob existed:
-            # resolved_run_config seeds every load from the tier table.
-            budget={"max_llm_calls": int(cfg["max_llm_calls"])},
+            budget=_generator_budget(cfg),
             tournament_pairs=int(cfg["tournament_pairs"]),
             elo_k_factor=int(cfg["k_factor"]),
             # ``evidence_count`` is the single literature-budget knob in the

@@ -80,6 +80,25 @@ DEFAULT_REQUIREMENTS: tuple[str, ...] = (
 # right meter here: they measure work actually done, so an interrupted run is
 # not penalized for the hours it sat wedged, whereas ``elapsed_s`` counts from
 # the original ``start_time`` and would terminate a resumed run instantly.
+#
+# ``max_ideas`` and ``max_matches_per_idea`` are the Supervisor listing's own
+# two named loop predicates (``01-supervisor.md`` L17). They were implemented
+# in ``scheduling.policy_checks`` from the start and left unset on every real
+# run, so the loop actually terminated on ``max_iterations`` -- a predicate
+# the listing does not name. Both are sized here from the *same* tier numbers
+# they bound, one row above their own steady state:
+#   max_ideas            > initial_hypotheses_count
+#                          + evolution_max_count * max_iterations
+#   max_matches_per_idea > 2 * tournament_pairs * max_iterations
+#                          / initial_hypotheses_count
+# The doubling is because a judged match increments both participants'
+# tallies, and the initial pool is the denominator because it is the smallest
+# the run ever divides by (evolution only grows it, which lowers the average).
+# Sizing either at or below that steady state is the trap: the ceiling is
+# checked *above* every productive task, so an undersized value stops the run
+# immediately after its first tournament and reports it as a spent match
+# budget rather than as a misconfiguration. Pinned by
+# ``tests/test_run_modes_supervisor_budget.py``.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -88,6 +107,8 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 6,
         "evidence_count": 4,
         "max_llm_calls": 1200,
+        "max_ideas": 12,
+        "max_matches_per_idea": 4,
     },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
@@ -96,6 +117,8 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 12,
         "evidence_count": 8,
         "max_llm_calls": 2500,
+        "max_ideas": 32,
+        "max_matches_per_idea": 7,
     },
     "extended": {
         "initial_hypotheses_count": 12,
@@ -104,6 +127,8 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 20,
         "evidence_count": 12,
         "max_llm_calls": 7000,
+        "max_ideas": 60,
+        "max_matches_per_idea": 11,
     },
     "ultra": {
         "initial_hypotheses_count": 16,
@@ -112,6 +137,8 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 32,
         "evidence_count": 16,
         "max_llm_calls": 14000,
+        "max_ideas": 96,
+        "max_matches_per_idea": 17,
     },
 }
 

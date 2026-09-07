@@ -20,6 +20,7 @@ from co_scientist.scheduling import (
     SupervisorDecision,
     TaskType,
     policy,
+    stacked_task_values,
 )
 
 
@@ -46,7 +47,97 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         # Both fields return to None whenever the backlog clears.
         "settlement_allowance": None,
         "owed_at_last_settlement": None,
+        # Meta-review cadence anchors. Zero rather than the pool's current
+        # counts so the first firing is gated by the iteration clock alone:
+        # the initial generation's reviews are exactly the material the
+        # first system-wide feedback should be synthesized from.
+        "iteration_at_last_meta_review": 0,
+        "feedback_at_last_meta_review": 0,
+        # No evolve has run yet, and no leaderboard has settled yet either.
+        "evolved_since_stable": False,
     }
+
+
+# Tasks that route through the meta_review node, so scheduling either one
+# resets the cadence anchors (``generator.graph._TASK_ROUTES``).
+_META_REVIEW_ROUTED_TASKS = frozenset({TaskType.META_REVIEW, TaskType.EVOLVE})
+
+# Tasks that advance the iteration counter as they are scheduled; mirrors
+# ``orchestrator._advance_iteration``'s own rule.
+_ITERATION_ADVANCING_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
+
+
+def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
+    """Whether this decision runs the meta_review node before it is done.
+
+    Three ways it can: the task *is* meta-review, the task is EVOLVE (whose
+    route enters at meta_review so the critique feeds the evolution
+    prompts), or the pass stacked meta-review as a companion ahead of some
+    other primary (``policy.stack_companions``). All three consume the
+    critique material accumulated so far, so all three re-anchor the
+    cadence -- a stacked firing that did not would re-stack on every
+    remaining loop point.
+    """
+    if decision.next_task in _META_REVIEW_ROUTED_TASKS:
+        return True
+    return TaskType.META_REVIEW.value in stacked_task_values(
+        decision.queue_actions
+    )
+
+
+def _feedback_total(stats: SchedulerStats) -> int:
+    """Return the critique material meta-review synthesizes from.
+
+    Reviews written plus tournament participations played: exactly the two
+    inputs ``GenerateSystemFeedback`` gathers (listing 07 L12). Read as one
+    monotone-ish total rather than two counters because the cadence only
+    ever asks whether *any* of it is new.
+    """
+    return stats.reviewed_count + stats.total_matches
+
+
+def _meta_review_anchors(
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+) -> tuple[int, int]:
+    """Return the (iteration, feedback) cadence anchors for the next decision.
+
+    Unchanged unless this decision routes through the meta_review node.
+    When it does, the iteration anchor is the iteration the decision
+    *becomes*, not the one its stats were read at: ``orchestrator.
+    _advance_iteration`` increments the counter for a work task as it is
+    scheduled, so anchoring at the pre-increment value would read as a
+    completed cycle on the very next decision and buy a second firing it
+    had not earned.
+    """
+    if not _routes_through_meta_review(decision):
+        return (
+            int(book.get("iteration_at_last_meta_review", 0)),
+            int(book.get("feedback_at_last_meta_review", 0)),
+        )
+    advanced = 1 if decision.next_task in _ITERATION_ADVANCING_TASKS else 0
+    return stats.iteration + advanced, _feedback_total(stats)
+
+
+def _evolved_since_stable(
+    book: dict[str, Any], stats: SchedulerStats, decision: SupervisorDecision
+) -> bool:
+    """Return whether evolution has answered the current stagnation episode.
+
+    Set when an EVOLVE is scheduled against a leaderboard that has already
+    settled (``rank_stable_cycles >= 1``), and cleared the moment the
+    ordering moves again, so each fresh stagnation episode earns its own
+    evolve attempt before ``policy_checks._check_convergence`` may call the
+    run done. An evolve scheduled *before* anything settled does not count:
+    listing 01 L55-58's response is to the stagnation, and a stale flag from
+    an earlier cycle would let the very next settling terminate untried.
+    """
+    if stats.rank_stable_cycles < 1:
+        return False
+    if decision.next_task is TaskType.EVOLVE:
+        return True
+    return bool(book.get("evolved_since_stable", False))
 
 
 def _is_settlement_rank(
@@ -175,4 +266,10 @@ def _next_bookkeeping(
     allowance, last_owed = _settled_allowance(book, stats, decision, hypotheses)
     updated["settlement_allowance"] = allowance
     updated["owed_at_last_settlement"] = last_owed
+    meta_iteration, meta_feedback = _meta_review_anchors(book, stats, decision)
+    updated["iteration_at_last_meta_review"] = meta_iteration
+    updated["feedback_at_last_meta_review"] = meta_feedback
+    updated["evolved_since_stable"] = _evolved_since_stable(
+        book, stats, decision
+    )
     return updated

@@ -145,8 +145,17 @@ def _apply_review_items(
     observes peer-review quality. ``criteria`` are the scientist's
     evaluation criteria, which select the scored axes the gate consults
     (finding K4) -- the durable path is where production runs review.
+
+    The whole pool is re-derived at the end, not only the hypotheses this
+    batch reviewed: a mature verdict or a merged scientist review recorded
+    since the last pass has to reach the disposition, or one early screen
+    decides an idea's standing for the rest of the run (FIX-4). It reads
+    reviews already paid for and costs no LLM calls.
     """
     from co_scientist.agents.reflection.review import _apply_initial_review_gate
+    from co_scientist.agents.reflection.review_gate import (
+        refresh_review_dispositions,
+    )
     from co_scientist.models import HypothesisReview
 
     successful = 0
@@ -167,6 +176,7 @@ def _apply_review_items(
         _apply_initial_review_gate([hypothesis], [review], criteria)
         usage_snapshots.append(item.result.get("model_usage") or {})
         successful += 1
+    refresh_review_dispositions(by_id.values(), criteria)
     return successful, failed, merge_usage_snapshots(usage_snapshots)
 
 

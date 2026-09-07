@@ -49,6 +49,10 @@ def _cfg() -> dict[str, Any]:
         "evidence_count": 4,
         "k_factor": 36,
         "max_llm_calls": 100,
+        # The Supervisor listing's own two loop predicates, sized as the
+        # express tier sizes them for the numbers above.
+        "max_ideas": 12,
+        "max_matches_per_idea": 4,
     }
 
 

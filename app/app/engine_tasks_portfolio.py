@@ -50,7 +50,10 @@ import sqlite3
 from typing import Any
 
 from app import store
-from app.engine_tasks_queue_actions import _apply_supervisor_queue_actions
+from app.engine_tasks_queue_actions import (
+    _apply_supervisor_enqueue_actions,
+    _apply_supervisor_queue_actions,
+)
 from app.store import ScientificTask
 
 
@@ -288,6 +291,16 @@ def _enqueue_node_portfolio(
     )
     _cancel_stale_planned_chain(task, successor_type, conn)
     head = _enqueue_after(task, successor_type, priority, conn)
+    if is_orchestrator:
+        # After the head, never with the mutation actions above: those run
+        # before ``_cancel_stale_planned_chain``, which would sweep a row
+        # enqueued there as a superseded plan.
+        _apply_supervisor_enqueue_actions(
+            task,
+            state.get("supervisor_queue_actions") or [],
+            priority,
+            conn,
+        )
     if successor is not None:
         _enqueue_lookahead_tail(head, successor, state, conn)
     return head

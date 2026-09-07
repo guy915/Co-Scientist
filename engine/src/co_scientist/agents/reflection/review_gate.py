@@ -1,15 +1,20 @@
-"""The initial peer-review gate and its scientist-criteria weighting.
+"""The peer-review gate and its scientist-criteria weighting.
 
-Classifies freshly reviewed ideas against the review prompt's own quality
-bands (finding K4's review half): only the "fundamentally flawed, not
-viable" band blocks, and when the scientist supplied evaluation criteria
-for the run those criteria select which scored axes the gate consults
-instead of the built-in soundness/novelty pair. The reviewer's safety
-axis is consulted on every run whatever the criteria (finding J8).
+Classifies reviewed ideas against the review prompt's own quality bands
+(finding K4's review half): only the "fundamentally flawed, not viable"
+band blocks, and when the scientist supplied evaluation criteria for the
+run those criteria select which scored axes the gate consults instead of
+the built-in soundness/novelty pair. The reviewer's safety axis is
+consulted on every run whatever the criteria (finding J8).
+
+``review_disposition`` is *derived* from the review record a hypothesis
+holds, not written once when its first review lands: see
+:func:`derive_review_disposition`.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
+from co_scientist.agents.reflection.mature_reviews import mature_disposition
 from co_scientist.constants import (
     _NEUTRAL_SCORE,
     NEEDS_REVISION_SCORE,
@@ -137,6 +142,120 @@ def _disposition_for(review: HypothesisReview, axes: Sequence[str]) -> str:
     return "viable"
 
 
+# Every axis the review schema scores, and so every axis this gate can
+# read. A review carrying none of them is not a gate input: a merged
+# scientist review scores ``scientist_assessment`` alone, and reading it
+# through ``_gate_score``'s neutral default would mark every blocked idea
+# viable on any run a human reviewed. Such a review is still recorded,
+# ranked and published like any other -- it just does not decide the gate.
+_SCORED_AXES: frozenset[str] = frozenset(
+    axis for axis, _ in _CRITERION_AXIS_KEYWORDS
+)
+
+# Dispositions this gate does not own and must never recompute.
+# ``evidence_blocked`` belongs to the app's pre-ranking evidence gate,
+# which stores the disposition it displaced and restores that itself, so
+# overwriting it here would strand the idea; ``review_failed`` records a
+# call that produced no review at all; ``duplicate`` is proximity's
+# archive marker (the app's
+# ``drain_hypotheses.DEDUPLICATED_REVIEW_DISPOSITION``, spelled out here
+# because the engine may not import the app), and an archived duplicate
+# still holds a gradable review, so re-deriving it would resurrect it.
+_FOREIGN_DISPOSITIONS: frozenset[str] = frozenset(
+    {"evidence_blocked", "review_failed", "duplicate"}
+)
+
+# The one derived disposition a deeper review may not overturn. The mature
+# cascade judges correctness, quality and novelty (``FULL_REVIEW_SCHEMA``);
+# it is never asked about safety, so its verdict asserts nothing about it.
+# Which quality axes matter is the scientist's call, a reported safety
+# concern is not (J8) -- so the safety block outranks the cascade in the
+# one direction that would clear it, while ``inaccurate``/``non_novel``
+# are exactly what a deeper correctness review is entitled to revisit.
+_UNSAFE_DISPOSITION = "unsafe"
+
+
+def _deepest_disposition(hypothesis: Hypothesis, base: str) -> str:
+    """Let the mature cascade's verdict supersede a shallower one."""
+    if base == _UNSAFE_DISPOSITION:
+        return base
+    return mature_disposition(hypothesis) or base
+
+
+def _latest_gradable_review(
+    hypothesis: Hypothesis,
+) -> HypothesisReview | None:
+    """The most recent review scoring at least one axis this gate reads."""
+    for review in reversed(hypothesis.reviews):
+        if _SCORED_AXES.intersection(review.scores):
+            return review
+    return None
+
+
+def derive_review_disposition(
+    hypothesis: Hypothesis, criteria: list[str] | None = None
+) -> str | None:
+    """Derive one hypothesis's disposition from the record it holds.
+
+    No published listing has this gate at all (Nature SI Note 8,
+    ``03-reflection.md``), which is why it may not be terminal: the
+    disposition is a function of every review the hypothesis carries, so
+    a later and deeper verdict replaces an earlier one instead of being
+    unable to reach it. The two layers, shallowest first:
+
+    1. the most recent review scoring a gated axis -- so a re-review
+       supersedes the screen that ran before it, rather than the first
+       call deciding the idea's standing for the whole run;
+    2. the mature cascade's own verdict (``mature_disposition``), which
+       wins when it has one because it asked the same question in more
+       depth -- except over ``unsafe``, an axis it was never asked about
+       (see ``_UNSAFE_DISPOSITION``).
+
+    Args:
+        hypothesis: The hypothesis whose disposition is derived.
+        criteria: The run's evaluation criteria, if any.
+
+    Returns:
+        The derived disposition, or the standing one when the hypothesis
+        holds no review this gate can read.
+    """
+    review = _latest_gradable_review(hypothesis)
+    if review is None:
+        return hypothesis.review_disposition
+    base = _disposition_for(review, _gate_axes_for_criteria(criteria))
+    return _deepest_disposition(hypothesis, base)
+
+
+def refresh_review_dispositions(
+    hypotheses: Iterable[Hypothesis], criteria: list[str] | None = None
+) -> int:
+    """Re-derive every hypothesis's disposition from its review record.
+
+    Costs no LLM calls: it reads reviews the run already paid for. Run it
+    wherever the record can have grown since the disposition was last
+    written -- a later review pass, a merged scientist review, a mature
+    verdict recorded between passes -- so a blocking value set by one
+    early call cannot bar an idea from the tournament, the deep-review
+    cascade and the evolution pool for the rest of the run.
+
+    Args:
+        hypotheses: The pool to re-derive over.
+        criteria: The run's evaluation criteria, if any.
+
+    Returns:
+        How many dispositions changed.
+    """
+    revised = 0
+    for hypothesis in hypotheses:
+        if hypothesis.review_disposition in _FOREIGN_DISPOSITIONS:
+            continue
+        disposition = derive_review_disposition(hypothesis, criteria)
+        if disposition != hypothesis.review_disposition:
+            hypothesis.review_disposition = disposition
+            revised += 1
+    return revised
+
+
 def _apply_initial_review_gate(
     hypotheses: list[Hypothesis],
     reviews: list[HypothesisReview],
@@ -150,13 +269,15 @@ def _apply_initial_review_gate(
     "major deficiencies, needs substantial rework" band as well -- a revise
     signal read as a discard signal.
 
-    That is expensive twice over, because the disposition is never
-    revisited. A blocked idea is barred from the Elo tournament, so it
-    reads as "Disqualified" for the rest of the run, and it is skipped by
-    comprehensive reflection. Worse, the surviving pool is what evolution
-    breeds from: one production run blocked 20 of 22 ideas, leaving a
-    tournament of two, an Elo ordering built from four matches, and an
-    evolution pool that kept re-deriving the same drug.
+    That band matters because a blocking value is expensive: a blocked
+    idea is barred from the Elo tournament, so it reads as "Disqualified",
+    and it is skipped by comprehensive reflection. Worse, the surviving
+    pool is what evolution breeds from -- one production run blocked 20 of
+    22 ideas, leaving a tournament of two, an Elo ordering built from four
+    matches, and an evolution pool that kept re-deriving the same drug.
+    The value written here is therefore the *current* derivation, not a
+    verdict: ``refresh_review_dispositions`` re-derives it from the whole
+    record whenever that record grows, so no single call is terminal.
 
     Ideas in the rework band are marked ``needs_revision``: rankable and
     publishable, so the tournament decides their fate on the evidence, but
@@ -181,4 +302,5 @@ def _apply_initial_review_gate(
     """
     axes = _gate_axes_for_criteria(criteria)
     for hypothesis, review in zip(hypotheses, reviews, strict=True):
-        hypothesis.review_disposition = _disposition_for(review, axes)
+        base = _disposition_for(review, axes)
+        hypothesis.review_disposition = _deepest_disposition(hypothesis, base)

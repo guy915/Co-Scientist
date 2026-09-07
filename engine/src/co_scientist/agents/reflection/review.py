@@ -15,6 +15,9 @@ from typing import Any
 from co_scientist.agents.reflection.review_gate import (
     _apply_initial_review_gate as _apply_initial_review_gate,
 )
+from co_scientist.agents.reflection.review_gate import (
+    refresh_review_dispositions as refresh_review_dispositions,
+)
 from co_scientist.agents.reflection.review_helpers import (
     ReviewContext as ReviewContext,
 )
@@ -282,6 +285,26 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     appends immutable children to an ever-growing pool, so re-reviewing the
     whole pool on every pass would cost O(n^2) LLM calls across a run. The
     already-reviewed hypotheses keep their reviews and are returned unchanged.
+    Their *dispositions* are not: every pass re-derives those from the record
+    each hypothesis holds (``refresh_review_dispositions``), which costs no
+    LLM calls and is what stops one early review deciding an idea's standing
+    for the rest of the run. That has to happen before the early return
+    below, because a pass with nothing left to review is exactly when a
+    verdict recorded since the last pass is waiting to be honoured.
+
+    **Batching here is a reference-only simplification (FIX-9).**
+    ``02-generation.md`` L24-26 and ``01-supervisor.md`` L34-38 create one
+    ``Reflection / ReviewHypothesis`` task per hypothesis and queue each
+    independently, and ``03-reflection.md`` L12 then fetches that one
+    hypothesis by id. The
+    canonical mirror of that chaining is the durable path
+    (``app/app/engine_tasks_fanout.py::_enqueue_review_fanout``), which
+    materializes one leasable task per unreviewed hypothesis and is what
+    production runs. This node reviews a batch behind one synchronous
+    barrier instead: for a pool of ≤5 that is a single comparative call
+    against N, and this path carries no production cost pressure to justify
+    the 5x. The divergence is deliberate and belongs to the reference
+    engine; do not "fix" it by fanning out here.
 
     Strategy selection (by unreviewed count):
     - Small batches (≤5): Comparative batch review for differentiated scores
@@ -294,6 +317,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         Dictionary with updated state fields
     """
     hypotheses = state["hypotheses"]
+    refresh_review_dispositions(hypotheses, state.get("criteria"))
     unreviewed = [hyp for hyp in hypotheses if not hyp.reviews]
     _log_review_intake(hypotheses, unreviewed)
 

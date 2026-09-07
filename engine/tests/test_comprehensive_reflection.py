@@ -26,7 +26,12 @@ def _validation_article() -> Article:
 async def test_full_and_simulation_run_for_every_viable_hypothesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every idea passing initial review receives both mature review modes."""
+    """Every idea passing initial review receives both mature review modes.
+
+    A blocked idea gets neither: its one call is the recheck, a single
+    recurrent review it is owed once for the whole run
+    (``review_recheck``), not the two-review cascade.
+    """
     fake = AsyncMock(return_value={"verdict": "sound"})
     monkeypatch.setattr(cr, "call_llm_json", fake)
     viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
@@ -39,11 +44,12 @@ async def test_full_and_simulation_run_for_every_viable_hypothesis(
         make_state(hypotheses=[*viable, rejected], current_iteration=0)
     )
 
-    assert fake.await_count == 4
+    assert fake.await_count == 5
     assert all("full" in h.enrichments for h in viable)
     assert all("simulation" in h.enrichments for h in viable)
-    assert rejected.enrichments == {}
-    assert result["metrics"].llm_calls == 4
+    assert "full" not in rejected.enrichments
+    assert "recurrent" in rejected.enrichments
+    assert result["metrics"].llm_calls == 5
 
 
 async def test_later_cycle_runs_recurrent_review_with_tournament_context(

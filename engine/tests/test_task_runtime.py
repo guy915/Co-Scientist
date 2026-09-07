@@ -179,7 +179,11 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
         ("orchestrator", False, ["orchestrator"]),
         ("proximity", False, ["proximity", "orchestrator"]),
         ("evolve", False, ["evolve", "review"]),
-        ("meta_review", False, ["meta_review", "evolve", "review"]),
+        # meta_review is now a resolver route too: it is EVOLVE's prefix
+        # *and* a periodic task of its own, and only the orchestrator's
+        # recorded decision tells the two apart. With no decision in state
+        # the walk refuses to guess, exactly as the mcp_available routes do.
+        ("meta_review", False, ["meta_review"]),
         # The terminal node has no successor to walk to.
         ("research_overview", False, ["research_overview"]),
     ],
@@ -189,6 +193,28 @@ def test_plan_portfolio_walks_the_deterministic_tail(
 ) -> None:
     state = make_state(mcp_available=mcp)
     assert plan_portfolio(start, state) == expected
+
+
+@pytest.mark.parametrize(
+    ("next_task", "expected"),
+    [
+        ("evolve", ["meta_review", "evolve", "review"]),
+        ("meta_review", ["meta_review", "orchestrator"]),
+    ],
+)
+def test_plan_portfolio_walks_meta_review_from_the_decision(
+    next_task: str, expected: list[str]
+) -> None:
+    """The decision that scheduled meta-review decides what follows it.
+
+    An EVOLVE runs the critique first and evolves behind it; a standalone
+    firing returns to the loop point instead. Walking the falsy branch of
+    a route the orchestrator has not decided is what ``_RESOLVER_REQUIRES``
+    exists to prevent.
+    """
+    state = make_state(mcp_available=False)
+    state["next_task"] = next_task
+    assert plan_portfolio("meta_review", state) == expected
 
 
 def test_plan_portfolio_walks_supervisor_when_mcp_is_known() -> None:

@@ -16,15 +16,23 @@ from co_scientist.scheduling.models import (
     TaskType,
 )
 
-# Task types the compiled graph's loop-point router can dispatch. META_REVIEW
-# is reached as the head of the EVOLVE branch; SYNTHESIZE is the TERMINATE
-# target. Keep in sync with the graph's conditional edges.
+# Task types the compiled graph's loop-point router can dispatch. SYNTHESIZE
+# is the TERMINATE target. Keep in sync with the graph's conditional edges.
+#
+# META_REVIEW is here because listing 01 L60-63 queues it as its own periodic
+# task. It used to be absent, which was not inert: ``_correct_disallowed_task``
+# rewrites anything outside this set to GENERATE, so the only way meta-review
+# ever ran was as the head of the EVOLVE branch -- and a run that never evolved
+# published with an empty ``meta_review``, silently starving generation, the
+# ranking judge, proximity, evolution and the final overview of the critique
+# feedback each of them reads.
 ALLOWED_LOOP_TASKS: frozenset[TaskType] = frozenset(
     {
         TaskType.GENERATE,
         TaskType.REFLECT,
         TaskType.RANK,
         TaskType.EVOLVE,
+        TaskType.META_REVIEW,
         TaskType.PROXIMITY,
         TaskType.TERMINATE,
     }

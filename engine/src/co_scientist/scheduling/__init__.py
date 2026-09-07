@@ -11,6 +11,7 @@ isolation across the required scheduling states without spinning up the graph.
 """
 
 from co_scientist.scheduling.models import (
+    ENQUEUE_ACTION,
     Budget,
     SchedulerStats,
     SupervisorDecision,
@@ -18,16 +19,19 @@ from co_scientist.scheduling.models import (
     TaskStatus,
     TaskType,
     TerminationReason,
+    stacked_task_values,
 )
 from co_scientist.scheduling.policy import (
     ALLOWED_LOOP_TASKS,
     decide_next_task,
     required_transition,
+    stack_companions,
     validate_decision,
 )
 
 __all__ = [
     "ALLOWED_LOOP_TASKS",
+    "ENQUEUE_ACTION",
     "Budget",
     "SchedulerStats",
     "SupervisorDecision",
@@ -37,5 +41,7 @@ __all__ = [
     "TerminationReason",
     "decide_next_task",
     "required_transition",
+    "stack_companions",
+    "stacked_task_values",
     "validate_decision",
 ]

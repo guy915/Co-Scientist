@@ -15,7 +15,10 @@ from typing import Any, cast
 from langgraph.graph import add_messages
 
 from co_scientist.agents import NODE_REGISTRY
-from co_scientist.generator.graph import _TASK_ROUTES as _ORCHESTRATOR_ROUTES
+from co_scientist.generator.graph import (
+    _route_after_meta_review as _route_after_meta_review,
+)
+from co_scientist.generator.graph import _route_next_task
 from co_scientist.llm_telemetry import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
 from co_scientist.state import (
@@ -94,10 +97,15 @@ def _route_after_generate(state: WorkflowState) -> str:
 
 
 def _route_after_orchestrator(state: WorkflowState) -> str:
-    """Resolve the orchestrator's chosen next task to a task node name."""
-    return _ORCHESTRATOR_ROUTES.get(
-        state.get("next_task") or "terminate", "research_overview"
-    )
+    """Resolve the orchestrator's chosen next task to a task node name.
+
+    Delegates to the graph's own conditional-edge function rather than
+    repeating its lookup: the decision may also carry a stacked companion
+    that runs ahead of the chosen task (listing 01's independent ``IF``s,
+    ``scheduling.policy.stack_companions``), and a second implementation
+    of that rule here would apply on one execution path only.
+    """
+    return _route_next_task(state)
 
 
 # Successor for each completed node: a fixed task name, ``None`` for the
@@ -119,7 +127,11 @@ _NEXT_TASK_ROUTES: dict[
     "ranking": "deep_verification",
     "deep_verification": "orchestrator",
     "proximity": "orchestrator",
-    "meta_review": "evolve",
+    # Meta-review is EVOLVE's prefix *and* a periodic task of its own
+    # (listing 01 L60-63), so its successor is the graph's own conditional
+    # edge function rather than a fixed route -- imported rather than
+    # restated so the durable path cannot answer this differently.
+    "meta_review": _route_after_meta_review,
     "evolve": "review",
     "orchestrator": _route_after_orchestrator,
     "research_overview": None,
@@ -181,6 +193,9 @@ _MAX_PORTFOLIO_DEPTH = 4
 _RESOLVER_REQUIRES: dict[str, str] = {
     "supervisor": "mcp_available",
     "generate": "mcp_available",
+    # Meta-review's successor is the orchestrator decision that scheduled
+    # it; a plan built before that decision exists must not guess evolve.
+    "meta_review": "next_task",
 }
 
 

@@ -148,7 +148,14 @@ def test_a_halted_run_schedules_no_further_science(completed: str) -> None:
 
 
 def test_an_unhalted_run_keeps_its_topology() -> None:
-    """The halt guard is the only thing that changes the route."""
+    """The halt guard is the only thing that changes the route.
+
+    ``next_task`` is set for the same reason the halted case above sets
+    it: meta_review's successor is now the orchestrator's own decision
+    (it is a periodic task as well as EVOLVE's prefix), so a bare state
+    would route to the loop point and test nothing about the guard.
+    """
     state = make_state()
+    state["next_task"] = "evolve"
 
     assert next_task_type("meta_review", state) == "evolve"

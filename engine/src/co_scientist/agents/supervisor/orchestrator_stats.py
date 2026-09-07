@@ -191,6 +191,52 @@ def _scheduler_scalars(
     return llm_calls, gen_yield, evo_yield, time.time() - start
 
 
+def _meta_review_gap(
+    book: dict[str, Any], scalars: _StatsScalars, iteration: int
+) -> tuple[int, int]:
+    """Return (work cycles, critique material) since the last meta-review.
+
+    Both are differences against anchors the orchestrator's bookkeeping
+    reset the last time a decision routed through the meta_review node
+    (``orchestrator_bookkeeping._meta_review_anchors``). Floored at zero
+    because proximity dedup removes hypotheses and their match tallies with
+    them, so the material total is not strictly monotone.
+    """
+    cycles = iteration - int(book.get("iteration_at_last_meta_review", 0))
+    material = (scalars.reviewed + scalars.total_matches) - int(
+        book.get("feedback_at_last_meta_review", 0)
+    )
+    return max(0, cycles), max(0, material)
+
+
+def _cadence_signals(
+    state: WorkflowState,
+    book: dict[str, Any],
+    scalars: _StatsScalars,
+    pool_size: int,
+    iteration: int,
+) -> dict[str, Any]:
+    """Bundle the since-last-checkpoint cadence fields the policy reads.
+
+    Each measures progress against a bookkeeping anchor the orchestrator
+    reset the last time a decision routed through the corresponding node
+    (proximity, ranking stability, meta-review) -- see
+    ``orchestrator_bookkeeping.py``.
+    """
+    meta_cycles, meta_material = _meta_review_gap(book, scalars, iteration)
+    return {
+        "pool_grew_since_proximity": (
+            pool_size > int(book.get("pool_at_last_proximity", pool_size))
+        ),
+        "rank_stable_cycles": _rank_stable_cycles(
+            scalars.top_elo, scalars.total_matches, book
+        ),
+        "iterations_since_meta_review": meta_cycles,
+        "feedback_since_meta_review": meta_material,
+        "evolved_since_stable": bool(book.get("evolved_since_stable", False)),
+    }
+
+
 def _build_scheduler_stats(
     state: WorkflowState,
     book: dict[str, Any],
@@ -198,6 +244,8 @@ def _build_scheduler_stats(
 ) -> SchedulerStats:
     """Assembles the SchedulerStats value object from computed scalars."""
     pool_size = scalars.pool_size
+    iteration = state.get("current_iteration", 0)
+    cadence = _cadence_signals(state, book, scalars, pool_size, iteration)
     return SchedulerStats(
         pool_size=pool_size,
         reviewed_count=scalars.reviewed,
@@ -212,16 +260,10 @@ def _build_scheduler_stats(
         tournament_rounds_remaining=_tournament_round_count(
             state, state.get("hypotheses") or []
         ),
-        pool_grew_since_proximity=(
-            pool_size > int(book.get("pool_at_last_proximity", pool_size))
-        ),
         top_elo=scalars.top_elo,
-        rank_stable_cycles=_rank_stable_cycles(
-            scalars.top_elo, scalars.total_matches, book
-        ),
         generation_yield=scalars.gen_yield,
         evolution_yield=scalars.evo_yield,
-        iteration=state.get("current_iteration", 0),
+        iteration=iteration,
         last_work_task=_task_type_or_none(book.get("last_work_task")),
         llm_calls=scalars.llm_calls,
         tasks_run=len(state.get("task_history", [])),
@@ -229,6 +271,7 @@ def _build_scheduler_stats(
         pending_steering=bool(state.get("pending_steering")),
         cancelled=bool(state.get("cancel_requested")),
         safety_blocked=bool(state.get("safety_blocked")),
+        **cadence,
     )
 
 

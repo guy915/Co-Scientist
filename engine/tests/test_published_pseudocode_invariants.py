@@ -33,6 +33,11 @@ from co_scientist.constants import (
 )
 from co_scientist.generator import HypothesisGenerator
 from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.scheduling import (
+    Budget,
+    SchedulerStats,
+    decide_next_task,
+)
 from co_scientist.scheduling.models import TerminationReason
 from co_scientist.schemas import get_schema_for_prompt
 
@@ -121,6 +126,29 @@ def test_termination_predicates_are_the_named_ones() -> None:
     """The run stops on the two predicates the Supervisor loop names."""
     reasons = {reason.value for reason in TerminationReason}
     assert reasons >= _TERMINATION_REASON_VALUES
+
+
+def test_the_named_predicates_can_actually_stop_a_run() -> None:
+    """Naming the reasons is not the same as being able to reach them.
+
+    The enum check above passed for the whole time both predicates were
+    ``None`` on every production run -- the tier table never carried them,
+    so the loop actually terminated on ``max_iterations``, which the
+    listing does not name. This asserts the control flow instead: given a
+    ``Budget`` that sets them, the scheduler really does stop, and says
+    which of the two it stopped on. That they are *set* on a real run is
+    the app's half, pinned by
+    ``app/tests/test_run_modes_supervisor_budget.py``.
+    """
+    settled = SchedulerStats(
+        pool_size=9, reviewed_count=9, rankable_count=9, match_coverage=4.0
+    )
+    ideas = decide_next_task(settled, Budget(max_iterations=9, max_ideas=9))
+    assert ideas.termination_reason is TerminationReason.MAX_IDEAS
+    matches = decide_next_task(
+        settled, Budget(max_iterations=9, max_matches_per_idea=4.0)
+    )
+    assert matches.termination_reason is TerminationReason.MAX_MATCHES_PER_IDEA
 
 
 def test_evolution_breeds_from_the_stated_parent_count() -> None:

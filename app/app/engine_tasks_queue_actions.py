@@ -93,6 +93,59 @@ def _apply_supervisor_queue_actions(
             _apply_single_queue_action(task_id, action, candidates, conn)
 
 
+# How many stacked follow-ups one pass may materialize, matching the cap on
+# the mutation actions above. ``stack_companions`` emits one today; the cap
+# is here so the bound does not depend on that staying true.
+_MAX_STACKED_TASKS = 4
+
+
+def _apply_supervisor_enqueue_actions(
+    predecessor: Any,
+    actions: list[dict[str, Any]],
+    priority: int,
+    conn: sqlite3.Connection,
+) -> None:
+    """Materialize the follow-up tasks one Supervisor pass stacked.
+
+    Listing 01's ``DecideNextSteps`` queues several tasks from one pass.
+    The engine's precedence chain returns one and carries the rest as
+    ``enqueue`` queue actions (``scheduling.policy.stack_companions``);
+    this is where they become durable rows, inside the same commit
+    transaction as the mutation actions above.
+
+    Bounded three ways. Only a task the loop-point router can actually
+    dispatch is accepted -- the name is resolved through the graph's own
+    ``_TASK_ROUTES``, so an unrecognized value creates nothing rather than
+    an unclaimable row of an invented type. The row is anchored to this
+    run's own predecessor, so no pass can reach another run's queue. And
+    the count is capped.
+
+    Note what the shared idempotency key buys: a stacked companion the
+    router also resolved as the commit's own successor is the *same* edge,
+    so ``_enqueue_after`` reuses that row rather than creating a second
+    claimable duplicate under a different key. That is the normal case
+    today -- stacking is an ordering, and the companion runs first -- and
+    it is why applying these actions is safe to do unconditionally.
+
+    Args:
+        predecessor: The committing task the stacked rows depend on.
+        actions: The decision's queue actions, mutations included.
+        priority: Queue priority for the stacked rows.
+        conn: The open connection of the checkpoint commit.
+    """
+    from co_scientist.generator.graph import _TASK_ROUTES
+    from co_scientist.scheduling import stacked_task_values
+
+    from app.engine_tasks_portfolio import _enqueue_after
+    from app.engine_tasks_support import NODE_TASK_PREFIX
+
+    for value in stacked_task_values(actions)[:_MAX_STACKED_TASKS]:
+        node = _TASK_ROUTES.get(value)
+        if node is None:
+            continue
+        _enqueue_after(predecessor, f"{NODE_TASK_PREFIX}{node}", priority, conn)
+
+
 def _durable_queue_snapshot(
     run_id: str, db_path: str | None
 ) -> list[dict[str, Any]]:

@@ -15,6 +15,7 @@ from langgraph.graph.state import CompiledStateGraph
 # The canonical durable node key -> (agent, callable) registry; see
 # _add_workflow_nodes below for how it is wired into the workflow graph.
 from co_scientist.agents import NODE_REGISTRY
+from co_scientist.scheduling.models import TaskType, stacked_task_values
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -30,13 +31,16 @@ _WorkflowBuilder = StateGraph[Any, Any, Any, Any]
 
 # Maps the scheduler's chosen TaskType value (recorded by orchestrator_node in
 # state["next_task"]) to the graph node that begins that task. EVOLVE enters at
-# meta_review (its critique feeds evolve); TERMINATE enters the terminal
-# synthesis. Keep in sync with scheduling.policy.ALLOWED_LOOP_TASKS.
+# meta_review (its critique feeds evolve); META_REVIEW enters the same node and
+# returns to the loop point instead (see _route_after_meta_review); TERMINATE
+# enters the terminal synthesis. Keep in sync with
+# scheduling.policy.ALLOWED_LOOP_TASKS.
 _TASK_ROUTES: dict[str, str] = {
     "generate": "generate",
     "reflect": "review",
     "rank": "safety_screen",
     "evolve": "meta_review",
+    "meta_review": "meta_review",
     "proximity": "proximity",
     "terminate": "research_overview",
 }
@@ -63,17 +67,76 @@ def _resume_router(state: WorkflowState) -> str:
     return "orchestrator" if state.get("resume") else "supervisor"
 
 
+def _stacks_meta_review(state: WorkflowState) -> bool:
+    """Whether this pass stacked meta-review ahead of its primary task.
+
+    One ``DecideNextSteps`` pass may queue a companion alongside the task
+    it chose (``scheduling.policy.stack_companions``). The companion rides
+    the decision's own queue actions, and stacking is an *ordering*: the
+    companion runs first, the primary behind it, so ``next_task`` still
+    names the primary for every consumer that reads it.
+    """
+    actions = state.get("supervisor_queue_actions") or []
+    return TaskType.META_REVIEW.value in stacked_task_values(actions)
+
+
 def _route_next_task(state: WorkflowState) -> str:
     """Route to the node that starts the orchestrator's chosen next task.
 
-    Reads ``next_task`` (set by ``orchestrator_node``) and maps it to a node.
-    Falls back to terminal synthesis if the scheduler produced no decision,
-    so the graph can never dead-end.
+    Reads ``next_task`` (set by ``orchestrator_node``) and maps it to a node,
+    unless the same pass stacked a companion ahead of it. Falls back to
+    terminal synthesis if the scheduler produced no decision, so the graph
+    can never dead-end.
     """
     next_task = state.get("next_task") or "terminate"
-    node = _TASK_ROUTES.get(next_task, "research_overview")
+    if _stacks_meta_review(state):
+        node = "meta_review"
+    else:
+        node = _TASK_ROUTES.get(next_task, "research_overview")
     logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
     return node
+
+
+# Where meta-review hands over when it was *not* reached as a stacked
+# companion: EVOLVE's own prefix falls through to evolve, and a standalone
+# periodic firing returns to the loop point. Every other task value is a
+# stacked primary and resolves through _TASK_ROUTES like any other.
+_AFTER_META_REVIEW: dict[str, str] = {
+    "evolve": "evolve",
+    "meta_review": "orchestrator",
+}
+
+
+def _route_after_meta_review(state: WorkflowState) -> str:
+    """Route meta-review's successor from the task it was scheduled with.
+
+    Meta-review is three things at once: the prefix node EVOLVE enters at,
+    so the critique feeds the evolution prompts; a periodic task of its own
+    (listing 01 L60-63); and the stacked companion one pass may queue ahead
+    of whatever else it chose. Only the orchestrator's recorded decision
+    tells them apart, and it is the same value ``_route_next_task`` already
+    routed on.
+
+    ``co_scientist.task_runtime`` routes the durable path through this same
+    function, so the two execution paths cannot drift apart on it.
+    """
+    next_task = state.get("next_task") or "terminate"
+    fixed = _AFTER_META_REVIEW.get(next_task)
+    if fixed is not None:
+        return fixed
+    return _TASK_ROUTES.get(next_task, "research_overview")
+
+
+# The nodes _route_after_meta_review can return, as langgraph's identity path
+# map (see _TASK_ROUTE_NODES for why the type is Hashable-keyed). "meta_review"
+# is excluded: the only value routing to it is "meta_review" itself, which
+# _AFTER_META_REVIEW sends to the loop point instead, so a self-edge here
+# would be permanently unreachable.
+_META_REVIEW_ROUTE_NODES: dict[Hashable, str] = {
+    node: node
+    for node in sorted({*_TASK_ROUTES.values(), "evolve", "orchestrator"})
+    if node != "meta_review"
+}
 
 
 # Nodes only registered when the MCP-backed literature-review path is on.
@@ -143,8 +206,15 @@ def _add_review_and_ranking_edges(workflow: _WorkflowBuilder) -> None:
 
 
 def _add_evolution_edges(workflow: _WorkflowBuilder) -> None:
-    """Wires the evolve branch: meta_review → evolve → review (re-reviewed)."""
-    workflow.add_edge("meta_review", "evolve")
+    """Wires the evolve branch: meta_review → evolve → review (re-reviewed).
+
+    The first edge is conditional because meta-review is also a task in its
+    own right (listing 01 L60-63), not only evolve's prefix; a standalone
+    firing returns to the loop point instead of falling through to evolve.
+    """
+    workflow.add_conditional_edges(
+        "meta_review", _route_after_meta_review, _META_REVIEW_ROUTE_NODES
+    )
     workflow.add_edge("evolve", "review")
 
 

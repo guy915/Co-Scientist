@@ -169,12 +169,14 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     predecessor = _seed_predecessor(
         run.id, isolated_db, task_type="engine.node.orchestrator"
     )
-    checkpoint_seq = _seed_checkpoint(
-        run.id, _task_state(run.id), db_path=isolated_db
-    )
+    # meta_review is EVOLVE's prefix node *and* a periodic task of its own,
+    # so what follows it is the orchestrator's own recorded decision; the
+    # three-deep chain this test needs is the EVOLVE one.
+    decided = {**_task_state(run.id), "next_task": "evolve"}
+    checkpoint_seq = _seed_checkpoint(run.id, decided, db_path=isolated_db)
     commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
     committed_seq, _ = engine_tasks_support._save_state_and_enqueue(
-        commit, _task_state(run.id), "meta_review"
+        commit, decided, "meta_review"
     )
     tasks = {
         task.task_type: task

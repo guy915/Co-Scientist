@@ -15,6 +15,7 @@ from co_scientist.agents.ranking.ranking_results import (
     _build_ranking_delta,
 )
 from co_scientist.constants import (
+    INITIAL_ELO_RATING,
     PROGRESS_TOURNAMENT_COMPLETE,
     PROGRESS_TOURNAMENT_START,
     TOURNAMENT_MATCHES_PER_HYPOTHESIS,
@@ -65,6 +66,51 @@ def _gather_tournament_context(state: WorkflowState) -> _TournamentGuidance:
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
     )
+
+
+def add_to_tournament(hypothesis: Hypothesis) -> bool:
+    """Admits one hypothesis to the tournament at the published rating.
+
+    Listing 04's ``AddToTournament``, named rather than implied: fetch the
+    hypothesis, exit early if it already has a rating, otherwise set the
+    entry rating and save it. Entry by construction remains the mechanism
+    -- ``Hypothesis.elo_rating`` defaults to ``INITIAL_ELO_RATING``, so on
+    a live run this takes the guard's branch for every hypothesis and
+    changes nothing -- ``Hypothesis.from_dict`` passes a payload straight to
+    the dataclass, so even a payload with no ``elo_rating`` key comes back
+    rated. What it buys is a place where the published step exists: a
+    reader of the ranking agent can find the listing's guard, and a
+    hypothesis that ever did reach the tournament unrated would be admitted
+    here rather than ranked at zero.
+
+    Logged at debug: every hypothesis takes the guard branch on every
+    ranking pass, so an info line per idea per pass would crowd the run log
+    without reporting anything (the same reason ``proximity_dedup`` traces
+    its drops at debug).
+
+    Args:
+        hypothesis: The hypothesis to admit; mutated in place when it has
+            no rating yet.
+
+    Returns:
+        True when this call seeded the entry rating, False when the
+        hypothesis was already in the tournament.
+    """
+    if hypothesis.elo_rating:
+        logger.debug(
+            "hypothesis %s is already in the tournament (elo %s)",
+            hypothesis.id,
+            hypothesis.elo_rating,
+        )
+        return False
+    hypothesis.elo_rating = INITIAL_ELO_RATING
+    return True
+
+
+def _admit_hypotheses_to_tournament(hypotheses: list[Hypothesis]) -> None:
+    """Runs every hypothesis of a round through ``add_to_tournament``."""
+    for hypothesis in hypotheses:
+        add_to_tournament(hypothesis)
 
 
 def _sort_hypotheses_for_tournament(hypotheses: list[Hypothesis]) -> None:
@@ -210,14 +256,21 @@ async def _prepare_ranking_round(
     Also emits the start-of-tournament progress event. The returned
     context is threaded into every judged matchup.
 
+    Every hypothesis is admitted through ``add_to_tournament`` first --
+    listing 04's own entry step -- so entry has a named place on both the
+    LangGraph and the durable path (``app/app/engine_tasks_ranking.py``
+    prepares its waves through this same function).
+
     Args:
         state: Current workflow state.
-        hypotheses: Hypothesis pool entering the tournament; sorted in
-            place by review score (text as tiebreaker for determinism).
+        hypotheses: Hypothesis pool entering the tournament; admitted to
+            the tournament, then sorted in place by review score (text as
+            tiebreaker for determinism).
 
     Returns:
         Tuple of (tournament_rounds, tournament guidance bundle).
     """
+    _admit_hypotheses_to_tournament(hypotheses)
     _sort_hypotheses_for_tournament(hypotheses)
 
     await emit_progress(

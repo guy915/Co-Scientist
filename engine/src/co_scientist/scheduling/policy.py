@@ -23,19 +23,23 @@ is :func:`_ordered_checks` — the precedence itself, which is the feature.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 
 from co_scientist.scheduling.models import (
+    ENQUEUE_ACTION,
     Budget,
     SchedulerStats,
     SupervisorDecision,
     TaskType,
     TerminationReason,
+    stacked_task_values,
 )
 from co_scientist.scheduling.policy_checks import (
     _budget_termination,
     _check_convergence,
     _check_iteration_budget,
+    _check_meta_review_cadence,
     _check_owed_coverage,
     _check_pool_size,
     _check_proximity_refresh,
@@ -75,6 +79,7 @@ __all__ = [
     "_budget_termination",
     "_check_convergence",
     "_check_iteration_budget",
+    "_check_meta_review_cadence",
     "_check_owed_coverage",
     "_check_pool_size",
     "_check_proximity_refresh",
@@ -94,6 +99,8 @@ __all__ = [
     "_terminate",
     "decide_next_task",
     "required_transition",
+    "stack_companions",
+    "stacked_task_values",
     "validate_decision",
 ]
 
@@ -121,7 +128,7 @@ def _ordered_checks(
     convergence_cycles: int,
     min_cycles_before_convergence: int,
 ) -> tuple[Callable[[], SupervisorDecision | None], ...]:
-    """Builds the precedence-ordered scheduling checks (steps 1-11)."""
+    """Builds the precedence-ordered scheduling checks (steps 1-12)."""
     return (
         lambda: _check_stop_signals(stats),
         lambda: _check_steering(stats),
@@ -132,6 +139,7 @@ def _ordered_checks(
         lambda: _check_pool_size(stats, budget),
         lambda: _check_tournament_coverage(stats, min_match_coverage),
         lambda: _check_proximity_refresh(stats),
+        lambda: _check_meta_review_cadence(stats),
         lambda: _check_convergence(
             stats, convergence_cycles, min_cycles_before_convergence
         ),
@@ -147,9 +155,9 @@ def required_transition(
     convergence_cycles: int = CONVERGENCE_CYCLES_DEFAULT,
     min_cycles_before_convergence: int = MIN_CYCLES_BEFORE_CONVERGENCE_DEFAULT,
 ) -> SupervisorDecision | None:
-    """Return the forced decision when one of steps 1-11 fires, else None.
+    """Return the forced decision when one of steps 1-12 fires, else None.
 
-    Separates the two halves of :func:`decide_next_task`. Steps 1-11 are
+    Separates the two halves of :func:`decide_next_task`. Steps 1-12 are
     *required* transitions: an unreviewed backlog must be reviewed, a pool
     of one cannot hold a tournament, a spent budget must stop. There is no
     latitude in them, so an advisory model has nothing to contribute and
@@ -186,7 +194,7 @@ def decide_next_task(
     """Choose the next task (or terminate) from observable state.
 
     The precedence, highest first, is exactly ``_ordered_checks``'s steps 1-
-    11 (see each check's docstring), and finally the generation-vs-evolution
+    12 (see each check's docstring), and finally the generation-vs-evolution
     choice. ``min_match_coverage``, ``convergence_cycles``, and
     ``min_cycles_before_convergence`` are clone defaults where Google does
     not publish a predicate.
@@ -206,3 +214,64 @@ def decide_next_task(
 
     # Generation vs evolution by relative yield.
     return _generation_vs_evolution(stats)
+
+
+# Tasks a companion is never stacked onto. EVOLVE and META_REVIEW both enter
+# the graph at the meta_review node already, so stacking would run it twice;
+# a terminating decision is excluded because ``terminate`` gates the task
+# record's status, the termination reason written to state, and every
+# ``_hard_stop``/``validate_decision`` short-circuit above.
+_UNSTACKABLE_TASKS = frozenset(
+    {TaskType.META_REVIEW, TaskType.EVOLVE, TaskType.TERMINATE}
+)
+
+
+def stack_companions(
+    decision: SupervisorDecision, stats: SchedulerStats
+) -> SupervisorDecision:
+    """Attach the cheap follow-up tasks one pass may queue alongside its own.
+
+    Listing 01's ``DecideNextSteps`` is four *independent* ``IF``s, each
+    queueing its own task; ``_ordered_checks`` is a single-winner
+    precedence chain, so whichever branch wins suppresses the rest. This
+    restores the independence for the one companion that costs almost
+    nothing -- meta-review, exactly one LLM call -- by riding the decision's
+    existing ``queue_actions``, which already travel with it through the
+    orchestrator's own commit transaction.
+
+    Deliberately *additive*: ``next_task`` is untouched, because the
+    settlement allowance (``orchestrator_bookkeeping._is_settlement_rank``),
+    the iteration counter (``orchestrator._advance_iteration``) and the
+    yield attribution all key on it, and a wrap that renamed the primary
+    would silently unbound the settlement episode. The companion is an
+    *ordering*, resolved by the loop-point router: it runs first, then the
+    primary. Serial rather than parallel because the durable checkpoint
+    chain has one writer per commit -- two rows anchored to the same
+    predecessor would fork it.
+
+    The unconditional ``RunTournamentBatch`` the listing also names is
+    deliberately not stacked: a ranking wave is 4-12 judged multi-turn
+    debates, i.e. tens of provider calls per orchestrator cycle, against
+    this companion's one.
+
+    Args:
+        decision: The primary decision the precedence chain settled on.
+        stats: The statistics that decision was made from.
+
+    Returns:
+        ``decision``, with a stacked companion appended to its queue
+        actions when one is due, and unchanged otherwise.
+    """
+    if decision.terminate or decision.next_task in _UNSTACKABLE_TASKS:
+        return decision
+    companion = _check_meta_review_cadence(stats)
+    if companion is None:
+        return decision
+    action = {
+        "action": ENQUEUE_ACTION,
+        "task_type": companion.next_task.value,
+        "reason": companion.reason,
+    }
+    return dataclasses.replace(
+        decision, queue_actions=(*decision.queue_actions, action)
+    )

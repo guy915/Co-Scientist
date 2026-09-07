@@ -209,7 +209,16 @@ async def _run_supervisor_decision(
     decision, decision_provenance, llm_calls = await choose_supervisor_task(
         state, stats, budget
     )
-    return stats, decision, decision_provenance, llm_calls
+    # Stacking runs after the primary is settled, never inside the policy:
+    # the planner's own guards rebuild a decision with
+    # ``dataclasses.replace(baseline, queue_actions=...)``, which would drop
+    # a companion attached any earlier.
+    return (
+        stats,
+        policy.stack_companions(decision, stats),
+        decision_provenance,
+        llm_calls,
+    )
 
 
 def _advance_iteration(

@@ -17,7 +17,7 @@ same bounded summary.
 from typing import Any
 
 from co_scientist.agents.reflection.review_types import ReviewType
-from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis
+from co_scientist.models import Hypothesis
 
 # Enrichment keys holding the three mature review results, in cascade
 # order. Recurrent reviews reuse the full-review schema, so full and
@@ -43,6 +43,19 @@ _FATAL_VERDICTS: dict[ReviewType, frozenset[str]] = {
     ReviewType.SIMULATION: frozenset({"breaks_down"}),
 }
 
+# The disposition each non-fatal mature verdict asserts. Only the full and
+# recurrent reviews appear: they are the two that re-answer the same
+# question the initial screen answered, so their verdict may replace it in
+# either direction. A simulation "holds" answers a narrower question -- the
+# mechanism's decisive step -- and asserts nothing about correctness, so it
+# maps to no disposition and leaves the standing one alone.
+_VERDICT_DISPOSITIONS: dict[tuple[ReviewType, str], str] = {
+    (ReviewType.FULL, "sound"): "viable",
+    (ReviewType.FULL, "needs_revision"): "needs_revision",
+    (ReviewType.RECURRENT, "sound"): "viable",
+    (ReviewType.RECURRENT, "needs_revision"): "needs_revision",
+}
+
 _MAX_JUSTIFICATION_CHARS = 400
 _MAX_STEP_CHARS = 200
 _MAX_FAILURE_POINT_CHARS = 160
@@ -58,13 +71,15 @@ def _is_fatal_mature_review(
     return verdict in _FATAL_VERDICTS.get(review_type, frozenset())
 
 
-def apply_mature_review_disposition(
-    hypothesis: Hypothesis, review_type: ReviewType, result: dict[str, Any]
-) -> None:
-    """Reconcile the review disposition with one mature review finding.
+def mature_disposition(hypothesis: Hypothesis) -> str | None:
+    """The disposition the stored mature reviews assert, if any.
 
-    The mature cascade only reviews ideas the initial gate marked
-    ``viable``, so the transitions start there:
+    Read off the stored results rather than accumulated as they arrive, so
+    the answer is a function of the record and one review call cannot be
+    terminal for the rest of the run. ``None`` means the cascade has no
+    opinion -- it has not run, or every verdict it recorded speaks to a
+    narrower question than the disposition -- and the caller keeps
+    whatever the initial screen derived.
 
     - a fatal verdict (full/recurrent ``rejected``, simulation
       ``breaks_down``) blocks exactly like the initial gate's not-viable
@@ -76,29 +91,57 @@ def apply_mature_review_disposition(
       initial gate's rework band: the idea still ranks and publishes, but
       leaves the deep-review cascade's ``viable`` filter so the budget is
       not re-spent on it.
-    - every other verdict leaves the disposition alone.
+    - a full/recurrent ``sound`` verdict clears the idea.
 
-    The update is monotonic: an existing blocking disposition is never
-    downgraded, and ``needs_revision`` never overwrites ``viable`` only
-    to be overwritten back.
+    Precedence *within* the cascade is unchanged and deliberately not
+    "most recent wins": a fatal finding short-circuits, so a simulation
+    whose mechanism holds never undoes a full review that rejected the
+    idea's correctness. Between the cascade and the initial screen the
+    cascade wins, because it asked the same question in more depth.
+
+    Args:
+        hypothesis: The hypothesis whose stored mature results are read.
+
+    Returns:
+        The asserted disposition, or None when the cascade is silent.
+    """
+    disposition: str | None = None
+    for key in MATURE_REVIEW_KEYS:
+        result = hypothesis.enrichments.get(key)
+        if not isinstance(result, dict):
+            continue
+        review_type = ReviewType(key)
+        if _is_fatal_mature_review(review_type, result):
+            return "inaccurate"
+        verdict = str(result.get("verdict") or "")
+        disposition = _VERDICT_DISPOSITIONS.get(
+            (review_type, verdict), disposition
+        )
+    return disposition
+
+
+def apply_mature_review_disposition(
+    hypothesis: Hypothesis, review_type: ReviewType, result: dict[str, Any]
+) -> None:
+    """Reconcile the review disposition with the stored mature findings.
+
+    Called once per stored result by ``store_mature_review_result``, after
+    the result is written, so it re-reads the whole cascade rather than
+    ratcheting a single transition onto the standing value.
+
+    ``review_type`` and ``result`` are the finding just stored; they are
+    named for the caller's benefit and to keep the write path's signature
+    stable -- the decision itself comes from ``mature_disposition``.
 
     Args:
         hypothesis: The hypothesis the review belongs to.
         review_type: Which mature review produced the result.
         result: The review's structured output.
     """
-    if hypothesis.review_disposition in BLOCKING_REVIEW_DISPOSITIONS:
-        return
-    if _is_fatal_mature_review(review_type, result):
-        hypothesis.review_disposition = "inaccurate"
-        return
-    verdict = str(result.get("verdict") or "")
-    if (
-        verdict == "needs_revision"
-        and review_type in (ReviewType.FULL, ReviewType.RECURRENT)
-        and hypothesis.review_disposition == "viable"
-    ):
-        hypothesis.review_disposition = "needs_revision"
+    del review_type, result
+    disposition = mature_disposition(hypothesis)
+    if disposition is not None:
+        hypothesis.review_disposition = disposition
 
 
 def reviews_needed(hypothesis: Hypothesis, iteration: int) -> list[ReviewType]:

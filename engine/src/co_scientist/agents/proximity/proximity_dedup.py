@@ -5,6 +5,11 @@ similarity clusters: resolving cluster members back to hypotheses,
 assigning cluster ids, and dropping high-similarity duplicates. The LLM
 call and node orchestration stay in ``proximity.py``, which re-exports
 these names for compatibility.
+
+The dropping is ours, not Google's: the published Proximity agent scores
+pairs and updates a graph, and no listing deletes a hypothesis. See
+``_resolve_cluster_duplicates`` for the decision point and what a false
+"high" costs.
 """
 
 import logging
@@ -188,6 +193,23 @@ def _resolve_cluster_duplicates(
     Keeps every non-"high" similarity hypothesis plus only the single best
     "high" similarity hypothesis (ranked by Elo, then score, then text),
     recording the rest as removed duplicates.
+
+    **This deletion is a local addition with no counterpart in the
+    published proximity listing.** Google's Proximity agent computes a
+    similarity per pair and updates a graph; nothing in it removes a
+    hypothesis from the pool, and no other listing authorises a deletion
+    either. Dropping near-duplicates is defensible in practice -- a pool of
+    restatements wastes the tournament, evolution's parents and the
+    reader's attention -- but the cost of being wrong is asymmetric and
+    silent: a *false* "high" from a single clustering call deletes a
+    distinct idea from the run outright. It never reaches the tournament,
+    never breeds, and never appears in the report as an idea; it survives
+    only as a ``removed_duplicates`` archive row explained as a duplicate
+    of something it is not. There is no second opinion and no later pass
+    that revisits the verdict, which is why the "high" band alone deletes
+    and "medium"/"low" merely relate (``_partition_by_similarity_degree``).
+    Anything that widens what deletes -- a lower band, a text metric, a
+    second caller -- widens that silent loss with it.
 
     A single-member cluster needs no special case: it either falls in
     ``others`` and is kept, or is the sole "high" member and is kept as the

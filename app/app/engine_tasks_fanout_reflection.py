@@ -121,6 +121,27 @@ def _apply_one_reflection_item(
     store_mature_review_result(hypothesis, mode, review, current_iteration)
 
 
+def _mark_recheck_item(by_id: dict[str, Any], item: Any) -> None:
+    """Record a blocked idea's one recheck, whatever the item did.
+
+    Read from the item's own inputs and applied before its status is
+    consulted: the attempt is spent when it is issued, so a failed item
+    must mark its hypothesis too. Marking only on success would let the
+    wave re-fire every cycle for exactly the ideas the reviewer keeps
+    failing on, which is the unbounded shape this recheck exists to
+    avoid.
+    """
+    from co_scientist.agents.reflection.review_recheck import (
+        mark_recheck_issued,
+    )
+
+    if not item.inputs.get("recheck"):
+        return
+    hypothesis = by_id.get(str(item.inputs.get("hypothesis_id") or ""))
+    if hypothesis is not None:
+        mark_recheck_issued(hypothesis)
+
+
 def _apply_mature_reflection_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
@@ -147,6 +168,7 @@ def _apply_mature_reflection_items(
     ledgers: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="reflection task")
+        _mark_recheck_item(by_id, item)
         if item.status != "completed" or not item.result:
             failed += 1
             continue
