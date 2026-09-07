@@ -18,6 +18,30 @@ flat topics the overview call still produces.
 The gate is read here rather than in ``app.run_modes``: the tiers set one
 number this node can see (``Budget.max_llm_calls``), and a second table
 naming tiers would have to be kept in step with it by hand.
+
+What closed the *remaining* gap was the opposite of that reasoning, and
+the distinction is worth keeping: a second call bought the structure, but
+the depth inside it was bounded by what the prompt asked for, not by what
+the call could afford. Measured section by section on production run
+``d1273490`` (2026-09-07): 38 subject sections averaging 164 words,
+median 162, **none above 213** -- the whole distribution pinned inside
+the "150-250 words" the prompt then named, hugging its floor -- against
+an exemplar averaging 218 with eleven sections above 250 and a 505-word
+top. Of the 3,142-word shortfall, roughly a third is the five missing
+sections and two thirds is per-section thinness. That answer is ~11k
+tokens against this call's 42000-token ceiling, so raising the ceiling
+buys nothing (and on this chain a reasoning model spends whatever it is
+given); splitting per theme would multiply one background section into
+eight or nine provider requests against a ~100/day per-model cap; and
+capping reasoning the way entailment does (``MINIMAL_REASONING_MAX_
+TOKENS``, reachable only via ``enable_thinking=False``) trades away the
+one thing composing 40+ themed sections actually uses reasoning for.
+So the lever is the ask: graded word bands whose floor is the exemplar's
+own mean, a section-count target the evidence has to support, and the
+content kinds the exemplar carries that nothing here used to request --
+exhaustive entity enumeration, every number with its unit, and boundary
+conditions. Those targets live in ``schemas.knowledge_base`` because the
+prompt and the schema descriptions both have to state them.
 """
 
 from __future__ import annotations

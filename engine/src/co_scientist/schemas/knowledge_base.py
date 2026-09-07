@@ -5,13 +5,49 @@ shares with the research-overview schema stay there and are imported
 here, so the two halves of one node's output cannot be sized apart.
 """
 
-from typing import Any
+from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 from co_scientist.schemas.synthesis import (
     KNOWLEDGE_BASE_MAX_SECTIONS,
     KNOWLEDGE_BASE_MAX_THEMES,
 )
+
+# Measured targets, stated here so the prompt template and the schema
+# description cannot drift apart -- under the json_object downgrade both
+# ride with the same request, and a band written in one and not the other
+# is two instructions disagreeing.
+#
+# Section-by-section measurement of the published exemplar (2026-09-07):
+# its 43 subject sections average 218 words, median 196, with eleven above
+# 250 and a 505-word top. Production run d1273490 wrote 38 sections
+# averaging 164, median 162, and *none* above 213 -- the entire
+# distribution pinned inside the "150-250" the prompt then named, hugging
+# its floor. A stated band is a floor rather than a target, so the floor
+# is now the exemplar's own mean and the right tail is asked for
+# explicitly instead of being left to the model's own sense of emphasis.
+KNOWLEDGE_BASE_SECTION_WORDS: Final = (200, 300)
+"""Word band for an ordinary subsection."""
+
+KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS: Final = (350, 500)
+"""Word band for a theme's two or three principal subjects.
+
+The exemplar's own right tail: without naming it, every section comes
+back the same length, which is the flat distribution measured above.
+"""
+
+KNOWLEDGE_BASE_TARGET_SECTIONS: Final = (40, 50)
+"""Subject sections the finished Knowledge Base aims for, in total.
+
+The exemplar carries 43. Expressed as a range the evidence has to
+support rather than a hard floor: a thin corpus padded out to a count
+is worth less than fewer subjects written properly, and ``minItems``
+would turn a short theme into a validation failure that drops the whole
+call to the flat topics.
+"""
+
+_ORDINARY: Final = "{}-{}".format(*KNOWLEDGE_BASE_SECTION_WORDS)
+_PRINCIPAL: Final = "{}-{}".format(*KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS)
 
 # Knowledge-base synthesis schema
 # Shapes the "research_overview_knowledge_base" prompt output, consumed by
@@ -67,10 +103,16 @@ KNOWLEDGE_BASE_SCHEMA: dict[str, Any] = {
                                         "type": "string",
                                         "description": (
                                             "Dense encyclopedic prose:"
-                                            " 2-4 paragraphs, 150-250"
-                                            " words, naming entities,"
-                                            " mechanisms, parameters and"
-                                            " effect sizes. No citation"
+                                            f" {_ORDINARY} words, or"
+                                            f" {_PRINCIPAL} for a"
+                                            " theme's two or three"
+                                            " principal subjects."
+                                            " Name every entity the"
+                                            " evidence gives for this"
+                                            " subject and every"
+                                            " parameter, effect size,"
+                                            " threshold and unit it"
+                                            " states. No citation"
                                             " markers and no bullet"
                                             " lists."
                                         ),

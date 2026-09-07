@@ -141,9 +141,11 @@ RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
 # sibling module, taken from the published MASH exemplar's own shape -- 43 named
 # subject headings under 8 themes. 8 x 8 is the smallest product that
 # covers it without inviting an answer the measured budget
-# (KNOWLEDGE_BASE_MAX_TOKENS) cannot carry: 64 sections at the 150-250
-# words the schema asks for is 9,600-16,000 words, against the
-# exemplar's 9,702.
+# (KNOWLEDGE_BASE_MAX_TOKENS) cannot carry. These are ceilings, not the
+# target: the word bands and the 40-50 section total the prompt actually
+# asks for live in ``schemas.knowledge_base``, sized from the exemplar's
+# own measured distribution, and land near 9,900 words -- the product
+# here only has to leave room above that, not describe it.
 KNOWLEDGE_BASE_MAX_THEMES: Final = 8
 KNOWLEDGE_BASE_MAX_SECTIONS: Final = 8
 
