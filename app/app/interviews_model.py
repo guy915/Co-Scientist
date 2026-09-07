@@ -61,6 +61,24 @@ _INTERVIEW_STALL_SECONDS = 45.0
 # plus room for the prompt round-trip either side of the reasoning.
 _INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
+# What one turn's answer is given, before the thinking floor raises it.
+#
+# Thinking spends reasoning tokens against the same budget, so on a model
+# that reasons this is what remains for the prose and its spec block once
+# the floor has covered the chain of thought (see thinking_safe_max_tokens);
+# on a model that does not, it is the whole turn. Sizing it for the answer
+# alone is what leaves a run untitled and an interview turn blank.
+#
+# 3k -> 4k when the block learned to carry clickable answers (a turn
+# offering three options writes a label and a description for each on top
+# of the five fields it restates every turn). 4k -> 6k once the block
+# became mandatory on every question-asking turn: the guide asks for
+# several paragraphs and often a table before the block is even opened,
+# and the block is last, so a tight ceiling eats exactly it -- losing the
+# whole turn's state, not just the options. A ceiling is not a
+# reservation, so the headroom costs nothing on the turns that fit.
+_ANSWER_MAX_TOKENS = 6_000
+
 # Relayed through the reasoning sink when a turn that spent its whole reply
 # thinking is retried -- so the scientist watching the chain of thought
 # sees the model start over instead of the turn simply going quiet before
@@ -148,23 +166,7 @@ async def _run_interview_completion(
         model=model,
         messages=messages,
         temperature=0.3,
-        # Thinking spends reasoning tokens against this budget before the
-        # answer, so the floor covers the reasoning and this is what remains
-        # for the prose and its spec block. Sizing this for the answer alone
-        # is what leaves a run untitled and an interview turn blank; see
-        # thinking_safe_max_tokens. Raised from 3k when the block learned to
-        # carry clickable answers: a turn offering three options writes a
-        # label and a description for each on top of the five fields it
-        # already restates every turn, and a budget that funds the prose but
-        # truncates the block loses the whole turn's state, not just the
-        # options. Raised again to 6k once the block became mandatory on
-        # every question-asking turn: on a model that does not reason this
-        # number is the *whole* turn, and the guide asks for several
-        # paragraphs and often a table before the block is even opened --
-        # the block is last, so it is what a tight ceiling eats. A ceiling
-        # is not a reservation, so the headroom costs nothing on the turns
-        # that do not need it.
-        max_tokens=thinking_safe_max_tokens(model, 6_000),
+        max_tokens=thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
         # Bounds establishing the stream; once chunks flow, stream_chunks
         # below owns the clock.
         timeout=_INTERVIEW_TOTAL_SECONDS,
