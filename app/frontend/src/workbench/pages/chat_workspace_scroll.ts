@@ -41,13 +41,18 @@ function timelineScrollTarget(
 const FOLLOW_THRESHOLD_PX = 64;
 
 // The refs the scroll effects below share: the scroller itself, the last
-// signature auto-scrolled for, and the one-shot "still needs its initial
-// bottom scroll" flag (see armInitialScroll and shouldForceInitialBottom).
+// signature auto-scrolled for, the one-shot "still needs its initial bottom
+// scroll" flag (see armInitialScroll and shouldForceInitialBottom), and the
+// scrollTop this hook itself last left the scroller at (see isPinnedToBottom).
 interface TimelineScrollRefs {
   scroller: RefObject<HTMLDivElement | null>;
   previousSignature: RefObject<string>;
   needsInitialScroll: RefObject<boolean>;
+  lastAppliedTop: RefObject<number>;
 }
+
+// A scrollTop no element can hold, for "this hook has not scrolled yet".
+const NO_APPLIED_TOP = -1;
 
 /**
  * Whether the reader is close enough to the bottom to be following along.
@@ -57,14 +62,52 @@ interface TimelineScrollRefs {
  * scroll events asynchronously, so a token landing in the same frame as the
  * reader's gesture still sees the stale "at the bottom" flag and hauls them
  * back down -- and once back at the bottom the flag is true again, so they
- * are stuck there. This runs after the DOM has already grown, which only
- * costs the growth itself (a line or so per fragment), well inside the
- * threshold.
+ * are stuck there. Only ever asked about a reader who has actually moved
+ * (see isPinnedToBottom), since the gap it measures includes the growth
+ * that prompted this update.
  */
 function isFollowingBottom(scroller: HTMLDivElement): boolean {
   const gap =
     scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
   return gap <= FOLLOW_THRESHOLD_PX;
+}
+
+/**
+ * Whether the timeline should still follow the bottom for this update.
+ *
+ * The gap alone cannot answer this. It is measured *after* the DOM has
+ * grown, and a fragment that adds more than FOLLOW_THRESHOLD_PX in one
+ * commit -- a finished markdown block, a table, a few lines at once --
+ * therefore reads exactly like a reader who scrolled away. That reading
+ * latches: skipping leaves scrollTop where it was, so every later fragment
+ * measures an even larger gap and the turn stops following for good a
+ * second or two in. Growth is not a gesture, so it must not be read as one.
+ *
+ * A gesture is the only thing that moves scrollTop without this hook doing
+ * it -- content growing at the bottom leaves scrollTop untouched. So an
+ * unchanged scrollTop since our own last scroll means the reader has not
+ * moved, whatever the gap now says, and the timeline stays pinned. Once
+ * they do move, the gap decides: still near the bottom keeps following,
+ * further up hands the position to them until they come back down.
+ */
+function isPinnedToBottom(
+  refs: TimelineScrollRefs,
+  scroller: HTMLDivElement,
+): boolean {
+  if (scroller.scrollTop === refs.lastAppliedTop.current) return true;
+  return isFollowingBottom(scroller);
+}
+
+// Drives the scroller to the bottom and records where that left it, so the
+// next update can tell this hook's own scroll from a reader's gesture (see
+// isPinnedToBottom). Reads scrollTop back rather than assuming the assigned
+// value: the browser clamps it to the content's own end.
+function scrollToBottom(
+  refs: TimelineScrollRefs,
+  scroller: HTMLDivElement,
+): void {
+  scroller.scrollTop = scroller.scrollHeight;
+  refs.lastAppliedTop.current = scroller.scrollTop;
 }
 
 // Breathing room left above an anchored turn, matching the timeline's own
@@ -86,12 +129,16 @@ const ANCHOR_TOP_INSET_PX = 20;
  * Falls back to the bottom when the element cannot be found, for the same
  * reason -- zero is never the answer here.
  */
-function scrollItemToTop(scroller: HTMLDivElement, itemId: string): void {
+function scrollItemToTop(
+  refs: TimelineScrollRefs,
+  scroller: HTMLDivElement,
+  itemId: string,
+): void {
   const anchor = scroller.querySelector<HTMLElement>(
     `[${TIMELINE_ANCHOR_ATTRIBUTE}="${itemId}"]`,
   );
   if (!anchor) {
-    scroller.scrollTop = scroller.scrollHeight;
+    scrollToBottom(refs, scroller);
     return;
   }
   // The element's on-screen offset from the scroller's own top edge is how
@@ -101,6 +148,7 @@ function scrollItemToTop(scroller: HTMLDivElement, itemId: string): void {
   const offset =
     anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
   scroller.scrollTop += offset - ANCHOR_TOP_INSET_PX;
+  refs.lastAppliedTop.current = scroller.scrollTop;
 }
 
 // Whether this signature change is the one-shot initial landing: the first
@@ -129,6 +177,7 @@ function shouldForceInitialBottom(
 // to the bottom, and the reader has scrolled away from it -- the case
 // FOLLOW_THRESHOLD_PX exists to protect.
 function shouldSkipFollow(
+  refs: TimelineScrollRefs,
   forceInitialBottom: boolean,
   timelineAnchorMode: 'plan' | 'bottom',
   scroller: HTMLDivElement,
@@ -136,7 +185,7 @@ function shouldSkipFollow(
   return (
     !forceInitialBottom &&
     timelineAnchorMode === 'bottom' &&
-    !isFollowingBottom(scroller)
+    !isPinnedToBottom(refs, scroller)
   );
 }
 
@@ -146,15 +195,16 @@ function shouldSkipFollow(
 // it happens to end on one -- see shouldForceInitialBottom) opens at its own
 // top instead.
 function applyTimelineScroll(
+  refs: TimelineScrollRefs,
   scroller: HTMLDivElement,
   forceInitialBottom: boolean,
   timelineAnchorMode: 'plan' | 'bottom',
 ) {
   if (!forceInitialBottom && timelineAnchorMode === 'plan') {
-    scrollItemToTop(scroller, DRAFT_SPEC_ITEM_ID);
+    scrollItemToTop(refs, scroller, DRAFT_SPEC_ITEM_ID);
     return;
   }
-  scroller.scrollTop = scroller.scrollHeight;
+  scrollToBottom(refs, scroller);
 }
 
 // Effect body for the signature-based auto-scroll below: fires whenever the
@@ -173,11 +223,19 @@ function syncTimelineScroll(
   }
   refs.previousSignature.current = timelineSignature;
   const forceInitialBottom = shouldForceInitialBottom(refs, timelineSignature);
-  if (shouldSkipFollow(forceInitialBottom, timelineAnchorMode, scroller)) {
+  if (
+    shouldSkipFollow(refs, forceInitialBottom, timelineAnchorMode, scroller)
+  ) {
     return;
   }
   const timeout = window.setTimeout(
-    () => applyTimelineScroll(scroller, forceInitialBottom, timelineAnchorMode),
+    () =>
+      applyTimelineScroll(
+        refs,
+        scroller,
+        forceInitialBottom,
+        timelineAnchorMode,
+      ),
     0,
   );
   return () => window.clearTimeout(timeout);
@@ -204,9 +262,7 @@ function syncSentTurnScroll(
 ) {
   const scroller = refs.scroller.current;
   if (!isAwaitingAgent || !scroller) return;
-  const timeout = window.setTimeout(() => {
-    scroller.scrollTop = scroller.scrollHeight;
-  }, 0);
+  const timeout = window.setTimeout(() => scrollToBottom(refs, scroller), 0);
   return () => window.clearTimeout(timeout);
 }
 
@@ -215,16 +271,14 @@ function syncSentTurnScroll(
 // effect above, since the started-card arriving can coincide with other
 // timeline changes.
 function syncStartedSessionScroll(
-  scrollRef: RefObject<HTMLDivElement | null>,
+  refs: TimelineScrollRefs,
   startedSession: StartedSession | null,
 ) {
-  const scroller = scrollRef.current;
+  const scroller = refs.scroller.current;
   if (!startedSession || !scroller) {
     return;
   }
-  const timeout = window.setTimeout(() => {
-    scroller.scrollTop = scroller.scrollHeight;
-  }, 0);
+  const timeout = window.setTimeout(() => scrollToBottom(refs, scroller), 0);
   return () => window.clearTimeout(timeout);
 }
 
@@ -258,10 +312,14 @@ export function useChatTimelineScroll(
   // Whether the timeline still owes its initial landing at the bottom (see
   // shouldForceInitialBottom / armInitialScroll).
   const needsInitialScroll = useRef(true);
+  // Where this hook's own last scroll left the scroller (see
+  // isPinnedToBottom), so growth is never mistaken for a reader's gesture.
+  const lastAppliedTop = useRef(NO_APPLIED_TOP);
   const refs: TimelineScrollRefs = {
     scroller: scrollRef,
     previousSignature: previousTimelineSignature,
     needsInitialScroll,
+    lastAppliedTop,
   };
 
   const {signature: timelineSignature, anchorMode: timelineAnchorMode} =
@@ -287,7 +345,7 @@ export function useChatTimelineScroll(
   // itself reaches the follow-aware effect above through the item's
   // `revision`.
   useEffect(
-    () => syncStartedSessionScroll(scrollRef, startedSession),
+    () => syncStartedSessionScroll(refs, startedSession),
     [startedSession?.id],
   );
 

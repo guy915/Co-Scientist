@@ -317,3 +317,73 @@ test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
 
   expect(scroller.scrollTop).toBe(120);
 });
+
+// Mounts the hook on a scroller that behaves like a real one: scrollTop
+// clamps to the bottom of the content, and the content grows by whatever a
+// streamed fragment adds. The other harnesses here pin scrollHeight, which
+// makes every post-scroll gap negative and so hides what happens once a
+// fragment adds more than FOLLOW_THRESHOLD_PX at once.
+function renderGrowingScroller() {
+  let grow: ((by: number) => void) | undefined;
+  function Harness() {
+    const [length, setLength] = useState(0);
+    grow = (by: number) => setLength(current => current + by);
+    const items: TimelineItem[] = [
+      {
+        id: 'agent-turn-in-flight',
+        at: 1,
+        order: 45,
+        node: null,
+        revision: length,
+      },
+    ];
+    const ref = useChatTimelineScroll(items, null);
+    return <div data-testid="scroller" ref={ref} />;
+  }
+  const {getByTestId} = render(<Harness />);
+  const scroller = getByTestId('scroller');
+  let contentHeight = CONTENT_HEIGHT;
+  let top = 0;
+  Object.defineProperty(scroller, 'scrollHeight', {get: () => contentHeight});
+  Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
+  Object.defineProperty(scroller, 'scrollTop', {
+    get: () => top,
+    set: (value: number) => {
+      top = Math.max(0, Math.min(value, contentHeight - WINDOW_HEIGHT));
+    },
+  });
+  return {
+    scroller,
+    grow: (by: number) => {
+      contentHeight += by;
+      act(() => grow?.(by));
+      act(() => void vi.runAllTimers());
+    },
+  };
+}
+
+test('keeps following when one fragment adds more than the follow threshold', () => {
+  // The gap is measured after the DOM has already grown, so a fragment
+  // taller than FOLLOW_THRESHOLD_PX reads as a reader who scrolled away --
+  // and since the skip leaves scrollTop where it was, every later fragment
+  // reads the same way. The turn followed for a second or two and then
+  // stopped for good.
+  const {scroller, grow} = renderGrowingScroller();
+  grow(0);
+  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT - WINDOW_HEIGHT);
+
+  grow(200);
+  grow(200);
+
+  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT + 400 - WINDOW_HEIGHT);
+});
+
+test('stops following once the reader scrolls away, however far the content grows', () => {
+  const {scroller, grow} = renderGrowingScroller();
+  grow(0);
+
+  scroller.scrollTop = 120;
+  grow(200);
+
+  expect(scroller.scrollTop).toBe(120);
+});
