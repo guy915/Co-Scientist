@@ -343,6 +343,22 @@ def _migrate_task_available_at(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "scientific_tasks", "available_at", "REAL")
 
 
+def _migrate_match_debate_transcript(conn: sqlite3.Connection) -> None:
+    """Add the matches table's turn-by-turn debate transcript column.
+
+    The tournament judge runs a multi-turn scientific debate and returns
+    every turn, but only the closing rationale was ever persisted, so the
+    exchange the verdict rests on was generated, paid for, and dropped at
+    this boundary. This column carries it as a small bounded JSON document
+    -- ``{"verdict", "turns": [{"turn", "favored", "text"}]}``, built by
+    ``engine_adapter.drain_matches`` -- read-only and display-only:
+    nothing parses it to rank, gate, or score anything. NULL for every
+    match judged before it existed, which renders exactly as those matches
+    render today (no debate section at all).
+    """
+    _add_column_if_missing(conn, "matches", "debate_transcript", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -362,3 +378,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_review_detail_column(conn)
     _migrate_evidence_retraction_column(conn)
     _migrate_task_available_at(conn)
+    _migrate_match_debate_transcript(conn)

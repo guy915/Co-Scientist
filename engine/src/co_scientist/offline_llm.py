@@ -224,7 +224,16 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 # because they need more than that (a value with particular structure, or
 # are blocked upstream by a required field).
 _OPTIONAL_FIELD_HINTS: dict[str, tuple[str, ...]] = {
-    "full_review": ("go_no_go_recommendation", "time_to_verdict"),
+    "full_review": (
+        # R14-14: the published "Reviews summary" block. Optional for the
+        # same reason the two below are (full_review.md does not name it),
+        # and filled here for the same reason too -- left absent, the
+        # offline backend renders no Reviews summary at all and the e2e
+        # suite cannot see the section it is meant to pin.
+        "reviews_summary",
+        "go_no_go_recommendation",
+        "time_to_verdict",
+    ),
     "meta_review": ("time_estimate", "phase_label", "recommended_idea"),
 }
 

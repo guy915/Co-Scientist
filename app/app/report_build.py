@@ -122,6 +122,11 @@ class _ReportData(NamedTuple):
     # ``evidence`` by the markdown renderer to resolve the [C*] keys a
     # hypothesis's mechanism text cites.
     citations: list[dict[str, Any]]
+    # This run's tournament match rows, carrying each match's persisted
+    # debate transcript for the report's "Tournament debates" section.
+    # ``match_count`` is their length rather than a second COUNT(*): the
+    # payload's number and the section's rows must be the same fact.
+    matches: list[dict[str, Any]]
     match_count: int
     reviews: list[dict[str, Any]]
     # Searches the deep-research loop recorded for this run, keyed by
@@ -235,6 +240,7 @@ def _report_markdown_inputs(
         skills_used=req.skills_used,
         retrieval_calls=data.retrieval_calls,
         hypothesis_title_by_id=_hypothesis_title_by_id(data.hyps),
+        matches=data.matches,
         citations=data.citations,
         evidence=data.evidence,
         reviews=data.reviews,
@@ -258,6 +264,37 @@ def _resolve_knowledge_base(
     return synthesized or _knowledge_base_topics(data.hyps, data.claim_edges)
 
 
+class _ReportReferenceTables(NamedTuple):
+    """This run's supporting tables the report renders but does not gate on.
+
+    Citations resolve the [C*] keys a hypothesis's mechanism text cites.
+    Matches are materialized rather than counted: the report renders each
+    match's own debate transcript for the "Tournament debates" section, and
+    counting them separately would charge a second query for a number this
+    list already carries. Reviews are the reader's copy of every review row
+    -- initial, deep verification, and the mature cascade's distinctly
+    labeled full/simulation/recurrent results (audit E1). Retrieval calls
+    are what the deep-research loop recorded, extended/ultra tiers only.
+    """
+
+    citations: list[dict[str, Any]]
+    matches: list[dict[str, Any]]
+    reviews: list[dict[str, Any]]
+    retrieval_calls: list[dict[str, Any]]
+
+
+def _load_report_reference_tables(
+    run_id: str, db_path: str | None
+) -> _ReportReferenceTables:
+    """Load this run's supporting tables -- see ``_ReportReferenceTables``."""
+    return _ReportReferenceTables(
+        citations=store.list_citations(run_id, db_path=db_path),
+        matches=store.list_matches(run_id, db_path=db_path),
+        reviews=store.list_reviews(run_id, db_path=db_path),
+        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
+    )
+
+
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     """Load and safety-filter a run's hypotheses, evidence, and claim edges."""
     all_hyps = store.list_hypotheses(run_id, db_path=db_path)
@@ -276,23 +313,21 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     # than by re-running it: its legacy fallback path writes an audit row
     # as a side effect, so calling it twice would double that row.
     contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
-    # The payload wants two numbers, and one of them is already in hand:
-    # ``summary_counts`` exists to avoid materializing tables the caller has,
-    # and asking it here re-counted evidence beside three tables the report
-    # never reads.
+    # ``summary_counts`` exists to avoid materializing tables the caller
+    # has; asking it here would re-count evidence beside tables the report
+    # never reads it through.
+    tables = _load_report_reference_tables(run_id, db_path)
     return _ReportData(
         hyps=hyps,
         all_hyps=all_hyps,
         claim_edges=claim_edges,
         released_claim_edges=released_claim_edges,
         evidence=evidence,
-        citations=store.list_citations(run_id, db_path=db_path),
-        match_count=store.count_matches(run_id, db_path=db_path),
-        # The reader's copy of every review row -- initial, deep
-        # verification, and the mature cascade's distinctly labeled
-        # full/simulation/recurrent results (audit E1).
-        reviews=store.list_reviews(run_id, db_path=db_path),
-        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
+        citations=tables.citations,
+        matches=tables.matches,
+        match_count=len(tables.matches),
+        reviews=tables.reviews,
+        retrieval_calls=tables.retrieval_calls,
         exclusion_tally=_exclusion_tally(all_hyps, hyps, contradicted),
     )
 

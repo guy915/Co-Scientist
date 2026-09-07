@@ -8,14 +8,42 @@ original module namespace keeps resolving.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from typing import Any
+
+from co_scientist.agents.ranking.ranking_debate_turns import (
+    debate_transcript_document,
+)
 
 from app import store
 from app.elo import INITIAL_ELO
 
 logger = logging.getLogger(__name__)
+
+
+def _debate_transcript_json(m: dict[str, Any]) -> str | None:
+    """Serialize a matchup's debate turns for its match row, or None.
+
+    The judge returns every turn of the simulated debate; this is the
+    boundary that used to keep only the closing rationale. Stored in the
+    published exemplar's shape (see
+    ``ranking_debate_turns.debate_transcript_document``) rather than as
+    the loop's own bookkeeping, so the row holds what a reader is shown
+    and nothing else. A matchup with no recorded turns stores NULL, which
+    is how every match judged before this column reads.
+    """
+    turns = m.get("debate_transcript") or []
+    if not turns:
+        return None
+    # A matchup dict from before the judge recorded the verdict number
+    # still names its winner, and the canonical side "a" is idea 1.
+    verdict = str(
+        m.get("debate_verdict") or ("2" if m.get("winner") == "b" else "1")
+    )
+    document = debate_transcript_document(list(turns), verdict)
+    return json.dumps(document, ensure_ascii=False)
 
 
 def _matchup_loser_engine_id(
@@ -82,6 +110,7 @@ def _persist_engine_matches(
                 rationale=m.get("reasoning", ""),
                 tier=m.get("tier") or None,
                 debate_turns=int(m.get("debate_turns", 1)),
+                debate_transcript=_debate_transcript_json(m),
             ),
             conn=conn,
         )

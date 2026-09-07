@@ -136,13 +136,25 @@ def test_drain_persists_detail_json_on_the_review_row(
         "decisive_step": "Step 4.",
     }
     # Deep verification (a different reviewer_agent on the same drain)
-    # carries no structured detail_json of its own.
+    # now carries structured detail of its own: its probes reached the
+    # reader only as one indented prose blob in ``critique``, which
+    # markdown collapses into a single paragraph, so the published
+    # ``Question:``/``Answer:``/``Reasoning:`` triple had no source. This
+    # assertion used to pin the absence of the column here; it pins the
+    # probe parts instead.
     dv = [
         r
         for r in store.list_reviews(run.id, db_path=isolated_db)
         if r["reviewer_agent"] == "deep_verification"
     ]
-    assert dv and dv[0]["detail_json"] is None
+    dv_detail = json.loads(dv[0]["detail_json"])
+    assert dv_detail["verdict"] == "weakened"
+    assert set(dv_detail["probes"][0]) == {
+        "question",
+        "answer",
+        "reasoning",
+        "fundamental",
+    }
 
     # The whole point of persisting detail_json: the Goal Report markdown
     # -- built fresh from the DB, not the fixture -- actually shows it.

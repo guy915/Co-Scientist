@@ -16,6 +16,11 @@ from typing import Any
 
 from app.report_markdown_header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report_markdown_references import _render_references_markdown
+from app.report_markdown_review_block import (
+    _render_deep_verification,
+    _render_hypothesis_reviews,
+    _render_reviews_summary,
+)
 from app.text_utils import hypothesis_statement, hypothesis_title
 
 # R14-13: byte-identical across all 19 published hypothesis files
@@ -248,6 +253,35 @@ def _render_hypothesis_verdict(reviews: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def _render_hypothesis_review_surface(
+    reviews: list[dict[str, Any]],
+) -> list[str]:
+    """Render this hypothesis's review-derived blocks, in published order.
+
+    R14-15/R14-22: the reviewer's own findings for this hypothesis --
+    display-only Go/No-Go framing, then the simulation review's numbered
+    failure points -- sit after the proposer's own content and before this
+    system's claim-evidence extension.
+
+    R14-26 fixes the published order of these review-side subsections:
+    Reviews summary, then the Appendix's All reviews block, then Deep
+    verification. The Go/No-Go framing sits between the first two --
+    published files carry it inside the Reviews summary's own
+    "Feasibility Assessment" part, and this renders it as the two bolded
+    lines it has always been rather than moving it into a block whose
+    coverage differs. The simulation review is this system's own analogue
+    of the published flaw list (R14-22) and keeps its place ahead of deep
+    verification.
+    """
+    lines: list[str] = []
+    lines += _render_reviews_summary(reviews)
+    lines += _render_hypothesis_verdict(reviews)
+    lines += _render_hypothesis_reviews(reviews)
+    lines += _render_hypothesis_simulation_review(reviews)
+    lines += _render_deep_verification(reviews)
+    return lines
+
+
 def _render_hypothesis_entry(
     i: int,
     hyp: dict[str, Any],
@@ -299,11 +333,8 @@ def _render_hypothesis_entry(
     # here rather than reordered on that ambiguous evidence.
     lines += _render_references_markdown(references)
     lines += _render_hypothesis_safety(hyp)
-    # R14-15/R14-22: the reviewer's own findings for this hypothesis --
-    # display-only Go/No-Go framing, then the simulation review's
-    # numbered failure points -- sit after the proposer's own content and
-    # before this system's claim-evidence extension.
-    lines += _render_hypothesis_verdict(reviews)
-    lines += _render_hypothesis_simulation_review(reviews)
+    lines += _render_hypothesis_review_surface(reviews)
+    # Claim evidence stays last, as our own extension beyond the
+    # published review-side subsections above.
     lines += _render_claim_evidence(edges)
     return lines

@@ -16,6 +16,7 @@ reason ``_validate_knowledge_base`` slices to its own max.
 from typing import Any
 
 from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_MAX_DIRECTIONS,
     RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS,
     RESEARCH_OVERVIEW_MAX_SUB_TOPICS,
 )
@@ -36,6 +37,11 @@ def _validate_sub_topic(raw: Any) -> dict[str, Any] | None:
         "title": raw.get("title") or "",
         "why": raw.get("why") or "",
         "what": raw.get("what") or "",
+        # F7: the exemplar's "Example idea" block, read the same
+        # defensive way its why/what siblings are -- json_object mode
+        # omits required fields, and an absent example must degrade to a
+        # sub-topic without one, not to a raised response.
+        "example_idea": raw.get("example_idea") or "",
         "specific_questions": _validate_specific_questions(
             raw.get("specific_questions")
         ),
@@ -70,10 +76,19 @@ def _validate_research_direction(raw: Any) -> Any:
 
 
 def _validate_research_directions(raw_directions: Any) -> Any:
-    """Add the new per-direction fields across the whole directions list."""
+    """Cap the directions list and add the new per-direction fields.
+
+    F5 raised the asked-for direction count, which raises the response's
+    size with it. This node's budget already sits at the escalation
+    ladder's own ceiling, so an over-producing response is sliced here
+    rather than trusted -- the same reason the sub-topic layer above is,
+    and for the same reason: json_object mode does not enforce the
+    schema's ``maxItems`` server-side.
+    """
     if not isinstance(raw_directions, list):
         return raw_directions
-    return [_validate_research_direction(raw) for raw in raw_directions]
+    sliced = raw_directions[:RESEARCH_OVERVIEW_MAX_DIRECTIONS]
+    return [_validate_research_direction(raw) for raw in sliced]
 
 
 def format_overview(raw_overview: Any) -> Any:

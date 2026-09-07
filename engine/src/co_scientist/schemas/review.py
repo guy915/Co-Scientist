@@ -9,24 +9,26 @@ from typing import Any
 
 from co_scientist.schemas.builders import obj, str_array
 
-# The one vocabulary for "does the evidence back this assumption",
-# shared by deep verification's sub_assumptions[].status and full
-# review's assumptions[].support -- the same judgement asked twice, by
-# two different reflection nodes. A single source keeps them from
-# drifting into two enums that disagree again; change it here to change
-# both schemas (and their prompt templates -- see
-# test_prompts_schema_parity.py, which pins every enum value to be named
-# in its own prompt's prose).
-#
-# R12-15/MO-4: Google's own published prose ("Plausible:", etc.) is a
-# *display* decision, not a stored-value one -- mature_reviews.py's
-# `assumptions_likely_false` filter matches the literal enum string, so
-# only `drain_reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
-# (docs/PARITY.md REVIEW-ASSUMPTION-WORDING-001).
-ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
-    "supported",
-    "uncertain",
-    "likely_false",
+# The full review's own schema, its R14-14 "Reviews summary" block, and
+# the assumption-support vocabulary only those two and the deep
+# verification schema below use, all live in ``review_full`` -- declaring
+# the Reviews summary here took this module past its size budget. Every
+# name is re-exported, so importers written against this module (the
+# schema registry and package ``__init__`` among them) keep resolving.
+from co_scientist.schemas.review_full import (
+    ASSUMPTION_SUPPORT_VALUES as ASSUMPTION_SUPPORT_VALUES,
+)
+from co_scientist.schemas.review_full import (
+    FULL_REVIEW_SCHEMA as FULL_REVIEW_SCHEMA,
+)
+from co_scientist.schemas.review_full import (
+    REVIEWS_SUMMARY_MAX_ITEMS as REVIEWS_SUMMARY_MAX_ITEMS,
+)
+from co_scientist.schemas.review_full import (
+    REVIEWS_SUMMARY_PARTS as REVIEWS_SUMMARY_PARTS,
+)
+from co_scientist.schemas.review_full import (
+    REVIEWS_SUMMARY_SCHEMA as REVIEWS_SUMMARY_SCHEMA,
 )
 
 # The eight scored criteria: the paper's five default output criteria
@@ -380,88 +382,6 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
             },
             "overall_assessment": {"type": "string"},
         }
-    ),
-}
-
-
-# Full review (SSR §4): an in-depth correctness/quality/novelty review that
-# also surfaces the hypothesis's key assumptions, distinct from the quick
-# initial screen (REVIEW_SCHEMA).
-FULL_REVIEW_SCHEMA: dict[str, Any] = {
-    "name": "full_review",
-    "schema": obj(
-        {
-            "correctness": {"type": "string"},
-            "assumptions": {
-                "type": "array",
-                "items": obj(
-                    {
-                        "assumption": {"type": "string"},
-                        # MO-9: the published full review (e.g.
-                        # docs/CORPUS-EXTRACTION.md,
-                        # validated-outputs/kira6-detailed-output-validated.md
-                        # -- 220 lines, sha256 b5a22b590874, "Reasoning about
-                        # assumptions") prints a free-text paragraph beside
-                        # every assumption; deep verification's
-                        # sub_assumptions[].verification already carries this
-                        # prose, but the full review previously carried only
-                        # the closed enum below, so a hypothesis reviewed
-                        # through full review alone lost the reasoning
-                        # entirely.
-                        "reasoning": {
-                            "type": "string",
-                            "description": (
-                                "2-4 sentences of free-text reasoning for"
-                                " why the evidence does or does not back"
-                                " this assumption, referencing specific"
-                                " evidence where available."
-                            ),
-                        },
-                        "support": {
-                            "type": "string",
-                            "enum": list(ASSUMPTION_SUPPORT_VALUES),
-                        },
-                    }
-                ),
-            },
-            "quality_and_novelty": {"type": "string"},
-            "literature_grounding": {"type": "string"},
-            "verdict": {
-                "type": "string",
-                "enum": ["sound", "needs_revision", "rejected"],
-            },
-            "justification": {"type": "string"},
-            # R14-15: Google's published full review carries a bolded
-            # free-text testing recommendation ("Verdict: <recommendation>",
-            # wording varies -- not a closed enum) and an estimated
-            # timeframe to a decisive result. Distinct from `verdict`
-            # above, which is this review's own sound/needs_revision/
-            # rejected disposition and the one field
-            # `mature_reviews.apply_mature_review_disposition` reads to
-            # gate the tournament -- these two are display-only, read by
-            # nothing else in this codebase (report_markdown_hypothesis's
-            # renderer is their only consumer). Optional: Google's own
-            # published files carry this in only 8 of 19, so a review that
-            # omits it is not a malformed one.
-            "go_no_go_recommendation": {
-                "type": "string",
-                "description": (
-                    "A short free-text testing recommendation, e.g. 'Go —"
-                    " pursue wet-lab validation' or 'No-Go — mechanism"
-                    " unsupported'. Advisory framing for the reader; it"
-                    " does not replace verdict above."
-                ),
-            },
-            "time_to_verdict": {
-                "type": "string",
-                "description": (
-                    "A brief estimated timeframe to reach a decisive"
-                    " experimental result, e.g. 'Short', '2-4 weeks', or"
-                    " '2-3 months'."
-                ),
-            },
-        },
-        optional=("go_no_go_recommendation", "time_to_verdict"),
     ),
 }
 

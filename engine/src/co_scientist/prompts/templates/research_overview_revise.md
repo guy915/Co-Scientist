@@ -17,4 +17,4 @@ Your previous draft:
 Reviewer's notes, each naming the section or claim it concerns:
 {{review_notes}}
 
-Resolve every note: remove or hedge any unsupported claim, correct any contradiction with the listed hypotheses, soften any confidence the material does not carry, and fix or drop any evidence_id citation that does not support what it is cited for. Keep every other part of the overview -- including anything the notes did not raise -- unchanged. Produce the complete overview again, in the same structure as before.
+Resolve every note: remove or hedge any unsupported claim, correct any contradiction with the listed hypotheses, soften any confidence the material does not carry, and fix or drop any evidence_id citation that does not support what it is cited for. Keep every other part of the overview -- including anything the notes did not raise -- unchanged. Produce the complete overview again, in the same structure as before: the same research directions, the same sub-topics under each, and the same fields on each. Do not add directions, sub-topics, or sections the draft did not have.

@@ -3,6 +3,7 @@
 import logging
 from typing import Any, NamedTuple
 
+from co_scientist.agents.ranking.ranking_debate_turns import _verdict_number
 from co_scientist.agents.ranking.ranking_elo import (
     calculate_elo_update,
     effective_k_factor,
@@ -180,11 +181,16 @@ def _debate_provenance_fields(
     """Extracts one matchup's debate provenance for its detail dict.
 
     Depth (1 = single-turn comparison, >1 = multi-turn scientific debate),
-    the turn-by-turn transcript, and the judge model (Milestone 3).
+    the turn-by-turn transcript, the published verdict number that closes
+    it, and the judge model (Milestone 3). ``debate_verdict`` falls back
+    to the winner this detail is being built with, so a response from
+    before the judge recorded it still names a verdict.
     """
     return {
         "debate_turns": response.get("debate_turns", 1),
         "debate_transcript": response.get("debate_transcript", []),
+        "debate_verdict": response.get("debate_verdict")
+        or _verdict_number(winner),
         "judge_model": response.get("judge_model"),
         "consensus_votes": response.get("consensus_votes", [winner]),
         "position_balanced": response.get("position_balanced", False),

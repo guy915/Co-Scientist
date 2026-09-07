@@ -80,6 +80,63 @@ _VERDICT_LINE_RE = re.compile(
 )
 
 
+# The same verdict line, anchored to the end of a turn's text. Each turn
+# answers with its own concluding "better idea: <n>", numbered in *that*
+# turn's presentation order -- which the loop alternates -- so a rendered
+# transcript that kept them would argue for a different number every turn.
+# Only a trailing match is a verdict; a mid-text mention is the judge
+# quoting the protocol (the same distinction _parse_verdict_line draws).
+_TRAILING_VERDICT_RE = re.compile(
+    r"\s*better\s+(?:idea|hypothesis)\s*:\s*[12ab]\W*$",
+    re.IGNORECASE,
+)
+
+
+def _verdict_number(side: str) -> str:
+    """Name a canonical side by the number the published verdict prints.
+
+    The prompt labels its sides "Hypothesis 1" and "Hypothesis 2"; the
+    canonical (un-swapped) side "a" is 1 and "b" is 2.
+    """
+    return "1" if side == "a" else "2"
+
+
+def _turn_argument(reasoning: str) -> str:
+    """One turn's argument with its own trailing verdict line removed."""
+    return _TRAILING_VERDICT_RE.sub("", (reasoning or "").rstrip()).rstrip()
+
+
+def debate_transcript_document(
+    transcript: list[dict[str, Any]], verdict: str
+) -> dict[str, Any]:
+    """Project a debate transcript onto the published exemplar's shape.
+
+    Figure A.17 prints a turn-by-turn exchange and closes on one
+    ``Better idea: <n>`` line. This returns exactly that -- each turn's
+    argument and the numbered idea it favoured, plus the match's single
+    verdict -- and nothing a reader never sees, so a consumer persisting
+    it stores the debate rather than the loop's bookkeeping.
+
+    Args:
+        transcript: Turn entries as ``_run_debate_turn`` records them.
+        verdict: The whole match's verdict number ("1" or "2").
+
+    Returns:
+        ``{"verdict": str, "turns": [{"turn", "favored", "text"}]}``.
+    """
+    return {
+        "verdict": verdict,
+        "turns": [
+            {
+                "turn": int(entry.get("turn") or index),
+                "favored": _verdict_number(str(entry.get("winner") or "a")),
+                "text": _turn_argument(str(entry.get("reasoning") or "")),
+            }
+            for index, entry in enumerate(transcript, 1)
+        ],
+    }
+
+
 def _parse_verdict_line(text: str) -> str | None:
     """Parses the paper's literal verdict line from the judge's text.
 
@@ -345,6 +402,11 @@ def _finalize_debate_response(
 
     response["debate_turns"] = turns
     response["debate_transcript"] = run.transcript
+    # The published closing line's own number, resolved here where the
+    # canonical winner is known. The transcript itself stays as recorded;
+    # ``debate_transcript_document`` is what shapes the two into the
+    # exemplar's form, at the consumer that persists it.
+    response["debate_verdict"] = _verdict_number(winner)
     response["judge_model"] = model_name
     response["consensus_votes"] = votes
     response["position_balanced"] = turns > 1

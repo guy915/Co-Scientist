@@ -79,6 +79,13 @@ def _render_sub_topic(sub_topic: dict[str, Any]) -> list[str]:
     what = _readable_text(sub_topic.get("what", ""))
     if what:
         lines.append(f"**What:** {what}\n")
+    # F7: the exemplar's own "Example idea:" block, printed between the
+    # topic's reasoning and its questions exactly where cf-PICI prints it.
+    # Absent on a report persisted before the field existed, which renders
+    # as it always did.
+    example_idea = _readable_text(sub_topic.get("example_idea", ""))
+    if example_idea:
+        lines.append(f"**Example idea:** {example_idea}\n")
     lines += _render_specific_questions(
         sub_topic.get("specific_questions") or []
     )
@@ -282,7 +289,17 @@ _AIMS_CLOSING_BLOCKS = (
 # Per-aim fields, new spelling first: the exemplars give every aim a goal,
 # the hypothesis it tests, and the reasoning behind it. Only one spelling
 # is ever present, so the whole list renders in order.
+#
+# F4: all three published aims pages head each aim "Specific Aims N" and
+# print the goal as a labelled block beneath it ("Overarching goal:" /
+# "Hypothesis:" / "Reasoning:"). We used to put the goal text *in* the
+# heading, which dropped the label the exemplars print. The legacy "aim"
+# spelling joins the body for the same reason: reports stored before the
+# exemplar vocabulary carry it instead of overarching_goal, and it must
+# not vanish now that the heading is a fixed number.
 _AIM_BODY_FIELDS = (
+    ("overarching_goal", "Overarching goal"),
+    ("aim", "Aim"),
     ("hypothesis", "Hypothesis"),
     ("reasoning", "Reasoning"),
     ("rationale", "Rationale"),
@@ -302,14 +319,11 @@ def _render_labeled_blocks(
     return lines
 
 
-def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
-    """Render one NIH aim entry, or nothing when not a dict."""
+def _render_nih_aim(aim: dict[str, Any], number: int) -> list[str]:
+    """Render one numbered NIH aim entry, or nothing when not a dict."""
     if not isinstance(aim, dict):
         return []
-    heading = _readable_text(aim.get("overarching_goal", "")) or _readable_text(
-        aim.get("aim", "")
-    )
-    lines = [f"### {heading}\n"]
+    lines = [f"### Specific Aims {number}\n"]
     for key, label in _AIM_BODY_FIELDS:
         text = _readable_text(aim.get(key, ""))
         if text:
@@ -327,8 +341,8 @@ def _has_aims_content(
 def _render_aims_list(aims: list[Any]) -> list[str]:
     """Render each NIH aim entry in sequence."""
     lines: list[str] = []
-    for aim in aims:
-        lines += _render_nih_aim(aim)
+    for number, aim in enumerate(aims, 1):
+        lines += _render_nih_aim(aim, number)
     return lines
 
 

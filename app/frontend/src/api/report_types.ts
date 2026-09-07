@@ -108,6 +108,11 @@ export interface ResearchSubTopic {
   title?: string;
   why?: string;
   what?: string;
+  /**
+   * F7: the exemplar's own "Example idea" block, between the topic's
+   * reasoning and its questions. Absent on a report persisted before it.
+   */
+  example_idea?: string;
   specific_questions?: string[];
 }
 

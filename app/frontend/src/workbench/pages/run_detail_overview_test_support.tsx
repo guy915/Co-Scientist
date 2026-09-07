@@ -45,6 +45,7 @@ export function makeFullOverviewSection(): ResearchOverview['overview'] {
             title: 'Sub-topic one',
             why: 'Why sub-topic one matters.',
             what: 'What to investigate in sub-topic one.',
+            example_idea: 'One worked example for sub-topic one.',
             specific_questions: ['Question A?', 'Question B?'],
           },
         ],

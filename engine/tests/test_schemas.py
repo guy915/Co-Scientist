@@ -10,6 +10,7 @@ from co_scientist.schemas.review import (
     FULL_REVIEW_SCHEMA,
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
+    REVIEWS_SUMMARY_PARTS,
 )
 from co_scientist.schemas.synthesis import EVOLUTION_SCHEMA
 
@@ -270,3 +271,43 @@ def test_go_no_go_fields_are_declared_but_optional() -> None:
     assert "time_to_verdict" in node["properties"]
     assert "go_no_go_recommendation" not in node["required"]
     assert "time_to_verdict" not in node["required"]
+
+
+def test_reviews_summary_carries_the_published_eight_parts() -> None:
+    """R14-14: the published per-hypothesis "Reviews summary" block.
+
+    Every populated file in the 19-hypothesis published run prints the
+    same eight numbered parts under "Reviews summary" (Executive Verdict
+    through Conclusion). Ours used to carry only ``review_summary``, one
+    2-3 sentence string on the initial screen, so the block had no source
+    at all. Declared on the full review rather than the initial screen
+    because the initial screen's result travels as a typed dataclass
+    field (``HypothesisReview.review_summary: str``) that several prompt
+    projections read as a string, while a full review's whole raw
+    response reaches the drain through ``hypothesis.enrichments``.
+    """
+    node = FULL_REVIEW_SCHEMA["schema"]["properties"]["reviews_summary"]
+    assert list(node["properties"]) == list(REVIEWS_SUMMARY_PARTS)
+    assert node["required"] == list(REVIEWS_SUMMARY_PARTS)
+    # Declared but not required at the top level, the same precedent the
+    # Go/No-Go pair set: ``full_review.md`` does not name this block in
+    # its numbered instructions, and requiring a field the prompt never
+    # asks for rejects a prompt-faithful answer outright.
+    assert "reviews_summary" in FULL_REVIEW_SCHEMA["schema"]["properties"]
+    assert "reviews_summary" not in FULL_REVIEW_SCHEMA["schema"]["required"]
+
+
+def test_reviews_summary_lists_are_arrays_not_prose() -> None:
+    """Parts 2-7 are bulleted in every published exemplar; 1 and 8 are prose.
+
+    Asking for prose where the published shape is a list invites a raw
+    newline inside a JSON string value, which discards the whole
+    response.
+    """
+    props = FULL_REVIEW_SCHEMA["schema"]["properties"]["reviews_summary"][
+        "properties"
+    ]
+    prose = {"executive_verdict", "conclusion"}
+    for name, subschema in props.items():
+        expected = "string" if name in prose else "array"
+        assert subschema["type"] == expected, name

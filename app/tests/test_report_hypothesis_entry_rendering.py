@@ -1,14 +1,16 @@
 """Pins one 'Top hypotheses' entry's full rendered markdown, line for line.
 
 ``_render_hypothesis_entry`` composes a mandatory title+disclaimer (R14-13)
-and nine optional subsections (scene-setting, proposed hypothesis,
-mechanism, steps to test the idea, references, safety, Go/No-Go verdict,
-simulation review, claim evidence) into one entry. Every other report test
+and twelve optional subsections (scene-setting, proposed hypothesis,
+mechanism, steps to test the idea, references, safety, the eight-part
+Reviews summary, Go/No-Go verdict, the Appendix's All reviews block,
+simulation review, deep verification, claim evidence) into one entry.
+Every other report test
 asserts a substring or a heading's presence/absence; none pin the
 assembled entry exactly, so a refactor of the composition itself --
 reordering, an extra blank line, a dropped separator -- could pass every
 existing test while still changing what a reader sees. This test exercises
-all nine optional subsections on one hypothesis (including both the
+all twelve optional subsections on one hypothesis (including both the
 dict-with-url and bare-string evidence-span shapes
 ``_render_evidence_span`` renders differently) and pins the exact
 line-by-line output.
@@ -73,11 +75,57 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
     reviews = [
         {
             "hypothesis_id": "h1",
+            "reviewer_agent": "review",
+            "detail_json": json.dumps(
+                {
+                    "scores": {"scientific_soundness": 8, "novelty": 6},
+                    "detailed_feedback": {
+                        "scientific_soundness": "The mechanism is consistent.",
+                        "novelty": "The pairing is unusual.",
+                    },
+                    "already_explored": ["Target engagement is documented."],
+                    "novel_aspects": ["The stress response is new."],
+                    "constructive_feedback": "Name the control arm.",
+                }
+            ),
+        },
+        {
+            "hypothesis_id": "h1",
             "reviewer_agent": "full_review",
             "detail_json": json.dumps(
                 {
                     "go_no_go": "Go — pursue wet-lab validation.",
                     "time_to_verdict": "2-4 weeks",
+                    "correctness": "The logic holds throughout.",
+                    "assumptions": [
+                        {
+                            "assumption": "The receptor is expressed.",
+                            "reasoning": "Two cohorts detect it.",
+                            "support": "Plausible",
+                        }
+                    ],
+                    "reviews_summary": {
+                        "executive_verdict": "Well conceived, mis-calibrated.",
+                        "critical_flaws": ["The pore benchmark is wrong."],
+                        "conclusion": "Recalibrate before testing.",
+                    },
+                }
+            ),
+        },
+        {
+            "hypothesis_id": "h1",
+            "reviewer_agent": "deep_verification",
+            "detail_json": json.dumps(
+                {
+                    "verdict": "weakened",
+                    "probes": [
+                        {
+                            "question": "Is inhibition alone sufficient?",
+                            "answer": "It targets a key node.",
+                            "reasoning": "Not incoherent, but it needs care.",
+                            "fundamental": True,
+                        }
+                    ],
                 }
             ),
         },
@@ -130,15 +178,75 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         "",
         "Limited safety data exists for this class.",
         "",
+        "#### Reviews summary",
+        "",
+        "##### 1. Executive Verdict",
+        "",
+        "Well conceived, mis-calibrated.",
+        "",
+        "##### 2. Critical Flaws",
+        "",
+        "- The pore benchmark is wrong.",
+        "",
+        "##### 8. Conclusion",
+        "",
+        "Recalibrate before testing.",
+        "",
         "**Verdict:** Go — pursue wet-lab validation.",
         "",
         "**Time to Verdict:** 2-4 weeks",
+        "",
+        "#### Appendix:",
+        "",
+        "**All reviews:**",
+        "",
+        "##### Correctness",
+        "",
+        "The mechanism is consistent.",
+        "",
+        "**Detailed Assumptions**",
+        "",
+        "- **Plausible:** The receptor is expressed. — Two cohorts detect it.",
+        "",
+        "**Reasoning about Correctness**",
+        "",
+        "The logic holds throughout.",
+        "",
+        "**Suggested Improvements**",
+        "",
+        "Name the control arm.",
+        "",
+        "**Answer: 8**",
+        "",
+        "##### Novelty",
+        "",
+        "The pairing is unusual.",
+        "",
+        "Aspects already explored:",
+        "- Target engagement is documented.",
+        "",
+        "Novel Aspects:",
+        "- The stress response is new.",
+        "",
+        "**Answer: 6**",
         "",
         "#### Simulation review",
         "",
         "1. **Failure point:** Off-target editing risk.",
         "",
         "**Decisive step:** Step 3: enzyme binds substrate.",
+        "",
+        "#### Deep verification",
+        "",
+        "**Verdict:** weakened",
+        "",
+        "**Probe 1 (fundamental assumption)**",
+        "",
+        "Question: Is inhibition alone sufficient?",
+        "",
+        "Answer: It targets a key node.",
+        "",
+        "Reasoning: Not incoherent, but it needs care.",
         "",
         "**Claim evidence:**",
         "",

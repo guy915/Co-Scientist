@@ -59,6 +59,12 @@ it('renders a recent-findings line and the nested sub-topics (MO-12, MO-1)', () 
   expect(
     screen.getByText('What to investigate in sub-topic one.'),
   ).toBeInTheDocument();
+  // F7: the exemplar's own third sub-topic block, which "What" (the topic
+  // statement) does not stand in for.
+  expect(screen.getByText('Example idea:')).toBeInTheDocument();
+  expect(
+    screen.getByText('One worked example for sub-topic one.'),
+  ).toBeInTheDocument();
   expect(screen.getByText('Question A?')).toBeInTheDocument();
   expect(screen.getByText('Question B?')).toBeInTheDocument();
   // Direction two carries neither field, and must not fall over. It also
@@ -99,6 +105,7 @@ it('omits recent findings and sub-topics for a direction stored before they exis
   expect(screen.queryByText('Recent findings:')).not.toBeInTheDocument();
   expect(screen.queryByText('Why:')).not.toBeInTheDocument();
   expect(screen.queryByText('What:')).not.toBeInTheDocument();
+  expect(screen.queryByText('Example idea:')).not.toBeInTheDocument();
   // MO-12: a single direction gets no preview -- it would just repeat the
   // one heading right below it rather than orient the reader.
   expect(
@@ -266,6 +273,12 @@ it('renders the specific aims and research contacts', () => {
     screen.getByRole('heading', {name: 'Specific aims'}),
   ).toBeInTheDocument();
   expect(screen.getByText('An introduction to the aims.')).toBeInTheDocument();
+  // F4's numbered heading is markdown-only: this tab heads the whole
+  // section "Specific aims", so a per-aim heading of the same words
+  // would leave two headings answering to one name on one screen.
+  expect(screen.getAllByRole('heading', {name: /specific aims/i})).toHaveLength(
+    1,
+  );
   expect(screen.getByText('Aim 1: Do the thing')).toBeInTheDocument();
   expect(screen.getByText('Hypothesis:')).toBeInTheDocument();
   expect(screen.getByText('Because reasons.')).toBeInTheDocument();

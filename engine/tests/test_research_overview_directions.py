@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.meta_review import research_overview as ro
+from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_MAX_DIRECTIONS
 from tests._state import make_hypothesis, make_state
 
 
@@ -54,6 +55,7 @@ async def test_sub_topics_pass_through_when_well_formed(
                     "title": "Sub-topic A",
                     "why": "Because Y.",
                     "what": "Investigate Z.",
+                    "example_idea": "Knock Z down and read out Y.",
                     "specific_questions": ["Does Z cause Y?"],
                 }
             ],
@@ -68,6 +70,7 @@ async def test_sub_topics_pass_through_when_well_formed(
             "title": "Sub-topic A",
             "why": "Because Y.",
             "what": "Investigate Z.",
+            "example_idea": "Knock Z down and read out Y.",
             "specific_questions": ["Does Z cause Y?"],
         }
     ]
@@ -204,3 +207,54 @@ async def test_malformed_sub_topics_are_dropped_not_crashed_on(
     assert [t["title"] for t in sub_topics] == ["ok", "ok2"]
     assert sub_topics[0]["specific_questions"] == []
     assert sub_topics[1]["specific_questions"] == []
+
+
+async def test_example_idea_degrades_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F7: a sub-topic omitting ``example_idea`` never raises.
+
+    The json_object downgrade omits required fields, so the field is
+    read the same defensive way its ``why``/``what`` siblings are.
+    """
+    response = _direction_response(
+        {
+            "title": "T",
+            "importance": "I",
+            "suggested_experiments": ["E"],
+            "sub_topics": [{"title": "Sub-topic A", "why": "w", "what": "w"}],
+        }
+    )
+
+    out = await _run_overview_node(monkeypatch, response)
+
+    direction = out["research_overview"]["overview"]["research_directions"][0]
+    assert direction["sub_topics"][0]["example_idea"] == ""
+
+
+async def test_research_directions_are_capped_at_the_schema_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F5: more directions than the published exemplar carries are capped.
+
+    Raising the asked-for count raises the response's size with it, and
+    this node's budget is already at the escalation ladder's ceiling, so
+    an over-producing response is sliced here rather than trusted -- the
+    same reason the sub-topic layer above is.
+    """
+    directions = [
+        {
+            "title": f"Direction {i}",
+            "importance": "I",
+            "suggested_experiments": ["E"],
+            "sub_topics": [],
+        }
+        for i in range(9)
+    ]
+    response = {"overview": {"summary": "S", "research_directions": directions}}
+
+    out = await _run_overview_node(monkeypatch, response)
+
+    kept = out["research_overview"]["overview"]["research_directions"]
+    assert len(kept) == RESEARCH_OVERVIEW_MAX_DIRECTIONS
+    assert kept[0]["title"] == "Direction 0"

@@ -7,14 +7,16 @@ re-exports every name here, so the original module namespace keeps
 resolving.
 
 The citation half of the original module now lives in ``drain_citations``
-(split out when this file outgrew the 500-line ceiling); every name it holds
-is re-exported below, so importers written against ``drain_reviews`` --
-``drain`` and ``drain_hypotheses`` among them -- keep resolving unchanged.
+(split out when this file outgrew the 500-line ceiling), and the structured
+``detail_json`` builders in ``drain_review_detail`` (split out when
+persisting the report's review block took it past the ceiling a second
+time); every name either holds is re-exported below, so importers written
+against ``drain_reviews`` -- ``drain`` and ``drain_hypotheses`` among them
+-- keep resolving unchanged.
 """
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from typing import Any
 
@@ -51,6 +53,30 @@ from app.engine_adapter.drain_citations import (
 )
 from app.engine_adapter.drain_citations import (
     _persist_one_citation as _persist_one_citation,
+)
+from app.engine_adapter.drain_review_detail import (
+    _ASSUMPTION_SUPPORT_LABELS as _ASSUMPTION_SUPPORT_LABELS,
+)
+from app.engine_adapter.drain_review_detail import (
+    _deep_verification_detail as _deep_verification_detail,
+)
+from app.engine_adapter.drain_review_detail import (
+    _detail_json as _detail_json,
+)
+from app.engine_adapter.drain_review_detail import (
+    _initial_review_detail as _initial_review_detail,
+)
+from app.engine_adapter.drain_review_detail import (
+    _mature_review_detail as _mature_review_detail,
+)
+from app.engine_adapter.drain_review_detail import (
+    _review_detail_json as _review_detail_json,
+)
+from app.engine_adapter.drain_review_detail import (
+    _simulation_detail as _simulation_detail,
+)
+from app.engine_adapter.drain_review_detail import (
+    _verdict_detail as _verdict_detail,
 )
 from app.report_render import format_deep_verification_critique
 
@@ -170,6 +196,7 @@ def _persist_engine_review_rows(
                 ),
                 testability=_score_or_none(scores.get("testability", 0)),
                 overall=_score_or_none(rv.get("overall_score", 0)),
+                detail_json=_detail_json(_initial_review_detail(rv)),
             ),
             conn=conn,
         )
@@ -195,6 +222,11 @@ def _persist_deep_verification_review(
             reviewer_agent="deep_verification",
             summary=summary,
             critique=critique,
+            detail_json=_detail_json(
+                _deep_verification_detail(
+                    probes, h.get("deep_verification_verdict")
+                )
+            ),
         ),
         conn=conn,
     )
@@ -232,39 +264,6 @@ def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
         if text:
             lines.append(f"{label}: {text}")
     return lines
-
-
-# R12-15/MO-4: Google's own per-assumption reasoning renders each item's
-# support as prose -- "Plausible:", "Plausible, but requires careful
-# investigation:", "Unknown:" (docs/CORPUS-EXTRACTION.md:4135-4141,
-# kira6-detailed-output-validated.md's "Reasoning about assumptions") --
-# not the schema's closed enum name. Two of the three values mirror that
-# wording directly, matching both the published word and the prompts'
-# own definition of the value (full_review.md/deep_verification.md):
-# `supported` ("the evidence backs it") is Google's "Plausible:";
-# `uncertain` ("the evidence is thin or mixed") is Google's "Plausible,
-# but requires careful investigation:". The third does not: `likely_false`
-# means "the evidence points against it" -- a genuine negative verdict --
-# while every "Unknown:" in the published exemplar marks an assumption
-# nothing has tested yet ("limited safety data exists... unknown and
-# needs experiments to verify"), not one the evidence contradicts.
-# Relabeling `likely_false` as "Unknown" would understate that verdict to
-# the reader, so it keeps its own honest label instead of a borrowed,
-# mismatched one -- "Implausible", read alongside "Plausible" as its
-# direct opposite. The published vocabulary simply carries no negative
-# verdict to mirror here; see `docs/PARITY.md` REVIEW-ASSUMPTION-WORDING-001.
-#
-# The stored enum (`review.py`'s ASSUMPTION_SUPPORT_VALUES) is unchanged --
-# `mature_reviews._project_full_review` keys its `assumptions_likely_false`
-# filter (fed into the ranking judge's prompt context) off the literal
-# `"likely_false"` string, so migrating stored values would silently break
-# that filter for a purely cosmetic gain. Only this render-time lookup
-# translates the value a reader sees.
-_ASSUMPTION_SUPPORT_LABELS: dict[str, str] = {
-    "supported": "Plausible",
-    "uncertain": "Plausible, but requires careful investigation",
-    "likely_false": "Implausible",
-}
 
 
 def _assumption_line(item: dict[str, Any]) -> str | None:
@@ -358,84 +357,6 @@ def _append_simulation_critique(
             ("Decisive step", review.get("decisive_step")),
         )
     )
-
-
-# Bounds for detail_json (R14-22/R14-15): generous enough for genuine
-# reader content, tight enough that a malformed json_object-downgrade
-# response (an over-long string, a runaway array) cannot inflate the row.
-_MAX_DETAIL_ITEMS = 10
-_MAX_DETAIL_CHARS = 500
-_MAX_SHORT_CHARS = 200
-
-
-def _clip_detail(value: Any, limit: int) -> str:
-    """Coerce one possibly-malformed field to a bounded, flat string."""
-    text = " ".join(str(value or "").split())
-    return text[:limit].rstrip()
-
-
-def _simulation_detail(review: dict[str, Any]) -> dict[str, Any]:
-    """Bounded failure_points/decisive_step for the markdown renderer.
-
-    Google's published shape numbers and bolds these (R14-22); nothing
-    here or downstream parses or gates on them. ``failure_points`` may
-    legitimately be empty -- a ``holds`` verdict names no failure point --
-    which the caller renders as no section at all.
-    """
-    raw_points = review.get("failure_points")
-    points = [
-        clipped
-        for point in (raw_points if isinstance(raw_points, list) else [])[
-            :_MAX_DETAIL_ITEMS
-        ]
-        if (clipped := _clip_detail(point, _MAX_DETAIL_CHARS))
-    ]
-    decisive_step = _clip_detail(review.get("decisive_step"), _MAX_SHORT_CHARS)
-    detail: dict[str, Any] = {}
-    if points:
-        detail["failure_points"] = points
-    if decisive_step:
-        detail["decisive_step"] = decisive_step
-    return detail
-
-
-def _verdict_detail(review: dict[str, Any]) -> dict[str, Any]:
-    """Bounded Go/No-Go framing for the full/recurrent review (R14-15).
-
-    Display only, rendered verbatim: neither this function nor its
-    caller nor the markdown renderer treats either field as a decision --
-    the review-disposition gate reads only ``verdict``/``justification``
-    (``mature_reviews.apply_mature_review_disposition``), never this.
-    """
-    go_no_go = _clip_detail(
-        review.get("go_no_go_recommendation"), _MAX_SHORT_CHARS
-    )
-    time_to_verdict = _clip_detail(
-        review.get("time_to_verdict"), _MAX_SHORT_CHARS
-    )
-    detail: dict[str, Any] = {}
-    if go_no_go:
-        detail["go_no_go"] = go_no_go
-    if time_to_verdict:
-        detail["time_to_verdict"] = time_to_verdict
-    return detail
-
-
-def _review_detail_json(key: str, review: dict[str, Any]) -> str | None:
-    """Return one mature review's structured display detail, or None.
-
-    Only simulation (failure points/decisive step) and full/recurrent
-    (Go/No-Go framing) carry anything beyond summary/critique text today;
-    every other key returns None, and an empty result also returns None
-    rather than an empty ``"{}"`` row.
-    """
-    if key == "simulation":
-        detail = _simulation_detail(review)
-    elif key in ("full", "recurrent"):
-        detail = _verdict_detail(review)
-    else:
-        detail = {}
-    return json.dumps(detail) if detail else None
 
 
 def _persist_mature_review_rows(

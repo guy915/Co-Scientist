@@ -13,6 +13,10 @@ interface SubTopicEntry {
   title: string;
   why: string;
   what: string;
+  // F7: the exemplar's own "Example idea" block, between the topic's
+  // reasoning and its questions. Empty on a sub-topic from a report
+  // persisted before it existed.
+  exampleIdea: string;
   questions: string[];
 }
 
@@ -38,6 +42,7 @@ function toSubTopicEntry(raw: unknown): SubTopicEntry {
     title: readableText(record.title),
     why: readableText(record.why),
     what: readableText(record.what),
+    exampleIdea: readableText(record.example_idea),
     questions: readableTextList(record.specific_questions),
   };
 }
@@ -48,7 +53,9 @@ function subTopicEntries(raw: unknown): SubTopicEntry[] {
   const list = Array.isArray(raw) ? raw : [];
   return list
     .map(toSubTopicEntry)
-    .filter(e => e.title || e.why || e.what || e.questions.length);
+    .filter(
+      e => e.title || e.why || e.what || e.exampleIdea || e.questions.length,
+    );
 }
 
 // Coerce one raw research-direction into readable fields, tolerating the
@@ -108,6 +115,26 @@ function DirectionsPreview({directions}: {directions: DirectionEntry[]}) {
   );
 }
 
+// A sub-topic's labelled prose blocks, in the order the published
+// exemplar prints them: the topic's reasoning, what it covers, then one
+// worked example, ahead of its specific questions.
+const SUB_TOPIC_BODY_FIELDS = [
+  ['why', 'Why'],
+  ['what', 'What'],
+  ['exampleIdea', 'Example idea'],
+] as const;
+
+// One labelled sub-topic line, or nothing when the field is empty.
+function SubTopicLine({label, text}: {label: string; text: string}) {
+  if (!text) return null;
+  return (
+    <p>
+      <strong>{label}: </strong>
+      {text}
+    </p>
+  );
+}
+
 // One named sub-topic entry, or nothing when coercion left it empty.
 function SubTopicItem({subTopic}: {subTopic: SubTopicEntry}) {
   return (
@@ -117,18 +144,9 @@ function SubTopicItem({subTopic}: {subTopic: SubTopicEntry}) {
           <strong>{subTopic.title}</strong>
         </p>
       ) : null}
-      {subTopic.why ? (
-        <p>
-          <strong>Why: </strong>
-          {subTopic.why}
-        </p>
-      ) : null}
-      {subTopic.what ? (
-        <p>
-          <strong>What: </strong>
-          {subTopic.what}
-        </p>
-      ) : null}
+      {SUB_TOPIC_BODY_FIELDS.map(([key, label]) => (
+        <SubTopicLine key={key} label={label} text={subTopic[key]} />
+      ))}
       {subTopic.questions.length ? (
         <ul className={REPORT_LIST_CLASSES}>
           {subTopic.questions.map((question, i) => (

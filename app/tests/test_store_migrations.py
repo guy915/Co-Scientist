@@ -320,3 +320,58 @@ def test_connect_upgrades_evidence_for_retraction(tmp_path: object) -> None:
 
     assert "retracted" in _columns(path, "evidence")
     assert [row[0] for row in rows] == [None]
+
+
+# The matches table as builds before the debate-transcript column created
+# it -- itself already the post-``tier``/``debate_turns`` shape, since both
+# of those are migration-added too.
+_OLD_MATCHES = """
+CREATE TABLE matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    iteration INTEGER NOT NULL,
+    winner_id TEXT NOT NULL,
+    loser_id TEXT NOT NULL,
+    winner_elo_before INTEGER NOT NULL,
+    winner_elo_after INTEGER NOT NULL,
+    loser_elo_before INTEGER NOT NULL,
+    loser_elo_after INTEGER NOT NULL,
+    rationale TEXT,
+    tier TEXT,
+    debate_turns INTEGER NOT NULL DEFAULT 1,
+    created_at REAL NOT NULL
+);
+"""
+
+
+def test_connect_upgrades_matches_for_the_debate_transcript(
+    tmp_path: object,
+) -> None:
+    """A match judged before the transcript column keeps its row and reads NULL.
+
+    The column is additive: ``ALTER TABLE ... ADD COLUMN`` rewrites the
+    schema header, never the rows, so a deployed single-replica volume
+    upgrades without a table rebuild or a VACUUM. The pre-existing row
+    survives with its rationale intact and a NULL transcript, which is
+    the only state it could represent -- the turns were never stored.
+    """
+    path = str(tmp_path / "old_matches.db")  # type: ignore[operator]
+    conn = sqlite3.connect(path)
+    conn.executescript(_OLD_MATCHES)
+    conn.execute(
+        "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
+        "winner_elo_before, winner_elo_after, loser_elo_before, "
+        "loser_elo_after, rationale, tier, debate_turns, created_at) "
+        "VALUES ('r1', 0, 'h1', 'h2', 1200, 1212, 1200, 1188, "
+        "'Idea 1 wins.', 'decisive', 3, 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+    with db.connect(path) as conn:
+        rows = conn.execute(
+            "SELECT rationale, debate_transcript FROM matches"
+        ).fetchall()
+
+    assert "debate_transcript" in _columns(path, "matches")
+    assert [tuple(row) for row in rows] == [("Idea 1 wins.", None)]

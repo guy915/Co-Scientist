@@ -52,6 +52,9 @@ from app.report_markdown_supervisor import (
     _render_stratification_attributes_markdown,
 )
 from app.report_markdown_toc import _render_table_of_contents
+from app.report_markdown_tournament import (
+    _render_tournament_debates_markdown,
+)
 
 
 def _claim_evidence_by_hypothesis(
@@ -212,8 +215,15 @@ class ReportMarkdownInputs:
     # (R14-15/R14-22, report_markdown_hypothesis.py). None omits both.
     reviews: list[dict[str, Any]] | None = None
     # This run's hypothesis titles by id, for a contact group's example
-    # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id.
+    # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id. Also
+    # the published-pool gate the tournament section renders behind (see
+    # report_markdown_tournament).
     hypothesis_title_by_id: dict[str, str] | None = None
+    # Every tournament match row the drain persisted
+    # (store.list_matches), rendered as "Tournament debates" from the
+    # turn-by-turn transcript each carries. None, or a run whose matches
+    # predate that column, renders no such section.
+    matches: list[dict[str, Any]] | None = None
 
 
 def _report_sections_goal_and_criteria(
@@ -272,6 +282,12 @@ def _report_sections_ideas_and_sources(
         # the meta-review's synthesis, evaluating the candidates just
         # rendered above.
         _render_meta_review_ranking_markdown(inputs.meta_review or {}),
+        # F3: the debates behind that comparison's verdicts -- the
+        # tournament's own published artifact, immediately after the
+        # ranking material it explains.
+        _render_tournament_debates_markdown(
+            inputs.matches or [], inputs.hypothesis_title_by_id
+        ),
         _render_knowledge_base_markdown(inputs.knowledge_base or []),
         _render_data_sources_section(
             inputs.skills_used or {}, inputs.retrieval_calls or []

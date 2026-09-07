@@ -159,6 +159,7 @@ def test_sub_topics_render() -> None:
                             "title": "Mitochondrial DNA repair defects",
                             "why": "A deficiency could be a primary driver.",
                             "what": "Assay BER activity in iPSC neurons.",
+                            "example_idea": "Knock down OGG1 in iPSC neurons.",
                             "specific_questions": [
                                 "Does OGG1 activity correlate with damage?",
                                 "Does release activate cGAS-STING?",
@@ -175,6 +176,7 @@ def test_sub_topics_render() -> None:
     assert "#### Mitochondrial DNA repair defects" in text
     assert "A deficiency could be a primary driver." in text
     assert "Assay BER activity in iPSC neurons." in text
+    assert "**Example idea:** Knock down OGG1 in iPSC neurons." in text
     assert "- Does OGG1 activity correlate with damage?" in text
     assert "- Does release activate cGAS-STING?" in text
 
@@ -362,7 +364,8 @@ def test_published_aims_vocabulary_renders_every_block() -> None:
     assert "### Disease Description" in text
     assert "### Unmet Need" in text
     assert "### Proposed Solution" in text
-    assert "### Determine anti-tumour activity." in text
+    assert "### Specific Aims 1" in text
+    assert "**Overarching goal:** Determine anti-tumour activity." in text
     assert "**Hypothesis:** Treatment reduces viability." in text
     assert "**Reasoning:** The pathway is upregulated." in text
     assert "### Pilot Evaluation" in text
@@ -393,7 +396,8 @@ def test_stored_reports_in_the_previous_aims_shape_still_render() -> None:
 
     assert "## NIH Specific Aims" in text
     assert "Significance and the gap." in text
-    assert "### Aim 1: Establish the baseline." in text
+    assert "### Specific Aims 1" in text
+    assert "**Aim:** Aim 1: Establish the baseline." in text
     assert "**Rationale:** Nothing else measures it." in text
     assert "**Approach:** Knockdown in a matched model." in text
     assert "### Impact" in text

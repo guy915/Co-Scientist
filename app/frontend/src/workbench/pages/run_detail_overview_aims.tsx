@@ -56,6 +56,13 @@ const AIMS_CLOSING_FIELDS = [
 ] as const;
 // Per-aim fields, each labelled except the heading. Only one spelling of
 // each is ever present, so the whole list renders in order.
+//
+// F4's numbered "Specific Aims N" heading and its "Overarching goal:"
+// label are deliberately markdown-only (report_markdown_overview.py).
+// This tab already heads its whole section "Specific aims", so a
+// per-aim heading of the same words would be two headings matching one
+// name on one screen -- ambiguous to a screen reader and to the e2e
+// spec that locates the section by that name.
 const AIM_BODY_FIELDS = [
   ['hypothesis', 'Hypothesis'],
   ['reasoning', 'Reasoning'],

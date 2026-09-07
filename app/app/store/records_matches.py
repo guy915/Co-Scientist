@@ -25,8 +25,10 @@ class NewMatch:
 
     Carries the winner's and loser's Elo before/after the match, the
     judge's rationale for why the winner prevailed, the decisiveness
-    ``tier`` (upset|decisive|clear|narrow), and the debate depth in turns
-    (1 = single-turn comparison, >1 = multi-turn scientific debate).
+    ``tier`` (upset|decisive|clear|narrow), the debate depth in turns
+    (1 = single-turn comparison, >1 = multi-turn scientific debate), and
+    the turn-by-turn debate transcript as a JSON document (None when the
+    judge recorded no turns -- see ``_migrate_match_debate_transcript``).
     """
 
     run_id: str
@@ -40,6 +42,7 @@ class NewMatch:
     rationale: str
     tier: str | None = None
     debate_turns: int = 1
+    debate_transcript: str | None = None
 
 
 def _insert_match_row(conn: sqlite3.Connection, f: NewMatch) -> None:
@@ -47,8 +50,9 @@ def _insert_match_row(conn: sqlite3.Connection, f: NewMatch) -> None:
     conn.execute(
         "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
         "winner_elo_before, winner_elo_after, loser_elo_before, "
-        "loser_elo_after, rationale, tier, debate_turns, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "loser_elo_after, rationale, tier, debate_turns, "
+        "debate_transcript, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             f.run_id,
             f.iteration,
@@ -61,6 +65,7 @@ def _insert_match_row(conn: sqlite3.Connection, f: NewMatch) -> None:
             f.rationale,
             f.tier,
             f.debate_turns,
+            f.debate_transcript,
             _now(),
         ),
     )

@@ -169,6 +169,20 @@ from app.report_markdown_references import (
     references_by_hypothesis as references_by_hypothesis,
 )
 
+# The per-idea review block (Reviews summary, All reviews, deep
+# verification -- R14-14/R14-17) lives in its own module to keep the
+# per-entry assembly module within the size cap; the names are
+# re-exported so this module's namespace keeps resolving.
+from app.report_markdown_review_block import (
+    _render_deep_verification as _render_deep_verification,
+)
+from app.report_markdown_review_block import (
+    _render_hypothesis_reviews as _render_hypothesis_reviews,
+)
+from app.report_markdown_review_block import (
+    _render_reviews_summary as _render_reviews_summary,
+)
+
 # The data-sources section (skill attribution + literature-search summary)
 # moved to its own module to keep this one within the size cap; both names
 # are re-exported so this module's namespace keeps resolving.
@@ -198,6 +212,13 @@ from app.report_markdown_supervisor import (
 # namespace keeps resolving.
 from app.report_markdown_toc import (
     _render_table_of_contents as _render_table_of_contents,
+)
+
+# The tournament's debate transcripts (F3) live in their own module to
+# keep report_markdown_documents within the size cap; the name is
+# re-exported so this module's namespace keeps resolving.
+from app.report_markdown_tournament import (
+    _render_tournament_debates_markdown as _render_tournament_debates_markdown,
 )
 
 

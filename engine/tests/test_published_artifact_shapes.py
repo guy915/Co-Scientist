@@ -22,7 +22,11 @@ from pathlib import Path
 from typing import Any
 
 import co_scientist
+from co_scientist.agents.ranking.ranking_debate_turns import (
+    debate_transcript_document,
+)
 from co_scientist.schemas import get_schema_for_prompt
+from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_TARGET_DIRECTIONS
 
 # references/core/google-co-scientist/research/extracted-artifacts/outputs/
 # specific-aims/givosiran-aml.md -- 74 lines, sha256 e37cd65c356d.
@@ -74,10 +78,24 @@ _OVERVIEW_EXEMPLAR_QUESTION_HEADINGS = {
 # list of named sub-topics ("Topic 1: Characterization of the cf-PICI
 # Integrase" through "Topic 4: Episomal Maintenance", consistently 4 per
 # direction across all 6 directions), each carrying its own "Why research
-# this topic?", an "Example idea" (what to investigate), and a "Specific
-# questions" list of 4 -- MO-1, the nested sub-topic layer our schema
-# used to flatten away entirely.
-_OVERVIEW_SUB_TOPIC_REQUIRED = {"title", "why", "what", "specific_questions"}
+# this topic?", an "Example idea" (a worked illustration of how the topic
+# would actually be attacked), and a "Specific questions" list of 4 --
+# MO-1, the nested sub-topic layer our schema used to flatten away
+# entirely. F7 adds ``example_idea``: the exemplar's own third block,
+# which ``what`` (the topic statement) does not stand in for.
+_OVERVIEW_SUB_TOPIC_REQUIRED = {
+    "title",
+    "why",
+    "what",
+    "example_idea",
+    "specific_questions",
+}
+
+# The same exemplar enumerates SIX main research directions. We ask for
+# fewer (see RESEARCH_OVERVIEW_TARGET_DIRECTIONS) because this node's
+# budget is measured, not aspirational, but the exemplar's own count is
+# what bounds the array.
+_OVERVIEW_EXEMPLAR_DIRECTION_COUNT = 6
 
 # outputs/research-overviews/als-research-overview-and-contact.md -- 84
 # lines, sha256 6d2997eaeec0. Each direction opens with "Rationale:" /
@@ -172,6 +190,34 @@ def test_ranking_debate_verdict_matches_published_exemplar() -> None:
     assert "decision_summary" in schema["schema"]["properties"]
 
 
+def test_debate_transcript_matches_the_published_exemplar_shape() -> None:
+    """A judged debate projects onto turns plus one closing verdict line.
+
+    Figure A.17 prints its exchange turn by turn and states the verdict
+    exactly once, at the end. Our judge answers *every* turn with its own
+    verdict line, numbered in that turn's presentation order -- which the
+    loop alternates -- so the projection has to strip them and restate the
+    match's own verdict once, or the rendered debate argues for a
+    different number every turn.
+    """
+    transcript = [
+        {
+            "turn": turn,
+            "winner": "a",
+            "reasoning": f"Turn {turn}. better idea: 1",
+        }
+        for turn in range(1, _DEBATE_EXEMPLAR_TURN_COUNT + 1)
+    ]
+
+    document = debate_transcript_document(transcript, "1")
+
+    assert len(document["turns"]) == _DEBATE_EXEMPLAR_TURN_COUNT
+    assert f"Better idea: {document['verdict']}" == _DEBATE_EXEMPLAR_VERDICT
+    assert not any(
+        "better idea" in turn["text"].lower() for turn in document["turns"]
+    )
+
+
 def test_research_overview_sections_match_published_exemplar() -> None:
     """Each research direction must argue why it matters and what to do.
 
@@ -202,3 +248,69 @@ def test_research_direction_sub_topics_match_published_exemplar() -> None:
     direction = overview["properties"]["research_directions"]["items"]
     sub_topic = direction["properties"]["sub_topics"]["items"]
     assert set(sub_topic["required"]) == _OVERVIEW_SUB_TOPIC_REQUIRED
+
+
+def _research_directions_node() -> dict[str, Any]:
+    """Return the schema's ``overview.research_directions`` array node."""
+    schema = get_schema_for_prompt("research_overview")
+    assert schema is not None
+    overview = schema["schema"]["properties"]["overview"]
+    directions: dict[str, Any] = overview["properties"]["research_directions"]
+    return directions
+
+
+def test_research_directions_ask_for_more_than_one_direction() -> None:
+    """The prompt must name a direction count, bounded by the exemplar's.
+
+    The published overview enumerates six directions and our runs settled
+    on three, because nothing asked for a number at all. The ask is now
+    explicit and sized against this node's measured output budget
+    (RESEARCH_OVERVIEW_MAX_TOKENS is already the escalation ladder's own
+    ceiling, so an over-ask cannot be answered by escalating), and the
+    array is capped at the exemplar's own six.
+    """
+    directions = _research_directions_node()
+    assert directions["maxItems"] == _OVERVIEW_EXEMPLAR_DIRECTION_COUNT
+    assert RESEARCH_OVERVIEW_TARGET_DIRECTIONS > 1
+    assert (
+        RESEARCH_OVERVIEW_TARGET_DIRECTIONS
+        <= _OVERVIEW_EXEMPLAR_DIRECTION_COUNT
+    )
+    template = _overview_template()
+    # The phrase, not the digit: "4" already appears in several other
+    # counts in this prompt, so a bare substring check would pass for any
+    # value of the constant and bind nothing.
+    assert (
+        f"exactly {RESEARCH_OVERVIEW_TARGET_DIRECTIONS} major directions"
+        in template
+    )
+
+
+def test_overview_schema_never_echoes_the_hypothesis_pool_back() -> None:
+    """Neither new field may make output scale with the input pool.
+
+    The trap this guards is the one proximity clustering hit: a schema
+    that names pool items by repeating their text makes the response grow
+    with the pool and truncate identically on every retry. Both fields
+    added for F5/F7 are bounded and authored -- the directions array by
+    ``maxItems``, ``example_idea`` by being a plain authored string -- and
+    the prompt says so in as many words.
+    """
+    directions = _research_directions_node()
+    assert "maxItems" in directions
+    sub_topic = directions["items"]["properties"]["sub_topics"]["items"]
+    example_idea = sub_topic["properties"]["example_idea"]
+    assert example_idea["type"] == "string"
+    description = example_idea.get("description", "").lower()
+    for banned in ("copy", "verbatim", "repeat", "quote"):
+        assert banned not in description
+    template = _overview_template()
+    assert "not by echoing the hypotheses or evidence text back" in template
+
+
+def _overview_template() -> str:
+    """Return the research-overview prompt template's raw text."""
+    return (
+        Path(co_scientist.__file__).parent
+        / "prompts/templates/research_overview.md"
+    ).read_text(encoding="utf-8")

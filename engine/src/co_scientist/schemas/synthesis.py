@@ -95,6 +95,30 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 RESEARCH_OVERVIEW_MAX_SUB_TOPICS: Final = 4
 RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
 
+# F5: how many main research directions the overview asks for, and the
+# hard bound on how many it will keep.
+#
+# The published cf-PICI overview enumerates six, which is the bound here.
+# The *ask* is lower, and the number is measured rather than aspirational.
+# Production express run 6760ce63 (2026-09-06) produced three directions
+# from a prompt that named no count at all; its research_overview node
+# billed 26,263 completion tokens over two calls (draft + accuracy
+# review), and the draft's surviving answer -- every field it produced
+# that reached the report -- re-tokenizes to ~14.6k, or ~15.9k billed
+# once calibrated against a fully-rendered single-call node from the same
+# run (meta_review: 5,071 billed against 4,654 reconstructed, a 1.09
+# ratio). Each direction cost ~2.0k billed tokens and each sub-topic's
+# new example_idea below costs ~80, so against the ~7k of headroom left
+# under RESEARCH_OVERVIEW_MAX_TOKENS (24000, which is also
+# BUDGET_ESCALATION_MAX_TOKENS -- there is no rung above it to escalate
+# into, see AGENTS.md) six directions would need ~7.9k and land the node
+# on finish_reason="length" with nowhere to go. Four needs ~3.3k, under
+# half that headroom, which also absorbs the share of those 26,263 tokens
+# that the json_object shim pruned and this reconstruction cannot see.
+# Raise the ask only with a fresh measurement of the draft call.
+RESEARCH_OVERVIEW_TARGET_DIRECTIONS: Final = 4
+RESEARCH_OVERVIEW_MAX_DIRECTIONS: Final = 6
+
 # R12-10: bounds on open_questions/clear_patterns/unexpected_patterns
 # below, mirroring the published exemplar's "Top 10 Open Questions" list
 # and its two shorter pattern lists. Capped for the same reason as the
@@ -122,6 +146,16 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     "summary": {"type": "string"},
                     "research_directions": {
                         "type": "array",
+                        # F5: bounded at the published exemplar's own six.
+                        # Unbounded before, which is how a prompt naming
+                        # no count settled on three -- the ask now names
+                        # RESEARCH_OVERVIEW_TARGET_DIRECTIONS and this
+                        # caps what an over-producing response can cost.
+                        # Enforced again in
+                        # research_overview_directions.py, since
+                        # json_object mode does not apply maxItems
+                        # server-side.
+                        "maxItems": RESEARCH_OVERVIEW_MAX_DIRECTIONS,
                         "items": obj(
                             {
                                 "title": {"type": "string"},
@@ -155,6 +189,32 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                                             "title": {"type": "string"},
                                             "why": {"type": "string"},
                                             "what": {"type": "string"},
+                                            # F7: the exemplar's own third
+                                            # block, between "Why research
+                                            # this topic?" and its
+                                            # "Specific questions" list.
+                                            # Distinct from "what": that
+                                            # states the topic, this works
+                                            # one concrete way to attack
+                                            # it. Authored from the
+                                            # sub-topic's own content --
+                                            # never a hypothesis quoted
+                                            # back, which would scale the
+                                            # response with the pool.
+                                            "example_idea": {
+                                                "type": "string",
+                                                "description": (
+                                                    "One concrete worked"
+                                                    " example of how this"
+                                                    " sub-topic would"
+                                                    " actually be"
+                                                    " investigated:"
+                                                    " the approach, what"
+                                                    " it measures, and"
+                                                    " what the result"
+                                                    " would show."
+                                                ),
+                                            },
                                             "specific_questions": {
                                                 **str_array(),
                                                 "maxItems": (
