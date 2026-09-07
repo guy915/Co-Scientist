@@ -20,7 +20,43 @@ from co_scientist.constants import strip_citation_markers
 from co_scientist.models import Article
 
 _EVIDENCE_ABSTRACT_CHARS: Final = 3000
-"""Per-source abstract budget in the evidence corpus."""
+"""Per-source abstract budget in the evidence corpus.
+
+Measured rather than assumed, and deliberately left where it is. Over
+the analyzed articles of six real-provider runs (239 sources, checkpoint
+state, 2026-08/09) abstracts average ~1,590 characters and **two** of the
+239 exceeded this cap, by 80 and 306 characters: 386 characters withheld
+in total, none of them carrying a number, a unit or an entity name.
+Raising the cap therefore buys the deep knowledge-base call (F8) nothing.
+It is not what bounds that section's detail.
+
+What bounds it is the field this reads. ``Article.abstract`` is the
+abstract as retrieved, while the PMC full text the search tool already
+downloaded (``pubmed_search_with_fulltext``) sits unused beside it in
+``Article.content`` -- present on 157 of those same 239 analyzed
+articles, averaging ~14,000 characters and reaching 68,000. That is where
+the published exemplar's class of detail lives: across three of those
+runs the corpus abstracts carry 0.0-0.4 number-with-unit mentions per
+thousand words against the exemplar knowledge base's 1.9, while their
+unread full texts hold roughly ten times the absolute count (196
+percentages and 19 dosed concentrations in one run, against 20 and 3 in
+the abstracts it did send). So the ceiling on evidence detail here is
+corpus *composition* -- abstracts only -- not this cap.
+
+Reading full text in is not the fix either, and the arithmetic is the
+reason. The assembled corpus already measures ~400 tokens per source, so
+the 132-source production run ``d1273490`` sent roughly 52,000 tokens of
+corpus; that run's ``research_overview``-bucket calls billed 337,400
+prompt tokens over six attempts, ~56,200 each, i.e. the corpus is nearly
+the whole prompt. The same corpus carrying full text would be an order
+of magnitude larger than any context this chain's models offer, and
+prompt tokens are billed like any other. Moving detail into the section
+means *selecting* passages, not lifting a cap -- and note the section
+that this corpus produced was not itself numerically thin (3.1
+number-with-unit mentions per thousand words on ``d1273490``, above the
+exemplar's own 1.9), so the shortfall ``ecc4ec10`` closed was the ask,
+not the evidence.
+"""
 
 
 def _interleave_by_source(articles: list[Article]) -> list[Article]:
