@@ -215,15 +215,22 @@ test('leaves a reader who scrolled up during the announcement alone', () => {
 const ANCHOR_ON_SCREEN_OFFSET = 300;
 const SCROLLER_SCREEN_TOP = 50;
 
-function renderPlanScroller(startAt: number, withAnchor = true) {
+function renderPlanScroller(
+  startAt: number,
+  withAnchor = true,
+  cardHeight = 0,
+) {
   let arrive: (() => void) | undefined;
+  let confirm: (() => void) | undefined;
   function Harness() {
     const [planned, setPlanned] = useState(false);
+    const [confirmed, setConfirmed] = useState(false);
     arrive = () => setPlanned(true);
+    confirm = () => setConfirmed(true);
     const items: TimelineItem[] = makeItems(1);
     if (planned) {
       items.push({
-        id: DRAFT_SPEC_ITEM_ID,
+        id: confirmed ? CONFIRMED_SPEC_ITEM_ID : DRAFT_SPEC_ITEM_ID,
         at: 99,
         order: 50,
         node: (
@@ -247,7 +254,8 @@ function renderPlanScroller(startAt: number, withAnchor = true) {
   }
   const {getByTestId} = render(<Harness />);
   const scroller = getByTestId('scroller');
-  Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
+  let contentHeight = CONTENT_HEIGHT;
+  Object.defineProperty(scroller, 'scrollHeight', {get: () => contentHeight});
   Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
   scroller.getBoundingClientRect = () =>
     ({top: SCROLLER_SCREEN_TOP}) as DOMRect;
@@ -255,12 +263,18 @@ function renderPlanScroller(startAt: number, withAnchor = true) {
   return {
     scroller,
     arrive: () => {
+      contentHeight += cardHeight;
       act(() => arrive?.());
       const card = getByTestId('plan-card');
       card.getBoundingClientRect = () =>
         ({top: SCROLLER_SCREEN_TOP + ANCHOR_ON_SCREEN_OFFSET}) as DOMRect;
       act(() => void vi.runAllTimers());
     },
+    confirm: () => {
+      act(() => confirm?.());
+      act(() => void vi.runAllTimers());
+    },
+    contentHeight: () => contentHeight,
   };
 }
 
@@ -386,4 +400,36 @@ test('stops following once the reader scrolls away, however far the content grow
   grow(200);
 
   expect(scroller.scrollTop).toBe(120);
+});
+
+// A plan card tall enough that opening it at its own top leaves the bottom
+// of the timeline far below the fold -- which is the real card's shape, and
+// the only state in which the test below can fail.
+const PLAN_CARD_HEIGHT = 1200;
+
+// Mirrors the module's own FOLLOW_THRESHOLD_PX, which is private to it: the
+// setup below is only meaningful if the anchored position sits further from
+// the bottom than a reader following along ever would.
+const FOLLOW_THRESHOLD_PX = 64;
+
+test('leaves the confirmed plan where the card opened, not at its Start button', () => {
+  // The reader never touches the scroller here: the anchored placement is
+  // this hook's own work. Recording it as a scroll made "hasn't moved since"
+  // read as "following the bottom", so clicking Start -- which swaps the
+  // draft card for the confirmed one and re-anchors to the bottom -- threw
+  // them past the whole plan. The scrolled-up test above cannot catch it,
+  // because it moves scrollTop itself.
+  const {scroller, arrive, confirm, contentHeight} = renderPlanScroller(
+    600,
+    true,
+    PLAN_CARD_HEIGHT,
+  );
+  arrive();
+  const anchored = scroller.scrollTop;
+  const gap = contentHeight() - anchored - WINDOW_HEIGHT;
+  expect(gap).toBeGreaterThan(FOLLOW_THRESHOLD_PX);
+
+  confirm();
+
+  expect(scroller.scrollTop).toBe(anchored);
 });

@@ -148,7 +148,13 @@ function scrollItemToTop(
   const offset =
     anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
   scroller.scrollTop += offset - ANCHOR_TOP_INSET_PX;
-  refs.lastAppliedTop.current = scroller.scrollTop;
+  // Deliberately not recorded as an applied scroll: this placement leaves
+  // the reader well above the bottom on purpose, so remembering it would
+  // make "hasn't moved since" read as "following the bottom" (see
+  // isPinnedToBottom) and send them to the card's Start button the moment
+  // confirming it swapped the card back to bottom anchoring -- the second
+  // jump this anchoring exists to prevent. Only a bottom scroll is a pin.
+  refs.lastAppliedTop.current = NO_APPLIED_TOP;
 }
 
 // Whether this signature change is the one-shot initial landing: the first
