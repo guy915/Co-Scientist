@@ -67,3 +67,40 @@ it('omits the winner list for a run that produced no hypotheses', async () => {
   await screen.findAllByText(/failed before generating anything/i);
   expect(container.querySelector('.reference-winner-list')).toBeNull();
 });
+
+it('omits the winning-ideas chips on a cancelled run', async () => {
+  // A cancelled run has no winners -- the tournament never finished -- so
+  // "Winning ideas" and a top score below the card's own subtitle claim a
+  // result the run does not have.
+  apiMock.listDemoRuns.mockResolvedValue([]);
+  apiMock.listRuns.mockResolvedValue([
+    minimalRun({
+      id: 'run-cancelled',
+      research_goal: 'A run the scientist stopped part way.',
+      status: 'cancelled',
+      top_hypotheses: ['A half-ranked idea'],
+    }),
+  ]);
+
+  renderWorkspace();
+
+  await screen.findAllByText(/stopped part way/i);
+  expect(screen.queryByText('Winning ideas')).toBeNull();
+  expect(screen.queryByText(/^Top score:/)).toBeNull();
+  expect(screen.queryByText('A half-ranked idea')).toBeNull();
+});
+
+it('keeps the winning-ideas chips on a completed run', async () => {
+  apiMock.listDemoRuns.mockResolvedValue([]);
+  apiMock.listRuns.mockResolvedValue([
+    minimalRun({
+      id: 'run-done',
+      research_goal: 'A run that finished its tournament.',
+      top_hypotheses: ['A ranked idea'],
+    }),
+  ]);
+
+  renderWorkspace();
+
+  expect(await screen.findByText('Winning ideas')).toBeInTheDocument();
+});

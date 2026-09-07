@@ -254,6 +254,11 @@ function RecentRunCard({
 }) {
   // The run's real top hypotheses by Elo, served on the run-list payload
   // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
+  // Only a completed run shows them below its subtitle: a cancelled or
+  // failed run never finished its tournament, so "Winning ideas" and a top
+  // score would claim a result it does not have -- and on the cancelled
+  // card, which is exactly the one that produced nothing, they were the
+  // only thing under the goal.
   const topIdeas = run.top_hypotheses ?? [];
   const isActiveRun = isActiveStatus(run.status);
 
@@ -281,7 +286,9 @@ function RecentRunCard({
         {isActiveRun ? (
           <RunStepFlow run={run} />
         ) : (
-          <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
+          run.status === 'completed' && (
+            <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
+          )
         )}
       </Link>
     </li>
