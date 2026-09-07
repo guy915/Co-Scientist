@@ -32,7 +32,7 @@ _UNDISABLEABLE_MODEL = "openrouter/minimax/minimax-m3:free"
 _DISABLEABLE_MODEL = "deepseek/deepseek-v4-flash"
 
 
-def test_no_thinking_log_names_minimal_effort_for_undisableable_model(
+def test_no_thinking_log_names_the_cap_for_an_undisableable_model(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A model redirected to minimal effort must not be logged as disabled."""
@@ -43,7 +43,7 @@ def test_no_thinking_log_names_minimal_effort_for_undisableable_model(
             _UNDISABLEABLE_MODEL,
         )
     message = caplog.records[-1].getMessage()
-    assert "reasoning enabled at minimal effort" in message
+    assert "reasoning capped at" in message
     assert "thinking disabled" not in message
 
 
@@ -59,7 +59,7 @@ def test_no_thinking_log_names_disabled_for_model_that_can_disable(
         )
     message = caplog.records[-1].getMessage()
     assert "thinking disabled" in message
-    assert "minimal effort" not in message
+    assert "capped" not in message
 
 
 def test_budget_exhausted_no_thinking_log_matches_the_redirect(
@@ -73,7 +73,7 @@ def test_budget_exhausted_no_thinking_log_matches_the_redirect(
             _UNDISABLEABLE_MODEL,
         )
     message = caplog.records[-1].getMessage()
-    assert "reasoning enabled at minimal effort" in message
+    assert "reasoning capped at" in message
     assert "thinking disabled" not in message
 
 

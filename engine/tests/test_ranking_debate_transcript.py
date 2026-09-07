@@ -53,6 +53,33 @@ def test_document_carries_every_turn_and_one_closing_verdict() -> None:
     assert document["turns"][1]["text"] == "The mechanism holds up."
 
 
+def test_each_turn_records_which_idea_it_presented_first() -> None:
+    """A consumer needs each turn's own numbering, not just the canonical one.
+
+    A turn's prose numbers the two ideas in the order that turn presented
+    them, and the loop alternates that order. Without this field a
+    renderer can only guess, and prints turns that read as one judge
+    contradicting itself (production run f8db4d04).
+    """
+    transcript = [
+        _entry(1, "a", "Idea 1 is better grounded."),
+        _entry(2, "a", "The mechanism holds up."),
+    ]
+
+    document = debate_transcript_document(transcript, "1")
+
+    assert [turn["first"] for turn in document["turns"]] == ["1", "2"]
+
+
+def test_a_turn_with_no_recorded_order_documents_the_canonical_one() -> None:
+    """An entry predating the field reads as the un-swapped order."""
+    entry = {"turn": 1, "winner": "a", "reasoning": "Idea 1 wins."}
+
+    [turn] = debate_transcript_document([entry], "1")["turns"]
+
+    assert turn["first"] == "1"
+
+
 def test_a_mid_text_verdict_mention_survives() -> None:
     """Only a trailing verdict line is a verdict; prose about one is not."""
     transcript = [

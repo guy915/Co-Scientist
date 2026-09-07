@@ -184,6 +184,14 @@ class SchedulerStats:
     # advances the iteration counter itself.
     iterations_since_meta_review: int = 0
     feedback_since_meta_review: int = 0
+    # Research-overview cadence (listing 01 L65-69, the periodic sibling of
+    # the terminal synthesis). Work cycles completed since the last firing,
+    # anchored and reset exactly like the meta-review clock above and for
+    # the same termination reason -- a periodic overview is not a work task
+    # either. No material counter beside it: the overview synthesizes the
+    # hypothesis pool itself, which a completed work cycle has by
+    # definition changed.
+    iterations_since_research_overview: int = 0
     # Convergence signal.
     top_elo: int = 0
     rank_stable_cycles: int = 0

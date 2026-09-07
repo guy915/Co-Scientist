@@ -16,8 +16,14 @@ from co_scientist.scheduling.models import (
     TaskType,
 )
 
-# Task types the compiled graph's loop-point router can dispatch. SYNTHESIZE
-# is the TERMINATE target. Keep in sync with the graph's conditional edges.
+# Task types the compiled graph's loop-point router can dispatch. Keep in
+# sync with the graph's conditional edges.
+#
+# SYNTHESIZE is the *periodic* research overview (listing 01 L65-69), which
+# enters the same node TERMINATE does and returns to the loop point instead
+# of ending the run (FIX-6). It is unreachable to the advisory model, whose
+# own enum is ``supervisor_decision._PRODUCTIVE_TASKS``, so only the
+# deterministic cadence check -- which is tier-gated -- can name it.
 #
 # META_REVIEW is here because listing 01 L60-63 queues it as its own periodic
 # task. It used to be absent, which was not inert: ``_correct_disallowed_task``
@@ -34,6 +40,7 @@ ALLOWED_LOOP_TASKS: frozenset[TaskType] = frozenset(
         TaskType.EVOLVE,
         TaskType.META_REVIEW,
         TaskType.PROXIMITY,
+        TaskType.SYNTHESIZE,
         TaskType.TERMINATE,
     }
 )

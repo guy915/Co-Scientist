@@ -18,6 +18,9 @@ from co_scientist.agents import NODE_REGISTRY
 from co_scientist.generator.graph import (
     _route_after_meta_review as _route_after_meta_review,
 )
+from co_scientist.generator.graph import (
+    _route_after_research_overview as _route_after_research_overview,
+)
 from co_scientist.generator.graph import _route_next_task
 from co_scientist.llm_telemetry import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
@@ -134,7 +137,10 @@ _NEXT_TASK_ROUTES: dict[
     "meta_review": _route_after_meta_review,
     "evolve": "review",
     "orchestrator": _route_after_orchestrator,
-    "research_overview": None,
+    # The terminal node for a TERMINATE decision, and a loop-point return
+    # for the periodic firing (FIX-6) -- the graph's own edge function
+    # answers both, imported rather than restated.
+    "research_overview": _route_after_research_overview,
 }
 
 
@@ -196,6 +202,9 @@ _RESOLVER_REQUIRES: dict[str, str] = {
     # Meta-review's successor is the orchestrator decision that scheduled
     # it; a plan built before that decision exists must not guess evolve.
     "meta_review": "next_task",
+    # Same for the overview node: a plan built before the decision exists
+    # must not guess that this firing is the terminal one.
+    "research_overview": "next_task",
 }
 
 

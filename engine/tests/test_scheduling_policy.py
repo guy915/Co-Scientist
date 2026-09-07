@@ -12,6 +12,7 @@ Tournament-budget and owed-coverage settlement acceptance tests live in
 """
 
 from co_scientist.scheduling import (
+    ALLOWED_LOOP_TASKS,
     Budget,
     SupervisorDecision,
     TaskType,
@@ -389,14 +390,13 @@ def test_correction_carries_queue_actions_through() -> None:
     assert evolved.next_task is TaskType.REFLECT
     assert evolved.queue_actions == retry
 
-    undispatchable = validate_decision(
-        SupervisorDecision(
-            TaskType.SYNTHESIZE, "llm said synthesize", queue_actions=retry
-        ),
-        healthy_stats(),
-    )
-    assert undispatchable.next_task is TaskType.GENERATE
-    assert undispatchable.queue_actions == retry
+    # SYNTHESIZE used to stand here as the undispatchable case. It is a
+    # dispatchable loop task since the periodic research overview (FIX-6),
+    # which leaves ``_correct_disallowed_task`` with no TaskType member to
+    # fire on -- it is now a guard against a value from outside the enum,
+    # not a reachable correction. The invariant it stood for is asserted
+    # directly instead.
+    assert frozenset(TaskType) == ALLOWED_LOOP_TASKS
 
 
 def test_validate_passes_valid_decision_unchanged() -> None:

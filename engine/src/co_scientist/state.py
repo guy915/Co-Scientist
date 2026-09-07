@@ -461,6 +461,16 @@ class WorkflowState(TypedDict):
     because this crosses a checkpoint, which carries JSON only.
     """
 
+    interim_overview: str | None
+    """The most recent periodic research overview, rendered for the
+    generation prompts (``meta_review.interim_overview``). One of the
+    paper's two self-improvement channels: a non-terminal
+    ``research_overview`` firing writes it and the next generate cycle
+    reads it (FIX-6). Deliberately unannotated -- each firing replaces
+    the previous block outright, so last-write-wins is the intended
+    reducer on both execution paths.
+    """
+
     dev_test_lit_tools_isolation: bool | None
     """Development mode: force cache on lit review, allocate all hypotheses to
     lit tools (no debate).

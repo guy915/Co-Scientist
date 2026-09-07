@@ -92,3 +92,61 @@ def test_a_topic_with_no_title_is_skipped() -> None:
     )
 
     assert "orphaned prose" not in markdown
+
+
+# F8: the published Knowledge Base groups its named subject headings under
+# themes ("Extracellular Matrix Architecture And Biomechanical Barriers"
+# over "Matrix Composition And Cross-Linking Constraints", ...). The engine
+# synthesizes those as one topic per section carrying its theme; the
+# renderer prints the theme once, above the sections that belong to it,
+# exactly as the exemplar does.
+
+
+def _themed(theme: str, title: str, detail: str) -> dict[str, object]:
+    """One themed knowledge-base section as the engine emits it."""
+    return {
+        "id": f"topic-{title}",
+        "theme": theme,
+        "title": title,
+        "summary": "",
+        "detail": detail,
+        "uncertainty": "",
+        "reference_ids": ["ev-1"],
+    }
+
+
+def test_a_theme_is_printed_once_above_its_sections() -> None:
+    """Consecutive sections of one theme share a single theme heading."""
+    markdown = _markdown(
+        [
+            _themed("Matrix Architecture", "Cross-Linking", "Dense prose."),
+            _themed("Matrix Architecture", "Stiffness", "More prose."),
+            _themed("Immune Niche", "Macrophages", "Other prose."),
+        ]
+    )
+
+    section = markdown.split("## Knowledge Base")[1]
+    assert section.count("**Matrix Architecture**") == 1
+    assert section.count("**Immune Niche**") == 1
+    assert "#### Cross-Linking" in section
+    assert "#### Stiffness" in section
+    assert "#### Macrophages" in section
+
+
+def test_untheme_d_topics_render_exactly_as_before() -> None:
+    """The flat shape the overview call still produces is unchanged."""
+    markdown = _markdown(
+        [
+            {
+                "id": "topic-1",
+                "title": "Autophagy dysfunction",
+                "summary": "Clearance is delayed.",
+                "detail": "Detail prose.",
+                "reference_ids": [],
+            }
+        ]
+    )
+
+    section = markdown.split("## Knowledge Base")[1]
+    assert "#### Autophagy dysfunction" in section
+    assert "**" not in section

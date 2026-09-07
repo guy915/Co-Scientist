@@ -17,6 +17,7 @@ from typing import Any
 from co_scientist.constants import (
     BUDGET_ESCALATION_MAX_INCREMENT,
     BUDGET_ESCALATION_MAX_TOKENS,
+    MINIMAL_REASONING_MAX_TOKENS,
 )
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
@@ -44,12 +45,15 @@ class BudgetEscalation(enum.Enum):
       to finishing.
     * ``NO_THINKING``: resent with thinking off, which removes the
       unbounded side of the budget altogether.
-    * ``MINIMAL_REASONING_REQUIRED``: the provider rejected the disabled-
-      reasoning request outright ("reasoning is mandatory... cannot be
-      disabled") rather than answering with an empty completion. Resent
-      with reasoning enabled at the smallest tier the gateway exposes,
-      not the rejected request repeated and not the full reasoning spend
-      ``NO_THINKING`` was trying to avoid in the first place.
+    * ``MINIMAL_REASONING_REQUIRED``: the provider rejected the request's
+      reasoning instruction outright -- a disable it mandates against
+      ("reasoning is mandatory... cannot be disabled"), or the explicit
+      bound sent in its place (``llm_gateway_body
+      ._minimal_reasoning_knob``) -- rather than answering with an empty
+      completion. Resent with reasoning enabled at the smallest tier the
+      gateway exposes: not the rejected request repeated, and not the
+      full reasoning spend ``NO_THINKING`` was trying to avoid in the
+      first place.
 
     The last rung is what makes the ladder terminate: reasoning ends at
     the ceiling, so its natural length is unknown and no finite budget is
@@ -97,6 +101,72 @@ def _is_reasoning_mandatory_error(error: BaseException | None) -> bool:
     return "reasoning is mandatory" in text and "cannot be disabled" in text
 
 
+# What a provider says when it will not take an instruction about
+# reasoning it does understand. Both lists must hit, alongside the word
+# "reasoning" itself, before a failure counts: an unbounded-chain-of-
+# thought budget failure names ``reasoning_tokens`` and ``max_tokens`` in
+# its own message, and reading that as a rejected instruction would
+# divert every budget failure to the terminal recovery rung and retire
+# the escalation ladder above.
+_REASONING_FIELD_CUES: tuple[str, ...] = ("max_tokens", "max tokens")
+_REJECTION_CUES: tuple[str, ...] = (
+    "not supported",
+    "unsupported",
+    "invalid",
+    "not allowed",
+)
+
+
+def _is_reasoning_cap_rejected(error: BaseException | None) -> bool:
+    """Whether a provider refused the explicit bound on its reasoning.
+
+    The bound (``MINIMAL_REASONING_MAX_TOKENS``, sent as the gateway's
+    ``reasoning.max_tokens``) is what stops a classification call funding
+    an unbounded chain of thought, but it is unprobed against every host
+    the free chain's ``models`` array can reach. A host that rejects it
+    must therefore degrade to the tier name -- the request shape
+    production has actually been served -- not fail the call, which is
+    the same requirement ``_is_reasoning_mandatory_error`` established
+    for the disable it replaced.
+
+    Args:
+        error: The failure to classify, if any.
+
+    Returns:
+        True for a provider error naming reasoning, a token-bound field
+        and a refusal. Never for this engine's own budget failures,
+        whose messages name the first two.
+    """
+    if error is None or isinstance(
+        error, LLMBudgetExhaustedError | LLMThinkingOnlyError
+    ):
+        return False
+    text = str(error).lower()
+    return (
+        "reasoning" in text
+        and any(cue in text for cue in _REASONING_FIELD_CUES)
+        and any(cue in text for cue in _REJECTION_CUES)
+    )
+
+
+def _is_reasoning_instruction_refused(error: BaseException | None) -> bool:
+    """Whether the provider refused what the request said about reasoning.
+
+    One question with two observed shapes -- a mandated reasoning mode
+    and a rejected bound on it -- because one answer serves both: resend
+    at the gateway's smallest tier, once.
+
+    Args:
+        error: The failure to classify, if any.
+
+    Returns:
+        True if either shape matches.
+    """
+    return _is_reasoning_mandatory_error(error) or _is_reasoning_cap_rejected(
+        error
+    )
+
+
 def _escalate_once(
     current: BudgetEscalation, target: BudgetEscalation
 ) -> BudgetEscalation | None:
@@ -115,13 +185,14 @@ def escalation_for_error(
 ) -> BudgetEscalation | None:
     """The rung answering this error, or None when no rung answers it.
 
-    A provider's flat refusal to honour disabled reasoning is checked
-    first and independently of the ladder above: it can be raised from
-    any rung that sends ``enabled: False`` (the call's own first attempt,
-    or the ladder's own ``NO_THINKING`` rung), and the answer is always
-    the same escalation regardless of where it came from. Terminal after
-    one attempt -- a provider that rejects minimal reasoning too is not
-    answered by asking again.
+    A provider's refusal of the request's reasoning instruction -- the
+    disable it mandates against, or the bound sent in its place -- is
+    checked first and independently of the ladder above: it can be raised
+    from any rung that asks a model not to reason (the call's own first
+    attempt, or the ladder's own ``NO_THINKING`` rung), and the answer is
+    always the same escalation regardless of where it came from. Terminal
+    after one attempt -- a provider that rejects minimal reasoning too is
+    not answered by asking again.
 
     The two answerless shapes enter the ladder at different points.
     Budget exhaustion climbs one rung, because a chain of thought cut off
@@ -150,7 +221,7 @@ def escalation_for_error(
     Returns:
         The rung to send next, or None to stop escalating.
     """
-    if _is_reasoning_mandatory_error(error):
+    if _is_reasoning_instruction_refused(error):
         return _escalate_once(
             current, BudgetEscalation.MINIMAL_REASONING_REQUIRED
         )
@@ -196,21 +267,22 @@ def _no_thinking_detail_text(model_name: str) -> str:
 
     The rung always requests ``enable_thinking=False``, but a model that
     cannot honour a disable (``GatewayModel.reasoning_can_disable`` is
-    False) is redirected to the smallest reasoning tier the gateway
-    exposes instead -- never the literal disable already known to 400 --
-    see ``llm_gateway_body._declared_gateway_body``. That redirect happens on
-    every model in the deployed free chain, so the log has to name what
-    reaches the wire, not what the rung is named for.
+    False) is redirected to reasoning bounded at
+    ``MINIMAL_REASONING_MAX_TOKENS`` instead -- never the literal disable
+    already known to 400 -- see ``llm_gateway_body._declared_gateway_body``.
+    That redirect happens on every model in the deployed free chain, so
+    the log has to name what reaches the wire, not what the rung is named
+    for.
 
     Args:
         model_name: Model name in litellm format.
 
     Returns:
-        A phrase describing the actual request: minimal-effort reasoning
-        for a model that redirects, a plain disable otherwise.
+        A phrase describing the actual request: capped reasoning for a
+        model that redirects, a plain disable otherwise.
     """
     return (
-        "reasoning enabled at minimal effort"
+        f"reasoning capped at {MINIMAL_REASONING_MAX_TOKENS} tokens"
         if effective_thinking_enabled(model_name, False)
         else "thinking disabled"
     )

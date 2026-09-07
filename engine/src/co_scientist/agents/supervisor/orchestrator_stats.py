@@ -233,6 +233,13 @@ def _cadence_signals(
         ),
         "iterations_since_meta_review": meta_cycles,
         "feedback_since_meta_review": meta_material,
+        # Same shape as the meta-review clock beside it, with no material
+        # counter: a periodic overview synthesizes the pool itself, and a
+        # completed work cycle has by definition changed it (FIX-6).
+        "iterations_since_research_overview": max(
+            0,
+            iteration - int(book.get("iteration_at_last_research_overview", 0)),
+        ),
         "evolved_since_stable": bool(book.get("evolved_since_stable", False)),
     }
 

@@ -42,6 +42,10 @@ _TASK_ROUTES: dict[str, str] = {
     "evolve": "meta_review",
     "meta_review": "meta_review",
     "proximity": "proximity",
+    # Both firings of the terminal synthesis node: TERMINATE ends the run
+    # there, SYNTHESIZE is the periodic one that returns to the loop point
+    # (see _route_after_research_overview).
+    "synthesize": "research_overview",
     "terminate": "research_overview",
 }
 
@@ -125,6 +129,25 @@ def _route_after_meta_review(state: WorkflowState) -> str:
     if fixed is not None:
         return fixed
     return _TASK_ROUTES.get(next_task, "research_overview")
+
+
+def _route_after_research_overview(state: WorkflowState) -> str | None:
+    """Route the overview node's successor from the task it was run for.
+
+    The node is two things: the terminal synthesis every completion path
+    ends at (listing 01 L65-69's ``RETURN FinalReport``), and the periodic
+    firing that listing's own "IF enough time has passed" describes, whose
+    interim overview the next generate cycle reads (FIX-6). Only the
+    orchestrator's recorded decision tells them apart, exactly as it does
+    for meta-review above.
+
+    ``co_scientist.task_runtime`` routes the durable path through this
+    same function -- returning ``None`` where the graph ends -- so the two
+    execution paths cannot drift apart on it.
+    """
+    if state.get("next_task") == TaskType.SYNTHESIZE.value:
+        return "orchestrator"
+    return None
 
 
 # The nodes _route_after_meta_review can return, as langgraph's identity path
@@ -235,7 +258,11 @@ def _add_loop_and_terminal_edges(workflow: _WorkflowBuilder) -> None:
     workflow.add_conditional_edges(
         "orchestrator", _route_next_task, _TASK_ROUTE_NODES
     )
-    workflow.add_edge("research_overview", END)
+    workflow.add_conditional_edges(
+        "research_overview",
+        lambda state: _route_after_research_overview(state) or END,
+        {"orchestrator": "orchestrator", END: END},
+    )
 
 
 def _add_workflow_edges(

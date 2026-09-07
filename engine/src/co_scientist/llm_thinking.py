@@ -9,10 +9,7 @@ from ``co_scientist.llm_request`` so that module's namespace is unchanged.
 import logging
 from typing import Any, Final
 
-from co_scientist.constants import (
-    MANDATORY_REASONING_FLOOR_MAX_TOKENS,
-    THINKING_FLOOR_MAX_TOKENS,
-)
+from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm_gateway_body import (
     _MINIMAL_REASONING_EFFORT as _MINIMAL_REASONING_EFFORT,
 )
@@ -162,31 +159,6 @@ def reasoning_effort_args(
     return {}
 
 
-def _reasoning_forced_despite_disable(
-    model_name: str, enable_thinking: bool
-) -> bool:
-    """Whether this call asked to disable reasoning but won't get to.
-
-    True exactly when the call site's own request (``enable_thinking``)
-    would go out unhonoured -- a model that mandates reasoning
-    (``GatewayModel.reasoning_can_disable=False``), or a recovery attempt
-    scoped by ``scoped_minimal_reasoning``. Never true when the caller
-    asked for thinking in the first place: that call is funded by the
-    ordinary floor, which is exactly what it is meant for.
-
-    Args:
-        model_name: Model name in litellm format.
-        enable_thinking: Whether the call site itself requested thinking.
-
-    Returns:
-        True if the wire will carry reasoning enabled despite this
-        request asking it disabled.
-    """
-    return not enable_thinking and effective_thinking_enabled(
-        model_name, enable_thinking
-    )
-
-
 def effective_max_tokens(
     model_name: str, max_tokens: int, enable_thinking: bool
 ) -> int:
@@ -205,25 +177,23 @@ def effective_max_tokens(
         enable_thinking: Whether thinking mode is requested for this call.
 
     Returns:
-        ``max_tokens`` unchanged when this call will not reason. When it
-        will -- ``effective_thinking_enabled``, not the raw
-        ``enable_thinking`` argument, since a call that asked to disable
-        reasoning but is going out with it forced on still needs a floor,
-        or funding this call reproduces the exact bug the floor exists
-        to prevent -- raised to ``MANDATORY_REASONING_FLOOR_MAX_TOKENS``
-        when that forcing is exactly what happened
-        (``_reasoning_forced_despite_disable``), since a model funded at
-        the ordinary ``THINKING_FLOOR_MAX_TOKENS`` while reasoning against
-        its caller's wishes has been measured to overrun that floor (see
-        that constant's docstring); otherwise ``THINKING_FLOOR_MAX_TOKENS``.
+        ``max_tokens`` unchanged when this call will not reason,
+        otherwise raised to ``THINKING_FLOOR_MAX_TOKENS``. Whether it
+        will reason is ``effective_thinking_enabled``, not the raw
+        ``enable_thinking`` argument: a call that asked to disable
+        reasoning but is going out with it forced on still needs the
+        floor, or funding it reproduces the exact bug the floor exists to
+        prevent. That forced call gets the *same* floor as any other
+        thinking call, because its chain of thought is bounded in the
+        request itself (``MINIMAL_REASONING_MAX_TOKENS``); a premium
+        floor was tried instead and lost, since the reasoning simply grew
+        to fill it -- see that constant's docstring.
     """
     if not (
         effective_thinking_enabled(model_name, enable_thinking)
         and model_reasons(model_name)
     ):
         return max_tokens
-    if _reasoning_forced_despite_disable(model_name, enable_thinking):
-        return max(max_tokens, MANDATORY_REASONING_FLOOR_MAX_TOKENS)
     return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
 
 

@@ -53,6 +53,9 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         # first system-wide feedback should be synthesized from.
         "iteration_at_last_meta_review": 0,
         "feedback_at_last_meta_review": 0,
+        # The periodic research overview's own cadence anchor (FIX-6),
+        # seeded the same way and read by _research_overview_anchor below.
+        "iteration_at_last_research_overview": 0,
         # No evolve has run yet, and no leaderboard has settled yet either.
         "evolved_since_stable": False,
     }
@@ -83,6 +86,27 @@ def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
     return TaskType.META_REVIEW.value in stacked_task_values(
         decision.queue_actions
     )
+
+
+def _research_overview_anchor(
+    book: dict[str, Any],
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+) -> int:
+    """Return the iteration anchor the periodic overview's cadence reads.
+
+    Unchanged unless this decision schedules a periodic overview firing;
+    when it does, the anchor is the current iteration. No "the iteration
+    the decision becomes" adjustment, unlike ``_meta_review_anchors``
+    below: that adjustment exists because EVOLVE both routes through the
+    meta_review node and advances the counter, and SYNTHESIZE does
+    neither. Resetting the anchor as the decision is taken is what
+    terminates the step -- the overview is not a work task, so nothing
+    else would ever move the gap off its threshold.
+    """
+    if decision.next_task is not TaskType.SYNTHESIZE:
+        return int(book.get("iteration_at_last_research_overview", 0))
+    return stats.iteration
 
 
 def _feedback_total(stats: SchedulerStats) -> int:
@@ -269,6 +293,9 @@ def _next_bookkeeping(
     meta_iteration, meta_feedback = _meta_review_anchors(book, stats, decision)
     updated["iteration_at_last_meta_review"] = meta_iteration
     updated["feedback_at_last_meta_review"] = meta_feedback
+    updated["iteration_at_last_research_overview"] = _research_overview_anchor(
+        book, stats, decision
+    )
     updated["evolved_since_stable"] = _evolved_since_stable(
         book, stats, decision
     )

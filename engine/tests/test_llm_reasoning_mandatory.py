@@ -173,18 +173,19 @@ async def test_a_second_mandatory_reasoning_refusal_still_terminates(
 _NEMO = "openrouter/minimax/minimax-m3:free"
 
 
-async def test_a_declared_mandatory_reasoning_model_funds_its_first_attempt(
+async def test_a_declared_mandatory_reasoning_model_caps_its_reasoning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A model that never disables is funded at the raised floor.
+    """A model that never disables is asked to bound its chain of thought.
 
-    Before this fix the first attempt went out at
-    ``THINKING_FLOOR_MAX_TOKENS`` (18000) and reliably exhausted it --
-    production measured ~20-21k reasoning tokens on this exact model --
-    so every batched entailment call paid for a doomed rung before the
-    escalation ladder's own ``RAISED_BUDGET`` rung (24000) answered it.
+    Raising the budget was tried first and lost: production run 323ff72c
+    measured ~20-21k reasoning tokens against an 18000-token floor, and
+    run 6760ce63 measured 24547 (then 25424) against the 24000-token
+    floor that answered it -- each raise met by a proportionally longer
+    chain of thought. The request now carries the bound itself, and the
+    budget returns to the ordinary thinking floor.
     """
-    from co_scientist.constants import MANDATORY_REASONING_FLOOR_MAX_TOKENS
+    from co_scientist.constants import MINIMAL_REASONING_MAX_TOKENS
 
     _disable_cache(monkeypatch)
     calls: list[dict[str, Any]] = []
@@ -208,21 +209,26 @@ async def test_a_declared_mandatory_reasoning_model_funds_its_first_attempt(
 
     assert result == {"a": 1}
     assert len(calls) == 1
-    assert calls[0]["max_tokens"] == MANDATORY_REASONING_FLOOR_MAX_TOKENS
+    assert calls[0]["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
     assert calls[0]["extra_body"]["reasoning"] == {
         "enabled": True,
-        "effort": "low",
+        "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
     }
 
 
-async def test_the_ladder_still_terminates_when_the_raised_floor_also_fails(
+async def test_the_ladder_still_terminates_when_the_cap_is_ignored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raised first attempt is not a guarantee.
+    """A cap the provider ignores is still a budget failure the ladder owns.
 
-    The ladder must still escalate and terminate if it too comes back
-    empty.
+    Nothing here can make a host honour the bound, so the ordinary
+    escalation must still apply -- and its rungs must differ from one
+    another. At the retired 24000 floor they did not: a 12000-token
+    caller was floored to 24000 on attempt 1, and
+    ``escalated_max_tokens`` floors at the same 24000, so all three
+    attempts sent the identical request.
     """
+    from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
     from co_scientist.exceptions import LLMBudgetExhaustedError
     from tests._llm_wrapper_fakes import make_usage as _usage
 
@@ -256,10 +262,85 @@ async def test_the_ladder_still_terminates_when_the_raised_floor_also_fails(
     # retrying forever once every rung has been tried.
     assert len(calls) == 3
     budgets = [call["max_tokens"] for call in calls]
-    # Every rung is funded at or above the raised floor -- it never falls
-    # back to the answer-sized budget that started this measurement.
-    from co_scientist.constants import MANDATORY_REASONING_FLOOR_MAX_TOKENS
+    assert budgets[0] == THINKING_FLOOR_MAX_TOKENS
+    assert budgets[1] == BUDGET_ESCALATION_MAX_TOKENS
+    assert budgets[1] > budgets[0]
 
-    assert all(
-        budget >= MANDATORY_REASONING_FLOOR_MAX_TOKENS for budget in budgets
+
+async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A host that will not take the bound gets the tier instead of a 400.
+
+    The bound is unverified against every host the free chain's ``models``
+    array can land on, so its rejection must degrade rather than fail the
+    call -- the same requirement the mandatory-reasoning refusal above
+    already established. The recovery rung sends the tier name alone,
+    which is the request shape that has actually been served in
+    production.
+    """
+    from litellm.exceptions import BadRequestError
+
+    _disable_cache(monkeypatch)
+    calls: list[dict[str, Any]] = []
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise BadRequestError(
+                message=(
+                    'OpenrouterException - {"error":{"message":"Invalid '
+                    "request: reasoning.max_tokens is not supported for "
+                    'this model.","code":400}}'
+                ),
+                model=_NEMO,
+                llm_provider="openrouter",
+            )
+        return _completion(_message('{"a": 1}'))
+
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(
+            model_name=_NEMO, max_tokens=12000, json_schema=_INT_SCHEMA
+        ),
+        max_attempts=3,
+        options=LLMCallOptions(enable_thinking=False),
+    )
+
+    assert result == {"a": 1}
+    assert len(calls) == 2
+    assert calls[1]["extra_body"]["reasoning"] == {
+        "enabled": True,
+        "effort": "low",
+    }
+
+
+def test_a_budget_failure_is_not_read_as_a_rejected_cap() -> None:
+    """The cap-rejection match must not swallow the ladder's own failures.
+
+    A budget-exhausted error's own message names ``reasoning_tokens`` and
+    ``max_tokens`` -- the two words a loose match for "the provider
+    rejected the reasoning bound" would look for -- so a loose match
+    would divert every budget failure to the terminal recovery rung and
+    retire the escalation ladder.
+    """
+    from co_scientist.exceptions import LLMBudgetExhaustedError
+    from co_scientist.llm_json_escalation import (
+        BudgetEscalation,
+        escalation_for_error,
+    )
+
+    error = LLMBudgetExhaustedError(
+        "LLM spent its entire token budget without answering. "
+        "Model: openrouter/minimax/minimax-m3:free (finish_reason=length, "
+        "max_tokens=24000, reasoning_tokens=24547)"
+    )
+
+    assert (
+        escalation_for_error(error, BudgetEscalation.NONE)
+        is BudgetEscalation.RAISED_BUDGET
     )

@@ -83,6 +83,7 @@ def test_a_stored_debate_renders_turns_and_one_closing_verdict() -> None:
     assert "**Turn 2 (favors idea 1):** The counter-argument does not" in (
         markdown
     )
+    # Published artifact (Figure A.17, paper line 1122) prints it capitalized.
     assert "Better idea: 1" in markdown
     assert markdown.count("Better idea:") == 1
 
@@ -225,3 +226,59 @@ def test_only_the_first_turns_of_a_very_long_debate_render() -> None:
 
     assert "Turn 5 argument." in markdown
     assert "Turn 6 argument." not in markdown
+
+
+def _ordered_transcript(
+    verdict: str, turns: list[tuple[int, str, str, str]]
+) -> str:
+    """A stored transcript whose turns also record their own numbering."""
+    return json.dumps(
+        {
+            "verdict": verdict,
+            "turns": [
+                {"turn": t, "favored": f, "text": x, "first": first}
+                for t, f, x, first in turns
+            ],
+        }
+    )
+
+
+def test_a_swapped_turn_names_the_numbering_its_own_text_uses() -> None:
+    """The production symptom: two turns that read as contradicting.
+
+    Turns alternate which idea is presented first, so a swapped turn's
+    prose calls idea 2 "Hypothesis 1". Rendered without that fact the
+    section shows one judge asserting "Hypothesis 1 is superior" and
+    "Hypothesis 2 is superior" while both turns favour the same idea
+    (production run f8db4d04, debate 2). Each turn header now names the
+    numbering that turn's own text uses.
+    """
+    markdown = _markdown(
+        [
+            _match(
+                debate_transcript=_ordered_transcript(
+                    "2",
+                    [
+                        (1, "2", "Hypothesis 2 is superior on impact.", "1"),
+                        (2, "2", "Hypothesis 1 is superior on impact.", "2"),
+                    ],
+                )
+            )
+        ]
+    )
+
+    assert (
+        '**Turn 1 (favors idea 2; this turn\'s "Hypothesis 1" is idea 1):**'
+        " Hypothesis 2 is superior on impact." in markdown
+    )
+    assert (
+        '**Turn 2 (favors idea 2; this turn\'s "Hypothesis 1" is idea 2):**'
+        " Hypothesis 1 is superior on impact." in markdown
+    )
+
+
+def test_a_turn_without_a_recorded_order_renders_as_it_did() -> None:
+    """A row written before the order was recorded keeps its old header."""
+    markdown = _markdown([_match()])
+
+    assert "**Turn 1 (favors idea 1):** Idea 1 names" in markdown

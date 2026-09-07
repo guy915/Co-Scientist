@@ -12,7 +12,7 @@ in a constant.
 import pytest
 
 from co_scientist.constants import (
-    MANDATORY_REASONING_FLOOR_MAX_TOKENS,
+    MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.llm_request import (
@@ -124,7 +124,7 @@ def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
     assert body["reasoning"] == {"enabled": True, "effort": "high"}
 
 
-def test_a_disable_request_gets_minimal_reasoning_when_mandatory() -> None:
+def test_a_disable_request_gets_capped_reasoning_when_mandatory() -> None:
     """``enabled=False`` never reaches a model that rejects disabling.
 
     Production run b82f9162 (2026-09-06 04:39:30 UTC): every batched
@@ -132,47 +132,61 @@ def test_a_disable_request_gets_minimal_reasoning_when_mandatory() -> None:
     attempts with "Reasoning is mandatory for this endpoint and cannot be
     disabled", because ``enable_thinking=False`` reached the wire as a
     literal ``reasoning: {"enabled": False}``. The model's own declaration
-    (``reasoning_can_disable=False``) now redirects that to the smallest
-    reasoning tier the gateway exposes instead.
+    (``reasoning_can_disable=False``) redirects that to reasoning the
+    gateway is asked to *bound*, rather than a tier name: run 6760ce63
+    then measured 24547 reasoning tokens against a 24000-token budget on
+    the minimal tier, i.e. the tier alone bounds nothing.
     """
-    from co_scientist.llm_thinking import _MINIMAL_REASONING_EFFORT
-
     body = deepseek_thinking_extra_body(_NEMO, enabled=False)
 
     assert body["reasoning"] == {
         "enabled": True,
-        "effort": _MINIMAL_REASONING_EFFORT,
+        "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
     }
 
 
-def test_the_minimal_reasoning_redirect_gets_a_higher_floor() -> None:
-    """A call forced to reason against its wishes needs more room.
+def test_the_reasoning_cap_leaves_room_for_the_answer() -> None:
+    """The cap must fit inside the smallest entailment caller's budget.
 
-    Production run 323ff72c (2026-09-06 06:57 UTC): two batched entailment
-    calls to ``_NEMO`` (``enable_thinking=False``, sized at 12000) each
-    spent roughly 20-21k reasoning tokens against the 18000-token
-    ``THINKING_FLOOR_MAX_TOKENS`` -- so the first attempt was guaranteed to
-    exhaust its budget and answer nothing, paid for in full, before the
-    escalation ladder's ``RAISED_BUDGET`` rung (which lands at 24000)
-    recovered it. Funding the first attempt at that same 24000 from the
-    start turns the guaranteed-fail rung into the one that just answers.
+    ``app.claim_verifier`` sizes its per-claim call at 6000, and the cap
+    is spent before a single answer token is written, so a cap anywhere
+    near that budget reproduces the answerless completion it exists to
+    prevent -- on a provider that does not apply the thinking floor at
+    all.
+    """
+    smallest_entailment_budget = 6000
+
+    assert MINIMAL_REASONING_MAX_TOKENS >= 1024
+    assert smallest_entailment_budget // 2 > MINIMAL_REASONING_MAX_TOKENS
+
+
+def test_the_minimal_reasoning_redirect_keeps_the_ordinary_floor() -> None:
+    """Bounding the reasoning replaces funding it at a premium.
+
+    The premium floor (24000) was tried first and failed on its own
+    terms: run 6760ce63 measured 24547 reasoning tokens against it, so
+    each raise simply bought a longer chain of thought. Worse, at that
+    floor a 12000-token caller sent an identical 24000-token request on
+    all three ladder rungs, since ``escalated_max_tokens`` also floors at
+    24000 -- the "retry that resends the identical request" bug the
+    ladder exists to avoid. With the reasoning itself capped, the
+    ordinary floor is enough room and the rungs differ again.
     """
     from co_scientist.llm_thinking import effective_max_tokens
 
     assert (
         effective_max_tokens(_NEMO, 12000, enable_thinking=False)
-        == MANDATORY_REASONING_FLOOR_MAX_TOKENS
+        == THINKING_FLOOR_MAX_TOKENS
     )
-    assert MANDATORY_REASONING_FLOOR_MAX_TOKENS > THINKING_FLOOR_MAX_TOKENS
 
 
 def test_a_call_that_actually_asked_for_thinking_keeps_the_ordinary_floor() -> (
     None
 ):
-    """The higher floor answers being forced, not reasoning itself.
+    """A caller that asked for thinking gets the floor proven for it.
 
-    A caller that asked for thinking gets the floor already proven for
-    it, not the mandatory-reasoning premium.
+    The forced-reasoning redirect changes what the ``reasoning`` object
+    carries, never the budget an ordinary thinking call is funded at.
     """
     from co_scientist.llm_thinking import effective_max_tokens
 
@@ -182,8 +196,8 @@ def test_a_call_that_actually_asked_for_thinking_keeps_the_ordinary_floor() -> (
     )
 
 
-def test_a_non_reasoning_call_is_untouched_by_either_floor() -> None:
-    """A model with no thinking mode gets neither floor.
+def test_a_non_reasoning_call_is_untouched_by_the_floor() -> None:
+    """A model with no thinking mode gets no floor.
 
     ``max_tokens`` passes through exactly as the call site sized it.
     """

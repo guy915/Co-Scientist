@@ -140,6 +140,11 @@ def _synthesized_topic_from_raw(
         return None
     return {
         "id": str(raw.get("id") or f"topic-{fallback_index}"),
+        # The theme this topic's subject heading sits under, when the run
+        # funded the deep knowledge-base synthesis (F8). Empty for the
+        # flat topics the research-overview call itself produces, which
+        # the renderer prints exactly as it always did.
+        "theme": str(raw.get("theme") or ""),
         "title": str(raw.get("title") or "Technical topic"),
         "summary": str(raw.get("summary") or ""),
         "detail": str(raw.get("detail") or ""),

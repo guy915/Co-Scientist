@@ -101,6 +101,19 @@ def _verdict_number(side: str) -> str:
     return "1" if side == "a" else "2"
 
 
+def _presented_first(entry: dict[str, Any]) -> str:
+    """Name the canonical idea a turn presented as its "Hypothesis 1".
+
+    ``_execute_debate_turn`` alternates which side is presented first and
+    records the order it used, so a turn's own prose numbers the two
+    ideas by *that* order. A consumer rendering the turns needs the
+    mapping stated, or the transcript reads as one judge contradicting
+    itself. An entry recorded before the order was kept reads as the
+    canonical (un-swapped) one.
+    """
+    return "2" if str(entry.get("presentation_order") or "ab") == "ba" else "1"
+
+
 def _turn_argument(reasoning: str) -> str:
     """One turn's argument with its own trailing verdict line removed."""
     return _TRAILING_VERDICT_RE.sub("", (reasoning or "").rstrip()).rstrip()
@@ -122,7 +135,10 @@ def debate_transcript_document(
         verdict: The whole match's verdict number ("1" or "2").
 
     Returns:
-        ``{"verdict": str, "turns": [{"turn", "favored", "text"}]}``.
+        ``{"verdict": str, "turns": [{"turn", "favored", "text",
+        "first"}]}`` -- ``favored`` in the match's canonical numbering and
+        ``first`` naming the idea that turn's own text calls
+        "Hypothesis 1".
     """
     return {
         "verdict": verdict,
@@ -131,6 +147,7 @@ def debate_transcript_document(
                 "turn": int(entry.get("turn") or index),
                 "favored": _verdict_number(str(entry.get("winner") or "a")),
                 "text": _turn_argument(str(entry.get("reasoning") or "")),
+                "first": _presented_first(entry),
             }
             for index, entry in enumerate(transcript, 1)
         ],
@@ -217,6 +234,26 @@ def _presented_number(entry: dict[str, Any], swapped: bool) -> str:
     return "1" if (entry["winner"] == "a") != swapped else "2"
 
 
+def _prior_turn_order_note(entry: dict[str, Any], swapped: bool) -> str:
+    """State how a quoted turn's own numbering relates to this turn's.
+
+    ``_presented_number`` renumbers the *label*, but the turn's quoted
+    text still numbers the two hypotheses in the order that turn
+    presented them. Left unsaid, the label and the prose disagree on a
+    swapped turn and the judge is asked to reconcile them unaided --
+    production run f8db4d04 shows one trying: it overturned a prior
+    verdict it read as "internally inconsistent" for attributing one
+    idea's properties to the other.
+    """
+    if (_presented_first(entry) == "2") != swapped:
+        return (
+            " (that turn presented the two hypotheses in the opposite "
+            "order to this turn, so where its text says 'hypothesis 1' it "
+            "means this turn's hypothesis 2, and vice versa)"
+        )
+    return " (that turn presented them in the same order as this turn)"
+
+
 def _append_debate_context(
     prompt: str, transcript: list[dict[str, Any]], *, swapped: bool = False
 ) -> str:
@@ -246,7 +283,8 @@ def _append_debate_context(
     for entry in transcript:
         lines.append(
             f"- Turn {entry['turn']} favored hypothesis "
-            f"{_presented_number(entry, swapped)}: "
+            f"{_presented_number(entry, swapped)}"
+            f"{_prior_turn_order_note(entry, swapped)}: "
             f"{entry['reasoning']}\n"
         )
     lines.append(

@@ -1,18 +1,32 @@
 """Research-overview node - terminal synthesis into a roadmap + NIH aims."""
 
-import itertools
 import logging
 from typing import Any, Final
 
+from co_scientist.agents.meta_review.interim_overview import (
+    build_interim_overview,
+)
 from co_scientist.agents.meta_review.research_overview_contacts import (
     _build_contact_candidates,
     _format_contact_candidates,
-    _format_or_placeholder,
     _validate_research_contact_groups,
     _validate_research_contacts,
 )
 from co_scientist.agents.meta_review.research_overview_directions import (
     format_overview,
+)
+from co_scientist.agents.meta_review.research_overview_evidence import (
+    _build_evidence_corpus as _build_evidence_corpus,
+)
+from co_scientist.agents.meta_review.research_overview_evidence import (
+    _format_evidence_corpus as _format_evidence_corpus,
+)
+from co_scientist.agents.meta_review.research_overview_knowledge_base import (
+    _validate_knowledge_base,
+    knowledge_base_is_funded,
+)
+from co_scientist.agents.meta_review.research_overview_knowledge_base import (
+    synthesize_knowledge_base as synthesize_knowledge_base,
 )
 from co_scientist.agents.meta_review.research_overview_review import (
     OverviewReviewContext as OverviewReviewContext,
@@ -26,14 +40,12 @@ from co_scientist.constants import (
     PROGRESS_RESEARCH_OVERVIEW_START,
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
-    strip_citation_markers,
 )
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
 )
 from co_scientist.models import (
-    Article,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
@@ -46,6 +58,7 @@ from co_scientist.prompts import (
     get_research_overview_prompt,
 )
 from co_scientist.safety import is_blocking_status
+from co_scientist.scheduling.models import TaskType
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -54,16 +67,49 @@ logger = logging.getLogger(__name__)
 # back. The offered pools are capped so a large run's article set cannot grow
 # the prompt without limit; the acceptance caps bound the sections a reader is
 # handed.
-_MAX_KNOWLEDGE_BASE_TOPICS: Final = 8
-"""Knowledge-base topics considered from the model's response."""
-
-_EVIDENCE_ABSTRACT_CHARS: Final = 3000
-"""Per-source abstract budget in the evidence corpus."""
-
 _UNREVIEWED_OVERVIEW: Final = {"reviewed": False, "rounds": 0}
 """Stamped on ``overview_review`` when this run did not fund a review, or
 the review loop failed and the drafted overview published unchanged.
 """
+
+
+async def _emit_and_synthesize_overview(
+    state: WorkflowState,
+    summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+    hypothesis_by_index: dict[int, str],
+) -> dict[str, Any]:
+    """Runs interim or full overview synthesis with its progress emissions.
+
+    Before the progress emission: those percentages describe the run's
+    terminal synthesis, and a mid-run firing announcing 95% would drive
+    the reader's progress bar to the end and back again.
+    """
+    if _is_interim_firing(state):
+        return await _interim_overview_result(
+            state, summary, contact_candidates, evidence_corpus
+        )
+
+    await emit_progress(
+        state,
+        "research_overview_start",
+        "Synthesizing research overview...",
+        PROGRESS_RESEARCH_OVERVIEW_START,
+    )
+
+    research_overview, llm_calls = await _synthesize_research_overview(
+        state, summary, contact_candidates, evidence_corpus, hypothesis_by_index
+    )
+
+    await emit_progress(
+        state,
+        "research_overview_complete",
+        "Research overview ready",
+        PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
+    )
+    logger.info("Research overview complete")
+    return _build_research_overview_result(research_overview, llm_calls)
 
 
 async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
@@ -99,25 +145,48 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     contact_candidates = _build_contact_candidates(articles)
     evidence_corpus = _build_evidence_corpus(articles)
 
-    await emit_progress(
-        state,
-        "research_overview_start",
-        "Synthesizing research overview...",
-        PROGRESS_RESEARCH_OVERVIEW_START,
-    )
-
-    research_overview, llm_calls = await _synthesize_research_overview(
+    return await _emit_and_synthesize_overview(
         state, summary, contact_candidates, evidence_corpus, hypothesis_by_index
     )
 
-    await emit_progress(
-        state,
-        "research_overview_complete",
-        "Research overview ready",
-        PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
+
+def _is_interim_firing(state: WorkflowState) -> bool:
+    """Whether this is a periodic firing rather than the terminal one.
+
+    The scheduler's own recorded decision is what tells them apart, the
+    same value the graph and the durable route table both read: SYNTHESIZE
+    returns to the loop point (FIX-6), TERMINATE ends the run.
+    """
+    return str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value
+
+
+async def _interim_overview_result(
+    state: WorkflowState,
+    summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Draft an overview for the next generate cycle, and publish nothing.
+
+    One call: neither the accuracy-review loop nor the deep knowledge-base
+    synthesis is bought here. Both exist to make the published document,
+    and this firing writes no document -- ``research_overview`` stays
+    untouched so the live UI and the finished report keep reading the
+    terminal firing's own output.
+    """
+    prompt, schema = _build_synthesis_prompt(
+        state, summary, contact_candidates, evidence_corpus
     )
-    logger.info("Research overview complete")
-    return _build_research_overview_result(research_overview, llm_calls)
+    response = await _call_research_overview_llm(state, prompt, schema)
+    logger.info("Interim research overview ready for the next cycle")
+    return {
+        "interim_overview": build_interim_overview(response),
+        "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=1)),
+        "messages": phase_message(
+            "research_overview",
+            "Synthesized an interim research overview",
+        ),
+    }
 
 
 def _publishable_hypotheses(
@@ -213,7 +282,38 @@ async def _synthesize_research_overview(
         response, contact_candidates, evidence_corpus, hypothesis_by_index
     )
     formatted["overview_review"] = review_meta
-    return formatted, 1 + review_calls
+    deep_calls = await _deepen_knowledge_base(
+        state, summary, evidence_corpus, formatted
+    )
+    return formatted, 1 + review_calls + deep_calls
+
+
+async def _deepen_knowledge_base(
+    state: WorkflowState,
+    summary: str,
+    evidence_corpus: dict[str, dict[str, Any]],
+    formatted: dict[str, Any],
+) -> int:
+    """Replace the flat knowledge base with the deep synthesis (F8).
+
+    Only where the run's declared ceiling funds the extra call, and only
+    when it comes back with grounded sections: the overview call's own
+    topics are already in ``formatted`` and stand wherever this does not.
+
+    Returns:
+        LLM calls spent, which is 0 wherever the call was not made.
+    """
+    if not knowledge_base_is_funded(state):
+        return 0
+    topics, calls = await synthesize_knowledge_base(
+        state,
+        summary,
+        evidence_corpus,
+        evidence_corpus_text=_format_evidence_corpus(evidence_corpus),
+    )
+    if topics:
+        formatted["knowledge_base"] = topics
+    return calls
 
 
 def _build_synthesis_prompt(
@@ -328,135 +428,6 @@ def _format_research_overview_response(
             "unexpected_research_directions", []
         ),
     }
-
-
-def _interleave_by_source(articles: list[Article]) -> list[Article]:
-    """Round-robin analyzed articles across their source.
-
-    Search results reach this node ranked best-first by retrieval score, which
-    clusters each source's top papers at the front of the list. Presenting that
-    order to the synthesis LLM makes it over-cite the first few references and
-    ignore the tail, so the knowledge base ends up drawn from one source's top
-    hits. Interleaving one paper per source at a time keeps best-first order
-    within each source while ensuring the head of the corpus samples the full
-    breadth of retrieved evidence rather than a single leading cluster.
-
-    Args:
-        articles: Analyzed articles in their incoming best-first order.
-
-    Returns:
-        The same articles reordered round-robin across ``source``.
-    """
-    groups: dict[str, list[Article]] = {}
-    for article in articles:
-        groups.setdefault(article.source, []).append(article)
-    interleaved: list[Article] = []
-    for row in itertools.zip_longest(*groups.values()):
-        interleaved.extend(article for article in row if article is not None)
-    return interleaved
-
-
-def _build_evidence_corpus(
-    articles: list[Article] | None,
-) -> dict[str, dict[str, Any]]:
-    """Build the terminal synthesis corpus from articles actually analyzed.
-
-    Evidence ids are assigned by presentation order (contiguous
-    ``evidence-1..N``) over the source-interleaved list; downstream consumers
-    treat the id as an opaque handle and the app re-resolves cited topics by
-    title, so the numbering carries no rank meaning.
-    """
-    analyzed = [
-        article for article in (articles or []) if article.used_in_analysis
-    ]
-    corpus: dict[str, dict[str, Any]] = {}
-    for index, article in enumerate(_interleave_by_source(analyzed)):
-        evidence_id = f"evidence-{index + 1}"
-        corpus[evidence_id] = {
-            "evidence_id": evidence_id,
-            "source_id": article.source_id or "",
-            "title": article.title,
-            "abstract": (article.abstract or "")[:_EVIDENCE_ABSTRACT_CHARS],
-            "source": article.source,
-            "url": article.url or "",
-        }
-    return corpus
-
-
-def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
-    """Format bounded analyzed evidence for cross-source synthesis.
-
-    Strips each source's own inline citation markers from the prompt
-    copy only. ``corpus`` itself is left untouched -- it is reused
-    verbatim to attach source metadata to the synthesis LLM's cited
-    topics (``_validate_knowledge_base``), which is the evidence
-    excerpt the finished report ships, and that must stay the abstract
-    as retrieved.
-    """
-    for_prompt = {
-        evidence_id: {
-            **record,
-            "abstract": strip_citation_markers(record["abstract"]),
-        }
-        for evidence_id, record in corpus.items()
-    }
-    return _format_or_placeholder(
-        for_prompt,
-        (
-            "- {evidence_id}: title={title}; source={source}; "
-            "source_id={source_id}; abstract={abstract}"
-        ),
-        "No verified evidence corpus available.",
-    )
-
-
-def _topic_evidence_ids(
-    raw: Any, corpus: dict[str, dict[str, Any]]
-) -> list[str] | None:
-    """Return a raw topic's grounded evidence ids, or None if ungrounded.
-
-    Args:
-        raw: One raw knowledge-base topic from the model response.
-        corpus: The bounded evidence corpus topics may cite.
-
-    Returns:
-        The subset of cited ids present in corpus, or None if raw is
-        malformed or cites no valid evidence.
-    """
-    if not isinstance(raw, dict):
-        return None
-    raw_ids = raw.get("evidence_ids")
-    if not isinstance(raw_ids, list):
-        return None
-    evidence_ids = [
-        item for item in raw_ids if isinstance(item, str) and item in corpus
-    ]
-    return evidence_ids or None
-
-
-def _validate_knowledge_base(
-    raw_topics: Any,
-    corpus: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Drop unsourced topics and attach immutable source metadata."""
-    if not isinstance(raw_topics, list):
-        return []
-    topics: list[dict[str, Any]] = []
-    for index, raw in enumerate(raw_topics[:_MAX_KNOWLEDGE_BASE_TOPICS]):
-        evidence_ids = _topic_evidence_ids(raw, corpus)
-        if evidence_ids is None:
-            continue
-        topics.append(
-            {
-                "id": f"topic-{index + 1}",
-                "title": str(raw.get("title") or "").strip(),
-                "summary": str(raw.get("summary") or "").strip(),
-                "detail": str(raw.get("detail") or "").strip(),
-                "uncertainty": str(raw.get("uncertainty") or "").strip(),
-                "references": [corpus[item] for item in evidence_ids],
-            }
-        )
-    return topics
 
 
 def _build_research_overview_result(

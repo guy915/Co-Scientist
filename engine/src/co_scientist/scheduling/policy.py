@@ -43,6 +43,7 @@ from co_scientist.scheduling.policy_checks import (
     _check_owed_coverage,
     _check_pool_size,
     _check_proximity_refresh,
+    _check_research_overview_cadence,
     _check_retry,
     _check_review_backlog,
     _check_steering,
@@ -83,6 +84,7 @@ __all__ = [
     "_check_owed_coverage",
     "_check_pool_size",
     "_check_proximity_refresh",
+    "_check_research_overview_cadence",
     "_check_retry",
     "_check_review_backlog",
     "_check_steering",
@@ -128,7 +130,7 @@ def _ordered_checks(
     convergence_cycles: int,
     min_cycles_before_convergence: int,
 ) -> tuple[Callable[[], SupervisorDecision | None], ...]:
-    """Builds the precedence-ordered scheduling checks (steps 1-12)."""
+    """Builds the precedence-ordered scheduling checks (steps 1-13)."""
     return (
         lambda: _check_stop_signals(stats),
         lambda: _check_steering(stats),
@@ -144,6 +146,13 @@ def _ordered_checks(
             stats, convergence_cycles, min_cycles_before_convergence
         ),
         lambda: _check_iteration_budget(stats, budget),
+        # Below both terminations, unlike meta-review's cadence above them:
+        # a critique is consumed by the terminal report, so it is worth
+        # holding a run open for, while an interim overview is consumed by
+        # the *next* generate cycle. Fired on the iteration that ends the
+        # run it would buy the largest prompt in the system for a reader
+        # that never arrives.
+        lambda: _check_research_overview_cadence(stats, budget),
     )
 
 
@@ -155,9 +164,9 @@ def required_transition(
     convergence_cycles: int = CONVERGENCE_CYCLES_DEFAULT,
     min_cycles_before_convergence: int = MIN_CYCLES_BEFORE_CONVERGENCE_DEFAULT,
 ) -> SupervisorDecision | None:
-    """Return the forced decision when one of steps 1-12 fires, else None.
+    """Return the forced decision when one of steps 1-13 fires, else None.
 
-    Separates the two halves of :func:`decide_next_task`. Steps 1-12 are
+    Separates the two halves of :func:`decide_next_task`. Steps 1-13 are
     *required* transitions: an unreviewed backlog must be reviewed, a pool
     of one cannot hold a tournament, a spent budget must stop. There is no
     latitude in them, so an advisory model has nothing to contribute and
@@ -194,7 +203,7 @@ def decide_next_task(
     """Choose the next task (or terminate) from observable state.
 
     The precedence, highest first, is exactly ``_ordered_checks``'s steps 1-
-    12 (see each check's docstring), and finally the generation-vs-evolution
+    13 (see each check's docstring), and finally the generation-vs-evolution
     choice. ``min_match_coverage``, ``convergence_cycles``, and
     ``min_cycles_before_convergence`` are clone defaults where Google does
     not publish a predicate.

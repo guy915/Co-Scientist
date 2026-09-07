@@ -18,6 +18,16 @@ bound it, and each is stated as a constant below rather than tuned in the
 renderer: how many debates render, how many turns of one debate render,
 and how long one turn's argument may be.
 
+**Why the closing line is capitalised.** The two published sources
+disagree: the ranking prompt asks the judge for ``better idea: 1``
+(paper lines 794 and 853, and ``prompts/templates/ranking_debate.md``
+repeats it verbatim), while Figure A.17's rendered artifact prints
+``Better idea: 1`` (paper line 1122). This section mirrors the rendered
+artifact, not the prompt, so it prints the capitalised form; the judge is
+still asked for the lower-case phrasing, unchanged, and the engine's
+``test_published_artifact_shapes`` pins the figure's casing separately,
+against the exemplar rather than against this renderer.
+
 **Why a withheld idea's debate never renders.** A transcript argues both
 sides at length, quoting each idea's mechanism. An idea the content gates
 withheld (duplicate, rejected, or safety-held) is absent from
@@ -99,7 +109,7 @@ def _resolve_debate(
     Idea 1 and idea 2 are the judge's own canonical presentation order,
     recovered from the verdict: the winner is idea 1 exactly when the
     verdict says 1. Deriving it from the outcome instead would make every
-    published verdict line read "Better idea: 1".
+    published verdict line read "better idea: 1".
     """
     document = _stored_document(match)
     if document is None:
@@ -142,15 +152,36 @@ def _turn_text(turn: dict[str, Any]) -> str:
     return text[:_MAX_TURN_CHARS].rstrip() + " …"
 
 
+def _numbering_note(turn: dict[str, Any]) -> str:
+    """State which idea this turn's own text calls "Hypothesis 1".
+
+    The judge sees the pair in alternating order (the tournament's
+    position-bias control), so a swapped turn's prose calls idea 2
+    "Hypothesis 1". Rendered without that fact, production run f8db4d04
+    showed one judge asserting "Hypothesis 1 is superior" and
+    "Hypothesis 2 is superior" on two turns that favoured the same idea.
+    A turn stored before the order was recorded says nothing rather than
+    guessing.
+    """
+    first = str(turn.get("first") or "")
+    if first not in ("1", "2"):
+        return ""
+    return f'; this turn\'s "Hypothesis 1" is idea {first}'
+
+
 def _render_turn(index: int, turn: dict[str, Any]) -> str:
     """Render one turn as a labelled paragraph.
 
     The turn's own number is trusted only as a label; ``index`` is what
     the reader counts by, so a transcript missing a turn number still
-    reads as a sequence.
+    reads as a sequence. "Favors idea N" is always the section's own
+    numbering; ``_numbering_note`` names the turn's.
     """
     favored = "2" if str(turn.get("favored") or "1") == "2" else "1"
-    return f"**Turn {index} (favors idea {favored}):** {_turn_text(turn)}"
+    return (
+        f"**Turn {index} (favors idea {favored}{_numbering_note(turn)}):**"
+        f" {_turn_text(turn)}"
+    )
 
 
 def _render_debate(number: int, debate: _Debate) -> list[str]:
@@ -190,7 +221,10 @@ def _render_tournament_debates_markdown(
         "",
         "_Each pairing is judged as a simulated expert debate: the judge"
         " re-examines the exchange each turn, with the two ideas presented"
-        " in alternating order, before the closing verdict._",
+        " in alternating order, before the closing verdict. Because that"
+        " order alternates, each turn's header names which idea that"
+        ' turn\'s own text calls "Hypothesis 1"; "favors idea N" always'
+        " uses this section's numbering._",
         "",
     ]
     for number, debate in enumerate(debates, 1):

@@ -100,8 +100,16 @@ def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
     assert "## Tournament debates" in markdown
     assert "### Debate 1: 1. NHE1 screen vs 2. Empagliflozin" in markdown
     assert (
-        "**Turn 1 (favors idea 2):** Idea 2 names a measurable target."
+        '**Turn 1 (favors idea 2; this turn\'s "Hypothesis 1" is idea 1):**'
+        " Idea 2 names a measurable target." in markdown
+    )
+    # Turn 2 was judged the other way round: its own text calls idea 2
+    # "Hypothesis 1", and the header says so rather than leaving the
+    # reader to read two turns as contradicting each other.
+    assert (
+        '**Turn 2 (favors idea 2; this turn\'s "Hypothesis 1" is idea 2):**'
         in markdown
     )
+    # Published artifact (Figure A.17, paper line 1122) prints it capitalized.
     assert markdown.rstrip().count("Better idea:") == 1
     assert "Better idea: 2" in markdown

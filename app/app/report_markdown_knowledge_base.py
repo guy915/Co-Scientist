@@ -34,11 +34,35 @@ def _render_topic(topic: dict[str, Any]) -> list[str]:
 
 
 def _render_knowledge_base_markdown(topics: list[dict[str, Any]]) -> list[str]:
-    """Render the 'Knowledge Base' section, or nothing when no topics exist."""
+    """Render the 'Knowledge Base' section, or nothing when no topics exist.
+
+    Topics carrying a ``theme`` (the deep synthesis, F8) are grouped under
+    it: the published exemplar prints each theme once, as a bold line,
+    above the named subject headings that belong to it. A topic with no
+    theme -- the flat shape the research-overview call still produces --
+    renders exactly as it did before, so a run that did not fund the deep
+    pass is byte-identical here.
+    """
     lines: list[str] = []
+    theme = ""
     for topic in topics:
-        if isinstance(topic, dict):
-            lines += _render_topic(topic)
+        if not isinstance(topic, dict):
+            continue
+        rendered = _render_topic(topic)
+        if not rendered:
+            continue
+        theme, heading = _theme_heading(topic, theme)
+        lines += heading + rendered
     if not lines:
         return []
     return ["\n## Knowledge Base\n", "### Knowledge Summary\n", *lines]
+
+
+def _theme_heading(
+    topic: dict[str, Any], current: str
+) -> tuple[str, list[str]]:
+    """Return the theme in force and the heading line it needs, if any."""
+    theme = str(topic.get("theme") or "").strip()
+    if not theme or theme == current:
+        return (theme or current), []
+    return theme, [f"**{theme}**\n"]

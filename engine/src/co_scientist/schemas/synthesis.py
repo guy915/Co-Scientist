@@ -137,6 +137,16 @@ RESEARCH_OVERVIEW_MAX_PATTERNS: Final = 5
 # here must not scale the response further.
 RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
 
+# F8: bounds on the deep knowledge-base synthesis in this package's
+# sibling module, taken from the published MASH exemplar's own shape -- 43 named
+# subject headings under 8 themes. 8 x 8 is the smallest product that
+# covers it without inviting an answer the measured budget
+# (KNOWLEDGE_BASE_MAX_TOKENS) cannot carry: 64 sections at the 150-250
+# words the schema asks for is 9,600-16,000 words, against the
+# exemplar's 9,702.
+KNOWLEDGE_BASE_MAX_THEMES: Final = 8
+KNOWLEDGE_BASE_MAX_SECTIONS: Final = 8
+
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": obj(

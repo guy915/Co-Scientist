@@ -91,6 +91,9 @@ from co_scientist.agents.generation.expansion_research import (
 from co_scientist.agents.generation.literature_tools import (
     generate_with_tools,
 )
+from co_scientist.agents.meta_review.interim_overview import (
+    format_interim_overview,
+)
 from co_scientist.exceptions import GenerationError
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.state import AppendHypotheses, WorkflowState
@@ -336,7 +339,46 @@ async def _prepare_generation(
     _log_generation_strategy(counts, total_count)
     await _emit_start_progress(state, counts, total_count)
 
-    return counts, reference_index, articles_with_reasoning
+    return (
+        counts,
+        reference_index,
+        _with_interim_overview(state, articles_with_reasoning),
+    )
+
+
+def _with_interim_overview(
+    state: WorkflowState, articles_with_reasoning: str | None
+) -> str | None:
+    """Prepend this run's own interim overview to the generation context.
+
+    The feedback edge of FIX-6: a periodic ``research_overview`` firing
+    leaves the directions and open questions it synthesized on the state,
+    and this is where the next cycle reads them. Spliced onto the context
+    the strategies are already handed rather than into a new prompt slot
+    -- it describes what this run has established so far, which is what
+    that context is.
+
+    Deliberately applied *after* ``_check_literature_availability`` above:
+    the run's own synthesis is not literature, and a degraded-mode run
+    must not read as having retrieved something. For the same reason the
+    debate-only strategy, which passes ``articles_with_reasoning=None``
+    explicitly, never sees it.
+
+    Args:
+        state: The workflow state the generate node was entered with.
+        articles_with_reasoning: The literature-review context, or None
+            when this run has none.
+
+    Returns:
+        The context with the interim block above it, or the context
+        unchanged when this run has had no periodic firing yet.
+    """
+    block = format_interim_overview(state)
+    if not block:
+        return articles_with_reasoning
+    if not articles_with_reasoning:
+        return block
+    return f"{block}\n\n{articles_with_reasoning}"
 
 
 def _stamp_generation_lineage(
