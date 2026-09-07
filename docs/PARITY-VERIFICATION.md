@@ -53,8 +53,8 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 108 requirement rows:
-**verified=78, partial=24, missing=3, external=3, undisclosed=0.** Each
+`python -m evaluations.parity_check` reports, over 114 requirement rows:
+**verified=82, partial=27, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -134,6 +134,17 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > table that existed only as the second document's own exemplar --
 > `EVALUATION-CRITERIA-001`'s prose form is now the report's only rendering
 > of `critical_criteria`). See [PARITY.md](PARITY.md) for the updated rows.
+
+> **Addition (2026-09-07, output-fidelity pass `bcf9628c`).** Six rows added
+> for what the report now shows the reader: `REPORT-ALL-REVIEWS-001`
+> (`verified`), `REPORT-DEEP-VERIFY-PROBES-001` (`verified`),
+> `RANK-DEBATE-TRANSCRIPT-001` (`verified`),
+> `OVERVIEW-SUBTOPIC-EXAMPLE-001` (`verified`),
+> `OVERVIEW-AIMS-VOCABULARY-001` (`partial`, markdown only) and
+> `OVERVIEW-DIRECTION-COUNT-001` (`partial`, four directions not six, sized
+> from a token measurement). `REVIEW-SUMMARY-STRUCTURE-001` moved from
+> `missing` to `partial`: the 8-part Reviews summary now exists, optional on
+> `FULL_REVIEW_SCHEMA` and unmeasured in production. Row count 108->114.
 
 ---
 
