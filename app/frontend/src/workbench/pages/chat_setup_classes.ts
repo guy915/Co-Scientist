@@ -361,17 +361,11 @@ export const STARTED_NEXT_BUTTON_CLASSES =
   'hover:bg-cosci-btn-outline-hover-bg ' +
   'focus-visible:bg-cosci-btn-outline-hover-bg';
 
-// In-place field editor (chat_timeline_run_spec_editor.tsx): the trigger
-// that swaps SpecSummary for the editable form, the form's field/list/error
-// chrome, and its Save/Cancel row (reuses SETUP_ACTIONS_CLASSES and the two
-// SETUP_*_BUTTON_CLASSES above, matching the Cancel/Start row's own style).
-export const SPEC_EDIT_TRIGGER_CLASSES =
-  'reference-spec-edit-trigger flex w-fit cursor-pointer items-center ' +
-  'gap-[0.35rem] rounded-full border-0 bg-transparent px-[0.2rem] ' +
-  'py-[0.3rem] text-[0.92rem] font-medium text-cosci-muted ' +
-  'hover:text-cosci-fg focus-visible:text-cosci-fg';
-
-export const SPEC_EDIT_TRIGGER_ICON_CLASSES = 'text-[1.05rem]';
+// In-place field editor (chat_timeline_run_spec_editor.tsx): the form's
+// field/list/error chrome and its Save/Cancel row (reuses
+// SETUP_ACTIONS_CLASSES and the two SETUP_*_BUTTON_CLASSES above, matching
+// the Cancel/Start row's own style). The form is opened from the card's
+// heading pencil (PLAN_EDIT_BUTTON_CLASSES), not from inside the box.
 
 export const SPEC_EDIT_FORM_CLASSES =
   'reference-spec-edit-form grid gap-[1.15rem]';

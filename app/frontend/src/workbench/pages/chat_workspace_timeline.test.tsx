@@ -189,9 +189,6 @@ it('wires composer and spec actions to the session handlers', async () => {
     spec: {...spec, tier: 'ultra'},
   });
 
-  fireEvent.click(screen.getByLabelText('Revise with the Agent'));
-  expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
-
   fireEvent.click(screen.getByLabelText('Retry response'));
   expect(args.handleRetryDraftSpec).toHaveBeenCalledOnce();
 
@@ -207,7 +204,7 @@ it('renders nothing when there is no staged draft', () => {
   expect(items).toHaveLength(0);
 });
 
-it('renders read-only with edit/retry and inert no-ops', () => {
+it('renders read-only with retry and inert no-ops', () => {
   const spec = makeSpec({goal: 'Confirmed goal'});
   const args = baseArgs({confirmed: {spec, createdAt: 9}});
   const items = buildTimelineItems(args);
@@ -218,8 +215,9 @@ it('renders read-only with edit/retry and inert no-ops', () => {
   expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
   expect(screen.getByText('Start research')).toBeDisabled();
 
-  fireEvent.click(screen.getByLabelText('Revise with the Agent'));
-  expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
+  // Locked: no way into the field editor either -- the plan is the one the
+  // run already started against.
+  expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByLabelText('Retry response'));
   expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);

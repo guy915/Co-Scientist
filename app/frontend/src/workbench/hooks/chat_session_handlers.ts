@@ -7,7 +7,6 @@ import {
   type InterviewSinks,
   type StagedDocument,
 } from '@/api/runs';
-import {type InferredRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
@@ -231,24 +230,6 @@ function cancelDraftSpec(
   });
 }
 
-// Re-stages an already confirmed/started spec as an editable draft (the
-// "edit plan" affordance on a spec card). Takes its dependencies as arguments
-// instead of closing over hook state.
-function editPlan({
-  spec,
-  stageDraftSpec,
-  focusComposer,
-}: Pick<HandlerDeps, 'stageDraftSpec' | 'focusComposer'> & {
-  spec: InferredRunSpec;
-}) {
-  stageDraftSpec(spec);
-  focusComposer();
-  emitDiagnosticEvent({
-    stage: 'CHAT',
-    payload: {event: 'plan_edit_requested'},
-  });
-}
-
 // Copies a message's prompt text and offers a "Start new chat" toast action
 // that clears the session and prefills the composer with it. Takes its
 // dependencies as arguments instead of closing over hook state.
@@ -320,7 +301,6 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
       copyMessagePrompt({message, ...handlerDeps}),
     handleRetryDraftSpec: () => retryDraftSpec(handlerDeps),
     handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
-    handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
     // A started run's interview is closed server-side, so submit routes to
     // the run's own Q&A endpoint instead of ever posting another interview
     // turn (A17). Read at call time (handlerDeps is the live view over the

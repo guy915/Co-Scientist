@@ -24,7 +24,6 @@ export function baseArgs(
     agentReasoning: '',
     agentDraft: '',
     handleCancelDraftSpec: vi.fn(),
-    handleEditPlan: vi.fn(),
     handleRetryDraftSpec: vi.fn(),
     handleStartRun: vi.fn().mockResolvedValue(undefined),
     confirmed: null,

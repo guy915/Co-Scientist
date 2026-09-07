@@ -18,17 +18,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-test('handleEditPlan stages the spec and focuses the composer', () => {
-  const deps = makeDeps();
-  const handlers = buildChatHandlers(deps);
-  const spec = makeSpec({goal: 'Edit target goal'});
-
-  handlers.handleEditPlan(spec);
-
-  expect(deps.stageDraftSpec).toHaveBeenCalledWith(spec);
-  expect(deps.focusComposer).toHaveBeenCalledOnce();
-});
-
 test('handleRetryDraftSpec re-derives the plan from its own turn', () => {
   const spec = makeSpec({goal: 'Study X', focus: 'prefer_novelty'});
   const deps = makeDeps({

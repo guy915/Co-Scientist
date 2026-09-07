@@ -5,12 +5,13 @@
 // nothing outside chat_timeline_run_spec_card.tsx imported them, so there
 // is nothing left for the parent to re-export.
 //
-// This is a distinct control from the card's header pencil (PlanHeading/
-// handleEditPlan), labeled "Revise with the Agent" because it re-stages the
-// spec as a draft and hands editing back to the conversation -- still the
-// right tool for a change the model should reason about. "Edit details"
-// below is for a scientist who already knows the exact wording they want
-// and would rather type it than prompt for it.
+// The form this opens is what the card's header pencil ("Edit plan", see
+// PlanHeading) now shows: a scientist who already knows the exact wording
+// they want types it here rather than prompting for it. The pencil used to
+// re-stage the spec as a draft and hand editing back to the conversation
+// instead, which is what typing another message already does -- so the
+// header kept the affordance the composer cannot give, and the trigger
+// this form used to carry inside the plan box went away with it.
 
 import {type ReactNode, useId, useState} from 'react';
 import {editInterviewFields} from '@/api/runs';
@@ -39,8 +40,6 @@ import {
   SPEC_EDIT_REMOVE_BUTTON_CLASSES,
   SPEC_EDIT_REMOVE_ICON_CLASSES,
   SPEC_EDIT_TEXTAREA_CLASSES,
-  SPEC_EDIT_TRIGGER_CLASSES,
-  SPEC_EDIT_TRIGGER_ICON_CLASSES,
   SPEC_GRID_CLASSES,
   SPEC_LIST_CLASSES,
   SPEC_ROW_CLASSES,
@@ -286,6 +285,9 @@ function SpecFieldsForm(props: SpecFieldsFormProps) {
   );
 }
 
+/** The plan card's field-editing state, as useSpecFieldsEditor returns it. */
+export type SpecFieldsEditor = ReturnType<typeof useSpecFieldsEditor>;
+
 function formValues(spec: InferredRunSpec): EditedSpecFields {
   return {
     goal: spec.goal,
@@ -299,7 +301,7 @@ function formValues(spec: InferredRunSpec): EditedSpecFields {
 // SpecFieldsSection so that component stays a thin render (the repo's
 // convention of keeping logic in named functions rather than component
 // closures -- see chat_session_handlers.ts's deps-bag handlers).
-function useSpecFieldsEditor(
+export function useSpecFieldsEditor(
   spec: InferredRunSpec,
   onFieldsChange: (patch: Partial<InferredRunSpec>) => void,
 ) {
@@ -348,53 +350,33 @@ function useSpecFieldsEditor(
 
 /**
  * Renders the plan card's four interview-derived fields: the read-only
- * summary plus (when unlocked and backed by an interview) an "Edit
- * details" trigger that swaps in the editable form. Saving persists
- * through `editInterviewFields` and reports the server's own updated
- * values back to `onFieldsChange` -- the server trims list entries, so the
- * card adopts what it returns rather than the locally-typed values.
+ * summary, or the editable form once the header's "Edit plan" pencil has
+ * opened it. Saving persists through `editInterviewFields` and reports the
+ * server's own updated values back to `onFieldsChange` -- the server trims
+ * list entries, so the card adopts what it returns rather than the
+ * locally-typed values.
+ *
+ * The editor's state is owned by the card (see useSpecFieldsEditor), not by
+ * this section: the control that opens it sits beside the "Research plan"
+ * heading, outside the box these fields are in.
  */
 export function SpecFieldsSection({
   spec,
-  locked,
-  onFieldsChange,
+  editor,
 }: {
   spec: InferredRunSpec;
-  locked: boolean;
-  onFieldsChange: (patch: Partial<InferredRunSpec>) => void;
+  editor: SpecFieldsEditor;
 }) {
-  const editor = useSpecFieldsEditor(spec, onFieldsChange);
-
-  if (editor.editing) {
-    return (
-      <SpecFieldsForm
-        values={editor.values}
-        onChange={editor.onValuesChange}
-        onSave={editor.save}
-        onCancel={editor.cancelEditing}
-        canSave={editor.canSave}
-        isSaving={editor.isSaving}
-        error={editor.error}
-      />
-    );
-  }
+  if (!editor.editing) return <SpecSummary spec={spec} />;
   return (
-    <>
-      <SpecSummary spec={spec} />
-      {!locked && spec.interviewId && (
-        <button
-          type="button"
-          className={SPEC_EDIT_TRIGGER_CLASSES}
-          onClick={editor.startEditing}
-        >
-          <Icon
-            aria-hidden="true"
-            name="edit_square"
-            className={SPEC_EDIT_TRIGGER_ICON_CLASSES}
-          />
-          Edit details
-        </button>
-      )}
-    </>
+    <SpecFieldsForm
+      values={editor.values}
+      onChange={editor.onValuesChange}
+      onSave={editor.save}
+      onCancel={editor.cancelEditing}
+      canSave={editor.canSave}
+      isSaving={editor.isSaving}
+      error={editor.error}
+    />
   );
 }

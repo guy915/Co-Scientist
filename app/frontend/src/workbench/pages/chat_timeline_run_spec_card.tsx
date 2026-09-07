@@ -35,7 +35,11 @@ import {
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {planLeadIn} from './chat_timeline_plan_prose';
-import {SpecFieldsSection} from './chat_timeline_run_spec_editor';
+import {
+  type SpecFieldsEditor,
+  SpecFieldsSection,
+  useSpecFieldsEditor,
+} from './chat_timeline_run_spec_editor';
 import {CompletionNotification} from './chat_timeline_run_spec_notification';
 
 // Props for RunSpecCard, named at module level per the destructured prop
@@ -53,7 +57,7 @@ import {CompletionNotification} from './chat_timeline_run_spec_notification';
 // that closing message as
 // fallback-authored (no model reachable), so the lead-in carries the same
 // quiet notice a fallback bubble does. The remaining handlers wire the
-// Focus/Tier options and the cancel/edit/retry/start actions back to the
+// Focus/Tier options and the cancel/retry/start actions back to the
 // session hook.
 interface RunSpecCardProps {
   spec: InferredRunSpec;
@@ -74,7 +78,6 @@ interface RunSpecCardProps {
   onNotificationChange: (enabled: boolean, email: string) => void;
   onFieldsChange: (patch: Partial<InferredRunSpec>) => void;
   onCancel: () => void;
-  onEdit: () => void;
   onRetry: () => void;
   onStart: () => void;
 }
@@ -102,6 +105,9 @@ function planIntroText(intro?: string): string {
 export function RunSpecCard(props: RunSpecCardProps) {
   const responseText = formatRunSpecResponse(props.spec);
   const locked = props.locked ?? false;
+  // Owned here rather than inside the fields section: the control that
+  // opens it is the heading's pencil, which sits outside the plan box.
+  const editor = useSpecFieldsEditor(props.spec, props.onFieldsChange);
 
   return (
     <AssistantMessage
@@ -116,7 +122,13 @@ export function RunSpecCard(props: RunSpecCardProps) {
             Review the four fields and select a focus and run type. Once ready,
             click "Start research" to begin.
           </p>
-          <PlanHeading onEdit={props.onEdit} />
+          <PlanHeading
+            onEdit={
+              !locked && props.spec.interviewId && !editor.editing
+                ? editor.startEditing
+                : undefined
+            }
+          />
           <p className={PLAN_SUBHEADING_CLASSES}>
             Here's my plan to tackle the topic:
           </p>
@@ -124,10 +136,10 @@ export function RunSpecCard(props: RunSpecCardProps) {
             spec={props.spec}
             locked={locked}
             isStarting={props.isStarting}
+            editor={editor}
             onFocusChange={props.onFocusChange}
             onTierChange={props.onTierChange}
             onNotificationChange={props.onNotificationChange}
-            onFieldsChange={props.onFieldsChange}
             onCancel={props.onCancel}
             onStart={props.onStart}
           />
@@ -143,27 +155,33 @@ export function RunSpecCard(props: RunSpecCardProps) {
 }
 
 // The "Research plan" title plus its edit-plan trigger, shown atop
-// RunSpecCard's document body.
-function PlanHeading({onEdit}: {onEdit: () => void}) {
+// RunSpecCard's document body. The pencil is the only way into the field
+// editor, so it is absent -- not disabled -- whenever there is nothing to
+// edit: a locked (already started) card, a spec with no interview behind
+// it to save through, and the form's own open state, which carries Save and
+// Cancel of its own.
+function PlanHeading({onEdit}: {onEdit?: () => void}) {
   return (
     <div className={PLAN_HEADING_CLASSES}>
       <h2 className={PLAN_TITLE_CLASSES}>Research plan</h2>
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: PLAN_EDIT_BUTTON_CLASSES,
-          placement: 'top',
-        })}
-        aria-label="Revise with the Agent"
-        data-tooltip="Revise with the Agent"
-        onClick={onEdit}
-      >
-        <Icon
-          aria-hidden="true"
-          className={PLAN_EDIT_ICON_CLASSES}
-          name="edit"
-        />
-      </button>
+      {onEdit && (
+        <button
+          type="button"
+          className={tooltipClassNames({
+            className: PLAN_EDIT_BUTTON_CLASSES,
+            placement: 'top',
+          })}
+          aria-label="Edit plan"
+          data-tooltip="Edit plan"
+          onClick={onEdit}
+        >
+          <Icon
+            aria-hidden="true"
+            className={PLAN_EDIT_ICON_CLASSES}
+            name="edit"
+          />
+        </button>
+      )}
     </div>
   );
 }
@@ -209,10 +227,10 @@ interface RunSpecDocumentProps {
   spec: InferredRunSpec;
   locked: boolean;
   isStarting: boolean;
+  editor: SpecFieldsEditor;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
-  onFieldsChange: (patch: Partial<InferredRunSpec>) => void;
   onCancel: () => void;
   onStart: () => void;
 }
@@ -224,10 +242,10 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
     spec,
     locked,
     isStarting,
+    editor,
     onFocusChange,
     onTierChange,
     onNotificationChange,
-    onFieldsChange,
     onCancel,
     onStart,
   } = props;
@@ -236,11 +254,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
       <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
         {spec.title || conciseTitle(spec.goal)}
       </h3>
-      <SpecFieldsSection
-        spec={spec}
-        locked={locked}
-        onFieldsChange={onFieldsChange}
-      />
+      <SpecFieldsSection spec={spec} editor={editor} />
       <SpecOptionGroups
         spec={spec}
         locked={locked}

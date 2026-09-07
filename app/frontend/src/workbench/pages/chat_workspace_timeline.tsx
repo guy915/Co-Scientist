@@ -58,7 +58,6 @@ export interface BuildTimelineItemsArgs {
   agentReasoning: string;
   agentDraft: string;
   handleCancelDraftSpec: () => void;
-  handleEditPlan: (spec: InferredRunSpec) => void;
   handleRetryDraftSpec: () => void;
   handleStartRun: () => Promise<void>;
   confirmed: SpecStage | null;
@@ -204,7 +203,7 @@ function updateDraftSpec(
 }
 
 // Builds the draft RunSpecCard node: focus/tier edits write straight back
-// into draftSpec, and cancel/edit/retry/start delegate to the session hook's
+// into draftSpec, and cancel/retry/start delegate to the session hook's
 // handlers.
 type DraftSpecCardArgs = Omit<
   Pick<
@@ -213,7 +212,6 @@ type DraftSpecCardArgs = Omit<
     | 'isStarting'
     | 'setDraft'
     | 'handleCancelDraftSpec'
-    | 'handleEditPlan'
     | 'handleRetryDraftSpec'
     | 'handleStartRun'
   >,
@@ -225,7 +223,6 @@ function draftSpecCardNode({
   isStarting,
   setDraft,
   handleCancelDraftSpec,
-  handleEditPlan,
   handleRetryDraftSpec,
   handleStartRun,
 }: DraftSpecCardArgs): ReactNode {
@@ -247,7 +244,6 @@ function draftSpecCardNode({
       }
       onFieldsChange={patch => updateDraftSpec(setDraft, patch)}
       onCancel={handleCancelDraftSpec}
-      onEdit={() => handleEditPlan(draft.spec)}
       onRetry={() => handleRetryDraftSpec()}
       onStart={() => void handleStartRun()}
     />
@@ -261,7 +257,6 @@ function draftTimelineItems({
   isStarting,
   setDraft,
   handleCancelDraftSpec,
-  handleEditPlan,
   handleRetryDraftSpec,
   handleStartRun,
 }: Pick<
@@ -270,7 +265,6 @@ function draftTimelineItems({
   | 'isStarting'
   | 'setDraft'
   | 'handleCancelDraftSpec'
-  | 'handleEditPlan'
   | 'handleRetryDraftSpec'
   | 'handleStartRun'
 >): TimelineItem[] {
@@ -285,7 +279,6 @@ function draftTimelineItems({
         isStarting,
         setDraft,
         handleCancelDraftSpec,
-        handleEditPlan,
         handleRetryDraftSpec,
         handleStartRun,
       }),
@@ -303,11 +296,10 @@ function draftTimelineItems({
 // thinking jumping below the plan) the instant Start research was clicked.
 function confirmedSpecTimelineItems({
   confirmed,
-  handleEditPlan,
   stageDraftSpec,
 }: Pick<
   BuildTimelineItemsArgs,
-  'confirmed' | 'handleEditPlan' | 'stageDraftSpec'
+  'confirmed' | 'stageDraftSpec'
 >): TimelineItem[] {
   if (!confirmed) return [];
   return [
@@ -328,7 +320,6 @@ function confirmedSpecTimelineItems({
           onNotificationChange={() => undefined}
           onFieldsChange={() => undefined}
           onCancel={() => undefined}
-          onEdit={() => handleEditPlan(confirmed.spec)}
           onRetry={() => {
             stageDraftSpec(confirmed.spec);
           }}
