@@ -56,6 +56,36 @@ that this corpus produced was not itself numerically thin (3.1
 number-with-unit mentions per thousand words on ``d1273490``, above the
 exemplar's own 1.9), so the shortfall ``ecc4ec10`` closed was the ask,
 not the evidence.
+
+None of the above bounds *how many* sources the corpus holds, and that is
+a separate failure with its own measurement. Every parsed search result is
+marked ``used_in_analysis`` (``tools/response_parser.py``) and deep
+verification appends its probe articles every cycle
+(``reflection/deep_verification_evidence.merge_retrieved_articles``), so
+the analyzed set grows without bound across a long run. Production
+extended run ``bc77950f`` (2026-09-08, cycle 2 interim overview) reached
+``prompt_tokens=126,975``; ``openrouter/minimax/minimax-m3:free`` dropped
+the stream mid-reasoning on 8 of 8 attempts across two durable task
+attempts, and the first fallback answered only at 108,753 prompt tokens on
+the third -- 11 provider requests against a ~100/day free cap and ~50
+minutes for one answer. ``RESEARCH_OVERVIEW_MAX_SOURCES`` below is the cap
+that fixes that, and it is **orthogonal to this one**: it bounds how many
+sources are sent, this bounds how much of each. Neither substitutes for
+the other, so removing either re-opens a different failure.
+"""
+
+
+RESEARCH_OVERVIEW_MAX_SOURCES: Final = 130
+"""How many analyzed sources the corpus may carry.
+
+Set at the largest corpus this chain is known to answer: the assembled
+corpus measures ~400 tokens per source, so 130 sources is ~52,000 tokens
+of corpus, which is what production run ``d1273490`` sent (132 sources,
+~56,200 prompt tokens per call) and had answered. The same three calls
+that share this corpus at the terminal firing (draft, accuracy review,
+knowledge base at ``KNOWLEDGE_BASE_MAX_TOKENS``) still fit their output
+budget beside it. Capping here covers all of them, since each reaches the
+corpus through ``_build_evidence_corpus``.
 """
 
 
@@ -90,16 +120,24 @@ def _build_evidence_corpus(
 ) -> dict[str, dict[str, Any]]:
     """Build the terminal synthesis corpus from articles actually analyzed.
 
+    The analyzed list is round-robined across its sources and then cut to
+    ``RESEARCH_OVERVIEW_MAX_SOURCES``. Selection is positional, never a
+    global sort by ``retrieval_score``: that score floors every web result
+    at a normalized 0.0, so sorting by it would drop the web sources whole
+    rather than thin every source evenly. Round-robin's first row is one
+    article per source, so every source type present survives the cut.
+
     Evidence ids are assigned by presentation order (contiguous
-    ``evidence-1..N``) over the source-interleaved list; downstream consumers
+    ``evidence-1..N`` over the selected articles); downstream consumers
     treat the id as an opaque handle and the app re-resolves cited topics by
     title, so the numbering carries no rank meaning.
     """
     analyzed = [
         article for article in (articles or []) if article.used_in_analysis
     ]
+    selected = _interleave_by_source(analyzed)[:RESEARCH_OVERVIEW_MAX_SOURCES]
     corpus: dict[str, dict[str, Any]] = {}
-    for index, article in enumerate(_interleave_by_source(analyzed)):
+    for index, article in enumerate(selected):
         evidence_id = f"evidence-{index + 1}"
         corpus[evidence_id] = {
             "evidence_id": evidence_id,

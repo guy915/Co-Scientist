@@ -2,11 +2,14 @@
 
 The corpus is the whole prompt of the deep knowledge-base call (F8) --
 measured at ~400 tokens per source, ~52,000 tokens on a 132-source
-production run -- so its per-source composition is a budget decision, not
-a formatting one. These pin the two facts
-``research_overview_evidence._EVIDENCE_ABSTRACT_CHARS`` records: the
-per-source cap sits above the abstracts real runs retrieve, and the full
-text sitting on the same record is deliberately not in the corpus.
+production run -- so both its size and its per-source composition are
+budget decisions, not formatting ones. These pin the two orthogonal caps
+``research_overview_evidence`` records. ``_EVIDENCE_ABSTRACT_CHARS``
+bounds how much of each source is sent: it sits above the abstracts real
+runs retrieve, and the full text on the same record is deliberately not in
+the corpus. ``RESEARCH_OVERVIEW_MAX_SOURCES`` bounds how many sources are
+sent at all, since the analyzed set grows every cycle -- and the selection
+that applies it must stay round-robin, or the web sources go first.
 """
 
 from co_scientist.agents.meta_review import research_overview_evidence as ev
@@ -66,3 +69,95 @@ def test_the_cap_passes_a_real_abstract_through_whole() -> None:
 
     assert entries[0]["abstract"] == long_real_abstract
     assert len(entries[1]["abstract"]) == ev._EVIDENCE_ABSTRACT_CHARS
+
+
+def test_the_corpus_is_capped_at_the_measured_source_count() -> None:
+    """One source past the cap is dropped, not sent.
+
+    The corpus grows across cycles -- every parsed search result is marked
+    ``used_in_analysis`` and deep-verification probes append more articles
+    every cycle -- so without a cap the interim overview's prompt grows
+    without bound. Production extended run ``bc77950f`` reached 126,975
+    prompt tokens and could not be answered.
+    """
+    articles = [
+        make_article(
+            title=f"P{index}",
+            abstract="An abstract.",
+            used_in_analysis=True,
+        )
+        for index in range(ev.RESEARCH_OVERVIEW_MAX_SOURCES + 1)
+    ]
+
+    corpus = ev._build_evidence_corpus(articles)
+
+    assert len(corpus) == ev.RESEARCH_OVERVIEW_MAX_SOURCES
+
+
+def test_the_capped_corpus_keeps_contiguous_evidence_ids() -> None:
+    """Ids stay ``evidence-1..N`` after the cap drops the tail.
+
+    ``_validate_knowledge_base`` resolves the topics the model cited back
+    to their source metadata by evidence id, so a gap in the numbering
+    silently drops a cited topic's provenance from the report.
+    """
+    articles = [
+        make_article(title=f"P{index}", used_in_analysis=True)
+        for index in range(ev.RESEARCH_OVERVIEW_MAX_SOURCES + 25)
+    ]
+
+    corpus = ev._build_evidence_corpus(articles)
+
+    expected = [
+        f"evidence-{i + 1}" for i in range(ev.RESEARCH_OVERVIEW_MAX_SOURCES)
+    ]
+    assert list(corpus) == expected
+    assert [entry["evidence_id"] for entry in corpus.values()] == expected
+
+
+def test_every_source_survives_a_corpus_far_over_the_cap() -> None:
+    """The cap is applied round-robin, so no source type is dropped whole.
+
+    Selecting the cap's worth of sources by a global ``retrieval_score``
+    sort would drop every web result: ``_retrieval_score`` floors web
+    articles at a normalized 0.0, so they sort below every indexed paper
+    however well they match. Round-robin is what keeps the breadth.
+    """
+    sources = ("pubmed", "openalex", "web")
+    articles = [
+        make_article(title=f"{source}-{index}", source=source)
+        for index in range(100)
+        for source in sources
+    ]
+    for article in articles:
+        article.used_in_analysis = True
+
+    corpus = ev._build_evidence_corpus(articles)
+
+    assert len(corpus) == ev.RESEARCH_OVERVIEW_MAX_SOURCES
+    assert {entry["source"] for entry in corpus.values()} == set(sources)
+
+
+def test_the_capped_selection_is_deterministic() -> None:
+    """The same articles select the same corpus every time.
+
+    The selection is positional (round-robin over first-appearance source
+    order), never randomized or score-sorted, so a resumed run and its
+    checkpoint predecessor build the identical corpus.
+    """
+    articles = [
+        make_article(
+            title=f"P{index}",
+            source=("pubmed", "openalex", "web")[index % 3],
+            used_in_analysis=True,
+        )
+        for index in range(ev.RESEARCH_OVERVIEW_MAX_SOURCES + 40)
+    ]
+
+    first = ev._build_evidence_corpus(articles)
+    second = ev._build_evidence_corpus(articles)
+
+    assert first == second
+    assert [entry["title"] for entry in first.values()] == [
+        entry["title"] for entry in second.values()
+    ]
