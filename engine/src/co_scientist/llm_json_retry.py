@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 
 from litellm.exceptions import ContextWindowExceededError
 
-from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
@@ -77,14 +76,13 @@ from co_scientist.llm_json_escalation import (
 from co_scientist.llm_json_escalation import (
     log_escalation as log_escalation,
 )
+from co_scientist.llm_retry_backoff import (
+    _provider_outage_backoff_seconds,
+    _rate_limit_backoff_seconds,
+)
 from co_scientist.llm_thinking import failure_context_text
 
 logger = logging.getLogger(__name__)
-
-
-# Base seconds for the throttled-retry wait; attempt N waits roughly
-# BASE * 2^(N-1), jittered.
-_RATE_LIMIT_BACKOFF_BASE_SECONDS = 2.0
 
 
 # Count of throttled attempts observed in this process. Read by callers
@@ -228,19 +226,6 @@ def _platform_rate_limit_park(
     if resume_at - now <= _PLATFORM_PARK_THRESHOLD_SECONDS:
         return None
     return LLMRateLimitParkError(resume_at=resume_at, reason=reason)
-
-
-def _rate_limit_backoff_seconds(attempt: int) -> float:
-    """Return the jittered wait before retrying a throttled attempt.
-
-    Uncapped, unlike the search-tool retry: a provider still throttling on
-    the last of a handful of attempts is asking for a longer pause, and the
-    attempt budget already bounds the total. See
-    ``backoff.jittered_backoff_seconds`` for why the wait is jittered.
-    """
-    return jittered_backoff_seconds(
-        attempt, base_seconds=_RATE_LIMIT_BACKOFF_BASE_SECONDS
-    )
 
 
 def escalation_after(
@@ -408,9 +393,15 @@ async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
     and an unjittered backoff would release every waiting caller together,
     reproducing it. Everything else returns immediately: a schema failure's
     next attempt carries corrective feedback, and an answerless completion
-    is answered by the escalation ladder changing the request. Only the
+    is answered by the escalation ladder changing the request.
+
+    The two waits are sized separately (``llm_retry_backoff``), because a
+    burst clears in seconds and an outage does not: waiting out an outage
+    on the throttle's schedule spends the whole attempt budget before the
+    provider is back, which is how run 49a509b0 lost its report. Only the
     throttled kind bumps ``_rate_limited_attempts``, which sizes callers'
-    fan-out against a provider rationing them -- an overload is not that.
+    fan-out against a provider rationing them -- an overload is not that,
+    and shrinking the next wave would not help if it were.
 
     Args:
         error: The call failure raised by this attempt.
@@ -420,11 +411,12 @@ async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
     if _is_rate_limited(error):
         _rate_limited_attempts += 1
         reason = "Rate limited"
+        delay = _rate_limit_backoff_seconds(attempt.number)
     elif is_transient_provider_error(error):
         reason = "Transient provider failure"
+        delay = _provider_outage_backoff_seconds(attempt.number)
     else:
         return
-    delay = _rate_limit_backoff_seconds(attempt.number)
     logger.warning(
         "%s on attempt %s; waiting %.1fs before retrying",
         reason,

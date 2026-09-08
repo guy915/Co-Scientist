@@ -7,7 +7,7 @@ attempt, and a cap that only the search path asks for -- so a later
 "simplification" of the distribution has to fail here first.
 """
 
-from co_scientist import backoff, llm_json_retry
+from co_scientist import backoff, llm_retry_backoff
 from co_scientist.agents.generation.literature_review import search_retry
 
 
@@ -46,6 +46,6 @@ def test_callers_keep_their_own_base_and_cap() -> None:
     path starts at 2s and is deliberately uncapped.
     """
     assert search_retry._search_retry_delay(1) <= 0.5
-    assert llm_json_retry._rate_limit_backoff_seconds(1) >= 1.0
+    assert llm_retry_backoff._rate_limit_backoff_seconds(1) >= 1.0
     assert search_retry._search_retry_delay(12) <= 8.0
-    assert llm_json_retry._rate_limit_backoff_seconds(12) > 8.0
+    assert llm_retry_backoff._rate_limit_backoff_seconds(12) > 8.0

@@ -28,7 +28,7 @@ from litellm.exceptions import (
     ServiceUnavailableError,
 )
 
-from co_scientist import llm_json_retry
+from co_scientist import llm_json_retry, llm_retry_backoff
 from co_scientist.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
@@ -213,6 +213,19 @@ async def _sleeps_for(
     return slept
 
 
+def _overloaded_error() -> APIError:
+    """The verbatim upstream-overload shape runs bc77950f and 49a509b0 hit."""
+    return APIError(
+        status_code=500,
+        message=(
+            "litellm.APIError: OpenrouterException - Upstream error from "
+            "Nvidia: Service temporarily overloaded"
+        ),
+        llm_provider="openrouter",
+        model="m",
+    )
+
+
 @pytest.mark.asyncio
 async def test_overloaded_api_error_backs_off(
     monkeypatch: pytest.MonkeyPatch,
@@ -222,15 +235,7 @@ async def test_overloaded_api_error_backs_off(
     Run bc77950f spent attempts 2-5 in four seconds against an upstream
     overload; a transient provider failure must wait like a throttle does.
     """
-    error = APIError(
-        status_code=500,
-        message=(
-            "litellm.APIError: OpenrouterException - Upstream error from "
-            "Nvidia: Service temporarily overloaded"
-        ),
-        llm_provider="openrouter",
-        model="m",
-    )
+    error = _overloaded_error()
     before = llm_json_retry.rate_limited_attempt_count()
 
     slept = await _sleeps_for(monkeypatch, error)
@@ -363,3 +368,57 @@ async def test_bad_request_wrapping_upstream_text_retries_at_once(
     )
 
     assert await _sleeps_for(monkeypatch, error) == []
+
+
+@pytest.mark.asyncio
+async def test_provider_outage_waits_minutes_not_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An outage's first wait outlasts a throttle burst's whole schedule.
+
+    Standard run 49a509b0 (2026-09-08) spent all five attempts of its
+    terminal ``research_overview`` call in roughly 25 seconds -- 1.6, 3.6,
+    6.3 and 11.6 second waits -- against an upstream outage that lasted
+    minutes, so the attempt budget was gone before the provider recovered.
+    """
+    slept = await _sleeps_for(monkeypatch, _overloaded_error())
+
+    assert len(slept) == 1
+    # An absolute floor, not one derived from the constant under test: the
+    # whole point is that the first wait alone outlasts the 25 seconds that
+    # run's entire five-attempt budget fitted into.
+    assert slept[0] >= 15.0
+
+
+@pytest.mark.asyncio
+async def test_throttle_keeps_its_own_shorter_schedule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 429's burst schedule is untouched by the outage schedule."""
+    error = _rate_limit_error(
+        "RateLimitError: OpenrouterException - rate-limited upstream"
+    )
+
+    slept = await _sleeps_for(monkeypatch, error)
+
+    assert slept[0] <= llm_retry_backoff._RATE_LIMIT_BACKOFF_BASE_SECONDS
+
+
+def test_provider_outage_backoff_grows_between_attempts() -> None:
+    """A later attempt always waits longer than an earlier one can."""
+    first = max(
+        llm_retry_backoff._provider_outage_backoff_seconds(1) for _ in range(50)
+    )
+    fourth = min(
+        llm_retry_backoff._provider_outage_backoff_seconds(4) for _ in range(50)
+    )
+
+    assert fourth > first
+
+
+def test_provider_outage_backoff_is_capped() -> None:
+    """No single wait grows without bound, however many attempts precede it."""
+    assert (
+        llm_retry_backoff._provider_outage_backoff_seconds(10)
+        <= llm_retry_backoff._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
+    )

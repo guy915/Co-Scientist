@@ -15,7 +15,7 @@ from litellm.exceptions import (
     ContextWindowExceededError,
 )
 
-from co_scientist import llm, llm_json_retry, llm_request
+from co_scientist import llm, llm_request, llm_retry_backoff
 from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm import CompletionSpec, LLMCallOptions, ToolLoop
 from co_scientist.llm_telemetry import scoped_telemetry
@@ -261,7 +261,9 @@ async def test_rate_limit_backoff_is_jittered(
     interval and resume together, reproducing the burst exactly. The spread
     is what actually smooths the ramp.
     """
-    waits = {llm_json_retry._rate_limit_backoff_seconds(1) for _ in range(40)}
+    waits = {
+        llm_retry_backoff._rate_limit_backoff_seconds(1) for _ in range(40)
+    }
     assert len(waits) > 1, "identical waits would re-synchronize the burst"
 
 
