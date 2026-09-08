@@ -136,3 +136,34 @@ async def test_every_rankable_idea_reaches_the_minimum_match_count(
             assert hypothesis.total_matches >= (
                 TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
             ), f"{hypothesis.text} left short of the minimum"
+
+
+async def test_matchups_carry_the_iteration_they_were_judged_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each matchup records the cycle it was judged in, not a constant.
+
+    The persisted match row has an ``iteration`` column and nothing on
+    either execution path ever filled it: production extended run bc77950f
+    ran three iterations and every one of its 23 matches stored iteration
+    0, so the Elo history could not be read back by cycle.
+    """
+    hypotheses = [
+        make_hypothesis(text="iteration alpha TXT"),
+        make_hypothesis(text="iteration beta TXT"),
+    ]
+
+    async def fake(**_: Any) -> dict[str, Any]:
+        return {
+            "winner": "a",
+            "decision_summary": "stub decision",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+
+    state = make_state(hypotheses=hypotheses, tournament_pairs=1)
+    state["current_iteration"] = 2
+    result = await ranking_node(state)
+
+    assert [m["iteration"] for m in result["tournament_matchups"]] == [2]

@@ -380,6 +380,10 @@ def _apply_wave_elo(
     from co_scientist.constants import ELO_K_FACTOR
 
     k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
+    # Read once per wave: every matchup in it is judged in the same cycle,
+    # and the detail is the only place the cycle is still known (the drain
+    # persists every cycle's accumulated matchups together at the end).
+    iteration = int(state.get("current_iteration", 0))
     details: list[dict[str, Any]] = []
     total_calls = 0
     last_pair: list[str] = []
@@ -397,9 +401,7 @@ def _apply_wave_elo(
             confidence=response.get("confidence_level"),
         )
         details.append(
-            _build_matchup_detail(
-                hypothesis_a, hypothesis_b, winner, response, outcome
-            )
+            _build_matchup_detail(pair, winner, response, outcome, iteration)
         )
         total_calls += int(response.get("debate_turns", depths[offset]))
         last_pair = [hypothesis_a.id, hypothesis_b.id]

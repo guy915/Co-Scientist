@@ -61,14 +61,21 @@ _EXPECTED_NODE_SEQUENCE = [
     "ranking",
     "deep_verification",
     "orchestrator",
-    "safety_screen",
-    "ranking",
-    "deep_verification",
-    "orchestrator",
     "proximity",
     "orchestrator",
     "research_overview",
 ]
+# The second tournament needs no settlement round of its own, because the run
+# is charged for matches judged rather than for rounds offered
+# (``ranking_results._ranking_metrics_update``). The two-idea passes are
+# unaffected either way -- a two-idea pool holds exactly one pair, so they
+# judge one match whichever number is charged. The difference lands on the
+# third pass, over the evolved four-idea pool: charged for offered rounds it
+# arrived with 4 of the 6-round budget already spent, judged the 2 that were
+# left, and still owed coverage -- which bought a fourth ranking phase for one
+# more match. Charged for matches judged it arrives with 2 spent, judges 4 at
+# once, and closes the shortfall inside the tournament. Measured: 27 nodes /
+# 5 matches / 7 charged before, 23 nodes / 6 matches / 6 charged after.
 
 
 def _assert_public_hypothesis_shape(hyp: dict[str, Any]) -> None:

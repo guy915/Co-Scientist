@@ -211,27 +211,39 @@ def _elo_transition_fields(outcome: _MatchupOutcome) -> dict[str, Any]:
 
 
 def _build_matchup_detail(
-    hyp_a: Hypothesis,
-    hyp_b: Hypothesis,
+    pair: tuple[Hypothesis, Hypothesis],
     winner: str,
     response: dict[str, Any],
     outcome: _MatchupOutcome,
+    iteration: int,
 ) -> dict[str, Any]:
     """Builds one matchup's detail dict for the UI's tournament view.
 
+    The two sides arrive as one pairing rather than two arguments so the
+    cycle fits within the five-argument ceiling; the pairing is what both
+    execution paths already hold (the durable wave judges a list of them).
+
     Args:
-        hyp_a: First hypothesis in the pairing.
-        hyp_b: Second hypothesis in the pairing.
+        pair: The pairing judged, as (side a, side b).
         winner: Side the judge picked, "a" or "b".
         response: Full judge response for this matchup.
         outcome: Elo outcome produced by _apply_matchup_elo.
+        iteration: Run cycle this matchup was judged in. Stamped here, at
+            the one place a detail is built, because it is the only moment
+            the cycle is still known: the drain persists the accumulated
+            matchups of every cycle at once from the final state, so a
+            match that did not carry its own iteration was written as
+            iteration 0 -- which is what every match of every run was
+            until this field existed.
 
     Returns:
         Matchup detail dict for this pairing, for the UI's "Performance
         against other ideas" view. ``criteria_comparisons`` carries the
         judge's per-aspect assessments (audit E17).
     """
+    hyp_a, hyp_b = pair
     return {
+        "iteration": int(iteration),
         "hypothesis_a": truncate(hyp_a.text),
         "hypothesis_b": truncate(hyp_b.text),
         # Stable ids alongside the truncated text so downstream consumers
@@ -254,23 +266,37 @@ def _build_matchup_detail(
 
 
 def _ranking_metrics_update(
-    tournament_rounds: int, total_llm_calls: int | None
+    matches_judged: int, total_llm_calls: int | None
 ) -> ExecutionMetrics:
     """Builds the ranking_node metrics delta (llm calls + tournament count).
 
-    A multi-turn debate makes several judge calls per round, so llm_calls is
-    the summed turn count, not the round count; it defaults to one call per
-    round when the caller has no summed count.
+    Counted in matches actually judged, never in rounds the tournament was
+    offered. ``tournaments_count`` is the run's whole-run consumption meter
+    (``ranking_lifecycle.consumed_tournament_rounds``, whose own contract is
+    "matches this run has already judged"), and a tournament stops early
+    whenever the pool's distinct pairs run out before the budget does.
+    Charging the offered count bills the run for matches nobody judged:
+    production extended run bc77950f entered its first tournament with four
+    rankable ideas against a 20-round budget, judged the six distinct pairs
+    those four admit, and was charged 20 -- spending 70% of the whole-run
+    allowance before evolution had added an idea. Every later cycle then ran
+    on the coverage floor alone, which funds only ideas that have never
+    played, so the run finished with 23 matches over 20 ideas and an Elo
+    spread of 1165-1224.
+
+    A multi-turn debate makes several judge calls per match, so llm_calls is
+    the summed turn count, not the match count; it defaults to one call per
+    match when the caller has no summed count.
     """
     llm_calls = (
-        total_llm_calls if total_llm_calls is not None else tournament_rounds
+        total_llm_calls if total_llm_calls is not None else matches_judged
     )
     metrics = create_metrics_update(
-        deltas=MetricDeltas(llm_calls=llm_calls, tournaments=tournament_rounds)
+        deltas=MetricDeltas(llm_calls=llm_calls, tournaments=matches_judged)
     )
     logger.debug(
         "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
-        tournament_rounds,
+        matches_judged,
         llm_calls,
     )
     return metrics
@@ -287,9 +313,10 @@ def _build_ranking_delta(
     Args:
         hypotheses: Hypotheses sorted by Elo rating (highest first).
         matchup_details: Per-round matchup detail dicts.
-        tournament_rounds: Number of tournament rounds run.
+        tournament_rounds: Rounds the tournament was offered; reported only
+            as the allowance the pass ran against.
         total_llm_calls: Total judge LLM calls (summed over debate turns);
-            defaults to one call per round when omitted.
+            defaults to one call per match when omitted.
 
     Returns:
         The ranking_node state delta dictionary. Merged back into
@@ -298,8 +325,12 @@ def _build_ranking_delta(
         evolve), tournament_matchups feeds the UI's "Performance against
         other ideas" view, and metrics/messages accumulate via their
         respective reducers rather than overwriting prior state.
+
+    Everything counted here counts judged matches, not offered rounds; see
+    ``_ranking_metrics_update`` for what the two numbers diverging cost.
     """
-    metrics = _ranking_metrics_update(tournament_rounds, total_llm_calls)
+    matches_judged = len(matchup_details)
+    metrics = _ranking_metrics_update(matches_judged, total_llm_calls)
 
     return {
         "hypotheses": hypotheses,  # Now sorted by Elo rating
@@ -307,8 +338,8 @@ def _build_ranking_delta(
         "metrics": metrics,
         "messages": phase_message(
             "ranking",
-            f"Completed {tournament_rounds} tournament rounds",
-            rounds=tournament_rounds,
+            f"Judged {matches_judged} of {tournament_rounds} tournament rounds",
+            rounds=matches_judged,
             top_elo=hypotheses[0].elo_rating,
         ),
     }

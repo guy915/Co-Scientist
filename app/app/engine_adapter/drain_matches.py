@@ -100,7 +100,16 @@ def _persist_engine_matches(
         store.add_match(
             store.NewMatch(
                 run_id=run_id,
-                iteration=0,
+                # The cycle the matchup was judged in, stamped on the
+                # detail by the engine's ``_build_matchup_detail``. A
+                # literal 0 here (what this used to be) reads back as a
+                # whole run's Elo history happening in one cycle: the
+                # matchups of every cycle are accumulated in state and
+                # drained together, so this row is the only record of
+                # when a match happened. Absent on checkpoints written
+                # before the field existed, which a resume can still
+                # drain.
+                iteration=int(m.get("iteration", 0)),
                 winner_id=winner_id,
                 loser_id=loser_id,
                 winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),

@@ -201,11 +201,11 @@ def test_matchup_detail_carries_the_criteria_comparisons() -> None:
     outcome = _apply_matchup_elo(hyp_a, hyp_b, "a")
 
     detail = _build_matchup_detail(
-        hyp_a,
-        hyp_b,
+        (hyp_a, hyp_b),
         "a",
         {"judgment_explanation": _full_explanation()},
         outcome,
+        0,
     )
 
     assert set(detail["criteria_comparisons"]) == set(

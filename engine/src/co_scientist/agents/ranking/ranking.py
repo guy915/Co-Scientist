@@ -219,20 +219,15 @@ def _select_next_pairing(
     return candidates[0] if candidates else None
 
 
-async def _judge_and_commit_matchup(
+def _matchup_debate_context(
     state: WorkflowState,
-    hyp_a: Hypothesis,
-    hyp_b: Hypothesis,
+    pair: tuple[Hypothesis, Hypothesis],
     index: int,
     ctx: _TournamentContext,
-) -> tuple[dict[str, Any], int]:
-    """Judges one pairing and commits its Elo update.
-
-    Returns:
-        Tuple of (matchup detail dict, debate depth used).
-    """
-    depth = _matchup_debate_turns(hyp_a, hyp_b, _median_elo(ctx.hypotheses))
-    debate_ctx = _DebateContext(
+) -> _DebateContext:
+    """Assembles the judge context for one pairing of a tournament round."""
+    hyp_a, hyp_b = pair
+    return _DebateContext(
         hyp_a,
         hyp_b,
         state["research_goal"],
@@ -247,6 +242,22 @@ async def _judge_and_commit_matchup(
         criteria=state.get("criteria"),
         preferences=state.get("preferences"),
     )
+
+
+async def _judge_and_commit_matchup(
+    state: WorkflowState,
+    hyp_a: Hypothesis,
+    hyp_b: Hypothesis,
+    index: int,
+    ctx: _TournamentContext,
+) -> tuple[dict[str, Any], int]:
+    """Judges one pairing and commits its Elo update.
+
+    Returns:
+        Tuple of (matchup detail dict, debate depth used).
+    """
+    depth = _matchup_debate_turns(hyp_a, hyp_b, _median_elo(ctx.hypotheses))
+    debate_ctx = _matchup_debate_context(state, (hyp_a, hyp_b), index, ctx)
     winner, response = await judge_matchup(debate_ctx, debate_turns=depth)
     outcome = _apply_matchup_elo(
         hyp_a,
@@ -256,7 +267,13 @@ async def _judge_and_commit_matchup(
         # Feeds only the margin-scaling reconstruction knob (off by default).
         confidence=response.get("confidence_level"),
     )
-    detail = _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
+    detail = _build_matchup_detail(
+        (hyp_a, hyp_b),
+        winner,
+        response,
+        outcome,
+        int(state.get("current_iteration", 0)),
+    )
     # The turns actually judged, not the depth budgeted: a debate whose
     # majority is decided early stops short of its budget, and this number
     # is metered against the run's LLM allowance.

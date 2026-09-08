@@ -9,6 +9,11 @@ finishes a run reporting the starting Elo it never played for.
 Split from ``test_ranking.py`` to keep that file under the line ceiling.
 """
 
+from typing import Any
+
+import pytest
+
+from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from tests._state import make_hypothesis, make_state
 
@@ -234,3 +239,50 @@ def test_floor_is_at_least_the_largest_individual_debt() -> None:
 
     # Four owed slots -> ceil(4/2)=2; largest debt is 2. Floor is 2.
     assert _coverage_floor([*two_fresh, *covered]) == 2
+
+
+async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The consumption meter counts judged matches, not budgeted rounds.
+
+    ``consumed_tournament_rounds`` reads ``tournaments_count`` and calls it
+    "matches this run has already judged", but the delta was built from the
+    round count the tournament was *offered*. A pool smaller than the budget
+    exhausts its distinct pairs first and stops early, so the difference is
+    charged to the run for matches nobody judged.
+
+    Production extended run bc77950f entered its first tournament with four
+    rankable ideas against a 20-round budget: six distinct pairs judged, 20
+    rounds charged. The 14 phantom rounds spent 70% of the whole-run budget
+    before the pool had grown, and every later cycle ran on the coverage
+    floor alone -- two matches per newly-added idea, none for the ideas
+    already rated.
+    """
+    from co_scientist.agents.ranking.ranking_lifecycle import (
+        _tournament_round_count,
+    )
+    from co_scientist.models import merge_metrics
+
+    hypotheses = [make_hypothesis(text=f"pool {i} TXT") for i in range(3)]
+
+    async def fake(**_: Any) -> dict[str, Any]:
+        return {
+            "winner": "a",
+            "decision_summary": "stub decision",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+
+    state = make_state(hypotheses=hypotheses, tournament_pairs=20)
+    result = await ranking_node(state)
+
+    # Three ideas admit three distinct pairs, so the 20-round budget buys
+    # three matches and must be charged for three.
+    assert len(result["tournament_matchups"]) == 3
+    assert result["metrics"].tournaments_count == 3
+
+    # The next cycle therefore still has the unspent remainder to offer.
+    state["metrics"] = merge_metrics(state["metrics"], result["metrics"])
+    assert _tournament_round_count(state, hypotheses) == 17

@@ -256,9 +256,15 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
         ("a", dict(verdict, debate_turns=1)),
     ]
 
-    details, _, _ = _apply_wave_elo(wave, judged, [1, 1], {})
+    details, _, _ = _apply_wave_elo(
+        wave, judged, [1, 1], {"current_iteration": 2}
+    )
 
     first, second = details
+    # The durable path stamps the cycle it judged the wave in: the drain
+    # persists every cycle's matchups together, so the detail is the only
+    # place that number survives.
+    assert [d["iteration"] for d in details] == [2, 2]
     # A wins match 1 at 1200 -> 1212 ...
     assert first["winner_elo_before"] == 1200
     assert first["winner_elo_after"] == 1212
