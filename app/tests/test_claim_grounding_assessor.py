@@ -71,13 +71,20 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 
 
 def _ev_completion(ev_id: str) -> Any:
-    """A faked litellm.acompletion citing ``ev_id`` so its span locates."""
+    """A faked litellm.acompletion citing ``ev_id`` so its span locates.
+
+    Cites the legacy id form under the new ``passage`` field (a model
+    citing an id rather than the number it was shown is still a
+    supported fallback, not the primary contract -- see
+    ``claim_verifier._CITATION_ITEM``) to prove the persisted span still
+    resolves end to end.
+    """
     import types
 
     async def _completion(**_kwargs: Any) -> Any:
         content = (
             '{"label": "supports", "supporting": '
-            f'[{{"evidence_id": "{ev_id}", '
+            f'[{{"passage": "{ev_id}", '
             '"quote": "reduces melanoma tumor growth"}], '
             '"contradicting": []}'
         )

@@ -10,6 +10,7 @@ against chunked evidence.
 
 from __future__ import annotations
 
+import logging
 import types
 from typing import Any
 
@@ -81,7 +82,7 @@ def test_batch_verdicts_map_back_to_claims_by_index(
         _fake_completion(
             '{"verdicts": ['
             '{"index": 2, "label": "supports", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []},'
             '{"index": 1, "label": "insufficient", "supporting": [], '
             '"contradicting": []}'
@@ -117,7 +118,7 @@ def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
         _fake_completion(
             '{"verdicts": ['
             '{"index": 1, "label": "supports", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
             "]}"
         ),
@@ -234,10 +235,13 @@ def test_batch_locates_span_in_the_chunked_parent_article(
 ) -> None:
     """A batched verdict citing a chunk id still locates a real span.
 
-    Chunked passages carry the chunk's own id (``<article>#<index>``, see
-    ``app.evidence_chunking``); the batched path must resolve a citation
-    against exactly the chunk the union sent, the same as the per-claim
-    path does.
+    The judge is prompted to cite a passage's bracketed number now, but
+    the resolver still accepts a raw id under the same ``passage`` field
+    (a model can plausibly cite one it remembers rather than the number
+    it was shown) -- chunked passages carry the chunk's own id
+    (``<article>#<index>``, see ``app.evidence_chunking``); the batched
+    path must resolve a citation against exactly the chunk the union
+    sent, the same as the per-claim path does.
     """
     from app.evidence_chunking import chunk_evidence_passage
 
@@ -257,7 +261,7 @@ def test_batch_locates_span_in_the_chunked_parent_article(
         monkeypatch,
         _fake_completion(
             '{"verdicts": [{"index": 1, "label": "supports", "supporting": '
-            f'[{{"evidence_id": "{chunk.evidence_id}", '
+            f'[{{"passage": "{chunk.evidence_id}", '
             '"quote": "reduces tumor growth in AML cell lines"}], '
             '"contradicting": []}]}'
         ),
@@ -321,7 +325,7 @@ def test_batch_answerless_first_attempt_still_yields_a_real_verdict(
             "not valid json"
             if calls["n"] == 1
             else '{"verdicts": [{"index": 1, "label": "supports", '
-            '"supporting": [{"evidence_id": "ev-1", '
+            '"supporting": [{"passage": 1, '
             '"quote": "reduces tumor growth"}], "contradicting": []}]}'
         )
         message = types.SimpleNamespace(content=content)
@@ -370,7 +374,7 @@ def test_batch_offtarget_contradiction_is_downgraded(
         monkeypatch,
         _fake_completion(
             '{"verdicts": [{"index": 1, "label": "contradicts", '
-            '"supporting": [], "contradicting": [{"evidence_id": "ev-1", '
+            '"supporting": [], "contradicting": [{"passage": 1, '
             '"quote": "The same ligand is ineffective at blocking '
             "wild-type NaVs and does not disrupt action potential signals "
             'in neuronal cells or brain tissue at working concentrations."'
@@ -388,3 +392,72 @@ def test_batch_offtarget_contradiction_is_downgraded(
     )
     assert results[0].label is EntailmentLabel.INSUFFICIENT
     assert results[0].contradicting_passages == ()
+
+
+def test_batch_citation_by_passage_number_resolves_to_that_passage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A batched verdict citing "2" resolves to the second shown passage.
+
+    Same passage-number citation contract as the single-claim path,
+    exercised through the batch reply's own ``supporting`` list.
+    """
+    # Shares every claim token with _PASSAGE (tied lexical score) so
+    # retrieval keeps input order rather than re-ranking them -- this
+    # passage lands first, _PASSAGE second, matching the "2" cited below.
+    other = EvidencePassage(
+        evidence_id="ev-0",
+        text="Kinase inhibition reduces tumor growth in a different model.",
+    )
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"verdicts": [{"index": 1, "label": "supports", '
+            '"supporting": [{"passage": "2", '
+            '"quote": "reduces tumor growth"}], "contradicting": []}]}'
+        ),
+    )
+    batch_assessor, assessor_id = make_llm_batch_assessor(
+        "deepseek/deepseek-chat"
+    )
+    results = assess_claims_batch(
+        ["Kinase X inhibition reduces tumor growth."],
+        [other, _PASSAGE],
+        batch_assessor=batch_assessor,
+        assessor_id=assessor_id,
+    )
+    assert results[0].label is EntailmentLabel.SUPPORTS
+    assert results[0].supporting_passages[0].evidence_id == _PASSAGE.evidence_id
+
+
+def test_batch_out_of_range_passage_number_is_dropped_and_logged(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A batched citation naming a passage never shown is dropped.
+
+    Only one passage is sent, so "9" is out of range, and the quote is
+    nowhere in it either -- the fallback verbatim search cannot rescue
+    this one, so it is a genuine drop.
+    """
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"verdicts": [{"index": 1, "label": "supports", '
+            '"supporting": [{"passage": 9, '
+            '"quote": "cures every disease"}], "contradicting": []}]}'
+        ),
+    )
+    batch_assessor, assessor_id = make_llm_batch_assessor(
+        "deepseek/deepseek-chat"
+    )
+    with caplog.at_level(logging.WARNING, logger="app.claims_span"):
+        results = assess_claims_batch(
+            ["Kinase X inhibition reduces tumor growth."],
+            [_PASSAGE],
+            batch_assessor=batch_assessor,
+            assessor_id=assessor_id,
+        )
+    assert results[0].label is EntailmentLabel.INSUFFICIENT
+    assert results[0].supporting_passages == ()
+    assert "could not be located" in caplog.text

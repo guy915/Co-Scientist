@@ -16,7 +16,10 @@ The batch reply is keyed by the claim's numeric position, never by
 echoing its text back (see the root AGENTS.md "Structured-output schemas
 must not echo input back" gotcha) -- an echoing schema would scale the
 reply with the pool and risk the same truncation that broke proximity
-dedup.
+dedup. Each verdict's own citations carry the same fix one level down:
+the judge cites a passage by the bracketed number EVIDENCE showed it,
+not by echoing its evidence id -- see :mod:`app.claim_verifier`'s
+``_CITATION_ITEM`` for why (production run bc77950f).
 
 Depends on :mod:`app.claim_verifier` for the citation-pair schema/coercion
 and the evidence-rendering helper it shares with the single-claim path
@@ -77,8 +80,10 @@ _BATCH_SYSTEM_PROMPT = (
     "CONTRADICTS and INSUFFICIENT, choose INSUFFICIENT. Otherwise the claim "
     "is INSUFFICIENT. For a supports, partial, or contradicts verdict you "
     "MUST cite the exact VERBATIM quote (copied character-for-character "
-    "from the passage) that justifies it, together with that passage's "
-    'evidence_id; put a partial verdict\'s quote in "supporting". Keep each '
+    "from the passage) that justifies it, together with the bracketed "
+    "number shown before that passage in EVIDENCE (e.g. 3) -- not its "
+    "contents, and not the claim's own number below; put a partial "
+    'verdict\'s quote in "supporting". Keep each '
     "quote SHORT -- at most 200 characters, the smallest verbatim span that "
     "justifies the verdict, never the whole passage. Do not paraphrase "
     "quotes. Respond with a single JSON object holding one verdict per "

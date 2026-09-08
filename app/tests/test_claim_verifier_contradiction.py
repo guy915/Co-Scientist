@@ -78,7 +78,7 @@ def test_offtarget_quote_does_not_yield_contradiction(
         monkeypatch,
         _fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
-            '[{"evidence_id": "ev-1", "quote": "The same ligand is '
+            '[{"passage": 1, "quote": "The same ligand is '
             "ineffective at blocking wild-type NaVs and does not disrupt "
             "action potential signals in neuronal cells or brain tissue at "
             'working concentrations."}]}'
@@ -119,7 +119,7 @@ def test_confirmatory_quote_does_not_yield_contradiction(
         monkeypatch,
         _fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
-            '[{"evidence_id": "ev-1", "quote": "These findings identify a '
+            '[{"passage": 1, "quote": "These findings identify a '
             "novel and complex compensatory interplay between glycolysis, "
             "autophagy, and senescence that helps maintain stemness in "
             'heterogeneous GBM tumor subpopulations."}]}'
@@ -150,7 +150,7 @@ def test_genuine_negation_still_yields_contradiction(
         monkeypatch,
         _fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
-            '[{"evidence_id": "ev-1", "quote": "Kinase X inhibition did not '
+            '[{"passage": 1, "quote": "Kinase X inhibition did not '
             'reduce tumor growth in AML cells."}]}'
         ),
     )

@@ -97,9 +97,10 @@ _SYSTEM_PROMPT = (
     "INSUFFICIENT. Otherwise the claim is INSUFFICIENT. For a supports, "
     "partial, or contradicts verdict you MUST cite the exact VERBATIM quote "
     "(copied character-for-character from the passage) that justifies it, "
-    "together with that passage's evidence_id; put a partial verdict's quote "
-    'in "supporting". Do not paraphrase quotes. Respond with a single JSON '
-    "object and nothing else."
+    "together with the bracketed number shown before that passage (e.g. 3) "
+    '-- not its contents; put a partial verdict\'s quote in "supporting". '
+    "Do not paraphrase quotes. Respond with a single JSON object and "
+    "nothing else."
 )
 
 # A ceiling, not a reservation: the verdict JSON is short, and the generous
@@ -109,9 +110,18 @@ _SYSTEM_PROMPT = (
 # sent with, so reasoning cannot eat the answer's share.
 _MAX_TOKENS = 6000
 
+# ``passage`` is the judge's cited passage number -- the bracketed integer
+# ``_render_passages`` prints before each passage, sent back either as a
+# JSON integer or (a model formats it differently) a short numeric string
+# such as ``"3"``; ``claims_span._resolve_span`` normalizes either form the
+# same way, and also still accepts a full evidence id here for a model
+# that cites one anyway (a legacy id, not the number it was shown, is the
+# fallback path, not the contract). See the module docstring for why a
+# number replaced the id that production run bc77950f lost most of a
+# run's verdicts echoing.
 _CITATION_ITEM = obj(
     {
-        "evidence_id": {"type": "string"},
+        "passage": {"type": ["integer", "string"]},
         "quote": {"type": "string"},
     }
 )
@@ -145,27 +155,38 @@ _ENTAILMENT_DRAFT_SCHEMA = obj(
 
 
 def _render_passages(passages: Sequence[EvidencePassage]) -> str:
-    """Render candidate passages as an id-tagged, numbered prompt block."""
+    """Render candidate passages as a bracket-numbered prompt block.
+
+    No evidence id is shown. It used to be, so the judge could cite it
+    back; production run bc77950f lost most of its entailment verdicts
+    because a 36-character id (a UUID plus ``#chunk`` suffix) is exactly
+    the kind of token a fallback model reformats in transit, and the
+    resolution step required an exact echo. The judge now cites the
+    bracketed number instead (see ``_CITATION_ITEM`` and
+    ``claims_span.py``), which is short enough to reproduce reliably, so
+    the id has nothing left to do in the prompt.
+    """
     return "\n\n".join(
-        f"[{i}] evidence_id={p.evidence_id}\n{p.text}"
-        for i, p in enumerate(passages, start=1)
+        f"[{i}] {p.text}" for i, p in enumerate(passages, start=1)
     )
 
 
 def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
-    """Coerce a parsed ``[{evidence_id, quote}]``-shaped value to pairs.
+    """Coerce a parsed ``[{passage, quote}]``-shaped value to pairs.
 
-    Even under schema enforcement, a single citation can plausibly arrive
-    as a bare object rather than wrapped in a one-element list;
-    ``coerce_json_list`` recovers that shape before the per-item dict
-    fields are read.
+    ``passage`` is read as a string regardless of whether it arrived as a
+    JSON integer or a string -- ``claims_span._resolve_span`` normalizes
+    either form the same way. Even under schema enforcement, a single
+    citation can plausibly arrive as a bare object rather than wrapped in
+    a one-element list; ``coerce_json_list`` recovers that shape before
+    the per-item dict fields are read.
     """
     pairs: list[tuple[str, str]] = []
     for item in coerce_json_list(items, element="dict", site=site):
-        evidence_id = str(item.get("evidence_id") or "")
+        cited = str(item.get("passage") or "")
         quote = str(item.get("quote") or "")
-        if evidence_id and quote:
-            pairs.append((evidence_id, quote))
+        if cited and quote:
+            pairs.append((cited, quote))
     return tuple(pairs)
 
 

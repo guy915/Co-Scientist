@@ -112,10 +112,9 @@ def _fallback_assessment(
     implementation detail of that assessor's best-effort contract, not a
     different provenance.
     """
-    by_id = {p.evidence_id: p for p in candidates}
     draft = deterministic_assessor(claim, candidates)
-    supporting = _locate_all(draft.supporting, by_id)
-    contradicting = _locate_all(draft.contradicting, by_id)
+    supporting = _locate_all(draft.supporting, candidates)
+    contradicting = _locate_all(draft.contradicting, candidates)
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,
@@ -200,13 +199,12 @@ def _assess_one_batch(
         drafts: Sequence[AssessorDraft | None] = [None] * len(claims)
     else:
         drafts = batch_assessor(claims, union)
-    by_id = {p.evidence_id: p for p in union}
     return [
         _assess_from_draft(
             claim,
             drafts[i] if i < len(drafts) else None,
             per_claim_candidates[i],
-            by_id,
+            union,
             assessor_id,
         )
         for i, claim in enumerate(claims)
@@ -217,14 +215,14 @@ def _assess_from_draft(
     claim: str,
     draft: AssessorDraft | None,
     own_candidates: Sequence[EvidencePassage],
-    by_id: dict[str, EvidencePassage],
+    shown: Sequence[EvidencePassage],
     assessor_id: str,
 ) -> ClaimAssessment:
     """Turn one claim's batch draft (or its absence) into an assessment."""
     if draft is None:
         return _fallback_assessment(claim, own_candidates, assessor_id)
-    supporting = _locate_all(draft.supporting, by_id)
-    contradicting = _locate_all(draft.contradicting, by_id)
+    supporting = _locate_all(draft.supporting, shown)
+    contradicting = _locate_all(draft.contradicting, shown)
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,

@@ -164,10 +164,21 @@ _MIN_CLAIM_WORDS = 4
 # apiece, the pool fell below two rankable ideas, and the scheduler answered
 # by generating more ideas that died the same way. Novelty is judged on the
 # reviewers' own novelty axis (and the ``non_novel`` disposition), never here.
+#
+# The alternation is inflectional, not a list of specimens: each wording a
+# run produces is the same negative existential conjugated differently, so
+# a branch missing one inflection ("no source" but not "did not find any
+# source", "not reported" but not "unreported", "unexplored" but not
+# "under-explored") lets the identical sentence through. Those three
+# escapes were still reaching the gate as *categorical* claims in
+# production runs bc77950f and d1273490 (2026-09-07/08).
 _EVIDENCE_GAP_CLAIM = re.compile(
     r"""
-      \bun(?:explored|examined|tested|studied|addressed|proven
-            |characteri[sz]ed)\b
+      \bun(?:explored|examined|tested|studied|addressed|proven|reported
+            |documented|characteri[sz]ed)\b
+    | \bunder[-\ ]?(?:explored|examined|tested|studied|investigated
+            |reported|documented|characteri[sz]ed)\b
+    | \b(?:did|do|does)\ not\ (?:find|identify|locate|report|reveal)\b
     | \b(?:has|have|had)\ not\ been\b
     | \bnot\ (?:yet\ )?(?:been\ )?(?:\w+ly\ )?
         (?:tested|explored|examined|studied|addressed|established|proven
@@ -247,10 +258,9 @@ def assess_claim(
         The claim's :class:`ClaimAssessment`.
     """
     candidates = retrieve_passages(claim, passages, top_k=top_k)
-    by_id = {p.evidence_id: p for p in candidates}
     draft = assessor(claim, candidates)
-    supporting = _locate_all(draft.supporting, by_id)
-    contradicting = _locate_all(draft.contradicting, by_id)
+    supporting = _locate_all(draft.supporting, candidates)
+    contradicting = _locate_all(draft.contradicting, candidates)
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,

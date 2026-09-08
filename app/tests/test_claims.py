@@ -70,6 +70,32 @@ def test_extraction_drops_sentences_asserting_an_evidence_gap() -> None:
     ]
 
 
+def test_extraction_drops_the_gap_phrasings_production_actually_used() -> None:
+    """The same negative existential, in the wordings runs really produce.
+
+    Every sentence here is verbatim from a production run (bc77950f and
+    d1273490, 2026-09-07/08) where it survived the filter, became a
+    *categorical* claim -- the literature-grounding paragraph's claims must
+    be evidence-backed -- and was then counted against its hypothesis as
+    "categorical claim(s) lack support". They differ from the wordings
+    already covered only in inflection: "did not find any source" rather
+    than "no source", "unreported" rather than "not reported",
+    "under-explored" rather than "unexplored".
+    """
+    text = (
+        "We did not find any source in the provided literature directly "
+        "testing CDK4/6 inhibitors in human cardiac fibroblasts. "
+        "Direct testing of niclosamide in primary HCF under Wnt-active "
+        "conditions appears unreported. "
+        "The meta-review notes under-explored cytoskeletal control "
+        "mechanisms. "
+        "Fasudil inhibits ROCK1 and ROCK2 in cardiac fibroblasts."
+    )
+    assert extract_atomic_claims(text) == [
+        "Fasudil inhibits ROCK1 and ROCK2 in cardiac fibroblasts."
+    ]
+
+
 # A full-length title+abstract -- the shape an EvidencePassage carries in a run
 # (claim_grounding.evidence_passages joins an evidence row's title and
 # abstract). The length is the point: a one-sentence claim against a passage

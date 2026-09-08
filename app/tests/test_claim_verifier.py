@@ -7,7 +7,8 @@ hallucinated quote is downgraded, and any provider/parse failure falls back to
 the deterministic assessor rather than breaking grounding. The unfounded-
 CONTRADICTS guard (subject overlap + negation-marker check) moved to
 ``test_claim_verifier_contradiction.py`` when this file passed the
-module-size budget.
+module-size budget, and the cite-by-passage-number tests to
+``test_claim_verifier_citations.py`` for the same reason.
 """
 
 from __future__ import annotations
@@ -82,7 +83,7 @@ def test_valid_supports_verdict_locates_span(
         monkeypatch,
         _fake_completion(
             '{"label": "supports", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
         ),
     )
@@ -111,7 +112,7 @@ def test_partial_verdict_locates_span(
         monkeypatch,
         _fake_completion(
             '{"label": "partial", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
         ),
     )
@@ -135,7 +136,7 @@ def test_hallucinated_quote_downgraded(
         monkeypatch,
         _fake_completion(
             '{"label": "supports", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "cures every disease"}], '
+            '[{"passage": 1, "quote": "cures every disease"}], '
             '"contradicting": []}'
         ),
     )
@@ -164,7 +165,7 @@ def test_supporting_as_single_object_not_wrapped_in_list_still_locates_span(
         monkeypatch,
         _fake_completion(
             '{"label": "supports", "supporting": '
-            '{"evidence_id": "ev-1", "quote": "reduces tumor growth"}, '
+            '{"passage": 1, "quote": "reduces tumor growth"}, '
             '"contradicting": []}'
         ),
     )
@@ -417,7 +418,7 @@ def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(
             "not valid json"
             if calls["n"] == 1
             else '{"label": "supports", "supporting": '
-            '[{"evidence_id": "ev-1", "quote": "reduces tumor growth"}], '
+            '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
         )
         message = types.SimpleNamespace(content=content)
