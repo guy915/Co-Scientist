@@ -72,6 +72,9 @@ from co_scientist.llm_json_escalation import (
     escalation_for_error as escalation_for_error,
 )
 from co_scientist.llm_json_escalation import (
+    is_transient_provider_error,
+)
+from co_scientist.llm_json_escalation import (
     log_escalation as log_escalation,
 )
 from co_scientist.llm_thinking import failure_context_text
@@ -351,10 +354,11 @@ async def _handle_json_call_failure(
     and log a failure identically and cannot drift apart.
 
     Re-raises (via a bare ``raise``, so it must be called from within the
-    caller's own ``except`` block) on the final attempt. A throttled failure
-    waits out a jittered backoff before returning the outcome so the retry
-    loop's next attempt goes out already spaced from the burst that caused
-    the throttle.
+    caller's own ``except`` block) on the final attempt. A throttled
+    failure, and any other failure the remote side is asking for time on
+    (see ``is_transient_provider_error``), waits out a jittered backoff
+    before returning the outcome, so the retry loop's next attempt goes
+    out already spaced from the condition that caused it.
 
     Args:
         error: The call failure raised by this attempt.
@@ -388,27 +392,42 @@ async def _handle_json_call_failure(
     )
     if attempt.is_final:
         raise
-    if _is_rate_limited(error):
-        await _wait_out_rate_limit(attempt)
+    await _wait_before_retry(error, attempt)
     return _JsonAttemptOutcome(
         value=None, error=error, response_text=None, next_prompt=None
     )
 
 
-async def _wait_out_rate_limit(attempt: _JsonAttempt) -> None:
-    """Space the next attempt out from the burst that caused the throttle.
+async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
+    """Space the next attempt out from the condition that caused this one.
 
-    Unlike a schema failure -- where the next attempt carries corrective
-    feedback and should go out at once -- throttling is answered by
-    waiting. Retrying a throttled call immediately feeds the burst that
-    caused it, and an unjittered backoff releases every throttled caller
-    at the same moment, reproducing it.
+    Two kinds are answered by waiting rather than by re-asking: throttling,
+    and a transient provider failure such as an upstream overload (see
+    ``is_transient_provider_error`` for the incident that added the
+    second). Retrying either at once feeds the condition that caused it,
+    and an unjittered backoff would release every waiting caller together,
+    reproducing it. Everything else returns immediately: a schema failure's
+    next attempt carries corrective feedback, and an answerless completion
+    is answered by the escalation ladder changing the request. Only the
+    throttled kind bumps ``_rate_limited_attempts``, which sizes callers'
+    fan-out against a provider rationing them -- an overload is not that.
+
+    Args:
+        error: The call failure raised by this attempt.
+        attempt: Which attempt of the retry loop this is.
     """
     global _rate_limited_attempts
-    _rate_limited_attempts += 1
+    if _is_rate_limited(error):
+        _rate_limited_attempts += 1
+        reason = "Rate limited"
+    elif is_transient_provider_error(error):
+        reason = "Transient provider failure"
+    else:
+        return
     delay = _rate_limit_backoff_seconds(attempt.number)
     logger.warning(
-        "Rate limited on attempt %s; waiting %.1fs before retrying",
+        "%s on attempt %s; waiting %.1fs before retrying",
+        reason,
         attempt.number,
         delay,
     )

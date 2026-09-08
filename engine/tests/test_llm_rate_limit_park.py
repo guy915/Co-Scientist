@@ -7,16 +7,32 @@ and a platform-wide per-minute/per-day cap whose reset can be hours away.
 ``llm_text_retry`` through ``_handle_json_call_failure``) is what tells
 them apart, so a durable task can be parked instead of failed on the
 second kind without spending further attempts on the first.
+
+The same handler also decides which *non*-throttled failures are worth
+spacing out. Those cases live here too, since they share one seam:
+``llm_json_escalation.is_transient_provider_error``.
 """
 
 import time
+from collections.abc import Callable
 
 import httpx
 import pytest
-from litellm.exceptions import RateLimitError
+from litellm.exceptions import (
+    APIConnectionError,
+    APIError,
+    BadRequestError,
+    InternalServerError,
+    NotFoundError,
+    RateLimitError,
+    ServiceUnavailableError,
+)
 
 from co_scientist import llm_json_retry
-from co_scientist.exceptions import LLMRateLimitParkError
+from co_scientist.exceptions import (
+    LLMRateLimitParkError,
+    LLMThinkingOnlyError,
+)
 from co_scientist.llm_json_attempt import _JsonAttempt
 
 
@@ -151,3 +167,199 @@ async def test_handle_json_call_failure_backs_off_ordinary_throttle(
 
     assert outcome.error is error
     assert len(slept) == 1
+
+
+def _provider_error(
+    factory: Callable[..., Exception], message: str
+) -> Exception:
+    """Build a litellm provider exception carrying the given message.
+
+    The three constructors used below order their arguments differently,
+    so each is bound by keyword rather than positionally.
+    """
+    return factory(message=message, llm_provider="openrouter", model="m")
+
+
+_MID_STREAM_MESSAGE = (
+    "LLM provider reported an error mid-stream and wrote no answer. "
+    "Model: openrouter/nvidia/nemotron-3-super-120b-a12b:free "
+    "(finish_reason=error, completion_tokens=0)"
+)
+
+_ROUTES_EXHAUSTED_MESSAGE = (
+    "litellm.NotFoundError: OpenrouterException - "
+    '{"error":{"message":"Provider returned error","code":404,'
+    '"metadata":{"raw":"","provider_name":"Nvidia","is_byok":false,'
+    '"previous_errors":[{"code":429,"message":"Resource exhausted",'
+    '"provider_name":"Google AI Studio"}]}}}'
+)
+
+
+async def _sleeps_for(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> list[float]:
+    """Return the waits ``_handle_json_call_failure`` took for one failure."""
+    slept: list[float] = []
+
+    async def _record_sleep(delay: float) -> None:
+        slept.append(delay)
+
+    monkeypatch.setattr(
+        "co_scientist.llm_json_retry.asyncio.sleep", _record_sleep
+    )
+    attempt = _JsonAttempt(number=1, is_final=False)
+    outcome = await llm_json_retry._handle_json_call_failure(error, attempt)
+    assert outcome.error is error
+    return slept
+
+
+@pytest.mark.asyncio
+async def test_overloaded_api_error_backs_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production overload shape spaces the next attempt out.
+
+    Run bc77950f spent attempts 2-5 in four seconds against an upstream
+    overload; a transient provider failure must wait like a throttle does.
+    """
+    error = APIError(
+        status_code=500,
+        message=(
+            "litellm.APIError: OpenrouterException - Upstream error from "
+            "Nvidia: Service temporarily overloaded"
+        ),
+        llm_provider="openrouter",
+        model="m",
+    )
+    before = llm_json_retry.rate_limited_attempt_count()
+
+    slept = await _sleeps_for(monkeypatch, error)
+
+    assert len(slept) == 1
+    assert slept[0] > 0
+    # Rate-limit telemetry sizes the next fan-out wave; an overload is
+    # not throttling and must not inflate it.
+    assert llm_json_retry.rate_limited_attempt_count() == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "factory",
+    [InternalServerError, ServiceUnavailableError, APIConnectionError],
+)
+async def test_transient_provider_classes_back_off(
+    monkeypatch: pytest.MonkeyPatch, factory: Callable[..., Exception]
+) -> None:
+    """Every transient litellm class spaces its retry out."""
+    error = _provider_error(factory, "the provider is having a moment")
+
+    assert len(await _sleeps_for(monkeypatch, error)) == 1
+
+
+@pytest.mark.asyncio
+async def test_mid_stream_provider_failure_backs_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The finish_reason=error shape has no own type, so match its text."""
+    error = ValueError(_MID_STREAM_MESSAGE)
+
+    assert len(await _sleeps_for(monkeypatch, error)) == 1
+
+
+@pytest.mark.asyncio
+async def test_routes_exhausted_not_found_backs_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 404 carrying previous_errors is OpenRouter's routes-exhausted shape."""
+    error = NotFoundError(
+        message=_ROUTES_EXHAUSTED_MESSAGE,
+        model="m",
+        llm_provider="openrouter",
+    )
+
+    assert len(await _sleeps_for(monkeypatch, error)) == 1
+
+
+@pytest.mark.asyncio
+async def test_schema_failure_retries_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A schema failure carries feedback, so the retry must not be delayed."""
+    error = ValueError("Response failed schema validation: 'title' is required")
+
+    assert await _sleeps_for(monkeypatch, error) == []
+
+
+@pytest.mark.asyncio
+async def test_thinking_only_failure_retries_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An answerless completion is answered by the ladder, not by waiting."""
+    error = LLMThinkingOnlyError(
+        "LLM finished its chain of thought and wrote no answer. Model: m"
+    )
+
+    assert await _sleeps_for(monkeypatch, error) == []
+
+
+@pytest.mark.asyncio
+async def test_bad_request_retries_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 400 has its own escalation rung; waiting would only delay it."""
+    error = BadRequestError(
+        message=(
+            "litellm.BadRequestError: OpenrouterException - Reasoning is "
+            "mandatory for this endpoint and cannot be disabled."
+        ),
+        model="m",
+        llm_provider="openrouter",
+    )
+
+    assert await _sleeps_for(monkeypatch, error) == []
+
+
+@pytest.mark.asyncio
+async def test_bare_not_found_retries_at_once_and_raises_when_final(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare 404 is a real model-not-found: no wait, and no rescue."""
+    error = NotFoundError(
+        message="litellm.NotFoundError: model 'no-such-model' not found",
+        model="no-such-model",
+        llm_provider="openrouter",
+    )
+
+    assert await _sleeps_for(monkeypatch, error) == []
+
+    # The handler re-raises with a bare ``raise``, so it has to be called
+    # from inside the caller's own except block.
+    try:
+        raise error
+    except NotFoundError:
+        with pytest.raises(NotFoundError):
+            await llm_json_retry._handle_json_call_failure(
+                error, _JsonAttempt(number=5, is_final=True)
+            )
+
+
+@pytest.mark.asyncio
+async def test_bad_request_wrapping_upstream_text_retries_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 400 stays non-transient even when it quotes the upstream's words.
+
+    OpenRouter wraps an upstream 4xx with the provider's own raw text, so
+    a request problem can carry the very wording that marks an overload.
+    The class decides here, not the message.
+    """
+    error = BadRequestError(
+        message=(
+            "litellm.BadRequestError: OpenrouterException - Upstream error "
+            "from Nvidia: invalid request"
+        ),
+        model="m",
+        llm_provider="openrouter",
+    )
+
+    assert await _sleeps_for(monkeypatch, error) == []

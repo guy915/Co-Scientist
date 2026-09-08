@@ -75,6 +75,119 @@ _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
 }
 
 
+# litellm exception classes that mean the provider hiccuped rather than
+# refused. Matched by exact class name, never by ``isinstance``: openai's
+# ``APIError`` is the base of ``APIStatusError`` and so of
+# ``BadRequestError``, so an isinstance check would sweep the
+# reasoning-mandatory 400 in here and hand it a wait instead of the
+# escalation rung that actually answers it.
+_TRANSIENT_ERROR_TYPE_NAMES: frozenset[str] = frozenset(
+    {
+        "APIError",
+        "APIConnectionError",
+        "InternalServerError",
+        "ServiceUnavailableError",
+    }
+)
+
+# Classes that are a problem with the *request*, whatever their text
+# says. OpenRouter wraps an upstream 4xx with that provider's own raw
+# words, so a 400 can quote an overload verbatim; the class settles it,
+# and the reasoning-mandatory 400 keeps the escalation rung that answers
+# it instead of being slowed down by a wait that fixes nothing.
+_NON_TRANSIENT_ERROR_TYPE_NAMES: frozenset[str] = frozenset({"BadRequestError"})
+
+# Wording for a provider that surfaces an overload as some other class.
+# ``mid-stream`` is the one that carries no type at all: an OpenRouter
+# ``finish_reason="error"`` completion is raised as a plain ``ValueError``
+# by ``llm_response._empty_content_error``, whose text this matches.
+_TRANSIENT_MESSAGE_CUES: tuple[str, ...] = (
+    "temporarily overloaded",
+    "upstream error",
+    "reported an error mid-stream",
+)
+
+
+def _is_transient_not_found(error: BaseException) -> bool:
+    """Whether a 404 is OpenRouter's routes-exhausted shape, not a bad model.
+
+    OpenRouter answers "every route I could try has failed" with a 404
+    whose body carries a ``previous_errors`` list naming what each
+    upstream did. A 404 without that list is a genuine model-not-found,
+    which no amount of waiting fixes, so the list is the whole test.
+
+    Args:
+        error: The ``NotFoundError`` to classify.
+
+    Returns:
+        True when the error body names the routes that were already tried.
+    """
+    return "previous_errors" in str(error)
+
+
+def is_transient_provider_error(error: BaseException | None) -> bool:
+    """Whether waiting -- rather than re-asking at once -- answers this failure.
+
+    Recorded because the difference is not obvious from the exception
+    type alone. Production extended run bc77950f (2026-09-08
+    02:27:12-02:27:16 UTC) failed a ``research_overview`` call with
+    ``litellm.APIError: OpenrouterException - Upstream error from Nvidia:
+    Service temporarily overloaded`` on attempts 2, 3, 4 and 5 at
+    one-second intervals -- the whole five-attempt budget spent in four
+    seconds against an overload that needs seconds to minutes to clear --
+    and ``knowledge_base_synthesis`` then did the same. Earlier in that
+    run the provider returned ``litellm.NotFoundError`` carrying
+    ``previous_errors``, OpenRouter's way of saying every route it could
+    reach had already failed, and many calls came back as the mid-stream
+    ``finish_reason="error"`` shape. All three are the remote side asking
+    for time.
+
+    The failures deliberately excluded are the ones a *different request*
+    answers, where a wait only delays the fix: a 400 (the
+    reasoning-mandatory refusal has its own rung in
+    ``escalation_for_error``), a schema or
+    parse failure (the next attempt carries corrective feedback and
+    should go out at once), and this engine's own answerless-completion
+    errors, which are ``ValueError`` subclasses from the same factory as
+    the mid-stream one and would otherwise match its text.
+
+    A rate-limited failure is not classified here at all -- it is claimed
+    by ``llm_json_retry._is_rate_limited`` first, which already backs off
+    (and may park the task). That also covers a routes-exhausted body
+    whose ``previous_errors`` name a 429.
+
+    Args:
+        error: The failure to classify, if any.
+
+    Returns:
+        True when the next attempt should be spaced out from this one.
+    """
+    if error is None or isinstance(
+        error, LLMBudgetExhaustedError | LLMThinkingOnlyError
+    ):
+        return False
+    name = type(error).__name__
+    if name == "NotFoundError":
+        return _is_transient_not_found(error)
+    if name in _TRANSIENT_ERROR_TYPE_NAMES:
+        return True
+    return _has_transient_message(error)
+
+
+def _has_transient_message(error: BaseException) -> bool:
+    """Whether the failure's own text names a transient provider condition.
+
+    The fallback for a provider whose SDK surfaces an overload as some
+    other class, and the only signal the mid-stream shape carries. A
+    class that is definitionally a request problem is excluded first,
+    since its text is free to quote the upstream it wrapped.
+    """
+    if type(error).__name__ in _NON_TRANSIENT_ERROR_TYPE_NAMES:
+        return False
+    text = str(error).lower()
+    return any(cue in text for cue in _TRANSIENT_MESSAGE_CUES)
+
+
 def _is_reasoning_mandatory_error(error: BaseException | None) -> bool:
     """Whether this failure is a provider's flat refusal to disable reasoning.
 
