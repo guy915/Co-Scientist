@@ -33,6 +33,7 @@ from co_scientist.agents.evolution.evolve_prompt_state import (
 from co_scientist.agents.evolution.evolve_prompt_state import (
     _research_goal_text as _research_goal_text,
 )
+from co_scientist.agents.generation.citations import ReferenceIndex
 from co_scientist.constants import truncate
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import (
@@ -43,6 +44,9 @@ from co_scientist.prompts import (
     load_prompt_with_schema,
 )
 from co_scientist.prompts._common import _csv_value
+from co_scientist.prompts.generation_formatting import (
+    _build_citation_reference_section,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -60,6 +64,9 @@ class _EvolutionContext:
     ``ranked_hypotheses`` are likewise round-invariant (one node run reads
     the state once, and dropping one parent cannot reorder the ranking),
     and ride here so per-hypothesis helpers keep five or fewer arguments.
+    ``reference_index`` is read by both halves: the prompt shows the run's
+    ``[C*]`` list so a refinement can cite it, and ``evolve_results``
+    resolves the child's own grounding paragraph against the same table.
     """
 
     model_name: str
@@ -75,6 +82,7 @@ class _EvolutionContext:
     proximity_graph: dict[str, Any] | None = None
     ranked_hypotheses: tuple[Hypothesis, ...] = ()
     state: WorkflowState | None = None
+    reference_index: ReferenceIndex | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -375,6 +383,13 @@ def _build_evolution_variables(
         context.run_setup_guidance, context.run_focus_guidance
     )
     variables["articles_with_reasoning"] = context.articles_with_reasoning or ""
+    # The [C*] list the refined literature_grounding cites into. Without
+    # it the schema's own field instruction ("use ONLY the bracketed [C*]
+    # keys supplied") has nothing to point at, and a child either
+    # disclaims its grounding or invents keys that resolve to nothing.
+    variables["citation_reference_section"] = _build_citation_reference_section(
+        context.reference_index.text if context.reference_index else ""
+    )
     variables["enhancement_grounding"] = grounding_evidence
     variables["partner_context"] = _format_partner_context(
         operation.partners, operation.operator

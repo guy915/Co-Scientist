@@ -45,6 +45,8 @@ The following represents an analysis of relevant scientific literature:
 
 {{articles_with_reasoning}}
 
+{{citation_reference_section}}
+
 ## Novelty Language
 
 Novelty claims must be hedged unless grounded in retrieved evidence. The literature supplied to this refinement is a bounded retrieval, not the entire current corpus, so the refined proposal must never assert that the idea is the first of its kind, unprecedented, or that no prior work exists. Where the supplied literature or its citation keys establish a gap, cite them; otherwise use hedged phrasing such as "within the retrieved literature", "to our knowledge", or "appears unexplored among the sources examined".
@@ -55,7 +57,7 @@ Novelty claims must be hedged unless grounded in retrieved evidence. The literat
 
 Work through the guidelines above in the order given; the fields below are what you return, and the guidelines are how you should arrive at them.
 
-**CRITICAL: Provide ALL FIVE components for the refined hypothesis:**
+**CRITICAL: Provide ALL NINE components for the refined hypothesis:**
 
 ### 1. Title (required)
 A short, authored noun-phrase name for the refined hypothesis (e.g. "Combinatorial mTOR-Autophagy Rescue") -- update it to reflect what changed, or keep it if the core idea did not. Never a sentence, never a restatement of the hypothesis text itself, no trailing period.
@@ -72,10 +74,22 @@ An updated pilot test plan for the refined hypothesis, as a structured `experime
 ### 5. Refinement Summary (required)
 Brief summary explaining what the feasibility improvement changed and why, including what current technological capability makes the revised concept implementable.
 
+### 6. Introduction (required)
+2-4 sentences of scene-setting background for the problem area this proposal addresses, before any specific mechanism is named. Write it for the hypothesis you are returning, never carried over from the original.
+
+### 7. Recent Findings (required)
+2-4 sentences on the recent findings and related research this hypothesis builds on, extends, or departs from. Sets the scene; the grounding below argues this specific hypothesis.
+
+### 8. Literature Grounding (required)
+2-4 sentences grounding this hypothesis in the reference list supplied above. Use ONLY the bracketed `[C*]` citation keys given — do NOT invent author-year citations; if no reference list was supplied, state that explicitly. Every sentence here is read as a categorical claim about the intervention this hypothesis names, so it must describe the mechanism you are proposing and no other.
+
+### 9. Safety and Toxicity (required)
+2-4 sentences on the safety profile of what this hypothesis proposes: for a pharmacological intervention, known or expected toxicity and the preclinical safety work needed before advancing it; for other domains, the analogous operational or experimental safety considerations. Your own assessment as the proposer, not a review, and about the intervention this hypothesis names.
+
 **Text formatting:**
 - Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)
 - Do NOT use LaTeX commands (e.g., use 'τ' not '\tau', use '≥' not '\geq')
 - Avoid decorative formatting, repeated special characters, or fancy text styling
 - Prefer concise plain text when it communicates the idea equally well
 
-Response: a single JSON object carrying all five components above, and nothing else.
+Response: a single JSON object carrying all nine components above, and nothing else.

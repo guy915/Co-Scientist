@@ -91,6 +91,8 @@ The following represents an analysis of relevant scientific literature:
 
 {{articles_with_reasoning}}
 
+{{citation_reference_section}}
+
 ### Targeted Grounding for this Refinement
 
 Evidence gathered specifically for the hypothesis being refined:
@@ -103,7 +105,7 @@ Evidence gathered specifically for the hypothesis being refined:
 
 ## Output Format
 
-**CRITICAL: Provide ALL FIVE components for the refined hypothesis:**
+**CRITICAL: Provide ALL NINE components for the refined hypothesis:**
 
 Provide your refined hypothesis in JSON format with:
 
@@ -123,7 +125,19 @@ An updated pilot test plan for the refined hypothesis, as a structured `experime
 ### 5. Refinement Summary (required)
 Brief summary explaining what changes were made and why. Describe the key improvements to the hypothesis.
 
-**REMEMBER:** ALL FIVE components must be present in the refined hypothesis.
+### 6. Introduction (required)
+2-4 sentences of scene-setting background for the problem area this proposal addresses, before any specific mechanism is named. Write it for the hypothesis you are returning, never carried over from the original.
+
+### 7. Recent Findings (required)
+2-4 sentences on the recent findings and related research this hypothesis builds on, extends, or departs from. Sets the scene; the grounding below argues this specific hypothesis.
+
+### 8. Literature Grounding (required)
+2-4 sentences grounding this hypothesis in the reference list supplied above. Use ONLY the bracketed `[C*]` citation keys given — do NOT invent author-year citations; if no reference list was supplied, state that explicitly. Every sentence here is read as a categorical claim about the intervention this hypothesis names, so it must describe the mechanism you are proposing and no other.
+
+### 9. Safety and Toxicity (required)
+2-4 sentences on the safety profile of what this hypothesis proposes: for a pharmacological intervention, known or expected toxicity and the preclinical safety work needed before advancing it; for other domains, the analogous operational or experimental safety considerations. Your own assessment as the proposer, not a review, and about the intervention this hypothesis names.
+
+**REMEMBER:** ALL NINE components must be present in the refined hypothesis.
 
 **Text formatting guidelines:**
 - Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)

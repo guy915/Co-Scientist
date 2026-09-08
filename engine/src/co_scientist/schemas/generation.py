@@ -48,7 +48,7 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
 # was, for the one case it now exists to cover: a run predating this
 # field, or a json_object downgrade whose response omits/mistypes/empties
 # it -- see the single derivation point in drain_hypotheses.py. Shared by
-# identity with EVOLUTION_SCHEMA (schemas/synthesis.py), the same pattern
+# identity with EVOLUTION_SCHEMA (schemas/evolution.py), the same pattern
 # _EXPERIMENT_FIELD below already establishes -- an evolved child needs a
 # fresh title by the same route, since its mechanism may have changed.
 # MAX_TITLE_CHARS bounds the schema description and is enforced again

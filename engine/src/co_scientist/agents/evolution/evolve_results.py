@@ -9,6 +9,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionContext,
     _EvolutionOperation,
 )
+from co_scientist.agents.generation.citations import resolve_citation_keys
 from co_scientist.agents.generation.experiment_plan import (
     format_experiment_plan,
 )
@@ -30,13 +31,36 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class _RefinedFields:
-    """The refined content an evolution LLM response yields for a child."""
+    """The refined content an evolution LLM response yields for a child.
+
+    The four proposal sections default to ``None`` because a response that
+    does not carry one leaves the child without it -- never with its
+    parent's. See ``_section_or_none``.
+    """
 
     refined_text: str
     title: str | None
     explanation: str | None
     experiment: str | None
     refinement_summary: str
+    introduction: str | None = None
+    recent_findings: str | None = None
+    literature_grounding: str | None = None
+    safety_and_toxicity: str | None = None
+
+
+def _section_or_none(response: dict[str, Any], key: str) -> str | None:
+    """One proposal section from the response, or None if it has none.
+
+    Blank counts as absent: under the json_object downgrade
+    ``llm_json._backfill_required_fields`` inserts ``""`` for a missing
+    required string, and an empty mechanism must read as "this child has
+    no mechanism section" rather than fall back to the parent's.
+    """
+    value = response.get(key)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value
 
 
 def _extract_evolution_fields(
@@ -50,7 +74,8 @@ def _extract_evolution_fields(
         response: Parsed JSON response from the evolution LLM call.
 
     Returns:
-        The refined text, explanation, experiment, and refinement summary.
+        The refined text, explanation, experiment, refinement summary, and
+        the child's own four proposal sections.
     """
     # Prefer the canonical "hypothesis" key; fall back to the legacy
     # "refined_hypothesis_text" name, and finally to the pre-evolution text
@@ -80,6 +105,10 @@ def _extract_evolution_fields(
         refinement_summary=response.get(
             "refinement_summary", "no refinement summary provided"
         ),
+        introduction=_section_or_none(response, "introduction"),
+        recent_findings=_section_or_none(response, "recent_findings"),
+        literature_grounding=_section_or_none(response, "literature_grounding"),
+        safety_and_toxicity=_section_or_none(response, "safety_and_toxicity"),
     )
 
 
@@ -139,6 +168,7 @@ def _build_evolution_child(
     parents: list[Hypothesis],
     fields: _RefinedFields,
     creation_iteration: int | None,
+    citation_sources: dict[str, dict[str, Any]] | None = None,
 ) -> Hypothesis:
     """Construct an immutable evolution child from an accepted refinement.
 
@@ -153,6 +183,12 @@ def _build_evolution_child(
     parent (the hypothesis that was evolved) so existing lineage consumers
     are unchanged, while ``parent_ids`` records every parent merged.
 
+    ``citation_sources`` is the run's ``[C*]`` reference index, against
+    which the child's own grounding paragraph is resolved. The parent's
+    ``citation_map`` is deliberately not carried over: it was resolved from
+    the paragraph the parent wrote, so beside a rewritten paragraph it
+    explains keys the child never cites and omits the ones it does.
+
     Returns:
         A new child ``Hypothesis`` linked to ``parents``.
     """
@@ -166,17 +202,20 @@ def _build_evolution_child(
         origin=HypothesisOrigin.EVOLUTION,
         creation_iteration=creation_iteration,
         category=primary.category,
-        # Scene-setting and safety (MO-6, MO-10): the evolution LLM is not
-        # asked to rewrite these, so the child inherits them unchanged, the
-        # same as literature_grounding below.
-        introduction=primary.introduction,
-        recent_findings=primary.recent_findings,
-        safety_and_toxicity=primary.safety_and_toxicity,
+        # Scene-setting, mechanism and safety (MO-6, MO-10) are the child's
+        # own: EVOLUTION_SCHEMA asks the refinement for all four, and a
+        # response that carries none leaves the child with none rather than
+        # publishing its parent's under the child's name (see
+        # schemas/evolution.py for the production run that forced this).
+        introduction=fields.introduction,
+        recent_findings=fields.recent_findings,
+        safety_and_toxicity=fields.safety_and_toxicity,
         explanation=fields.explanation,
         experiment=fields.experiment,
-        # Inherit grounding context, but not competition state.
-        literature_grounding=primary.literature_grounding,
-        citation_map=dict(primary.citation_map),
+        literature_grounding=fields.literature_grounding,
+        citation_map=resolve_citation_keys(
+            fields.literature_grounding, citation_sources or {}
+        ),
         # Fresh tournament entrant: Elo 1200, zero matches, unreviewed.
         elo_rating=INITIAL_ELO_RATING,
         win_count=0,
@@ -218,17 +257,24 @@ def _apply_refined_hypothesis(
     parents: list[Hypothesis],
     fields: _RefinedFields,
     max_similarity: float,
-    creation_iteration: int | None = None,
+    context: _EvolutionContext,
 ) -> tuple[Hypothesis, dict[str, Any]]:
     """Builds an immutable child for an accepted refinement and its detail.
 
     The parents are NOT mutated. ``max_similarity`` is the max similarity
-    to the sampled peer hypotheses, used only for the debug log.
+    to the sampled peer hypotheses, used only for the debug log; the round
+    context supplies the creation iteration and the ``[C*]`` sources the
+    child's own grounding paragraph resolves against.
 
     Returns:
         The new child hypothesis, and its evolution detail.
     """
-    child = _build_evolution_child(parents, fields, creation_iteration)
+    child = _build_evolution_child(
+        parents,
+        fields,
+        context.creation_iteration,
+        _citation_sources(context),
+    )
 
     logger.debug(
         "evolved hypothesis into child %s (max similarity: %.2f)",
@@ -238,6 +284,15 @@ def _apply_refined_hypothesis(
 
     evolution_detail = _build_evolution_detail(parents, child, fields)
     return child, evolution_detail
+
+
+def _citation_sources(
+    context: _EvolutionContext,
+) -> dict[str, dict[str, Any]]:
+    """The round's ``[C*]`` sources, or an empty table when it has none."""
+    if context.reference_index is None:
+        return {}
+    return context.reference_index.sources
 
 
 def _rejected_as_unchanged(hypothesis: Hypothesis, refined_text: str) -> bool:
@@ -334,7 +389,7 @@ def _apply_evolution_result(
     if max_similarity is None:
         return None, None
     child, detail = _apply_refined_hypothesis(
-        parents, fields, max_similarity, context.creation_iteration
+        parents, fields, max_similarity, context
     )
     detail["operator"] = str(
         response.get("_evolution_operator") or "enhancement"

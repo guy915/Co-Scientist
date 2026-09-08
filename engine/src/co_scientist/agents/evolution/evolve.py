@@ -62,6 +62,7 @@ from co_scientist.agents.evolution.evolve_round import (
 from co_scientist.agents.evolution.evolve_round import (
     _select_evolution_pool as _select_evolution_pool,
 )
+from co_scientist.agents.generation.citations import build_reference_index
 from co_scientist.constants import (
     EVOLVE_MAX_TOKENS_CAP,
     EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
@@ -349,6 +350,12 @@ def _build_evolution_context(
         proximity_graph=state.get("proximity_graph"),
         ranked_hypotheses=tuple(rank_by_elo(state["hypotheses"])),
         state=state,
+        # Built once for the round, not once per parent: it is derived
+        # from state, so every refinement in the round cites the same
+        # [C*] keys and every child resolves against the same table.
+        reference_index=build_reference_index(
+            state.get("articles"), state.get("context_enrichment_sources")
+        ),
     )
 
 
