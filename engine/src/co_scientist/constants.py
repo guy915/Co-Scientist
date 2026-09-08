@@ -49,7 +49,10 @@ from co_scientist.constants_tokens import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (
-    KNOWLEDGE_BASE_MAX_TOKENS as KNOWLEDGE_BASE_MAX_TOKENS,
+    KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS as KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
+)
+from co_scientist.constants_tokens import (
+    KNOWLEDGE_BASE_THEME_MAX_TOKENS as KNOWLEDGE_BASE_THEME_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (
     LONG_MAX_TOKENS as LONG_MAX_TOKENS,

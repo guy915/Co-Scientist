@@ -1,4 +1,11 @@
-"""JSON schema for the deep knowledge-base synthesis call (F8).
+"""JSON schemas for the deep knowledge-base synthesis calls (F8).
+
+Two schemas, not one, because the section is outlined once and then
+written a theme at a time: a single call asking for the whole ~20,000-token
+span cannot be served inside the 600s per-call ceiling, whatever budget it
+carries (see ``constants_tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS`` for the
+measurement). The word bands below are shared by both -- the outline reads
+them to size its section count, the theme writer to write against them.
 
 Split from ``synthesis.py`` on that module's size cap; the bounds it
 shares with the research-overview schema stay there and are imported
@@ -49,43 +56,48 @@ call to the flat topics.
 _ORDINARY: Final = "{}-{}".format(*KNOWLEDGE_BASE_SECTION_WORDS)
 _PRINCIPAL: Final = "{}-{}".format(*KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS)
 
-# Knowledge-base synthesis schema
-# Shapes the "research_overview_knowledge_base" prompt output, consumed by
-# agents/meta_review/research_overview_knowledge_base.py. A second, deeper
-# pass over the same evidence corpus the overview call already saw: the
-# published Knowledge Base is 9,702 words of themed encyclopedic prose (43
-# named subject headings under 8 themes), which does not fit beside an
-# overview draft already spending ~15.9k of its own 24000-token ceiling.
+_EVIDENCE_IDS = (
+    "The evidence_ids this subsection is synthesized from. Listed ids"
+    " only; a subsection citing none is dropped."
+)
+
+_HEADING = "Name of this subsection's specific subject."
+
+_THEME_TITLE = (
+    "Name of the subject area, as a heading (e.g. 'Extracellular Matrix"
+    " Architecture And Biomechanical Barriers')."
+)
+
+# Knowledge-base outline schema
+# Shapes the "research_overview_knowledge_base_outline" prompt output: the
+# whole Knowledge Base's structure -- themes, the subsections under each,
+# and the evidence every subsection is drawn from -- and none of its prose.
 #
-# Nothing here echoes the corpus back. A section names its sources by the
-# opaque evidence_id the prompt assigned them, exactly as the overview's own
-# knowledge_base field does, so response length scales with the depth asked
-# for and not with the size of the pool offered (the trap proximity
-# clustering hit; see proximity_dedup._match_cluster_member). For the same
-# reason "detail" carries no maxLength: the shim that trims an over-long
-# string under the json_object downgrade cuts at a word boundary, and dense
-# prose is the one field where that trim would be visible to a reader.
-KNOWLEDGE_BASE_SCHEMA: dict[str, Any] = {
-    "name": "knowledge_base_synthesis",
+# The structure is decided once, here, because the prose is then written by
+# several independent calls that must not overlap or renumber each other
+# (agents/meta_review/research_overview_knowledge_base_calls). This answer
+# is small by construction: eight themes of eight headings is under 2,000
+# tokens however large the corpus offered to the prompt, since nothing here
+# echoes the corpus back -- a section names its sources by the opaque
+# evidence_id the prompt assigned them, the trap proximity clustering hit
+# (see proximity_dedup._match_cluster_member).
+KNOWLEDGE_BASE_OUTLINE_SCHEMA: dict[str, Any] = {
+    "name": "knowledge_base_outline",
     "schema": obj(
         {
             "themes": {
                 "type": "array",
                 "maxItems": KNOWLEDGE_BASE_MAX_THEMES,
                 "description": (
-                    "The subject areas this run's evidence covers, each"
-                    " holding its own named subsections."
+                    "The subject areas this run's evidence covers, in"
+                    " reading order, each holding its own named"
+                    " subsections."
                 ),
                 "items": obj(
                     {
                         "title": {
                             "type": "string",
-                            "description": (
-                                "Name of the subject area, as a heading"
-                                " (e.g. 'Extracellular Matrix"
-                                " Architecture And Biomechanical"
-                                " Barriers')."
-                            ),
+                            "description": _THEME_TITLE,
                         },
                         "sections": {
                             "type": "array",
@@ -94,38 +106,62 @@ KNOWLEDGE_BASE_SCHEMA: dict[str, Any] = {
                                 {
                                     "heading": {
                                         "type": "string",
-                                        "description": (
-                                            "Name of this subsection's"
-                                            " specific subject."
-                                        ),
+                                        "description": _HEADING,
                                     },
-                                    "detail": {
-                                        "type": "string",
-                                        "description": (
-                                            "Dense encyclopedic prose:"
-                                            f" {_ORDINARY} words, or"
-                                            f" {_PRINCIPAL} for a"
-                                            " theme's two or three"
-                                            " principal subjects."
-                                            " Name every entity the"
-                                            " evidence gives for this"
-                                            " subject and every"
-                                            " parameter, effect size,"
-                                            " threshold and unit it"
-                                            " states. No citation"
-                                            " markers and no bullet"
-                                            " lists."
-                                        ),
-                                    },
-                                    "evidence_ids": str_array(
-                                        "The evidence_ids this subsection"
-                                        " is synthesized from. Listed"
-                                        " ids only; a subsection citing"
-                                        " none is dropped."
-                                    ),
+                                    "evidence_ids": str_array(_EVIDENCE_IDS),
                                 }
                             ),
                         },
+                    }
+                ),
+            }
+        }
+    ),
+}
+
+# Knowledge-base theme schema
+# Shapes the "research_overview_knowledge_base_theme" prompt output: the
+# dense prose for the subsections one theme of the outline above names.
+#
+# One theme per call, because the whole Knowledge Base cannot be written in
+# one: the published span is ~20,000 tokens and the 600s per-call ceiling
+# buys 16,000-22,000 generated tokens at the throughput production measured
+# (see KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS). "detail" carries no maxLength for
+# the same reason it never did: the shim that trims an over-long string
+# under the json_object downgrade cuts at a word boundary, and dense prose
+# is the one field where that trim would be visible to a reader.
+KNOWLEDGE_BASE_THEME_SCHEMA: dict[str, Any] = {
+    "name": "knowledge_base_theme",
+    "schema": obj(
+        {
+            "sections": {
+                "type": "array",
+                "maxItems": KNOWLEDGE_BASE_MAX_SECTIONS,
+                "description": (
+                    "This theme's subsections, in the order the outline"
+                    " lists them."
+                ),
+                "items": obj(
+                    {
+                        "heading": {
+                            "type": "string",
+                            "description": _HEADING,
+                        },
+                        "detail": {
+                            "type": "string",
+                            "description": (
+                                "Dense encyclopedic prose:"
+                                f" {_ORDINARY} words, or"
+                                f" {_PRINCIPAL} for a theme's two or"
+                                " three principal subjects."
+                                " Name every entity the evidence gives"
+                                " for this subject and every parameter,"
+                                " effect size, threshold and unit it"
+                                " states. No citation markers and no"
+                                " bullet lists."
+                            ),
+                        },
+                        "evidence_ids": str_array(_EVIDENCE_IDS),
                     }
                 ),
             }

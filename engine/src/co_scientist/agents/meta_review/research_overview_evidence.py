@@ -83,9 +83,9 @@ corpus measures ~400 tokens per source, so 130 sources is ~52,000 tokens
 of corpus, which is what production run ``d1273490`` sent (132 sources,
 ~56,200 prompt tokens per call) and had answered. The same three calls
 that share this corpus at the terminal firing (draft, accuracy review,
-knowledge base at ``KNOWLEDGE_BASE_MAX_TOKENS``) still fit their output
-budget beside it. Capping here covers all of them, since each reaches the
-corpus through ``_build_evidence_corpus``.
+knowledge base's outline, whose own writing calls resend it once per
+theme) still fit their output budget beside it. Capping here covers all
+of them, since each reaches the corpus through ``_build_evidence_corpus``.
 """
 
 

@@ -24,8 +24,8 @@ def test_full_text_on_the_record_never_reaches_the_corpus() -> None:
     (157 of 239 analyzed articles, measured over six real runs, averaging
     ~14,000 characters). Sending that instead of the abstract is the
     obvious way to buy the knowledge base more detail and the wrong one:
-    the corpus is already nearly the whole prompt of a call whose answer
-    is budgeted at ``KNOWLEDGE_BASE_MAX_TOKENS``, so a full-text corpus
+    the corpus is already nearly the whole prompt of the knowledge base's
+    own calls, which resend it once per theme, so a full-text corpus
     is an order of magnitude past any context this chain offers.
     """
     articles = [

@@ -117,43 +117,6 @@ def get_research_overview_prompt(
     )
 
 
-# Renders prompts/research_overview_knowledge_base.md for
-# agents/meta_review/research_overview_knowledge_base.py -- the deep,
-# separately budgeted pass over the same evidence corpus the overview
-# call sees (F8).
-def get_knowledge_base_prompt(
-    research_goal: str,
-    hypotheses_summary: str,
-    evidence_corpus: str = "No verified evidence corpus available.",
-    context: PromptRunContext | None = None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Get the deep knowledge-base synthesis prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses,
-            for orientation only -- the section states what is known, not
-            what the run proposed.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (tool registry, run
-            setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
-    ctx = context or PromptRunContext()
-    return _build_prompt(
-        "research_overview_knowledge_base",
-        {
-            "research_goal": research_goal,
-            "hypotheses_summary": hypotheses_summary,
-            "evidence_corpus": evidence_corpus,
-        },
-        sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
-        tool_registry=ctx.tool_registry,
-    )
-
-
 @dataclass(frozen=True)
 class OverviewReviewMaterial:
     """Run material the overview reviewer and reviser both check against.

@@ -1,4 +1,4 @@
-"""Deep Knowledge Base synthesis - its own call, its own budget (F8).
+"""Deep Knowledge Base synthesis - outlined once, written a theme at a time.
 
 Google's published Knowledge Base is a reference work: 9,702 words over 43
 named subject headings grouped into themes, carrying no citation apparatus
@@ -6,56 +6,72 @@ anywhere in the span. Ours was one field on the research-overview call,
 capped at eight flat topics, and a measured production report rendered
 2,079 words of it.
 
-That depth cannot be bought on the overview call. Its draft already spends
-~15.9k of a 24000-token ceiling that is itself the escalation ladder's own
-top rung, and the published span alone measures 19,084 tokens - asking for
-both in one answer is the ``finish_reason="length"`` walk the thinking-
-budget gotcha describes. So this is a second call with a budget sized from
-that measurement (``KNOWLEDGE_BASE_MAX_TOKENS``), gated to the tiers whose
-declared ceiling can pay for it, and degrading in every failure mode to the
-flat topics the overview call still produces.
+That depth cannot be bought on the overview call, whose draft already
+spends ~15.9k of a 24000-token ceiling. So it is bought here instead, gated
+to the tiers whose declared ceiling can pay for it, and degrading in every
+failure mode to the flat topics the overview call still produces. The gate
+is read here rather than in ``app.run_modes``: the tiers set one number
+this node can see (``Budget.max_llm_calls``), and a second table naming
+tiers would have to be kept in step with it by hand.
 
-The gate is read here rather than in ``app.run_modes``: the tiers set one
-number this node can see (``Budget.max_llm_calls``), and a second table
-naming tiers would have to be kept in step with it by hand.
+**It is not one call.** It was, at ``KNOWLEDGE_BASE_MAX_TOKENS`` (42000),
+and that call failed in three consecutive production runs -- nine
+attempts, no successes, while every 18000- and 24000-token call in the same
+runs answered. This module's own reasoning for the single call was that
+raising a budget buys nothing and splitting would multiply one background
+section into eight or nine provider requests. Both halves were answered by
+the same measurement, and it is the clock, not the budget:
 
-What closed the *remaining* gap was the opposite of that reasoning, and
-the distinction is worth keeping: a second call bought the structure, but
-the depth inside it was bounded by what the prompt asked for, not by what
-the call could afford. Measured section by section on production run
-``d1273490`` (2026-09-07): 38 subject sections averaging 164 words,
-median 162, **none above 213** -- the whole distribution pinned inside
-the "150-250 words" the prompt then named, hugging its floor -- against
-an exemplar averaging 218 with eleven sections above 250 and a 505-word
-top. Of the 3,142-word shortfall, roughly a third is the five missing
-sections and two thirds is per-section thinness. That answer is ~11k
-tokens against this call's 42000-token ceiling, so raising the ceiling
-buys nothing (and on this chain a reasoning model spends whatever it is
-given); splitting per theme would multiply one background section into
-eight or nine provider requests against a ~100/day per-model cap; and
-capping reasoning the way entailment does (``MINIMAL_REASONING_MAX_
-TOKENS``, reachable only via ``enable_thinking=False``) trades away the
-one thing composing 40+ themed sections actually uses reasoning for.
-So the lever is the ask: graded word bands whose floor is the exemplar's
-own mean, a section-count target the evidence has to support, and the
-content kinds the exemplar carries that nothing here used to request --
-exhaustive entity enumeration, every number with its unit, and boundary
-conditions. Those targets live in ``schemas.knowledge_base`` because the
-prompt and the schema descriptions both have to state them.
+* ``COSCIENTIST_LLM_TIMEOUT_SECONDS`` bounds one call at 600s, and the
+  failing attempts measured 27-37 tokens/second (10,080 tokens in 366s;
+  20,949 in 563s). 42,000 tokens is 1,100-1,500s of generation at that
+  rate, so the request could never have been served: both runs ended the
+  retry loop on ``LLMTimeoutError``, and the upstream had already dropped
+  the stream itself at 366-563s on the attempts before it.
+* The largest *answer* any call produced in either run was 7,644 tokens
+  (meta-review, run ``bc77950f``), against the ~20,000 this span needs. No
+  budget makes one call deliver it.
+* Nothing clamps a request to a model's declared output ceiling, and
+  clamping would not have helped: ``minimax/minimax-m3:free`` advertises
+  943,718 completion tokens. The declaration was never the constraint.
+* The mid-stream ``finish_reason="error"`` is not distinguishable from
+  ordinary provider weather -- ``research_overview`` at 24000 hit the same
+  shape six times in one run, at 764 to 17,523 tokens -- so
+  ``is_transient_provider_error`` correctly waits it out. The waiting was
+  only waste because the request could not fit; it fits now.
+
+So: one outline call decides every theme and heading, then one call per
+theme writes that theme's prose, concurrently, each bounded well inside the
+clock (``research_overview_knowledge_base_calls``). Nine requests where
+there was one -- 0.4% of the standard tier's declared 2,500 ceiling, and
+0.1% of extended's 7,000, against a section that otherwise publishes
+nothing. The other rejected lever, capping reasoning, was not rejected: it
+is applied *inside* the parts, where the structural judgment the chain of
+thought was defended for has already been made by the outline.
+
+What closed the *depth* gap within that structure is a separate lever and
+still applies: measured section by section on production run ``d1273490``
+(2026-09-07), 38 subject sections averaged 164 words, median 162, **none
+above 213** -- the whole distribution pinned inside the "150-250 words" the
+prompt then named, hugging its floor -- against an exemplar averaging 218
+with eleven sections above 250 and a 505-word top. So the ask carries
+graded word bands whose floor is the exemplar's own mean, a section-count
+target the evidence has to support, and the content kinds the exemplar
+carries that nothing here used to request -- exhaustive entity enumeration,
+every number with its unit, and boundary conditions. Those targets live in
+``schemas.knowledge_base`` because the prompt and the schema descriptions
+both have to state them.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Final
 
-from co_scientist.constants import (
-    KNOWLEDGE_BASE_MAX_TOKENS,
-    MEDIUM_TEMPERATURE,
+from co_scientist.agents.meta_review import (
+    research_overview_knowledge_base_calls as parts,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import CompletionSpec, call_llm_json
-from co_scientist.prompts import PromptRunContext, get_knowledge_base_prompt
 from co_scientist.schemas.synthesis import (
     KNOWLEDGE_BASE_MAX_SECTIONS,
     KNOWLEDGE_BASE_MAX_THEMES,
@@ -78,8 +94,8 @@ KNOWLEDGE_BASE_MIN_LLM_CALLS: Final = 2500
 Exactly the standard tier's ``max_llm_calls`` (``app.run_modes``), so the
 gate reads "standard and above". Express declares 1200 and is the tier
 this is withheld from: its whole run is four ideas and one iteration, and
-a single 42000-token call would be a visible share of what it spends,
-for a background section rather than for an idea.
+the outline call plus one call per theme would be a visible share of what
+it spends, for a background section rather than for an idea.
 
 A run that declares no ceiling at all does not fund it either. Every
 production run declares one (``engine_adapter.opts`` sets it from the
@@ -125,41 +141,59 @@ async def synthesize_knowledge_base(
     Returns:
         Tuple of (one topic per grounded section, in reading order; LLM
         calls spent). Both empty when there is nothing to synthesize from;
-        a failed call returns no topics but still reports its cost, since
-        the provider was paid for the attempt.
+        calls counts the requests made, not the ones that answered, since
+        the provider was paid for every attempt.
     """
     if not corpus:
         return [], 0
-    prompt, schema = get_knowledge_base_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=hypotheses_summary,
-        evidence_corpus=evidence_corpus_text,
-        context=PromptRunContext(
-            tool_registry=state.get("tool_registry"),
-            run_setup_guidance=state.get("run_setup_guidance"),
-            run_focus_guidance=state.get("run_focus_guidance"),
-        ),
+    themes = await parts.plan_knowledge_base_outline(
+        state, hypotheses_summary, evidence_corpus_text
     )
-    try:
-        response = await call_llm_json(
-            prompt=prompt,
-            spec=CompletionSpec(
-                model_name=state["supervisor_model_name"],
-                max_tokens=KNOWLEDGE_BASE_MAX_TOKENS,
-                temperature=MEDIUM_TEMPERATURE,
-                json_schema=schema,
-            ),
-        )
-    except TASK_CONTROL_FLOW_ERRORS:
-        raise
-    except Exception:
-        logger.error(
-            "Knowledge-base synthesis failed; publishing the research "
-            "overview's own topics instead",
-            exc_info=True,
-        )
+    if not themes:
         return [], 1
-    return validate_themes(response.get("themes"), corpus), 1
+    outline_text = parts.format_outline(themes)
+    written = await asyncio.gather(
+        *[
+            parts.write_theme_sections(
+                state, theme, outline_text, evidence_corpus_text
+            )
+            for theme in themes
+        ]
+    )
+    raw = [
+        {"title": theme["title"], "sections": _grounded_sections(theme, part)}
+        for theme, part in zip(themes, written, strict=True)
+    ]
+    return validate_themes(raw, corpus), 1 + len(themes)
+
+
+def _grounded_sections(
+    theme: dict[str, Any], written: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Restore the outline's evidence ids to sections that cite none.
+
+    Splitting the call split the grounding decision away from the prose:
+    the outline chose each subsection's sources, and a writer that answers
+    without repeating them would otherwise have its section dropped for
+    citing nothing -- which reads as a thin corpus rather than as a lost
+    field. Matched on the heading the writer was told to keep verbatim.
+
+    Args:
+        theme: The outlined theme, carrying the assigned evidence ids.
+        written: The sections that theme's writing call produced.
+
+    Returns:
+        The written sections, each carrying evidence ids.
+    """
+    outlined = {
+        str(section.get("heading") or "").strip(): section.get("evidence_ids")
+        for section in theme["sections"]
+    }
+    for section in written:
+        if not section.get("evidence_ids"):
+            heading = str(section.get("heading") or "").strip()
+            section["evidence_ids"] = outlined.get(heading)
+    return written
 
 
 def _section_topic(

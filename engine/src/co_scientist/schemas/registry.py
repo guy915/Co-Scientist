@@ -18,7 +18,10 @@ from co_scientist.schemas.generation import (
     HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
 )
-from co_scientist.schemas.knowledge_base import KNOWLEDGE_BASE_SCHEMA
+from co_scientist.schemas.knowledge_base import (
+    KNOWLEDGE_BASE_OUTLINE_SCHEMA,
+    KNOWLEDGE_BASE_THEME_SCHEMA,
+)
 from co_scientist.schemas.literature import (
     LITERATURE_PAPER_ANALYSIS_SCHEMA,
     LITERATURE_RELEVANCE_BATCH_SCHEMA,
@@ -90,9 +93,12 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "reflection_observations": REFLECTION_SCHEMA,
     "deep_verification": DEEP_VERIFICATION_SCHEMA,
     "research_overview": RESEARCH_OVERVIEW_SCHEMA,
-    # F8: the deep knowledge-base pass is a second call over the same
-    # evidence corpus, with its own budget (KNOWLEDGE_BASE_MAX_TOKENS).
-    "research_overview_knowledge_base": KNOWLEDGE_BASE_SCHEMA,
+    # F8: the deep knowledge-base pass is a second pass over the same
+    # evidence corpus, outlined once and then written a theme at a time --
+    # one ~20,000-token answer cannot be served inside the 600s per-call
+    # ceiling (KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS records the measurement).
+    "research_overview_knowledge_base_outline": KNOWLEDGE_BASE_OUTLINE_SCHEMA,
+    "research_overview_knowledge_base_theme": KNOWLEDGE_BASE_THEME_SCHEMA,
     "research_overview_review": RESEARCH_OVERVIEW_REVIEW_SCHEMA,
     # The reviser regenerates the whole overview, so it shares the
     # synthesis schema rather than defining a second copy of the shape.

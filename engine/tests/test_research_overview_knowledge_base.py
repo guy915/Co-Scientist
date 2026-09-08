@@ -1,4 +1,4 @@
-"""F8: the Knowledge Base is synthesized by its own call, at published depth.
+"""F8: the Knowledge Base is synthesized by its own calls, at published depth.
 
 Google's published MASH Knowledge Base runs 9,702 words over 43 named
 subject headings grouped under themed sections
@@ -10,9 +10,12 @@ shorter, with no thematic grouping at all.
 The *structure* was not a prompt-wording problem: the overview draft
 already spends ~15.9k of its 24,000-token ceiling, and the published span
 alone measures 19,084 tokens (cl100k). So the depth is bought with a
-*second* call carrying its own budget, gated to the tiers whose ceiling
+*second pass* carrying its own budget, gated to the tiers whose ceiling
 can pay for it, and degrading to the overview call's own flat topics
-wherever it is not funded or does not answer.
+wherever it is not funded or does not answer. That pass is an outline call
+plus one writing call per theme; what it costs, how it reassembles and why
+one call could not do it are pinned next door, in
+``test_research_overview_knowledge_base_split.py``.
 
 The *depth inside* that structure was. Re-measured on run ``d1273490``
 (2026-09-07): 8 themes and 38 sections, but 6,245 words to the exemplar's
@@ -33,16 +36,20 @@ import pytest
 from co_scientist.agents.meta_review import (
     research_overview_knowledge_base as kb,
 )
-from co_scientist.constants import (
-    KNOWLEDGE_BASE_MAX_TOKENS,
-    THINKING_FLOOR_MAX_TOKENS,
+from co_scientist.agents.meta_review import (
+    research_overview_knowledge_base_calls as kbc,
 )
-from co_scientist.prompts import get_knowledge_base_prompt
+from co_scientist.prompts import (
+    get_knowledge_base_outline_prompt,
+    get_knowledge_base_theme_prompt,
+)
+from co_scientist.prompts.knowledge_base import ThemeWritingMaterial
 from co_scientist.schemas.knowledge_base import (
+    KNOWLEDGE_BASE_OUTLINE_SCHEMA,
     KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
-    KNOWLEDGE_BASE_SCHEMA,
     KNOWLEDGE_BASE_SECTION_WORDS,
     KNOWLEDGE_BASE_TARGET_SECTIONS,
+    KNOWLEDGE_BASE_THEME_SCHEMA,
 )
 from co_scientist.schemas.synthesis import KNOWLEDGE_BASE_MAX_THEMES
 from tests._state import make_state
@@ -98,6 +105,13 @@ _THEMED_RESPONSE: dict[str, Any] = {
 }
 
 
+_MATERIAL = ThemeWritingMaterial(
+    title="Extracellular Matrix Architecture",
+    sections="- Cross-Linking Constraints (evidence: evidence-2)",
+    outline="## Extracellular Matrix Architecture",
+)
+
+
 def _funded_state(**overrides: Any) -> Any:
     """State for a tier whose ceiling pays for the extra call."""
     return make_state(
@@ -135,33 +149,22 @@ def test_the_schema_never_echoes_the_evidence_pool_back() -> None:
     The trap proximity clustering hit: a schema that names its input by
     repeating its text truncates identically on every retry.
     """
-    text = str(KNOWLEDGE_BASE_SCHEMA)
-    assert "abstract" not in text
-    assert "title of the" not in text
-    assert KNOWLEDGE_BASE_SCHEMA["schema"]["additionalProperties"] is False
+    for schema in (KNOWLEDGE_BASE_OUTLINE_SCHEMA, KNOWLEDGE_BASE_THEME_SCHEMA):
+        text = str(schema)
+        assert "abstract" not in text
+        assert "title of the" not in text
+        assert schema["schema"]["additionalProperties"] is False
 
 
-def test_the_budget_funds_the_thinking_floor_and_the_measured_answer() -> None:
-    """The published span measures 19,084 tokens; the floor is 18,000.
+def test_themed_sections_reach_the_topic_list_grounded() -> None:
+    """Each written section becomes one topic carrying its theme and refs.
 
-    Read from the constant rather than restated, so a later change to the
-    thinking floor moves this bound with it.
+    The flattening the report renders from, asserted against the response
+    shape directly: which calls produce that shape is the split pass's
+    concern, next door.
     """
-    assert KNOWLEDGE_BASE_MAX_TOKENS >= THINKING_FLOOR_MAX_TOKENS + 19084
+    topics = kb.validate_themes(_THEMED_RESPONSE["themes"], _CORPUS)
 
-
-async def test_themed_sections_reach_the_topic_list_grounded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Each section becomes one topic carrying its theme and references."""
-    fake = AsyncMock(return_value=_THEMED_RESPONSE)
-    monkeypatch.setattr(kb, "call_llm_json", fake)
-
-    topics, calls = await kb.synthesize_knowledge_base(
-        _funded_state(), "1. (Elo 1200) an idea", _CORPUS
-    )
-
-    assert calls == 1
     assert [topic["theme"] for topic in topics] == [
         "Hepatic Stellate Cell Plasticity",
         "Extracellular Matrix Architecture",
@@ -174,20 +177,21 @@ async def test_themed_sections_reach_the_topic_list_grounded(
     assert "Ungrounded Section" not in str(topics)
 
 
-async def test_the_call_is_sized_from_its_own_budget(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The second call carries its own ceiling, not the overview's."""
-    fake = AsyncMock(return_value=_THEMED_RESPONSE)
-    monkeypatch.setattr(kb, "call_llm_json", fake)
+def test_a_theme_beyond_the_readable_count_is_never_flattened_in() -> None:
+    """The report reads eight themes and stops; json_object mode may not."""
+    themes = [
+        {
+            "title": f"Theme {index}",
+            "sections": _THEMED_RESPONSE["themes"][1]["sections"],
+        }
+        for index in range(KNOWLEDGE_BASE_MAX_THEMES + 3)
+    ]
 
-    await kb.synthesize_knowledge_base(
-        _funded_state(), "1. (Elo 1200) an idea", _CORPUS
+    topics = kb.validate_themes(themes, _CORPUS)
+
+    assert (
+        len({topic["theme"] for topic in topics}) == KNOWLEDGE_BASE_MAX_THEMES
     )
-
-    assert fake.await_args is not None
-    spec = fake.await_args.kwargs["spec"]
-    assert spec.max_tokens == KNOWLEDGE_BASE_MAX_TOKENS
 
 
 async def test_an_empty_corpus_never_spends_the_call(
@@ -195,7 +199,7 @@ async def test_an_empty_corpus_never_spends_the_call(
 ) -> None:
     """Nothing to synthesize from is not something to pay a model for."""
     fake = AsyncMock(return_value=_THEMED_RESPONSE)
-    monkeypatch.setattr(kb, "call_llm_json", fake)
+    monkeypatch.setattr(kbc, "call_llm_json", fake)
 
     topics, calls = await kb.synthesize_knowledge_base(
         _funded_state(), "1. (Elo 1200) an idea", {}
@@ -203,22 +207,6 @@ async def test_an_empty_corpus_never_spends_the_call(
 
     assert (topics, calls) == ([], 0)
     assert fake.await_count == 0
-
-
-async def test_a_failed_call_leaves_the_flat_topics_standing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A report carrying a shallower section beats a report that fails."""
-    monkeypatch.setattr(
-        kb, "call_llm_json", AsyncMock(side_effect=RuntimeError("boom"))
-    )
-
-    topics, calls = await kb.synthesize_knowledge_base(
-        _funded_state(), "1. (Elo 1200) an idea", _CORPUS
-    )
-
-    assert topics == []
-    assert calls == 1
 
 
 def test_the_section_word_band_starts_at_the_exemplar_mean() -> None:
@@ -242,22 +230,28 @@ def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
     ride with the request beside the prompt, so a band written in one and
     not the other is two instructions disagreeing.
     """
-    prompt, _ = get_knowledge_base_prompt("goal", "1. an idea", "corpus")
-    detail = KNOWLEDGE_BASE_SCHEMA["schema"]["properties"]["themes"]["items"][
-        "properties"
-    ]["sections"]["items"]["properties"]["detail"]
+    outline, _ = get_knowledge_base_outline_prompt(
+        "goal", "1. an idea", "corpus"
+    )
+    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
+    detail = KNOWLEDGE_BASE_THEME_SCHEMA["schema"]["properties"]["sections"][
+        "items"
+    ]["properties"]["detail"]
+    # The word bands ride with the writing call, which is the only one
+    # asked for prose; the counts ride with the outline, which is the only
+    # one that decides how many sections there are.
     for bound in (
         *KNOWLEDGE_BASE_SECTION_WORDS,
         *KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
     ):
-        assert str(bound) in prompt
+        assert str(bound) in theme
         assert str(bound) in detail["description"]
     for bound in KNOWLEDGE_BASE_TARGET_SECTIONS:
-        assert str(bound) in prompt
+        assert str(bound) in outline
     # A section total with no theme count invites a ninth theme, which
     # validate_themes slices off in silence -- and the json_object
     # downgrade's array trim does it before the slice ever sees it.
-    assert f"no more than {KNOWLEDGE_BASE_MAX_THEMES} themes" in prompt
+    assert f"no more than {KNOWLEDGE_BASE_MAX_THEMES} themes" in outline
 
 
 def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
@@ -268,8 +262,11 @@ def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
     that failed and findings that contradict each other. Ours asked for
     none of the three by name.
     """
-    prompt, _ = get_knowledge_base_prompt("goal", "1. an idea", "corpus")
-    lowered = prompt.lower()
+    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
+    outline, _ = get_knowledge_base_outline_prompt(
+        "goal", "1. an idea", "corpus"
+    )
+    lowered = f"{theme}\n{outline}".lower()
     assert "not two or three representatives" in lowered
     assert "unit" in lowered
     assert "boundary conditions" in lowered
@@ -278,6 +275,6 @@ def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
 
 def test_the_prompt_adds_no_citation_apparatus() -> None:
     """The span carries zero citations by design, mirroring the exemplar."""
-    prompt, _ = get_knowledge_base_prompt("goal", "1. an idea", "corpus")
-    assert "no citation markers" in prompt.lower()
-    assert "no bullet lists" in prompt.lower()
+    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
+    assert "no citation markers" in theme.lower()
+    assert "no bullet lists" in theme.lower()

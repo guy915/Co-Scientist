@@ -56,29 +56,56 @@ in production. The floor only ever raises, so every other call is
 unaffected.
 """
 
-KNOWLEDGE_BASE_MAX_TOKENS: Final = 42000
-"""Total budget for the deep knowledge-base synthesis call (F8).
+KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS: Final = 6000
+"""Answer budget for the knowledge base's outline call (F8).
 
-The one call in the engine sized from a *measured* published answer
-rather than from a comparable caller. Google's MASH Knowledge Base is
-9,702 words over 43 named subject headings, which tokenizes (cl100k) to
-19,084 tokens of prose -- around 20,000 once it is carried as JSON. That
-answer cannot be bought inside the research-overview call: that draft
-already spends ~15.9k of its own 24000, and asking for the depth there
-produces exactly the ``finish_reason="length"`` walk the thinking-budget
-gotcha describes.
+Replaces ``KNOWLEDGE_BASE_MAX_TOKENS``, a single 42000-token budget sized
+from the published exemplar's own measured length (9,702 words, 19,084
+cl100k tokens) on the reasoning that a budget covering the thinking floor
+plus the answer makes the first attempt the one that answers. It never
+did: that call failed in three consecutive production runs -- nine
+attempts, no successes, while every 18000- and 24000-token call in the
+same runs answered.
 
-42000 is ``THINKING_FLOOR_MAX_TOKENS`` (18000) plus
-``BUDGET_ESCALATION_MAX_TOKENS`` (24000), both defined below: the floor
-is what a chain of thought is free to spend on any thinking call, and
-one already-proven escalation budget's worth of room on top is what the
-measured answer needs. Written as a literal rather than as the sum only
-because both live further down this module; changing either without
-revisiting this number leaves the first attempt answer-starved. Sizing
-it at the sum rather than at the answer alone is deliberate: a budget
-that funds the floor and the answer makes the *first* attempt the one
-that answers, instead of paying for a doomed attempt before the
-escalation ladder raises the request to the same place.
+The ceiling that dooms it is the wall clock, not a model output limit.
+``minimax/minimax-m3:free`` advertises 943,718 completion tokens and no
+code clamps a request to any such number, so the request itself was
+accepted every time. But ``COSCIENTIST_LLM_TIMEOUT_SECONDS`` bounds one
+call at 600s, and the failing attempts measured 27-37 tokens/second
+(10,080 tokens in 366s; 20,949 in 563s) -- 42,000 tokens is 1,100-1,500s
+of generation at that rate. Both runs ended the retry loop on
+``LLMTimeoutError``; the upstream had already dropped the stream itself
+(``finish_reason="error"``) at 366-563s on the attempts before it. So the
+budget was never the lever: a call this long cannot be served, and
+``BUDGET_ESCALATION_MAX_INCREMENT`` would only have made a later attempt
+longer still.
+
+The section is therefore outlined once and written one theme at a time
+(``agents/meta_review/research_overview_knowledge_base_calls``). This
+budget is the outline's: theme titles, subsection headings and the
+evidence ids each is drawn from, no prose -- eight themes of eight
+headings is well under 2,000 tokens, and the rest is margin for the
+json_object downgrade's own verbosity. A base rather than a cap, so
+``_apply_thinking_args`` still replaces it with the floor wherever the
+model reasons; what keeps this call inside the clock is the bounded chain
+of thought its call site asks for, not this number.
+"""
+
+KNOWLEDGE_BASE_THEME_MAX_TOKENS: Final = 12000
+"""Answer budget for writing one theme's subsections (F8).
+
+Sized from the ask rather than from a comparable caller, like the single
+budget it replaces: a theme runs at most ``KNOWLEDGE_BASE_MAX_SECTIONS``
+subsections, and ``KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS`` tops a
+subsection at 500 words, so the largest theme any prompt can ask for is
+4,000 words -- about 8,000 tokens of prose, and 12000 leaves the JSON
+carrying it room on top.
+
+Deliberately far below the 42,000 that could not be served: at the 27-37
+tokens/second those failed attempts measured, this is 320-440s inside a
+600s per-call ceiling, and eight of them run concurrently rather than in
+sequence. A base, not a cap, for the same reason as the outline budget
+above.
 """
 
 THINKING_MAX_TOKENS: Final = 18000
