@@ -79,11 +79,13 @@ async def emit_progress(
         )
 
 
-def record_schema_degradation(schema_name: str) -> None:
+def record_schema_degradation(
+    schema_name: str, state: "WorkflowState | None" = None
+) -> None:
     """Record that a fallback replaced an enhancement node's LLM output.
 
-    Appends the schema name to the active workflow state's ``degraded_nodes``
-    and emits a ``schema_degraded`` progress event when a callback is
+    Appends the schema name to the workflow state's ``degraded_nodes`` and
+    emits a ``schema_degraded`` progress event when a callback is
     listening. Called by ``llm_json.get_fallback_response`` the moment a
     fallback is served; the run-continues behavior is decided there, this
     only makes the degradation durable and visible.
@@ -95,13 +97,28 @@ def record_schema_degradation(schema_name: str) -> None:
 
     Args:
         schema_name: The failed schema's name, which names its node.
+        state: The state to record into. Omitted by the fallback path,
+            which runs deep below any node and has none of its own, so it
+            reads the contextvar instead. A node degrading its *own* call
+            passes its state: the contextvar is a side effect of whether
+            that node happened to emit progress first, which is not a
+            dependency a degradation should acquire.
     """
-    state = _ACTIVE_WORKFLOW_STATE.get()
+    if state is None:
+        state = _ACTIVE_WORKFLOW_STATE.get()
     if state is None or not isinstance(state, dict):
         return
-    degraded = state.setdefault("degraded_nodes", [])
-    if isinstance(degraded, list):
-        degraded.append(schema_name)
+    # Replace anything that is not a list rather than skipping the record:
+    # a state restored from a checkpoint whose payload never held this key
+    # carries it as None (``checkpoint._PLAIN_STATE_KEYS`` writes
+    # ``state.get(key)`` for every declared field), and `setdefault` then
+    # hands back that None -- which silently dropped every degradation on
+    # such a state instead of starting the list.
+    degraded = state.get("degraded_nodes")
+    if not isinstance(degraded, list):
+        degraded = []
+        state["degraded_nodes"] = degraded
+    degraded.append(schema_name)
     _emit_degradation_event(state, schema_name)
 
 

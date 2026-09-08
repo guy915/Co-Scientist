@@ -80,10 +80,15 @@ def _deserialize_messages(raw: Any) -> list[Any]:
 _EXCLUDED_RUNTIME_KEYS = frozenset({"progress_callback", "tool_registry"})
 
 # Transient control flags deliberately not checkpointed: ``resume`` is set by
-# restore_workflow_state itself, and ``pending_steering`` is re-delivered from
-# the app's durable message queue on resume. CAUTION: do not "clean up" this
-# set -- removing an entry silently starts persisting that field.
-_TRANSIENT_CONTROL_KEYS = frozenset({"resume", "pending_steering"})
+# restore_workflow_state itself, ``pending_steering`` is re-delivered from
+# the app's durable message queue on resume, and ``durable_retries_remain``
+# describes the single durable attempt now running -- persisting it would
+# hand attempt 1's retry budget to attempt 2 and to every later node.
+# CAUTION: do not "clean up" this set -- removing an entry silently starts
+# persisting that field.
+_TRANSIENT_CONTROL_KEYS = frozenset(
+    {"resume", "pending_steering", "durable_retries_remain"}
+)
 
 # ``start_time`` is a wall-clock timestamp; persisting it verbatim would make
 # wall-clock budgets count the paused/idle gap between checkpoint and resume.

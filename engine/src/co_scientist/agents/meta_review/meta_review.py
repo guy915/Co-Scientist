@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Any
 
+from co_scientist.agents.node_degradation import run_or_degrade
 from co_scientist.agents.reflection.mature_reviews import (
     mature_review_summary,
 )
@@ -79,8 +80,28 @@ async def _run_meta_review_phase(
         logger.warning("No reviews available for meta-review")
         return _empty_meta_review_result()
 
+    # An unreachable provider degrades to the same empty synthesis the
+    # no-reviews branch above already returns, rather than failing the
+    # task: this node is not terminal, but a task that spends its durable
+    # attempts settles the whole run, so the report is lost either way.
+    return await run_or_degrade(
+        state,
+        lambda: _synthesize_and_monitor(state, all_reviews, len(hypotheses)),
+        schema_name="meta_review",
+        fallback=_degraded_meta_review_result,
+        lost="evolution and ranking continue without cross-hypothesis "
+        "guidance for this cycle",
+    )
+
+
+async def _synthesize_and_monitor(
+    state: WorkflowState,
+    all_reviews: list[dict[str, Any]],
+    hypotheses_count: int,
+) -> dict[str, Any]:
+    """Synthesize the meta-review, announce it, and screen its direction."""
     meta_review = await _synthesize_meta_review(
-        state, all_reviews, len(hypotheses)
+        state, all_reviews, hypotheses_count
     )
 
     await emit_progress(
@@ -95,7 +116,9 @@ async def _run_meta_review_phase(
     # The overview is the run's own account of where its ideas are heading,
     # which is what makes it the thing to monitor (J6). Empty for a run the
     # monitor does not halt, so a healthy synthesis returns exactly what it
-    # always did.
+    # always did. Screened here rather than outside the degrade wrapper
+    # because the screen is deterministic policy matching, not a call --
+    # and a degraded synthesis carries no direction to halt on.
     halt = await monitor_research_direction(state, meta_review)
     return {**_build_meta_review_result(meta_review), **halt}
 
@@ -208,6 +231,21 @@ def _empty_meta_review_result() -> dict[str, Any]:
             "strategic_recommendations": [],
         }
     }
+
+
+def _degraded_meta_review_result() -> dict[str, Any]:
+    """The same empty shape, said truthfully for a failed synthesis.
+
+    ``summary`` renders into the finished report
+    (``app.report_markdown_meta_review``), and "No reviews available" is
+    a statement about the run: true of the branch above, false of a run
+    whose reviews were all present and whose model could not be reached.
+    """
+    result = _empty_meta_review_result()
+    result["meta_review"]["summary"] = (
+        "Meta-review synthesis was unavailable for this cycle"
+    )
+    return result
 
 
 def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:

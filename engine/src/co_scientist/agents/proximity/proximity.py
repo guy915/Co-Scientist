@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.agents.node_degradation import run_or_degrade
 from co_scientist.agents.proximity.proximity_dedup import (
     _assign_cluster_ids,
     _dedupe_by_cluster,
@@ -388,7 +389,23 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
 
     # Malformed or empty LLM output: skip deduplication for this iteration
     # rather than raising, so a bad response degrades gracefully instead
-    # of failing the whole run.
+    # of failing the whole run. An unreachable provider takes the same
+    # exit (``run_or_degrade``) rather than the one it used to -- spending
+    # this task's durable attempts, which settles the run and loses the
+    # report along with the deduplication.
+    return await run_or_degrade(
+        state,
+        lambda: _cluster_and_dedup(state, hypotheses),
+        schema_name="proximity_analysis",
+        fallback=lambda: {"hypotheses": hypotheses},
+        lost="this cycle keeps its near-duplicate hypotheses",
+    )
+
+
+async def _cluster_and_dedup(
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> dict[str, Any]:
+    """Cluster the pool and remove its duplicates, or keep it unchanged."""
     outcome = await _run_proximity_clustering(state, hypotheses)
     if outcome is None:
         return {"hypotheses": hypotheses}

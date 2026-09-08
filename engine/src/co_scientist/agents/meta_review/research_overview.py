@@ -12,6 +12,12 @@ from co_scientist.agents.meta_review.research_overview_contacts import (
     _validate_research_contact_groups,
     _validate_research_contacts,
 )
+from co_scientist.agents.meta_review.research_overview_degrade import (
+    is_interim_firing as _is_interim_firing,
+)
+from co_scientist.agents.meta_review.research_overview_degrade import (
+    synthesize_or_degrade,
+)
 from co_scientist.agents.meta_review.research_overview_directions import (
     format_overview,
 )
@@ -59,7 +65,6 @@ from co_scientist.prompts import (
     get_research_overview_prompt,
 )
 from co_scientist.safety import is_blocking_status
-from co_scientist.scheduling.models import TaskType
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -146,19 +151,21 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     contact_candidates = _build_contact_candidates(articles)
     evidence_corpus = _build_evidence_corpus(articles)
 
-    return await _emit_and_synthesize_overview(
-        state, summary, contact_candidates, evidence_corpus, hypothesis_by_index
+    # A provider that cannot be reached at this terminal node used to
+    # take the whole run's output with it: the task spent its durable
+    # attempts, the run settled `failed`, and `engine.finalize` -- only
+    # ever enqueued as this node's `None` successor -- never existed, so
+    # nothing wrote the report the other 146 tasks had earned.
+    return await synthesize_or_degrade(
+        state,
+        lambda: _emit_and_synthesize_overview(
+            state,
+            summary,
+            contact_candidates,
+            evidence_corpus,
+            hypothesis_by_index,
+        ),
     )
-
-
-def _is_interim_firing(state: WorkflowState) -> bool:
-    """Whether this is a periodic firing rather than the terminal one.
-
-    The scheduler's own recorded decision is what tells them apart, the
-    same value the graph and the durable route table both read: SYNTHESIZE
-    returns to the loop point (FIX-6), TERMINATE ends the run.
-    """
-    return str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value
 
 
 async def _interim_overview_result(

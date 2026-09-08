@@ -24,8 +24,10 @@ from app.engine_tasks_fanout import (
     _enqueue_verification_fanout,
 )
 from app.engine_tasks_gate import _apply_pre_ranking_evidence_gate
-from app.engine_tasks_inputs import _merge_scientist_inputs
 from app.engine_tasks_ranking import _schedule_ranking_chain
+from app.engine_tasks_restore import (
+    _restore_node_task_state as _restore_node_task_state,
+)
 from app.engine_tasks_support import (
     FINALIZE_TASK,
     NodeCompletion,
@@ -116,36 +118,6 @@ def _check_portfolio_predecessor(
     if stage in predecessor_stages and resume_successor == task.task_type:
         return
     raise SupersededTaskError("portfolio task checkpoint was superseded")
-
-
-def _restore_node_task_state(
-    task: ScientificTask,
-    checkpoint: dict[str, Any],
-    generator: Any,
-    opts: dict[str, Any],
-    db_path: str | None,
-) -> dict[str, Any]:
-    """Restore workflow state and re-apply durable per-boundary overlays.
-
-    Re-delivers durable scientist steering/private sources at every safe
-    task boundary. ``_build_engine_opts`` only *reads* the message queue;
-    the ids it read ride the commit target and are retired inside the
-    transaction that commits this state's successor checkpoint, so a worker
-    lost mid-node leaves the steer claimable rather than acknowledged.
-    """
-    from co_scientist.checkpoint import restore_workflow_state
-
-    state: dict[str, Any] = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    if opts.get("pending_steering"):
-        state["pending_steering"] = True
-    if opts.get("preferences"):
-        state["preferences"] = opts["preferences"]
-    if opts.get("context_enrichment_sources"):
-        state["context_enrichment_sources"] = opts["context_enrichment_sources"]
-    _merge_scientist_inputs(state, task.run_id, db_path)
-    return state
 
 
 def _pause_node_task_if_requested(

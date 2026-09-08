@@ -269,6 +269,11 @@ class WorkflowState(TypedDict):
     than only folded into the initial context.
     """
 
+    durable_retries_remain: bool | None
+    """True while the durable task running this node still holds a retry.
+    Set per attempt by ``app.engine_tasks_restore``; absent off that path,
+    where degrading is the safe reading (``agents.node_degradation``)."""
+
     supervisor_guidance: dict[str, Any]
     """Supervisor's research plan and workflow guidance."""
 
@@ -320,13 +325,14 @@ class WorkflowState(TypedDict):
     """
 
     degraded_nodes: list[str]
-    """Schema names of enhancement nodes whose LLM output could not be
-    parsed after all retries and were served a placeholder fallback instead
-    (see ``llm_json._ENHANCEMENT_NODE_FALLBACKS``). The run continues --
+    """Schema names of enhancement nodes that published a placeholder
+    instead of their own output -- either the model's answer would not
+    parse after all retries (``llm_json._ENHANCEMENT_NODE_FALLBACKS``) or
+    its provider could not be reached at all
+    (``agents.node_degradation.run_or_degrade``). The run continues --
     this list only lets the report say a section is blank because
     generation failed, rather than showing silence. Recorded at
-    fallback-serve time by ``progress.record_schema_degradation``, never
-    returned as a node update.
+    fallback time by ``progress.record_schema_degradation``.
     """
 
     retrieval_degradation: dict[str, Any] | None
