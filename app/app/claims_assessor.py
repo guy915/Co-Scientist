@@ -153,6 +153,14 @@ _PARTIAL_LEXICAL_THRESHOLD = 0.25
 # rules out; a near-miss must overlap on two distinct concepts.
 _PARTIAL_MIN_SHARED_TOKENS = 2
 
+# How much of a claim's own concept tokens a quote cited as contradicting it
+# must state before that contradiction is believed (see
+# :func:`_quote_negates_claim`). Deliberately the same 0.25 as the partial
+# band above -- a quote too unrelated to earn PARTIAL support cannot be
+# specific enough to refute the claim either -- so this is one line, not a
+# separately tuned one.
+_MIN_CONTRADICTION_COVERAGE = _PARTIAL_LEXICAL_THRESHOLD
+
 # Retrieve at most this many passages per claim before assessing (claim-
 # specific retrieval): bounds an LLM assessor's context and stops an unrelated
 # passage from grounding a claim by run-wide coincidence.
@@ -271,6 +279,70 @@ def retrieve_passages(
     return [p for _, p, _ in relevant[: max(0, top_k)]]
 
 
+def _quote_negates_claim(claim: str, quote: str) -> bool:
+    """Whether a quote cited as contradicting ``claim`` is actually founded.
+
+    Two cheap, offline checks any CONTRADICTS verdict must clear before it
+    is trusted, whoever produced it: the quote has to cover the claim's
+    subject (at least ``_MIN_CONTRADICTION_COVERAGE`` of the claim's own
+    concept tokens, so "kinase antagonist" and "kinase blocker" count as
+    the same concept), and it has to carry an actual negation/contrast cue
+    from :data:`_CONTRADICTION_MARKERS`.
+
+    Lives here rather than in ``claim_verifier`` (which called it on the
+    LLM judge's drafts alone) because the deterministic assessor below
+    needs the same predicate -- see :func:`_contradicting_sentence`.
+
+    Measured on two production runs. Ultra run b82f9162 (2026-09-06): 105
+    of 183 claim-evidence edges came back CONTRADICTS from the LLM judge,
+    including a quote about a different drug/target entirely (subject
+    coverage far below the bar) and a quote stating the claim's own
+    mechanism (on-topic, no negation at all). Standard run e47a3ba1
+    (2026-09-08): 11 of 101 edges, none of them from the LLM judge at all
+    -- zero of those 11 quotes contained any marker, and 10 of 11 also
+    fell below the coverage bar.
+    """
+    claim_tokens = _tokens(claim)
+    if not claim_tokens:
+        return False
+    coverage = len(claim_tokens & _tokens(quote)) / len(claim_tokens)
+    if coverage < _MIN_CONTRADICTION_COVERAGE:
+        return False
+    lowered = quote.lower()
+    return any(marker in lowered for marker in _CONTRADICTION_MARKERS)
+
+
+def _contradicting_sentence(claim: str, text: str) -> str | None:
+    """The passage's best sentence that actually negates ``claim``.
+
+    Deliberately *not* ``_best_sentence``: the sentence stating the most
+    of a claim is the one least likely to be its negation. The marker used
+    to be tested against the whole passage while the cited quote came from
+    ``_best_sentence``, so a passage carrying an unrelated negation
+    ("body weight did not differ between groups") contradicted the claim
+    and cited a sentence asserting the claim's own direction -- production
+    run e47a3ba1 shipped 11 such edges, one of them a quote reporting the
+    very reduction the claim predicted (see the module test
+    ``tests/test_claims_contradiction_quote.py``).
+
+    Returns None when no sentence in the passage is a founded negation, in
+    which case the passage is scored for support like any other.
+    """
+    negating = [
+        sentence
+        for sentence in _split_sentences(text)
+        if _quote_negates_claim(claim, sentence)
+    ]
+    if not negating:
+        return None
+    return max(negating, key=lambda s: _lexical_score(claim, s))
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split ``text`` into non-empty, stripped sentences."""
+    return [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+
+
 def _best_sentence(claim: str, text: str) -> str:
     """Return the sentence in ``text`` stating the most of ``claim``.
 
@@ -280,7 +352,7 @@ def _best_sentence(claim: str, text: str) -> str:
     exactly "the sentence containing the most claim tokens"; ties keep the
     earliest sentence, since ``max`` returns the first maximal element.
     """
-    sentences = [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    sentences = _split_sentences(text)
     if not sentences:
         return text.strip()
     return max(sentences, key=lambda s: _lexical_score(claim, s))
@@ -294,6 +366,13 @@ def _classify_passage(
 ) -> tuple[str, tuple[str, str]] | None:
     """Classify one passage as contradicting, supporting, partial, or neither.
 
+    A contradiction is cited by the sentence that actually negates the
+    claim (:func:`_contradicting_sentence`), not by the sentence stating
+    the most of it; a passage with no such sentence is scored for support
+    like any other. The passage-level ``support_threshold / 2`` bar is
+    unchanged and still gates the branch -- the sentence-level check is an
+    additional condition, not a moved threshold.
+
     Only locates the best sentence for passages that actually qualify;
     sentence splitting is wasted work for the rest.
 
@@ -304,11 +383,10 @@ def _classify_passage(
         ``None`` when the passage clears none of the bars.
     """
     score = _lexical_score(claim, passage.text)
-    lowered = passage.text.lower()
-    has_marker = any(m in lowered for m in _CONTRADICTION_MARKERS)
-    if has_marker and score >= support_threshold / 2:
-        quote = _best_sentence(claim, passage.text)
-        return "contradicts", (passage.evidence_id, quote)
+    if score >= support_threshold / 2:
+        negation = _contradicting_sentence(claim, passage.text)
+        if negation is not None:
+            return "contradicts", (passage.evidence_id, negation)
     if score >= support_threshold:
         quote = _best_sentence(claim, passage.text)
         return "supports", (passage.evidence_id, quote)

@@ -72,7 +72,7 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.claims_assessor import _CONTRADICTION_MARKERS, _tokens
+from app.claims_assessor import _quote_negates_claim
 
 logger = logging.getLogger(__name__)
 
@@ -190,48 +190,6 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-# Coverage (shared concept tokens / claim tokens) a contradicting quote must
-# clear to count as being about the claim's own subject. Set to the same bar
-# the deterministic assessor itself requires before accepting a contradiction
-# (``claims_assessor._classify_passage``: score >= support_threshold / 2,
-# i.e. 0.25) -- not tuned independently against these two examples, which
-# measured 0.167 (off-target: a different molecule/target) and 0.273
-# (confirmatory: same subject, no negation) respectively, cleanly either
-# side of it.
-_MIN_CONTRADICTION_COVERAGE = 0.25
-
-
-def _quote_negates_claim(claim: str, quote: str) -> bool:
-    """Whether a cited contradicting quote is actually founded.
-
-    Two cheap, offline checks a model's own CONTRADICTS verdict must clear
-    before it is trusted: the quote has to cover the claim's subject (at
-    least ``_MIN_CONTRADICTION_COVERAGE`` of the claim's own concept tokens,
-    reusing the deterministic assessor's tokenizer/alias table so "kinase
-    antagonist" and "kinase blocker" count as the same concept), and it has
-    to carry an actual negation/contrast cue -- reusing the deterministic
-    assessor's own contradiction lexicon
-    (``claims_assessor._CONTRADICTION_MARKERS``). Neither check requires
-    the quote to be located in its passage yet, so it runs at parse time,
-    before ``assess_claim``'s span location.
-
-    Measured on a production ultra run (b82f9162, 2026-09-06): 105 of 183
-    claim-evidence edges came back CONTRADICTS, including a quote about a
-    different drug/target entirely (subject overlap far below the bar) and
-    a quote that stated the claim's own gap-filling mechanism (on-topic,
-    but no negation at all -- caught by the marker check instead). Neither
-    would clear both checks here.
-    """
-    claim_tokens = _tokens(claim)
-    if not claim_tokens:
-        return False
-    coverage = len(claim_tokens & _tokens(quote)) / len(claim_tokens)
-    if coverage < _MIN_CONTRADICTION_COVERAGE:
-        return False
-    lowered = quote.lower()
-    return any(marker in lowered for marker in _CONTRADICTION_MARKERS)
-
-
 def _reject_unfounded_contradiction(
     claim: str, draft: AssessorDraft
 ) -> AssessorDraft:
@@ -243,6 +201,17 @@ def _reject_unfounded_contradiction(
     way -- see the root AGENTS.md "Never score a short claim against a long
     document with Jaccard" gotcha, whose closing paragraph names this
     exact judgement as the LLM entailment assessor's job.
+
+    This guards the *judge's* drafts only, and deliberately so: the
+    deterministic assessor this module falls back to cites the sentence
+    that negates the claim (``claims_assessor._contradicting_sentence``),
+    so its contradictions clear ``_quote_negates_claim`` by construction.
+    That gap used to be real and invisible, because a fallback verdict
+    keeps the ``llm:<model>`` provenance of the assessor that was asked
+    for: standard run e47a3ba1 (2026-09-08) persisted 11 unfounded
+    CONTRADICTS edges stamped ``llm:`` that this guard never saw. Any new
+    producer of a CONTRADICTS draft must be founded the same way -- by
+    construction, or by passing through here.
     """
     if draft.label is not EntailmentLabel.CONTRADICTS:
         return draft
