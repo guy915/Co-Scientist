@@ -189,9 +189,10 @@ FANNING_NODES = frozenset(
 )
 _PORTFOLIO_STOP_NODES = FANNING_NODES | {"orchestrator"}
 
-# The longest deterministic run observed in this table today is three hops
-# (meta_review -> evolve -> review); this leaves headroom without letting a
-# future routing change walk unbounded.
+# The longest deterministic run observed in this table today is four nodes
+# (meta_review -> research_overview -> evolve -> review, a pass that stacked
+# both periodic companions ahead of an EVOLVE primary); this bounds it
+# without letting a future routing change walk unbounded.
 _MAX_PORTFOLIO_DEPTH = 4
 
 # Resolver routes that read live state instead of naming a fixed successor,

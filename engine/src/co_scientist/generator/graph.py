@@ -71,32 +71,48 @@ def _resume_router(state: WorkflowState) -> str:
     return "orchestrator" if state.get("resume") else "supervisor"
 
 
-def _stacks_meta_review(state: WorkflowState) -> bool:
-    """Whether this pass stacked meta-review ahead of its primary task.
+def _stacked_companions(state: WorkflowState) -> tuple[str, ...]:
+    """The companion task values this pass queued ahead of its primary.
 
-    One ``DecideNextSteps`` pass may queue a companion alongside the task
-    it chose (``scheduling.policy.stack_companions``). The companion rides
+    One ``DecideNextSteps`` pass may queue several companions alongside
+    the task it chose (``scheduling.policy.stack_companions``). They ride
     the decision's own queue actions, and stacking is an *ordering*: the
-    companion runs first, the primary behind it, so ``next_task`` still
-    names the primary for every consumer that reads it.
+    companions run first in this order, the primary behind them, so
+    ``next_task`` still names the primary for every consumer that reads
+    it. Rewritten in full by every orchestrator pass, so a previous
+    pass's companions can never leak into this one.
     """
-    actions = state.get("supervisor_queue_actions") or []
-    return TaskType.META_REVIEW.value in stacked_task_values(actions)
+    return stacked_task_values(state.get("supervisor_queue_actions") or [])
+
+
+def _companion_successor(state: WorkflowState, after: str) -> str | None:
+    """The node to run once the companion ``after`` has committed.
+
+    Returns None when ``after`` did not run as a companion on this pass,
+    which is the signal for its own router to fall back to whatever that
+    node means outside a stacked pass.
+    """
+    companions = _stacked_companions(state)
+    if after not in companions:
+        return None
+    remaining = companions[companions.index(after) + 1 :]
+    value = remaining[0] if remaining else (state.get("next_task") or "")
+    return _TASK_ROUTES.get(value, "research_overview")
 
 
 def _route_next_task(state: WorkflowState) -> str:
     """Route to the node that starts the orchestrator's chosen next task.
 
     Reads ``next_task`` (set by ``orchestrator_node``) and maps it to a node,
-    unless the same pass stacked a companion ahead of it. Falls back to
-    terminal synthesis if the scheduler produced no decision, so the graph
-    can never dead-end.
+    unless the same pass stacked companions ahead of it -- then the first
+    of those. Falls back to terminal synthesis if the scheduler produced no
+    decision, so the graph can never dead-end.
     """
     next_task = state.get("next_task") or "terminate"
-    if _stacks_meta_review(state):
-        node = "meta_review"
-    else:
-        node = _TASK_ROUTES.get(next_task, "research_overview")
+    companions = _stacked_companions(state)
+    node = _TASK_ROUTES.get(
+        companions[0] if companions else next_task, "research_overview"
+    )
     logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
     return node
 
@@ -124,6 +140,9 @@ def _route_after_meta_review(state: WorkflowState) -> str:
     ``co_scientist.task_runtime`` routes the durable path through this same
     function, so the two execution paths cannot drift apart on it.
     """
+    stacked = _companion_successor(state, TaskType.META_REVIEW.value)
+    if stacked is not None:
+        return stacked
     next_task = state.get("next_task") or "terminate"
     fixed = _AFTER_META_REVIEW.get(next_task)
     if fixed is not None:
@@ -134,17 +153,26 @@ def _route_after_meta_review(state: WorkflowState) -> str:
 def _route_after_research_overview(state: WorkflowState) -> str | None:
     """Route the overview node's successor from the task it was run for.
 
-    The node is two things: the terminal synthesis every completion path
-    ends at (listing 01 L65-69's ``RETURN FinalReport``), and the periodic
+    The node is three things: the terminal synthesis every completion path
+    ends at (listing 01 L65-69's ``RETURN FinalReport``), the periodic
     firing that listing's own "IF enough time has passed" describes, whose
-    interim overview the next generate cycle reads (FIX-6). Only the
+    interim overview the next generate cycle reads (FIX-6), and the
+    stacked companion form of that same periodic branch. Only the
     orchestrator's recorded decision tells them apart, exactly as it does
     for meta-review above.
+
+    ``None`` is the terminal answer and is reachable only from the first
+    of the three: ``engine.finalize`` is enqueued as this node's successor
+    and nowhere else, so a stacked firing that returned it would end the
+    run from the middle of a cycle.
 
     ``co_scientist.task_runtime`` routes the durable path through this
     same function -- returning ``None`` where the graph ends -- so the two
     execution paths cannot drift apart on it.
     """
+    stacked = _companion_successor(state, TaskType.SYNTHESIZE.value)
+    if stacked is not None:
+        return stacked
     if state.get("next_task") == TaskType.SYNTHESIZE.value:
         return "orchestrator"
     return None
@@ -159,6 +187,20 @@ _META_REVIEW_ROUTE_NODES: dict[Hashable, str] = {
     node: node
     for node in sorted({*_TASK_ROUTES.values(), "evolve", "orchestrator"})
     if node != "meta_review"
+}
+
+
+# The nodes _route_after_research_overview can return, derived the same way
+# and for the same reason: a stacked overview hands over to the next
+# companion or to the primary, so its path map is every task route plus the
+# loop point, and END for the terminal firing's None. "research_overview" is
+# excluded on the same argument as "meta_review" above -- the only values
+# routing to it are SYNTHESIZE, which is never stacked onto itself, and
+# TERMINATE, which is never stacked onto at all.
+_OVERVIEW_ROUTE_NODES: dict[Hashable, str] = {
+    node: node
+    for node in sorted({*_TASK_ROUTES.values(), "evolve", "orchestrator"})
+    if node != "research_overview"
 }
 
 
@@ -261,7 +303,7 @@ def _add_loop_and_terminal_edges(workflow: _WorkflowBuilder) -> None:
     workflow.add_conditional_edges(
         "research_overview",
         lambda state: _route_after_research_overview(state) or END,
-        {"orchestrator": "orchestrator", END: END},
+        {**_OVERVIEW_ROUTE_NODES, END: END},
     )
 
 

@@ -215,7 +215,7 @@ async def _run_supervisor_decision(
     # a companion attached any earlier.
     return (
         stats,
-        policy.stack_companions(decision, stats),
+        policy.stack_companions(decision, stats, budget),
         decision_provenance,
         llm_calls,
     )

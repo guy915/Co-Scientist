@@ -18,7 +18,7 @@ from co_scientist.agents.node_degradation import (
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
 from co_scientist.models import phase_message
-from co_scientist.scheduling.models import TaskType
+from co_scientist.scheduling.models import TaskType, stacked_task_values
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -39,8 +39,20 @@ def is_interim_firing(state: WorkflowState) -> bool:
     The scheduler's own recorded decision is what tells them apart, the
     same value the graph and the durable route table both read: SYNTHESIZE
     returns to the loop point (FIX-6), TERMINATE ends the run.
+
+    Read from ``next_task`` alone this is wrong for the periodic branch's
+    *stacked* form (``scheduling.policy.stack_companions``), where the
+    primary keeps that field and the overview rides the pass's queue
+    actions. A stacked firing read as terminal would buy the accuracy
+    review and the knowledge-base calls, emit the run's 95% progress
+    marker from the middle of a cycle, and publish a ``research_overview``
+    the finished report would then carry -- so the queue actions are part
+    of the question, exactly as they are for the routers.
     """
-    return str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value
+    if str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value:
+        return True
+    actions = state.get("supervisor_queue_actions") or []
+    return TaskType.SYNTHESIZE.value in stacked_task_values(actions)
 
 
 async def synthesize_or_degrade(

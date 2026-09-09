@@ -88,6 +88,22 @@ def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
     )
 
 
+def _schedules_research_overview(decision: SupervisorDecision) -> bool:
+    """Whether this decision runs the overview node before it is done.
+
+    Two ways it can, exactly as ``_routes_through_meta_review`` above: the
+    task *is* the periodic overview, or the pass stacked that same branch
+    as a companion ahead of some other primary. Both consume the cadence,
+    so both must re-anchor it -- a stacked firing that did not would
+    re-stack on every remaining loop point.
+    """
+    if decision.next_task is TaskType.SYNTHESIZE:
+        return True
+    return TaskType.SYNTHESIZE.value in stacked_task_values(
+        decision.queue_actions
+    )
+
+
 def _research_overview_anchor(
     book: dict[str, Any],
     stats: SchedulerStats,
@@ -104,7 +120,7 @@ def _research_overview_anchor(
     terminates the step -- the overview is not a work task, so nothing
     else would ever move the gap off its threshold.
     """
-    if decision.next_task is not TaskType.SYNTHESIZE:
+    if not _schedules_research_overview(decision):
         return int(book.get("iteration_at_last_research_overview", 0))
     return stats.iteration
 

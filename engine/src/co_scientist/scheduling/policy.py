@@ -151,7 +151,11 @@ def _ordered_checks(
         # holding a run open for, while an interim overview is consumed by
         # the *next* generate cycle. Fired on the iteration that ends the
         # run it would buy the largest prompt in the system for a reader
-        # that never arrives.
+        # that never arrives. Kept here as a step of its own even though
+        # ``stack_companions`` now also runs this branch as a companion:
+        # a companion never rides a terminating decision, so this
+        # placement below both terminations is exactly what preserves
+        # that rule rather than being made redundant by it.
         lambda: _check_research_overview_cadence(stats, budget),
     )
 
@@ -225,62 +229,103 @@ def decide_next_task(
     return _generation_vs_evolution(stats)
 
 
-# Tasks a companion is never stacked onto. EVOLVE and META_REVIEW both enter
-# the graph at the meta_review node already, so stacking would run it twice;
-# a terminating decision is excluded because ``terminate`` gates the task
-# record's status, the termination reason written to state, and every
-# ``_hard_stop``/``validate_decision`` short-circuit above.
-_UNSTACKABLE_TASKS = frozenset(
-    {TaskType.META_REVIEW, TaskType.EVOLVE, TaskType.TERMINATE}
-)
+# The one primary that carries no companion at all: ``terminate`` gates the
+# task record's status, the termination reason written to state, and every
+# ``_hard_stop``/``validate_decision`` short-circuit above -- and a run that
+# is stopping has no next cycle left to read a companion's output.
+_UNSTACKABLE_TASKS = frozenset({TaskType.TERMINATE})
+
+# For each companion, the primaries it is not stacked onto. Two reasons,
+# both about the meta_review node: a primary that already runs a companion's
+# own node would run it twice (META_REVIEW and EVOLVE both enter at
+# meta_review, ``generator.graph._TASK_ROUTES``; SYNTHESIZE *is* the
+# research_overview node), and the overview is drafted *from* the critique,
+# so stacking it ahead of a primary that is about to write one would invert
+# the listing's own order on that pass. Deferring it costs nothing: the
+# cadence anchor only resets when the firing is actually scheduled.
+_COMPANION_CONFLICTS: dict[TaskType, frozenset[TaskType]] = {
+    TaskType.META_REVIEW: frozenset({TaskType.META_REVIEW, TaskType.EVOLVE}),
+    TaskType.SYNTHESIZE: frozenset(
+        {TaskType.SYNTHESIZE, TaskType.META_REVIEW, TaskType.EVOLVE}
+    ),
+}
+
+
+def _due_companions(
+    stats: SchedulerStats, budget: Budget
+) -> tuple[SupervisorDecision, ...]:
+    """Return the listing's periodic branches that are due, in its order.
+
+    ``GenerateSystemFeedback`` (L61-64) before
+    ``GenerateFinalResearchOverview`` (L65-69), which is also the order
+    they need: the overview is drafted from the critique the feedback
+    pass has just synthesized.
+
+    These two are the whole stackable set. The listing's other branches
+    are its unconditional ``RunTournamentBatch`` and its evolve ``IF``,
+    and neither can be a companion here: both are multi-node chains whose
+    fixed successor is the loop point itself (``rank -> safety_screen ->
+    ... -> ranking -> orchestrator``, ``evolve -> meta_review -> evolve
+    -> review -> ... -> orchestrator``), so a companion form of either
+    could not hand control back to the primary -- in this topology they
+    *are* the primary. Both also advance work the counters key on, and a
+    ranking wave costs 4-12 judged multi-turn debates against these
+    two's one call each.
+    """
+    checks = (
+        _check_meta_review_cadence(stats),
+        _check_research_overview_cadence(stats, budget),
+    )
+    return tuple(check for check in checks if check is not None)
 
 
 def stack_companions(
-    decision: SupervisorDecision, stats: SchedulerStats
+    decision: SupervisorDecision, stats: SchedulerStats, budget: Budget
 ) -> SupervisorDecision:
-    """Attach the cheap follow-up tasks one pass may queue alongside its own.
+    """Attach the follow-up tasks one pass may queue alongside its own.
 
-    Listing 01's ``DecideNextSteps`` is four *independent* ``IF``s, each
-    queueing its own task; ``_ordered_checks`` is a single-winner
-    precedence chain, so whichever branch wins suppresses the rest. This
-    restores the independence for the one companion that costs almost
-    nothing -- meta-review, exactly one LLM call -- by riding the decision's
-    existing ``queue_actions``, which already travel with it through the
-    orchestrator's own commit transaction.
+    Listing 01's ``DecideNextSteps`` queues several tasks from one pass --
+    one unconditional statement and three *independent* ``IF``s -- while
+    ``_ordered_checks`` is a single-winner precedence chain, so whichever
+    branch wins suppresses the rest. This restores the independence of
+    the two periodic branches (``_due_companions``) by riding the
+    decision's existing ``queue_actions``, which already travel with it
+    through the orchestrator's own commit transaction.
 
     Deliberately *additive*: ``next_task`` is untouched, because the
     settlement allowance (``orchestrator_bookkeeping._is_settlement_rank``),
     the iteration counter (``orchestrator._advance_iteration``) and the
     yield attribution all key on it, and a wrap that renamed the primary
-    would silently unbound the settlement episode. The companion is an
-    *ordering*, resolved by the loop-point router: it runs first, then the
-    primary. Serial rather than parallel because the durable checkpoint
-    chain has one writer per commit -- two rows anchored to the same
-    predecessor would fork it.
-
-    The unconditional ``RunTournamentBatch`` the listing also names is
-    deliberately not stacked: a ranking wave is 4-12 judged multi-turn
-    debates, i.e. tens of provider calls per orchestrator cycle, against
-    this companion's one.
+    would silently unbound the settlement episode. The companions are an
+    *ordering*, resolved by the loop-point router: they run first, in this
+    order, and the primary behind them. Serial rather than parallel
+    because the durable checkpoint chain has one writer per commit -- two
+    rows anchored to the same predecessor would fork it, and only the head
+    of a serial chain is ever claimable.
 
     Args:
         decision: The primary decision the precedence chain settled on.
         stats: The statistics that decision was made from.
+        budget: The run's budget, which gates the overview companion by
+            tier exactly as it gates that branch's own standalone step.
 
     Returns:
-        ``decision``, with a stacked companion appended to its queue
-        actions when one is due, and unchanged otherwise.
+        ``decision``, with the due companions appended to its queue
+        actions, and unchanged when none is due.
     """
     if decision.terminate or decision.next_task in _UNSTACKABLE_TASKS:
         return decision
-    companion = _check_meta_review_cadence(stats)
-    if companion is None:
+    actions = tuple(
+        {
+            "action": ENQUEUE_ACTION,
+            "task_type": companion.next_task.value,
+            "reason": companion.reason,
+        }
+        for companion in _due_companions(stats, budget)
+        if decision.next_task not in _COMPANION_CONFLICTS[companion.next_task]
+    )
+    if not actions:
         return decision
-    action = {
-        "action": ENQUEUE_ACTION,
-        "task_type": companion.next_task.value,
-        "reason": companion.reason,
-    }
     return dataclasses.replace(
-        decision, queue_actions=(*decision.queue_actions, action)
+        decision, queue_actions=(*decision.queue_actions, *actions)
     )

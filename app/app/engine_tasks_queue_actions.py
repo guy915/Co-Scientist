@@ -94,8 +94,9 @@ def _apply_supervisor_queue_actions(
 
 
 # How many stacked follow-ups one pass may materialize, matching the cap on
-# the mutation actions above. ``stack_companions`` emits one today; the cap
-# is here so the bound does not depend on that staying true.
+# the mutation actions above. ``stack_companions`` emits at most two today
+# (the listing's two periodic branches); the cap is here so the bound does
+# not depend on that staying true.
 _MAX_STACKED_TASKS = 4
 
 
@@ -120,15 +121,27 @@ def _apply_supervisor_enqueue_actions(
     run's own predecessor, so no pass can reach another run's queue. And
     the count is capped.
 
+    Chained, never fanned: each stacked row is anchored to the row before
+    it and only the first to the committing task, because two rows under
+    one predecessor are both claimable at once and the checkpoint chain
+    has a single writer per commit. Serial also means the run's rate-limit
+    park (``task_worker_outcomes._park_rate_limited_task``) applies to a
+    stacked task exactly as it does to any other single task: at most one
+    of them is ever in flight, so a throttled companion returns to the
+    queue without any sibling burning attempts beside it.
+
     Note what the shared idempotency key buys: a stacked companion the
     router also resolved as the commit's own successor is the *same* edge,
     so ``_enqueue_after`` reuses that row rather than creating a second
-    claimable duplicate under a different key. That is the normal case
-    today -- stacking is an ordering, and the companion runs first -- and
-    it is why applying these actions is safe to do unconditionally.
+    claimable duplicate under a different key. The same holds one hop
+    further in -- the second companion's key names the first companion's
+    row, which is the key the first's own commit will derive for its
+    successor -- so every stacked row collides with the reactive enqueue
+    of the edge it stands for, and applying these actions is safe to do
+    unconditionally.
 
     Args:
-        predecessor: The committing task the stacked rows depend on.
+        predecessor: The committing task the first stacked row depends on.
         actions: The decision's queue actions, mutations included.
         priority: Queue priority for the stacked rows.
         conn: The open connection of the checkpoint commit.
@@ -143,7 +156,9 @@ def _apply_supervisor_enqueue_actions(
         node = _TASK_ROUTES.get(value)
         if node is None:
             continue
-        _enqueue_after(predecessor, f"{NODE_TASK_PREFIX}{node}", priority, conn)
+        predecessor = _enqueue_after(
+            predecessor, f"{NODE_TASK_PREFIX}{node}", priority, conn
+        )
 
 
 def _durable_queue_snapshot(
