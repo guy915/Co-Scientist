@@ -270,15 +270,19 @@ it('renders the specific aims and research contacts', () => {
   renderFullReport();
 
   expect(
-    screen.getByRole('heading', {name: 'Specific aims'}),
+    screen.getByRole('heading', {name: 'Specific aims', level: 3}),
   ).toBeInTheDocument();
   expect(screen.getByText('An introduction to the aims.')).toBeInTheDocument();
-  // F4's numbered heading is markdown-only: this tab heads the whole
-  // section "Specific aims", so a per-aim heading of the same words
-  // would leave two headings answering to one name on one screen.
-  expect(screen.getAllByRole('heading', {name: /specific aims/i})).toHaveLength(
-    1,
-  );
+  // OVERVIEW-AIMS-VOCABULARY-001: each aim is headed by its number
+  // (matching every published exemplar), and its goal moves into the
+  // body under a labelled "Overarching goal:" line. The section heading
+  // (h3) and the per-aim heading (h4) share the phrase "Specific Aims",
+  // so the role query is scoped by heading level to find exactly one of
+  // each rather than colliding.
+  expect(
+    screen.getByRole('heading', {name: 'Specific Aims 1', level: 4}),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Overarching goal:')).toBeInTheDocument();
   expect(screen.getByText('Aim 1: Do the thing')).toBeInTheDocument();
   expect(screen.getByText('Hypothesis:')).toBeInTheDocument();
   expect(screen.getByText('Because reasons.')).toBeInTheDocument();

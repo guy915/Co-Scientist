@@ -83,6 +83,18 @@ def _render_contact_body(contact: dict[str, Any]) -> list[str]:
     R14-16: ``Justification:`` is consistent across all 14 published
     research contacts that carry this section -- a fixed label to mirror
     directly, unlike the varying evidence-citing field below it.
+
+    RESEARCH-CONTACTS-FIELDS-001: ``expertise`` itself has no exemplar
+    behind it. A full corpus read (Figure A.22; the 14/19 protein-
+    assemblies hypothesis files; that corpus's own grouped
+    ``research-overview.md``) never carries a field naming a
+    researcher's expertise separately from the relevance/justification
+    prose. Kept anyway -- it is real, useful model output, and removing
+    it means a schema/prompt change in
+    ``agents/meta_review/research_overview_contacts.py``, outside a
+    rendering-only fix. Pinned by
+    ``test_report_contact_field_labels.py::
+    test_expertise_is_the_one_field_no_exemplar_supports``.
     """
     lines: list[str] = []
     expertise = _readable_text(contact.get("expertise"))

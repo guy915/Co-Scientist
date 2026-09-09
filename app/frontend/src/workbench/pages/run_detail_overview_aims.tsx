@@ -27,7 +27,7 @@ export function SpecificAimsSection({
         />
       ))}
       {specificAims.aims.map((aim, index) => (
-        <SpecificAim key={index} aim={aim} />
+        <SpecificAim key={index} aim={aim} number={index + 1} />
       ))}
       {AIMS_CLOSING_FIELDS.map(([key, heading]) => (
         <LabeledBlock
@@ -54,20 +54,26 @@ const AIMS_CLOSING_FIELDS = [
   ['pilot_evaluation', 'Pilot evaluation'],
   ['impact', ''],
 ] as const;
-// Per-aim fields, each labelled except the heading. Only one spelling of
-// each is ever present, so the whole list renders in order.
+// Per-aim body fields, each labelled; new spelling first, same order and
+// labels as report_markdown_overview.py's _AIM_BODY_FIELDS. Only one
+// spelling of each pair is ever present, so the whole list renders in
+// order.
 //
-// F4's numbered "Specific Aims N" heading and its "Overarching goal:"
-// label are deliberately markdown-only (report_markdown_overview.py).
-// This tab already heads its whole section "Specific aims", so a
-// per-aim heading of the same words would be two headings matching one
-// name on one screen -- ambiguous to a screen reader and to the e2e
-// spec that locates the section by that name.
+// F4/OVERVIEW-AIMS-VOCABULARY-001: the heading is now the aim's number
+// (matching every published exemplar), and the goal moves into this
+// list as a labelled body field rather than standing in for the
+// heading text. Section heading ("Specific aims", h3) and per-aim
+// heading ("Specific Aims N", h4) share the phrase but not the heading
+// role, so a heading-role-scoped selector (used by the e2e spec and the
+// section test below) still finds exactly one of each rather than a
+// strict-mode collision.
 const AIM_BODY_FIELDS = [
+  ['overarching_goal', 'Overarching goal'],
+  ['aim', 'Aim'],
   ['hypothesis', 'Hypothesis'],
   ['reasoning', 'Reasoning'],
-  ['rationale', ''],
-  ['approach', ''],
+  ['rationale', 'Rationale'],
+  ['approach', 'Approach'],
 ] as const;
 
 // One headed block of the aims page, or a bare paragraph when the field
@@ -85,19 +91,22 @@ function LabeledBlock({heading, text}: {heading: string; text: string}) {
 
 // One specific-aim entry, coercing each field so a malformed (object or
 // JSON-string) value renders as readable text rather than raw JSON.
-function SpecificAim({aim}: {aim: unknown}) {
+//
+// F4/OVERVIEW-AIMS-VOCABULARY-001: every published exemplar heads an aim
+// by its number ("Specific Aims N") and prints its overarching goal as a
+// labelled body field beneath it, not as the heading text -- mirroring
+// report_markdown_overview.py's _render_nih_aim exactly.
+function SpecificAim({aim, number}: {aim: unknown; number: number}) {
   const record = isRecord(aim) ? aim : {};
-  const title =
-    readableText(record.overarching_goal) || readableText(record.aim);
   return (
     <div>
-      <h4 className={REPORT_H4_CLASSES}>{title}</h4>
+      <h4 className={REPORT_H4_CLASSES}>Specific Aims {number}</h4>
       {AIM_BODY_FIELDS.map(([key, label]) => {
         const text = readableText(record[key]);
         if (!text) return null;
         return (
           <p key={key}>
-            {label ? <strong>{label}: </strong> : null}
+            <strong>{label}: </strong>
             {text}
           </p>
         );

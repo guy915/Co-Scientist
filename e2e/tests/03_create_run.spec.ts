@@ -220,8 +220,12 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
   await page
     .getByRole('link', {name: 'Research Overview', exact: true})
     .click();
+  // level: 3 picks the section heading, not a per-aim "Specific Aims N"
+  // heading (h4) -- both answer to the same phrase since
+  // OVERVIEW-AIMS-VOCABULARY-001 gave each aim a numbered heading of its
+  // own, mirroring the "Research directions" heading check below.
   await expect(
-    page.getByRole('heading', {name: /specific aims/i}),
+    page.getByRole('heading', {name: /specific aims/i, level: 3}),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
