@@ -360,8 +360,9 @@ async def _finalize_and_assert_ranking(
     ]
     ranking_events = _task_events(run_id, "ranking", db_path=db_path)
     assert len(ranking_events) == 1
-    # Deep verification probes the post-tournament leaders (audit E9).
-    assert ranking_events[0]["payload"]["successor"] == "deep_verification"
+    # Verification precedes tournament entry (``03-reflection.md``), so a
+    # finished tournament hands straight back to the loop point.
+    assert ranking_events[0]["payload"]["successor"] == "orchestrator"
 
 
 @pytest.mark.asyncio

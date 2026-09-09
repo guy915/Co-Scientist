@@ -239,12 +239,13 @@ def test_build_graph_without_literature_review_omits_nodes() -> None:
     assert "reflection" not in graph.nodes
 
 
-def test_deep_verification_follows_ranking() -> None:
-    """Verification probes the post-tournament leaders (audit E9).
+def test_deep_verification_precedes_ranking() -> None:
+    """Verification guards tournament entry (``03-reflection.md``).
 
-    Ranking runs first so the Elo ordering deep verification selects its
-    top-k by is the tournament's, and verification hands on to the loop
-    point rather than into the tournament.
+    ``ReviewHypothesis`` performs the deep verification and only then
+    creates that hypothesis's ``AddToTournament`` task, so the safety
+    screen hands into verification, verification into the tournament, and
+    the tournament on to the loop point.
     """
     gen = HypothesisGenerator()
     graph = gen._build_graph(enable_literature_review_node=False)
@@ -258,9 +259,9 @@ def test_deep_verification_follows_ranking() -> None:
     verification_targets = {
         e.target for e in drawable.edges if e.source == "deep_verification"
     }
-    assert safety_targets == {"ranking"}
-    assert ranking_targets == {"deep_verification"}
-    assert verification_targets == {"orchestrator"}
+    assert safety_targets == {"deep_verification"}
+    assert verification_targets == {"ranking"}
+    assert ranking_targets == {"orchestrator"}
 
 
 def test_research_overview_is_the_only_terminal_node() -> None:

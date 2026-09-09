@@ -323,7 +323,6 @@ Cited by file rather than by line: a line number is a promise this table has rep
 | `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants.py` |
 | `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants.py` |
 | `_DEBATE_MAX_DISCUSSION_TURNS` | `10` (free-form discussion turns before the final synthesis turn; a converged panel stops sooner) | `prompts/generation_debate.py` |
-| `DEEP_VERIFICATION_TOP_K` | `3` | `constants.py` |
 | `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants.py` |
 | `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants.py` |
 | `LITERATURE_REVIEW_PAPERS_COUNT` | `10` (`_DEV=4`, `RECENCY_YEARS=7`) | `constants.py` |

@@ -234,7 +234,12 @@ _OPTIONAL_FIELD_HINTS: dict[str, tuple[str, ...]] = {
         "go_no_go_recommendation",
         "time_to_verdict",
     ),
-    "meta_review": ("time_estimate", "phase_label", "recommended_idea"),
+    "meta_review": (
+        "time_estimate",
+        "phase_label",
+        "recommended_idea",
+        "points",
+    ),
 }
 
 

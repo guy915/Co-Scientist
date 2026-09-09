@@ -85,10 +85,19 @@ async def test_degraded_verification_records_explicit_unverified(
     assert h.deep_verification_fingerprint is None
 
 
-async def test_unverified_leader_is_retried_on_the_next_cycle(
+async def test_the_failure_state_is_the_idea_s_final_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The explicit failure state does not become a permanent one."""
+    """A spent attempt is not re-offered by a later cycle.
+
+    Verification became blanket over the pool when it moved ahead of the
+    tournament, and it is affordable only once per idea. So the marker is
+    written when the attempt is *issued*: re-offering on failure would
+    re-fund exactly the population the verifier keeps failing on, every
+    cycle. The transient case is answered below this seam instead --
+    ``call_llm_json``'s own retry ladder, and on the durable path the item
+    task's attempt budget -- so what reaches here is a spent attempt.
+    """
 
     async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise RuntimeError("verifier unavailable")
@@ -99,13 +108,12 @@ async def test_unverified_leader_is_retried_on_the_next_cycle(
     await dv.deep_verification_node(state)
     assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
 
-    monkeypatch.setattr(
-        dv, "call_llm_json", AsyncMock(return_value=_verification_response())
-    )
+    later = AsyncMock(return_value=_verification_response())
+    monkeypatch.setattr(dv, "call_llm_json", later)
     await dv.deep_verification_node(state)
 
-    assert h.deep_verification_verdict == "holds"
-    assert h.deep_verification_probes
+    assert later.await_count == 0
+    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
 
 
 async def test_stale_verification_is_cleared_by_a_failed_reverification(

@@ -1,9 +1,12 @@
-"""Tests for the deep-verification node.
+"""Mechanics of the deep-verification node.
 
-The node runs probing-question deep verification on the top-k hypotheses by
-Elo. These tests monkeypatch ``call_llm_json`` on the node module so no LLM or
-network calls are made, and assert that only the highest-Elo hypotheses are
-verified and that already-verified hypotheses are skipped.
+The prompt it sends, the evidence context it builds, the probe round it
+runs against a fundamental assumption, and how retrieved articles are
+deduplicated. These tests monkeypatch ``call_llm_json`` on the node module
+so no LLM or network calls are made.
+
+*Which* hypotheses the node runs on, and how often, is the sibling
+``test_deep_verification_selection``.
 """
 
 from unittest.mock import AsyncMock
@@ -37,47 +40,6 @@ def _probe_response_mock() -> AsyncMock:
     )
 
 
-async def test_verifies_only_top_k_by_elo(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only the three highest-Elo hypotheses receive probes."""
-    fake = AsyncMock(
-        return_value={
-            "probes": [
-                {
-                    "question": "q",
-                    "answer": "a",
-                    "reasoning": "r",
-                    "assumption_is_fundamental": True,
-                }
-            ],
-            "verdict": "weakened",
-            "overall_assessment": "ok",
-        }
-    )
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    hyps = [
-        make_hypothesis(text=f"h{i}", elo_rating=1000 + i * 100)
-        for i in range(5)  # elos 1000..1400
-    ]
-    state = make_state(
-        hypotheses=hyps,
-        research_goal="goal",
-        model_name="test/model",
-        run_id="r1",
-    )
-    out = await dv.deep_verification_node(state)
-
-    verified = [h for h in out["hypotheses"] if h.deep_verification_probes]
-    # DEEP_VERIFICATION_TOP_K == 3 -> only the three highest-Elo get probes.
-    assert len(verified) == 3
-    assert {h.text for h in verified} == {"h4", "h3", "h2"}
-    assert verified[0].deep_verification_verdict == "weakened"
-    # Full/simulation reviews run in the comprehensive Reflection node.
-    assert fake.await_count == 3
-
-
 async def test_deep_verification_prompt_includes_meta_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -109,183 +71,6 @@ async def test_deep_verification_prompt_includes_meta_review(
 
     assert prompts, "expected at least one verification call"
     assert any("MARKER_recurring_overclaim" in p for p in prompts)
-
-
-async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A leader whose verification inputs are unchanged is not re-verified."""
-    fake = AsyncMock(
-        return_value={
-            "probes": [
-                {
-                    "question": "q",
-                    "answer": "a",
-                    "reasoning": "r",
-                    "assumption_is_fundamental": False,
-                }
-            ],
-            "verdict": "holds",
-            "overall_assessment": "ok",
-        }
-    )
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="already", elo_rating=2000)
-    h.deep_verification_probes = [
-        {
-            "question": "old",
-            "answer": "a",
-            "reasoning": "r",
-            "assumption_is_fundamental": True,
-        }
-    ]
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    await dv.deep_verification_node(state)
-    assert fake.await_count == 0  # inputs unchanged -> reused
-
-
-async def test_reverifies_when_hypothesis_text_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Rewriting a hypothesis invalidates the verification of the old one."""
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="original", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    # Evolution (or a scientist edit) rewrites the text in place.
-    h.text = "materially different claim"
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_reverifies_when_the_verifier_model_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A verdict from another model is not carried over as current."""
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, "some-other-model"
-    )
-    state = make_state(hypotheses=[h])
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_unrelated_evidence_does_not_invalidate_verification(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Evidence the hypothesis never cites cannot make its verdict stale.
-
-    The evidence context is assembled run-wide, so hashing all of it would
-    re-verify the whole leaderboard whenever any article arrived anywhere.
-    """
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.citation_map = {"C1": {"source_id": "cited-1", "title": "Cited"}}
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    # A new article lands in the run that this hypothesis does not cite.
-    state["articles"] = [
-        make_article("Unrelated paper", abstract="x", used_in_analysis=True)
-    ]
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 0
-
-
-async def test_reverifies_when_cited_evidence_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Evidence the hypothesis now cites is a new input to its verdict."""
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.citation_map = {"C1": {"source_id": "cited-1"}}
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    h.citation_map["C2"] = {"source_id": "cited-2"}
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_newly_promoted_leader_is_verified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A leader that has never been verified carries no fingerprint."""
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    verified = make_hypothesis(text="incumbent", elo_rating=2000)
-    promoted = make_hypothesis(text="newcomer", elo_rating=1900)
-    state = make_state(hypotheses=[verified, promoted])
-    verified.deep_verification_fingerprint = dv.verification_fingerprint(
-        verified, state["model_name"]
-    )
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-    assert promoted.deep_verification_fingerprint is not None
-
-
-async def test_verification_is_run_once_across_repeated_cycles(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The observed four-cycle pattern costs one verification, not four.
-
-    Ranking re-runs deep verification every cycle. With an unchanged
-    leaderboard only the first cycle should reach the verifier.
-    """
-    fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
-
-    h = make_hypothesis(text="stable leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-
-    for _ in range(4):
-        await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_failed_verification_is_retried_next_cycle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A failure must not be recorded as a current verification."""
-
-    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(dv, "call_llm_json", _boom)
-
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-
-    assert h.deep_verification_fingerprint is None
 
 
 def test_verification_context_includes_public_and_private_evidence() -> None:

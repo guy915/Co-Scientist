@@ -167,18 +167,29 @@ result and the fan-out aggregate -- so a provenance record does not ride into
 every later checkpoint through `enrichments`.
 
 **Deep verification is a third owner of that same gathering and costs
-nothing extra.** It runs after ranking, after comprehensive reflection, on
-the same cohort's loop and over largely the same leaders, so
+nothing extra.** It runs immediately after comprehensive reflection (and
+the safety screen), on the same cohort's loop and over the same pool, so
 `review_evidence.researched_articles_for` finds the gathering already in the
 flight cache and merges those papers into its probe round
 (`deep_verification._with_researched`). It deliberately *reads* and never
 starts one: a gathering begun there would be a third per-hypothesis
 retrieval multiplying by pool size and iteration, which is the exact shape
-of the 299-call incident. A leader the reviews did not fund is verified
+of the 299-call incident. An idea the reviews did not fund is verified
 against its probes alone, as it always was. Its seeding needs no new policy
 either -- research is seeded from assumptions a previous cycle marked
 uncertain or likely false, and those assumptions are deep verification's own
 output, so the loop it now reads from was already being pointed by it.
+
+**And it precedes tournament entry**, mirroring `03-reflection.md`, whose
+`ReviewHypothesis` performs the deep verification and only then creates
+that hypothesis's `AddToTournament` task -- so no idea is ranked or bred
+from before its core assumptions are probed. Blanket over the pool, which
+is affordable only because it is incremental: `verification_freshness`
+marks each idea with a checkpointed `deep_verification_issued` enrichment
+when its attempt is *issued*, so the initial pool is verified once and
+each cycle's new children once, never pool x cycles. Ideas the review gate
+barred are skipped -- an idea that cannot enter a tournament has nothing
+here to guard.
 
 `workspace/` and `sandbox/` confine every command a node runs -- including
 ones that outlive the call that started them

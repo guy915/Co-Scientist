@@ -1,31 +1,62 @@
 """Deciding which hypotheses still need deep verification.
 
-Deep verification used to re-run on whatever leader lacked probes. That
-proxy cannot tell a stale verification from a current one: a hypothesis
-kept whatever verdict it was first given for the rest of the run even
-after the evidence under it moved, and only evolution rewriting its text
-ever cleared it.
+The published rule is blanket and per-hypothesis: ``03-reflection.md``'s
+``ReviewHypothesis(HypothesisID)`` runs the full review, then the deep
+verification, and only then creates *that* hypothesis's
+``AddToTournament`` task. So every idea is verified, exactly once, before
+the tournament can rank it -- never a post-tournament slice of leaders.
 
-Instead each stored verification records a fingerprint of what produced it
--- the hypothesis text, the verifier model, the prompt version, and the
-evidence the hypothesis cites. A leader whose fingerprint still matches is
-reused; one whose inputs moved, or which was only just promoted into the
-top-k and has no fingerprint at all, is verified.
+Blanket is affordable only because it is incremental, so two independent
+bounds decide the population here.
+
+**The once-ever marker.** ``deep_verification_issued`` rides in
+``enrichments``, which is checkpointed with the hypothesis, so a resumed
+run does not re-fire the wave -- the same shape ``review_recheck`` uses,
+and for the same reason: a marker held only in memory turns a bounded,
+once-per-idea cost into a fresh whole-pool wave on every restart. It is
+written when the attempt is *issued*, not when it succeeds, because a
+failed attempt has still been spent and re-firing on failure is how a
+bounded wave becomes a per-cycle one for exactly the ideas the verifier
+keeps failing on. Evolution children are fresh ``Hypothesis`` objects
+with empty enrichments, so each cycle's new ideas are funded without
+re-funding the ones already verified.
+
+**The freshness fingerprint**, unchanged and now subordinate: each stored
+verification records a digest of what produced it -- the hypothesis text,
+the verifier model, the prompt version, and the evidence the hypothesis
+cites. It still decides that an idea carrying a *matching* verification
+needs none, which is what an in-place text rewrite or a restored
+checkpoint depends on. It deliberately does not decide the opposite: the
+marker outranks a stale fingerprint, because probe retrieval adds
+citations to the very hypothesis it verified, so fingerprint staleness
+alone would re-verify the whole pool on every cycle -- the pool x cycles
+cost this node exists to not have.
+
+Ideas the review gate barred are skipped outright. Verification now
+guards tournament entry, and an idea that cannot enter a tournament has
+nothing here to protect; the published order agrees, gating the deeper
+reviews on the initial review's discard ("Full review. If a hypothesis
+passes the initial review...").
 """
 
 import hashlib
 import json
 
-from co_scientist.constants import DEEP_VERIFICATION_TOP_K
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.models import Hypothesis
+
+# Enrichment key recording that this hypothesis has had its one deep
+# verification. Checkpointed with the hypothesis (see the module
+# docstring), so a resume cannot re-fire the wave.
+VERIFICATION_MARKER = "deep_verification_issued"
 
 # Bump whenever the deep-verification prompt or schema changes in a way that
 # would produce a different answer to the same question. Verifications
 # carrying an older version are re-run rather than trusted, since the stored
 # probes were produced by a prompt this code no longer sends.
 # 2: the verification gained sub-assumption decomposition and
-# decontextualization (audit E4) and moved to post-tournament leaders with
-# a fail-closed ``unverified`` verdict (audit E9).
+# decontextualization (audit E4) and a fail-closed ``unverified`` verdict
+# (audit E9). Moving the node ahead of the tournament did not bump this:
+# the prompt and schema are unchanged, only which hypotheses are asked.
 DEEP_VERIFICATION_PROMPT_VERSION = 2
 
 
@@ -78,36 +109,53 @@ def verification_fingerprint(hypothesis: Hypothesis, model_name: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def verification_issued(hypothesis: Hypothesis) -> bool:
+    """Return whether this hypothesis has already had its one attempt."""
+    return bool(hypothesis.enrichments.get(VERIFICATION_MARKER))
+
+
+def mark_verification_issued(hypothesis: Hypothesis) -> None:
+    """Record the verification attempt, before its answer is known."""
+    hypothesis.enrichments[VERIFICATION_MARKER] = True
+
+
+def _needs_verification(hypothesis: Hypothesis, model_name: str) -> bool:
+    """Return whether one hypothesis is owed a deep verification now.
+
+    Three conditions, in the order they eliminate the most work: an idea
+    barred from the tournament has nothing to guard, an idea that already
+    spent its one attempt gets no second, and an idea already carrying a
+    verification produced from the inputs it still has needs no repeat.
+    """
+    if not hypothesis.is_rankable():
+        return False
+    if verification_issued(hypothesis):
+        return False
+    return hypothesis.deep_verification_fingerprint != (
+        verification_fingerprint(hypothesis, model_name)
+    )
+
+
 def _select_hypotheses_to_verify(
     hypotheses: list[Hypothesis],
     model_name: str,
 ) -> list[Hypothesis]:
-    """Picks the current Elo leaders whose verification is stale or missing.
+    """Picks every rankable hypothesis still owed its one verification.
 
-    A leader is re-verified when the inputs behind its stored probes have
-    changed -- its text was rewritten, the verifier model or prompt moved,
-    or evidence it cites arrived -- and skipped when they have not. A newly
-    promoted leader has no stored fingerprint at all, so it is always
-    verified.
-
-    This replaces testing whether probes exist. That proxy could not tell a
-    stale verification from a current one: a hypothesis kept whatever
-    verdict it was first given for the rest of the run, even after the
-    evidence under it changed, and only evolution rewriting its text
-    cleared it.
+    Blanket over the pool rather than top-k by Elo, because verification
+    now runs *before* the tournament: there is no Elo ordering to select
+    by yet, and the published listing verifies each hypothesis on the way
+    into the tournament rather than a slice of it afterwards.
 
     Args:
         hypotheses: The full hypothesis pool.
         model_name: Verifier model the batch would run on.
 
     Returns:
-        Top-k-by-Elo hypotheses needing verification, in rank order.
+        The hypotheses to verify now, in pool order.
     """
-    ranked = rank_by_elo(hypotheses)
-    top_k = ranked[:DEEP_VERIFICATION_TOP_K]
     return [
         hypothesis
-        for hypothesis in top_k
-        if hypothesis.deep_verification_fingerprint
-        != verification_fingerprint(hypothesis, model_name)
+        for hypothesis in hypotheses
+        if _needs_verification(hypothesis, model_name)
     ]

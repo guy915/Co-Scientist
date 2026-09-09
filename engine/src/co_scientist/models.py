@@ -280,10 +280,11 @@ class Hypothesis:
         terminal gates in series: once the evidence gate stopped blocking
         on non-claims, undermined took over as the binding constraint and a
         measured run still published one idea of four. It is a single LLM
-        call, delivered after ranking, on the ideas that led the tournament
-        -- too thin a basis to delete a run's leading work. It demotes
-        instead: ``is_undermined`` sorts those ideas below every sound one
-        and the reader sees the verdict on the idea.
+        call -- too thin a basis to delete work, and now delivered to
+        every idea ahead of its first tournament match rather than to the
+        few that led one, which makes a blocking reading of it costlier
+        still. It demotes instead: ``is_undermined`` sorts those ideas
+        below every sound one and the reader sees the verdict on the idea.
         """
         return self.review_disposition not in BLOCKING_REVIEW_DISPOSITIONS
 

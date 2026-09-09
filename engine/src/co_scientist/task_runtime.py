@@ -123,12 +123,14 @@ _NEXT_TASK_ROUTES: dict[
     "reflection": "review",
     "review": "comprehensive_reflection",
     "comprehensive_reflection": "safety_screen",
-    "safety_screen": "ranking",
-    # Deep verification probes the post-tournament leaders (audit E9):
-    # after ranking, so the Elo ordering it selects by is the tournament's
-    # rather than the all-tied pool order of a pre-ranking pass.
-    "ranking": "deep_verification",
-    "deep_verification": "orchestrator",
+    # Deep verification precedes tournament entry, mirroring
+    # ``03-reflection.md``: ReviewHypothesis performs the deep
+    # verification and only then creates that hypothesis's
+    # AddToTournament task, so no idea is ranked or bred from before its
+    # core assumptions have been probed.
+    "safety_screen": "deep_verification",
+    "deep_verification": "ranking",
+    "ranking": "orchestrator",
     "proximity": "orchestrator",
     # Meta-review is EVOLVE's prefix *and* a periodic task of its own
     # (listing 01 L60-63), so its successor is the graph's own conditional

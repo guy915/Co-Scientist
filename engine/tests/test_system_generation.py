@@ -46,20 +46,20 @@ _EXPECTED_NODE_SEQUENCE = [
     "review",
     "comprehensive_reflection",
     "safety_screen",
-    "ranking",
     "deep_verification",
+    "ranking",
     "orchestrator",
     "safety_screen",
-    "ranking",
     "deep_verification",
+    "ranking",
     "orchestrator",
     "meta_review",
     "evolve",
     "review",
     "comprehensive_reflection",
     "safety_screen",
-    "ranking",
     "deep_verification",
+    "ranking",
     "orchestrator",
     "proximity",
     "orchestrator",
@@ -172,8 +172,8 @@ async def test_generate_hypotheses_streaming_event_progression(
     assert all(isinstance(h, dict) for h in generate_state["hypotheses"])
 
     # The first "ranking" pass has already recorded tournament matchups.
-    first_ranking_state = events[5][1]
-    assert events[5][0] == "ranking"
+    first_ranking_state = events[6][1]
+    assert events[6][0] == "ranking"
     assert first_ranking_state["tournament_matchups"]
 
     # "meta_review" carries a populated meta_review payload from that

@@ -1,4 +1,4 @@
-"""Deep-verification node - probing-question analysis of top hypotheses."""
+"""Deep-verification node - probing-question analysis before ranking."""
 
 import asyncio
 import dataclasses
@@ -38,10 +38,15 @@ from co_scientist.agents.reflection.verification_freshness import (
     _select_hypotheses_to_verify as _select_hypotheses_to_verify,
 )
 from co_scientist.agents.reflection.verification_freshness import (
+    mark_verification_issued as mark_verification_issued,
+)
+from co_scientist.agents.reflection.verification_freshness import (
     verification_fingerprint as verification_fingerprint,
 )
+from co_scientist.agents.reflection.verification_freshness import (
+    verification_issued as verification_issued,
+)
 from co_scientist.constants import (
-    DEEP_VERIFICATION_TOP_K,
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
@@ -235,8 +240,9 @@ def _verification_evidence_context(state: WorkflowState) -> str:
 def mark_hypothesis_unverified(hypothesis: Hypothesis) -> None:
     """Record the explicit ``unverified`` state on one hypothesis.
 
-    The fingerprint is deliberately left stale so the next deep-verification
-    pass re-attempts instead of trusting the failure. Unverified is not
+    The fingerprint is left stale so nothing reads the failure as a
+    stored verdict, but the once-ever marker has already been written, so
+    the idea is not re-offered -- the attempt was spent. Unverified is not
     blocking -- the idea still ranks and publishes, as every verdict now
     does; it just carries the explicit state, mirroring the "Unverified"
     badge policy for merely-unsupported claims (audit E9).
@@ -316,19 +322,19 @@ def _apply_verification_results(
 
 
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
-    """Deep verification of the post-tournament leaders, top-k by Elo.
+    """Deep verification of every idea still owed one, before ranking.
 
-    Runs after each ranking pass (audit E9), so the Elo ordering it
-    selects by is the tournament's, not the arbitrary all-tied pool order
-    of a pre-ranking pass. Verification decomposes each leader into
-    sub-assumptions, probes them, and decontextualizes its context-bound
-    claims (audit E4); a verification that cannot be produced records an
-    explicit ``unverified`` verdict rather than passing silently.
+    Runs between the safety screen and the tournament, mirroring
+    ``03-reflection.md``: ``ReviewHypothesis`` verifies the hypothesis and
+    only then creates its ``AddToTournament`` task. Verification
+    decomposes each idea into sub-assumptions, probes them, and
+    decontextualizes its context-bound claims (audit E4); a verification
+    that cannot be produced records an explicit ``unverified`` verdict
+    rather than passing silently.
 
-    Already-verified leaders whose inputs have not changed keep their
-    verification and are skipped; evolution clears the probes of any
-    hypothesis whose text it rewrites, so freshly-evolved leaders are
-    re-verified here.
+    Blanket but incremental -- the initial pool once, then each cycle's
+    new children once, so the cost is pool-sized rather than pool x
+    cycles. ``verification_freshness`` owns that rule.
 
     Args:
         state: The current workflow state.
@@ -344,18 +350,15 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
 
     to_verify = _select_hypotheses_to_verify(hypotheses, state["model_name"])
 
-    # The whole top-k is current: every leader's stored verification was
-    # produced from the inputs it still has. Skip the LLM calls and return
-    # an empty delta -- no hypotheses/metrics/messages changes needed.
+    # Every idea has already had its verification: the steady state from
+    # the second cycle on, and the first thing a resumed run finds. Skip
+    # the calls and return an empty delta.
     if not to_verify:
-        logger.info(
-            "Deep verification: top-%s unchanged since verification, reusing",
-            DEEP_VERIFICATION_TOP_K,
-        )
+        logger.info("Deep verification: every idea already verified, reusing")
         await emit_progress(
             state,
             "deep_verification_complete",
-            f"Reused deep verification for top {DEEP_VERIFICATION_TOP_K}",
+            "Reused deep verification for the whole pool",
             PROGRESS_DEEP_VERIFICATION_COMPLETE,
         )
         return {}
@@ -416,9 +419,15 @@ async def _run_verification_batch(
     await emit_progress(
         state,
         "deep_verification_start",
-        f"Deep-verifying top {len(to_verify)} hypotheses...",
+        f"Deep-verifying {len(to_verify)} hypotheses...",
         PROGRESS_DEEP_VERIFICATION_START,
     )
+
+    # Marked before the calls go out, never after: the attempt is spent
+    # when it is issued, so a hypothesis whose verification fails must
+    # not be re-offered next cycle (verification_freshness).
+    for hypothesis in to_verify:
+        mark_verification_issued(hypothesis)
 
     tool_registry = state.get("tool_registry")
     evidence_context = _verification_evidence_context(state)

@@ -25,8 +25,7 @@ _DEFAULT_CRITERIA = {
 }
 
 
-def test_deep_verification_top_k_constant() -> None:
-    assert constants.DEEP_VERIFICATION_TOP_K == 3
+def test_research_overview_top_k_constant() -> None:
     assert constants.RESEARCH_OVERVIEW_TOP_K == 10
 
 

@@ -74,11 +74,12 @@ def test_a_second_researcher_does_not_erase_the_first_one() -> None:
         ("supervisor", False, None, "generate"),
         ("generate", True, None, "reflection"),
         ("generate", False, None, "review"),
-        ("safety_screen", False, None, "ranking"),
-        # Deep verification probes the post-tournament leaders (audit E9),
-        # so ranking runs first and the loop point comes after it.
-        ("ranking", False, None, "deep_verification"),
-        ("deep_verification", False, None, "orchestrator"),
+        # Deep verification precedes tournament entry, mirroring
+        # ``03-reflection.md``: ReviewHypothesis verifies the hypothesis
+        # and only then creates its AddToTournament task.
+        ("safety_screen", False, None, "deep_verification"),
+        ("deep_verification", False, None, "ranking"),
+        ("ranking", False, None, "orchestrator"),
         ("orchestrator", False, "evolve", "meta_review"),
         ("orchestrator", False, "terminate", "research_overview"),
         ("research_overview", False, None, None),
@@ -173,7 +174,7 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
         # resolved hop until it reaches a fanning node.
         ("generate", False, ["generate"]),
         ("reflection", False, ["reflection", "review"]),
-        ("safety_screen", False, ["safety_screen", "ranking"]),
+        ("safety_screen", False, ["safety_screen", "deep_verification"]),
         # orchestrator is a stop node in its own right: never resolved
         # into, and never resolved past when it is reached mid-walk.
         ("orchestrator", False, ["orchestrator"]),

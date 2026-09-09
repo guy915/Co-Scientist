@@ -206,12 +206,6 @@ DEFAULT_INITIAL_HYPOTHESES_COUNT: Final = 5
 DEFAULT_EVOLUTION_MAX_COUNT: Final = 3
 """Default number of top hypotheses to evolve and keep."""
 
-# Deep-verification review (probing questions on the most promising hypotheses).
-# deep_verification.py ranks hypotheses by Elo and only probes the leaders,
-# since the LLM-driven questioning is expensive relative to review/ranking.
-DEEP_VERIFICATION_TOP_K: Final = 3
-"""Number of top-Elo hypotheses to subject to deep verification."""
-
 # Research overview synthesizes the strongest hypotheses into a roadmap.
 RESEARCH_OVERVIEW_TOP_K: Final = 10
 """Number of top-Elo hypotheses to synthesize into the research overview."""
@@ -240,12 +234,12 @@ PROGRESS_REVIEW_START: Final = 25
 PROGRESS_REVIEW_COMPLETE: Final = 40
 PROGRESS_SAFETY_SCREEN_START: Final = 41
 PROGRESS_SAFETY_SCREEN_COMPLETE: Final = 42
+# Deep verification precedes tournament entry (``03-reflection.md``), so
+# its band sits between the safety screen and the tournament.
+PROGRESS_DEEP_VERIFICATION_START: Final = 43
+PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 44
 PROGRESS_TOURNAMENT_START: Final = 55
 PROGRESS_TOURNAMENT_COMPLETE: Final = 70
-# Deep verification probes the post-tournament leaders, so its band sits
-# between the tournament and the post-tournament decision (audit E9).
-PROGRESS_DEEP_VERIFICATION_START: Final = 71
-PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 72
 # The post-tournament band; the shared value is explained above.
 PROGRESS_ORCHESTRATOR_DECISION: Final = 75
 PROGRESS_PROXIMITY_START: Final = 75
