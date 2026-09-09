@@ -62,11 +62,26 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
     lives on ``Hypothesis.is_rankable`` so the durable path and the engine
     scheduler's coverage accounting stay in sync (a mismatch loops the
     orchestrator on ranking).
+
+    Also requires ``has_peer_review``, mirroring the coverage floor's own
+    filter (``ranking_lifecycle._coverage_floor``). In the ordinary cycle
+    this changes nothing: the scheduler's unreviewed-backlog check forces a
+    review before RANK is ever scheduled, so nothing unreviewed reaches
+    here. It matters for a scientist hypothesis admitted on the very cycle
+    the orchestrator retries a *failed* RANK (``policy_checks._check_retry``
+    sits above the review-backlog check), which would otherwise hand a
+    newcomer holding no peer review real tournament matches -- passing no
+    gate at all (HITL-MANUAL-HYP-001). Safe against the sync warning above:
+    the backlog check still counts an unreviewed idea via
+    ``has_peer_review`` regardless of this filter, so it is caught and
+    reviewed once the (bounded) retry window closes.
     """
+    from co_scientist.models import has_peer_review
+
     return [
         hypothesis
         for hypothesis in state["hypotheses"]
-        if hypothesis.is_rankable()
+        if hypothesis.is_rankable() and has_peer_review(hypothesis)
     ]
 
 

@@ -24,7 +24,13 @@ from app.engine_tasks_fanout import (
     _enqueue_verification_fanout,
 )
 from app.engine_tasks_gate import _apply_pre_ranking_evidence_gate
+from app.engine_tasks_inputs import (
+    reopen_for_pending_scientist_input as reopen_for_pending_scientist_input,
+)
 from app.engine_tasks_ranking import _schedule_ranking_chain
+from app.engine_tasks_restore import (
+    ADMISSION_NODE as ADMISSION_NODE,
+)
 from app.engine_tasks_restore import (
     _restore_node_task_state as _restore_node_task_state,
 )
@@ -452,6 +458,13 @@ async def execute_finalize(
         emit,
     ):
         pass
+    # A contribution posted after the last orchestrator boundary (the
+    # report was still draining/publishing) has no continuation task
+    # waiting for it -- reopen right here instead of stranding it on
+    # whatever scientist input happens to arrive next. No-ops when the
+    # run did not land completed (blocked/held/paused above) or nothing
+    # is pending.
+    reopen_for_pending_scientist_input(run.id, db_path=db_path)
     return _settle_and_release(run.id, db_path)
 
 

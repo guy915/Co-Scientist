@@ -17,11 +17,14 @@ rank or be bred from.
 
 from typing import Any
 
+import pytest
 from co_scientist.models import SCIENTIST_REVIEWER
 
-from app import engine_tasks, engine_tasks_inputs, store
+from app import engine_tasks, engine_tasks_inputs, store, task_worker
+from app.config import settings
 from app.engine_adapter import drain_hypotheses
 from app.engine_tasks_support import NODE_TASK_PREFIX
+from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
     _Generator,
     _seed_checkpoint,
@@ -313,3 +316,90 @@ def test_admitting_the_same_idea_twice_creates_one_pool_member(
 
     assert [h.id for h in state["hypotheses"]] == [hypothesis_id]
     assert len(state["hypotheses"][0].reviews) == 1
+
+
+_LATE_CONTRIB_WORKER = "late-contrib-test"
+
+
+async def _drain_until_finalize_enqueued(run_id: str, isolated_db: str) -> None:
+    """Run tasks one at a time up to (not including) finalize.
+
+    Generous cap: each fan-out (review/verification/generation/reflection
+    items) and every ranking match is its own durable task.
+    """
+    for _ in range(500):
+        tasks = store.list_tasks(run_id, db_path=isolated_db)
+        if any(t.task_type == "engine.finalize" for t in tasks):
+            return
+        worked = await task_worker.run_once(
+            _LATE_CONTRIB_WORKER, run_id=run_id, db_path=isolated_db
+        )
+        assert worked, "run finished before finalize was ever enqueued"
+    raise AssertionError("finalize never appeared inside the task cap")
+
+
+@pytest.mark.asyncio
+async def test_late_contribution_reopens_the_run_once_it_completes(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A contribution past the last orchestrator boundary self-heals.
+
+    Residual window recorded on HITL-STEERING-001/HITL-MANUAL-HYP-001: a
+    contribution POSTed while a run executes its final nodes has no
+    remaining orchestrator boundary and gets no continuation task at POST
+    time (``enqueue_scientist_continuation`` only reopens an already-
+    ``completed`` run). Closed by
+    ``engine_tasks_inputs.reopen_for_pending_scientist_input``, called
+    from ``execute_finalize`` once the report settles -- this drives the
+    real durable queue one task at a time to land a message exactly in
+    that window, rather than asserting the fix in isolation.
+    """
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client = _client()
+    created = client.post(
+        "/api/runs",
+        json={"research_goal": "Late contribution reopen", "tier": "express"},
+    )
+    run_id = created.json()["id"]
+    started = client.post(f"/api/runs/{run_id}/start", json={})
+    assert started.status_code == 200
+
+    await _drain_until_finalize_enqueued(run_id, isolated_db)
+    pre_status = store.get_run(run_id, db_path=isolated_db)
+    assert pre_status is not None and pre_status.status != "completed"
+
+    posted = client.post(
+        f"/api/runs/{run_id}/messages",
+        json={"content": "also consider off-target kinase effects"},
+    )
+    assert posted.status_code == 200
+    # No boundary left for it to land on yet.
+    assert posted.json()["continuation_task_id"] is None
+    assert store.get_pending_steering(run_id, db_path=isolated_db)
+
+    # run_run_until_idle drains everything -- both the original completion
+    # and the reopened continuation cycle it triggers -- so the run lands
+    # completed again either way; the evidence of reopening is the
+    # continuation task and lifecycle event left behind along the way,
+    # and the message finally being acknowledged.
+    await task_worker.run_run_until_idle(
+        run_id, _LATE_CONTRIB_WORKER, db_path=isolated_db
+    )
+
+    reopened = store.get_run(run_id, db_path=isolated_db)
+    assert reopened is not None and reopened.status == "completed", (
+        reopened.error if reopened else None
+    )
+    tasks_after = store.list_tasks(run_id, db_path=isolated_db)
+    assert any(
+        task.task_type == "engine.node.orchestrator"
+        and task.provenance.get("behavior") == "scientist-directed-continuation"
+        for task in tasks_after
+    )
+    lifecycle_events = [
+        event["payload"]
+        for event in store.list_events(run_id, db_path=isolated_db)
+        if event["payload"].get("event") == "reopened_for_scientist_input"
+    ]
+    assert lifecycle_events
+    assert not store.get_pending_steering(run_id, db_path=isolated_db)

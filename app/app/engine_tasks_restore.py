@@ -61,6 +61,13 @@ def _restore_node_task_state(
     transaction that commits this state's successor checkpoint, so a worker
     lost mid-node leaves the steer claimable rather than acknowledged.
 
+    ``pending_steering`` is set on ``state`` only at the orchestrator: it
+    is the sole node whose scheduling stats read that flag
+    (``orchestrator_stats._build_scheduler_stats``), so setting it on
+    every other node's restored state would do nothing but pretend a
+    later commit consumed something it never acted on -- the actual
+    consumption gate lives beside this one, in ``_task_commit``.
+
     ``durable_retries_remain`` is the other overlay, and it is what lets a
     node whose synthesis is optional tell a recoverable failure from a
     final one (``co_scientist.agents.node_degradation``): a provider error
@@ -79,7 +86,10 @@ def _restore_node_task_state(
     state: dict[str, Any] = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
-    if opts.get("pending_steering"):
+    at_admission_node = (
+        task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
+    )
+    if opts.get("pending_steering") and at_admission_node:
         state["pending_steering"] = True
     if opts.get("preferences"):
         state["preferences"] = opts["preferences"]
@@ -90,8 +100,6 @@ def _restore_node_task_state(
         state,
         task.run_id,
         db_path,
-        admit_hypotheses=(
-            task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
-        ),
+        admit_hypotheses=at_admission_node,
     )
     return state

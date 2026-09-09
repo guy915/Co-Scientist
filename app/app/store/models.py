@@ -109,7 +109,17 @@ class RunRow:
 
 @dataclass
 class MessageRow:
-    """Represents a single message row from the messages table."""
+    """Represents a single message row from the messages table.
+
+    ``applied_at``/``applied_decision`` are set together, only for a
+    steering message and only once (``mark_steering_applied``): when the
+    orchestrator's own commit acknowledges it, ``applied_decision`` carries
+    that commit's ``next_task`` (e.g. "generate"), giving the "how it
+    changed the plan" record HITL-STEERING-001 asks for directly on the
+    message rather than requiring a reader to correlate it against the
+    event stream by timestamp. Both stay None for a message never applied,
+    or applied before this column existed.
+    """
 
     id: int
     run_id: str
@@ -119,6 +129,8 @@ class MessageRow:
     created_at: float
     applied: bool
     meta: dict[str, Any] | None = None
+    applied_at: float | None = None
+    applied_decision: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the row to the JSON shape the API returns to clients."""
@@ -159,7 +171,8 @@ def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
 
 
 def _row_to_message(row: sqlite3.Row) -> MessageRow:
-    """Build a MessageRow from a messages table row."""
+    """Build a MessageRow from a messages table row, tolerating older rows."""
+    keys = row.keys()
     return MessageRow(
         id=row["id"],
         run_id=row["run_id"],
@@ -169,4 +182,8 @@ def _row_to_message(row: sqlite3.Row) -> MessageRow:
         created_at=row["created_at"],
         applied=bool(row["applied"]),
         meta=_parse_message_meta(row),
+        applied_at=row["applied_at"] if "applied_at" in keys else None,
+        applied_decision=(
+            row["applied_decision"] if "applied_decision" in keys else None
+        ),
     )

@@ -90,6 +90,9 @@ from app.engine_tasks_node import (
     _SYNC_FANOUT_HANDLERS as _SYNC_FANOUT_HANDLERS,
 )
 from app.engine_tasks_node import (
+    ADMISSION_NODE as ADMISSION_NODE,
+)
+from app.engine_tasks_node import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
 from app.engine_tasks_node import (
@@ -307,10 +310,14 @@ async def _prepare_bootstrap_state(
 ) -> tuple[dict[str, Any], TaskCommit, dict[str, Any] | None]:
     """Build initial workflow state, honoring a cancel/pause during prep.
 
-    Returns the prepared state, the commit target carrying whatever
-    steering this state folded in, and -- if the run was paused meanwhile
-    -- the checkpointed-pause result the caller must return instead of
-    continuing.
+    Returns the prepared state, the commit target, and -- if the run was
+    paused meanwhile -- the checkpointed-pause result the caller must
+    return instead of continuing. Bootstrap never consumes steering
+    (``consume_steering=False``): any steering queued before the run even
+    started is folded into the initial preferences text same as always,
+    but stays pending until the run's first orchestrator cycle -- the one
+    place ``pending_steering`` is actually read for scheduling -- rather
+    than being acknowledged here where nothing acts on it.
     """
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
@@ -318,7 +325,7 @@ async def _prepare_bootstrap_state(
         opts=opts,
         run_id=run.id,
     )
-    commit = _task_commit(task, 0, db_path, opts)
+    commit = _task_commit(task, 0, db_path, opts, consume_steering=False)
     refreshed = store.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
@@ -386,7 +393,15 @@ async def execute_node_task(
         state["durable_task_queue"] = _durable_queue_snapshot(
             task.run_id, db_path
         )
-    commit = _task_commit(task, current_seq, db_path, opts)
+    # Only the orchestrator's own commit may acknowledge steering: it is
+    # the run's one scheduling decision point (see _task_commit).
+    commit = _task_commit(
+        task,
+        current_seq,
+        db_path,
+        opts,
+        consume_steering=(node_name == ADMISSION_NODE),
+    )
     paused = _pause_node_task_if_requested(commit, run, node_name, state)
     if paused is not None:
         return paused

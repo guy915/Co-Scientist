@@ -17,6 +17,7 @@ from co_scientist.models import (
 
 from app import engine_tasks, safety, store, task_worker
 from tests._engine_tasks_helpers import (
+    _add_fixture_review,
     _deterministic_screen,
     _Generator,
     _install_plain_fake_judge,
@@ -258,6 +259,7 @@ def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
     ]
     for hypothesis in hypotheses:
         hypothesis.review_disposition = "viable"
+        _add_fixture_review(hypothesis)
     state.update(
         {
             "hypotheses": hypotheses,

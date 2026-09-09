@@ -304,6 +304,13 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at REAL NOT NULL,
     applied    INTEGER NOT NULL DEFAULT 0,
     meta_json  TEXT,
+    -- Set together, once, when a steering message is acknowledged
+    -- (store.mark_steering_applied): when it happened, and the
+    -- orchestrator's next_task decision it fed -- "how it changed the
+    -- plan" (HITL-STEERING-001), on the message itself. NULL for every
+    -- unapplied message and for one applied before this column existed.
+    applied_at       REAL,
+    applied_decision TEXT,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);

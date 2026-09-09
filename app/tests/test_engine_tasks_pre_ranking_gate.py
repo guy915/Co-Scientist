@@ -15,6 +15,7 @@ from co_scientist.models import (
 )
 
 from app import engine_tasks
+from tests._engine_tasks_helpers import _add_fixture_review
 
 
 @pytest.mark.asyncio
@@ -91,15 +92,18 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
     ranking scheduler must then leave it out of the tournament, not merely drop
     it at publish time, so its unsupported claim never shifts other ideas' Elo.
     """
-    supported = Hypothesis(text="Supported idea.")
+    # `_ranking_eligible` requires `has_peer_review` alongside
+    # `is_rankable` (HITL-MANUAL-HYP-001's RANK-retry closure); every
+    # idea this test builds is meant to already be past review.
+    supported = _add_fixture_review(Hypothesis(text="Supported idea."))
     supported.review_disposition = "viable"
-    blocked = Hypothesis(text="Unsupported idea.")
+    blocked = _add_fixture_review(Hypothesis(text="Unsupported idea."))
     blocked.review_disposition = "evidence_blocked"
     # Deep verification is the other way round: its verdict demotes rather
     # than withholds, so an undermined idea keeps competing. The durable
     # path must agree with the engine's own predicate about that, which is
     # why it asks ``Hypothesis.is_rankable`` instead of restating the rule.
-    undermined = Hypothesis(text="Undermined idea.")
+    undermined = _add_fixture_review(Hypothesis(text="Undermined idea."))
     undermined.review_disposition = "viable"
     undermined.deep_verification_verdict = "undermined"
 

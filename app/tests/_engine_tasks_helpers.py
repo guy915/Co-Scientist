@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from co_scientist.models import ExecutionMetrics, Hypothesis
+from co_scientist.models import (
+    ExecutionMetrics,
+    Hypothesis,
+    HypothesisReview,
+)
 
 from app import engine_tasks, store
 from app.safety import screen_intake
@@ -136,6 +140,28 @@ def _task_events(
     ]
 
 
+def _add_fixture_review(hypothesis: Hypothesis) -> Hypothesis:
+    """Attach one agent-authored review so the hypothesis has peer review.
+
+    ``_ranking_eligible`` (app.engine_tasks_ranking) requires
+    ``has_peer_review`` alongside ``is_rankable`` (HITL-MANUAL-HYP-001's
+    RANK-retry closure), so any fixture pool calling itself "viable" and
+    ready to rank needs one, matching every real pool: nothing reaches
+    ranking on the durable path without a review first.
+    """
+    hypothesis.reviews.append(
+        HypothesisReview(
+            review_summary="fixture review",
+            scores={},
+            safety_ethical_concerns="",
+            detailed_feedback={},
+            constructive_feedback="",
+            overall_score=8.0,
+        )
+    )
+    return hypothesis
+
+
 def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
     """Build ``count`` reviewed-viable hypotheses for a tournament fixture.
 
@@ -153,6 +179,7 @@ def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
     ]
     for hypothesis in hypotheses:
         hypothesis.review_disposition = "viable"
+        _add_fixture_review(hypothesis)
         if played:
             hypothesis.win_count = 1
             hypothesis.loss_count = 1

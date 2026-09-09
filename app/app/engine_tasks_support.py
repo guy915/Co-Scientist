@@ -239,7 +239,7 @@ def _save_state_and_enqueue(
         successor_task = _enqueue_node_portfolio(
             task, state, successor, successor_type, conn
         )
-        _ack_consumed_steering(commit, conn)
+        _ack_consumed_steering(commit, conn, state)
         store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
     return checkpoint_seq, successor_task.id
 
@@ -352,7 +352,7 @@ def _save_paused_state(
         latest_seq = int(latest["seq"]) if latest else 0
         if latest_seq != commit.current_seq:
             raise RuntimeError("checkpoint changed while pausing task")
-        _ack_consumed_steering(commit, conn)
+        _ack_consumed_steering(commit, conn, state)
         return store.save_checkpoint(
             task.run_id,
             store.NewCheckpoint(

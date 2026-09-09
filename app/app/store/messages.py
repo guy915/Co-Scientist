@@ -82,7 +82,8 @@ def append_message(
 # Explicit column list shared by the message queries below, so they stay in
 # lockstep with what _row_to_message reads.
 _MESSAGE_COLUMNS = (
-    "id, run_id, sender, content, kind, created_at, applied, meta_json"
+    "id, run_id, sender, content, kind, created_at, applied, meta_json, "
+    "applied_at, applied_decision"
 )
 
 
@@ -122,6 +123,8 @@ def mark_steering_applied(
     ids: list[int],
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
+    *,
+    decision: str | None = None,
 ) -> None:
     """Mark steering messages as consumed so they are not applied twice.
 
@@ -130,6 +133,13 @@ def mark_steering_applied(
     connection meant the two committed separately: a worker that died
     between them left the message applied and its guidance in a state that
     was never written, so the scientist's steer was silently dropped.
+
+    ``decision`` is the scheduling decision this acknowledgement fed (the
+    orchestrator's ``next_task``, e.g. "generate") -- HITL-STEERING-001's
+    "how it changed the plan", recorded on the message row itself rather
+    than left for a reader to correlate against the event stream. Optional
+    because the only caller that can supply it (``_ack_consumed_steering``)
+    sometimes has nothing fresh to report (a pause ahead of a decision).
     """
     if not ids:
         return
@@ -138,5 +148,7 @@ def mark_steering_applied(
     placeholders = ",".join("?" * len(ids))
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids
+            "UPDATE messages SET applied=1, applied_at=?, applied_decision=? "
+            f"WHERE id IN ({placeholders})",
+            (_now(), decision, *ids),
         )

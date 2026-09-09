@@ -32,12 +32,15 @@ class TaskCommit:
         task: The leased scientific task being committed.
         current_seq: Checkpoint sequence the task was scheduled against.
         db_path: Optional override for the SQLite database path.
-        steering_ids: Steering messages whose guidance this task's state
-            already carries. They are acknowledged inside the checkpoint
+        steering_ids: Steering messages this commit acknowledges. Only the
+            orchestrator's own node commit ever carries these (see
+            ``_task_commit``'s ``consume_steering``): the orchestrator is
+            the run's one scheduling decision point, and every other node
+            merely restarts from a checkpoint that never held the pending
+            flag, so a task other than the orchestrator's has nothing of
+            its own to acknowledge. Acknowledged inside the checkpoint
             transaction, never before it, so a crash mid-task leaves the
-            steer claimable rather than applied to nothing. Empty for every
-            task that does not read the steering queue (only bootstrap and
-            node tasks do).
+            steer claimable rather than applied to nothing.
     """
 
     task: ScientificTask
@@ -68,13 +71,25 @@ def _task_commit(
     current_seq: int,
     db_path: str | None,
     opts: dict[str, Any],
+    *,
+    consume_steering: bool = False,
 ) -> TaskCommit:
     """Bind a task's commit target to the steering its opts folded in.
 
-    Only the two executors that read the steering queue (bootstrap and node
-    tasks) build their commit this way; every other commit target carries
-    no steering and acknowledges none.
+    ``consume_steering`` must be explicit at every call site (default
+    False, so a caller that forgets it simply defers the steer rather than
+    acknowledging it out from under the orchestrator -- the safe
+    direction). Only the orchestrator's own node commit passes True: it is
+    the run's one scheduling decision point (``SchedulerStats.
+    pending_steering`` is read nowhere else), so acknowledging anywhere
+    else retires a steer before the decision it was meant to influence
+    ever runs. Bootstrap opts also carry the flag (any steering queued
+    before the run started) but no longer consume it here either -- it
+    stays pending until the run's first orchestrator cycle, the same
+    boundary a message queued mid-run waits for.
     """
+    if not consume_steering:
+        return TaskCommit(task, current_seq, db_path, ())
     consumed = opts.get(CONSUMED_STEERING_IDS_OPT) or []
     return TaskCommit(
         task, current_seq, db_path, tuple(int(item) for item in consumed)
@@ -82,7 +97,7 @@ def _task_commit(
 
 
 def _ack_consumed_steering(
-    commit: TaskCommit, conn: sqlite3.Connection
+    commit: TaskCommit, conn: sqlite3.Connection, state: dict[str, Any]
 ) -> None:
     """Retire the steering this commit's state carries, in its transaction.
 
@@ -90,5 +105,14 @@ def _ack_consumed_steering(
     guidance was read: the acknowledgement and the state that honors it
     have to land or roll back together, or a worker lost between them
     retires a steer the run never acted on.
+
+    ``state["next_task"]`` -- present once the orchestrator has actually
+    decided, absent (or stale, from before this cycle) if the run was
+    paused ahead of that decision -- rides along as the "how it changed
+    the plan" record on the message row. No-op when nothing is being
+    acknowledged (``commit.steering_ids`` empty), so a caller with nothing
+    fresh to report never overwrites anything.
     """
-    store.mark_steering_applied(list(commit.steering_ids), conn=conn)
+    store.mark_steering_applied(
+        list(commit.steering_ids), conn=conn, decision=state.get("next_task")
+    )

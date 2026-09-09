@@ -39,6 +39,41 @@ def enqueue_bootstrap(
     )
 
 
+def reopen_for_pending_scientist_input(
+    run_id: str, *, db_path: str | None = None
+) -> ScientificTask | None:
+    """Reopen a just-completed run when scientist input is still unread.
+
+    A contribution (a hypothesis, a review, or a bare steering message --
+    every one of them queues a steering message; see
+    ``runs_contrib._steer_and_continue``) posted after a run's last
+    orchestrator boundary -- e.g. while its final nodes are draining and
+    publishing the report -- has nowhere left to land: it is persisted
+    and screened, but ``enqueue_scientist_continuation`` only reopens an
+    already-``completed`` run, and nothing else would call it again until
+    some *later*, unrelated contribution happened to arrive. Calling this
+    the moment finalize settles closes that race for the contribution
+    that caused it, instead of leaving it stranded on the next one
+    (HITL-STEERING-001 / HITL-MANUAL-HYP-001).
+
+    Deliberately keyed on ``get_pending_steering`` alone, not on any
+    broader "does this run owe a review" scan: every contribution already
+    queues a steering message, so nothing this hook should act on can
+    exist without one, and the message empties for good once acknowledged
+    -- so this can never re-fire without new, unread input to justify it.
+
+    Returns:
+        The enqueued continuation task, or None when there is nothing
+        pending (the ordinary case) or the run never reached completed.
+    """
+    pending = store.get_pending_steering(run_id, db_path=db_path)
+    if not pending:
+        return None
+    return enqueue_scientist_continuation(
+        run_id, pending[0].id, db_path=db_path
+    )
+
+
 def enqueue_scientist_continuation(
     run_id: str,
     input_id: int,
@@ -55,6 +90,12 @@ def enqueue_scientist_continuation(
     if checkpoint is None:
         return None
     store.update_run_status(run_id, RunStatus.QUEUED, db_path=db_path)
+    store.append_event(
+        run_id,
+        "lifecycle",
+        {"event": "reopened_for_scientist_input", "input_id": input_id},
+        db_path=db_path,
+    )
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,

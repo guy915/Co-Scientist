@@ -375,6 +375,18 @@ def _migrate_match_debate_transcript(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "matches", "debate_transcript", "TEXT")
 
 
+def _migrate_message_applied_columns(conn: sqlite3.Connection) -> None:
+    """Add the steering-acknowledgement timestamp and decision columns.
+
+    Both are set together, once, by ``store.mark_steering_applied`` --
+    when a steering message was acknowledged and the orchestrator decision
+    it fed (HITL-STEERING-001's "shows when it was applied and how it
+    changed the plan"). NULL on every row applied before this migration.
+    """
+    _add_column_if_missing(conn, "messages", "applied_at", "REAL")
+    _add_column_if_missing(conn, "messages", "applied_decision", "TEXT")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -396,3 +408,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_evidence_source_type_column(conn)
     _migrate_task_available_at(conn)
     _migrate_match_debate_transcript(conn)
+    _migrate_message_applied_columns(conn)

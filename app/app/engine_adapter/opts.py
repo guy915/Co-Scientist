@@ -79,31 +79,53 @@ def _append_if(parts: list[str], value: str | None) -> None:
 
 
 def _steering_preference_part(
-    pending_steering: list[store.MessageRow],
+    steering_messages: list[store.MessageRow],
 ) -> str | None:
-    """Return the queued-steering preference text, acknowledging nothing.
+    """Return the steering preference text, acknowledging nothing.
 
-    Returns None when there is nothing pending. Acknowledgement is
+    Returns None when there is no steering at all. Acknowledgement is
     deliberately not done here: see ``CONSUMED_STEERING_IDS_OPT``.
+
+    Takes every steering message ever queued, applied or not: only the
+    orchestrator acknowledges steering (``ADMISSION_NODE``), and every
+    restore before that overwrites ``state["preferences"]`` from this opt
+    (``_restore_node_task_state``) -- a pending-only fold would go quiet
+    the instant the orchestrator acknowledges the message, dropping the
+    guidance before the GENERATE it schedules ever sees it. The full
+    history keeps this monotone and idempotent across restores instead.
     """
-    if not pending_steering:
+    if not steering_messages:
         return None
-    guidance = "\n".join(f"- {m.content}" for m in pending_steering)
+    guidance = "\n".join(f"- {m.content}" for m in steering_messages)
     return f"User steering guidance:\n{guidance}"
 
 
 def _fold_steering_preferences(
     setup_text: str,
-    pending_steering: list[store.MessageRow],
+    steering_messages: list[store.MessageRow],
 ) -> str | None:
-    """Fold setup guidance and queued user steering into one "preferences" opt.
+    """Fold setup guidance and all queued user steering into "preferences".
 
     Returns None when there is nothing to fold.
     """
     preference_parts: list[str] = []
     _append_if(preference_parts, setup_text)
-    _append_if(preference_parts, _steering_preference_part(pending_steering))
+    _append_if(preference_parts, _steering_preference_part(steering_messages))
     return "\n\n".join(preference_parts) if preference_parts else None
+
+
+def _all_steering_messages(
+    run_id: str, db_path: str | None
+) -> list[store.MessageRow]:
+    """Return every steering message ever queued, applied or not.
+
+    Unlike ``store.get_pending_steering``; see ``_steering_preference_part``.
+    """
+    return [
+        message
+        for message in store.list_messages(run_id, db_path=db_path)
+        if message.kind == "steering"
+    ]
 
 
 def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
@@ -303,7 +325,7 @@ def _build_engine_opts(
         ]
     preferences = _fold_steering_preferences(
         str(initial_opts.get("run_setup_guidance") or ""),
-        pending_steering,
+        _all_steering_messages(run_id, db_path),
     )
     if preferences:
         initial_opts["preferences"] = preferences
