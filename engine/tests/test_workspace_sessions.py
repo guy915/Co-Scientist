@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -41,6 +42,40 @@ async def _execute(
     return parsed
 
 
+async def _wait_for_output(
+    provider: WorkspaceToolProvider,
+    payload: dict[str, Any],
+    needle: str,
+    *,
+    timeout: float = 5.0,
+) -> dict[str, Any]:
+    """Polls a session until ``needle`` shows up in a read's stdout.
+
+    The pump that fills a session's stdout is a background task racing
+    whatever bounded wait a caller asks for; a loaded host -- or, on
+    Linux, the landlock backend's own re-exec of a fresh interpreter
+    before the child even starts -- can outlast a short yield window
+    before anything has been written. That race is exactly what "still
+    running" exists to tolerate, so it is resolved the way a real
+    caller would: poll again, bounded by a total deadline rather than a
+    fixed sleep.
+    """
+    deadline = time.monotonic() + timeout
+    while needle not in payload["stdout"]:
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"{needle!r} did not appear in stdout within {timeout}s"
+            )
+        payload = await _execute(
+            provider,
+            POLL_COMMAND,
+            session_id=payload["session_id"],
+            cursor=payload["cursor"],
+            wait_seconds=0.5,
+        )
+    return payload
+
+
 @pytest.fixture
 def provider(tmp_path: Path) -> WorkspaceToolProvider:
     return WorkspaceToolProvider(WorkspaceSession(tmp_path))
@@ -60,7 +95,11 @@ class TestStillRunningIsAnAnswer:
         assert payload["session_id"]
         # And the output it had already produced is here, which the
         # bounded path discards entirely on its timeout.
+        payload = await _wait_for_output(provider, payload, "early")
         assert "early" in payload["stdout"]
+        # The command outlives the call that started it on purpose; end
+        # it explicitly rather than leaking a "sleep 30" past this test.
+        await provider.session.sessions.close()
 
     async def test_a_fast_command_finishes_in_one_call(
         self, provider: WorkspaceToolProvider
@@ -97,18 +136,24 @@ class TestStillRunningIsAnAnswer:
     ) -> None:
         # Without this a chatty command re-sends its whole log on every
         # poll, and the transcript grows quadratically in what it says.
+        # "second" is gated behind a read so it cannot exist until the
+        # cursor has already advanced past "first" -- an unbounded
+        # producer would let the two lines race the same short yield
+        # window this test used to assert against directly.
         started = await _execute(
             provider,
             RUN_COMMAND,
-            argv=["bash", "-c", "echo first; sleep 0.3; echo second"],
+            argv=["bash", "-c", "echo first; read line; echo second"],
             yield_seconds=0.1,
         )
+        started = await _wait_for_output(provider, started, "first")
         assert "first" in started["stdout"]
         polled = await _execute(
             provider,
             POLL_COMMAND,
             session_id=started["session_id"],
             cursor=started["cursor"],
+            input="go\n",
             wait_seconds=10,
         )
         assert "second" in polled["stdout"]
