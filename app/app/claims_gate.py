@@ -2,8 +2,9 @@
 
 Split out of :mod:`app.claims`, which had grown past the module-size budget.
 This module holds the lower half of that file: the entailment verdict enum, the
-provenance support span and the claim-assessment record they populate, the
-resolvability check (independent of claim support), and the publication gate.
+provenance support span and the claim-assessment record they populate, and the
+publication gate. Citation metadata and resolvability -- a third concern, and
+one no gate here consults -- moved on to :mod:`app.citation_metadata`.
 
 :mod:`app.claims` imports these names back and re-exports them, so every public
 name remains importable from ``app.claims`` exactly as before. This module
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 
 # --- Per-claim entailment verdict -------------------------------------------
 
@@ -78,61 +79,6 @@ class ClaimAssessment:
     def is_fundamental_failure(self) -> bool:
         """True when this claim is contradicted (a hard publication blocker)."""
         return self.label is EntailmentLabel.CONTRADICTS
-
-
-# --- Resolvability (independent of support) ---------------------------------
-
-
-class Resolvability(str, enum.Enum):
-    """Whether a citation's *source* resolves — separate from claim support."""
-
-    RESOLVABLE = "resolvable"
-    UNRESOLVABLE = "unresolvable"
-    RETRACTED = "retracted"
-
-
-@dataclasses.dataclass(frozen=True)
-class CitationMetadata:
-    """Source metadata the resolvability check inspects (not claim support)."""
-
-    url: str = ""
-    doi: str = ""
-    available: bool = True
-    retracted: bool = False
-    source_type: str = ""
-
-
-# A resolver maps citation metadata to a resolvability verdict. The default is
-# offline (reads the supplied metadata); the engine drain's evidence-identity
-# availability check instead calls the live resolver in
-# app/citation_resolver.py, which actually dereferences the DOI/PMID/URL.
-Resolver = Callable[[CitationMetadata], Resolvability]
-
-
-def offline_resolver(meta: CitationMetadata) -> Resolvability:
-    """Judge resolvability from supplied metadata only (no network).
-
-    Retraction dominates (a retracted source is unusable even if reachable),
-    then reachability. This is the deterministic default so the pipeline and
-    tests run offline.
-    """
-    if meta.retracted:
-        return Resolvability.RETRACTED
-    if not meta.available or not meta.url:
-        return Resolvability.UNRESOLVABLE
-    return Resolvability.RESOLVABLE
-
-
-def assess_resolvability(
-    meta: CitationMetadata, *, resolver: Resolver = offline_resolver
-) -> Resolvability:
-    """Judge whether a citation source resolves, independent of claim support.
-
-    Delegates to the (swappable) ``resolver``. This separation is the M5
-    requirement: metadata/resolvability is verified apart from whether the
-    source supports the claim.
-    """
-    return resolver(meta)
 
 
 # --- Publication gate -------------------------------------------------------

@@ -29,10 +29,12 @@ requires (SSR §6, §7):
    (``assess_claims_batch``, ``app/claims_batch.py``) -- a production ultra
    run measured 218 claims assessed one at a time across 13 hypotheses in a
    single pass, repeated before every ranking wave.
-4. **Resolvability, separately** — whether a citation's source resolves
-   (URL/metadata/retraction) is judged independently of whether it supports the
-   claim, via a swappable *resolver* (offline metadata by default; a live
-   URL/DOI/retraction lookup is injectable).
+4. **Citation metadata, separately** — whether a citation's source resolves
+   (URL/DOI/PMID/retraction), what kind of source it is, and whether it
+   carries a usable date are judged independently of whether it supports the
+   claim (``app/citation_metadata.py``), reachability via a swappable
+   *resolver* (offline metadata by default; the live URL/DOI/retraction
+   lookup in ``app/citation_resolver.py`` in production).
 5. **Publication gate** — an unsupported or contradicted *fundamental* claim
    cannot let a hypothesis rank/publish; clearly labeled speculation is allowed
    only under an explicit policy flag.
@@ -50,6 +52,37 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+# Citation metadata and resolvability -- judged apart from claim support --
+# live in app/citation_metadata.py, which owns the one implementation
+# production runs on. Imported back and re-exported (redundant aliases) so
+# every public name stays importable from app.claims exactly as before.
+from app.citation_metadata import (
+    CitationMetadata as CitationMetadata,
+)
+from app.citation_metadata import (
+    DateState as DateState,
+)
+from app.citation_metadata import (
+    Resolvability as Resolvability,
+)
+from app.citation_metadata import (
+    Resolver as Resolver,
+)
+from app.citation_metadata import (
+    SourceType as SourceType,
+)
+from app.citation_metadata import (
+    assess_resolvability as assess_resolvability,
+)
+from app.citation_metadata import (
+    classify_date as classify_date,
+)
+from app.citation_metadata import (
+    classify_source_type as classify_source_type,
+)
+from app.citation_metadata import (
+    offline_resolver as offline_resolver,
+)
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     _SENTENCE_SPLIT,
@@ -92,13 +125,8 @@ from app.claims_batch import (
 )
 
 # The entailment verdict enum, provenance support span, claim-assessment
-# record, resolvability check, and publication gate were split into
-# app/claims_gate.py to keep this module within the size budget. They are
-# imported back and re-exported (redundant aliases) so every public name stays
-# importable from app.claims exactly as before.
-from app.claims_gate import (
-    CitationMetadata as CitationMetadata,
-)
+# record, and publication gate were split into app/claims_gate.py to keep
+# this module within the size budget. Same re-export treatment.
 from app.claims_gate import (
     ClaimAssessment as ClaimAssessment,
 )
@@ -112,19 +140,7 @@ from app.claims_gate import (
     GateResult as GateResult,
 )
 from app.claims_gate import (
-    Resolvability as Resolvability,
-)
-from app.claims_gate import (
-    Resolver as Resolver,
-)
-from app.claims_gate import (
     SupportSpan as SupportSpan,
-)
-from app.claims_gate import (
-    assess_resolvability as assess_resolvability,
-)
-from app.claims_gate import (
-    offline_resolver as offline_resolver,
 )
 from app.claims_gate import (
     publication_gate as publication_gate,

@@ -39,6 +39,28 @@ def _metadata_is_retracted(metadata: dict[str, Any]) -> bool:
 # =============================================================================
 
 
+def _publication_type(metadata: dict[str, Any]) -> str | None:
+    """Return the publisher-declared publication type, either spelling.
+
+    PubMed answers with a plural ``publication_types`` list; only the
+    singular key was read, so the field was always None and the strongest
+    source-type signal there is -- the one that tells a preprint PubMed
+    indexes from the journal articles beside it -- never left the search
+    response. Consumed downstream by the app's citation-metadata check.
+    """
+    declared = metadata.get("publication_type")
+    if declared:
+        return str(declared)
+    types = metadata.get("publication_types") or []
+    if isinstance(types, str):
+        types = [types]
+    # Joined rather than first-wins: PubMed mixes the declared types on one
+    # record ("Journal Article" beside "Preprint", the way it also carries
+    # "Retracted Publication" -- see _metadata_is_retracted), so taking
+    # element zero drops whichever the indexer happened to list second.
+    return "; ".join(str(item) for item in types) or None
+
+
 def _correction_status(metadata: dict[str, Any], is_retracted: bool) -> str:
     """Name a paper's correction state, deriving it when unstated."""
     return str(
@@ -75,7 +97,7 @@ def build_article_from_metadata(
         doi=metadata.get("doi"),
         is_retracted=is_retracted,
         correction_status=_correction_status(metadata, is_retracted),
-        publication_type=metadata.get("publication_type"),
+        publication_type=_publication_type(metadata),
         pdf_links=[],
         used_in_analysis=used_in_analysis,
         # Collection time, not the caller's eventual persistence time (see

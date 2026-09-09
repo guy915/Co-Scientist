@@ -190,3 +190,95 @@ def test_a_run_with_no_retrieved_sources_renders_no_heading() -> None:
     """
     assert "## References" not in _overview_markdown([])
     assert "## References" not in _overview_markdown(None)
+
+
+def test_a_preprint_is_labelled_rather_than_read_as_peer_reviewed() -> None:
+    """A reader is told which references have not been reviewed.
+
+    A preprint resolves as well as a journal article and is listed
+    alongside one, so the type has to be printed or the two are
+    indistinguishable in the only place a reader sees the run's sources.
+    """
+    markdown = _overview_markdown([_evidence("ev-1", source_type="preprint")])
+
+    section = markdown.split("## References", 1)[1]
+    assert "(preprint)" in section
+
+
+def test_a_peer_reviewed_source_carries_no_type_suffix() -> None:
+    """The expected case prints nothing; only the exceptions are labelled."""
+    markdown = _overview_markdown(
+        [_evidence("ev-1", source_type="peer_reviewed")]
+    )
+
+    section = markdown.split("## References", 1)[1]
+    assert "(peer" not in section
+    assert "(preprint)" not in section
+
+
+def test_an_unclassified_row_is_classified_from_what_it_carries() -> None:
+    """A row predating the column still classifies, from source and URL.
+
+    ``source_type`` is NULL for every row persisted before it existed and
+    for evidence that never went through the drain; falling back to the
+    same classifier over the row's own source/URL keeps those readable
+    rather than showing them as an unlabelled gap.
+    """
+    markdown = _overview_markdown(
+        [
+            _evidence(
+                "ev-1",
+                source_type=None,
+                source="biorxiv",
+                url="https://www.biorxiv.org/content/10.1101/1v1",
+            )
+        ]
+    )
+
+    section = markdown.split("## References", 1)[1]
+    assert "(preprint)" in section
+
+
+def test_a_paper_with_no_date_says_so() -> None:
+    """An undated paper is flagged, not silently printed title-only.
+
+    Without authors *and* a year the label falls back to the bare title,
+    which is exactly what a normal title-only entry looks like -- so the
+    absence of a date is invisible unless it is stated.
+    """
+    markdown = _overview_markdown(
+        [_evidence("ev-1", year=None, source_type="peer_reviewed")]
+    )
+
+    section = markdown.split("## References", 1)[1]
+    assert "(no date)" in section
+
+
+def test_a_source_that_never_had_a_date_is_not_flagged_as_missing_one() -> None:
+    """An attachment or database record has no publication date to lose.
+
+    Reporting one as undated invents a metadata defect on every row of a
+    kind that never carries a year.
+    """
+    markdown = _overview_markdown(
+        [
+            _evidence("ev-1", year=None, source_type="document"),
+            _evidence(
+                "ev-2", title="A record", year=None, source_type="database"
+            ),
+        ]
+    )
+
+    section = markdown.split("## References", 1)[1]
+    assert "(no date)" not in section
+    assert "(attached document)" in section
+
+
+def test_an_impossible_date_is_flagged_rather_than_printed_as_fact() -> None:
+    """A year outside the range a paper can hold is bad metadata."""
+    markdown = _overview_markdown(
+        [_evidence("ev-1", year=9999, source_type="peer_reviewed")]
+    )
+
+    section = markdown.split("## References", 1)[1]
+    assert "(date not verifiable)" in section

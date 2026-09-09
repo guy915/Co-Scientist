@@ -163,6 +163,10 @@ CREATE TABLE IF NOT EXISTS evidence (
     extraction_tool TEXT,
     doi TEXT,                        -- canonical DOI, when the source has one
     pmid TEXT,                       -- canonical PubMed id, when applicable
+    -- What kind of source this is (app/citation_metadata.py's SourceType):
+    -- 'peer_reviewed' | 'preprint' | 'database' | 'web' | 'document' |
+    -- 'unknown'. Reported, never gated on.
+    source_type TEXT,
     passage_text TEXT,                -- exact text (title + abstract) a
                                        -- claim-evidence span's offsets index
     retrieved_at REAL,                 -- when the engine retrieved this

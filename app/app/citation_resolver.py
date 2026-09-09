@@ -1,10 +1,14 @@
-"""Live resolvability check for evidence identifiers (DOI/PMID/URL).
+"""The live ``Resolver``: dereference an identifier against the real web.
 
-``app/claims_gate.py`` documents this module as the live counterpart to
-``offline_resolver``: the offline resolver reads back the metadata a source
-already claimed (a non-empty URL string, an ``is_retracted`` flag); this one
-actually dereferences the identifier against the real web, so "available"
-means "resolved", not "the string was non-empty".
+:func:`live_resolver` is the production implementation of
+``app.citation_metadata.Resolver``, and the offline default there is its
+counterpart: that one reads back the metadata a source already claimed (an
+identifier string, an ``is_retracted`` flag); this one actually dereferences
+the identifier, so "available" means "resolved", not "the string was
+non-empty". Both are reached through the same
+``citation_metadata.assess_resolvability`` seam -- including by
+:func:`resolve_many` below, which adds only concurrency, never a second
+implementation of the verdict.
 
 A PMID is looked up through NCBI's ESummary API rather than the human-facing
 ``pubmed.ncbi.nlm.nih.gov`` page: that page sits behind bot-management that
@@ -26,14 +30,15 @@ each thread opens its own short-lived client rather than sharing one, since
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
-from app import retraction_set
-from app.claims_gate import Resolvability
+from app import citation_metadata, retraction_set
+from app.citation_metadata import CitationMetadata, Resolvability, Resolver
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +51,6 @@ _RESOLVE_TIMEOUT_SECONDS = 8.0
 _PUBMED_ESUMMARY_URL = (
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 )
-
-# One identifier request: (doi, pmid, url, retracted). A plain tuple (not a
-# dataclass) so callers can build the list directly from evidence metadata.
-IdentifierRequest = tuple[str, str, str, bool]
 
 
 def _doi_url(doi: str) -> str:
@@ -152,26 +153,53 @@ def resolve_one(
     return Resolvability.UNRESOLVABLE
 
 
-def _resolve_request(request: IdentifierRequest) -> Resolvability:
-    doi, pmid, url, retracted = request
-    return resolve_one(doi=doi, pmid=pmid, url=url, retracted=retracted)
+def live_resolver(meta: CitationMetadata) -> Resolvability:
+    """Resolve one citation's metadata by dereferencing its identifier.
+
+    The production ``Resolver`` (``settings.evidence_resolver == "live"``),
+    passed to ``citation_metadata.assess_resolvability`` rather than called
+    around it, so the live and offline paths differ only in this argument.
+
+    Args:
+        meta: The citation's metadata.
+
+    Returns:
+        The source's :class:`Resolvability`.
+    """
+    return resolve_one(
+        doi=meta.doi,
+        pmid=meta.pmid,
+        url=meta.url,
+        retracted=meta.retracted,
+    )
 
 
 def resolve_many(
-    requests: Iterable[IdentifierRequest],
+    metas: Iterable[CitationMetadata], *, resolver: Resolver
 ) -> list[Resolvability]:
-    """Dereference many identifiers concurrently, in input order.
+    """Assess many citations concurrently, in input order.
+
+    Each verdict still comes from
+    ``citation_metadata.assess_resolvability``; this adds only the bounded
+    fan-out a live resolver needs, and is looked up on the module (not
+    bound at import) so a test can substitute the seam. An offline
+    resolver runs through the same pool -- once per run, over a few dozen
+    pure calls -- rather than earning a second code path for the saving.
 
     Args:
-        requests: Each item's ``(doi, pmid, url, retracted)``.
+        metas: The citations to assess.
+        resolver: The resolver every verdict goes through.
 
     Returns:
-        One :class:`Resolvability` per request, same order as ``requests``.
+        One :class:`Resolvability` per citation, same order as ``metas``.
     """
-    items = list(requests)
+    items = list(metas)
     if not items:
         return []
+    assess = functools.partial(
+        citation_metadata.assess_resolvability, resolver=resolver
+    )
     with ThreadPoolExecutor(
         max_workers=min(_RESOLVE_CONCURRENCY, len(items))
     ) as pool:
-        return list(pool.map(_resolve_request, items))
+        return list(pool.map(assess, items))

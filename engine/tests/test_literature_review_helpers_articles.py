@@ -204,6 +204,28 @@ def test_build_article_detects_retracted_publication_type() -> None:
     assert article.correction_status == "retracted"
 
 
+def test_build_article_carries_the_declared_publication_type() -> None:
+    """PubMed's plural ``publication_types`` reaches ``publication_type``.
+
+    Only the singular key was read, and no source sends it, so the field
+    was always None -- discarding the one signal that separates a preprint
+    PubMed indexes from the journal articles beside it (the app classifies
+    a citation's source type from it; see ``app/citation_metadata.py``).
+    """
+    preprint = helpers.build_article_from_metadata(
+        "PMID44", {"publication_types": ["Preprint"]}
+    )
+    assert preprint.publication_type == "Preprint"
+
+    explicit = helpers.build_article_from_metadata(
+        "PMID45",
+        {"publication_type": "Journal Article", "publication_types": ["x"]},
+    )
+    assert explicit.publication_type == "Journal Article"
+
+    assert helpers.build_article_from_metadata("x", {}).publication_type is None
+
+
 def test_build_article_defaults_for_missing_fields() -> None:
     """Missing metadata yields safe defaults (unknown title, no authors)."""
     article = helpers.build_article_from_metadata(

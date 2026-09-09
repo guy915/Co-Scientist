@@ -1,6 +1,6 @@
 """Tests for the live evidence-identifier resolver (fidelity-audit G12).
 
-``offline_resolver`` (app/claims_gate.py) only ever reads back metadata a
+``offline_resolver`` (app/citation_metadata.py) only ever reads back metadata a
 source already claimed. These tests cover ``citation_resolver``'s
 dereference logic in isolation, with the actual HTTP calls stubbed so the
 suite stays hermetic (no network in CI). The PMID path specifically covers
@@ -20,7 +20,11 @@ import httpx
 import pytest
 
 from app import citation_resolver, retraction_set
-from app.claims_gate import Resolvability
+from app.citation_metadata import (
+    CitationMetadata,
+    Resolvability,
+    offline_resolver,
+)
 
 
 def _recording_reachable(calls: list[str], *, result: bool = True) -> object:
@@ -253,28 +257,14 @@ def test_pmid_found_false_on_malformed_json() -> None:
 
 def test_resolve_many_preserves_input_order() -> None:
     """Concurrent resolution returns verdicts in the same order as input."""
-
-    def fake_resolve_one(
-        *, doi: str, pmid: str, url: str, retracted: bool
-    ) -> Resolvability:
-        return (
-            Resolvability.RETRACTED if retracted else Resolvability.RESOLVABLE
-        )
-
-    import app.citation_resolver as mod
-
-    original = mod.resolve_one
-    mod.resolve_one = fake_resolve_one  # type: ignore[assignment]
-    try:
-        results = citation_resolver.resolve_many(
-            [
-                ("", "", "https://a", False),
-                ("", "", "https://b", True),
-                ("", "", "https://c", False),
-            ]
-        )
-    finally:
-        mod.resolve_one = original
+    results = citation_resolver.resolve_many(
+        [
+            CitationMetadata(url="https://a"),
+            CitationMetadata(url="https://b", retracted=True),
+            CitationMetadata(url="https://c"),
+        ],
+        resolver=offline_resolver,
+    )
 
     assert results == [
         Resolvability.RESOLVABLE,
@@ -283,8 +273,34 @@ def test_resolve_many_preserves_input_order() -> None:
     ]
 
 
+def test_resolve_many_routes_every_verdict_through_the_seam() -> None:
+    """The fan-out adds concurrency, never a second verdict implementation.
+
+    ``resolve_many`` used to call ``resolve_one`` directly, leaving
+    ``assess_resolvability`` and its ``Resolver`` protocol reachable only
+    from their own unit tests while production ran the parallel path.
+    """
+    seen: list[CitationMetadata] = []
+
+    def recording_resolver(meta: CitationMetadata) -> Resolvability:
+        seen.append(meta)
+        return Resolvability.UNRESOLVABLE
+
+    metas = [CitationMetadata(doi="10.1/a"), CitationMetadata(pmid="7")]
+    results = citation_resolver.resolve_many(metas, resolver=recording_resolver)
+
+    assert results == [Resolvability.UNRESOLVABLE] * 2
+    assert sorted(m.doi + m.pmid for m in seen) == ["10.1/a", "7"]
+
+
+def test_live_resolver_is_the_production_resolver_implementation() -> None:
+    """``live_resolver`` satisfies the protocol by dereferencing."""
+    meta = CitationMetadata(url="https://x", doi="", pmid="", retracted=True)
+    assert citation_resolver.live_resolver(meta) is Resolvability.RETRACTED
+
+
 def test_resolve_many_empty_input_makes_no_calls() -> None:
-    assert citation_resolver.resolve_many([]) == []
+    assert citation_resolver.resolve_many([], resolver=offline_resolver) == []
 
 
 # --- offline retraction-set check (second, independent check) -----------

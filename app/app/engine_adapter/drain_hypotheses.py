@@ -53,7 +53,9 @@ class _HypIdentity(NamedTuple):
     Bundles the fields the drain derives once from an engine hypothesis dict
     and threads into the store row: the statement text, a derived title, and
     the explicit lineage (generation, creating agent, engine id, parent id,
-    and the full multi-parent list).
+    and the full multi-parent list), plus the author a scientist-
+    contributed hypothesis carries through the checkpoint (see
+    ``engine_tasks_inputs.SCIENTIST_AUTHOR_MARK``).
     """
 
     text: str
@@ -63,6 +65,7 @@ class _HypIdentity(NamedTuple):
     engine_id: str | None
     parent_id: str | None
     parent_ids: list[str] | None
+    author: str
 
 
 def _article_coalesced_fields(
@@ -119,6 +122,7 @@ def _persist_engine_evidence(
                 abstract=abstract,
                 available=res.available,
                 retracted=res.retracted,
+                source_type=res.source_type,
                 doi=res.doi,
                 pmid=res.pmid,
                 retrieved_at=art.get("retrieved_at"),
@@ -208,7 +212,22 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
         engine_id,
         parent_id,
         _payload_parent_ids(h),
+        _payload_author(h),
     )
+
+
+def _payload_author(h: dict[str, Any]) -> str:
+    """The scientist who authored this hypothesis, or the empty string.
+
+    Only a contributed hypothesis carries one, stamped on the engine
+    payload's ``enrichments`` by the durable merge so the attribution
+    survives the checkpoint rather than living only in the store row the
+    endpoint wrote (``engine_tasks_inputs.SCIENTIST_AUTHOR_MARK``).
+    """
+    enrichments = h.get("enrichments")
+    if not isinstance(enrichments, dict):
+        return ""
+    return str(enrichments.get("scientist_author") or "")
 
 
 def _payload_parent_ids(h: dict[str, Any]) -> list[str] | None:
@@ -413,6 +432,7 @@ def _persist_engine_hypothesis_row(
             recent_findings=h.get("recent_findings") or "",
             safety_and_toxicity=h.get("safety_and_toxicity") or "",
             created_by_agent=identity.agent,
+            author=identity.author,
         ),
         conn=conn,
     )

@@ -47,6 +47,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.citation_metadata import (
+    CitationMetadata,
+    DateState,
+    SourceType,
+    classify_date,
+    classify_source_type,
+)
 from app.report_markdown_references import _reference_label
 
 
@@ -117,11 +124,79 @@ def _retracted_suffix(evidence: dict[str, Any]) -> str:
     return " (retracted)" if evidence.get("retracted") else ""
 
 
+# Only the source types a reader would otherwise mistake for a reviewed
+# paper are named. A peer-reviewed article is what a bibliography entry
+# already reads as, so labelling it adds a word to every line and
+# distinguishes nothing; an unclassifiable row says nothing rather than
+# claiming a type it does not know.
+_SOURCE_TYPE_WORDS = {
+    SourceType.PREPRINT: "preprint",
+    SourceType.DATABASE: "database record",
+    SourceType.WEB: "web page",
+    SourceType.DOCUMENT: "attached document",
+}
+
+
+def _row_metadata(evidence: dict[str, Any]) -> CitationMetadata:
+    """Read one evidence row back as the citation metadata it describes."""
+    return CitationMetadata(
+        url=str(evidence.get("url") or ""),
+        doi=str(evidence.get("doi") or ""),
+        pmid=str(evidence.get("pmid") or ""),
+        retracted=bool(evidence.get("retracted")),
+        source=str(evidence.get("source") or ""),
+        year=evidence.get("year"),
+    )
+
+
+def _row_source_type(evidence: dict[str, Any]) -> SourceType:
+    """Resolve one row's source type, persisted value first.
+
+    The drain's classification saw the publisher's declared publication
+    type, which this row no longer carries, so it wins where it exists;
+    a row predating the column, or evidence that never went through the
+    drain, is classified from what it does carry.
+    """
+    stored = str(evidence.get("source_type") or "")
+    if stored in {member.value for member in SourceType}:
+        return SourceType(stored)
+    return classify_source_type(_row_metadata(evidence))
+
+
+def _source_type_suffix(source_type: SourceType) -> str:
+    """Name a source that is not a peer-reviewed paper."""
+    word = _SOURCE_TYPE_WORDS.get(source_type)
+    return f" ({word})" if word else ""
+
+
+def _date_suffix(evidence: dict[str, Any], source_type: SourceType) -> str:
+    """Say when a reference's date is missing or cannot be real.
+
+    A *missing* date is only reported for a publication-shaped source: a
+    paper with no year has a metadata defect, while a database record or
+    an attached document never had a publication date to lose, and
+    flagging one would invent a defect on every such row. Without both an
+    author and a year the label falls back to the bare title, which is
+    what an ordinary title-only entry looks like -- so on a paper the
+    absence is invisible unless it is stated. An *implausible* year is
+    reported whatever the source: it was stated, and it cannot be true.
+    """
+    state = classify_date(_row_metadata(evidence))
+    if state is DateState.MISSING and source_type.is_publication:
+        return " (no date)"
+    if state is DateState.IMPLAUSIBLE:
+        return " (date not verifiable)"
+    return ""
+
+
 def _render_reference_entry(evidence: dict[str, Any]) -> str:
     """Render one '- label' bullet, linked when the row has a URL."""
+    source_type = _row_source_type(evidence)
     label = (
         _reference_label(evidence)
         + _identifier_suffix(evidence)
+        + _source_type_suffix(source_type)
+        + _date_suffix(evidence, source_type)
         + _retracted_suffix(evidence)
     )
     url = str(evidence.get("url") or "")

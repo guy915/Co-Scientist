@@ -325,12 +325,28 @@ def _migrate_evidence_retraction_column(conn: sqlite3.Connection) -> None:
     unreachable one, and nowhere recorded which it was. Both retraction
     sources (the article's own metadata and the live resolver's
     ``retraction_set`` check) land here (see
-    ``engine_adapter.drain_evidence_resolution._availability_flags``). NULL
+    ``engine_adapter.drain_evidence_resolution._resolved_article``). NULL
     for every row persisted before this column existed -- the same as an
     un-flagged row, since an old run has no way to know, so it renders
     exactly as it did before this column existed.
     """
     _add_column_if_missing(conn, "evidence", "retracted", "INTEGER")
+
+
+def _migrate_evidence_source_type_column(conn: sqlite3.Connection) -> None:
+    """Add the evidence table's source-type classification.
+
+    A preprint and a peer-reviewed paper resolve identically and were
+    persisted identically, so a reader could not tell one from the other.
+    Classified at drain time rather than at render time because the
+    strongest signal -- the engine ``Article``'s publisher-declared
+    ``publication_type`` -- is not itself persisted (see
+    ``engine_adapter.drain_evidence_resolution``). NULL for every row
+    persisted before this column existed, and for evidence that arrived by
+    another path; readers classify such a row from what it does carry
+    rather than showing a gap.
+    """
+    _add_column_if_missing(conn, "evidence", "source_type", "TEXT")
 
 
 def _migrate_task_available_at(conn: sqlite3.Connection) -> None:
@@ -377,5 +393,6 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_hypothesis_safety_toxicity_column(conn)
     _migrate_review_detail_column(conn)
     _migrate_evidence_retraction_column(conn)
+    _migrate_evidence_source_type_column(conn)
     _migrate_task_available_at(conn)
     _migrate_match_debate_transcript(conn)

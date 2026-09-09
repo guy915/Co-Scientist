@@ -90,6 +90,9 @@ class NewEvidence:
     rather than folded into it -- a retracted source still persists as
     unavailable, unchanged, but a reader is told which one it was (see
     ``engine_adapter.drain_evidence_resolution.ResolvedArticle``).
+    ``source_type`` is what kind of source it is (peer-reviewed, preprint,
+    database record, web page, attached document), classified from the
+    metadata at drain time; it is reported to a reader and gates nothing.
     """
 
     run_id: str
@@ -101,6 +104,7 @@ class NewEvidence:
     abstract: str = ""
     available: bool = True
     retracted: bool = False
+    source_type: str = ""
     mime_type: str | None = None
     sha256: str | None = None
     byte_size: int | None = None
@@ -130,11 +134,12 @@ def _insert_evidence_row(
     """Insert an evidence row for a run on an open connection."""
     conn.execute(
         "INSERT INTO evidence (id, run_id, title, source, url, "
-        "authors_json, year, abstract, available, retracted, mime_type, "
-        "sha256, byte_size, document_version, extraction_tool, doi, pmid, "
-        "passage_text, retrieved_at, retrieval_score, retrieval_rationale, "
-        "retriever_version, retrieval_call_id, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "authors_json, year, abstract, available, retracted, source_type, "
+        "mime_type, sha256, byte_size, document_version, extraction_tool, "
+        "doi, pmid, passage_text, retrieved_at, retrieval_score, "
+        "retrieval_rationale, retriever_version, retrieval_call_id, "
+        "created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             ev_id,
             f.run_id,
@@ -146,6 +151,7 @@ def _insert_evidence_row(
             f.abstract,
             1 if f.available else 0,
             1 if f.retracted else 0,
+            f.source_type or None,
             f.mime_type,
             f.sha256,
             f.byte_size,
