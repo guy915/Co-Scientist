@@ -22,35 +22,33 @@ deployment's first-class algorithm is ``llm-cluster`` version 1:
    ``_DEGREE_WEIGHT`` (high 1.0, medium 0.6, low 0.3) and keeping the
    strongest weight per unordered pair.
 
-3. A surviving pair the clustering left unconnected gets a *floor* edge
-   (``_FLOOR_SIMILARITY``, below the weakest judged degree), up to a
-   per-node cap, so the listing's ``FOR EACH pair of hypotheses`` reaches
-   across the whole pool rather than stopping at a cluster boundary. The
-   cap is why it reaches every node rather than literally every pair; the
-   second note below is the trade.
+3. Every *other* surviving pair is measured deterministically by
+   ``proximity_similarity.pair_similarity`` -- the symmetric token-coverage
+   metric the evolution duplicate guard already uses -- so the listing's
+   ``FOR EACH pair of hypotheses`` reaches across the whole pool rather
+   than stopping at a cluster boundary. Zero extra LLM calls.
 
-Two properties of that third step are load-bearing.
+Three properties of that third step are load-bearing.
 
-**The floor edges live under their own ``floor_edges`` key, not in
-``edges``.** A floor weight is not a judgement, it is the absence of one,
-and a consumer that prefers a graph edge over its own measurement must not
-be handed a placeholder instead: ``evolution.evolve_context.find_nearest_peer``
-reads a parent's edge weight in preference to token coverage, so folding
-the two lists together would replace a real similarity measurement with
-0.1 and let a near-duplicate child through the guard that exists to catch
-it. ``tests/test_proximity_graph.py`` pins that separation through the
-evolution helper itself.
+**A judged edge always wins.** The clustering pass is the first-class
+algorithm; the computed value only fills in the pairs it left unjudged, and
+is never merged with, averaged into, or allowed to overwrite a judgement.
 
-**They are capped per node** (``PROXIMITY_FLOOR_NEIGHBOUR_CAP``, counting
-judged and floor edges together). A total graph is O(n^2) edges in a
-checkpoint that the single SQLite writer commits on every node boundary --
-a 22-idea pool is 231 pairs -- so the pairs are taken in ring order over
-sorted ids, nearest first, until each node reaches the cap. Clustered
-nodes are already at or over it and gain nothing, which is the intended
-priority: a judged edge always outranks a floor one.
+**Every edge names the method that produced it** (``method``:
+``PROXIMITY_METHOD`` or ``PROXIMITY_COMPUTED_METHOD``), because the two
+kinds now share one ``edges`` list and a reader that needs a *judgement*
+must be able to say so. ``is_judged_edge`` is that predicate, and it reads a
+missing ``method`` as judged: a graph checkpointed before computed edges
+existed carries only clustering edges under that key.
 
-Given a fixed clustering output the graph is fully deterministic: the same
-input yields the same edges, weights, floor edges, and provenance metadata.
+**Only pairs at or above ``PROXIMITY_EDGE_FLOOR`` are stored.** Every pair
+is measured; a pair the measurement finds unrelated carries no information
+its absence does not already carry, and the graph rides both the run's
+SQLite checkpoint and a persisted row per edge. See the constant for the
+arithmetic.
+
+Given a fixed clustering output and pool the graph is fully deterministic:
+the same input yields the same edges, weights, and provenance metadata.
 Every
 persisted graph records its provenance — ``method``, ``version``, ``model``,
 goal, and update time — so a reader can always tell which algorithm and
@@ -65,7 +63,12 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from collections.abc import Mapping
 from typing import Any
+
+from co_scientist.agents.proximity.proximity_similarity import (
+    pair_similarity,
+)
 
 # The documented local algorithm's fixed degree->weight mapping (see the
 # module docstring): the LLM judges similarity qualitatively, and these
@@ -86,18 +89,34 @@ _DEGREE_WEIGHT: dict[str, float] = {
 PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 
-# The weight of an edge the clustering did not draw: strictly below the
-# weakest judged degree, so a floor edge can never be mistaken for one the
-# model related. Its degree label is its own word for the same reason.
-_FLOOR_SIMILARITY = 0.1
-_FLOOR_DEGREE = "none"
+# Identifies an edge this module measured rather than the model judging it.
+# Both kinds share the ``edges`` list, so each edge names its own method and
+# ``is_judged_edge`` is what a reader needing a judgement asks. The degree
+# label is its own word for the same reason: it can never be read as one of
+# the qualitative bands ``_DEGREE_WEIGHT`` maps.
+PROXIMITY_COMPUTED_METHOD = "token-dice"
+PROXIMITY_COMPUTED_DEGREE = "computed"
 
-# Highest degree a node may reach once floor edges are added, counting its
-# judged edges. Bounds the total graph at n * cap / 2 edges instead of the
-# complete graph's n * (n - 1) / 2 -- 44 rather than 231 on a 22-idea pool --
-# because the graph rides the run's SQLite checkpoint. Four keeps every node
-# connected to its two nearest neighbours on each side of the ring.
-PROXIMITY_FLOOR_NEIGHBOUR_CAP = 4
+# Similarity a measured pair must reach to be stored. Every pair is measured;
+# this decides which measurements are worth a row.
+#
+# The arithmetic. Pairs are n * (n - 1) / 2 over a tier's idea ceiling
+# (``run_modes.RUN_TIER_DEFAULTS``): express 12 -> 66, standard 32 -> 496,
+# extended 60 -> 1770, ultra 96 -> 4560. An edge measures ~190 bytes of JSON
+# in the run's checkpoint and about the same as a ``proximity_edges`` row, so
+# a complete ultra graph is ~0.87 MB per checkpoint plus ~0.87 MB of rows
+# that outlive the run -- against a 0.5 GB volume that has filled before, and
+# one INSERT per edge inside the drain's transaction.
+#
+# Measured by building this graph over ten real runs in the repo's local
+# stores (8-24 ideas, 28-276 pairs each): the pair distribution has a median
+# of 0.19, and this floor retains 24-40% of pairs. That is ~1600 edges
+# (~0.3 MB each side) on ultra and ~80 on a 22-idea pool -- denser than the
+# 44 the previous capped placeholder scheme produced, and about a third of
+# the complete graph. The worst case is still the complete graph, and that
+# is the pool where every one of those edges is a real near-duplicate
+# finding.
+PROXIMITY_EDGE_FLOOR = 0.25
 
 # A cluster member names its hypothesis by the positional index the prompt
 # assigned (PROXIMITY_SCHEMA), and only older responses echo the text back.
@@ -132,13 +151,15 @@ def member_match_key(text: str) -> str:
 
 @dataclasses.dataclass(frozen=True)
 class SurvivorIndex:
-    """The two ways a cluster member resolves to a surviving hypothesis.
+    """The surviving hypotheses, and the two ways a member resolves to one.
 
-    Both tables cover the dedup survivors only, so a member the proximity
-    node has just dropped resolves to nothing and never becomes a graph
-    node. They are carried together because the resolution order matters:
-    index first, text as the fallback, exactly as
+    Every table here covers the dedup survivors only, so a member the
+    proximity node has just dropped resolves to nothing and never becomes a
+    graph node. The two resolution tables are carried together because their
+    order matters: index first, text as the fallback, exactly as
     ``proximity_dedup._match_cluster_member`` resolves the same members.
+    ``texts`` rides with them because measuring the pairs the clustering
+    left unjudged needs the same population those tables resolve into.
 
     Attributes:
         by_index: Prompt position -> hypothesis id. Positions are the ones
@@ -147,10 +168,16 @@ class SurvivorIndex:
             renumbering the survivors.
         by_text: ``member_match_key`` -> hypothesis id, for responses that
             echo a member's text instead of (or as well as) its index.
+        texts: Hypothesis id -> its full text. A survivor missing from this
+            table is measured against nothing, rather than measured as
+            unrelated to everything -- which is why the field is required
+            rather than defaulted: a call site that forgot it would produce
+            a graph with no computed edges and no error to say so.
     """
 
     by_index: dict[int, str]
     by_text: dict[str, str]
+    texts: Mapping[str, str]
 
 
 def _degree_weight(degree: str | None) -> float:
@@ -236,7 +263,25 @@ def _accumulate_cluster_edges(
                 "similarity": weight,
                 "degree": stronger,
                 "cluster_id": cluster_id,
+                "method": PROXIMITY_METHOD,
             }
+
+
+def is_judged_edge(edge: Mapping[str, Any]) -> bool:
+    """Whether this edge carries the model's own similarity judgement.
+
+    A missing ``method`` reads as judged on purpose: an edge under ``edges``
+    in a graph checkpointed before computed edges existed came from the
+    clustering call, and demoting it on resume would silently withdraw a
+    real judgement from every reader that asks for one.
+
+    Args:
+        edge: One entry of a persisted graph's ``edges``.
+
+    Returns:
+        True for a clustering edge, False for a computed one.
+    """
+    return bool(edge.get("method", PROXIMITY_METHOD) == PROXIMITY_METHOD)
 
 
 def _node_ids(survivors: SurvivorIndex) -> set[str]:
@@ -244,80 +289,49 @@ def _node_ids(survivors: SurvivorIndex) -> set[str]:
     return set(survivors.by_index.values()) | set(survivors.by_text.values())
 
 
-def _edge_degrees(
-    edges: dict[frozenset[str], dict[str, Any]],
-) -> dict[str, int]:
-    """Counts how many edges each node already carries."""
-    degrees: dict[str, int] = {}
-    for edge in edges.values():
-        for node in (edge["source"], edge["target"]):
-            degrees[node] = degrees.get(node, 0) + 1
-    return degrees
+def _computed_edges(
+    judged: dict[frozenset[str], dict[str, Any]],
+    node_ids: set[str],
+    texts: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """Measures every pair the clustering left unjudged, above the floor.
 
-
-def _ring_pairs(ordered: list[str]) -> list[tuple[str, str]]:
-    """Candidate floor pairs in ring order over sorted ids, nearest first.
-
-    Sorted ids make the order deterministic, and taking every node's
-    nearest ring neighbour before anyone's second spreads the cap evenly
-    instead of forming cliques among whichever ids happen to sort first.
-    """
-    span = min(PROXIMITY_FLOOR_NEIGHBOUR_CAP // 2, len(ordered) - 1)
-    return [
-        (id_a, ordered[(position + step) % len(ordered)])
-        for step in range(1, span + 1)
-        for position, id_a in enumerate(ordered)
-    ]
-
-
-def _floor_edge_allowed(
-    key: frozenset[str],
-    edges: dict[frozenset[str], dict[str, Any]],
-    floor: dict[frozenset[str], dict[str, Any]],
-    degrees: dict[str, int],
-) -> bool:
-    """Whether this pair may take a floor edge (unconnected, under cap)."""
-    if len(key) != 2 or key in edges or key in floor:
-        return False
-    return all(
-        degrees.get(node, 0) < PROXIMITY_FLOOR_NEIGHBOUR_CAP for node in key
-    )
-
-
-def _accumulate_floor_edges(
-    edges: dict[frozenset[str], dict[str, Any]], node_ids: set[str]
-) -> dict[frozenset[str], dict[str, Any]]:
-    """Connects the pairs the clustering left apart, up to the node cap.
+    Pairs are walked in sorted-id order so the result is deterministic, and
+    a hypothesis with no text contributes no pair rather than a zero-weight
+    one -- there is nothing to have measured.
 
     Args:
-        edges: The judged edges already accumulated; read, never modified,
-            so a judged pair is never given a floor weight.
+        judged: The clustering's edges; read only, so a judged pair is never
+            given a computed weight.
         node_ids: The surviving hypotheses.
+        texts: Hypothesis id -> its text.
 
     Returns:
-        Floor edges keyed by unordered pair.
+        The computed edges, in sorted pair order.
     """
-    floor: dict[frozenset[str], dict[str, Any]] = {}
-    degrees = _edge_degrees(edges)
-    for id_a, id_b in _ring_pairs(sorted(node_ids)):
-        key = frozenset({id_a, id_b})
-        if not _floor_edge_allowed(key, edges, floor, degrees):
+    edges: list[dict[str, Any]] = []
+    for id_a, id_b in itertools.combinations(sorted(node_ids), 2):
+        if frozenset({id_a, id_b}) in judged:
             continue
-        floor[key] = {
-            "source": id_a,
-            "target": id_b,
-            "similarity": _FLOOR_SIMILARITY,
-            "degree": _FLOOR_DEGREE,
-            "cluster_id": None,
-        }
-        degrees[id_a] = degrees.get(id_a, 0) + 1
-        degrees[id_b] = degrees.get(id_b, 0) + 1
-    return floor
+        similarity = pair_similarity(texts.get(id_a, ""), texts.get(id_b, ""))
+        if similarity < PROXIMITY_EDGE_FLOOR:
+            continue
+        edges.append(
+            {
+                "source": id_a,
+                "target": id_b,
+                "similarity": similarity,
+                "degree": PROXIMITY_COMPUTED_DEGREE,
+                "cluster_id": None,
+                "method": PROXIMITY_COMPUTED_METHOD,
+            }
+        )
+    return edges
 
 
 def _proximity_graph_meta(
     edges: dict[frozenset[str], dict[str, Any]],
-    floor: dict[frozenset[str], dict[str, Any]],
+    computed: list[dict[str, Any]],
     research_goal: str,
     model: str,
     updated_at: float,
@@ -325,8 +339,8 @@ def _proximity_graph_meta(
     """Builds the provenance metadata for a persisted proximity graph.
 
     ``node_count`` and ``edge_count`` keep counting the judged edges alone,
-    which is what they have always meant; the floor edges are reported
-    beside them with the cap that bounded them.
+    which is what they have always meant; the computed edges are reported
+    beside them with the floor that admitted them.
     """
     return {
         "method": PROXIMITY_METHOD,
@@ -339,9 +353,9 @@ def _proximity_graph_meta(
             | {v["target"] for v in edges.values()}
         ),
         "edge_count": len(edges),
-        "floor_edge_count": len(floor),
-        "floor_similarity": _FLOOR_SIMILARITY,
-        "neighbour_cap": PROXIMITY_FLOOR_NEIGHBOUR_CAP,
+        "computed_edge_count": len(computed),
+        "computed_method": PROXIMITY_COMPUTED_METHOD,
+        "edge_floor": PROXIMITY_EDGE_FLOOR,
     }
 
 
@@ -359,29 +373,27 @@ def build_proximity_graph(
         similarity_clusters: Clusters as returned by the proximity LLM call;
             each has a ``cluster_id`` and member hypotheses with a
             ``similarity_degree``.
-        survivors: Index/text resolution tables over the dedup survivors,
-            used to resolve cluster members to hypothesis ids.
+        survivors: The dedup survivors: the resolution tables that map a
+            cluster member to a hypothesis id, and their texts.
         research_goal: The goal context the graph was computed under.
         model: The model that produced the clustering (provenance).
         updated_at: Unix timestamp when the graph was computed.
 
     Returns:
-        A graph dict with ``edges`` (undirected weighted edges between
-        hypotheses in the same cluster), ``floor_edges`` (the capped
-        low-weight connections for pairs no cluster related -- see the
-        module docstring for why they are a separate key), and ``meta``
-        (method/version/model/goal/update-time provenance). Edges are
-        deduplicated per unordered pair, keeping the strongest similarity.
+        A graph dict with ``edges`` (undirected weighted edges, judged ones
+        first, each naming the ``method`` that produced it -- see the module
+        docstring) and ``meta`` (method/version/model/goal/update-time
+        provenance). Edges are deduplicated per unordered pair, keeping the
+        strongest similarity, and a judged pair is never also computed.
     """
-    edges: dict[frozenset[str], dict[str, Any]] = {}
+    judged: dict[frozenset[str], dict[str, Any]] = {}
     for cluster in similarity_clusters:
-        _accumulate_cluster_edges(edges, cluster, survivors)
-    floor = _accumulate_floor_edges(edges, _node_ids(survivors))
+        _accumulate_cluster_edges(judged, cluster, survivors)
+    computed = _computed_edges(judged, _node_ids(survivors), survivors.texts)
 
     return {
-        "edges": list(edges.values()),
-        "floor_edges": list(floor.values()),
+        "edges": list(judged.values()) + computed,
         "meta": _proximity_graph_meta(
-            edges, floor, research_goal, model, updated_at
+            judged, computed, research_goal, model, updated_at
         ),
     }

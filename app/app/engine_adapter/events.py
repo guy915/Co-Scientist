@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from co_scientist.agents.proximity.proximity_graph import is_judged_edge
+
 from app import store
 from app.report_render import article_stub, hypothesis_stub, match_stub
 
@@ -99,16 +101,24 @@ def _reflection_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 def _proximity_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     """Build the ``proximity`` node's payload keys.
 
-    ``clusters`` maps cluster id -> member count, derived from
-    ``proximity_graph``'s edges (each edge already carries the ``cluster_id``
-    its two endpoints share). A hypothesis with no duplicate/near-duplicate
-    partner has no edge at all, so a true singleton cluster is not
-    represented here -- the graph only records relationships, not membership
-    rolls, and this projection does not attempt to reconstruct the latter.
+    ``clusters`` maps cluster id -> member count, derived from the *judged*
+    edges of ``proximity_graph`` (each carries the ``cluster_id`` its two
+    endpoints share). A hypothesis with no duplicate/near-duplicate partner
+    has no edge at all, so a true singleton cluster is not represented here
+    -- the graph only records relationships, not membership rolls, and this
+    projection does not attempt to reconstruct the latter.
+
+    The graph also carries an edge for every pair the clustering did not
+    judge, computed deterministically and belonging to no cluster. Those are
+    skipped: counted here they would all land in one "unknown" bucket
+    holding most of the pool, which reads as a giant cluster the model never
+    declared.
     """
     graph: dict[str, Any] = state.get("proximity_graph") or {}
     members: dict[str, set[str]] = {}
     for edge in graph.get("edges") or []:
+        if not is_judged_edge(edge):
+            continue
         cluster_id = str(edge.get("cluster_id") or "unknown")
         bucket = members.setdefault(cluster_id, set())
         for side in ("source", "target"):

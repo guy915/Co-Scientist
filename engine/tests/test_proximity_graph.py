@@ -8,25 +8,53 @@ stayed green through the whole period in which every production graph was
 empty.
 """
 
+from typing import Any
+
 from co_scientist.agents.proximity.proximity_graph import (
-    _DEGREE_WEIGHT,
-    PROXIMITY_FLOOR_NEIGHBOUR_CAP,
+    PROXIMITY_COMPUTED_DEGREE,
+    PROXIMITY_COMPUTED_METHOD,
+    PROXIMITY_EDGE_FLOOR,
     PROXIMITY_METHOD,
     PROXIMITY_METHOD_VERSION,
     SurvivorIndex,
     build_proximity_graph,
+    is_judged_edge,
     member_match_key,
 )
+from co_scientist.agents.proximity.proximity_similarity import pair_similarity
 
 
-def _survivors(*ids: str) -> SurvivorIndex:
+def _disjoint_texts(*ids: str) -> dict[str, str]:
+    """One text per id, sharing no vocabulary with any of the others.
+
+    The cluster fixtures below assert on the *judged* edges alone, so their
+    hypotheses are given deliberately disjoint wording: every computed pair
+    scores 0.0, which is below ``PROXIMITY_EDGE_FLOOR``, so no computed edge
+    joins the graph and the counts stay about what the clustering said.
+    ``test_a_disjoint_pair_is_below_the_floor`` pins that this is by design
+    rather than by luck.
+    """
+    return {
+        hyp_id: " ".join(f"{hyp_id}word{n}" for n in range(6)) for hyp_id in ids
+    }
+
+
+def _survivors(*ids: str, texts: dict[str, str] | None = None) -> SurvivorIndex:
     """Build a survivor index from ids in prompt order (index i -> ids[i]).
+
+    Texts default to ``_disjoint_texts``, so a fixture that says nothing
+    about them gets no computed edges at all and its assertions are about
+    the clustering alone.
 
     ``by_text`` is left empty on purpose: a live response carries no member
     text, so leaving the fallback table populated would let these tests
     resolve a member by text and pass even with the index path broken.
     """
-    return SurvivorIndex(by_index=dict(enumerate(ids)), by_text={})
+    return SurvivorIndex(
+        by_index=dict(enumerate(ids)),
+        by_text={},
+        texts=texts or _disjoint_texts(*ids),
+    )
 
 
 def _clusters() -> list[dict[str, object]]:
@@ -116,7 +144,11 @@ def test_unresolvable_members_are_skipped() -> None:
 def test_empty_clusters_yield_empty_graph() -> None:
     """No clusters yields an empty edge set with valid meta."""
     graph = build_proximity_graph(
-        [], _SURVIVORS, research_goal="goal", model="m", updated_at=1.0
+        [],
+        _SURVIVORS,
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
     )
     assert graph["edges"] == []
     assert graph["meta"]["edge_count"] == 0
@@ -205,6 +237,10 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
             member_match_key(prefix_a + " canonical tail"): "h-1",
             member_match_key(prefix_b + " canonical tail"): "h-2",
         },
+        texts={
+            "h-1": prefix_a + " canonical tail",
+            "h-2": prefix_b + " canonical tail",
+        },
     )
     clusters = [
         {
@@ -223,7 +259,11 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
         }
     ]
     graph = build_proximity_graph(
-        clusters, survivors, research_goal="g", model="m", updated_at=1.0
+        clusters,
+        survivors,
+        research_goal="g",
+        model="m",
+        updated_at=1.0,
     )
     assert graph["meta"]["edge_count"] == 1
     assert {graph["edges"][0]["source"], graph["edges"][0]["target"]} == {
@@ -232,114 +272,203 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
     }
 
 
-# --- Total graph: a floor edge for every pair the clustering left apart ---
+# --- Every pair: a computed edge wherever the clustering drew none ----------
 #
-# Listing 06 quantifies over every pair ("FOR EACH pair of hypotheses in the
-# HypothesesList"), so a pair the clustering did not relate must carry a
-# low-weight edge rather than no edge. These pin the shape of that, not its
-# numbers: the floor edges live under their own key, are capped per node, and
-# are deterministic.
+# Listing 06 quantifies over every pair of hypotheses, and the clustering call
+# relates only the pairs it chose to cluster. The builder measures the rest
+# deterministically (``proximity_similarity.pair_similarity``, zero extra LLM
+# calls) and keeps the ones at or above ``PROXIMITY_EDGE_FLOOR``. These pin
+# that coverage, the precedence of a judged edge over a computed one, and the
+# two ends of the metric's range.
+
+_RELATED_TEXTS = {
+    "h-a": "autocrine TGF-beta signaling sustains myofibroblast activation",
+    "h-b": "myofibroblast activation is sustained by autocrine TGF-beta",
+    "h-c": "senescent clearance reduces myofibroblast activation in fibrosis",
+}
 
 
-def _pair_keys(edges: list[dict[str, object]]) -> set[frozenset[str]]:
-    """Unordered endpoint pairs of a graph edge list."""
-    return {frozenset({str(e["source"]), str(e["target"])}) for e in edges}
-
-
-def test_unclustered_pairs_get_a_floor_edge() -> None:
-    """A pair no cluster related is connected at the floor weight."""
-    graph = build_proximity_graph(
-        _clusters(),
-        _SURVIVORS,
-        research_goal="goal",
-        model="fake/model",
-        updated_at=1.0,
-    )
-    floor = graph["floor_edges"]
-    assert _pair_keys(floor) == {
-        frozenset({"h-a", "h-c"}),
-        frozenset({"h-b", "h-c"}),
+def _edges_by_pair(graph: dict[str, Any]) -> dict[frozenset[str], Any]:
+    """Index a graph's edges by their unordered endpoint pair."""
+    return {
+        frozenset({str(edge["source"]), str(edge["target"])}): edge
+        for edge in graph["edges"]
     }
-    assert all(edge["similarity"] < _DEGREE_WEIGHT["low"] for edge in floor)
-    assert all(edge["cluster_id"] is None for edge in floor)
 
 
-def test_floor_edges_never_shadow_a_cluster_edge() -> None:
-    """A pair the clustering related keeps its judged weight only."""
-    graph = build_proximity_graph(
-        _clusters(),
-        _SURVIVORS,
-        research_goal="goal",
-        model="fake/model",
-        updated_at=1.0,
-    )
-    judged = _pair_keys(graph["edges"])
-    assert judged & _pair_keys(graph["floor_edges"]) == set()
-
-
-def test_floor_edges_are_capped_per_node() -> None:
-    """No node exceeds the neighbour cap once floor edges are added."""
-    survivors = _survivors(*[f"h-{i}" for i in range(22)])
-    graph = build_proximity_graph(
-        [], survivors, research_goal="goal", model="m", updated_at=1.0
-    )
-    degrees: dict[str, int] = {}
-    for edge in graph["floor_edges"]:
-        for side in ("source", "target"):
-            node = str(edge[side])
-            degrees[node] = degrees.get(node, 0) + 1
-    assert degrees, "a 22-node pool must gain floor edges"
-    assert max(degrees.values()) <= PROXIMITY_FLOOR_NEIGHBOUR_CAP
-    # Capped, so the graph is far short of the 231 pairs a complete graph has.
-    assert len(graph["floor_edges"]) < 22 * 21 // 2
-
-
-def test_floor_edges_are_deterministic() -> None:
-    """The same pool yields byte-identical floor edges."""
-    survivors = _survivors(*[f"h-{i}" for i in range(9)])
-    graphs = [
-        build_proximity_graph(
-            [], survivors, research_goal="goal", model="m", updated_at=1.0
-        )
-        for _ in range(2)
-    ]
-    assert graphs[0]["floor_edges"] == graphs[1]["floor_edges"]
-
-
-def test_floor_edges_do_not_reach_the_evolution_duplicate_guard() -> None:
-    """Evolution's peer similarity must not read a floor edge as a judgement.
-
-    ``find_nearest_peer`` prefers a proximity edge's weight over its own
-    token-coverage measurement, so a floor edge under ``edges`` would replace
-    a real measurement with a placeholder and let a near-duplicate child pass
-    the guard. That is why the floor edges carry their own key. Imported from
-    the evolution package on purpose: this fails the moment someone folds the
-    two lists together.
-    """
-    from co_scientist.agents.evolution.evolve_context import (
-        proximity_weights_for,
-    )
-
-    survivors = _survivors("h-a", "h-b", "h-c")
-    graph = build_proximity_graph(
-        [], survivors, research_goal="goal", model="m", updated_at=1.0
-    )
-    assert graph["floor_edges"], "the pool must have gained floor edges"
-    assert proximity_weights_for(graph, "h-a") == {}
-
-
-def test_graph_meta_records_the_floor_edges() -> None:
-    """Meta reports the floor edge count and the cap that bounded it."""
-    graph = build_proximity_graph(
-        _clusters(),
-        _SURVIVORS,
+def _related_graph(clusters: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the graph over ``_RELATED_TEXTS`` with the given clustering."""
+    return build_proximity_graph(
+        clusters,
+        _survivors("h-a", "h-b", "h-c", texts=_RELATED_TEXTS),
         research_goal="goal",
         model="m",
         updated_at=1.0,
     )
+
+
+def test_every_pair_of_the_pool_carries_an_edge() -> None:
+    """With no clustering at all, all n(n-1)/2 pairs are still measured."""
+    graph = _related_graph([])
+    by_pair = _edges_by_pair(graph)
+    assert len(by_pair) == 3  # 3 * 2 / 2
+    assert set(by_pair) == {
+        frozenset({"h-a", "h-b"}),
+        frozenset({"h-a", "h-c"}),
+        frozenset({"h-b", "h-c"}),
+    }
+    for pair, edge in by_pair.items():
+        left, right = sorted(pair)
+        assert edge["similarity"] == pair_similarity(
+            _RELATED_TEXTS[left], _RELATED_TEXTS[right]
+        )
+        assert edge["method"] == PROXIMITY_COMPUTED_METHOD
+        assert edge["degree"] == PROXIMITY_COMPUTED_DEGREE
+        assert edge["cluster_id"] is None
+
+
+def test_a_judged_edge_overrides_the_computed_value() -> None:
+    """Where the clustering spoke, its verdict is the pair's only edge.
+
+    ``h-a``/``h-b`` are near-paraphrases, so the computed metric scores them
+    far above the "low" degree the clustering assigned. The judged weight
+    still wins: the LLM pass is the first-class algorithm and the computed
+    value only fills in the pairs it left unjudged.
+    """
+    computed = pair_similarity(_RELATED_TEXTS["h-a"], _RELATED_TEXTS["h-b"])
+    graph = _related_graph(
+        [
+            {
+                "cluster_id": "c1",
+                "similar_hypotheses": [
+                    {"index": 0, "similarity_degree": "low"},
+                    {"index": 1, "similarity_degree": "low"},
+                ],
+            }
+        ]
+    )
+    edge = _edges_by_pair(graph)[frozenset({"h-a", "h-b"})]
+    assert computed > 0.3
+    assert edge["similarity"] == 0.3
+    assert edge["degree"] == "low"
+    assert edge["cluster_id"] == "c1"
+    assert edge["method"] == PROXIMITY_METHOD
+    assert is_judged_edge(edge)
+
+
+def test_a_computed_edge_is_symmetric() -> None:
+    """Swapping the pool order leaves every computed weight unchanged."""
+    forward = _edges_by_pair(_related_graph([]))
+    reversed_pool = build_proximity_graph(
+        [],
+        _survivors("h-c", "h-b", "h-a", texts=_RELATED_TEXTS),
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
+    )
+    backward = _edges_by_pair(reversed_pool)
+    assert {pair: edge["similarity"] for pair, edge in forward.items()} == {
+        pair: edge["similarity"] for pair, edge in backward.items()
+    }
+
+
+def test_an_identical_pair_scores_at_the_top_of_the_range() -> None:
+    """Two verbatim-identical survivors are measured as fully similar."""
+    text = _RELATED_TEXTS["h-a"]
+    graph = build_proximity_graph(
+        [],
+        _survivors("h-a", "h-b", texts={"h-a": text, "h-b": text}),
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
+    )
+    assert graph["edges"][0]["similarity"] == 1.0
+
+
+def test_a_disjoint_pair_is_below_the_floor() -> None:
+    """A topically unrelated pair is measured, scores 0.0, and is not stored.
+
+    The floor is what bounds the persisted graph (see its constant), so the
+    below-floor case must be absent *because it was measured and found
+    unrelated*, not because the pair was never considered. Asserting the
+    measurement here is what makes the absence a design, not an accident.
+    """
+    texts = _disjoint_texts("h-a", "h-b")
+    assert pair_similarity(texts["h-a"], texts["h-b"]) < PROXIMITY_EDGE_FLOOR
+    graph = build_proximity_graph(
+        [],
+        _survivors("h-a", "h-b", texts=texts),
+        research_goal="goal",
+        model="m",
+        updated_at=1.0,
+    )
+    assert graph["edges"] == []
+    assert graph["meta"]["edge_floor"] == PROXIMITY_EDGE_FLOOR
+
+
+def test_computed_edges_are_deterministic() -> None:
+    """The same pool and texts yield a byte-identical graph."""
+    assert _related_graph([]) == _related_graph([])
+
+
+def test_graph_meta_counts_judged_and_computed_edges_apart() -> None:
+    """Meta keeps ``edge_count`` judged-only and reports computed beside it."""
+    graph = _related_graph(
+        [
+            {
+                "cluster_id": "c1",
+                "similar_hypotheses": [
+                    {"index": 0, "similarity_degree": "high"},
+                    {"index": 1, "similarity_degree": "high"},
+                ],
+            }
+        ]
+    )
     meta = graph["meta"]
-    assert meta["floor_edge_count"] == len(graph["floor_edges"])
-    assert meta["neighbour_cap"] == PROXIMITY_FLOOR_NEIGHBOUR_CAP
-    # Version 1 edges are unchanged; the floor list is additive.
+    assert meta["edge_count"] == 1
+    assert meta["computed_edge_count"] == 2
+    assert len(graph["edges"]) == 3
     assert meta["version"] == PROXIMITY_METHOD_VERSION
-    assert meta["edge_count"] == len(graph["edges"])
+
+
+def test_an_edge_without_a_method_reads_as_judged() -> None:
+    """A graph checkpointed before this change resumes as all-judged.
+
+    Every edge under ``edges`` in an older checkpoint came from the
+    clustering call -- the computed ones did not exist and the placeholder
+    ones lived under a separate key nothing reads now -- so a missing
+    ``method`` must not demote a real judgement to a computed value.
+    """
+    assert is_judged_edge({"source": "h-a", "target": "h-b"})
+    assert not is_judged_edge({"method": PROXIMITY_COMPUTED_METHOD})
+
+
+def test_a_computed_edge_does_not_reach_the_duplicate_guard() -> None:
+    """Evolution measures the child against the peer, never the parent.
+
+    ``find_nearest_peer`` prefers a proximity edge's weight over its own
+    token-coverage reading, and a computed edge scores the *parent* against
+    the peer -- which cannot see a child that converged onto that peer. So
+    only judged edges are consulted there, and the guard's own child-vs-peer
+    measurement decides the rest. Imported from the evolution package on
+    purpose: this fails the moment the filter is dropped.
+    """
+    from co_scientist.agents.evolution.evolve_context import find_nearest_peer
+    from tests._state import make_hypothesis
+
+    peer = make_hypothesis(text="alpha beta gamma delta epsilon zeta")
+    graph = {
+        "edges": [
+            {
+                "source": "parent-id",
+                "target": peer.id,
+                "similarity": 0.4,
+                "method": PROXIMITY_COMPUTED_METHOD,
+            }
+        ]
+    }
+    similarity, nearest = find_nearest_peer(
+        peer.text, "parent-id", [peer], graph
+    )
+    assert nearest is peer
+    assert similarity == 1.0

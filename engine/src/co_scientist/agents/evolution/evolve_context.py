@@ -8,7 +8,16 @@ from typing import Any
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
+from co_scientist.agents.proximity.proximity_graph import is_judged_edge
+from co_scientist.agents.proximity.proximity_similarity import (
+    token_coverage as token_coverage,
+)
 from co_scientist.models import Hypothesis, rank_by_elo
+
+# ``token_coverage`` is re-exported above rather than defined here: the
+# proximity graph measures its own pairs with the same metric, and evolution
+# consumes that graph, so proximity is the end of the dependency that can own
+# it without a cycle. Existing importers keep this path.
 
 logger = logging.getLogger(__name__)
 
@@ -134,43 +143,25 @@ def combination_partners(
     return partners[:max_partners]
 
 
-def _tokens(text: str) -> set[str]:
-    """Return the lowercased word-token set of a text."""
-    return set(text.lower().split())
-
-
-def token_coverage(text: str, reference: str) -> float:
-    """Fraction of ``text``'s unique tokens that also appear in ``reference``.
-
-    Coverage, not Jaccard: a union denominator is dominated by the longer
-    side, so a short text perfectly contained in a long one still scores
-    near ``len(text) / len(reference)`` -- which is how both duplicate bands
-    became unreachable and every real refinement read as distinct. Dividing
-    by the derived text's own tokens measures how much of it the peer
-    already says, whatever the peer's length.
-
-    Args:
-        text: The derived text whose coverage is measured (the refinement).
-        reference: The peer text checked for containing it.
-
-    Returns:
-        Coverage score between 0 and 1; 0.0 for an empty ``text``.
-    """
-    words = _tokens(text)
-    if not words:
-        return 0.0
-    return len(words & _tokens(reference)) / len(words)
-
-
 def proximity_weights_for(
     proximity_graph: dict[str, Any] | None, hypothesis_id: str
 ) -> dict[str, float]:
-    """Map one hypothesis's proximity-graph neighbors to their edge weights.
+    """Map one hypothesis's judged proximity-graph neighbors to their weights.
 
     The persisted graph is undirected, so both edge orientations resolve.
+
+    Only the clustering's own edges are read. The graph also carries the
+    similarity it *computed* for the pairs the clustering left unjudged, with
+    the same token-coverage metric ``find_nearest_peer`` falls back to -- but
+    computed against the parent, not against the child being guarded, so
+    reading one would answer a question about the parent's neighbourhood
+    where the caller asked about the child's. The fallback measures the child
+    directly, which is strictly better information for that decision.
     """
     weights: dict[str, float] = {}
     for edge in (proximity_graph or {}).get("edges", []):
+        if not is_judged_edge(edge):
+            continue
         source = edge.get("source")
         target = edge.get("target")
         similarity = edge.get("similarity")
@@ -191,9 +182,10 @@ def find_nearest_peer(
 
     Per peer the similarity prefers the persisted proximity graph's
     weighted, LLM-judged edge between the parent and that neighbor when one
-    exists -- the child of a refinement stays in its parent's semantic
-    neighborhood, and the graph's judgement is what proximity dedup itself
-    trusts. Peers without an edge fall back to token coverage of the
+    exists (a judged edge only -- see ``proximity_weights_for``): the child
+    of a refinement stays in its parent's semantic neighborhood, and the
+    graph's judgement is what proximity dedup itself
+    trusts. Peers without one fall back to token coverage of the
     refined text by the peer's text (never union-based Jaccard, which the
     longer side dominates).
 

@@ -131,7 +131,15 @@ def _persist_engine_proximity(
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist weighted graph edges after resolving engine hypothesis ids."""
+    """Persist weighted graph edges after resolving engine hypothesis ids.
+
+    Each edge names the method that produced it -- the clustering call or the
+    deterministic pairwise measurement that fills in the pairs it left
+    unjudged -- so the row records the edge's own provenance rather than the
+    graph's headline method. A graph checkpointed before the two kinds shared
+    one list carries no per-edge method; those are all clustering edges, and
+    the meta's method is the right value for them.
+    """
     meta = graph.get("meta") or {}
     for edge in graph.get("edges") or []:
         source = store_id_by_engine_id.get(str(edge.get("source") or ""))
@@ -146,7 +154,7 @@ def _persist_engine_proximity(
                 similarity=float(edge.get("similarity", 0.0)),
                 degree=edge.get("degree"),
                 cluster_id=edge.get("cluster_id"),
-                method=meta.get("method"),
+                method=edge.get("method", meta.get("method")),
                 version=meta.get("version"),
                 model=meta.get("model"),
                 updated_at=meta.get("updated_at"),

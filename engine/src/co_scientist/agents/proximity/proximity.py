@@ -275,6 +275,7 @@ def _survivor_index(
         by_text={
             member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
         },
+        texts={h.id: h.text for h in outcome.hypotheses_to_keep},
     )
 
 
@@ -286,7 +287,9 @@ def _build_updated_proximity_graph(
     """Builds the persisted weighted proximity graph for this pass's clusters.
 
     Edges over the kept hypotheses carry a similarity score and
-    method/model/goal/update-time provenance (Milestone 3).
+    method/model/goal/update-time provenance (Milestone 3). The survivors'
+    texts go in too: pairs the clustering left unjudged are measured
+    deterministically from them, with no further provider call.
     """
     return build_proximity_graph(
         outcome.similarity_clusters,

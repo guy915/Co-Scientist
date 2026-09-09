@@ -56,7 +56,13 @@ def _tournament_matches_for(
 def _proximity_neighbors_for(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> list[dict[str, Any]]:
-    """Build this hypothesis's proximity-graph neighbor list."""
+    """Build this hypothesis's proximity-graph neighbor list, nearest first.
+
+    The graph now reaches every pair above its similarity floor, so a
+    hypothesis can carry far more neighbours than the ledger's slice takes.
+    Sorting by similarity makes that slice the *closest* neighbours rather
+    than whichever pairs the graph happened to list first.
+    """
     neighbors = []
     for edge in (state.get("proximity_graph") or {}).get("edges", []):
         if edge.get("source") == hypothesis.id:
@@ -72,6 +78,7 @@ def _proximity_neighbors_for(
                 "cluster_id": edge.get("cluster_id"),
             }
         )
+    neighbors.sort(key=lambda n: float(n["similarity"] or 0.0), reverse=True)
     return neighbors
 
 
