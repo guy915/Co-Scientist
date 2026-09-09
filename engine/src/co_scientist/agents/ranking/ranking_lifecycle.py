@@ -22,7 +22,11 @@ from co_scientist.constants import (
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
     truncate,
 )
-from co_scientist.models import Hypothesis, rank_for_publication
+from co_scientist.models import (
+    Hypothesis,
+    has_peer_review,
+    rank_for_publication,
+)
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
@@ -155,6 +159,16 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     Counted over rankable hypotheses only. Quarantined ideas are excluded
     from the tournament by design, so counting them would hold the floor
     permanently above zero and loop the orchestrator on ranking forever.
+    And only over *peer-reviewed* ones, mirroring ``03-reflection.md``,
+    where ``ReviewHypothesis`` is what creates a hypothesis's
+    ``AddToTournament`` task: an idea the run has not reviewed is owed a
+    review, not matches. This is inert for generated ideas, which are
+    reviewed before ranking is ever routed to; it matters for one a
+    scientist contributes mid-run, which is admitted straight into the
+    pool. Without it the floor above the scheduler's review backlog
+    (``policy._ordered_checks``: coverage is step 3, the backlog step 6)
+    would schedule ranking *because* the newcomer had no matches, and the
+    contribution would enter the tournament having passed no gate.
     Bounded by the distinct pairs the pool admits for the same reason -- a
     floor the pool cannot satisfy never falls.
 
@@ -167,7 +181,7 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     undercounts (a lone idea owing two got one round, played once, and left
     the tournament still short of the minimum).
     """
-    rankable = [h for h in hypotheses if h.is_rankable()]
+    rankable = [h for h in hypotheses if h.is_rankable() and has_peer_review(h)]
     if len(rankable) < 2:
         return 0
     owed_per_idea = [

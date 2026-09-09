@@ -74,9 +74,11 @@ def _parent_ids_json(parent_ids: list[str] | None) -> str | None:
 # hypotheses.id" and leave the run unable to complete. The row that is
 # already there wins on everything that identifies it (id, run, author,
 # created_by_agent, generation, parent lineage, title, statement): the
-# engine round trip cannot carry authorship at all, and it never rewrites a
-# hypothesis in place -- evolution mints a child with a new id -- so a
-# conflicting id is the same idea, not a revision of it. Only the
+# engine never rewrites a hypothesis in place -- evolution mints a child
+# with a new id -- so a conflicting id is the same idea, not a revision of
+# it. (The round trip does now carry the author, on the payload's
+# ``enrichments``, so an *insert* attributes a contributed hypothesis
+# correctly; a conflict still keeps the stored value.) Only the
 # engine-derived detail columns are filled, and only where the stored row
 # has nothing, so a drain adds what the run learned without overwriting
 # what the scientist wrote.

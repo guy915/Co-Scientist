@@ -10,7 +10,19 @@ import pytest
 from co_scientist.agents.ranking import ranking, ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
-from tests._state import make_hypothesis, make_state
+from co_scientist.models import Hypothesis
+from tests._state import make_hypothesis, make_review, make_state
+
+
+def _hyp(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
+    """A peer-reviewed hypothesis, as every idea a tournament sees is.
+
+    The coverage floor is owed only to ideas the run has already reviewed
+    (``ranking_lifecycle._coverage_floor``), and the graph routes review
+    before ranking, so a fixture with no review is not a pool this node
+    ever meets.
+    """
+    return make_hypothesis(text=text, reviews=[make_review()], **overrides)
 
 
 def test_match_tier_upset_when_loser_outrated_winner() -> None:
@@ -62,8 +74,8 @@ def test_matchup_judging_survives_more_than_one_event_loop(
 
     monkeypatch.setattr(ranking_debate, "call_llm_json", fake_call_llm_json)
 
-    hyp_a = make_hypothesis(text="a")
-    hyp_b = make_hypothesis(text="b")
+    hyp_a = _hyp(text="a")
+    hyp_b = _hyp(text="b")
 
     async def judge_a_full_wave() -> None:
         """Force real contention so the semaphore has to wait."""
@@ -104,11 +116,9 @@ async def test_every_rankable_idea_reaches_the_minimum_match_count(
     from co_scientist.constants import TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
     from co_scientist.models import ExecutionMetrics
 
-    fresh = make_hypothesis(text="fresh mechanism")
+    fresh = _hyp(text="fresh mechanism")
     covered = [
-        make_hypothesis(
-            text=f"covered mechanism {i}", win_count=1, loss_count=1
-        )
+        _hyp(text=f"covered mechanism {i}", win_count=1, loss_count=1)
         for i in range(4)
     ]
     hypotheses = [fresh, *covered]
@@ -149,8 +159,8 @@ async def test_matchups_carry_the_iteration_they_were_judged_in(
     0, so the Elo history could not be read back by cycle.
     """
     hypotheses = [
-        make_hypothesis(text="iteration alpha TXT"),
-        make_hypothesis(text="iteration beta TXT"),
+        _hyp(text="iteration alpha TXT"),
+        _hyp(text="iteration beta TXT"),
     ]
 
     async def fake(**_: Any) -> dict[str, Any]:

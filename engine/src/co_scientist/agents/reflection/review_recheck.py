@@ -40,6 +40,7 @@ worth a precedence change in the shared write path.
 from collections.abc import Iterable
 
 from co_scientist.agents.reflection.mature_reviews import mature_disposition
+from co_scientist.agents.reflection.review_gate import scientist_disposition
 from co_scientist.agents.reflection.review_types import ReviewType
 from co_scientist.models import Hypothesis
 
@@ -98,6 +99,12 @@ def _is_recheckable(hypothesis: Hypothesis) -> bool:
     verdict short-circuits, so a recurrent ``sound`` could never clear it.
     """
     if hypothesis.review_disposition not in _RECHECKABLE_DISPOSITIONS:
+        return False
+    # A block a scientist asked for is not the gate misfiring, so there is
+    # nothing here to re-open: the derivation restores the verdict
+    # whatever a recurrent review answers, and the call is spent for
+    # nothing (see ``review_gate.derive_review_disposition``).
+    if scientist_disposition(hypothesis) == "inaccurate":
         return False
     return mature_disposition(hypothesis) is None
 

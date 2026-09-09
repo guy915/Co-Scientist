@@ -72,6 +72,7 @@ from co_scientist.models import (
     HypothesisReview,
     MetricDeltas,
     create_metrics_update,
+    has_peer_review,
     phase_message,
 )
 from co_scientist.progress import emit_progress
@@ -332,7 +333,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     """
     hypotheses = state["hypotheses"]
     refresh_review_dispositions(hypotheses, state.get("criteria"))
-    unreviewed = [hyp for hyp in hypotheses if not hyp.reviews]
+    unreviewed = [hyp for hyp in hypotheses if not has_peer_review(hyp)]
     _log_review_intake(hypotheses, unreviewed)
 
     if not unreviewed:

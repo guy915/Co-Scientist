@@ -28,9 +28,11 @@ from co_scientist.models_metrics import (
 )
 from co_scientist.models_metrics import merge_metrics as merge_metrics
 from co_scientist.models_metrics import phase_message as phase_message
+from co_scientist.models_review import AGENT_REVIEWER as AGENT_REVIEWER
 from co_scientist.models_review import (
     BLOCKING_REVIEW_DISPOSITIONS as BLOCKING_REVIEW_DISPOSITIONS,
 )
+from co_scientist.models_review import SCIENTIST_REVIEWER as SCIENTIST_REVIEWER
 from co_scientist.models_review import UNDERMINED_VERDICT as UNDERMINED_VERDICT
 from co_scientist.models_review import HypothesisReview as HypothesisReview
 from co_scientist.models_review import _assessment_fields as _assessment_fields
@@ -39,6 +41,7 @@ from co_scientist.models_review import _rebuild_reviews as _rebuild_reviews
 from co_scientist.models_review import (
     _reviews_to_dicts as _reviews_to_dicts,
 )
+from co_scientist.models_review import has_peer_review as has_peer_review
 
 
 class GenerationMethod(str, enum.Enum):

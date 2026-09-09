@@ -15,7 +15,35 @@ from __future__ import annotations
 from typing import Any
 
 from app.engine_tasks_inputs import _merge_scientist_inputs
+from app.engine_tasks_support import NODE_TASK_PREFIX
 from app.store import ScientificTask
+
+# The one boundary at which a scientist's hypothesis joins a running pool.
+#
+# The orchestrator is the run's only scheduling decision point, which makes
+# it the only place a new competitor can appear without invalidating work
+# already under way: never inside a ranking wave (where an idea joining
+# mid-tournament carries an Elo nothing has played for), and never between
+# a fan-out's items and its aggregate (which restores the checkpoint and
+# would not find the hypothesis its item had just reviewed). It is also the
+# node whose own commit checkpoints the enlarged pool, so every later task
+# restores the newcomer from the checkpoint rather than re-merging it.
+#
+# What follows the admission is what keeps it from bypassing a gate: the
+# admitted idea holds no *peer* review (its author's own review does not
+# count as one -- ``co_scientist.models.has_peer_review``), so the
+# scheduler's unreviewed-backlog transition (``scheduling/policy_checks``
+# step 5) forces a review pass before the run may rank or evolve, and the
+# cycle that follows carries it through safety_screen and the pre-ranking
+# evidence gate like any generated idea.
+#
+# That backlog transition is only reached because the tournament's coverage
+# floor is owed to peer-reviewed ideas alone
+# (``ranking_lifecycle._coverage_floor``). The floor is checked *above* the
+# backlog, so while it counted every rankable idea, a newcomer with no
+# matches was itself a reason to rank, and the contribution entered the
+# tournament ungated through the front door.
+ADMISSION_NODE = "orchestrator"
 
 
 def _restore_node_task_state(
@@ -58,5 +86,12 @@ def _restore_node_task_state(
     if opts.get("context_enrichment_sources"):
         state["context_enrichment_sources"] = opts["context_enrichment_sources"]
     state["durable_retries_remain"] = task.attempt < task.max_attempts
-    _merge_scientist_inputs(state, task.run_id, db_path)
+    _merge_scientist_inputs(
+        state,
+        task.run_id,
+        db_path,
+        admit_hypotheses=(
+            task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
+        ),
+    )
     return state

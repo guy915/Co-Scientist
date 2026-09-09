@@ -72,6 +72,55 @@ def enqueue_scientist_continuation(
     )
 
 
+# Where the author rides through the checkpoint. The engine's Hypothesis
+# has no author field and adding one would touch every node; enrichments is
+# the established home for a checkpointed per-hypothesis mark (see
+# ``review_recheck_issued``), and nothing renders the whole dict into a
+# prompt, so the attribution travels without leaking into model input.
+SCIENTIST_AUTHOR_MARK = "scientist_author"
+
+# The column's own default, meaning "no screen has run on this row yet"
+# (``store/schema.py``). It must not be carried into engine state, because
+# there a *non-None* ``safety_status`` means "already screened, leave it"
+# (``agents/safety/safety_screen._screen_one_hypothesis``): copying the
+# placeholder across would tell the engine's screen to skip exactly the
+# hypothesis whose screen never completed.
+_UNSCREENED_SAFETY_STATUS = "pending"
+
+
+def _admitted_safety_status(row: dict[str, Any]) -> str | None:
+    """The screened outcome to carry into engine state, or None."""
+    status = str(row.get("safety_status") or "")
+    if not status or status == _UNSCREENED_SAFETY_STATUS:
+        return None
+    return status
+
+
+def _admitted_hypothesis(row: dict[str, Any]) -> Any:
+    """Build the engine hypothesis one persisted scientist row becomes.
+
+    Carries the row's own provenance rather than a bare statement: the
+    origin the tournament and the drain attribute it by, the author, and
+    the outcome the admission screen already wrote (POST time,
+    ``hypothesis_screening.screen_hypotheses``) so engine state agrees
+    with the store instead of re-screening what is already decided -- but
+    never the unscreened placeholder, which would suppress the screen
+    rather than record one.
+    """
+    from co_scientist.models import Hypothesis, HypothesisOrigin
+
+    hypothesis = Hypothesis(
+        id=str(row["id"]),
+        text=str(row.get("statement") or row.get("title") or ""),
+        origin=HypothesisOrigin.SCIENTIST_MANUAL,
+        explanation=str(row.get("title") or "") or None,
+    )
+    hypothesis.elo_rating = int(row.get("elo_rating") or INITIAL_ELO)
+    hypothesis.safety_status = _admitted_safety_status(row)
+    hypothesis.enrichments[SCIENTIST_AUTHOR_MARK] = str(row.get("author") or "")
+    return hypothesis
+
+
 def _merge_scientist_hypotheses(
     hypotheses: list[Any],
     by_id: dict[str, Any],
@@ -79,21 +128,13 @@ def _merge_scientist_hypotheses(
     db_path: str | None,
 ) -> None:
     """Append durable scientist-authored hypotheses not yet in state."""
-    from co_scientist.models import Hypothesis, HypothesisOrigin
-
     for row in store.list_hypotheses(run_id, db_path=db_path):
         if row.get("created_by_agent") != "scientist_manual":
             continue
         hypothesis_id = str(row["id"])
         if hypothesis_id in by_id:
             continue
-        hypothesis = Hypothesis(
-            id=hypothesis_id,
-            text=str(row.get("statement") or row.get("title") or ""),
-            origin=HypothesisOrigin.SCIENTIST_MANUAL,
-            explanation=str(row.get("title") or "") or None,
-        )
-        hypothesis.elo_rating = int(row.get("elo_rating") or INITIAL_ELO)
+        hypothesis = _admitted_hypothesis(row)
         hypotheses.append(hypothesis)
         by_id[hypothesis_id] = hypothesis
 
@@ -126,7 +167,7 @@ def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
     the drain as an anonymous agent review. The drain reads them back (see
     ``drain_reviews._persist_scientist_review``).
     """
-    from co_scientist.models import HypothesisReview
+    from co_scientist.models import SCIENTIST_REVIEWER, HypothesisReview
 
     verdict = _row_verdict(row)
     score = VERDICT_REVIEW_SCORES[verdict]
@@ -144,6 +185,12 @@ def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
         },
         constructive_feedback=critique,
         overall_score=float(score),
+        # Typed authorship, not a marker to be recovered from prose: the
+        # review gate reads the verdict as a whole (a human review scores
+        # no gated axis), while the review node, the durable review
+        # fan-out and the scheduler's unreviewed backlog must all keep
+        # counting the idea as still owing the run a peer review.
+        reviewer=SCIENTIST_REVIEWER,
     )
 
 
@@ -173,11 +220,43 @@ def _merge_scientist_reviews(
 
 
 def _merge_scientist_inputs(
-    state: dict[str, Any], run_id: str, db_path: str | None
+    state: dict[str, Any],
+    run_id: str,
+    db_path: str | None,
+    *,
+    admit_hypotheses: bool = True,
 ) -> None:
-    """Merge durable manual hypotheses and reviews at a safe task boundary."""
+    """Merge durable manual hypotheses and reviews at a safe task boundary.
+
+    Reviews merge at every boundary: a verdict only ever restricts or
+    redirects the pool that is already there, and re-deriving the
+    dispositions from it costs no LLM call.
+
+    A *hypothesis* is a new competitor, so it is admitted at one boundary
+    (``admit_hypotheses``; see ``engine_tasks_restore``) rather than
+    wherever the run happens to be. The pool may not grow inside a ranking
+    wave, where the newcomer's Elo would mean nothing, nor between a
+    fan-out's items and its aggregate, where the aggregate restores the
+    checkpoint and would not find the hypothesis its item reviewed.
+    """
     hypotheses = list(state.get("hypotheses") or [])
     by_id = {hypothesis.id: hypothesis for hypothesis in hypotheses}
-    _merge_scientist_hypotheses(hypotheses, by_id, run_id, db_path)
+    if admit_hypotheses:
+        _merge_scientist_hypotheses(hypotheses, by_id, run_id, db_path)
     _merge_scientist_reviews(by_id, run_id, db_path)
     state["hypotheses"] = hypotheses
+    _refresh_dispositions(hypotheses, state)
+
+
+def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
+    """Re-derive dispositions so a merged verdict reaches the next node.
+
+    Without this a contributed review would only take effect at the next
+    review pass, and a run past its last one would never read it at all.
+    It reads reviews already paid for and spends nothing.
+    """
+    from co_scientist.agents.reflection.review_gate import (
+        refresh_review_dispositions,
+    )
+
+    refresh_review_dispositions(hypotheses, state.get("criteria"))

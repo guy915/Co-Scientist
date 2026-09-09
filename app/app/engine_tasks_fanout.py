@@ -176,10 +176,12 @@ def _enqueue_review_fanout(
     path owns the mirror, so changes to per-hypothesis chaining belong
     here, not there.
     """
+    from co_scientist.models import has_peer_review
+
     unreviewed = [
         hypothesis
         for hypothesis in state["hypotheses"]
-        if not hypothesis.reviews
+        if not has_peer_review(hypothesis)
     ]
     items, aggregate = _create_fanout_tasks(
         partial(_enqueue_review_item_tasks, task, unreviewed, checkpoint_seq),

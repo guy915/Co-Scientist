@@ -15,7 +15,19 @@ import pytest
 
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
-from tests._state import make_hypothesis, make_state
+from co_scientist.models import Hypothesis
+from tests._state import make_hypothesis, make_review, make_state
+
+
+def _hyp(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
+    """A peer-reviewed hypothesis, as every idea a tournament sees is.
+
+    The coverage floor is owed only to ideas the run has already reviewed
+    (``ranking_lifecycle._coverage_floor``), and the graph routes review
+    before ranking, so a fixture with no review is not a pool this node
+    ever meets.
+    """
+    return make_hypothesis(text=text, reviews=[make_review()], **overrides)
 
 
 def test_tournament_budget_is_spent_across_the_whole_run() -> None:
@@ -36,8 +48,7 @@ def test_tournament_budget_is_spent_across_the_whole_run() -> None:
     from co_scientist.models import ExecutionMetrics
 
     hypotheses = [
-        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
-        for i in range(4)
+        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(4)
     ]
 
     fresh = make_state(hypotheses=hypotheses, tournament_pairs=12)
@@ -73,8 +84,7 @@ def test_budget_scales_with_a_pool_the_tier_number_cannot_cover() -> None:
     )
 
     hypotheses = [
-        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
-        for i in range(18)
+        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(18)
     ]
     state = make_state(hypotheses=hypotheses, tournament_pairs=12)
 
@@ -111,8 +121,7 @@ async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     from co_scientist.models import ExecutionMetrics
 
     hypotheses = [
-        make_hypothesis(text=f"h{i}", win_count=1, loss_count=1)
-        for i in range(4)
+        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(4)
     ]
     state = make_state(
         hypotheses=hypotheses,
@@ -139,11 +148,8 @@ def test_spent_budget_still_owes_every_idea_a_win_loss_record() -> None:
     )
     from co_scientist.models import ExecutionMetrics
 
-    played = [
-        make_hypothesis(text=f"old{i}", win_count=1, loss_count=1)
-        for i in range(2)
-    ]
-    unplayed = [make_hypothesis(text=f"new{i}") for i in range(3)]
+    played = [_hyp(text=f"old{i}", win_count=1, loss_count=1) for i in range(2)]
+    unplayed = [_hyp(text=f"new{i}") for i in range(3)]
     spent = make_state(
         hypotheses=played + unplayed,
         tournament_pairs=6,
@@ -166,7 +172,7 @@ def test_one_match_is_not_enough_coverage_to_close_the_floor() -> None:
     """
     from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
 
-    once = [make_hypothesis(text=f"h{i}", win_count=1) for i in range(4)]
+    once = [_hyp(text=f"h{i}", win_count=1) for i in range(4)]
 
     assert _coverage_floor(once) == 2
 
@@ -183,9 +189,9 @@ def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
     from co_scientist.models import ExecutionMetrics
 
     hypotheses = [
-        make_hypothesis(text="played", win_count=1, loss_count=1),
-        make_hypothesis(text="blocked", review_disposition="evidence_blocked"),
-        make_hypothesis(text="rejected", review_disposition="non_novel"),
+        _hyp(text="played", win_count=1, loss_count=1),
+        _hyp(text="blocked", review_disposition="evidence_blocked"),
+        _hyp(text="rejected", review_disposition="non_novel"),
     ]
     spent = make_state(
         hypotheses=hypotheses,
@@ -209,11 +215,8 @@ def test_floor_counts_a_lone_undercovered_idea_s_own_rounds() -> None:
     """
     from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
 
-    lone_fresh = make_hypothesis(text="fresh")
-    covered = [
-        make_hypothesis(text=f"c{i}", win_count=1, loss_count=1)
-        for i in range(4)
-    ]
+    lone_fresh = _hyp(text="fresh")
+    covered = [_hyp(text=f"c{i}", win_count=1, loss_count=1) for i in range(4)]
 
     # One idea owes two matches; the rest are covered. ceil(2/2)=1 is too
     # few -- the idea can play only one of those matches per round.
@@ -231,11 +234,8 @@ def test_floor_is_at_least_the_largest_individual_debt() -> None:
     """
     from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
 
-    two_fresh = [make_hypothesis(text=f"new{i}") for i in range(2)]
-    covered = [
-        make_hypothesis(text=f"c{i}", win_count=1, loss_count=1)
-        for i in range(3)
-    ]
+    two_fresh = [_hyp(text=f"new{i}") for i in range(2)]
+    covered = [_hyp(text=f"c{i}", win_count=1, loss_count=1) for i in range(3)]
 
     # Four owed slots -> ceil(4/2)=2; largest debt is 2. Floor is 2.
     assert _coverage_floor([*two_fresh, *covered]) == 2
@@ -264,7 +264,7 @@ async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
     )
     from co_scientist.models import merge_metrics
 
-    hypotheses = [make_hypothesis(text=f"pool {i} TXT") for i in range(3)]
+    hypotheses = [_hyp(text=f"pool {i} TXT") for i in range(3)]
 
     async def fake(**_: Any) -> dict[str, Any]:
         return {

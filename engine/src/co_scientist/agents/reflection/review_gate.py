@@ -20,7 +20,11 @@ from co_scientist.constants import (
     NEEDS_REVISION_SCORE,
     NOT_VIABLE_SCORE,
 )
-from co_scientist.models import Hypothesis, HypothesisReview
+from co_scientist.models import (
+    SCIENTIST_REVIEWER,
+    Hypothesis,
+    HypothesisReview,
+)
 
 # The axes the gate consults when the scientist supplied no criteria. The
 # historical default -- do not change it without also changing the rubric
@@ -143,11 +147,13 @@ def _disposition_for(review: HypothesisReview, axes: Sequence[str]) -> str:
 
 
 # Every axis the review schema scores, and so every axis this gate can
-# read. A review carrying none of them is not a gate input: a merged
-# scientist review scores ``scientist_assessment`` alone, and reading it
+# read per-axis. A review carrying none of them is not an input to
+# :func:`_disposition_for`: reading a review that scores something else
 # through ``_gate_score``'s neutral default would mark every blocked idea
-# viable on any run a human reviewed. Such a review is still recorded,
-# ranked and published like any other -- it just does not decide the gate.
+# viable. A merged scientist review is exactly that shape (it scores
+# ``scientist_assessment`` alone), which is why it is excluded by
+# authorship rather than by its axes and read as a whole verdict instead
+# (see :func:`_scientist_disposition`).
 _SCORED_AXES: frozenset[str] = frozenset(
     axis for axis, _ in _CRITERION_AXIS_KEYWORDS
 )
@@ -185,11 +191,46 @@ def _deepest_disposition(hypothesis: Hypothesis, base: str) -> str:
 def _latest_gradable_review(
     hypothesis: Hypothesis,
 ) -> HypothesisReview | None:
-    """The most recent review scoring at least one axis this gate reads."""
+    """The most recent agent review scoring an axis this gate reads."""
     for review in reversed(hypothesis.reviews):
+        if review.reviewer == SCIENTIST_REVIEWER:
+            continue
         if _SCORED_AXES.intersection(review.scores):
             return review
     return None
+
+
+def _latest_scientist_review(
+    hypothesis: Hypothesis,
+) -> HypothesisReview | None:
+    """The most recent scientist verdict, superseding any earlier one."""
+    for review in reversed(hypothesis.reviews):
+        if review.reviewer == SCIENTIST_REVIEWER:
+            return review
+    return None
+
+
+def scientist_disposition(hypothesis: Hypothesis) -> str | None:
+    """The disposition the most recent scientist verdict asserts, if any.
+
+    The verdict arrives on the same 1-10 rubric the review prompt hands
+    the model (``human_input.VERDICT_REVIEW_SCORES`` maps support/revise/
+    oppose onto its bands), so it is read in exactly the bands every other
+    review is read in rather than through a second, independently tuned
+    policy.
+
+    Returns:
+        The scientist's own disposition, or None when no scientist has
+        reviewed this hypothesis.
+    """
+    review = _latest_scientist_review(hypothesis)
+    if review is None:
+        return None
+    if review.overall_score <= NOT_VIABLE_SCORE:
+        return "inaccurate"
+    if review.overall_score <= NEEDS_REVISION_SCORE:
+        return "needs_revision"
+    return "viable"
 
 
 def derive_review_disposition(
@@ -209,7 +250,12 @@ def derive_review_disposition(
     2. the mature cascade's own verdict (``mature_disposition``), which
        wins when it has one because it asked the same question in more
        depth -- except over ``unsafe``, an axis it was never asked about
-       (see ``_UNSAFE_DISPOSITION``).
+       (see ``_UNSAFE_DISPOSITION``);
+    3. the most recent scientist verdict, which wins over both for the
+       same reason and carries the same safety carve-out (see
+       :func:`_scientist_disposition`). This is what makes a
+       contributed review reach the tournament, the deep-review cascade
+       and the evolution pool instead of only the reviews table.
 
     Args:
         hypothesis: The hypothesis whose disposition is derived.
@@ -220,10 +266,28 @@ def derive_review_disposition(
         holds no review this gate can read.
     """
     review = _latest_gradable_review(hypothesis)
-    if review is None:
-        return hypothesis.review_disposition
-    base = _disposition_for(review, _gate_axes_for_criteria(criteria))
-    return _deepest_disposition(hypothesis, base)
+    base = (
+        hypothesis.review_disposition
+        if review is None
+        else _deepest_disposition(
+            hypothesis,
+            _disposition_for(review, _gate_axes_for_criteria(criteria)),
+        )
+    )
+    # Applied last because a human who has read the idea is the most
+    # informed reviewer the run has: an oppose withholds an idea the
+    # agents cleared, and a support releases one they called inaccurate or
+    # asked to rework. The one verdict it cannot reach is ``unsafe`` --
+    # which quality axes matter is the scientist's call, but no
+    # endorsement releases an idea a reviewer flagged as a serious safety
+    # concern (the carve-out the mature cascade gets, for the same
+    # reason). ``evidence_blocked`` and ``duplicate`` are out of reach one
+    # layer up: ``refresh_review_dispositions`` never recomputes a foreign
+    # disposition.
+    scientist = scientist_disposition(hypothesis)
+    if scientist is None or base == _UNSAFE_DISPOSITION:
+        return base
+    return scientist
 
 
 def refresh_review_dispositions(

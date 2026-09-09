@@ -28,15 +28,22 @@ from co_scientist.scheduling import (
     TerminationReason,
     decide_next_task,
 )
+from tests._state import make_review
 
 
 def _hyp(hyp_id: str, wins: int = 0, losses: int = 0) -> Hypothesis:
-    """A minimal rankable hypothesis with the given match tally."""
+    """A minimal rankable hypothesis with the given match tally.
+
+    Peer-reviewed, because the coverage floor is owed only to ideas the
+    run has reviewed (``ranking_lifecycle._coverage_floor``): an
+    unreviewed idea is owed a review, not matches.
+    """
     return Hypothesis(
         id=hyp_id,
         text=f"statement {hyp_id}",
         win_count=wins,
         loss_count=losses,
+        reviews=[make_review()],
     )
 
 

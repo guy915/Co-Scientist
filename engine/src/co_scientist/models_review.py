@@ -20,6 +20,19 @@ if TYPE_CHECKING:
     from co_scientist.models import Hypothesis
 
 
+# Who wrote a review. The default is what every review agent produces, so
+# a checkpoint predating this field rebuilds as an agent review.
+AGENT_REVIEWER = "agent"
+
+# A scientist-contributed review, merged into the pool by the app's durable
+# input path (``app.engine_tasks_inputs``). Kept as a typed field rather
+# than recovered from the summary prose or from the presence of one score
+# key: three separate places have to tell the two apart (the review node's
+# own selection, the durable review fan-out's, and the scheduler's
+# unreviewed backlog), and a human verdict must not satisfy any of them.
+SCIENTIST_REVIEWER = "scientist"
+
+
 @dataclass
 class HypothesisReview:
     """Review of a hypothesis with scores and feedback.
@@ -29,6 +42,10 @@ class HypothesisReview:
     known to the reviewer, and what it does not. Distinct from the
     "novelty" entry in scores/detailed_feedback, which is a 1-10 rating
     rather than an enumeration.
+
+    ``reviewer`` carries authorship: a scientist's review is a verdict the
+    gate reads (``review_gate.derive_review_disposition``), not the peer
+    review the run owes every hypothesis.
     """
 
     review_summary: str
@@ -39,6 +56,21 @@ class HypothesisReview:
     overall_score: float
     already_explored: list[str] = field(default_factory=list)
     novel_aspects: list[str] = field(default_factory=list)
+    reviewer: str = AGENT_REVIEWER
+
+
+def has_peer_review(hypothesis: "Hypothesis") -> bool:
+    """Whether an agent has reviewed this hypothesis yet.
+
+    A scientist's own review does not answer for the run's review agent:
+    counting it as one left a human-reviewed idea marked reviewed, so the
+    review node, the durable review fan-out and the scheduler's unreviewed
+    backlog all skipped it and it reached the tournament with no peer
+    review and no derived disposition behind it.
+    """
+    return any(
+        review.reviewer != SCIENTIST_REVIEWER for review in hypothesis.reviews
+    )
 
 
 def _rebuild_reviews(

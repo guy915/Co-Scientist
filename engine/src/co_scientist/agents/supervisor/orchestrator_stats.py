@@ -21,7 +21,7 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
 )
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.llm_call_budget import current_run_call_count
-from co_scientist.models import Hypothesis
+from co_scientist.models import Hypothesis, has_peer_review
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -116,7 +116,7 @@ def _compute_stats(
     )
     scalars = _StatsScalars(
         pool_size=pool_size,
-        reviewed=sum(1 for h in hyps if h.reviews),
+        reviewed=sum(1 for h in hyps if has_peer_review(h)),
         rankable_count=rankable_count,
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
@@ -161,7 +161,15 @@ def _rankable_coverage(
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    unmatched = sum(1 for h in rankable if h.total_matches == 0)
+    # Reported beside ``owed_coverage_rounds`` in the same decision, so it
+    # is counted over the same population: an idea still owing the run a
+    # peer review is owed that review rather than matches (see
+    # ``ranking_lifecycle._coverage_floor``). Reading the two off different
+    # populations is what would let the reason line say an idea has never
+    # been matched while the floor it quotes says nothing is owed.
+    unmatched = sum(
+        1 for h in rankable if h.total_matches == 0 and has_peer_review(h)
+    )
     return rankable_count, avg_coverage, unmatched
 
 
