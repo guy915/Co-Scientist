@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=91, partial=19, missing=2, external=3, undisclosed=0.** Each
+**verified=95, partial=15, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -149,10 +149,10 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > (Both `partial` rows closed 2026-09-09 — see the parity-closure note below.)
 
 
-> **Parity closure (2026-09-09).** Eight rows moved from `partial` to
-> `verified` across two passes today; no row was added or removed, so the
+> **Parity closure (2026-09-09).** Twelve rows moved from `partial` to
+> `verified` across three passes today; no row was added or removed, so the
 > row count is unchanged at 115 and the snapshot above moves
-> `verified=83, partial=27` to `verified=91, partial=19`. The first pass
+> `verified=83, partial=27` to `verified=95, partial=15`. The first pass
 > (below) moved six rows, `verified=83, partial=27` → `verified=89,
 > partial=21`:
 >
@@ -212,6 +212,42 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > contributed hypothesis now merges into the *running* pool at the
 > orchestrator's own commit boundary instead of only on restart, narrowing
 > the residual to two windows outside that boundary.
+>
+> A third pass the same day closed four more, `verified=91, partial=19` →
+> `verified=95, partial=15`:
+>
+> - `HITL-STEERING-001` (`66f332a7`) — only the orchestrator's own node
+>   commit may acknowledge a steering message now; previously any node's
+>   commit could, so a steer posted during e.g. proximity was acknowledged
+>   by proximity and never reached a scheduling decision at all. The folded
+>   preferences text now sources from every steering message the run has
+>   ever queued, applied or not, so it survives the node after the ack
+>   instead of going quiet, and a contribution posted with no remaining
+>   orchestrator boundary self-heals once the run settles.
+> - `CKPT-FAILINJECT-001` (`app/tests/test_resume_double_cycle.py`) — the
+>   app-level two-consecutive-resume-cycle test this row's residual named as
+>   missing since the mock-workflow deletion now exists, driving the durable
+>   task queue one task at a time over the real HTTP endpoints and confirming
+>   the pool captured before the second interruption is a subset of the
+>   finally-published pool.
+> - `OVERVIEW-NIH-001` (`415f6633`) — the research overview is no longer
+>   terminal-only: `_check_research_overview_cadence` fires it periodically
+>   on `extended`/`ultra`, tier-gated, on its own lean two-field schema
+>   budgeted at a quarter of the terminal firing's tokens, and routes back to
+>   the orchestrator loop point — the feedback edge into generation the
+>   paper describes and this row's residual previously recorded as absent.
+> - `OVERVIEW-AIMS-VOCABULARY-001` (`2c204e1d`) — the React overview tab now
+>   mirrors the markdown export field for field (`Specific Aims N` as its own
+>   heading, `Overarching goal:`/`Hypothesis:`/`Reasoning:` as labelled body
+>   lines), closing the divergence the previous pass recorded as
+>   markdown-only.
+>
+> `RESEARCH-CONTACTS-FIELDS-001` (`2c204e1d`) stays `partial` in this pass:
+> `expertise` is now pinned as the one rendered field no published exemplar
+> supports (`app/tests/test_report_contact_field_labels.py::test_expertise_is_the_one_field_no_exemplar_supports`),
+> closing the missing-pin-test residual the row previously named, but the
+> field itself is kept rather than removed, since no exemplar positively
+> excludes it.
 
 ---
 

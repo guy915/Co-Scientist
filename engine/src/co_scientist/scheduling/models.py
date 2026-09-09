@@ -124,6 +124,14 @@ class SchedulerStats:
     pool_size: int = 0
     reviewed_count: int = 0
     unreviewed_count: int = 0
+    # Hypotheses currently owed the scheduler's budget-overriding review
+    # pass (``agents.reflection.owed_review.owed_review_count``): unreviewed
+    # and not yet issued their one override. Bounded per-hypothesis (an
+    # enrichment marker set the moment the override fires, whether or not
+    # the ensuing review succeeds) and by a run-wide ceiling, so this can
+    # only ever fall to zero, never grow without bound. See
+    # ``policy_checks._check_owed_review``.
+    owed_review_count: int = 0
     # Hypotheses eligible for the Elo tournament (not undermined / review- or
     # evidence-gate-rejected). Coverage and the ranking-coverage gate are
     # measured over this count, not ``pool_size``, so a pool full of

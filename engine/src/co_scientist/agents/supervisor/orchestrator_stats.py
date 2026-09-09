@@ -19,6 +19,9 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
     _coverage_floor,
     _tournament_round_count,
 )
+from co_scientist.agents.reflection.owed_review import (
+    owed_review_count as _owed_review_count,
+)
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.llm_call_budget import current_run_call_count
 from co_scientist.models import Hypothesis, has_peer_review
@@ -36,6 +39,7 @@ class _StatsScalars:
 
     pool_size: int
     reviewed: int
+    owed_review: int
     rankable_count: int
     total_matches: int
     avg_coverage: float
@@ -117,6 +121,7 @@ def _compute_stats(
     scalars = _StatsScalars(
         pool_size=pool_size,
         reviewed=sum(1 for h in hyps if has_peer_review(h)),
+        owed_review=_owed_review_count(hyps),
         rankable_count=rankable_count,
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
@@ -265,6 +270,7 @@ def _build_scheduler_stats(
         pool_size=pool_size,
         reviewed_count=scalars.reviewed,
         unreviewed_count=pool_size - scalars.reviewed,
+        owed_review_count=scalars.owed_review,
         rankable_count=scalars.rankable_count,
         total_matches=scalars.total_matches,
         match_coverage=scalars.avg_coverage,

@@ -19,125 +19,36 @@ from co_scientist.scheduling.models import (
     TaskType,
     TerminationReason,
 )
+from co_scientist.scheduling.policy_budget import (
+    _budget_termination as _budget_termination,
+)
+from co_scientist.scheduling.policy_budget import (
+    _check_owed_review as _check_owed_review,
+)
+from co_scientist.scheduling.policy_budget import (
+    _llm_call_budget_check as _llm_call_budget_check,
+)
+from co_scientist.scheduling.policy_budget import (
+    _max_ideas_check as _max_ideas_check,
+)
+from co_scientist.scheduling.policy_budget import (
+    _max_matches_per_idea_check as _max_matches_per_idea_check,
+)
+from co_scientist.scheduling.policy_budget import (
+    _task_budget_check as _task_budget_check,
+)
+from co_scientist.scheduling.policy_budget import (
+    _terminate as _terminate,
+)
+from co_scientist.scheduling.policy_budget import (
+    _wall_clock_budget_check as _wall_clock_budget_check,
+)
 from co_scientist.scheduling.policy_cadence import (
     _check_meta_review_cadence as _check_meta_review_cadence,
 )
 from co_scientist.scheduling.policy_cadence import (
     _check_research_overview_cadence as _check_research_overview_cadence,
 )
-
-
-def _llm_call_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Terminate once the LLM-call ceiling is reached."""
-    max_calls = budget.max_llm_calls
-    if max_calls is None or stats.llm_calls < max_calls:
-        return None
-    return _terminate(
-        TerminationReason.BUDGET,
-        f"LLM-call budget exhausted ({stats.llm_calls}/{max_calls})",
-    )
-
-
-def _task_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Terminate once the task ceiling is reached."""
-    max_tasks = budget.max_tasks
-    if max_tasks is None or stats.tasks_run < max_tasks:
-        return None
-    return _terminate(
-        TerminationReason.MAX_TASKS,
-        f"task budget exhausted ({stats.tasks_run}/{max_tasks})",
-    )
-
-
-def _wall_clock_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Terminate once the wall-clock ceiling is reached."""
-    limit = budget.max_wall_clock_s
-    if limit is None or stats.elapsed_s < limit:
-        return None
-    return _terminate(
-        TerminationReason.WALL_CLOCK,
-        f"wall-clock budget exhausted ({stats.elapsed_s:.0f}s/{limit:.0f}s)",
-    )
-
-
-def _max_ideas_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Terminate once the idea-pool ceiling (paper's ``MaxIdeas``) is hit.
-
-    Gated on ``unreviewed_count == 0``: this check runs before the review
-    backlog step (``_check_review_backlog``), so a bare pool-size ceiling
-    would strand the freshest, still-unreviewed ideas at the moment the pool
-    crosses it. Requiring the backlog drained first lets that step run on a
-    later cycle before this one fires.
-    """
-    limit = budget.max_ideas
-    if limit is None or stats.unreviewed_count > 0 or stats.pool_size < limit:
-        return None
-    return _terminate(
-        TerminationReason.MAX_IDEAS,
-        f"idea-pool budget exhausted ({stats.pool_size}/{limit})",
-    )
-
-
-def _max_matches_per_idea_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Terminate once coverage hits the paper's ``MaxMatchesPerIdea``.
-
-    Measured on the same average-coverage observable
-    ``_check_tournament_coverage`` reads (``match_coverage``), not a true
-    per-idea maximum -- see the ``Budget`` docstring for why.
-    """
-    limit = budget.max_matches_per_idea
-    if (
-        limit is None
-        or stats.rankable_count < 2
-        or stats.match_coverage < limit
-    ):
-        return None
-    return _terminate(
-        TerminationReason.MAX_MATCHES_PER_IDEA,
-        f"match budget exhausted (avg {stats.match_coverage:.2f}/"
-        f"{limit:.2f} matches per idea)",
-    )
-
-
-def _budget_termination(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
-    """Return a termination decision if any hard budget ceiling is hit.
-
-    Checked before any productive task so an exhausted run always stops with a
-    precise, recorded reason rather than scheduling more work it cannot afford.
-    """
-    for check in (
-        _llm_call_budget_check,
-        _task_budget_check,
-        _wall_clock_budget_check,
-        _max_ideas_check,
-        _max_matches_per_idea_check,
-    ):
-        decision = check(stats, budget)
-        if decision is not None:
-            return decision
-    return None
-
-
-def _terminate(reason: TerminationReason, message: str) -> SupervisorDecision:
-    """Build a terminating decision with a recorded reason."""
-    return SupervisorDecision(
-        next_task=TaskType.TERMINATE,
-        reason=message,
-        terminate=True,
-        termination_reason=reason,
-    )
 
 
 def _evolve(reason: str) -> SupervisorDecision:

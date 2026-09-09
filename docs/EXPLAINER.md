@@ -66,7 +66,7 @@ meta_review → evolve → review → deep_verification → ranking → orchestr
 - **Meta-Review** synthesizes all reviews into strategic insights; uses `supervisor_model_name` (`agents/meta_review/meta_review.py`).
 - **Evolve** refines the top-`evolution_max_count` hypotheses in parallel and **adds the children to the pool** — parents and every other hypothesis stay active, so both compete in the next tournament (`agents/evolution/evolve.py`, delta built in `evolve_results.py::_build_evolve_state_delta` as an `AppendHypotheses` op). A refinement that comes back unchanged or near-identical to a peer yields no child at all. Flow then loops back up to **Review** (the teal `re-review → re-rank` arrow) so evolved hypotheses are re-reviewed and re-ranked.
 - **Proximity** is the dedup gate for the cycle (`agents/proximity/proximity.py`). `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve) — see §4.
-- **Research Overview** is the single terminal node, synthesizing the top-10 by Elo into an overview + NIH Specific Aims (`agents/meta_review/research_overview.py`).
+- **Research Overview** is the terminal node on every completion path, synthesizing the top-10 by Elo into an overview + NIH Specific Aims (`agents/meta_review/research_overview.py`). On `extended`/`ultra` it also fires periodically, mid-run, on its own lean two-field schema (direction titles + open questions, not the NIH Specific Aims page); that firing routes back to the orchestrator loop point instead of ending the graph, and its `interim_overview` feeds the next `generate` cycle's prompts (`_route_after_research_overview`).
 
 Note the AGENTS.md ordering lists "Ranking → Tournament → Meta-Review", but **Tournament is inside the Ranking node** (Elo pairwise, `agents/ranking/ranking.py`), not a separate node, and **Deep Verification runs after Ranking**, before the routing decision.
 
@@ -90,10 +90,12 @@ flowchart TD
   ORCH -->|evolve| MR["meta_review"]
   ORCH -->|proximity| PROX
   ORCH -->|terminate| RO["research_overview"]
+  ORCH -.->|synthesize periodic, extended/ultra| RO
 
   MR --> EV["evolve"]
   EV --> REV
   RO --> END((END))
+  RO -.->|periodic firing| ORCH
 
   classDef router fill:#FFF8E1,stroke:#F59E0B,color:#7C4700;
   classDef term fill:#00696C,stroke:#00696C,color:#fff;
@@ -147,7 +149,7 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `meta_review` | `meta_review.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:382` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (children appended to the pool), `evolution_details` | review (re-review) |
 | `proximity` | `proximity.py:365` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates` (accumulated), `proximity_graph` | orchestrator |
-| `research_overview` | `research_overview.py:53` | `hypotheses` (top-10 by Elo), `meta_review` | `research_overview` ({overview, nih_specific_aims}) | END |
+| `research_overview` | `research_overview.py:53` | `hypotheses` (top-10 by Elo), `meta_review` | `research_overview` ({overview, nih_specific_aims} at the terminal firing; a lean `interim_overview` on a periodic one) | END (terminal firing) or orchestrator (periodic firing, extended/ultra — `_route_after_research_overview`) |
 
 Helper-only files (not graph nodes): the `agents/generation/literature_review/` subpackage's support modules (e.g. `helpers.py` — `node.py` in the same subpackage is the actual graph node), `agents/reflection/reflection_helpers.py`, and the rest of the `agents/generation/` subpackage.
 

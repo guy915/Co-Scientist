@@ -14,14 +14,21 @@ from __future__ import annotations
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
+from co_scientist.agents.reflection.owed_review import (
+    mark_owed_review_issued,
+    owed_review_targets,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import _default_budget
 from co_scientist.models import Hypothesis
 from co_scientist.scheduling import (
+    Budget,
     SchedulerStats,
     SupervisorDecision,
     TaskType,
     policy,
     stacked_task_values,
 )
+from co_scientist.state import WorkflowState
 
 
 def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
@@ -199,6 +206,72 @@ def _is_settlement_rank(
         decision.next_task is TaskType.RANK
         and policy._check_owed_coverage(stats) is not None
     )
+
+
+def _is_owed_review_override(stats: SchedulerStats, budget: Budget) -> bool:
+    """Return whether ``_check_owed_review`` is asking for a pass this cycle.
+
+    Deliberately *not* re-derived from the decision actually taken, unlike
+    ``_is_settlement_rank`` above: on the queue-adjudication path
+    (``supervisor_decision._needs_queue_adjudication``) a consulted model
+    may return a task other than REFLECT even though this check supplied
+    the forced baseline, and marking on the *executed* task would leave
+    that cycle's override neither spent nor bounded -- the same next-cycle
+    ``stats.owed_review_count`` would ask for it again, with nothing
+    changed about why the model diverted the first time. Marking on
+    whether the check *fired*, independent of what got executed, is what
+    keeps the bound in ``policy_checks._check_owed_review`` -- at most
+    ``owed_review.MAX_OWED_REVIEW_OVERRIDES_PER_RUN`` firings ever -- true
+    regardless of planner behavior. The cost is symmetric with
+    ``review_recheck``'s own bound: a hypothesis marked this way whose
+    forced review never actually ran is in the same state as one whose
+    forced review ran and failed -- one spent attempt, no peer review.
+    """
+    return policy._check_owed_review(stats, budget) is not None
+
+
+def _owed_review_override_marks(
+    stats: SchedulerStats, budget: Budget, hypotheses: list[Hypothesis]
+) -> list[Hypothesis]:
+    """Return the pool to persist after this cycle's override marking.
+
+    Marks every hypothesis currently owed the override at once, before the
+    forced review's own outcome is known (mirroring
+    ``review_recheck.mark_recheck_issued``): the marker records that this
+    hypothesis's one budget-overriding attempt has been *spent*, not that
+    it *succeeded*, which is what stops a hypothesis whose review keeps
+    failing -- or whose forced cycle a consulted model diverted away from
+    (see ``_is_owed_review_override``) -- from re-arming
+    ``_check_owed_review`` on every remaining cycle.
+
+    Returns ``[]`` -- "no update" under
+    ``state_reducers.deduplicate_hypotheses`` -- when the check did not
+    fire this cycle, so a caller may include this in every decision's
+    state delta unconditionally. Returns the *full* pool (mutated in
+    place), never a subset, when it did: the reducer's bare-list form
+    replaces the pool with exactly what it is given, and a partial list
+    would silently drop the rest of the pool from the run.
+    """
+    if not _is_owed_review_override(stats, budget):
+        return []
+    for hypothesis in owed_review_targets(hypotheses):
+        mark_owed_review_issued(hypothesis)
+    return hypotheses
+
+
+def _owed_review_hypotheses_delta(
+    state: WorkflowState, stats: SchedulerStats
+) -> list[Hypothesis]:
+    """Return the ``hypotheses`` entry of the orchestrator's state delta.
+
+    "no update" (an empty list) unless ``_check_owed_review`` is asking
+    for a pass this cycle, in which case the currently-owed
+    hypotheses are marked before the forced review's own outcome --
+    or whether it even runs -- is known (see
+    ``_owed_review_override_marks``).
+    """
+    budget = _default_budget(state)
+    return _owed_review_override_marks(stats, budget, state["hypotheses"])
 
 
 def _initial_settlement_allowance(hypotheses: list[Hypothesis]) -> int:

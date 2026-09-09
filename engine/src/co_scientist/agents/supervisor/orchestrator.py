@@ -38,6 +38,12 @@ from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
     _next_bookkeeping as _next_bookkeeping,
 )
 from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _owed_review_hypotheses_delta as _owed_review_hypotheses_delta,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _owed_review_override_marks as _owed_review_override_marks,
+)
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
     _settled_allowance as _settled_allowance,
 )
 from co_scientist.agents.supervisor.orchestrator_stats import (
@@ -290,6 +296,7 @@ def _orchestrator_result(
         "orchestrator_state": _next_bookkeeping(
             book, stats, decision, state["hypotheses"]
         ),
+        "hypotheses": _owed_review_hypotheses_delta(state, stats),
         "supervisor_decision_provenance": outcome.decision_provenance,
         "current_iteration": outcome.iteration,
         # Steering is a one-shot high-priority request: clear it once the
