@@ -14,8 +14,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.engine_tasks_context import TaskCommit, _task_commit
 from app.engine_tasks_inputs import _merge_scientist_inputs
-from app.engine_tasks_support import NODE_TASK_PREFIX
+from app.engine_tasks_support import (
+    NODE_TASK_PREFIX,
+    _durable_queue_snapshot,
+    _generator_and_opts,
+)
 from app.store import ScientificTask
 
 # The one boundary at which a scientist's hypothesis joins a running pool.
@@ -103,3 +108,31 @@ def _restore_node_task_state(
         admit_hypotheses=at_admission_node,
     )
     return state
+
+
+def _prepare_node_task(
+    task: ScientificTask,
+    checkpoint: dict[str, Any],
+    current_seq: int,
+    db_path: str | None,
+) -> tuple[dict[str, Any], TaskCommit, str]:
+    """Restore this node's state and build its commit target.
+
+    Only the orchestrator's own commit may acknowledge steering: it is
+    the run's one scheduling decision point (see ``_task_commit``).
+    """
+    generator, opts = _generator_and_opts(task, db_path)
+    state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
+    node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
+    if node_name == "orchestrator":
+        state["durable_task_queue"] = _durable_queue_snapshot(
+            task.run_id, db_path
+        )
+    commit = _task_commit(
+        task,
+        current_seq,
+        db_path,
+        opts,
+        consume_steering=(node_name == ADMISSION_NODE),
+    )
+    return state, commit, node_name

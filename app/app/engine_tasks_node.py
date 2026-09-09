@@ -422,6 +422,33 @@ def _finalize_replay_or_none(
     return None
 
 
+async def _publish_finalize_report(
+    run: store.RunRow,
+    drained: Any,
+    execution_time: float,
+    emit: Any,
+    db_path: str | None,
+) -> None:
+    """Emit finalize's stage events, then publish through the report gate."""
+    await _emit_finalize_stage_events(emit, drained)
+    setup = run.config.get("setup") if isinstance(run.config, dict) else None
+    async for _ in finalize_report(
+        run.id,
+        ReportRequest(
+            research_goal=run.research_goal,
+            run_mode=normalize_run_tier(run.profile),
+            provider="engine",
+            execution_time=execution_time,
+            setup=setup if isinstance(setup, dict) else None,
+            prepared_at=time.time(),
+            db_path=db_path,
+            **drained.report_inputs,
+        ),
+        emit,
+    ):
+        pass
+
+
 async def execute_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -441,23 +468,7 @@ async def execute_finalize(
         run, state, db_path
     )
     emit = make_emitter(run.id, db_path=db_path)
-    await _emit_finalize_stage_events(emit, drained)
-    setup = run.config.get("setup") if isinstance(run.config, dict) else None
-    async for _ in finalize_report(
-        run.id,
-        ReportRequest(
-            research_goal=run.research_goal,
-            run_mode=normalize_run_tier(run.profile),
-            provider="engine",
-            execution_time=execution_time,
-            setup=setup if isinstance(setup, dict) else None,
-            prepared_at=time.time(),
-            db_path=db_path,
-            **drained.report_inputs,
-        ),
-        emit,
-    ):
-        pass
+    await _publish_finalize_report(run, drained, execution_time, emit, db_path)
     # A contribution posted after the last orchestrator boundary (the
     # report was still draining/publishing) has no continuation task
     # waiting for it -- reopen right here instead of stranding it on

@@ -152,6 +152,9 @@ from app.engine_tasks_ranking import (
 from app.engine_tasks_ranking import (
     execute_ranking_match as execute_ranking_match,
 )
+from app.engine_tasks_restore import (
+    _prepare_node_task as _prepare_node_task,
+)
 from app.engine_tasks_support import (
     _CHECKPOINT_PROVIDER as _CHECKPOINT_PROVIDER,
 )
@@ -386,21 +389,8 @@ async def execute_node_task(
     if replay is not None:
         return replay
 
-    generator, opts = _generator_and_opts(task, db_path)
-    state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
-    node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
-    if node_name == "orchestrator":
-        state["durable_task_queue"] = _durable_queue_snapshot(
-            task.run_id, db_path
-        )
-    # Only the orchestrator's own commit may acknowledge steering: it is
-    # the run's one scheduling decision point (see _task_commit).
-    commit = _task_commit(
-        task,
-        current_seq,
-        db_path,
-        opts,
-        consume_steering=(node_name == ADMISSION_NODE),
+    state, commit, node_name = _prepare_node_task(
+        task, checkpoint, current_seq, db_path
     )
     paused = _pause_node_task_if_requested(commit, run, node_name, state)
     if paused is not None:
