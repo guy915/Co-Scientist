@@ -38,6 +38,12 @@ from co_scientist.agents.meta_review.research_overview_knowledge_base import (
 from co_scientist.agents.meta_review.research_overview_knowledge_base import (
     synthesize_knowledge_base as synthesize_knowledge_base,
 )
+from co_scientist.agents.meta_review.research_overview_prompt import (
+    build_interim_synthesis_prompt as _build_interim_synthesis_prompt,
+)
+from co_scientist.agents.meta_review.research_overview_prompt import (
+    build_synthesis_prompt as _build_synthesis_prompt,
+)
 from co_scientist.agents.meta_review.research_overview_review import (
     OverviewReviewContext as OverviewReviewContext,
 )
@@ -48,6 +54,7 @@ from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
     PROGRESS_RESEARCH_OVERVIEW_START,
+    RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
 )
@@ -64,10 +71,6 @@ from co_scientist.models import (
     rank_for_publication,
 )
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import (
-    PromptRunContext,
-    get_research_overview_prompt,
-)
 from co_scientist.safety import is_blocking_status
 from co_scientist.state import WorkflowState
 
@@ -97,9 +100,7 @@ async def _emit_and_synthesize_overview(
     the reader's progress bar to the end and back again.
     """
     if _is_interim_firing(state):
-        return await _interim_overview_result(
-            state, summary, contact_candidates, evidence_corpus
-        )
+        return await _interim_overview_result(state, summary, evidence_corpus)
 
     await emit_progress(
         state,
@@ -175,21 +176,24 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
 async def _interim_overview_result(
     state: WorkflowState,
     summary: str,
-    contact_candidates: dict[str, dict[str, Any]],
     evidence_corpus: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Draft an overview for the next generate cycle, and publish nothing.
 
-    One call: neither the accuracy-review loop nor the deep knowledge-base
-    synthesis is bought here. Both exist to make the published document,
-    and this firing writes no document -- ``research_overview`` stays
-    untouched so the live UI and the finished report keep reading the
-    terminal firing's own output.
+    One call, on its own lean schema: neither the accuracy-review loop
+    nor the deep knowledge-base synthesis is bought here, and unlike the
+    terminal call this one is never asked for the NIH Specific Aims page,
+    the contacts, or the knowledge base either -- only the direction
+    titles and open questions ``build_interim_overview`` renders.
+    ``research_overview`` stays untouched so the live UI and the
+    finished report keep reading the terminal firing's own output.
     """
-    prompt, schema = _build_synthesis_prompt(
-        state, summary, contact_candidates, evidence_corpus
+    prompt, schema = _build_interim_synthesis_prompt(
+        state, summary, evidence_corpus
     )
-    response = await _call_research_overview_llm(state, prompt, schema)
+    response = await _call_research_overview_llm(
+        state, prompt, schema, max_tokens=RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
+    )
     logger.info("Interim research overview ready for the next cycle")
     return {
         "interim_overview": build_interim_overview(response),
@@ -336,32 +340,6 @@ async def _deepen_knowledge_base(
     return calls
 
 
-def _build_synthesis_prompt(
-    state: WorkflowState,
-    summary: str,
-    contact_candidates: dict[str, dict[str, Any]],
-    evidence_corpus: dict[str, dict[str, Any]],
-) -> tuple[str, dict[str, Any] | None]:
-    """Builds the initial research-overview synthesis prompt and schema.
-
-    Uses the supervisor model (strategic synthesis, not a worker task);
-    meta_review and the durable run guidance steer it toward the same
-    strategic themes used elsewhere in the workflow.
-    """
-    return get_research_overview_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=summary,
-        contact_candidates=_format_contact_candidates(contact_candidates),
-        evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        context=PromptRunContext(
-            meta_review=state.get("meta_review"),
-            tool_registry=state.get("tool_registry"),
-            run_setup_guidance=state.get("run_setup_guidance"),
-            run_focus_guidance=state.get("run_focus_guidance"),
-        ),
-    )
-
-
 async def _maybe_review_overview(
     state: WorkflowState,
     summary: str,
@@ -406,18 +384,24 @@ async def _maybe_review_overview(
 
 
 async def _call_research_overview_llm(
-    state: WorkflowState, prompt: str, schema: dict[str, Any] | None
+    state: WorkflowState,
+    prompt: str,
+    schema: dict[str, Any] | None,
+    max_tokens: int = RESEARCH_OVERVIEW_MAX_TOKENS,
 ) -> dict[str, Any]:
     """Calls the supervisor model to synthesize the research overview.
 
     Budgeted above the thinking floor: the multi-paragraph strategy
     document and the chain of thought must share one allowance.
+    ``max_tokens`` defaults to the terminal document's own ceiling; the
+    interim caller passes its own, much smaller one, since its schema
+    asks for a handful of titles and questions rather than ten sections.
     """
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
             model_name=state["supervisor_model_name"],
-            max_tokens=RESEARCH_OVERVIEW_MAX_TOKENS,
+            max_tokens=max_tokens,
             temperature=MEDIUM_TEMPERATURE,
             json_schema=schema,
         ),

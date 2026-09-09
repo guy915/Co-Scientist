@@ -24,6 +24,9 @@ from co_scientist.scheduling import (
     TerminationReason,
 )
 from co_scientist.scheduling.policy import decide_next_task
+from co_scientist.scheduling.policy_cadence import (
+    RESEARCH_OVERVIEW_MIN_LLM_CALLS,
+)
 
 from app import run_modes
 from app.engine_adapter.opts import _generator_kwargs
@@ -117,3 +120,22 @@ def test_first_tournament_does_not_terminate_the_run(tier: str) -> None:
         TerminationReason.MAX_IDEAS,
     }
     assert decision.next_task is not TaskType.TERMINATE
+
+
+def test_periodic_overview_gate_reads_extended_and_up_only() -> None:
+    """FIX-6's cost gate against this project's own tier table.
+
+    ``RESEARCH_OVERVIEW_MIN_LLM_CALLS`` docstrings itself as "exactly
+    extended's ``max_llm_calls``", a claim that lives in the engine
+    package and can drift silently from this project's own tier table --
+    nothing else binds the two. This pins the arithmetic that makes the
+    engine's cadence check read as "extended and ultra, never express or
+    standard": the gate must sit strictly above standard's ceiling and at
+    or below extended's, so retuning either tier without this test would
+    only be caught by reading generated run costs after the fact.
+    """
+    assert (
+        run_modes.RUN_TIER_DEFAULTS["standard"]["max_llm_calls"]
+        < RESEARCH_OVERVIEW_MIN_LLM_CALLS
+        <= run_modes.RUN_TIER_DEFAULTS["extended"]["max_llm_calls"]
+    )

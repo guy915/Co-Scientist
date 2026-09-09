@@ -52,6 +52,7 @@ from co_scientist.schemas.review import (
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
     RESEARCH_OVERVIEW_DIRECTION_SCHEMA,
+    RESEARCH_OVERVIEW_INTERIM_SCHEMA,
     RESEARCH_OVERVIEW_REVIEW_SCHEMA,
     RESEARCH_OVERVIEW_SCHEMA,
 )
@@ -94,6 +95,9 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "reflection_observations": REFLECTION_SCHEMA,
     "deep_verification": DEEP_VERIFICATION_SCHEMA,
     "research_overview": RESEARCH_OVERVIEW_SCHEMA,
+    # FIX-6: a periodic firing asks for direction titles and open
+    # questions alone -- see RESEARCH_OVERVIEW_INTERIM_SCHEMA.
+    "research_overview_interim": RESEARCH_OVERVIEW_INTERIM_SCHEMA,
     # F8: the deep knowledge-base pass is a second pass over the same
     # evidence corpus, outlined once and then written a theme at a time --
     # one ~20,000-token answer cannot be served inside the 600s per-call

@@ -20,13 +20,18 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS as _MAX_DIRECTIONS,
+)
+from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS as _MAX_QUESTIONS,
+)
 from co_scientist.state import WorkflowState
 
-_MAX_DIRECTIONS: Final = 4
-"""Directions carried into the next cycle's prompts."""
-
-_MAX_QUESTIONS: Final = 5
-"""Open questions carried into the next cycle's prompts."""
+# The two caps above are the single source both ends of the edge read:
+# an interim firing's own schema (RESEARCH_OVERVIEW_INTERIM_SCHEMA) bounds
+# the ask to exactly what this module renders, so the model is never
+# asked to write a title or question this block then discards.
 
 _HEADER: Final = (
     "## Interim research overview (this run's own synthesis so far)\n\n"

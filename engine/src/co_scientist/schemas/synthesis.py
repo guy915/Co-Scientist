@@ -387,6 +387,50 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
         }
     ),
 }
+
+# What an interim (non-terminal) firing asks for. FIX-6: the periodic
+# branch writes only the block ``interim_overview.build_interim_overview``
+# renders into the next generate cycle's prompt context -- direction
+# titles and open questions -- and discards the rest, so the schema names
+# exactly those two fields rather than the terminal document's ten. The
+# bounds match ``build_interim_overview``'s own render caps exactly: this
+# firing is never asked to write a title or question the next cycle will
+# not see.
+RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS: Final = 4
+RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS: Final = 5
+
+RESEARCH_OVERVIEW_INTERIM_SCHEMA: dict[str, Any] = {
+    "name": "research_overview_interim",
+    "schema": obj(
+        {
+            "overview": obj(
+                {
+                    "research_directions": {
+                        "type": "array",
+                        "maxItems": RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS,
+                        "items": obj({"title": {"type": "string"}}),
+                    },
+                }
+            ),
+            "open_questions": {
+                **str_array(
+                    "The most important unanswered questions this run's"
+                    " progress so far leaves open, each a specific"
+                    " testable question -- not a restatement of the"
+                    " research goal."
+                ),
+                "maxItems": RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS,
+            },
+        }
+    ),
+}
+"""Nested the same way ``RESEARCH_OVERVIEW_SCHEMA`` is (``overview.
+research_directions``, top-level ``open_questions``) so
+``build_interim_overview`` parses either response identically -- an
+interim firing is just a response with everything else stripped out of
+the ask.
+"""
+
 # Research-overview review schema
 # Shapes the "research_overview_review" prompt output, consumed by
 # agents/meta_review/research_overview_review.py. A verdict over the

@@ -16,7 +16,12 @@ import pytest
 
 from co_scientist.agents.generation import coordinator
 from co_scientist.agents.meta_review import research_overview as ro
+from co_scientist.constants import (
+    RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
+    RESEARCH_OVERVIEW_MAX_TOKENS,
+)
 from co_scientist.scheduling import TaskType
+from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 from tests._state import make_article, make_hypothesis, make_state
 
 _RESPONSE: dict[str, Any] = {
@@ -80,6 +85,85 @@ async def test_a_periodic_firing_buys_neither_extra(
     assert fake.await_count == 1
     assert review.await_count == 0
     assert deep.await_count == 0
+
+
+async def test_a_periodic_firing_asks_only_for_directions_and_questions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The interim call's own schema, not the terminal document's ten.
+
+    Before this schema existed every periodic firing still paid for the
+    NIH Specific Aims page, the contacts and the knowledge base at the
+    terminal call's own generation cost, and discarded all of it --
+    ``build_interim_overview`` only ever reads direction titles and open
+    questions back out.
+    """
+    fake = AsyncMock(return_value=_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    await ro.research_overview_node(_state(next_task=TaskType.SYNTHESIZE.value))
+
+    assert fake.await_args is not None
+    schema = fake.await_args.kwargs["spec"].json_schema
+    assert schema is not None
+    properties = schema["schema"]["properties"]
+    assert set(properties) == {"overview", "open_questions"}
+    assert set(properties["overview"]["properties"]) == {"research_directions"}
+    direction_item = properties["overview"]["properties"][
+        "research_directions"
+    ]["items"]
+    assert set(direction_item["properties"]) == {"title"}
+    assert "nih_specific_aims" not in properties
+    assert "research_contacts" not in properties
+    assert "knowledge_base" not in properties
+
+
+def test_the_interim_schema_is_a_strict_subset_of_the_terminal_one() -> None:
+    """Direction titles and open questions only -- named once, reused.
+
+    ``RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS``/``_MAX_QUESTIONS`` are the
+    same constants ``interim_overview.build_interim_overview`` renders
+    from, so this call is never asked to write a title or question the
+    next generate cycle will not see.
+    """
+    from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_INTERIM_SCHEMA
+
+    terminal_top = set(RESEARCH_OVERVIEW_SCHEMA["schema"]["properties"])
+    interim_top = set(RESEARCH_OVERVIEW_INTERIM_SCHEMA["schema"]["properties"])
+    assert interim_top < terminal_top
+
+    terminal_overview = set(
+        RESEARCH_OVERVIEW_SCHEMA["schema"]["properties"]["overview"][
+            "properties"
+        ]
+    )
+    interim_overview_props = set(
+        RESEARCH_OVERVIEW_INTERIM_SCHEMA["schema"]["properties"]["overview"][
+            "properties"
+        ]
+    )
+    assert interim_overview_props < terminal_overview
+
+
+async def test_a_periodic_firing_is_budgeted_below_the_terminal_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tiny ask does not need the terminal document's base budget.
+
+    Whether this actually lowers the deployed chain's *effective*
+    ceiling depends on whether the model thinks -- see
+    ``RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS``'s own docstring -- but the
+    base budget passed to the call is smaller either way.
+    """
+    fake = AsyncMock(return_value=_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    await ro.research_overview_node(_state(next_task=TaskType.SYNTHESIZE.value))
+
+    assert fake.await_args is not None
+    spec = fake.await_args.kwargs["spec"]
+    assert spec.max_tokens == RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
+    assert spec.max_tokens < RESEARCH_OVERVIEW_MAX_TOKENS
 
 
 async def test_the_terminal_firing_is_unchanged(

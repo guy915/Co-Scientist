@@ -117,6 +117,46 @@ def get_research_overview_prompt(
     )
 
 
+# Renders prompts/research_overview_interim.md for a periodic (non-
+# terminal) firing of agents/meta_review/research_overview.py (FIX-6).
+# Asks for direction titles and open questions alone -- everything
+# interim_overview.build_interim_overview reads back out -- rather than
+# the ten-section terminal document above; no contact_candidates, since
+# an interim firing never asks for research_contacts.
+def get_research_overview_interim_prompt(
+    research_goal: str,
+    hypotheses_summary: str,
+    evidence_corpus: str = "No verified evidence corpus available.",
+    context: PromptRunContext | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the interim research-overview prompt and its lean schema.
+
+    Args:
+        research_goal: The run's research goal.
+        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
+        evidence_corpus: Analyzed sources, pre-formatted.
+        context: Run-scoped prompt context (meta-review, tool registry,
+            run setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
+    return _build_prompt(
+        "research_overview_interim",
+        {
+            "research_goal": research_goal,
+            "hypotheses_summary": hypotheses_summary,
+            "evidence_corpus": evidence_corpus,
+        },
+        sections=PromptSections(
+            meta_review_context=_format_meta_review_context(ctx.meta_review),
+            run_guidance=_run_guidance_section(ctx),
+        ),
+        tool_registry=ctx.tool_registry,
+    )
+
+
 @dataclass(frozen=True)
 class OverviewReviewMaterial:
     """Run material the overview reviewer and reviser both check against.

@@ -127,6 +127,32 @@ call they replace would have had to write all six inside one stream --
 than one when it did not land.
 """
 
+RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS: Final = 6000
+"""Answer budget for a periodic (non-terminal) research-overview firing.
+
+Unlike the terminal call, an interim firing's schema
+(``RESEARCH_OVERVIEW_INTERIM_SCHEMA``) asks for nothing but a handful of
+direction titles and open questions -- no summary, no NIH Specific Aims
+page, no contacts, no knowledge base -- because
+``interim_overview.build_interim_overview`` reads only those two fields
+back out. Before that schema existed, every interim firing still paid
+``RESEARCH_OVERVIEW_MAX_TOKENS``'s generation cost for the full
+ten-section document and discarded eight of the ten sections unread.
+
+A base, not a cap, for the same reason as the knowledge-base outline
+budget above: ``_apply_thinking_args`` replaces it with
+``THINKING_FLOOR_MAX_TOKENS`` (18000) on a thinking model, so the
+deployed chain's effective ceiling only drops from 24000 to 18000, not
+to 6000, and the chain of thought below that floor is unbounded exactly
+as it is on every other call -- this budget does not shrink or bound
+it. What actually shrinks is the *answer*: four titles and five
+questions cost a few hundred tokens, an order of magnitude below what
+the terminal document's ten sections ask for, so a non-thinking
+provider (where 6000 is the operative ceiling) answers well inside it,
+and a thinking provider spends the same floor-funded reasoning as
+before but writes a far smaller response once it finishes.
+"""
+
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses.
 
