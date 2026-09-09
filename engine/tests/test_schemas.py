@@ -1,3 +1,5 @@
+import json
+
 from co_scientist import constants
 from co_scientist.schemas import get_schema_for_prompt
 from co_scientist.schemas.generation import (
@@ -7,7 +9,9 @@ from co_scientist.schemas.generation import (
 )
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
+    FEASIBILITY_STEPS_MAX_ITEMS,
     FULL_REVIEW_SCHEMA,
+    PER_AXIS_REVIEW_PARTS,
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
     REVIEWS_SUMMARY_PARTS,
@@ -288,12 +292,51 @@ def test_reviews_summary_carries_the_published_eight_parts() -> None:
     node = FULL_REVIEW_SCHEMA["schema"]["properties"]["reviews_summary"]
     assert list(node["properties"]) == list(REVIEWS_SUMMARY_PARTS)
     assert node["required"] == list(REVIEWS_SUMMARY_PARTS)
-    # Declared but not required at the top level, the same precedent the
-    # Go/No-Go pair set: ``full_review.md`` does not name this block in
-    # its numbered instructions, and requiring a field the prompt never
-    # asks for rejects a prompt-faithful answer outright.
-    assert "reviews_summary" in FULL_REVIEW_SCHEMA["schema"]["properties"]
-    assert "reviews_summary" not in FULL_REVIEW_SCHEMA["schema"]["required"]
+
+
+def test_reviews_summary_is_required_on_the_full_review() -> None:
+    """Optional and unnamed by the prompt, nothing ever asked for it.
+
+    A field the prompt does not mention and the schema does not require
+    is a declaration, not an output. The argument is structural: no local
+    store holds a provider-backed full review produced after the block
+    shipped, so its fill rate was never measured either way. Required
+    here, and named by ``full_review.md``'s own numbered instructions,
+    which is the pairing that makes requiring it safe (see
+    ``test_full_review_prompt_names_every_required_field``).
+    """
+    assert "reviews_summary" in FULL_REVIEW_SCHEMA["schema"]["required"]
+
+
+def test_per_axis_sub_structure_stays_off_the_batch_review_schema() -> None:
+    """R14-17's per-axis parts live on the full review and nowhere else.
+
+    ``REVIEW_SCHEMA`` and ``REVIEW_BATCH_SCHEMA`` share
+    ``_SCORES_SCHEMA``/``_DETAILED_FEEDBACK_SCHEMA`` by identity, and the
+    batch call reviews the whole pool in one turn -- so a field added
+    there costs its output tokens once per pool item, per review cycle.
+    The full review already runs once per mature hypothesis, so the same
+    content added here multiplies by nothing.
+    """
+    full = json.dumps(FULL_REVIEW_SCHEMA, sort_keys=True)
+    initial = json.dumps(REVIEW_SCHEMA, sort_keys=True)
+    batch = json.dumps(REVIEW_BATCH_SCHEMA, sort_keys=True)
+    for part in PER_AXIS_REVIEW_PARTS:
+        assert part in full, part
+        assert part not in initial, part
+        assert part not in batch, part
+
+
+def test_feasibility_steps_is_a_bounded_list() -> None:
+    """The published "Steps to Test the Idea" is a list, and model output.
+
+    A prose paragraph invites a raw newline inside a JSON string value,
+    which discards the whole response; an unbounded array lets a
+    json_object-downgrade answer inflate without limit.
+    """
+    node = FULL_REVIEW_SCHEMA["schema"]["properties"]["feasibility_steps"]
+    assert node["type"] == "array"
+    assert node["maxItems"] == FEASIBILITY_STEPS_MAX_ITEMS
 
 
 def test_reviews_summary_lists_are_arrays_not_prose() -> None:

@@ -14,7 +14,10 @@ fakes. Nothing here does -- the function is pure.
 
 from typing import Any
 
+import jsonschema
+
 from co_scientist.llm_json import _backfill_required_fields
+from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
 from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 
 
@@ -156,3 +159,31 @@ def test_backfill_ignores_non_dict_array_items() -> None:
     _backfill_required_fields(obj, _ARRAY_OF_OBJECTS_SCHEMA)
 
     assert obj == {"items": ["not a dict", 42]}
+
+
+def test_backfill_rescues_a_full_review_missing_reviews_summary() -> None:
+    """A required nested block a downgraded answer omits still validates.
+
+    ``reviews_summary`` became required on ``FULL_REVIEW_SCHEMA`` so it
+    would actually be filled -- but production's primary runs json_object
+    mode, where nothing enforces the schema. Were the back-fill unable to
+    reach a required *nested* object's own required children, a model
+    that skipped the block would fail validation on every attempt and the
+    whole review would be lost: a regression, not a fidelity gain.
+    """
+    schema = FULL_REVIEW_SCHEMA["schema"]
+    answer: dict[str, Any] = {
+        "correctness": "Internally consistent.",
+        "assumptions": [],
+        "quality_and_novelty": "A non-obvious combination.",
+        "literature_grounding": "Two cohort studies agree.",
+        "verdict": "sound",
+        "justification": "Worth a pilot.",
+    }
+
+    _backfill_required_fields(answer, schema)
+
+    jsonschema.validate(instance=answer, schema=schema)
+    assert answer["reviews_summary"]["critical_flaws"] == []
+    assert answer["reviews_summary"]["executive_verdict"] == ""
+    assert answer["feasibility_steps"] == []

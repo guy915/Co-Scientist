@@ -255,6 +255,7 @@ def _render_hypothesis_verdict(reviews: list[dict[str, Any]]) -> list[str]:
 
 def _render_hypothesis_review_surface(
     reviews: list[dict[str, Any]],
+    references: list[tuple[str, dict[str, Any]]],
 ) -> list[str]:
     """Render this hypothesis's review-derived blocks, in published order.
 
@@ -272,11 +273,19 @@ def _render_hypothesis_review_surface(
     coverage differs. The simulation review is this system's own analogue
     of the published flaw list (R14-22) and keeps its place ahead of deep
     verification.
+
+    Args:
+        reviews: Every persisted review row for this hypothesis.
+        references: The same (citation key, evidence row) pairs the
+            entry's References section prints from, reused for the
+            per-axis Related Article Abstracts lists (R14-17) -- the one
+            published sub-part that must be attached rather than asked
+            of a model, since it echoes the review prompt's own input.
     """
     lines: list[str] = []
     lines += _render_reviews_summary(reviews)
     lines += _render_hypothesis_verdict(reviews)
-    lines += _render_hypothesis_reviews(reviews)
+    lines += _render_hypothesis_reviews(reviews, references)
     lines += _render_hypothesis_simulation_review(reviews)
     lines += _render_deep_verification(reviews)
     return lines
@@ -333,7 +342,7 @@ def _render_hypothesis_entry(
     # here rather than reordered on that ambiguous evidence.
     lines += _render_references_markdown(references)
     lines += _render_hypothesis_safety(hyp)
-    lines += _render_hypothesis_review_surface(reviews)
+    lines += _render_hypothesis_review_surface(reviews, references)
     # Claim evidence stays last, as our own extension beyond the
     # published review-side subsections above.
     lines += _render_claim_evidence(edges)

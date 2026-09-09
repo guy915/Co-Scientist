@@ -1,5 +1,7 @@
 """The six Reflection review types (SSR §4) are enumerated and dispatchable."""
 
+import pathlib
+
 import jsonschema
 
 from co_scientist.agents.reflection.review_types import (
@@ -8,6 +10,7 @@ from co_scientist.agents.reflection.review_types import (
     schema_for,
 )
 from co_scientist.prompts.loading import load_prompt_with_schema
+from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
 
 # The paper's six review types (SSR §4).
 _EXPECTED = {
@@ -118,10 +121,75 @@ def test_full_review_answer_from_the_prompt_validates() -> None:
         ],
         "quality_and_novelty": "A non-obvious combination.",
         "literature_grounding": "Two cohort studies report the association.",
+        "comparison_with_knowledge_base": "Agrees with the canonical model.",
+        "goal_requirements_assessment": "Meets every stated requirement.",
+        "feasibility_steps": ["Run the pilot cohort.", "Read out at day 30."],
+        "feasibility_reasoning": "Both steps use standard assays.",
+        "impact_assessment": "Would change first-line practice.",
+        "reviews_summary": {
+            "executive_verdict": "The hypothesis stands, with one caveat.",
+            "critical_flaws": ["The dose assumption is unsupported."],
+            "addressed_objections": ["Off-target binding is ruled out."],
+            "validated_risks": ["The effect may be strain-specific."],
+            "supporting_arguments": ["Two cohorts show the association."],
+            "alignment_and_novelty": ["Squarely on the research goal."],
+            "feasibility_assessment": ["A pilot settles it in six weeks."],
+            "conclusion": "Worth a pilot once the dose is pinned down.",
+        },
         "verdict": "needs_revision",
         "justification": "The dose assumption is unsupported.",
     }
     jsonschema.validate(instance=answer, schema=schema["schema"])
+
+
+def test_full_review_prompt_names_every_required_field() -> None:
+    """A required field the prompt never mentions is never filled.
+
+    ``reviews_summary`` was declared, optional, and unnamed by
+    ``full_review.md``, so nothing ever asked a model for it. Requiring
+    it fixes nothing on its own -- on a provider that enforces the
+    schema, a field the prompt never asks for makes a prompt-faithful
+    answer fail validation and buys the same review a second time.
+    Required and named are one change, and this pins them together for
+    every required field the schema declares.
+    """
+    schema = schema_for(ReviewType.FULL)
+    assert schema is not None
+    template = load_prompt_with_schema(
+        "full_review",
+        {
+            "research_goal": "A goal",
+            "hypothesis_text": "A hypothesis.",
+            "domain_context": "",
+            "tool_instructions": "",
+        },
+    )[0]
+    unnamed = [
+        field
+        for field in schema["schema"]["required"]
+        if f"`{field}`" not in template
+    ]
+    assert not unnamed, f"full_review.md does not name {unnamed}"
+
+
+def test_full_review_prompt_names_every_reviews_summary_part() -> None:
+    """The eight published parts are asked for by name, not by schema alone.
+
+    ``reviews_summary`` is a closed object whose parts appeared nowhere
+    but the schema block appended to the prompt -- the same shape that
+    made the ranking judge invent a key of its own.
+    """
+    node = FULL_REVIEW_SCHEMA["schema"]["properties"]["reviews_summary"]
+    template = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "src"
+        / "co_scientist"
+        / "prompts"
+        / "templates"
+        / "full_review.md"
+    ).read_text()
+    for part in node["properties"]:
+        assert f"`{part}`" in template, part
 
 
 def test_recurrent_review_adapts_full_review() -> None:

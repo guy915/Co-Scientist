@@ -169,10 +169,55 @@ def test_mature_review_detail_carries_the_eight_part_reviews_summary() -> None:
 
 
 def test_mature_review_detail_omits_an_absent_reviews_summary() -> None:
-    """The block is optional on the schema; an absent one adds no key."""
+    """A review that answered no part of it adds no key.
+
+    Required on the schema now, but a json_object-downgrade answer
+    reaches the drain back-filled with empty parts, and an empty scaffold
+    in the column reads as "this review had a summary and it said
+    nothing" rather than as "this review has none".
+    """
     detail = _mature_review_detail({"correctness": "Holds."})
 
     assert "reviews_summary" not in detail
+
+
+def test_mature_review_detail_carries_the_per_axis_sub_parts() -> None:
+    """R14-17: the five published sub-parts, drained beside the prose.
+
+    Same call, same row, no extra plumbing: the full review's whole raw
+    response already reaches the drain, so these travel exactly as
+    ``correctness`` and ``literature_grounding`` always have.
+    """
+    detail = _mature_review_detail(
+        {
+            "comparison_with_knowledge_base": "Agrees with the canon.",
+            "goal_requirements_assessment": "Meets every requirement.",
+            "feasibility_steps": ["Run the pilot.", "Read out at day 30."],
+            "feasibility_reasoning": "Both steps use standard assays.",
+            "impact_assessment": "Would change first-line practice.",
+        }
+    )
+
+    assert detail["comparison_with_knowledge_base"] == "Agrees with the canon."
+    assert detail["goal_requirements_assessment"] == "Meets every requirement."
+    assert detail["feasibility_steps"] == [
+        "Run the pilot.",
+        "Read out at day 30.",
+    ]
+    assert detail["feasibility_reasoning"] == "Both steps use standard assays."
+    assert detail["impact_assessment"] == "Would change first-line practice."
+
+
+def test_mature_review_detail_omits_absent_per_axis_sub_parts() -> None:
+    """A resumed run's old-shaped review carries none of them.
+
+    And crashes on none of them: every field is read with ``get`` and
+    dropped when it is empty, so a review written before these existed
+    drains exactly as it always did.
+    """
+    detail = _mature_review_detail({"correctness": "Holds."})
+
+    assert detail == {"correctness": "Holds."}
 
 
 def test_deep_verification_detail_carries_the_published_probe_triple() -> None:

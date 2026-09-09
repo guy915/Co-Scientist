@@ -284,6 +284,33 @@ def _assumption_detail(item: Any) -> dict[str, str] | None:
     }
 
 
+# The full review's prose fields, in the order the report's per-axis
+# appendix reads them. The first four are the review's own paragraphs;
+# the last four are the published per-axis sub-parts (R14-17) that had no
+# field here until the axis sub-structure was built, and they arrive from
+# the same full-review call as the rest, so they cost no extra request
+# and need no plumbing of their own.
+_MATURE_PROSE_FIELDS: tuple[str, ...] = (
+    "correctness",
+    "quality_and_novelty",
+    "literature_grounding",
+    "justification",
+    "comparison_with_knowledge_base",
+    "goal_requirements_assessment",
+    "feasibility_reasoning",
+    "impact_assessment",
+)
+
+
+def _mature_prose_fields(review: dict[str, Any]) -> dict[str, str]:
+    """The full review's non-empty prose fields, each bounded."""
+    return {
+        name: text
+        for name in _MATURE_PROSE_FIELDS
+        if (text := _clip_detail(review.get(name), _MAX_PROSE_CHARS))
+    }
+
+
 def _mature_review_detail(review: dict[str, Any]) -> dict[str, Any]:
     """The full/recurrent review's structured display detail.
 
@@ -294,14 +321,9 @@ def _mature_review_detail(review: dict[str, Any]) -> dict[str, Any]:
     ``verdict``/``justification`` off the engine result, never this row.
     """
     detail: dict[str, Any] = _verdict_detail(review)
-    for name in (
-        "correctness",
-        "quality_and_novelty",
-        "literature_grounding",
-        "justification",
-    ):
-        if text := _clip_detail(review.get(name), _MAX_PROSE_CHARS):
-            detail[name] = text
+    detail.update(_mature_prose_fields(review))
+    if steps := _bounded_list(review.get("feasibility_steps")):
+        detail["feasibility_steps"] = steps
     raw = review.get("assumptions")
     assumptions = [
         parsed

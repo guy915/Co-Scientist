@@ -76,6 +76,11 @@ def _full_row() -> dict[str, Any]:
             "quality_and_novelty": "A genuine contribution.",
             "literature_grounding": "Two cohort studies agree.",
             "justification": "Worth a pilot.",
+            "comparison_with_knowledge_base": "Agrees with the canon.",
+            "goal_requirements_assessment": "Meets every requirement.",
+            "feasibility_steps": ["Run the pilot.", "Read out at day 30."],
+            "feasibility_reasoning": "Both steps use standard assays.",
+            "impact_assessment": "Would change first-line practice.",
             "assumptions": [
                 {
                     "assumption": "The receptor is expressed.",
@@ -85,6 +90,127 @@ def _full_row() -> dict[str, Any]:
             ],
         },
     )
+
+
+def _references() -> list[tuple[str, dict[str, Any]]]:
+    """One hypothesis's resolvable citation index, as the entry builds it."""
+    return [
+        (
+            "C1",
+            {
+                "title": "Hexameric resistosome assembly",
+                "authors": ["Madhuprakash"],
+                "year": 2024,
+                "abstract": "Direct evidence for a hexameric helper NLR.",
+            },
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Per-axis sub-structure (R14-17)
+# ---------------------------------------------------------------------------
+
+
+def test_each_published_axis_carries_its_own_sub_structure() -> None:
+    """R14-17: four axes, four different fixed shapes, not one template.
+
+    Correctness is the richest (Comparison with Knowledge Base and Goal
+    Requirement Assessment were the two published parts nothing here had
+    a field for); Feasibility is the leanest at three; Impact potential
+    closes on its own assessment.
+    """
+    text = "\n".join(_render_hypothesis_reviews([_initial_row(), _full_row()]))
+
+    assert "**Comparison with Knowledge Base**" in text
+    assert "**Goal Requirement Assessment**" in text
+    assert "**Steps to Test the Idea**" in text
+    assert "1. Run the pilot." in text
+    assert "**Reasoning about Feasibility**" in text
+    assert "**Overall Impact Potential**" in text
+
+
+def test_correctness_sub_parts_render_in_the_published_order() -> None:
+    """The published Correctness axis's own eight-part order."""
+    text = "\n".join(
+        _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
+    )
+
+    order = [
+        text.index("**Related Article Abstracts**"),
+        text.index("**Detailed Assumptions**"),
+        text.index("**Comparison with Knowledge Base**"),
+        text.index("**Reasoning about Correctness**"),
+        text.index("**Strength of Evidence**"),
+        text.index("**Suggested Improvements**"),
+        text.index("**Goal Requirement Assessment**"),
+        text.index("**Final Reasoning and Recommendation**"),
+    ]
+    assert order == sorted(order)
+
+
+def test_related_article_abstracts_come_from_the_citations_not_the_model() -> (
+    None
+):
+    """The one published sub-part a schema must never ask a model for.
+
+    It is a literal echo of the articles the review prompt supplied, and
+    an echoing schema scales its response with its input and truncates
+    identically on every retry. The renderer joins it back from the same
+    citation index the entry's References section prints from, so it
+    costs nothing and cannot be hallucinated.
+    """
+    text = "\n".join(
+        _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
+    )
+
+    assert "- **[C1]** Madhuprakash et al., 2024 — Hexameric" in text
+    assert "Direct evidence for a hexameric helper NLR." in text
+
+
+def test_only_correctness_prints_the_abstracts_in_full() -> None:
+    """The leaner axes print titles, as 5 of the 19 published files do.
+
+    The same abstract repeated under all four axes would quadruple the
+    longest block in the entry and tell a reader nothing new.
+    """
+    text = "\n".join(
+        _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
+    )
+
+    assert text.count("**Related Article Abstracts**") == 1
+    assert text.count("**Related Article Abstract Titles**") == 3
+    assert text.count("Direct evidence for a hexameric helper NLR.") == 1
+
+
+def test_an_old_shaped_review_renders_exactly_what_it_always_did() -> None:
+    """A resumed run's review predates every field added here.
+
+    None of the new sub-parts has a value, so none prints a heading --
+    the omit-rather-than-empty convention (R14-23) applied to a shape
+    change rather than to an unanswered field.
+    """
+    old_row = _row(
+        "full_review",
+        {
+            "correctness": "The logic holds throughout.",
+            "quality_and_novelty": "A genuine contribution.",
+            "literature_grounding": "Two cohort studies agree.",
+            "justification": "Worth a pilot.",
+        },
+    )
+    text = "\n".join(_render_hypothesis_reviews([_initial_row(), old_row]))
+
+    for heading in (
+        "Related Article",
+        "Comparison with Knowledge Base",
+        "Goal Requirement Assessment",
+        "Steps to Test the Idea",
+        "Reasoning about Feasibility",
+        "Overall Impact Potential",
+    ):
+        assert heading not in text
+    assert "**Reasoning about Correctness**" in text
 
 
 # ---------------------------------------------------------------------------

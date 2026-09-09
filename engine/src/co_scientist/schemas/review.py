@@ -19,7 +19,13 @@ from co_scientist.schemas.review_full import (
     ASSUMPTION_SUPPORT_VALUES as ASSUMPTION_SUPPORT_VALUES,
 )
 from co_scientist.schemas.review_full import (
+    FEASIBILITY_STEPS_MAX_ITEMS as FEASIBILITY_STEPS_MAX_ITEMS,
+)
+from co_scientist.schemas.review_full import (
     FULL_REVIEW_SCHEMA as FULL_REVIEW_SCHEMA,
+)
+from co_scientist.schemas.review_full import (
+    PER_AXIS_REVIEW_PARTS as PER_AXIS_REVIEW_PARTS,
 )
 from co_scientist.schemas.review_full import (
     REVIEWS_SUMMARY_MAX_ITEMS as REVIEWS_SUMMARY_MAX_ITEMS,

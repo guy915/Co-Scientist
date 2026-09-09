@@ -128,6 +128,87 @@ REVIEWS_SUMMARY_SCHEMA: dict[str, Any] = obj(
 )
 
 
+# R14-17 (15/19 published files): each axis of the published
+# ``All reviews:`` appendix carries its own fixed sub-schema rather than
+# one shared score+feedback template. Counted across the 19 published
+# hypothesis documents, the sub-headings that recur are Correctness's
+# Related Article Abstracts (11), Detailed Assumptions (14), Comparison
+# with Knowledge Base (10), Strength of Evidence (14), Suggested
+# Improvements (14) and Goal Requirement(s) Assessment (12); Feasibility's
+# Steps to Test the Idea (13) and its reasoning paragraph (13); and Impact
+# potential's Overall Impact Potential (13).
+#
+# Five of those had no field anywhere in this codebase. They are declared
+# HERE, on the full review, and nowhere else -- deliberately not on
+# ``REVIEW_SCHEMA``'s ``_SCORES_SCHEMA``/``_DETAILED_FEEDBACK_SCHEMA``,
+# which ``REVIEW_BATCH_SCHEMA`` shares *by identity*: growth there
+# multiplies by pool size on the one call that reviews the whole pool in
+# a single turn (+6660 output tokens for 15 hypotheses at the maximal
+# shape). The full review already runs once per mature hypothesis, so the
+# same content costs the same call it always did and nothing new
+# multiplies. ``test_schemas.py::
+# test_per_axis_sub_structure_stays_off_the_batch_review_schema`` is the
+# guard that keeps it that way.
+#
+# The published Correctness axis's own "Related Article Abstracts" part is
+# absent on purpose and cannot be added here: it is a literal echo of the
+# articles the prompt already supplied, and a structured-output schema
+# that echoes its input scales the response with the input and truncates
+# identically on every retry (the trap ``proximity_dedup`` hit). The
+# renderer attaches it instead, from the citation/evidence rows the
+# hypothesis already carries (``report_markdown_review_axes``).
+PER_AXIS_REVIEW_PARTS: tuple[str, ...] = (
+    "comparison_with_knowledge_base",
+    "goal_requirements_assessment",
+    "feasibility_steps",
+    "feasibility_reasoning",
+    "impact_assessment",
+)
+
+# Bounds the published "Steps to Test the Idea" list (model output, so
+# bounded in the schema itself). The published exemplars print three to
+# five numbered steps.
+FEASIBILITY_STEPS_MAX_ITEMS = 5
+
+_PER_AXIS_REVIEW_SCHEMA: dict[str, Any] = {
+    "comparison_with_knowledge_base": {
+        "type": "string",
+        "description": (
+            "How the hypothesis sits against established knowledge in"
+            " the field: what it agrees with, what it contradicts."
+        ),
+    },
+    "goal_requirements_assessment": {
+        "type": "string",
+        "description": (
+            "Whether the hypothesis meets each requirement the research"
+            " goal states, naming any requirement it does not meet."
+        ),
+    },
+    "feasibility_steps": {
+        **str_array(
+            "The concrete steps that would test this hypothesis, each"
+            " entry one step, in the order they would be run."
+        ),
+        "maxItems": FEASIBILITY_STEPS_MAX_ITEMS,
+    },
+    "feasibility_reasoning": {
+        "type": "string",
+        "description": (
+            "Why those steps are or are not practical: the resources,"
+            " techniques and time a decisive result would take."
+        ),
+    },
+    "impact_assessment": {
+        "type": "string",
+        "description": (
+            "What changes in the field if the hypothesis holds, and how"
+            " much: the overall impact potential."
+        ),
+    },
+}
+
+
 # Full review (SSR §4): an in-depth correctness/quality/novelty review that
 # also surfaces the hypothesis's key assumptions, distinct from the quick
 # initial screen (REVIEW_SCHEMA).
@@ -175,6 +256,11 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
             },
             "quality_and_novelty": {"type": "string"},
             "literature_grounding": {"type": "string"},
+            # R14-17: the five published per-axis sub-parts this codebase
+            # had no field for. Declared on the full review only -- see
+            # PER_AXIS_REVIEW_PARTS above for why the batch review's
+            # shared sub-schemas are the wrong home.
+            **_PER_AXIS_REVIEW_SCHEMA,
             "verdict": {
                 "type": "string",
                 "enum": ["sound", "needs_revision", "rejected"],
@@ -211,14 +297,29 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
             },
         },
         optional=(
-            # Declared but not required, exactly as the Go/No-Go pair
-            # above: full_review.md's numbered instructions do not ask
-            # for this block (the schema appended to the prompt is what
-            # names it), and a closed object that *requires* a field the
-            # prompt never mentions rejects a prompt-faithful answer and
-            # buys the same review a second time -- the failure
-            # test_review_types.py exists to prevent.
-            "reviews_summary",
+            # Only the Go/No-Go pair stays optional: Google's own
+            # published files carry it in 8 of 19, so a review that omits
+            # it is not a malformed one.
+            #
+            # ``reviews_summary`` used to sit here for the same reason,
+            # and the reason turned out to be the defect: optional *and*
+            # unnamed by full_review.md, nothing ever asked for it. A
+            # field the prompt does not mention and the schema does not
+            # require is a declaration, not an output.
+            #
+            # That is a structural argument, not a measured one, and the
+            # distinction matters. No local store holds a provider-backed
+            # full review produced after the block shipped (2026-09-07
+            # 09:38 UTC): every local ``full_review`` row either predates
+            # the block and the drain that lifts it, or belongs to a
+            # curated demo fixture. The fill rate is therefore unmeasured
+            # -- do not read the local 0-of-36 as evidence about a model.
+            #
+            # Required now, and full_review.md names it and its eight
+            # parts, which is the pairing that makes a required field
+            # safe: requiring one the prompt never mentions rejects a
+            # prompt-faithful answer and buys the same review a second
+            # time (the failure test_review_types.py exists to prevent).
             "go_no_go_recommendation",
             "time_to_verdict",
         ),

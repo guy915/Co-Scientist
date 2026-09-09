@@ -31,6 +31,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.report_markdown_review_axes import (
+    Reference,
+    feasibility_extras,
+    impact_extras,
+    related_article_abstracts,
+    related_article_titles,
+)
+
 # R14-17: Google's published appendix names four axes, in this order.
 # This system scores eight; the four that map carry Google's own heading
 # (Correctness's second axis, ``plausibility``, has no prose feedback and
@@ -140,16 +148,26 @@ def _correctness_extras(
 ) -> list[str]:
     """Everything the published Correctness axis carries beyond its prose.
 
-    The published order inside this axis is Detailed Assumptions ->
+    R14-17's richest axis, in the order the published exemplars print
+    it: Detailed Assumptions -> Comparison with Knowledge Base ->
     Reasoning about Correctness -> Strength of Evidence -> Suggested
-    Improvements -> Final Reasoning and Recommendation, which is what the
-    fields below are laid out as.
+    Improvements -> Goal Requirement Assessment -> Final Reasoning and
+    Recommendation, under the Related Article Abstracts list
+    ``_axis_section`` attaches above them.
     """
     return [
         *_assumption_lines(mature),
+        *_prose(
+            "Comparison with Knowledge Base",
+            mature.get("comparison_with_knowledge_base"),
+        ),
         *_prose("Reasoning about Correctness", mature.get("correctness")),
         *_prose("Strength of Evidence", mature.get("literature_grounding")),
         *_prose("Suggested Improvements", initial.get("constructive_feedback")),
+        *_prose(
+            "Goal Requirement Assessment",
+            mature.get("goal_requirements_assessment"),
+        ),
         *_prose(
             "Final Reasoning and Recommendation", mature.get("justification")
         ),
@@ -172,33 +190,82 @@ def _novelty_extras(
     ]
 
 
-# Extra content one axis carries beyond its own prose feedback. Only the
-# two axes the published appendix elaborates appear; every other axis is
-# feedback plus its score, as published.
+def _feasibility_extras(
+    initial: dict[str, Any], mature: dict[str, Any]
+) -> list[str]:
+    """The published Feasibility axis's own two judged parts (R14-17)."""
+    del initial
+    return feasibility_extras(mature)
+
+
+def _impact_extras(
+    initial: dict[str, Any], mature: dict[str, Any]
+) -> list[str]:
+    """The published Impact potential axis's own closing assessment."""
+    del initial
+    return impact_extras(mature)
+
+
+# Extra content one axis carries beyond its own prose feedback. R14-17:
+# all four of Google's named axes carry their own sub-structure; the four
+# axes this system adds beyond that rubric are feedback plus their score,
+# since the published rubric names nothing for them.
 _AXIS_EXTRAS = {
     "scientific_soundness": _correctness_extras,
     "novelty": _novelty_extras,
+    "testability": _feasibility_extras,
+    "potential_impact": _impact_extras,
+}
+
+# The published per-axis article list, keyed by axis. Correctness prints
+# the abstracts themselves; the leaner axes print titles only, the form 5
+# of the 19 published files use -- the same abstract repeated under all
+# four axes would quadruple the longest block in the entry and tell a
+# reader nothing new. Sourced from the hypothesis's own citations, never
+# from the model (see ``report_markdown_review_axes``).
+_AXIS_ARTICLES = {
+    "scientific_soundness": related_article_abstracts,
+    "novelty": related_article_titles,
+    "testability": related_article_titles,
+    "potential_impact": related_article_titles,
 }
 
 
-def _axis_section(
-    axis: str, label: str, initial: dict[str, Any], mature: dict[str, Any]
+def _axis_findings(
+    axis: str, initial: dict[str, Any], mature: dict[str, Any]
 ) -> list[str]:
-    """One published review axis: its findings, then its own score line."""
+    """One axis's own judged content: its prose feedback, then its parts."""
     feedback = initial.get("detailed_feedback") or {}
-    body = [
-        *(
-            [str(feedback.get(axis)).strip(), ""]
-            if str(feedback.get(axis) or "").strip()
-            else []
-        ),
-        *(_AXIS_EXTRAS[axis](initial, mature) if axis in _AXIS_EXTRAS else []),
+    extras = _AXIS_EXTRAS.get(axis)
+    text = str(feedback.get(axis) or "").strip()
+    return [
+        *([text, ""] if text else []),
+        *(extras(initial, mature) if extras else []),
     ]
+
+
+def _axis_section(
+    axis: str,
+    label: str,
+    initial: dict[str, Any],
+    mature: dict[str, Any],
+    references: list[Reference],
+) -> list[str]:
+    """One published review axis: its findings, then its own score line.
+
+    The related-article list rides an axis that was actually judged: it
+    is context for a verdict, not a verdict, so an axis the review never
+    scored or commented on stays omitted rather than printing a heading
+    over a bibliography.
+    """
+    findings = _axis_findings(axis, initial, mature)
     score = (initial.get("scores") or {}).get(axis)
-    if not body and score is None:
+    if not findings and score is None:
         return []
+    articles = _AXIS_ARTICLES.get(axis)
     lines = [f"##### {label}", ""]
-    lines += body
+    lines += articles(references) if articles else []
+    lines += findings
     # The published axis closes on its own bolded rating (R14-18); an
     # unscored axis simply omits the line rather than printing a zero.
     if score is not None:
@@ -206,11 +273,18 @@ def _axis_section(
     return lines
 
 
-def _render_hypothesis_reviews(reviews: list[dict[str, Any]]) -> list[str]:
+def _render_hypothesis_reviews(
+    reviews: list[dict[str, Any]],
+    references: list[Reference] | None = None,
+) -> list[str]:
     """Render one hypothesis's ``Appendix:`` / ``All reviews:`` block (F1).
 
     Args:
         reviews: Every persisted review row for this hypothesis.
+        references: This hypothesis's resolvable (citation key, evidence
+            row) pairs, used for the published per-axis Related Article
+            Abstracts lists. Defaults to none, which renders the block
+            exactly as it did before those lists existed.
 
     Returns:
         The rendered lines, or nothing at all when this hypothesis
@@ -219,9 +293,10 @@ def _render_hypothesis_reviews(reviews: list[dict[str, Any]]) -> list[str]:
     """
     initial = _latest_detail(reviews, "review")
     mature = _mature_detail(reviews)
+    cited = list(references or [])
     body: list[str] = []
     for axis, label in _AXIS_SECTIONS:
-        body += _axis_section(axis, label, initial, mature)
+        body += _axis_section(axis, label, initial, mature, cited)
     if not body:
         return []
     return ["#### Appendix:", "", "**All reviews:**", "", *body]

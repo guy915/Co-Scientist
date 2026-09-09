@@ -225,12 +225,12 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 # are blocked upstream by a required field).
 _OPTIONAL_FIELD_HINTS: dict[str, tuple[str, ...]] = {
     "full_review": (
-        # R14-14: the published "Reviews summary" block. Optional for the
-        # same reason the two below are (full_review.md does not name it),
-        # and filled here for the same reason too -- left absent, the
-        # offline backend renders no Reviews summary at all and the e2e
-        # suite cannot see the section it is meant to pin.
-        "reviews_summary",
+        # ``reviews_summary`` used to be listed here. It is required on
+        # the schema now (full_review.md names it and its eight parts),
+        # so the generic filler fills it like any other required field
+        # and hinting it would only duplicate that -- the drift guard in
+        # test_offline_optional_fields.py pins this tuple to the
+        # schema's *optional* properties exactly.
         "go_no_go_recommendation",
         "time_to_verdict",
     ),

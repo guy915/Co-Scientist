@@ -169,6 +169,20 @@ from app.report_markdown_references import (
     references_by_hypothesis as references_by_hypothesis,
 )
 
+# R14-17's per-axis sub-structure and the citation-sourced Related
+# Article Abstracts lists, split off the block module to keep both within
+# the size cap; re-exported for the same reason as the block itself.
+from app.report_markdown_review_axes import (
+    feasibility_extras as feasibility_extras,
+)
+from app.report_markdown_review_axes import impact_extras as impact_extras
+from app.report_markdown_review_axes import (
+    related_article_abstracts as related_article_abstracts,
+)
+from app.report_markdown_review_axes import (
+    related_article_titles as related_article_titles,
+)
+
 # The per-idea review block (Reviews summary, All reviews, deep
 # verification -- R14-14/R14-17) lives in its own module to keep the
 # per-entry assembly module within the size cap; the names are
