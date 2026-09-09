@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=83, partial=27, missing=2, external=3, undisclosed=0.** Each
+**verified=89, partial=21, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -122,6 +122,7 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > (commit `69d10874`) -- meta-review runs once per evolve iteration, and a
 > nested taxonomy would multiply structured-output size on every one of
 > those calls. Recording only, no schema change. Row count 83->84.
+> (Closed 2026-09-09 — see the parity-closure note below.)
 
 > **Reclassification (2026-09-04).** The owner reversed the R14-11
 > two-document report split, by direct product-UI evidence (the published
@@ -145,6 +146,44 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > from a token measurement). `REVIEW-SUMMARY-STRUCTURE-001` moved from
 > `missing` to `partial`: the 8-part Reviews summary now exists, optional on
 > `FULL_REVIEW_SCHEMA` and unmeasured in production. Row count 108->114.
+> (Both `partial` rows closed 2026-09-09 — see the parity-closure note below.)
+
+
+> **Parity closure (2026-09-09).** Six rows moved from `partial` to
+> `verified`; no row was added or removed, so the row count is unchanged at
+> 115 and the snapshot above moves `verified=83, partial=27` to
+> `verified=89, partial=21`.
+>
+> - `PROX-PAIRWISE-001` (`24b93f16`) — similarity is now measured for every
+>   pair of the surviving pool, not only within an LLM-declared cluster, at
+>   zero extra provider calls; the 2026-09-07 floor-edge placeholder scheme
+>   (`_FLOOR_SIMILARITY`, `floor_edges`, a four-neighbour cap) is gone and
+>   storage is bounded by a similarity floor instead of by node degree.
+> - `REFLECT-DEEPVERIFY-ORDER-001` (`49d91169`) — deep verification now runs
+>   between the safety screen and the tournament, over every rankable
+>   hypothesis, once ever per idea. The `KEEP-2` cost objection was
+>   recomputed rather than overruled: the published listing verifies each
+>   hypothesis once, not once per cycle, which is +4 calls on express and
+>   +130 on ultra, each under 1.2% of the tier's ceiling.
+> - `META-CRITIQUE-TAXONOMY-001` (`351d1f6a`) — `recurring_themes[]` now
+>   nests `sub_themes[].points[]`, capped at the published artifact's own
+>   maxima, and the report renders all three levels.
+> - `REVIEW-SUMMARY-STRUCTURE-001` and `REVIEW-AXIS-STRUCTURE-001`
+>   (`8c71f9ca`) — the 8-part `Reviews summary` is now required by
+>   `FULL_REVIEW_SCHEMA` *and* named by the prompt that fills it, and each
+>   published axis carries its own sub-structure. Both sit on the full
+>   review alone, which runs once per mature hypothesis, so neither grows
+>   `REVIEW_BATCH_SCHEMA`, whose cost multiplies by pool size; `REVIEW_SCHEMA`
+>   and `REVIEW_BATCH_SCHEMA` are byte-identical either side of the change.
+> - `OVERVIEW-DIRECTION-COUNT-001` (`6e77befa`) — the overview now names and
+>   argues six directions in the draft and develops each to the exemplar's
+>   depth on its own concurrent call, so six directions no longer have to
+>   fit one 24000-token ceiling shared with the chain of thought.
+>
+> Two neighbouring `verified` rows were re-worded rather than re-statused:
+> `REFLECT-TYPES-001` and `REPORT-DEEP-VERIFY-PROBES-001` described deep
+> verification as a post-ranking top-K node, and `REPORT-ALL-REVIEWS-001`
+> described the per-axis sub-schemas as deliberately unbuilt.
 
 ---
 

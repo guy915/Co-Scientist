@@ -142,7 +142,12 @@ These features are described in the published material but are not implemented h
     embedding search. On a deterministic offline run that call is answered by
     the offline LLM backend's schema-filling response (seeded per call, not a
     fixed constant id) rather than by the retired mock's dedicated clustering
-    strategy.
+    strategy. Since 2026-09-09 the graph nonetheless carries a similarity for
+    *every* pair of the surviving pool: pairs the clustering call did not judge
+    are measured by `agents/proximity/proximity_similarity.py::pair_similarity`,
+    the symmetric Dice form of the same token-coverage metric the evolution
+    duplicate guard uses. That is lexical overlap, still not an embedding — a
+    judged edge wins wherever one exists, and each edge names its own `method`.
 
 ## Offline Mode disclosure
 

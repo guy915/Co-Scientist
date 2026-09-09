@@ -49,18 +49,18 @@ This is the core of the system. A linear **first pass** feeds a conditional **it
 
 ```
 supervisor → literature_review → generate → reflection → review
-  → comprehensive_reflection → safety_screen → ranking → deep_verification
+  → comprehensive_reflection → safety_screen → deep_verification → ranking
 ```
 
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
 - **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`generator/graph.py::_add_review_and_ranking_edges`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
-- **Deep Verification** runs *after* Ranking, probing the top-3 by Elo (`agents/reflection/deep_verification.py`). It is not a separate tournament round.
+- **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/verification_freshness.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
 
 ```
-meta_review → evolve → review → ranking → deep_verification → orchestrator → (next task | research_overview)
+meta_review → evolve → review → deep_verification → ranking → orchestrator → (next task | research_overview)
 ```
 
 - **Meta-Review** synthesizes all reviews into strategic insights; uses `supervisor_model_name` (`agents/meta_review/meta_review.py`).
@@ -79,9 +79,9 @@ Loop continuation is decided by a dedicated **orchestrator node** (`agents/super
 ```mermaid
 flowchart TD
   SUP["supervisor"] --> LR["literature_review"] --> GEN["generate"] --> REF["reflection"] --> REV["review"]
-  REV --> CR["comprehensive_reflection"] --> SS["safety_screen"] --> RK["ranking"]
-  RK --> DV["deep_verification"]
-  DV --> ORCH{"orchestrator<br/><i>agents/supervisor/orchestrator.py</i>"}
+  REV --> CR["comprehensive_reflection"] --> SS["safety_screen"] --> DV["deep_verification"]
+  DV --> RK["ranking"]
+  RK --> ORCH{"orchestrator<br/><i>agents/supervisor/orchestrator.py</i>"}
   PROX["proximity"] --> ORCH
 
   ORCH -->|generate| GEN
@@ -103,7 +103,7 @@ flowchart TD
 
 Key facts:
 
-- Wiring lives in `generator/graph.py`: every work phase converges on `review → comprehensive_reflection → safety_screen → ranking → deep_verification → orchestrator`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `_TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
+- Wiring lives in `generator/graph.py`: every work phase converges on `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` — deep verification precedes tournament entry, mirroring `03-reflection.md`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `_TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
 - `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
@@ -114,12 +114,12 @@ Key facts:
 
 ## 5. WorkflowState & data flow
 
-State is a `TypedDict` (`state.py:214`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Four fields carry a reducer that runs on **every** write — three engine-owned, one LangGraph built-in — and the rest overwrite. The table below is authoritative.
+State is a `TypedDict` (`state.py:45`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Four fields carry a reducer that runs on **every** write — three engine-owned, one LangGraph built-in — and the rest overwrite. The table below is authoritative.
 
 | Field(s) | Reducer | Why |
 | --- | --- | --- |
-| `hypotheses` | `deduplicate_hypotheses` (`state.py:129`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
-| `tournament_matchups` | `accumulate_matchups` (`state.py:163`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
+| `hypotheses` | `deduplicate_hypotheses` (`state_reducers.py:212`, re-exported from `state.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
+| `tournament_matchups` | `accumulate_matchups` (`state_reducers.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
 | `metrics` | `merge_metrics` (`models_metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models_metrics.py:214`, re-exported from `models.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
 | `messages` | `add_messages` (LangGraph) | Phase messages append rather than overwrite. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `evolution_details`, `current_iteration`, etc. |
@@ -140,9 +140,9 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `reflection` | `reflection.py:207` | `articles_with_reasoning`, `hypotheses` | `hypotheses` (+ `reflection_notes`, INDRA `enrichments`) | review |
 | `review` | `review.py:278` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | comprehensive_reflection |
 | `comprehensive_reflection` | `comprehensive_reflection.py:476` | `hypotheses`, `articles_with_reasoning` | `hypotheses` (+ deeper structured critique) | safety_screen |
-| `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | ranking |
-| `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | deep_verification |
-| `deep_verification` | `deep_verification.py:317` | `hypotheses` (top-3 by Elo) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`) | orchestrator |
+| `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | deep_verification |
+| `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | orchestrator |
+| `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `verification_freshness`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
 | `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `_TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
 | `meta_review` | `meta_review.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:382` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (children appended to the pool), `evolution_details` | review (re-review) |
@@ -269,7 +269,7 @@ Canonical event timeline (see "Pipeline events" in [`docs/ARCHITECTURE.md`](ARCH
  5. scientific_task × N — one per durable node commit, carrying the node in
     payload.task and the node it scheduled next in payload.successor
     (supervisor → generate → review → comprehensive_reflection → safety_screen
-     → ranking → deep_verification → orchestrator → … → research_overview)
+     → deep_verification → ranking → orchestrator → … → research_overview)
  6. safety.hypothesis          7. citation.grounding       8. citation_audit
  9. safety.final              10. report (json + markdown) 11. status (completed)
 ```
