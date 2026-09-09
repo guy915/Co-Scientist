@@ -169,6 +169,45 @@ def scoped_telemetry(phase: str) -> Iterator[TelemetryAccumulator]:
         _current_phase.reset(phase_token)
 
 
+@contextlib.contextmanager
+def scoped_telemetry_phase(sub_phase: str) -> Iterator[None]:
+    """Attribute one span of a node's calls to a named sub-phase.
+
+    A node that makes several *kinds* of call folds them all into one
+    ``(phase, model)`` bucket, and that bucket is the only usage record a
+    production run leaves behind on the success path -- nothing logs a
+    single call's tokens unless it fails. So a node whose calls are
+    unequal (a large synthesis draft beside a small verdict, or beside a
+    wave of writing calls) cannot be sized from its own telemetry, which
+    is how the research-overview draft's budget ended up reasoned about
+    rather than measured.
+
+    Nesting ``scoped_telemetry`` does not fix that: it starts a *fresh*
+    accumulator, so the inner numbers never reach the outer snapshot that
+    ``task_runtime.execute_task_node`` folds into the node's metrics --
+    the sub-phase would be measurable only by a caller holding the inner
+    accumulator, and lost from the run. This relabels the phase and keeps
+    the same accumulator, so the sub-phase gets its own key *inside* the
+    node's own snapshot.
+
+    Safe under ``asyncio.gather``: each task runs on its own copy of the
+    context, so a sub-phase set inside one concurrent call does not leak
+    into its siblings.
+
+    Args:
+        sub_phase: The span's own name, appended to the enclosing phase
+            with a dot (e.g. "research_overview.knowledge_base").
+
+    Yields:
+        None -- calls are recorded through the enclosing accumulator.
+    """
+    token = _current_phase.set(f"{_current_phase.get()}.{sub_phase}")
+    try:
+        yield
+    finally:
+        _current_phase.reset(token)
+
+
 def record_call(model_name: str, stats: ModelCallStats) -> None:
     """Record one call's stats into the active scope, if any.
 

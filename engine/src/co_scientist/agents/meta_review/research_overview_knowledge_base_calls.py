@@ -24,6 +24,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.agents.meta_review.research_overview_evidence import (
+    prompt_context,
+)
 from co_scientist.constants import (
     KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
@@ -31,8 +34,8 @@ from co_scientist.constants import (
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
+from co_scientist.llm_telemetry import scoped_telemetry_phase
 from co_scientist.prompts import (
-    PromptRunContext,
     ThemeWritingMaterial,
     get_knowledge_base_outline_prompt,
     get_knowledge_base_theme_prompt,
@@ -46,15 +49,6 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _prompt_context(state: WorkflowState) -> PromptRunContext:
-    """The run-scoped prompt context both calls render against."""
-    return PromptRunContext(
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
-    )
-
-
 async def _ask(
     state: WorkflowState,
     prompt: str,
@@ -62,6 +56,11 @@ async def _ask(
     max_tokens: int,
 ) -> dict[str, Any]:
     """Run one part call with its chain of thought bounded.
+
+    Recorded under its own telemetry sub-phase. Both calls run inside the
+    ``research_overview`` node, so without this they fold into the same
+    ``(phase, model)`` bucket as the overview draft and the draft stops
+    being measurable from a production run's own numbers.
 
     Args:
         state: The workflow state at the terminal synthesis node.
@@ -72,16 +71,17 @@ async def _ask(
     Returns:
         The parsed response.
     """
-    return await call_llm_json(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=state["supervisor_model_name"],
-            max_tokens=max_tokens,
-            temperature=MEDIUM_TEMPERATURE,
-            json_schema=schema,
-        ),
-        options=LLMCallOptions(enable_thinking=False),
-    )
+    with scoped_telemetry_phase("knowledge_base"):
+        return await call_llm_json(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=state["supervisor_model_name"],
+                max_tokens=max_tokens,
+                temperature=MEDIUM_TEMPERATURE,
+                json_schema=schema,
+            ),
+            options=LLMCallOptions(enable_thinking=False),
+        )
 
 
 def _outline_themes(raw_themes: Any) -> list[dict[str, Any]]:
@@ -139,7 +139,7 @@ async def plan_knowledge_base_outline(
         research_goal=state["research_goal"],
         hypotheses_summary=hypotheses_summary,
         evidence_corpus=evidence_corpus_text,
-        context=_prompt_context(state),
+        context=prompt_context(state),
     )
     try:
         response = await _ask(
@@ -214,7 +214,7 @@ async def write_theme_sections(
             outline=outline_text,
         ),
         evidence_corpus=evidence_corpus_text,
-        context=_prompt_context(state),
+        context=prompt_context(state),
     )
     try:
         response = await _ask(

@@ -304,8 +304,20 @@ def test_overview_schema_never_echoes_the_hypothesis_pool_back() -> None:
     description = example_idea.get("description", "").lower()
     for banned in ("copy", "verbatim", "repeat", "quote"):
         assert banned not in description
-    template = _overview_template()
-    assert "not by echoing the hypotheses or evidence text back" in template
+    # The anti-echo instruction travels with the field it governs: the
+    # sub-topics are written by the per-direction call, not the draft.
+    assert (
+        "not by echoing the hypotheses or evidence text back"
+        in _direction_template()
+    )
+
+
+def _direction_template() -> str:
+    """Return the per-direction prompt template's raw text."""
+    return (
+        Path(co_scientist.__file__).parent
+        / "prompts/templates/research_overview_direction.md"
+    ).read_text(encoding="utf-8")
 
 
 def _overview_template() -> str:

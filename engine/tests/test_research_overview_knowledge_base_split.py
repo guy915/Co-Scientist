@@ -39,6 +39,11 @@ from co_scientist.constants import (
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
+from co_scientist.llm_telemetry import (
+    ModelCallStats,
+    record_call,
+    scoped_telemetry,
+)
 from tests._state import make_state
 
 _ASKED = "Theme to write:"
@@ -366,3 +371,38 @@ async def test_each_writer_is_shown_the_whole_outline(
     for prompt in responder.prompts[1:]:
         for title in _THEME_SECTIONS:
             assert title in prompt
+
+
+async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nine calls inside one node must not hide the tenth's own usage.
+
+    Telemetry is folded per (phase, model) and the phase is the durable
+    task name, so before this the outline and every theme landed in the
+    same bucket as the research-overview draft they run beside -- and
+    nothing logs a single call's tokens on the success path, so that
+    bucket is the only record a production run leaves. The draft's own
+    budget was reasoned about rather than measured for exactly this
+    reason.
+    """
+    responder = _Responder()
+
+    async def _recording(**kwargs: Any) -> dict[str, Any]:
+        record_call("test/model", ModelCallStats(calls=1))
+        return await responder(**kwargs)
+
+    monkeypatch.setattr(kbc, "call_llm_json", _recording)
+
+    with scoped_telemetry("research_overview") as accumulator:
+        record_call("test/model", ModelCallStats(calls=1))
+        _, calls = await kb.synthesize_knowledge_base(
+            _funded_state(), "1. (Elo 1200) an idea", _CORPUS
+        )
+
+    snapshot = accumulator.snapshot()
+    assert snapshot["research_overview::test/model"]["calls"] == 1
+    assert (
+        snapshot["research_overview.knowledge_base::test/model"]["calls"]
+        == calls
+    )

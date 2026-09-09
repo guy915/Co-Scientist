@@ -34,28 +34,31 @@ from co_scientist.schemas.evolution import (
 RESEARCH_OVERVIEW_MAX_SUB_TOPICS: Final = 4
 RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
 
-# F5: how many main research directions the overview asks for, and the
-# hard bound on how many it will keep.
+# How many main research directions the overview asks for, and the hard
+# bound on how many it will keep. They are now the same number: the
+# published cf-PICI overview enumerates six and the ask is six.
 #
-# The published cf-PICI overview enumerates six, which is the bound here.
-# The *ask* is lower, and the number is measured rather than aspirational.
-# Production express run 6760ce63 (2026-09-06) produced three directions
-# from a prompt that named no count at all; its research_overview node
-# billed 26,263 completion tokens over two calls (draft + accuracy
-# review), and the draft's surviving answer -- every field it produced
-# that reached the report -- re-tokenizes to ~14.6k, or ~15.9k billed
-# once calibrated against a fully-rendered single-call node from the same
-# run (meta_review: 5,071 billed against 4,654 reconstructed, a 1.09
-# ratio). Each direction cost ~2.0k billed tokens and each sub-topic's
-# new example_idea below costs ~80, so against the ~7k of headroom left
-# under RESEARCH_OVERVIEW_MAX_TOKENS (24000, which is also
-# BUDGET_ESCALATION_MAX_TOKENS -- there is no rung above it to escalate
-# into, see AGENTS.md) six directions would need ~7.9k and land the node
-# on finish_reason="length" with nowhere to go. Four needs ~3.3k, under
-# half that headroom, which also absorbs the share of those 26,263 tokens
-# that the json_object shim pruned and this reconstruction cannot see.
-# Raise the ask only with a fresh measurement of the draft call.
-RESEARCH_OVERVIEW_TARGET_DIRECTIONS: Final = 4
+# Four, before, because the draft call had to write every direction's
+# body itself and could not afford six. Production express run 6760ce63
+# (2026-09-06) billed its research_overview node 26,263 completion
+# tokens over two calls (draft + accuracy review), and the draft's
+# surviving answer re-tokenizes to ~14.6k, ~15.9k billed once calibrated
+# against a fully-rendered single-call node from the same run
+# (meta_review: 5,071 billed against 4,654 reconstructed, a 1.09 ratio).
+# At ~2.0k billed per direction, three directions were ~6.0k of that and
+# everything else ~9.9k, so six directions plus their example_idea
+# fields would need ~13.9k and a ~23.8k single call -- the whole 24000
+# ceiling with nothing left for the chain of thought that shares it, and
+# 643-881s of generation at this deployment's measured 27-37 tokens per
+# second against a 600s per-call ceiling. The wall clock, not the budget,
+# is what said no.
+#
+# So the ask is six and the body is written elsewhere: the draft names
+# the six and argues each in a paragraph, and one call per direction
+# develops it to the exemplar's depth
+# (``agents/meta_review/research_overview_direction_calls``), exactly as
+# the Knowledge Base is outlined once and written a theme at a time.
+RESEARCH_OVERVIEW_TARGET_DIRECTIONS: Final = 6
 RESEARCH_OVERVIEW_MAX_DIRECTIONS: Final = 6
 
 # R12-10: bounds on open_questions/clear_patterns/unexpected_patterns
@@ -88,6 +91,91 @@ RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
 KNOWLEDGE_BASE_MAX_THEMES: Final = 8
 KNOWLEDGE_BASE_MAX_SECTIONS: Final = 8
 
+_RESEARCH_DIRECTION_BODY: Final[dict[str, Any]] = {
+    "importance": {"type": "string"},
+    "suggested_experiments": str_array(),
+    # MO-12: the "what is already known" slot
+    # the ALS exemplar names "Recent Findings"
+    # (cf-PICI's own equivalent is a bullet
+    # folded under "Why Research This Area?"
+    # rather than a separate section -- the
+    # two published exemplars disagree on
+    # vocabulary here; this adds ALS's slot
+    # onto the cf-PICI pair we already mirror,
+    # rather than switching vocabularies).
+    "recent_findings": {"type": "string"},
+    # MO-1: each direction's "What to Research
+    # in This Area?" (cf-PICI) / "Areas of
+    # Research" (ALS) is itself a list of
+    # named sub-topics, not a flat experiment
+    # list -- restored here one level below
+    # the direction. Identify sub-topics by
+    # their own content; there is no input
+    # pool to echo back by index here.
+    "sub_topics": {
+        "type": "array",
+        "maxItems": (RESEARCH_OVERVIEW_MAX_SUB_TOPICS),
+        "items": obj(
+            {
+                "title": {"type": "string"},
+                "why": {"type": "string"},
+                "what": {"type": "string"},
+                # F7: the exemplar's own third
+                # block, between "Why research
+                # this topic?" and its
+                # "Specific questions" list.
+                # Distinct from "what": that
+                # states the topic, this works
+                # one concrete way to attack
+                # it. Authored from the
+                # sub-topic's own content --
+                # never a hypothesis quoted
+                # back, which would scale the
+                # response with the pool.
+                "example_idea": {
+                    "type": "string",
+                    "description": (
+                        "One concrete worked"
+                        " example of how this"
+                        " sub-topic would"
+                        " actually be"
+                        " investigated:"
+                        " the approach, what"
+                        " it measures, and"
+                        " what the result"
+                        " would show."
+                    ),
+                },
+                "specific_questions": {
+                    **str_array(),
+                    "maxItems": (RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS),
+                },
+            }
+        ),
+    },
+}
+"""Everything a direction carries below its own title.
+
+Named once and shared by the two schemas that need it: the overview
+draft's ``research_directions`` items below, and
+``RESEARCH_OVERVIEW_DIRECTION_SCHEMA``, the one-direction schema the
+writing wave answers in. The draft names the directions and the wave
+develops them (see ``agents/meta_review/research_overview_direction_calls``
+for why it is two calls), so the two schemas describe the same object
+from opposite ends and must not drift apart.
+"""
+
+RESEARCH_OVERVIEW_DIRECTION_SCHEMA: dict[str, Any] = {
+    "name": "research_overview_direction",
+    "schema": obj(dict(_RESEARCH_DIRECTION_BODY)),
+}
+"""One drafted direction, developed to the published exemplar's depth.
+
+Carries no ``title``: the draft already chose it, and re-emitting it
+would let a writing call rename a direction the overview's own contacts
+and groups cross-reference by title.
+"""
+
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": obj(
@@ -110,71 +198,7 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                         "items": obj(
                             {
                                 "title": {"type": "string"},
-                                "importance": {"type": "string"},
-                                "suggested_experiments": str_array(),
-                                # MO-12: the "what is already known" slot
-                                # the ALS exemplar names "Recent Findings"
-                                # (cf-PICI's own equivalent is a bullet
-                                # folded under "Why Research This Area?"
-                                # rather than a separate section -- the
-                                # two published exemplars disagree on
-                                # vocabulary here; this adds ALS's slot
-                                # onto the cf-PICI pair we already mirror,
-                                # rather than switching vocabularies).
-                                "recent_findings": {"type": "string"},
-                                # MO-1: each direction's "What to Research
-                                # in This Area?" (cf-PICI) / "Areas of
-                                # Research" (ALS) is itself a list of
-                                # named sub-topics, not a flat experiment
-                                # list -- restored here one level below
-                                # the direction. Identify sub-topics by
-                                # their own content; there is no input
-                                # pool to echo back by index here.
-                                "sub_topics": {
-                                    "type": "array",
-                                    "maxItems": (
-                                        RESEARCH_OVERVIEW_MAX_SUB_TOPICS
-                                    ),
-                                    "items": obj(
-                                        {
-                                            "title": {"type": "string"},
-                                            "why": {"type": "string"},
-                                            "what": {"type": "string"},
-                                            # F7: the exemplar's own third
-                                            # block, between "Why research
-                                            # this topic?" and its
-                                            # "Specific questions" list.
-                                            # Distinct from "what": that
-                                            # states the topic, this works
-                                            # one concrete way to attack
-                                            # it. Authored from the
-                                            # sub-topic's own content --
-                                            # never a hypothesis quoted
-                                            # back, which would scale the
-                                            # response with the pool.
-                                            "example_idea": {
-                                                "type": "string",
-                                                "description": (
-                                                    "One concrete worked"
-                                                    " example of how this"
-                                                    " sub-topic would"
-                                                    " actually be"
-                                                    " investigated:"
-                                                    " the approach, what"
-                                                    " it measures, and"
-                                                    " what the result"
-                                                    " would show."
-                                                ),
-                                            },
-                                            "specific_questions": {
-                                                **str_array(),
-                                                "maxItems": (
-                                                    RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS
-                                                ),
-                                            },
-                                        }
-                                    ),
-                                },
+                                **_RESEARCH_DIRECTION_BODY,
                             }
                         ),
                     },

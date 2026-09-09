@@ -18,6 +18,10 @@ from co_scientist.agents.meta_review.research_overview_degrade import (
 from co_scientist.agents.meta_review.research_overview_degrade import (
     synthesize_or_degrade,
 )
+from co_scientist.agents.meta_review.research_overview_direction_calls import (
+    DirectionWaveContext,
+    develop_directions_into,
+)
 from co_scientist.agents.meta_review.research_overview_directions import (
     format_overview,
 )
@@ -290,10 +294,18 @@ async def _synthesize_research_overview(
         response, contact_candidates, evidence_corpus, hypothesis_by_index
     )
     formatted["overview_review"] = review_meta
+    wave = DirectionWaveContext(
+        state=state,
+        hypotheses_summary=summary,
+        evidence_corpus_text=_format_evidence_corpus(evidence_corpus),
+    )
+    direction_calls = await develop_directions_into(
+        wave, formatted, call_llm_json
+    )
     deep_calls = await _deepen_knowledge_base(
         state, summary, evidence_corpus, formatted
     )
-    return formatted, 1 + review_calls + deep_calls
+    return formatted, 1 + review_calls + direction_calls + deep_calls
 
 
 async def _deepen_knowledge_base(

@@ -5,7 +5,9 @@ subject: which analyzed articles are offered to the synthesis, in what
 order, under what per-source budget, and how the same records are reused
 afterwards to attach immutable source metadata to whatever the model
 cited. The overview call and the deep knowledge-base call (F8) share it,
-so neither can be given a differently-built corpus than the other.
+so neither can be given a differently-built corpus than the other. The
+run-scoped prompt context those calls render against lives here for the
+same reason: every call this node makes must be given the same one.
 """
 
 from __future__ import annotations
@@ -18,6 +20,8 @@ from co_scientist.agents.meta_review.research_overview_contacts import (
 )
 from co_scientist.constants import strip_citation_markers
 from co_scientist.models import Article
+from co_scientist.prompts import PromptRunContext
+from co_scientist.state import WorkflowState
 
 _EVIDENCE_ABSTRACT_CHARS: Final = 3000
 """Per-source abstract budget in the evidence corpus.
@@ -174,4 +178,20 @@ def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
             "source_id={source_id}; abstract={abstract}"
         ),
         "No verified evidence corpus available.",
+    )
+
+
+def prompt_context(state: WorkflowState) -> PromptRunContext:
+    """The run-scoped prompt context this node's calls render against.
+
+    Args:
+        state: The workflow state at the terminal synthesis node.
+
+    Returns:
+        The tool registry and run guidance every call here is given.
+    """
+    return PromptRunContext(
+        tool_registry=state.get("tool_registry"),
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
     )

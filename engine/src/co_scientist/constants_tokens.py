@@ -108,6 +108,25 @@ sequence. A base, not a cap, for the same reason as the outline budget
 above.
 """
 
+RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS: Final = 6000
+"""Answer budget for developing one drafted research direction.
+
+Sized from the ask, like the knowledge-base part budgets above. The
+published cf-PICI exemplar's five substantive directions run 807-1,015
+words each -- a "Why research this area?" argument plus four named
+sub-topics, each with its own reasoning, a worked example idea and four
+questions -- so about 1,400 tokens of prose, and our own measured
+directions ran ~2.0k billed. 6000 leaves the JSON carrying it room on
+top and absorbs the json_object downgrade's own verbosity.
+
+The point of the number is the clock, not the ceiling: at the 27-37
+tokens/second this deployment measured, a ~2.3k answer is 62-85s inside
+the 600s per-call bound, and six of them run concurrently. The single
+call they replace would have had to write all six inside one stream --
+~13.9k tokens, 376-515s at that rate, and losing every direction rather
+than one when it did not land.
+"""
+
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses.
 

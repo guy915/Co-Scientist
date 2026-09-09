@@ -22,11 +22,13 @@ from typing import Any
 import pytest
 
 from co_scientist.prompts import (
+    DirectionWritingMaterial,
     DraftPromptRequest,
     ValidationSynthesisRequest,
     format_lab_constraints_section,
     get_draft_prompt_with_tools,
     get_hypothesis_validation_synthesis_prompt,
+    get_research_overview_direction_prompt,
     get_research_overview_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
@@ -142,20 +144,33 @@ def test_research_overview_prompt_carries_depth_guidance() -> None:
     assert "multi-paragraph narrative" in prompt
 
 
-def test_research_overview_prompt_asks_for_sub_topics() -> None:
-    """MO-1: the prompt must ask for the nested sub-topic layer."""
-    prompt, _ = get_research_overview_prompt(
-        research_goal="a goal", hypotheses_summary="1. an idea"
+def _direction_prompt() -> str:
+    """Render the prompt that develops one drafted direction."""
+    prompt, _ = get_research_overview_direction_prompt(
+        research_goal="a goal",
+        material=DirectionWritingMaterial(
+            title="A direction", rationale="Why it matters.", all_directions="-"
+        ),
+        hypotheses_summary="1. an idea",
     )
+    return prompt
+
+
+def test_research_direction_prompt_asks_for_sub_topics() -> None:
+    """MO-1: the prompt must ask for the nested sub-topic layer.
+
+    Asked by the per-direction call rather than the draft: six directions
+    at that depth cannot be written inside one call's clock, so the draft
+    names them and this develops each.
+    """
+    prompt = _direction_prompt()
     assert "sub_topics" in prompt
     assert "specific_questions" in prompt
 
 
-def test_research_overview_prompt_asks_for_recent_findings() -> None:
+def test_research_direction_prompt_asks_for_recent_findings() -> None:
     """MO-12: the prompt must ask for the "what is already known" slot."""
-    prompt, _ = get_research_overview_prompt(
-        research_goal="a goal", hypotheses_summary="1. an idea"
-    )
+    prompt = _direction_prompt()
     assert "recent_findings" in prompt
     assert "already established" in prompt
 

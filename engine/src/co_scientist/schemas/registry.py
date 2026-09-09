@@ -51,6 +51,7 @@ from co_scientist.schemas.review import (
 )
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
+    RESEARCH_OVERVIEW_DIRECTION_SCHEMA,
     RESEARCH_OVERVIEW_REVIEW_SCHEMA,
     RESEARCH_OVERVIEW_SCHEMA,
 )
@@ -99,6 +100,9 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     # ceiling (KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS records the measurement).
     "research_overview_knowledge_base_outline": KNOWLEDGE_BASE_OUTLINE_SCHEMA,
     "research_overview_knowledge_base_theme": KNOWLEDGE_BASE_THEME_SCHEMA,
+    # One drafted direction, developed on its own call: the draft names
+    # six and argues each, and six of these write the bodies.
+    "research_overview_direction": RESEARCH_OVERVIEW_DIRECTION_SCHEMA,
     "research_overview_review": RESEARCH_OVERVIEW_REVIEW_SCHEMA,
     # The reviser regenerates the whole overview, so it shares the
     # synthesis schema rather than defining a second copy of the shape.

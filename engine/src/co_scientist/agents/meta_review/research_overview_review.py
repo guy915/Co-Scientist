@@ -29,6 +29,7 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
 from co_scientist.llm import CompletionSpec, call_llm_json
+from co_scientist.llm_telemetry import scoped_telemetry_phase
 from co_scientist.prompts import (
     OverviewReviewMaterial,
     OverviewRevisionRequest,
@@ -115,16 +116,22 @@ async def _call_supervisor(
     prompt: str,
     schema: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Runs one schema-constrained supervisor call for this review cycle."""
-    return await call_llm_json(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=context.state["supervisor_model_name"],
-            max_tokens=RESEARCH_OVERVIEW_MAX_TOKENS,
-            temperature=MEDIUM_TEMPERATURE,
-            json_schema=schema,
-        ),
-    )
+    """Runs one schema-constrained supervisor call for this review cycle.
+
+    Recorded under its own telemetry sub-phase: this cycle and the draft
+    it reviews are both ``research_overview`` calls, and folding them
+    into one bucket is what left the draft's own budget unmeasurable.
+    """
+    with scoped_telemetry_phase("review"):
+        return await call_llm_json(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=context.state["supervisor_model_name"],
+                max_tokens=RESEARCH_OVERVIEW_MAX_TOKENS,
+                temperature=MEDIUM_TEMPERATURE,
+                json_schema=schema,
+            ),
+        )
 
 
 async def _call_reviewer(

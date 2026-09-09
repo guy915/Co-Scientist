@@ -16,6 +16,9 @@ from co_scientist.agents.meta_review import research_overview as ro
 from tests._state import make_hypothesis, make_state
 from tests.test_research_overview import _OVERVIEW_RESPONSE, _grounded_articles
 
+_DIRECTIONS = len(_OVERVIEW_RESPONSE["overview"]["research_directions"])
+"""Directions the canned draft names, each bought its own writing call."""
+
 
 def _base_state(**overrides: Any) -> Any:
     h = make_hypothesis(
@@ -47,7 +50,9 @@ async def test_review_disabled_by_default_skips_the_loop(
         "reviewed": False,
         "rounds": 0,
     }
-    assert out["metrics"].llm_calls == 1
+    # Two calls: the draft, plus the one call that develops its single
+    # drafted direction (research_overview_direction_calls).
+    assert out["metrics"].llm_calls == 2
 
 
 async def test_a_review_round_changes_the_published_overview(
@@ -79,8 +84,9 @@ async def test_a_review_round_changes_the_published_overview(
         "reviewed": True,
         "rounds": 1,
     }
-    # One synthesis call plus the three the loop reports spending.
-    assert out["metrics"].llm_calls == 4
+    # One synthesis call, the three the loop reports spending, and one
+    # per drafted direction developed afterwards.
+    assert out["metrics"].llm_calls == 4 + _DIRECTIONS
 
 
 async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
@@ -106,4 +112,6 @@ async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
         "reviewed": False,
         "rounds": 0,
     }
-    assert out["metrics"].llm_calls == 1
+    # Two calls: the draft, plus the one call that develops its single
+    # drafted direction (research_overview_direction_calls).
+    assert out["metrics"].llm_calls == 2

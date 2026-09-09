@@ -86,6 +86,10 @@ from co_scientist.prompts.ranking import (
     get_proximity_prompt,
     get_ranking_prompt,
 )
+from co_scientist.prompts.research_directions import (
+    DirectionWritingMaterial,
+    get_research_overview_direction_prompt,
+)
 from co_scientist.prompts.review import (
     get_deep_verification_prompt,
     get_reflection_prompt,
@@ -95,6 +99,7 @@ from co_scientist.prompts.review import (
 
 __all__ = [
     "DebatePromptRequest",
+    "DirectionWritingMaterial",
     "DraftPromptRequest",
     "LiteratureQueryInputs",
     "OverviewReviewMaterial",
@@ -129,6 +134,7 @@ __all__ = [
     "get_proximity_prompt",
     "get_ranking_prompt",
     "get_reflection_prompt",
+    "get_research_overview_direction_prompt",
     "get_research_overview_prompt",
     "get_research_overview_review_prompt",
     "get_research_overview_revise_prompt",

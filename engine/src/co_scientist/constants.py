@@ -61,6 +61,9 @@ from co_scientist.constants_tokens import (
     MINIMAL_REASONING_MAX_TOKENS as MINIMAL_REASONING_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (
+    RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS as RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,  # noqa: E501
+)
+from co_scientist.constants_tokens import (
     RESEARCH_OVERVIEW_MAX_TOKENS as RESEARCH_OVERVIEW_MAX_TOKENS,
 )
 from co_scientist.constants_tokens import (

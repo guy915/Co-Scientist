@@ -18,6 +18,7 @@ from co_scientist.llm_telemetry import (
     record_completion_response,
     record_retry,
     scoped_telemetry,
+    scoped_telemetry_phase,
 )
 
 
@@ -172,3 +173,36 @@ def test_merging_fan_out_usage_keeps_every_field_stats_carries() -> None:
 
     for name in numeric:
         assert merged[name] == 4, f"{name} was dropped by the merge"
+
+
+def test_sub_phase_records_into_the_outer_accumulator() -> None:
+    """A sub-phase relabels the phase without starting a new accumulator.
+
+    This is the difference from ``scoped_telemetry`` above, which is a
+    whole new scope: a nested *scope* keeps its numbers to itself, so the
+    node boundary that folds the outer snapshot into its metrics never
+    sees them. Attribution inside one node -- which call in a multi-call
+    node spent what -- needs the opposite: its own key, in the node's own
+    accumulator.
+    """
+    with scoped_telemetry("research_overview") as accumulator:
+        record_call("m", ModelCallStats(calls=1))
+        with scoped_telemetry_phase("knowledge_base"):
+            record_call("m", ModelCallStats(calls=1))
+        record_call("m", ModelCallStats(calls=1))
+
+    snapshot = accumulator.snapshot()
+    assert snapshot["research_overview::m"]["calls"] == 2
+    assert snapshot["research_overview.knowledge_base::m"]["calls"] == 1
+
+
+def test_sub_phase_nests_under_a_sub_phase() -> None:
+    """Sub-phases compose, so a wave inside a wave is still attributable."""
+    with (
+        scoped_telemetry("outer") as accumulator,
+        scoped_telemetry_phase("a"),
+        scoped_telemetry_phase("b"),
+    ):
+        record_call("m", ModelCallStats(calls=1))
+
+    assert "outer.a.b::m" in accumulator.snapshot()

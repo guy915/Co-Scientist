@@ -113,7 +113,9 @@ async def test_produces_overview_and_aims(
         ]
         == "A"
     )
-    assert fake.await_count == 1
+    # Two calls: the draft, plus the one call that develops its single
+    # drafted direction (research_overview_direction_calls).
+    assert fake.await_count == 2
     contacts = out["research_overview"]["research_contacts"]
     assert len(contacts) == 1
     assert contacts[0]["name"] == "Ada Researcher"
@@ -271,9 +273,11 @@ async def test_publication_gates_filter_before_synthesis(
     )
     out = await ro.research_overview_node(state)
 
-    assert fake.await_count == 1
-    assert fake.await_args is not None
-    prompt = fake.await_args.kwargs["prompt"]
+    # Two calls: the draft, plus the one call that develops its single
+    # drafted direction (research_overview_direction_calls).
+    assert fake.await_count == 2
+    assert fake.await_args_list[0] is not None
+    prompt = fake.await_args_list[0].kwargs["prompt"]
     assert "healthy idea" in prompt
     # needs_revision ranks and publishes; only the not-viable band blocks.
     assert "needs revision idea" in prompt
@@ -328,9 +332,11 @@ async def test_healthy_pool_keeps_top_k_elo_order(
     )
     await ro.research_overview_node(state)
 
-    assert fake.await_count == 1
-    assert fake.await_args is not None
-    prompt = fake.await_args.kwargs["prompt"]
+    # Two calls: the draft, plus the one call that develops its single
+    # drafted direction (research_overview_direction_calls).
+    assert fake.await_count == 2
+    assert fake.await_args_list[0] is not None
+    prompt = fake.await_args_list[0].kwargs["prompt"]
     ranked_texts = [
         f"idea-{index:02d}"
         for index in range(RESEARCH_OVERVIEW_TOP_K + 1, 1, -1)
