@@ -849,3 +849,8 @@ re-read every evidence cell to find them.
   BUILT verdict above. `CITE-META-001`'s `assess_resolvability`/`Resolver`
   orphan itself remains genuinely open and outside this document's scope
   (that ledger row stays `partial`, not `work`).
+  [Update 2026-09-09, `fe1a1686`: this paragraph is left as written on the
+  report date above. `_resolved_from_requests` no longer exists — the two
+  resolvability paths converged onto one seam (`app/app/citation_metadata.py`,
+  called from `drain_evidence_resolution.resolve_articles`), and
+  `CITE-META-001` now reads `verified`.]

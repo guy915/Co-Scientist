@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=89, partial=21, missing=2, external=3, undisclosed=0.** Each
+**verified=91, partial=19, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -149,10 +149,12 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > (Both `partial` rows closed 2026-09-09 — see the parity-closure note below.)
 
 
-> **Parity closure (2026-09-09).** Six rows moved from `partial` to
-> `verified`; no row was added or removed, so the row count is unchanged at
-> 115 and the snapshot above moves `verified=83, partial=27` to
-> `verified=89, partial=21`.
+> **Parity closure (2026-09-09).** Eight rows moved from `partial` to
+> `verified` across two passes today; no row was added or removed, so the
+> row count is unchanged at 115 and the snapshot above moves
+> `verified=83, partial=27` to `verified=91, partial=19`. The first pass
+> (below) moved six rows, `verified=83, partial=27` → `verified=89,
+> partial=21`:
 >
 > - `PROX-PAIRWISE-001` (`24b93f16`) — similarity is now measured for every
 >   pair of the surviving pool, not only within an LLM-declared cluster, at
@@ -184,6 +186,32 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > `REFLECT-TYPES-001` and `REPORT-DEEP-VERIFY-PROBES-001` described deep
 > verification as a post-ranking top-K node, and `REPORT-ALL-REVIEWS-001`
 > described the per-axis sub-schemas as deliberately unbuilt.
+>
+> A second pass the same day closed two more, `verified=89, partial=21` →
+> `verified=91, partial=19`:
+>
+> - `CITE-META-001` (`fe1a1686`) — the `assess_resolvability`/`Resolver`
+>   seam this row named now sits underneath the one live path production
+>   runs (`app/app/citation_metadata.py`, called once per run from
+>   `engine_adapter/drain_evidence_resolution.py::resolve_articles`) rather
+>   than beside it; the parallel offline heuristic it used to stand next to
+>   is deleted, and source type / publication date are now classified and
+>   reported alongside resolvability and retraction.
+> - `HITL-MANUAL-REVIEW-001` (`1a35bc8a`) — a scientist's review now merges
+>   into engine state at every safe task boundary and is read by
+>   `review_gate.derive_review_disposition` as the outermost layer over the
+>   agents' own verdicts, reaching the ranking judge and evolution prompts
+>   through `Hypothesis.review_summary()` — not written to a table nothing
+>   read, as before.
+>
+> Two neighbouring rows converged their own residuals in the same pass but
+> stay `partial`: `SUP-STACKING-001` (`b8e10b5e`) — the listing's other
+> periodic branch, the research overview, now stacks with system feedback
+> too, leaving only the two work branches (`rank`, `evolve`) unstacked, on
+> topology rather than cost — and `HITL-MANUAL-HYP-001` (`1a35bc8a`) — a
+> contributed hypothesis now merges into the *running* pool at the
+> orchestrator's own commit boundary instead of only on restart, narrowing
+> the residual to two windows outside that boundary.
 
 ---
 
