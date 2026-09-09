@@ -276,12 +276,13 @@ async def test_recurring_themes_carry_description_and_frequency(
     Before this, ``recurring_themes`` was flattened straight to
     ``emerging_themes`` and its description/frequency were discarded --
     computed by the model, paid for in tokens, and never reaching the
-    renderer. Both are now carried through under ``recurring_themes`` as
-    a uniform ``{theme, description, frequency}`` dict per entry: a
-    dict's fields are coerced to strings (frequency may come back as an
-    int under json_object mode), and a bare-string entry -- the same
-    schema-noncompliance the flattening already tolerated -- fills
-    description/frequency empty rather than being dropped.
+    renderer. The whole nested taxonomy is now carried through (MO-2, see
+    ``agents/meta_review/meta_review_themes``): a dict's fields are
+    coerced to strings (frequency may come back as an int under
+    json_object mode), a bare-string entry -- the same schema-
+    noncompliance the flattening already tolerated -- fills the rest
+    empty rather than being dropped, and a theme carrying no
+    ``sub_themes`` (an older checkpoint's shape) gains an empty list.
     """
     stub_call_llm_json(
         monkeypatch,
@@ -293,6 +294,15 @@ async def test_recurring_themes_carry_description_and_frequency(
                     "theme": "mitochondrial dysfunction",
                     "description": "recurs across the reviewed pool",
                     "frequency": 3,
+                    "sub_themes": [
+                        {
+                            "theme": "temporal ordering",
+                            "description": (
+                                "cause is not separated from effect"
+                            ),
+                            "points": ["run a longitudinal arm"],
+                        }
+                    ],
                 },
                 "oxidative stress",
             ],
@@ -311,8 +321,20 @@ async def test_recurring_themes_carry_description_and_frequency(
             "theme": "mitochondrial dysfunction",
             "description": "recurs across the reviewed pool",
             "frequency": "3",
+            "sub_themes": [
+                {
+                    "theme": "temporal ordering",
+                    "description": "cause is not separated from effect",
+                    "points": ["run a longitudinal arm"],
+                }
+            ],
         },
-        {"theme": "oxidative stress", "description": "", "frequency": ""},
+        {
+            "theme": "oxidative stress",
+            "description": "",
+            "frequency": "",
+            "sub_themes": [],
+        },
     ]
 
 

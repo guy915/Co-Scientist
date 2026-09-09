@@ -52,6 +52,33 @@ _MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
 _MAX_EXISTING_SOLUTIONS_ROWS: Final = 6
 _MAX_COMPARISON_AXES: Final = 5
 
+# MO-2: recurring_themes is a nested taxonomy, three levels deep, because
+# Google's published meta-review critique
+# (references/core/.../meta-review-critiques/als-meta-review-critique.md)
+# is one -- five Roman-numbered themes, each holding named critique points
+# ("Primary Driver vs. Consequence", "Specificity"), several of which hold
+# their own guidance sub-points. It was flattened to {theme, description,
+# frequency} in 69d10874 as an accepted adaptation; the nesting is back
+# because the published shape is the target.
+#
+# Note what the artifact does NOT carry, so this schema does not invent it:
+# a theme is a bare title (no description or frequency of its own in the
+# published text -- ours keeps both, since they were already computed and
+# rendered), a point narrates its frequency in its own prose rather than
+# in a count field, and nothing anywhere cites example reviews. A
+# sub-theme therefore has no `frequency` of its own: a second such field
+# per sub-theme grows every entry to restate what its description says.
+#
+# The caps are the artifact's own maxima, not round numbers: it carries
+# five themes, eight points under theme V ("General Advice Based on Common
+# Critiques"), and five sub-points under theme I's "Specificity". A cap
+# below any of those would have _truncate_oversized_arrays silently clip a
+# taxonomy shaped exactly like the exemplar (test_meta_review_themes.py::
+# test_schema_caps_do_not_clip_the_published_taxonomy pins this).
+_MAX_RECURRING_THEMES: Final = 6
+_MAX_SUB_THEMES: Final = 8
+_MAX_SUB_THEME_POINTS: Final = 5
+
 META_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "meta_review",
     "strict": False,
@@ -63,11 +90,88 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
             },
             "recurring_themes": {
                 "type": "array",
+                "maxItems": _MAX_RECURRING_THEMES,
+                "description": (
+                    "A taxonomy of the recurring critiques, not a flat"
+                    " list: a handful of broad themes, each holding the"
+                    " named critique points that recur under it, each of"
+                    " those holding the concrete guidance a future"
+                    " proposal should follow."
+                ),
                 "items": obj(
                     {
-                        "theme": {"type": "string"},
-                        "description": {"type": "string"},
-                        "frequency": {"type": "string"},
+                        "theme": {
+                            "type": "string",
+                            "description": (
+                                "A broad critique theme spanning several"
+                                " reviews, e.g. 'Core Hypothesis and"
+                                " Mechanism' or 'Experimental Design and"
+                                " Feasibility'."
+                            ),
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": (
+                                "One or two sentences on what this theme"
+                                " covers across the reviewed pool."
+                            ),
+                        },
+                        "frequency": {
+                            "type": "string",
+                            "description": (
+                                "How often this theme recurs, in the"
+                                " reviews' own terms, e.g. 'very common'"
+                                " or 'raised on most hypotheses'."
+                            ),
+                        },
+                        "sub_themes": {
+                            "type": "array",
+                            "maxItems": _MAX_SUB_THEMES,
+                            "description": (
+                                "The named critique points recurring"
+                                " under this theme. Empty only when the"
+                                " theme genuinely has none."
+                            ),
+                            "items": obj(
+                                {
+                                    "theme": {
+                                        "type": "string",
+                                        "description": (
+                                            "The critique point's own"
+                                            " short name, e.g. 'Primary"
+                                            " Driver vs. Consequence' or"
+                                            " 'Model System"
+                                            " Limitations'."
+                                        ),
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": (
+                                            "What reviewers said, and how"
+                                            " widely -- state the"
+                                            " prevalence in this prose"
+                                            " ('a very common critique',"
+                                            " 'several ideas') rather"
+                                            " than as a count."
+                                        ),
+                                    },
+                                    "points": {
+                                        "type": "array",
+                                        "maxItems": _MAX_SUB_THEME_POINTS,
+                                        "items": {"type": "string"},
+                                        "description": (
+                                            "Concrete guidance a future"
+                                            " proposal should follow to"
+                                            " answer this critique. One"
+                                            " short sentence each. Empty"
+                                            " where the point needs no"
+                                            " breakdown."
+                                        ),
+                                    },
+                                },
+                                optional=("points",),
+                            ),
+                        },
                     }
                 ),
             },

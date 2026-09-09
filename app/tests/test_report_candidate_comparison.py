@@ -11,7 +11,8 @@ Our renderer folds both forms into one ``### Comparison of candidate
 ideas`` section -- a thematic summary paragraph plus one block per idea --
 rather than two duplicate headings, and renders each idea's columns as
 bold-label bullets rather than a markdown table, matching every other
-meta-review section's convention (``_render_connection``, ``_render_theme``)
+meta-review section's convention (``_render_connection``, and
+``report_markdown_meta_themes._render_sub_theme``)
 instead of the published table markup.
 
 The table's own columns follow the run's own subject matter (``axes``,

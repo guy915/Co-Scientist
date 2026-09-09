@@ -6,10 +6,10 @@ two-document split was reversed 2026-09-04 -- see docs/PARITY.md's
 REPORT-DOCUMENT-SPLIT-001 row): ``_render_meta_review_overview_markdown``
 ("## Meta-review insights", positioned before the research-overview
 sub-sections) covers common strengths and weaknesses as plain bullets,
-recurring themes (theme + description + frequency, the taxonomy MO-2
-stopped discarding before it reached this module -- see ``_render_theme``)
-falling back to a bare-name bullet list when only the flattened
-``emerging_themes`` shape is present, and unexpected connections (R12-7);
+recurring themes (the nested MO-2 critique taxonomy, rendered three
+levels deep by ``report_markdown_meta_themes`` and falling back to a
+bare-name bullet list when only the flattened ``emerging_themes`` shape is
+present), and unexpected connections (R12-7);
 ``_render_meta_review_ranking_markdown`` ("## Comparison and
 Recommendation", positioned after Top hypotheses -- a distinct heading
 from the overview half's, so one document with both populated never
@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
+from app.report_markdown_meta_themes import render_emerging_themes
 from app.report_markdown_overview import _render_optional_paragraph
 
 
@@ -105,44 +106,6 @@ _META_REVIEW_BULLET_SECTIONS = (
     ("common_strengths", "### Common strengths"),
     ("common_weaknesses", "### Common weaknesses"),
 )
-
-
-def _render_theme(theme: dict[str, Any]) -> list[str]:
-    """Render one recurring-theme entry with its description and frequency."""
-    name = str(theme.get("theme") or "")
-    if not name:
-        return []
-    description = theme.get("description") or ""
-    lines = [f"**{name}**: {description}" if description else f"- {name}"]
-    frequency = theme.get("frequency") or ""
-    if frequency:
-        lines.append(f"  *Frequency: {frequency}*")
-    return lines
-
-
-def _render_emerging_themes(meta_review: dict[str, Any]) -> list[str]:
-    """Render 'Emerging themes' from the structured taxonomy or its fallback.
-
-    Prefers ``recurring_themes`` (theme + description + frequency, the
-    full taxonomy the model computed and MO-2 stopped discarding); falls
-    back to the flattened ``emerging_themes`` bare-name list when
-    structured data is absent -- a demo/seed report, or one persisted
-    before this field existed.
-    """
-    themes = meta_review.get("recurring_themes")
-    if not themes:
-        return _render_bullet_list(
-            "### Emerging themes", meta_review.get("emerging_themes") or []
-        )
-    lines: list[str] = []
-    for theme in themes:
-        if isinstance(theme, dict):
-            lines.extend(_render_theme(theme))
-        else:
-            lines.append(f"- {theme}")
-    if not lines:
-        return []
-    return ["\n### Emerging themes\n", *lines]
 
 
 # Legacy fixed field set: what a run's meta-review carried before the
@@ -390,7 +353,7 @@ def _render_meta_review_overview_markdown(
     body += _render_optional_paragraph(meta_review.get("summary"))
     for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
         body += _render_bullet_list(heading, meta_review.get(section_key) or [])
-    body += _render_emerging_themes(meta_review)
+    body += render_emerging_themes(meta_review)
     body += _render_unexpected_connections(
         meta_review.get("potential_connections") or []
     )
