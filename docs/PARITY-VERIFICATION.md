@@ -67,8 +67,8 @@ precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > accepted divergence, not pending work: **RESEARCH-CONTACTS-FIELDS-001** —
 > the `expertise` field is kept and pinned by the owner's explicit "revisit
 > only if a further exemplar surfaces that positively excludes it"; **SUP-STACKING-001**
-> — the Supervisor's weighted/stochastic agent "sampling" (Nature Figure 2)
-> names a behavior whose mechanism the paper never discloses, so matching it
+> — the Supervisor's weighted agent "sampling" (Nature §3 text) names a
+> behavior whose mechanism the paper never discloses, so matching it
 > exactly is not attemptable from public sources; **HITL-MANUAL-HYP-001** —
 > the two remaining admission windows are end-of-run edges that self-heal or
 > sit outside admission itself, accepted rather than open. After this move,
