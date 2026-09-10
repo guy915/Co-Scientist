@@ -118,7 +118,7 @@ configuration.
 | `e2e/` | Playwright browser end-to-end suite |
 | `docs/` | Live architecture, fidelity notes, screenshots, and diagrams (see [`docs/README.md`](docs/README.md) for the index) |
 | `.github/` | CI and nightly workflows |
-| `references/` | Source research, product captures, and comparison material (~39 MB) |
+| `references/` | Empty. The Google reference tree was removed once fidelity work completed; its publishable content is mirrored in [`docs/CORPUS-EXTRACTION.md`](docs/CORPUS-EXTRACTION.md) and the raw tree is recoverable from git history |
 
 ## Documentation
 

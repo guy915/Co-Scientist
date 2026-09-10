@@ -26,13 +26,17 @@ earlier partial draft (see "Corrections vs. the prior draft" near the end).
 > `references/ui-ux/` named below is therefore historical: it says where a
 > claim was measured, not where to look today. To re-open one, check it out of
 > git history (`git log --all -- references/ui-ux/<path>`); deleting it did not
-> remove it from the repository's history. `references/core/` — source A, the
-> functional source of truth — is **untouched and still on disk**, with one
-> exception: `media/live-footage/*.mp4` was always gitignored (never in git
-> history) and has since been watched in full and drained into committed
-> frames at `docs/assets/live-footage/` (see `docs/CORPUS-EXTRACTION.md` row
-> `R13-1`) — cite those frames, not the mp4 path, since the mp4s themselves
-> do not survive `references/` being deleted.
+> remove it from the repository's history.
+>
+> **The `references/core/` tree was removed on 2026-09-10**, once fidelity
+> work completed — every `references/core/...` path named below is now
+> historical in the same way. Its publishable content is mirrored byte-exact
+> in `docs/CORPUS-EXTRACTION.md`, and the raw tree is recoverable from git
+> (`git log --diff-filter=D --name-only -- references/core`). The one
+> exception is `media/live-footage/*.mp4`, always gitignored (never in git
+> history) and since drained into committed frames at
+> `docs/assets/live-footage/` (see `docs/CORPUS-EXTRACTION.md` row `R13-1`) —
+> cite those frames, not the mp4 path.
 
 The repo carried **two** distinct real references plus several secondary skins.
 They play different roles and must not be conflated — the prior audit's failure

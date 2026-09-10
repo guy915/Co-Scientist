@@ -242,4 +242,5 @@ and asserts:
 Matching runs against the rendered prompt rather than the static template
 because published text can live in a Python builder and template text can be a
 slot that renders nothing. The whole module skips when the engine is checked out
-without `references/`, so a corpus-free checkout stays green.
+without `docs/CORPUS-EXTRACTION.md` (its source for the published text), so a
+corpus-free checkout stays green.

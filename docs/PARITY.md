@@ -19,10 +19,13 @@ This ledger is the authoritative requirement-level record for the parity work.
 Each row traces one publicly documented behavior to its implementation and its
 automated evidence.
 
-**Source hierarchy**: primary Google/Nature sources win, then
-`references/core/google-co-scientist/source-system-reference.md` (the canonical
-local consolidation, cited below as *SSR*) and the reference corpus, then the
-running code, then explanatory docs.
+**Source hierarchy**: primary Google/Nature sources win, then the local
+consolidation `source-system-reference.md` (cited below as *SSR*; part
+clone-invented per the fidelity audit's MA-1, and removed with the
+`references/` tree on 2026-09-10 — recover from git history, and prefer the
+paper itself wherever an `SSR §` citation stands behind a PAPER-class row),
+then the running code, then explanatory docs. The published artifacts the
+tree also held are mirrored in `docs/CORPUS-EXTRACTION.md`.
 
 **Status vocabulary**
 

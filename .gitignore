@@ -43,7 +43,6 @@ yarn-error.log*
 # Project
 # Video recordings of the original Co-Scientist product — kept locally as a
 # reference only, never committed (large binaries, not ours to redistribute).
-references/core/google-co-scientist/media/**/*.mp4
 coscientist.db
 coscientist.db-*
 reports/
