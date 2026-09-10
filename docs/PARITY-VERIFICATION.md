@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=99, partial=4, divergent=9, missing=0, external=3, undisclosed=0.**
+**verified=100, partial=4, divergent=8, missing=0, external=3, undisclosed=0.**
 Each `verified` row cites test/eval evidence that exists on disk; each
 `partial`/`missing`/`divergent` row names a concrete residual gap and owner (or,
 for `divergent`, why the difference is accepted); each `external` row records a
@@ -81,6 +81,17 @@ precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > run rather than the repeated comparison its residual describes. No verdict
 > was reconciled away to shrink a count — each move is a truer label, checked
 > against the row's own residual.
+
+> **Reintroduction (2026-09-10, `divergent` → `verified`).** **GOAL-RESTATEMENT-001**
+> moved from `divergent` to `verified` (divergent 9 → 8, verified 99 → 100)
+> when the synthesized narrative goal restatement was reintroduced by owner
+> decision. Unlike the form reversed 2026-09-04 (which differentiated two
+> header goal lines), it now opens the report's `## Top hypotheses` section,
+> reproducing the lead-in Google's `top-ranking-hypotheses` document opens
+> with; it is generated once from the goal alone and persisted on the run
+> (`runs.goal_restatement`). Pinned by a render test at the section boundary.
+> The single-document divergence from Google's two documents stays owned by
+> `REPORT-DOCUMENT-SPLIT-001`.
 
 > **Update (post-a3729a0b, mock-workflow deletion).** `CKPT-FAILINJECT-001`
 > moved from `verified` to `partial`: its app-level "two consecutive resume

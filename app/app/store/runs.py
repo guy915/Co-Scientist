@@ -268,18 +268,6 @@ def set_run_llm_backend(
         )
 
 
-def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
-    """Set a run's short session title (idempotent; no-op if the run is gone).
-
-    Args:
-        run_id: Identifier of the run to update.
-        title: The generated short title to store.
-        db_path: Optional override for the SQLite database path.
-    """
-    with connect(db_path) as conn:
-        conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
-
-
 def redact_run_goal(
     run_id: str, goal: str, title: str, db_path: str | None = None
 ) -> None:

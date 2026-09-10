@@ -81,6 +81,13 @@ class RunRow:
     # or "real". None on rows created before the column existed; the
     # ``run_used_offline`` helper falls back to the provider for those.
     llm_backend: str | None = None
+    # Freshly synthesized narrative restatement of the goal in different
+    # words (GOAL-RESTATEMENT-001), rendered at the head of the report's
+    # top-hypotheses section. None until a background generator fills it,
+    # None on offline/keyless runs and on rows predating the column. Kept off
+    # ``to_dict`` on purpose: it is a report-only artifact consumed via the
+    # RunRow, and a paragraph of prose has no place in every run-list payload.
+    goal_restatement: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the row to the JSON shape the API returns to clients."""
@@ -155,6 +162,9 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         title=row["title"] if "title" in keys else None,
         top_elo=row["top_elo"] if "top_elo" in keys else None,
         llm_backend=row["llm_backend"] if "llm_backend" in keys else None,
+        goal_restatement=(
+            row["goal_restatement"] if "goal_restatement" in keys else None
+        ),
     )
 
 

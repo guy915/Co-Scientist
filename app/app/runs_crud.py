@@ -31,6 +31,7 @@ from app import (
     store,
 )
 from app.auth import client_id, require_client_scope
+from app.goal_restatement import generate_goal_restatement
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
 )
@@ -79,6 +80,33 @@ async def _populate_run_title(
         title = await generate_run_title(goal)
     if title:
         store.set_run_title(run_id, title)
+
+
+async def _populate_goal_restatement(
+    run_id: str,
+    goal: str,
+    byok: credentials.ByokCredential | None = None,
+) -> None:
+    """Generate a run's narrative goal restatement and persist it.
+
+    GOAL-RESTATEMENT-001. Runs after the create response as a background
+    task, so create isn't blocked on a model round-trip. Best-effort: a None
+    result leaves ``goal_restatement`` unset and the report omits the
+    paragraph. A bring-your-own-key run restates under its own credential.
+
+    Unlike titling, this is scheduled for every model-backed run regardless
+    of whether the run's interview named it -- the restatement is a distinct
+    report artifact, not the run's label.
+
+    Args:
+        run_id: The run to restate the goal of.
+        goal: The run's research goal.
+        byok: The run's credential, when it was created with one.
+    """
+    with credentials.scoped_byok(byok):
+        restatement = await generate_goal_restatement(goal)
+    if restatement:
+        store.set_run_goal_restatement(run_id, restatement)
 
 
 def _persist_new_run(
@@ -199,11 +227,17 @@ def _apply_post_commit_effects(
     """
     if byok is not None:
         credentials.store_run_credential(run.id, run.client_id, byok)
-    if run.title is None and (
-        byok is not None or not engine_adapter.offline_mode()
-    ):
+    model_backed = byok is not None or not engine_adapter.offline_mode()
+    if run.title is None and model_backed:
         background_tasks.add_task(
             _populate_run_title, run.id, req.research_goal, byok
+        )
+    # GOAL-RESTATEMENT-001: scheduled for every model-backed run (not gated on
+    # the title, which the interview may already have supplied), off the
+    # create critical path just like titling.
+    if model_backed:
+        background_tasks.add_task(
+            _populate_goal_restatement, run.id, req.research_goal, byok
         )
 
 

@@ -42,7 +42,11 @@ CREATE TABLE IF NOT EXISTS runs (
     updated_at REAL NOT NULL,
     completed_at REAL,
     error TEXT,
-    llm_backend TEXT                 -- 'offline' | 'real'
+    llm_backend TEXT,                -- 'offline' | 'real'
+    -- freshly synthesized narrative restatement of the goal in different
+    -- words (GOAL-RESTATEMENT-001); NULL until a background generator fills
+    -- it, and NULL on offline/keyless runs and rows predating this column
+    goal_restatement TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);

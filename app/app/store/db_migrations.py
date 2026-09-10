@@ -71,6 +71,11 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
     """Add run title/backend columns and the durable report-text column."""
     # Short model-generated session title, distinct from research_goal.
     _add_column_if_missing(conn, "runs", "title", "TEXT")
+    # Freshly synthesized narrative restatement of the goal in different
+    # words, rendered at the head of the report's top-hypotheses section
+    # (GOAL-RESTATEMENT-001). NULL until a background generator fills it, and
+    # NULL on offline/keyless runs and on rows predating this column.
+    _add_column_if_missing(conn, "runs", "goal_restatement", "TEXT")
     # Per-run LLM backend: 'offline' (deterministic router) or 'real'. Legacy
     # rows are backfilled from the provider -- the mock was always offline.
     if _add_column_if_missing(conn, "runs", "llm_backend", "TEXT"):

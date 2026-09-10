@@ -436,6 +436,7 @@ async def _publish_finalize_report(
         run.id,
         ReportRequest(
             research_goal=run.research_goal,
+            goal_restatement=run.goal_restatement,
             run_mode=normalize_run_tier(run.profile),
             provider="engine",
             execution_time=execution_time,

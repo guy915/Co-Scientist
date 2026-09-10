@@ -117,6 +117,22 @@ def _render_novelty_disclosure(
     return [_NOVELTY_DISCLOSURE, ""]
 
 
+def _lead_with_goal_restatement(
+    section: list[str], restatement: str | None
+) -> list[str]:
+    """Open the top-hypotheses section with the goal restatement.
+
+    GOAL-RESTATEMENT-001: the restatement opens the section (mirroring where
+    Google's own top-ranking-hypotheses document opens with it), inserted
+    right after the ``## Top hypotheses`` heading line and its blank that
+    ``_render_top_hypotheses_markdown`` always emits first. None leaves the
+    section unchanged.
+    """
+    if not restatement or len(section) < 2:
+        return section
+    return [*section[:2], restatement, "", *section[2:]]
+
+
 def _render_top_hypotheses_markdown(
     top_hypotheses: list[dict[str, Any]],
     claim_evidence: list[dict[str, Any]],
@@ -168,6 +184,12 @@ class ReportMarkdownInputs:
     research_goal: str
     provider: str
     top_hypotheses: list[dict[str, Any]]
+    # A freshly synthesized narrative restatement of the goal in different
+    # words (GOAL-RESTATEMENT-001), rendered at the head of the top-hypotheses
+    # section. None (offline/keyless runs, rows predating the column, or a
+    # generation failure) omits the paragraph -- the raw "Research Goal
+    # Details" block above is unaffected either way.
+    goal_restatement: str | None = None
     meta_review: dict[str, Any] | None = None
     citation_summary: dict[str, int] | None = None
     research_overview: dict[str, Any] | None = None
@@ -270,12 +292,15 @@ def _report_sections_ideas_and_sources(
 ) -> list[list[str]]:
     """The full per-idea write-up through the run-wide References list."""
     return [
-        _render_top_hypotheses_markdown(
-            inputs.top_hypotheses,
-            inputs.claim_evidence or [],
-            inputs.citations or [],
-            inputs.evidence or [],
-            inputs.reviews or [],
+        _lead_with_goal_restatement(
+            _render_top_hypotheses_markdown(
+                inputs.top_hypotheses,
+                inputs.claim_evidence or [],
+                inputs.citations or [],
+                inputs.evidence or [],
+                inputs.reviews or [],
+            ),
+            inputs.goal_restatement,
         ),
         # "Idea Comparison Table" / "Comparison with Existing Solutions" /
         # "Recommendation" (R14-7/R14-8) -- the tournament-facing half of

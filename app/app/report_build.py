@@ -84,6 +84,10 @@ class ReportRequest(NamedTuple):
             header's provenance and research-purposes-only caution line.
             None omits that line rather than stating a date via the wall
             clock.
+        goal_restatement: A freshly synthesized narrative restatement of the
+            goal in different words (GOAL-RESTATEMENT-001), rendered at the
+            head of the top-hypotheses section. None (offline/keyless runs,
+            rows predating the column, or a generation failure) omits it.
         db_path: Optional override for the SQLite database path.
     """
 
@@ -102,6 +106,7 @@ class ReportRequest(NamedTuple):
     attributes: list[dict[str, Any]] | None = None
     critical_criteria: list[Any] | None = None
     prepared_at: float | None = None
+    goal_restatement: str | None = None
     db_path: str | None = None
 
 
@@ -223,6 +228,7 @@ def _report_markdown_inputs(
     """Assemble the inputs the markdown document renders from."""
     return ReportMarkdownInputs(
         research_goal=req.research_goal,
+        goal_restatement=req.goal_restatement,
         provider=req.provider,
         # Report body is capped to the top 5 by Elo; the full set remains
         # available via the leaderboard and the hypotheses API endpoint.

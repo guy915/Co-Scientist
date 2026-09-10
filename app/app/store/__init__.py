@@ -167,9 +167,12 @@ from app.store.runs import (
     set_run_config,
     set_run_llm_backend,
     set_run_timing,
-    set_run_title,
     summary_counts,
     update_run_status,
+)
+from app.store.runs_labels import (
+    set_run_goal_restatement,
+    set_run_title,
 )
 
 # Straight from its own module rather than through ``runs``: the
@@ -358,6 +361,7 @@ __all__ = [
     "save_run_metrics",
     "save_supervisor_plan",
     "set_run_config",
+    "set_run_goal_restatement",
     "set_run_llm_backend",
     "set_run_timing",
     "set_run_title",
