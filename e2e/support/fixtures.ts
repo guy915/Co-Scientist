@@ -166,8 +166,11 @@ export async function createCompletedRun(
 ): Promise<string> {
   const {id} = await api.createRun(body);
   await api.startRun(id);
+  // An offline standard-tier run reaches `completed` in ~12-17s on a loaded
+  // CI runner, right at the 15s default expect timeout; poll well past it so
+  // a slow runner waits for the genuine completion rather than racing it.
   await expect
-    .poll(async () => (await api.getRun(id)).status)
+    .poll(async () => (await api.getRun(id)).status, {timeout: 60_000})
     .toBe('completed');
   return id;
 }
