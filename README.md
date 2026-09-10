@@ -29,6 +29,18 @@ append-only evolution lineage, four-state citation classification, and dual
 safety gates. See [`FIDELITY.md`](docs/FIDELITY.md) for the full
 invariant list with paper sources.
 
+**Fidelity status.** The implementation is at parity on every disclosed,
+buildable behavior of the published system. The machine-checked ledger
+([`PARITY.md`](docs/PARITY.md), gated in CI) records **100 verified**
+requirements — each pinned by a test that resolves on disk — **8 accepted
+divergences** (deliberate product decisions), and **7 rows that cannot be
+closed inside this repository**: 4 evaluation-harness rows needing a
+credentialed model run against datasets Google did not release, and 3
+needing Google's private safety set, expert-evaluation results, or wet-lab
+validation. There are no open, missing, or undisclosed requirements; the
+published prompts render verbatim and are regression-pinned against
+inversion.
+
 The system is deliberately not a chat wrapper over papers, an autonomous
 wet-lab executor, a medical or regulatory decision system, or a multi-tenant
 SaaS. It is a local-first implementation workspace for replicating the
