@@ -277,7 +277,10 @@ def redact_run_goal(
     original goal in the row, where it stayed readable through the run API,
     the run list, and every surface built from them. The title is rewritten
     in the same statement because it is generated from the goal and would
-    otherwise carry the same span.
+    otherwise carry the same span; ``goal_restatement`` is cleared for the
+    same reason — it is a paraphrase of the goal, stamped at create before
+    the intake screen runs, so leaving it would leak the redacted goal in
+    other words at the head of the report's top-hypotheses section.
 
     Args:
         run_id: Identifier of the run to update.
@@ -287,7 +290,8 @@ def redact_run_goal(
     """
     with connect(db_path) as conn:
         conn.execute(
-            "UPDATE runs SET research_goal = ?, title = ? WHERE id = ?",
+            "UPDATE runs SET research_goal = ?, title = ?, "
+            "goal_restatement = NULL WHERE id = ?",
             (goal, title, run_id),
         )
 

@@ -1,7 +1,8 @@
 """Run create/list/read endpoints.
 
 The draft-run creation flow (interview merge, config assembly, DRAFT row
-persistence, background title generation) plus the run list and detail
+persistence, background title and goal-restatement generation) plus the
+run list and detail
 reads. Split from ``app.runs`` by concern, matching the sibling endpoint
 modules (``runs_lifecycle``, ``runs_collections``, ``runs_contrib``).
 Unlike those siblings this module carries no router of its own: FastAPI
@@ -212,18 +213,21 @@ def _apply_post_commit_effects(
 ) -> None:
     """Run the effects that only make sense once the run row exists.
 
-    Both need a persisted run id, so neither can move ahead of the commit
-    the way credential and document resolution do. Title generation also
-    needs a real model -- offline/keyless runs keep the goal-clause fallback
-    -- and skips a run its interview already named: the interview chose that
-    name with the whole conversation in view, where generation sees only the
-    goal, so regenerating would overwrite the better title with the worse.
+    They all need a persisted run id, so none can move ahead of the commit
+    the way credential and document resolution do, and all need a real model
+    -- offline/keyless runs keep the goal-clause title fallback and no
+    restatement. Titling additionally skips a run its interview already
+    named: the interview chose that name with the whole conversation in
+    view, where generation sees only the goal, so regenerating would
+    overwrite the better title with the worse. The restatement carries no
+    such fallback, so it is scheduled for every model-backed run.
 
     Args:
         run: The freshly persisted run row.
         req: The create request, read for the research goal.
         byok: The caller's resolved bring-your-own-key credential, if any.
-        background_tasks: Queue used to title the run off the critical path.
+        background_tasks: Queue used to title the run and synthesize its
+            goal restatement off the critical path.
     """
     if byok is not None:
         credentials.store_run_credential(run.id, run.client_id, byok)
@@ -259,7 +263,8 @@ async def create_run(
         req: Request body with the research goal, run mode, and run config.
         request: Incoming HTTP request, used to read the client identifier.
         background_tasks: FastAPI background queue used to generate the run's
-            session title off the request's critical path.
+            session title and goal restatement off the request's critical
+            path.
 
     Returns:
         The created run serialized as a dict.

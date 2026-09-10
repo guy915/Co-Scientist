@@ -132,9 +132,7 @@ async def _request_restatement_completion(
                 {"role": "user", "content": goal},
             ],
             temperature=0.4,
-            max_tokens=thinking_safe_max_tokens(
-                model, _RESTATEMENT_MAX_TOKENS
-            ),
+            max_tokens=thinking_safe_max_tokens(model, _RESTATEMENT_MAX_TOKENS),
             **thinking_kwargs,
             api_key=api_key,
         ),

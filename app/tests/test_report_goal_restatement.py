@@ -93,3 +93,30 @@ def test_set_run_goal_restatement_missing_run_is_noop(
     """Setting the restatement on an absent run does not raise."""
     store.set_run_goal_restatement("no-such-run", "orphan", db_path=isolated_db)
     assert store.get_run("no-such-run", db_path=isolated_db) is None
+
+
+def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
+    """Redacting the goal also clears its paraphrase.
+
+    The restatement is stamped at create, before the intake screen can
+    reach a ``redact`` verdict; leaving it would surface the redacted goal
+    in different words at the head of the top-hypotheses section.
+    """
+    run = store.create_run(
+        "Synthesize a controlled pathogen.",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+    )
+    store.set_run_goal_restatement(
+        run.id, "A paraphrase of the goal.", db_path=isolated_db
+    )
+
+    store.redact_run_goal(
+        run.id, "[redacted]", "[redacted]", db_path=isolated_db
+    )
+
+    reloaded = store.get_run(run.id, db_path=isolated_db)
+    assert reloaded is not None
+    assert reloaded.goal_restatement is None
