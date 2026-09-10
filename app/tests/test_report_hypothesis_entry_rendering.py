@@ -308,6 +308,63 @@ def test_hypothesis_title_is_bold_and_product_prefixed() -> None:
     )
 
 
+_NOTICE_PREFIX = "**Scientist-contributed — not yet reviewed:**"
+
+
+def test_unreviewed_scientist_admission_notice_leads_the_entry() -> None:
+    """A scientist idea with no peer review is labeled under the disclaimer.
+
+    HITL-MANUAL-HYP-001 residual window: the notice sits right after the
+    disclaimer, before the idea's own body, so provenance reads first.
+    """
+    hyp = {
+        "id": "h5",
+        "title": "Scientist idea.",
+        "elo_rating": 1300,
+        "created_by_agent": "scientist_manual",
+        "statement": "A contributed statement.",
+    }
+
+    lines = report_markdown._render_hypothesis_entry(1, hyp, [], [], [])
+
+    assert lines[1] == _HYPOTHESIS_DISCLAIMER
+    assert lines[2] == ""
+    assert lines[3].startswith(_NOTICE_PREFIX)
+    assert lines[4] == ""
+    # The idea's own body still follows the notice.
+    assert "**Proposed hypothesis:** A contributed statement." in lines
+
+
+def test_scientist_admission_notice_absent_once_peer_reviewed() -> None:
+    """A non-scientist review clears the notice; a scientist's own does not."""
+    hyp = {
+        "id": "h6",
+        "title": "Scientist idea.",
+        "created_by_agent": "scientist_manual",
+    }
+    own_review = [{"hypothesis_id": "h6", "reviewer_agent": "scientist"}]
+    peer_review = [{"hypothesis_id": "h6", "reviewer_agent": "review"}]
+
+    still_flagged = report_markdown._render_hypothesis_entry(
+        1, hyp, [], [], own_review
+    )
+    cleared = report_markdown._render_hypothesis_entry(
+        1, hyp, [], [], peer_review
+    )
+
+    assert any(line.startswith(_NOTICE_PREFIX) for line in still_flagged)
+    assert not any(line.startswith(_NOTICE_PREFIX) for line in cleared)
+
+
+def test_scientist_admission_notice_absent_for_agent_ideas() -> None:
+    """An agent-generated idea never carries the notice, reviewed or not."""
+    hyp = {"id": "h7", "title": "Agent idea.", "created_by_agent": "generation"}
+
+    lines = report_markdown._render_hypothesis_entry(1, hyp, [], [], [])
+
+    assert not any(line.startswith(_NOTICE_PREFIX) for line in lines)
+
+
 def test_hypothesis_title_falls_back_to_untitled_when_absent() -> None:
     """A hypothesis with neither ``title`` nor ``text`` still renders safely.
 

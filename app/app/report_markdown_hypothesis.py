@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.human_input import SCIENTIST_MANUAL_ORIGIN
 from app.report_markdown_header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report_markdown_references import _render_references_markdown
 from app.report_markdown_review_block import (
@@ -32,6 +33,12 @@ from app.text_utils import hypothesis_statement, hypothesis_title
 # instances of this wording are byte-identical, so this re-exports the one
 # constant rather than maintaining a second copy of the string.
 _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
+
+# Mirrors ``co_scientist.models_review.SCIENTIST_REVIEWER`` -- the app-side
+# review rows carry the same literal in ``reviewer_agent``, and there is no
+# shared app constant for it (it is duplicated module-locally wherever the
+# distinction is needed, e.g. ``engine_adapter.drain_reviews``).
+_SCIENTIST_REVIEWER = "scientist"
 
 
 def _claim_status(edge: dict[str, Any]) -> str:
@@ -157,6 +164,46 @@ def _reviews_by_hypothesis(
         key = str(review.get("hypothesis_id") or "")
         grouped.setdefault(key, []).append(review)
     return grouped
+
+
+def _is_unreviewed_scientist_admission(
+    hyp: dict[str, Any], reviews: list[dict[str, Any]]
+) -> bool:
+    """True when a scientist-authored idea holds no peer review.
+
+    HITL-MANUAL-HYP-001 residual window: a scientist contribution admitted
+    on the cycle that spends the run's last ``max_llm_calls`` request reaches
+    the report before the owed-review override can force a REFLECT pass -- the
+    override refuses to race the provider-request seam that would crash the
+    forced review with a permanent task failure. Such an idea is published
+    unreviewed, so the report labels it distinctly. A scientist's own review
+    is not a peer review (``co_scientist.models_review.has_peer_review``), so
+    it does not clear the flag.
+    """
+    if hyp.get("created_by_agent") != SCIENTIST_MANUAL_ORIGIN:
+        return False
+    return not any(
+        review.get("reviewer_agent") != _SCIENTIST_REVIEWER
+        for review in reviews
+    )
+
+
+def _render_scientist_admission_notice(
+    hyp: dict[str, Any], reviews: list[dict[str, Any]]
+) -> list[str]:
+    """Render the unreviewed-scientist-admission notice, or nothing.
+
+    Leads the entry's body (right under the disclaimer) so a reader sees the
+    provenance before the idea's own claims.
+    """
+    if not _is_unreviewed_scientist_admission(hyp, reviews):
+        return []
+    return [
+        "**Scientist-contributed — not yet reviewed:** this idea was added "
+        "by a scientist and reached the report before the automated review "
+        "agents assessed it.",
+        "",
+    ]
 
 
 def _review_detail(
@@ -330,6 +377,7 @@ def _render_hypothesis_entry(
         _HYPOTHESIS_DISCLAIMER,
         "",
     ]
+    lines += _render_scientist_admission_notice(hyp, reviews)
     lines += _render_hypothesis_scene_setting(hyp)
     if statement := hypothesis_statement(hyp):
         lines += [f"**Proposed hypothesis:** {statement}", ""]
