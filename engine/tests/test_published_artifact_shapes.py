@@ -1,19 +1,20 @@
 """Pins our output shapes against the artifacts Google actually published.
 
 Every other parity test reads a *description* of Google's behavior -- the
-paper's prose, or the local consolidation under ``references/core/``, which
-the fidelity audit found to be part clone-invented. The artifacts cited
-below are different: the papers print complete worked examples of them, so
+paper's prose, or the local consolidation the fidelity audit found to be
+part clone-invented. The artifacts cited below are different: the papers
+print complete worked examples of them, reproduced in
+``docs/CORPUS-EXTRACTION.md`` Appendix C, so
 the required shape can be read off the exemplar instead of paraphrased.
 
 Each exemplar's shape-defining vocabulary is transcribed once, below, as a
 cited module-level constant, and every test in this module checks our
 schemas and prompts against those constants directly -- so none of it
-touches disk and none of it can skip. That is the half of the pin that must
-keep guarding once ``references/`` is gone.
-``test_published_artifact_shapes_corroboration.py`` re-reads the same
-exemplars and asserts the transcription still matches; that module is the
-one allowed to skip when the corpus is absent.
+touches disk and none of it can skip. That is the pin that kept guarding
+once ``references/`` was removed. Its ``_corroboration`` sibling, which
+re-read the raw exemplar files, was removed with that tree; the values
+transcribed here are cited to their reproduction in
+``docs/CORPUS-EXTRACTION.md`` (Appendix C).
 """
 
 from __future__ import annotations
@@ -130,9 +131,7 @@ def test_specific_aims_schema_carries_published_heading_vocabulary() -> None:
     """Our aims page must carry every block the published exemplars print.
 
     All three exemplars share one heading vocabulary (cited above), so it
-    is checked once rather than once per exemplar; the corroboration
-    module still re-derives each exemplar's own labels from disk and
-    checks all three separately.
+    is checked once rather than once per exemplar.
     """
     aims = _aims_schema()
     properties = aims["properties"]

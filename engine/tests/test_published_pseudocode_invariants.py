@@ -16,11 +16,11 @@ such divergence (the paper says only "e.g. text embeddings"), recorded in
 The literals quoted below are the published values, transcribed once as
 module-level constants and cited to the extracted file they came from. Every
 test in this module checks the engine against those constants directly, so
-none of it touches disk and none of it can skip -- this is the half of the
-pin that must keep guarding once ``references/`` is gone.
-``test_published_pseudocode_invariants_corroboration.py`` re-reads the same
-files and asserts the transcription still matches; that module is the one
-allowed to skip when the corpus is absent.
+none of it touches disk and none of it can skip -- this is the pin that
+kept guarding once ``references/`` was removed. Its ``_corroboration``
+sibling, which re-read the raw reference files to confirm the transcription,
+was removed with that tree; the values transcribed here are now cited to
+their reproduction in ``docs/CORPUS-EXTRACTION.md`` (Appendix B).
 """
 
 from __future__ import annotations

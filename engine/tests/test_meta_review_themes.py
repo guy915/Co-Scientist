@@ -1,8 +1,8 @@
 """MO-2: recurring critique themes are a nested taxonomy, not a flat list.
 
-Google's published meta-review critique
-(``references/core/google-co-scientist/.../meta-review-critiques/
-als-meta-review-critique.md``) organizes the recurring critiques as five
+Google's published meta-review critique (``als-meta-review-critique.md``,
+reproduced in ``docs/CORPUS-EXTRACTION.md`` Appendix C) organizes the
+recurring critiques as five
 Roman-numbered themes, each holding named critique points, and several of
 those points holding their own guidance sub-points -- three levels, not
 one. Our schema flattened all of that to ``{theme, description,

@@ -1,7 +1,7 @@
 """Holds our rendered prompts to the eight Google published verbatim.
 
 Google published exactly eight prompts (paper appendix Figures A.1-A.8).
-They are transcribed byte-exact under ``references/core/.../prompts/``.
+They are transcribed byte-exact in ``docs/CORPUS-EXTRACTION.md`` Appendix A.
 ``prompts/templates/README.md`` maps each to the template derived from
 it. That mapping records *derivation*, never line-by-line preservation --
 which is how an instruction ended up stated in the opposite of the

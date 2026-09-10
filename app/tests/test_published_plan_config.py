@@ -14,11 +14,10 @@ over a two-tier product (``B1``) on the strength of earlier captures.
 The plan's own vocabulary is transcribed once, below, as cited module-level
 constants, and every test in this module checks ``app.run_modes`` against
 those constants directly -- so none of it touches disk and none of it can
-skip. That is the half of the pin that must keep guarding once
-``references/`` is gone.
-``test_published_plan_config_corroboration.py`` re-reads the transcription
-and asserts it still matches what is on disk; that module is the one
-allowed to skip when the corpus is absent.
+skip. That is the pin that kept guarding once ``references/`` was removed.
+Its ``_corroboration`` sibling, which re-read the raw plan-config file, was
+removed with that tree; the values transcribed here are cited to their
+reproduction in ``docs/CORPUS-EXTRACTION.md``.
 """
 
 from __future__ import annotations
