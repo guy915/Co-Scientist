@@ -320,6 +320,29 @@ class WorkflowState(TypedDict):
     does.
     """
 
+    enable_meta_review: bool | None
+    """Whether the periodic meta-review cadence may fire for this run
+    (default True). Gates the scheduler's meta-review cadence check
+    (``scheduling.policy_cadence._check_meta_review_cadence``) only -- the
+    EVOLVE branch still enters the meta_review node to feed its critique to
+    evolution, so this disables *periodic* system-wide feedback, not the
+    node. Exists so an ablation arm can run with no meta-review cadence
+    (``evaluations.ablation_driver``). Off degrades cleanly: every consumer
+    reads ``state["meta_review"]`` and renders nothing for the empty ``{}``
+    it starts and stays at, exactly as cycle one already does.
+    """
+
+    generation_strategy: str | None
+    """Force one generation strategy instead of deriving the mix from
+    literature/tool availability (default None = derive). When set to a
+    ``coordinator_strategy`` label (``no_lit``, ``lit_only``,
+    ``lit_and_tools``, ``dev_isolation``) the coordinator uses it verbatim.
+    Exists so an ablation arm can drive a fixed strategy
+    (``evaluations.ablation_driver``); resolved and validated upstream
+    (``run_setup._resolve_generation_strategy``), which refuses a
+    tools-requiring label when tool-calling generation is off.
+    """
+
     research_tier: str | None
     """Tier whose ceilings the literature review researches under, "" for
     none. An opaque label to the engine (``research_adapter.budget``).

@@ -16,11 +16,75 @@ import time
 import uuid
 from typing import Any
 
+from co_scientist.agents.generation.coordinator_strategy import (
+    GENERATION_STRATEGY_LABELS,
+    TOOLS_REQUIRING_STRATEGIES,
+)
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.offline_llm import is_offline_model
 from co_scientist.research_adapter.budget import tier_researches
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_meta_review(opts: dict[str, Any]) -> bool:
+    """Decide whether the periodic meta-review cadence may fire.
+
+    Default on: only an explicit ``enable_meta_review=False`` in opts
+    disables it. Unlike the tier-shaped capability toggles above, this has
+    no availability precondition -- meta-review is an ordinary model call
+    that runs on every backend, so the offline backend is not a refusal
+    here. Gates the scheduler's cadence check only
+    (``scheduling.policy_cadence._check_meta_review_cadence``); the EVOLVE
+    branch still enters the meta_review node, so disabling this removes
+    *periodic* system-wide feedback, not the node.
+
+    Args:
+        opts: Caller-supplied generation options.
+
+    Returns:
+        Whether the periodic meta-review cadence is enabled for this run.
+    """
+    return opts.get("enable_meta_review", True) is not False
+
+
+def _resolve_generation_strategy(
+    opts: dict[str, Any], enable_tool_calling_generation: bool
+) -> str:
+    """Resolve a forced generation-strategy label, or "" to derive the mix.
+
+    An ablation caller may pin the generation strategy rather than letting
+    the coordinator derive it from literature/tool availability. Only a
+    known ``coordinator_strategy`` label is honored; anything else derives.
+    A tools-requiring label (``dev_isolation``/``lit_and_tools``) is refused
+    when tool-calling generation resolved off -- the same shape
+    ``_resolve_tool_calling_generation`` uses -- because those route into
+    the tool-based draft path, which has no tool loop to run without it.
+
+    Args:
+        opts: Caller-supplied generation options.
+        enable_tool_calling_generation: Whether tool-calling generation
+            resolved on for this run.
+
+    Returns:
+        A validated strategy label, or "" to derive the mix.
+    """
+    requested = opts.get("generation_strategy")
+    if not isinstance(requested, str) or requested not in (
+        GENERATION_STRATEGY_LABELS
+    ):
+        return ""
+    if (
+        requested in TOOLS_REQUIRING_STRATEGIES
+        and not enable_tool_calling_generation
+    ):
+        logger.warning(
+            "generation_strategy=%s requires tool-calling generation, which"
+            " is off for this run - deriving the strategy instead",
+            requested,
+        )
+        return ""
+    return requested
 
 
 def _resolve_tool_calling_generation(

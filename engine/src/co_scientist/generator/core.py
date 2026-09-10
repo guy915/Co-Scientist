@@ -37,6 +37,8 @@ from co_scientist.generator.run_setup import (
     _configure_cache_dir_env,
     _resolve_dev_isolation_flag,
     _resolve_dev_mode_flag,
+    _resolve_generation_strategy,
+    _resolve_meta_review,
     _resolve_overview_review,
     _resolve_research_tier,
     _resolve_run_identity,
@@ -273,15 +275,19 @@ class HypothesisGenerator(
             pubmed_available,
             enable_literature_review_node,
         ) = await self._resolve_literature_review_settings(opts)
+        # Resolved once here because the generation-strategy resolver needs
+        # it: a tools-requiring forced strategy is refused when tool-calling
+        # generation is off.
+        enable_tool_calling = _resolve_tool_calling_generation(
+            opts,
+            mcp_available,
+            enable_literature_review_node,
+            self.model_name,
+        )
         capabilities = RunCapabilities(
             mcp_available=mcp_available,
             pubmed_available=pubmed_available,
-            enable_tool_calling_generation=_resolve_tool_calling_generation(
-                opts,
-                mcp_available,
-                enable_literature_review_node,
-                self.model_name,
-            ),
+            enable_tool_calling_generation=enable_tool_calling,
             enable_simulation_execution=_resolve_simulation_execution(
                 opts, self.model_name
             ),
@@ -289,6 +295,10 @@ class HypothesisGenerator(
                 opts, self.supervisor_model_name
             ),
             research_tier=_resolve_research_tier(opts, mcp_available),
+            enable_meta_review=_resolve_meta_review(opts),
+            generation_strategy=_resolve_generation_strategy(
+                opts, enable_tool_calling
+            ),
             # These flags are threaded through to the initial state and the
             # consuming nodes branch on them directly.
             dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),

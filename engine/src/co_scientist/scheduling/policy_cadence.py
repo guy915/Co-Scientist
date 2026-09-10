@@ -67,7 +67,16 @@ def _check_meta_review_cadence(
     maintenance, so real work outranks it, but a converging run should
     still hand the terminal overview a current critique rather than the
     one it held two cycles ago.
+
+    Disabled outright when ``meta_review_enabled`` is False (an ablation
+    arm running with no meta-review cadence): returning None here suppresses
+    both this ordered-check step and the companion form, since
+    ``policy._due_companions`` calls this same function. The EVOLVE branch
+    still enters the meta_review node, so this removes periodic feedback,
+    not the node.
     """
+    if not stats.meta_review_enabled:
+        return None
     if stats.iterations_since_meta_review < 1:
         return None
     if stats.feedback_since_meta_review < 1:

@@ -292,6 +292,9 @@ def _build_scheduler_stats(
         pending_steering=bool(state.get("pending_steering")),
         cancelled=bool(state.get("cancel_requested")),
         safety_blocked=bool(state.get("safety_blocked")),
+        # Default True so a state assembled before this field existed (or a
+        # restored checkpoint from one) keeps meta-review on.
+        meta_review_enabled=state.get("enable_meta_review", True) is not False,
         **cadence,
     )
 

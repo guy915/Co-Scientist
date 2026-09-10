@@ -87,6 +87,13 @@ class RunCapabilities:
             research runs under, or "" for none. Resolved upstream (see
             ``run_setup._resolve_research_tier``): opt-in, and refused
             where the run has no literature tools to search with.
+        enable_meta_review: Whether the periodic meta-review cadence may
+            fire (default True). Gates only the scheduler's cadence check;
+            the EVOLVE branch still runs the meta_review node. Resolved
+            upstream (``run_setup._resolve_meta_review``).
+        generation_strategy: A forced generation-strategy label, or "" to
+            derive the mix from literature/tool availability. Resolved and
+            validated upstream (``run_setup._resolve_generation_strategy``).
     """
 
     mcp_available: bool = False
@@ -97,6 +104,8 @@ class RunCapabilities:
     dev_test_lit_tools_isolation: bool = False
     dev_mode: bool = False
     research_tier: str = ""
+    enable_meta_review: bool = True
+    generation_strategy: str = ""
 
 
 def _initial_runtime_fields() -> dict[str, Any]:
@@ -170,6 +179,8 @@ def _initial_run_identity_fields(
         "dev_mode": capabilities.dev_mode,
         "enable_overview_review": capabilities.enable_overview_review,
         "research_tier": capabilities.research_tier,
+        "enable_meta_review": capabilities.enable_meta_review,
+        "generation_strategy": capabilities.generation_strategy,
     }
 
 

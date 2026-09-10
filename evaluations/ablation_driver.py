@@ -5,9 +5,10 @@ each arm identical except for one capability toggle, and emits the
 ``ablations`` records ``evaluations.scaling_eval.ablation_summary`` already
 reads.
 
-**Reachable arms** -- config-level toggles the durable path honors (see
-``app/app/engine_adapter/opts.py::_resolve_generator_disable_tools`` and
-``_resolve_literature_review_toggle``, and ``AGENTS.md``'s "Per-run tool
+**Reachable arms** -- config-level toggles the durable path honors. Most
+resolve at the capability boundary (``opts_capabilities.py``); the
+web-search disable instead rides ``opts.py::_resolve_disabled_tools`` into
+the engine's ``disable_tools`` list (see ``AGENTS.md``'s "Per-run tool
 disabling is reconciled once, at registry load"):
 
 - ``baseline`` -- every toggle at its default.
@@ -15,26 +16,44 @@ disabling is reconciled once, at registry load"):
   ``web_search`` tool specifically; ``read_url`` stays enabled since it also
   backs unrelated content retrieval.
 - ``no_literature_review`` -- ``enable_literature_review=False``. Disables
-  the whole literature-review node. This is also the closest reachable proxy
-  for a *generation-strategy* ablation: per
-  ``agents/generation/coordinator.py``, generation runs 100% debate-only
-  when there is no literature review, versus a 50/50 tool-based /
-  debate-with-literature split when there is.
+  the whole literature-review node.
+- ``no_meta_review`` -- ``enable_meta_review=False``. Gates the scheduler's
+  periodic meta-review cadence check
+  (``scheduling.policy_cadence._check_meta_review_cadence``, which covers
+  both the ordered step and the companion path). This is "no *periodic*
+  meta-review", NOT "no meta-review agent": the EVOLVE branch still enters
+  the meta_review node (``generator/graph._TASK_ROUTES``, out of this
+  driver's reach), so the node can still run to feed evolution. The off
+  path degrades cleanly -- every consumer reads ``state["meta_review"]``,
+  which stays the empty ``{}`` it starts at and renders nothing, exactly
+  as cycle one already does.
+- ``debate_only_strategy`` -- ``generation_strategy="no_lit"``. Forces the
+  debate-only generation strategy instead of deriving the mix from
+  literature/tool availability
+  (``coordinator_strategy._forced_generation_strategy``). Offline this is
+  identical to ``baseline`` by construction: with no literature the
+  derivation already picks debate-only, so the override only bites on a
+  live run that *had* literature -- and even then ``no_lit`` still reserves
+  an assumptions slice, whose technique grounds against any literature the
+  run holds, so a live ``no_lit`` arm is debate-without-literature for the
+  bulk of the batch rather than a literature-free run end to end. (A
+  "no-debate" tools-only arm is
+  expressible via the same seam -- ``dev_isolation``/``lit_and_tools`` --
+  but is live-only: the resolver refuses a tools-requiring strategy when
+  tool-calling generation is off, and the offline backend emits no tool
+  calls.)
 
-**Not built here, and why:** an arm that disables meta-review, or one that
-disables the debate strategy independently of literature-review
-availability. Neither has an engine-level switch to flip --
-``GeneratorOptions`` (``engine/src/co_scientist/generator/options.py``)
-carries no such field, meta-review runs unconditionally every cycle, and the
-debate/tool-based generation mix is *derived* from literature/tool
-availability rather than toggled directly. Building either would mean
-adding a new switch to the engine, which is out of this driver's ownership
--- see the evaluation report for what that would need. ``PUBLISHED_BASELINES``
-below records Google's own numbers for exactly these two unreachable arms
-(plus Reflection's search-tool ablation, which *is* reachable via
-``no_web_search``), quoted from the paper as reference data a future
-credentialed sweep can be read against -- never computed, compared, or
-gated on here.
+**Honesty on effect:** these toggles are now *wired*, not *shown to
+matter*. Offline every arm degrades to the same LLM-only, no-tools,
+debate-only path (see below), so the offline sweep proves the switches
+reach the engine and a run still completes -- it does not measure any
+ablation effect. ``PUBLISHED_BASELINES`` below records Google's own
+numbers for the meta-review and evolution arms (plus Reflection's
+search-tool arm, reachable via ``no_web_search``), quoted from the paper
+as reference data a future credentialed ``--live`` sweep can be read
+against -- never computed, compared, or gated on here. The Evolution
+arm remains *unreachable* (``_UNREACHABLE_ARMS``): no engine switch
+disables the Evolution agent.
 
 **Offline (default):** proves the driver's wiring end-to-end. It is NOT
 evidence that any toggle changes real output: without a reachable MCP
@@ -67,17 +86,24 @@ _ARMS: dict[str, dict[str, Any]] = {
     "baseline": {},
     "no_web_search": {"enable_web_search": False},
     "no_literature_review": {"enable_literature_review": False},
+    # Periodic meta-review cadence off (the meta_review node can still run
+    # via the EVOLVE branch); forced debate-only generation strategy. Both
+    # are engine-side toggles added for this driver -- see the module
+    # docstring's Reachable arms.
+    "no_meta_review": {"enable_meta_review": False},
+    "debate_only_strategy": {"generation_strategy": "no_lit"},
 }
 
 _UNREACHABLE_ARMS = {
-    "no_meta_review": (
-        "No engine switch exists to skip meta-review; it runs "
-        "unconditionally every cycle (agents/meta_review/meta_review.py)."
-    ),
-    "no_debate_strategy": (
-        "The debate/tool-based generation mix is derived from literature/"
-        "tool availability (agents/generation/coordinator.py), not exposed "
-        "as an independent toggle; GeneratorOptions carries no such field."
+    "no_evolution": (
+        "No engine switch disables the Evolution agent; evolution is driven "
+        "by the scheduler's generation-vs-evolution decision, not a config "
+        "toggle. The only per-run evolution knob is the numeric "
+        "evolution_max_count, and the app path can only raise it above its "
+        "tier baseline (run_modes._apply_numeric_override is max()), never "
+        "to zero. PUBLISHED_BASELINES['evolution'] records Google's numbers "
+        "for this arm as reference data a future credentialed sweep could "
+        "be read against."
     ),
 }
 

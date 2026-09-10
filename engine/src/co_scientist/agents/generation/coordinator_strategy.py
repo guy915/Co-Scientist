@@ -50,6 +50,37 @@ def _check_literature_availability(
     )
 
 
+# The strategy labels _classify_generation_strategy may return, and the
+# only values an ablation caller may force via state["generation_strategy"]
+# (validated upstream in run_setup._resolve_generation_strategy). Named here
+# so the resolver and the classifier share one source of truth.
+GENERATION_STRATEGY_LABELS: frozenset[str] = frozenset(
+    {"dev_isolation", "lit_and_tools", "lit_only", "no_lit"}
+)
+
+# The forced labels that route hypotheses into the tool-based draft path, so
+# they require tool-calling generation to be enabled. run_setup refuses these
+# when it is not.
+TOOLS_REQUIRING_STRATEGIES: frozenset[str] = frozenset(
+    {"dev_isolation", "lit_and_tools"}
+)
+
+
+def _forced_generation_strategy(state: WorkflowState) -> str | None:
+    """Return an ablation-forced strategy label, or None to derive it.
+
+    Kept out of ``_classify_generation_strategy`` (already at the
+    complexity ceiling) so both stay simple: the coordinator prefers this
+    when set and falls back to derivation otherwise. Only a value validated
+    upstream reaches here, but the membership check is re-imposed so an
+    unexpected string derives rather than crashing the dispatch table.
+    """
+    forced = state.get("generation_strategy")
+    if isinstance(forced, str) and forced in GENERATION_STRATEGY_LABELS:
+        return forced
+    return None
+
+
 def _classify_generation_strategy(
     state: WorkflowState, has_literature: bool, enable_tool_calling: bool
 ) -> str:
@@ -184,7 +215,9 @@ def _determine_generation_counts(
     enable_tool_calling: bool,
 ) -> GenerationCounts:
     """Determine how many hypotheses to generate with each method."""
-    strategy = _classify_generation_strategy(
+    strategy = _forced_generation_strategy(
+        state
+    ) or _classify_generation_strategy(
         state, has_literature, enable_tool_calling
     )
     strategy_counts = {

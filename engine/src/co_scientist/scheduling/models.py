@@ -192,6 +192,14 @@ class SchedulerStats:
     # advances the iteration counter itself.
     iterations_since_meta_review: int = 0
     feedback_since_meta_review: int = 0
+    # Whether the periodic meta-review cadence may fire at all. Default True;
+    # an ablation arm sets it False to run with no meta-review cadence
+    # (``state["enable_meta_review"]`` -> ``orchestrator_stats``). Read by
+    # ``policy_cadence._check_meta_review_cadence``, which covers both the
+    # ordered-check step and the companion path, so this one field disables
+    # both. The EVOLVE branch still enters the meta_review node, so this is
+    # "no periodic feedback", not "no node".
+    meta_review_enabled: bool = True
     # Research-overview cadence (listing 01 L65-69, the periodic sibling of
     # the terminal synthesis). Work cycles completed since the last firing,
     # anchored and reset exactly like the meta-review clock above and for

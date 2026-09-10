@@ -410,6 +410,12 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
     "enable_literature_review": _apply_bool_override,
     "llm_backend": _apply_llm_backend_override,
     "enable_web_search": _apply_bool_override,
+    # Ablation seams (evaluations.ablation_driver). enable_meta_review gates
+    # the engine's periodic meta-review cadence; generation_strategy is a
+    # string label carried verbatim (the numeric fallback would int() it and
+    # drop it silently), validated engine-side.
+    "enable_meta_review": _apply_bool_override,
+    "generation_strategy": _apply_verbatim_override,
     # A discovery run's whole specification: what to optimize, how to
     # measure it, and the program to start from. Verbatim because it is a
     # dict -- the numeric fallback cannot coerce one and would drop it
@@ -487,4 +493,6 @@ def resolved_run_config(
     # Web search is on by default, matching the literature stack. It is a
     # no-op unless the MCP server actually offers the tool.
     base.setdefault("enable_web_search", True)
+    # Periodic meta-review on by default; an ablation arm sets it False.
+    base.setdefault("enable_meta_review", True)
     return base
