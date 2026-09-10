@@ -3,7 +3,10 @@
 Parses ``docs/PARITY.md`` and enforces the ledger's integrity invariants so a
 green test suite cannot silently drift from the parity claims:
 
-1. Every requirement row has a status drawn from the allowed vocabulary.
+1. Every requirement row has a status drawn from the allowed vocabulary
+   (``missing``, ``partial``, ``verified``, ``external``, ``undisclosed``,
+   ``divergent`` — the last being a deliberate, accepted difference from
+   Google that the project has decided not to change).
 2. Requirement IDs are unique.
 3. Every data row under a requirement-table header has exactly the header's
    column count, so a stray ``|`` inside a cell fails loudly instead of
@@ -46,7 +49,7 @@ from evaluations.parity_evidence import _test_defined_in as _test_defined_in
 # The status vocabulary is a hard contract shared with docs/PARITY.md. Keep in
 # sync with the comment block at the top of that file.
 ALLOWED_STATUSES = frozenset(
-    {"missing", "partial", "verified", "external", "undisclosed"}
+    {"missing", "partial", "verified", "external", "undisclosed", "divergent"}
 )
 
 # Cells that count as "no evidence provided": empty or a lone em/en dash.
@@ -185,10 +188,11 @@ def _row_status_errors(
                 )
             )
 
-    # A 'partial'/'missing' row must record what remains and who owns it.
-    # Downgrading a claim without naming the residual gap is the exact
-    # truth-drift the ledger exists to prevent.
-    if parsed.status in ("partial", "missing") and _cell_is_empty(
+    # A 'partial'/'missing'/'divergent' row must record what remains (or, for
+    # 'divergent', why the difference is accepted) and who owns it. Downgrading
+    # a claim without naming the residual gap is the exact truth-drift the
+    # ledger exists to prevent.
+    if parsed.status in ("partial", "missing", "divergent") and _cell_is_empty(
         parsed.residual
     ):
         errors.append(

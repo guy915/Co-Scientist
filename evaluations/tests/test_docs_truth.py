@@ -42,7 +42,7 @@ def test_verification_snapshot_matches_checker() -> None:
     snapshot = {
         m.group(1): int(m.group(2))
         for m in re.finditer(
-            r"(verified|partial|missing|external|undisclosed)=(\d+)",
+            r"(verified|partial|missing|external|undisclosed|divergent)=(\d+)",
             blob.group(1),
         )
     }

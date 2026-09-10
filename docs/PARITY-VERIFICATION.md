@@ -54,10 +54,11 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=98, partial=12, missing=2, external=3, undisclosed=0.** Each
-`verified` row cites test/eval evidence that exists on disk; each `partial`/
-`missing` row names a concrete residual gap and owner; each `external` row
-records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
+**verified=98, partial=7, divergent=5, missing=2, external=3, undisclosed=0.**
+Each `verified` row cites test/eval evidence that exists on disk; each
+`partial`/`missing`/`divergent` row names a concrete residual gap and owner (or,
+for `divergent`, why the difference is accepted); each `external` row records a
+precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 
 > **Update (post-a3729a0b, mock-workflow deletion).** `CKPT-FAILINJECT-001`
 > moved from `verified` to `partial`: its app-level "two consecutive resume
@@ -285,6 +286,22 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 >   identical by construction, so the credentialed comparative sweep against
 >   `PUBLISHED_BASELINES` still needs provider keys — the residual, narrowed
 >   to that.
+>
+> **Parity closure (2026-09-10).** A new `divergent` status was added to the
+> ledger vocabulary and five rows moved from `partial` to `divergent`:
+> `SCORE-COMPOSITION-001`, `REPORT-HEADING-DUPLICATION-001`,
+> `REPORT-DOCUMENT-SPLIT-001`, `GOAL-RESTATEMENT-001`, and
+> `RANKING-CRITERIA-TABLE-001`. So `partial` drops 12 → 7 and `divergent` is
+> 5; no row added or removed, still 115. These are settled, accepted
+> divergences from Google — not unfinished work: Google's score composition is
+> an undisclosed formula we do not reproduce (`SCORE-COMPOSITION-001`); the
+> duplicated ranking heading is a corpus transcription artifact, not a shape
+> to mirror (`REPORT-HEADING-DUPLICATION-001`); and the single-document
+> decision the owner made on direct product-UI evidence — the document-split
+> cluster — retired the second published document and everything built only to
+> differentiate it (`REPORT-DOCUMENT-SPLIT-001`, `GOAL-RESTATEMENT-001`,
+> `RANKING-CRITERIA-TABLE-001`). `divergent` records the difference and its
+> reason rather than tracking work still owed.
 
 ---
 
