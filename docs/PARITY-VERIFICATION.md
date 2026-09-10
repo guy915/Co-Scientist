@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=95, partial=15, missing=2, external=3, undisclosed=0.** Each
+**verified=98, partial=12, missing=2, external=3, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -248,6 +248,43 @@ records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 > closing the missing-pin-test residual the row previously named, but the
 > field itself is kept rather than removed, since no exemplar positively
 > excludes it.
+>
+> **Parity closure (2026-09-10).** Four more rows moved from `partial` to
+> `verified`, `verified=95, partial=15` → `verified=98, partial=12`; no row
+> added or removed, still 115. Three were reframes on evidence, not new
+> behaviour — the row text had claimed a gap the code did not have:
+>
+> - `EXEC-PATH-CHAIN-001` — per-hypothesis task chaining is delivered on the
+>   canonical durable path (one leased task per hypothesis for every fan-out
+>   family); the batch-node divergence the row described is confined to the
+>   streaming LangGraph engine, which has no production caller since
+>   `workflow.run_workflow` was removed. Reframed to `verified` with the
+>   divergence scoped to the dev-only path; no code changed.
+> - `SUP-SPLIT-001` (`1306f2d4`) — `01-supervisor.md` synthesizes the plan
+>   once in `StartCoScientist` and only makes per-cycle decisions against it
+>   in `DecideNextSteps`; ours matches (the compiled graph gives `supervisor`
+>   a single inbound edge from START), so the "plan never revisited" reading
+>   was not a divergence from Google at all. The sole remaining difference is
+>   cosmetic node names. Pinned by graph-topology tests; no production code
+>   changed.
+> - `SCALE-TIER-001` — every mechanism the source names for "flexible compute
+>   scaling" is within-run allocation (`SUP-DYNAMIC-001`, `SUP-STATS-001`,
+>   `ORCH-DYNAMIC-ROUTE-001`), dynamic termination (`SUP-TERMINATE-001`), and
+>   per-run envelope sizing (the tiers, `RUN-TIER-001`) — all already
+>   verified. The row's "continuous mid-run adaptive compute scaling" spec
+>   was an unsourced gloss; the paper describes no controller that grows a
+>   run's envelope mid-run. Corrected the requirement to the source and moved
+>   to `verified`; no code changed.
+>
+> One row advanced but stays `partial`:
+>
+> - `EVAL-ABLATION-001` (`7b7db229`) — the two ablation arms this row lacked
+>   now exist engine-side: `enable_meta_review` gates the periodic
+>   meta-review cadence and `generation_strategy` forces the debate-strategy
+>   mix, both offline-wired into `ablation_driver.py`. Offline arms are
+>   identical by construction, so the credentialed comparative sweep against
+>   `PUBLISHED_BASELINES` still needs provider keys — the residual, narrowed
+>   to that.
 
 ---
 
