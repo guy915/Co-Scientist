@@ -54,11 +54,33 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=99, partial=7, divergent=6, missing=0, external=3, undisclosed=0.**
+**verified=99, partial=4, divergent=9, missing=0, external=3, undisclosed=0.**
 Each `verified` row cites test/eval evidence that exists on disk; each
 `partial`/`missing`/`divergent` row names a concrete residual gap and owner (or,
 for `divergent`, why the difference is accepted); each `external` row records a
 precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
+
+> **Reclassification (2026-09-10, `partial` → `divergent`).** Three rows
+> moved from `partial` to `divergent` (partial 7 → 4, divergent 6 → 9). They
+> were labeled `partial` only because the `divergent` status did not exist
+> when they were written (added 2026-09-10, `16acaed0`); each is a settled
+> accepted divergence, not pending work: **RESEARCH-CONTACTS-FIELDS-001** —
+> the `expertise` field is kept and pinned by the owner's explicit "revisit
+> only if a further exemplar surfaces that positively excludes it"; **SUP-STACKING-001**
+> — the Supervisor's weighted/stochastic agent "sampling" (Nature Figure 2)
+> names a behavior whose mechanism the paper never discloses, so matching it
+> exactly is not attemptable from public sources; **HITL-MANUAL-HYP-001** —
+> the two remaining admission windows are end-of-run edges that self-heal or
+> sit outside admission itself, accepted rather than open. After this move,
+> all four `partial` rows are the eval sweeps, and each is blocked on a
+> credentialed comparison rather than on unbuilt code: `EVAL-ELO-CALIB-001`,
+> `EVAL-SCALING-001` and `EVAL-ABLATION-001` still need a credentialed run
+> plus Google's undisclosed reference corpora; `EVAL-RETRIEVAL-001` already
+> carries credentialed numbers (2026-08-21) and is the nearest to closing,
+> kept `partial` only because its numbers come from a single extended-tier
+> run rather than the repeated comparison its residual describes. No verdict
+> was reconciled away to shrink a count — each move is a truer label, checked
+> against the row's own residual.
 
 > **Update (post-a3729a0b, mock-workflow deletion).** `CKPT-FAILINJECT-001`
 > moved from `verified` to `partial`: its app-level "two consecutive resume
