@@ -54,7 +54,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 115 requirement rows:
-**verified=98, partial=7, divergent=5, missing=2, external=3, undisclosed=0.**
+**verified=99, partial=7, divergent=6, missing=0, external=3, undisclosed=0.**
 Each `verified` row cites test/eval evidence that exists on disk; each
 `partial`/`missing`/`divergent` row names a concrete residual gap and owner (or,
 for `divergent`, why the difference is accepted); each `external` row records a
@@ -479,9 +479,13 @@ K-factor override is not forwarded to the engine; and no worker interface/queue
 semantics exist. Each row names its gap and owner; the production-contract work
 is tracked as P0/P1 in the audit.
 
-**Missing (1 row):** app-side persistence/API/UI of the proximity graph
-(`PROX-GRAPH-APP-001`) — the engine streams it, but nothing persists or surfaces
-it yet.
+**Missing (0 rows):** none remain. The proximity graph
+(`PROX-GRAPH-APP-001`) is persisted and surfaced (now `verified`), and the
+2026-09-10 pass closed the last two: the per-idea negative-critique
+`Critiques` rollup (`REVIEW-CRITIQUES-ROLLUP-001`, `verified`) and the
+run-view ETA tile (`RUN-VIEW-ETA-001`), reclassified `divergent` — the tile
+shipped once and was deliberately removed (`f409d902`) as dishonest, and the
+frontend carries no determinate progress signal to compute an honest one.
 
 **External (unavailable, cannot be reproduced locally — no safety/truthfulness
 impact):** Google's private 1,200-goal safety benchmark; the 203-goal

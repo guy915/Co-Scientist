@@ -353,6 +353,65 @@ def _probe_lines(index: int, probe: dict[str, Any]) -> list[str]:
     return lines
 
 
+# The two Reviews-summary parts that carry negative critique, keyed in
+# the published rollup order (R10-8). The other six parts are the idea's
+# positives, verdict and feasibility, and stay in the Reviews summary
+# block above rather than in this negative-only rollup.
+_CRITIQUE_PARTS: tuple[str, ...] = ("critical_flaws", "validated_risks")
+
+
+def _critique_entries(summary: dict[str, Any]) -> list[str]:
+    """The negative-critique bullets from a full review's own summary."""
+    entries: list[str] = []
+    for key in _CRITIQUE_PARTS:
+        value = summary.get(key)
+        if isinstance(value, str):
+            if text := value.strip():
+                entries.append(text)
+        elif isinstance(value, list):
+            entries += [t for item in value if (t := str(item).strip())]
+    return entries
+
+
+def _render_critiques_rollup(reviews: list[dict[str, Any]]) -> list[str]:
+    """Render the per-idea negative-critique rollup (REVIEW-CRITIQUES-ROLLUP).
+
+    Google's published per-hypothesis documents close on a ``Critiques``
+    section -- "Here's a summary of the negative critiques from the
+    reviews:" over a synthesized bulleted rollup (corpus R10-8, the KIRA6
+    output). It is a per-idea rollup, distinct from the run-level
+    meta-review critique (``META-CRITIQUE-APPEND-001``), and from the
+    ``All reviews`` block above it, which lists each reviewer's findings
+    verbatim rather than synthesizing them.
+
+    Like every other renderer in this file, it calls no model: the
+    synthesis was already done by the full review, which distilled the
+    pool of individual per-axis reviews into its own ``critical_flaws``
+    and ``validated_risks`` parts (``schemas/review_full``). This gathers
+    those two negative parts under the published heading and label; the
+    positive parts of the same summary stay in the Reviews summary block.
+    The negatives therefore appear twice in the entry -- once numbered in
+    the Reviews summary, once here as a dedicated rollup -- which is
+    faithful to R10-8, whose published output restates the same negatives
+    under this heading. Omitted whole when the mature cascade never
+    reached this idea and so wrote neither part.
+    """
+    summary = _mature_detail(reviews).get("reviews_summary")
+    if not isinstance(summary, dict):
+        return []
+    entries = _critique_entries(summary)
+    if not entries:
+        return []
+    return [
+        "#### Critiques",
+        "",
+        "Here's a summary of the negative critiques from the reviews:",
+        "",
+        *[f"- {entry}" for entry in entries],
+        "",
+    ]
+
+
 def _render_deep_verification(reviews: list[dict[str, Any]]) -> list[str]:
     """Render the deep-verification probes and verdict (F2).
 

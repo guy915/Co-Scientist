@@ -17,6 +17,7 @@ from typing import Any
 from app.report_markdown_header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report_markdown_references import _render_references_markdown
 from app.report_markdown_review_block import (
+    _render_critiques_rollup,
     _render_deep_verification,
     _render_hypothesis_reviews,
     _render_reviews_summary,
@@ -272,7 +273,9 @@ def _render_hypothesis_review_surface(
     lines it has always been rather than moving it into a block whose
     coverage differs. The simulation review is this system's own analogue
     of the published flaw list (R14-22) and keeps its place ahead of deep
-    verification.
+    verification. R10-8: the entry then closes on the synthesized per-idea
+    ``Critiques`` rollup, the last review-side block before this system's
+    own claim-evidence extension.
 
     Args:
         reviews: Every persisted review row for this hypothesis.
@@ -288,6 +291,9 @@ def _render_hypothesis_review_surface(
     lines += _render_hypothesis_reviews(reviews, references)
     lines += _render_hypothesis_simulation_review(reviews)
     lines += _render_deep_verification(reviews)
+    # R10-8: the published per-idea document closes on a synthesized
+    # negative-critique rollup, after all the detailed review material.
+    lines += _render_critiques_rollup(reviews)
     return lines
 
 

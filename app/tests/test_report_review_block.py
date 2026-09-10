@@ -19,7 +19,6 @@ convention (R14-23) for the three blocks:
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from app.report_markdown_review_block import (
@@ -27,16 +26,7 @@ from app.report_markdown_review_block import (
     _render_hypothesis_reviews,
     _render_reviews_summary,
 )
-
-
-def _row(agent: str, detail: dict[str, Any], **extra: Any) -> dict[str, Any]:
-    """One persisted review row carrying structured detail."""
-    return {
-        "hypothesis_id": "h1",
-        "reviewer_agent": agent,
-        "detail_json": json.dumps(detail),
-        **extra,
-    }
+from tests._review_block_helpers import _row, _summary_row
 
 
 def _initial_row() -> dict[str, Any]:
@@ -327,24 +317,6 @@ def test_all_reviews_renders_nothing_for_rows_with_no_detail() -> None:
 # ---------------------------------------------------------------------------
 # Reviews summary (F6)
 # ---------------------------------------------------------------------------
-
-
-def _summary_row() -> dict[str, Any]:
-    return _row(
-        "full_review",
-        {
-            "reviews_summary": {
-                "executive_verdict": "The index is well conceived.",
-                "critical_flaws": ["The pore benchmark is wrong."],
-                "addressed_objections": ["Modelling reliability was met."],
-                "validated_risks": ["Parameter covariance is untreated."],
-                "supporting_arguments": ["The theoretical basis is right."],
-                "alignment_and_novelty": ["Squarely on the goal."],
-                "feasibility_assessment": ["Moderate resource intensity."],
-                "conclusion": "Recalibrate before testing.",
-            }
-        },
-    )
 
 
 def test_reviews_summary_renders_the_published_eight_parts_in_order() -> None:

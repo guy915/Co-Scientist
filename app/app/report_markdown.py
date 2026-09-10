@@ -188,6 +188,9 @@ from app.report_markdown_review_axes import (
 # per-entry assembly module within the size cap; the names are
 # re-exported so this module's namespace keeps resolving.
 from app.report_markdown_review_block import (
+    _render_critiques_rollup as _render_critiques_rollup,
+)
+from app.report_markdown_review_block import (
     _render_deep_verification as _render_deep_verification,
 )
 from app.report_markdown_review_block import (
