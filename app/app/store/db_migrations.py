@@ -387,6 +387,22 @@ def _migrate_message_applied_columns(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "messages", "applied_decision", "TEXT")
 
 
+def _migrate_hypothesis_creation_iteration(conn: sqlite3.Connection) -> None:
+    """Add the authoring-cycle ordinal to hypotheses (EVAL-SCALING-001).
+
+    The engine already stamps ``creation_iteration`` on every hypothesis (0
+    for the initial generation, N for a research-expansion or evolution cycle
+    N), but the store never persisted it, so the temporal-scaling eval could
+    only order a run's hypotheses by ``generation`` (lineage depth) -- which
+    mis-orders a hypothesis re-generated in a later cycle ahead of an earlier
+    cycle's evolved descendant. The drain's ``created_at`` cannot substitute:
+    it is stamped at finalize for every row at once, so it carries no
+    authoring-timeline signal. Nullable: legacy rows and any hypothesis whose
+    engine payload omits the field stay NULL and fall back to ``generation``.
+    """
+    _add_column_if_missing(conn, "hypotheses", "creation_iteration", "INTEGER")
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -409,3 +425,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_task_available_at(conn)
     _migrate_match_debate_transcript(conn)
     _migrate_message_applied_columns(conn)
+    _migrate_hypothesis_creation_iteration(conn)

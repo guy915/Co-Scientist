@@ -424,6 +424,9 @@ def _persist_engine_hypothesis_row(
             parent_id=parent_id,
             parent_ids=parent_ids,
             generation=identity.generation,
+            # Authoring-cycle ordinal (int|None from the engine); 0 is a real
+            # cycle, so pass it through directly rather than `or None`.
+            creation_iteration=h.get("creation_iteration"),
             category=h.get("category") or None,
             mechanism=h.get("literature_grounding") or "",
             expected_effect=h.get("explanation") or "",

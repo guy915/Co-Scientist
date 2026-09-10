@@ -14,17 +14,19 @@ see each function's docstring for which is which:
   Elo across them. It never varies tier -- it measures whether a single
   run's own hypothesis quality trends upward over its own generation/
   evolution cycles. Unlike the tier curve, the *ordering signal* is real
-  even offline: a hypothesis's ``generation`` (0 for an originally
-  generated hypothesis, N for an evolution descendant N rounds removed)
-  is a genuine cycle ordinal the engine assigns, not a byproduct of
-  comparing identical canned answers across tiers. It is coarser than the
-  paper's own continuous wall-clock partition, though: our schema carries
-  no per-hypothesis authorship timestamp, only an INSERT-time
-  ``created_at`` that lands one generation call's whole batch of siblings
-  within a fraction of a millisecond of each other (confirmed against a
-  real run), and our runs cap at a handful of generation values rather
-  than the paper's long-running multi-hour loop -- see
-  ``_temporal_order_key`` for exactly what is and is not ordered.
+  even offline: a hypothesis's ``creation_iteration`` (the authoring-cycle
+  ordinal the engine stamps at creation -- 0 for the initial generation, N
+  for a research-expansion/evolution cycle N) is a genuine cycle ordinal
+  the engine assigns, not a byproduct of comparing identical canned answers
+  across tiers. It is the closest the persisted schema comes to the paper's
+  own continuous wall-clock partition: the drain's INSERT-time ``created_at``
+  cannot substitute, since every hypothesis of a run is written at finalize
+  within one sub-second pass (confirmed against real runs) and so carries no
+  authoring-timeline signal, and our runs cap at a handful of cycles rather
+  than the paper's long-running multi-hour loop. ``generation`` (lineage
+  depth) remains the fallback for a row predating the ``creation_iteration``
+  column -- see ``_temporal_order_key`` for exactly what is and is not
+  ordered.
 """
 
 from __future__ import annotations
@@ -115,29 +117,47 @@ def _hypothesis_elo(item: dict[str, Any]) -> int | None:
     return int(rating) if rating is not None else None
 
 
-def _temporal_order_key(item: dict[str, Any]) -> tuple[int, float, str]:
+def _temporal_order_key(item: dict[str, Any]) -> tuple[int, int, float, str]:
     """Sort key approximating a hypothesis's place in a run's timeline.
 
-    Ordered primarily by ``generation`` -- the engine's own lineage
-    ordinal (0 for an originally generated hypothesis; ``evolve_results.py``
-    assigns a child ``parent.generation + 1``, so it strictly increases
-    each time a descendant survives another evolution round). This is the
-    only real cycle signal in the persisted schema: the engine's
-    ``Hypothesis`` model carries no timestamp of its own (nothing to read
-    before the drain's own INSERT), so ``created_at`` cannot distinguish
-    hypotheses within one generation call's batch -- confirmed against a
-    real offline run, where an entire ~13-hypothesis generation call
-    landed within under a millisecond of itself. ``created_at`` therefore
-    only breaks ties *within* a generation, as batch-insert order, not as
-    a claim about which hypothesis was "thought of" first; ``id`` breaks
-    any still-remaining tie deterministically. A hypothesis missing
-    either field sorts first on that key rather than raising, since some
-    callers (tests, older snapshots) may omit them.
+    Ordered primarily by ``creation_iteration`` -- the authoring-cycle
+    ordinal the engine stamps at creation (0 for the initial generation, N
+    for a research-expansion/evolution cycle N). This is the run's true
+    timeline axis, and the closest the persisted schema comes to the paper's
+    continuous wall-clock partition (SSR App. D). It is a genuine cycle
+    ordinal, not a wall-clock stamp, so it carries signal even offline,
+    where every hypothesis is INSERTed at finalize within one sub-second
+    drain and ``created_at`` collapses.
+
+    ``generation`` -- the lineage ordinal (0 for an original; a child gets
+    ``parent.generation + 1``) -- is the fallback for a legacy row that
+    predates the ``creation_iteration`` column, and the secondary key within
+    one cycle. Preferring ``creation_iteration`` corrects a real
+    mis-ordering: when ``generate`` runs again in a later cycle, its fresh
+    generation-0 hypotheses would otherwise sort *ahead* of an earlier
+    cycle's evolved (higher-generation) descendants -- the timeline
+    backwards. ``created_at`` (the drain's finalize-time INSERT) then breaks
+    ties, and ``id`` breaks any still-remaining tie deterministically. A
+    hypothesis missing every field sorts first rather than raising, since
+    some callers (tests, older snapshots) may omit them; siblings authored
+    in one generation call share a cycle and tie down to ``id``, which is
+    correct -- they were authored together, with no order to recover.
     """
+    creation_iteration = item.get("creation_iteration")
     generation = item.get("generation")
+    generation_ordinal = int(generation) if generation is not None else 0
+    # creation_iteration is the timeline axis; fall back to the lineage
+    # ordinal only where the run predates the column (all-NULL), which
+    # reproduces the historical generation-primary order exactly.
+    timeline = (
+        int(creation_iteration)
+        if creation_iteration is not None
+        else generation_ordinal
+    )
     created_at = item.get("created_at")
     return (
-        int(generation) if generation is not None else 0,
+        timeline,
+        generation_ordinal,
         float(created_at) if created_at is not None else 0.0,
         str(item.get("id") or ""),
     )

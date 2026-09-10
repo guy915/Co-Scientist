@@ -107,6 +107,10 @@ CREATE TABLE IF NOT EXISTS hypotheses (
     -- primary parent so existing lineage consumers are unaffected.
     parent_ids TEXT,
     generation INTEGER NOT NULL DEFAULT 0,
+    -- Authoring-cycle ordinal the engine stamps at creation (0 for the
+    -- initial generation, N for a research-expansion/evolution cycle). The
+    -- run's true timeline axis; NULL on legacy rows. See EVAL-SCALING-001.
+    creation_iteration INTEGER,
     category TEXT,                   -- short classification label (breadcrumb)
     title TEXT NOT NULL,
     statement TEXT NOT NULL,

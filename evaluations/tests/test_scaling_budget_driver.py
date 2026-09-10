@@ -69,11 +69,13 @@ def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
     hypotheses" degenerate case against a genuine offline durable run
     rather than only synthetic dicts.
 
-    Also asserts the ordering signal (``generation``) actually varies:
-    without this, a passing curve would not prove the bucketing tracks
-    anything temporal rather than an arbitrary, generation-flat order --
-    see ``scaling_eval._temporal_order_key`` for why ``generation``, not
-    ``created_at``, carries the real signal.
+    Also asserts the ordering signal actually varies, end to end from a real
+    offline durable run: ``creation_iteration`` (the authoring-cycle axis the
+    engine stamps, the drain persists, and the eval buckets by) and its
+    ``generation`` fallback must each span at least two values, or a passing
+    curve would not prove the bucketing tracks anything temporal rather than
+    an arbitrary, flat order -- see ``scaling_eval._temporal_order_key`` for
+    why ``created_at`` alone does not carry it.
     """
     report = run_budget_curve(
         "Explain a plausible mechanism of antibiotic tolerance in "
@@ -84,13 +86,19 @@ def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
     snapshot = report["snapshots"][0]
     curve = snapshot["temporal_curve"]
     generations = {h["generation"] for h in snapshot["hypotheses"]}
+    cycles = {h["creation_iteration"] for h in snapshot["hypotheses"]}
 
     assert curve, "an express run must produce at least one hypothesis"
     assert len(curve) <= 10
     assert sum(b["n_hypotheses"] for b in curve) == len(snapshot["hypotheses"])
+    assert len(cycles) >= 2, (
+        "express still runs one evolution round -- creation_iteration must "
+        "vary end to end (engine stamp -> drain -> store -> eval) or the "
+        "temporal curve orders nothing real"
+    )
     assert len(generations) >= 2, (
-        "express still runs one evolution round -- generation must vary "
-        "or the temporal curve orders nothing real"
+        "express still runs one evolution round -- generation (the fallback "
+        "axis) must vary too"
     )
     for bucket in curve:
         assert bucket["best_elo"] is not None, "offline run always rates"

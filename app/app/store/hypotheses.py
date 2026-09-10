@@ -30,6 +30,10 @@ class NewHypothesis:
     None to have a fresh uuid4 assigned. ``generation`` is 0 for
     originally generated hypotheses; ``category`` is a short
     classification label that drives the viewer breadcrumb;
+    ``creation_iteration`` is the authoring-cycle ordinal the engine stamps
+    at creation (0 for the initial generation, N for a later
+    research-expansion/evolution cycle), the run's true timeline axis; it
+    stays None for a scientist-contributed hypothesis, which has no cycle.
     ``created_by_agent`` names the creating agent (e.g. 'generation');
     ``author`` records authorship provenance for a scientist-contributed
     hypothesis and stays empty for agent-generated ones. ``parent_ids`` is
@@ -49,6 +53,7 @@ class NewHypothesis:
     parent_id: str | None = None
     parent_ids: list[str] | None = None
     generation: int = 0
+    creation_iteration: int | None = None
     category: str | None = None
     mechanism: str = ""
     expected_effect: str = ""
@@ -84,11 +89,14 @@ def _parent_ids_json(parent_ids: list[str] | None) -> str | None:
 # what the scientist wrote.
 _HYPOTHESIS_UPSERT = (
     "INSERT INTO hypotheses (id, run_id, parent_id, parent_ids, "
-    "generation, category, title, statement, mechanism, expected_effect, "
+    "generation, creation_iteration, category, title, statement, mechanism, "
+    "expected_effect, "
     "experimental_context, introduction, recent_findings, "
     "safety_and_toxicity, created_by_agent, author, created_at) "
-    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
     "ON CONFLICT(id) DO UPDATE SET "
+    "creation_iteration=COALESCE("
+    "hypotheses.creation_iteration, excluded.creation_iteration), "
     "category=COALESCE(hypotheses.category, excluded.category), "
     "mechanism=COALESCE(NULLIF(hypotheses.mechanism, ''), "
     "excluded.mechanism), "
@@ -132,6 +140,7 @@ def _insert_hypothesis_rows(
             f.parent_id,
             _parent_ids_json(f.parent_ids),
             f.generation,
+            f.creation_iteration,
             f.category,
             f.title,
             f.statement,

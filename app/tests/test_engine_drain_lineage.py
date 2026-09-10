@@ -89,3 +89,41 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
     child = hyps["child-1"]
     assert child["parent_id"] == "parent-1"
     assert child["parent_ids"] is None
+
+
+def test_drain_persists_creation_iteration(isolated_db: str) -> None:
+    """The drain carries each hypothesis's authoring cycle to the store.
+
+    ``creation_iteration`` is the engine's authoring-cycle ordinal (0 for the
+    initial generation, N for a later research-expansion/evolution cycle); the
+    temporal-scaling eval reads it as the run's timeline axis
+    (``EVAL-SCALING-001``). A hypothesis whose engine payload omits it (a
+    legacy row) persists as NULL rather than 0, so the eval falls back to
+    ``generation`` rather than treating it as the initial cycle.
+    """
+    run = store.create_run("kinase goal", "standard", "engine", {})
+    _persist(
+        run_id=run.id,
+        final_state={
+            "hypotheses": [
+                _engine_hypothesis("seed", "Seed idea.", creation_iteration=0),
+                _engine_hypothesis(
+                    "reborn", "Re-generated later.", creation_iteration=2
+                ),
+                _engine_hypothesis("legacy", "No cycle stamped."),
+            ],
+            "articles": [],
+            "tournament_matchups": [],
+            "meta_review": {},
+            "evolution_details": [],
+            "research_overview": {},
+        },
+        db_path=isolated_db,
+    )
+
+    by_id = {
+        h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)
+    }
+    assert by_id["seed"]["creation_iteration"] == 0
+    assert by_id["reborn"]["creation_iteration"] == 2
+    assert by_id["legacy"]["creation_iteration"] is None

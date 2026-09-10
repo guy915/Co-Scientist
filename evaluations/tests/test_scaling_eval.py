@@ -16,13 +16,21 @@ def _hyp(
     created_at: float,
     elo: int | None,
     generation: int = 0,
+    creation_iteration: int | None = None,
 ) -> dict[str, Any]:
-    """Build one bare hypothesis dict for the temporal-bucket tests."""
+    """Build one bare hypothesis dict for the temporal-bucket tests.
+
+    ``creation_iteration`` is omitted from the row entirely when None, so a
+    test can exercise the legacy fallback (order by ``generation``) simply by
+    not passing it.
+    """
     entry: dict[str, Any] = {
         "id": hid,
         "created_at": created_at,
         "generation": generation,
     }
+    if creation_iteration is not None:
+        entry["creation_iteration"] = creation_iteration
     if elo is not None:
         entry["elo_rating"] = elo
     return entry
@@ -68,13 +76,17 @@ def test_scaling_curve_orders_compute_and_uses_expert_quality() -> None:
     assert curve[1]["best_elo"] == 1320
 
 
-def test_temporal_scaling_curve_orders_primarily_by_generation() -> None:
-    """Generation is the primary key, overriding ``created_at`` and Elo.
+def test_temporal_scaling_curve_falls_back_to_generation_when_no_cycle() -> (
+    None
+):
+    """Legacy rows without ``creation_iteration`` order by ``generation``.
 
-    ``early`` has the smallest ``created_at`` but the highest generation
-    (an evolution descendant two rounds removed); a bug that ordered by
-    ``created_at`` or list position instead of the engine's own lineage
-    ordinal would put it first, not last.
+    A row predating the ``creation_iteration`` column carries no cycle
+    ordinal, so the timeline key falls back to lineage depth -- reproducing
+    the historical generation-primary order exactly. ``early`` has the
+    smallest ``created_at`` but the highest generation (an evolution
+    descendant two rounds removed); a bug that ordered by ``created_at`` or
+    list position instead would put it first, not last.
     """
     hypotheses = [
         _hyp("late", created_at=30.0, elo=1100, generation=0),
@@ -88,6 +100,44 @@ def test_temporal_scaling_curve_orders_primarily_by_generation() -> None:
     assert [b["n_hypotheses"] for b in curve] == [1, 1, 1]
     assert [b["bucket"] for b in curve] == [1, 2, 3]
     assert all(b["of"] == 3 for b in curve)
+
+
+def test_temporal_scaling_curve_orders_primarily_by_creation_iteration() -> (
+    None
+):
+    """``creation_iteration`` (authoring cycle) overrides ``generation``.
+
+    This corrects a real mis-ordering: when ``generate`` runs again in a
+    later cycle, its fresh generation-0 hypotheses must not sort ahead of an
+    earlier cycle's evolved (higher-generation) descendants. Here ``reborn``
+    is a cycle-2 generation-0 idea and ``evolved`` a cycle-1 generation-2
+    descendant; by lineage alone ``reborn`` (gen 0) would sort first, but by
+    authoring cycle it belongs last -- it was thought of later.
+    """
+    hypotheses = [
+        _hyp(
+            "seed", created_at=1.0, elo=1100, generation=0, creation_iteration=0
+        ),
+        _hyp(
+            "evolved",
+            created_at=2.0,
+            elo=1200,
+            generation=2,
+            creation_iteration=1,
+        ),
+        _hyp(
+            "reborn",
+            created_at=3.0,
+            elo=1300,
+            generation=0,
+            creation_iteration=2,
+        ),
+    ]
+
+    curve = temporal_scaling_curve(hypotheses, bucket_count=3)
+
+    # Buckets follow authoring cycle 0 -> 1 -> 2, not lineage 0 -> 0 -> 2.
+    assert [b["best_elo"] for b in curve] == [1100, 1200, 1300]
 
 
 def test_temporal_scaling_curve_breaks_generation_ties_by_created_at() -> None:
