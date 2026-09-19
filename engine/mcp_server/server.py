@@ -175,7 +175,7 @@ logger.info(
     "PubMed: %s",
     "configured"
     if entrez_email_present
-    else "unavailable (ENTREZ_EMAIL unset)",
+    else "anonymous (ENTREZ_EMAIL unset; reachability not yet checked)",
 )
 
 # Build the MCP app as an ASGI sub-app so it can be mounted onto a FastAPI
