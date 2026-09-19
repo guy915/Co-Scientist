@@ -1943,3 +1943,32 @@ inferred. Vercel project lookup has a connector argument mismatch; deployment
 lookup by production domain succeeded instead. No services/config were changed.
 Next resume91986,15594,2658; retain results and diagnose actual failures without
 changing assertions. M1 remains31/37;58 campaign items open.
+
+**2026-09-20 — Cycle49, required verification complete; live pair pending.**
+Previous cycle progressed by completing checks, confirming production state,
+and correcting the test environment after an observed terminal failure.
+Resumed all three authoritative handles. Host test-all15594 exited0:
+3124 engine tests passed (2 existing skips),1844 app tests passed,274 MCP
+tests passed, MCP types and parity/evaluation suite passed. The previous
+outer-sandbox22 failures disappear without code or assertion changes.
+
+Browser2658 exited2 after browser-cache lock EPERM and Chromium MachPort
+registration denial (nine browser launch failures). Read-only process/source
+inspection established Playwright's installer was retrying its cache lock for
+up to ten minutes; no restart occurred while that handle remained live. After
+terminal failure, host browser19672 ran the unchanged suite:9 passed, exit0.
+All required ordinary verification commands are now green for product source
+3bbb65d4; subsequent commits change records only. Updated verification-cycle48.json
+with terminal outcomes and retained result lines/log hashes. No new skips,
+threshold changes or product edits. Linux confinement checks from earlier work
+remain unchanged; no confinement source changed this cycle.
+
+Read-only detailed Railway API config confirms one sfo replica and /app/data
+mount; retained api-invariants-cycle49.json. No environment values requested,
+no release or configuration mutation. Rechecked baseline1's manifest/control,
+all307 imported-source hashes and all33 physical-request usage records against
+frozen evidence successfully. Live batch91986 remains active on candidate1;
+its recorded reasoning-budget exhaustion entered the existing raised-budget
+retry, not a restarted experiment. Poll91986 next and run the paired comparator
+when a pair completes. No other test process remains live. M1 remains31/37,
+six remaining;58 campaign items open. No scientific adoption claimed.
