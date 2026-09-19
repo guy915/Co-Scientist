@@ -77,3 +77,29 @@ Metadata in YAML may describe a tool but cannot certify a remote implementation.
 Non-campaign behavior must remain independently covered. Exact adapter/policy
 shape will be selected after failing boundary tests, without adding a competing
 tool runtime. Enforcement and real retrieval acceptance remain open.
+
+## FREE-TOOLS-01/02 implementation — M1-03c2a
+
+The standalone reference MCP package now parses the same strict
+`COSCIENTIST_REQUIRE_FREE_MODELS` contract as the engine. It does not import the
+engine (a separate deployment/package), and has no second opt-in mode. Campaign
+startup omits web search and its probe; dynamic provider selection returns no
+paid providers. Direct Brave/Tavily functions reject before creating transport,
+so previously registered tools and fallback calls cannot evade the guard.
+
+OpenAlex campaign requests omit the host API key and disable environment proxy
+routing. They use the existing anonymous endpoint, with its provider-enforced
+quota; this does not claim a new local request-volume ceiling. A quota failure
+remains an explicit unavailable-source error; there is no credentialed retry.
+Ordinary non-campaign credentials, selection and transport remain covered.
+The campaign flag must be set on the MCP service as well as the API at release;
+no remote server is assumed to inherit the caller's environment.
+
+Four failing boundary cases preceded implementation. Verification: 87 targeted
+provider checks, strict mypy on four changed Python files, Ruff and diff checks.
+The startup test launches the actual server module in a separate process with
+fake keys and dotenv disabled. Remaining tests use HTTP mocks, including real
+httpx request serialization, key omission, proxy bypass, invalid settings and
+429 propagation. No live provider request was sent. FREE-TOOLS-03/04/05 and
+live retrieval verification remain open; these controls alone do not qualify a
+custom MCP server or arbitrary workspace command.

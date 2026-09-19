@@ -153,7 +153,9 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03b2: Prevent campaign and credential-scoped executions from reading or writing shared node caches, including forced cache paths; verify isolation without changing ordinary cache behavior.
 - [x] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
 - [x] M1-03c1: Map retrieval, tools, plugins, skills and embeddings to outbound paths and retained cost evidence; record concrete enforcement gaps and acceptance tests.
-- [ ] M1-03c2: Enforce campaign cost restrictions at MCP invocation/provider and workspace/skill boundaries, including fallbacks and custom configurations; preserve qualified public retrieval and ordinary user behavior.
+- [x] M1-03c2a: Prevent metered web-provider requests/fallbacks and credentialed OpenAlex billing in campaign mode at the standalone MCP provider boundary; preserve anonymous public retrieval and non-campaign behavior.
+- [ ] M1-03c2b: Qualify resolved MCP server/tool identities and enforce campaign restrictions on both direct and model-driven invocation paths, including custom configurations and availability probes.
+- [ ] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
 - [ ] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -508,3 +510,32 @@ Final independent audit review corrected the network-enabled workspace source
 to `open_draft_workspace` (review workspaces default to network disabled), and
 clarified that configured web search is conditionally registered at runtime.
 These corrections are retained in the audit; no enforcement is claimed.
+
+### 2026-09-19 — Cycle 9, M1-03c2a
+
+Previous turn: progress, audit committed as `a3541dd2`; started clean. Split
+provider enforcement, custom MCP admission and workspace confinement into c2a,
+c2b and c2c without removing acceptance criteria. Four red tests reproduced
+metered direct transport, provider/fallback availability and OpenAlex host-key
+attachment under campaign mode.
+
+The standalone MCP package now enforces the existing strict campaign flag before
+metered web transport and provider selection. OpenAlex uses anonymous requests
+with environment proxy routing disabled; 429 remains unavailable and does not
+retry with a host key. Chose a small independent parser because this server is
+packaged/deployed without the engine; no dependency or alternate flag added.
+No arbitrary local result cap was added: anonymous access is bounded by provider
+quota, with rate limits surfaced rather than paid fallback. Deployment must
+explicitly configure the MCP service too; caller environment is not inherited.
+
+Eighty-seven targeted tests and strict mypy on four changed files pass. Extra
+coverage checks actual server startup registration, invalid values, normal keys,
+quota failure and HTTP request serialization. Scoped cleanup uses existing HTTP
+fixtures; no UI changed. Live retrieval/model capability remains unverified.
+Fresh Railway read shows API/MCP SUCCESS at `7dce086d`; the same nonfatal CLI
+refresh-persistence warning appeared. No deployment, PR, inference, provider
+search, dependency installation or spending. Next: M1-03c2b. Open count: 62;
+M1 stays open and the 180-turn limit is unchanged.
+
+Final independent read-only review found no c2a blocker. All 18 new cases pass
+after the final proxy-setting assertion; the other provider checks are unchanged.
