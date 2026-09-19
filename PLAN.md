@@ -1517,3 +1517,34 @@ review reports no remaining findings. Scoped cleanup/deslop found no further
 code changes; deleted the completed edit scratch script. No UI changed.
 Live session 50677 remains active on candidate trial 1; preserve its scratch
 launcher, comparator and snapshots. No acceptance checkbox changed, no release.
+
+### 2026-09-19 — Cycle 37, first Pro pair verified; size gates repaired
+
+Starting commit `b9e9114d`. Previous cycle was progress: four evaluator repairs
+committed while the existing live process continued. Resumed session 50677,
+never relaunched it. First Pro pair is complete: baseline accuracy .467 / recall
+0 (33 physical requests), candidate .767 / .8 (43 requests). Artifact checker
+passes all seven pair criteria, including unchanged production thresholds,
+historical controls, actual negative verifier output, no new false
+contradictions and no recorded deterministic fallback. Summary remains
+complete=false, accepted=false: two further pairs are mandatory. No model
+selection, semantic adoption, workflow qualification or deployment is implied.
+
+Finished the remaining size repairs under the existing baseline-suite item.
+MCP initialization now delegates its unchanged guarded body to a private method;
+the same lock and both readiness checks remain in the public method. Moved
+catalog helpers and the module-local autouse reset fixture to a test helper,
+preserving all test IDs and assertions and the override of the broader conftest
+fixture. Independent approach and final reviews found no semantic blockers.
+128 targeted engine tests pass before and after; both repository size test files
+now pass (four tests). Ruff and diff checks pass. Mypy exposed an existing
+heterogeneous request-dict inference in the moved-helper suite; added its explicit
+dict[str, Any] annotation without changing runtime behavior or assertions.
+
+Final mypy passes all three changed engine files, and all 62 eligibility cases
+pass after the annotation correction. Retained first-pair JSON and partial
+summary pass an exact credential-value scan. Scoped cleanup/deslop added no
+changes; live launcher/snapshots/comparison script remain necessary. No UI
+changed. Batch session 50677 is confirmed active on baseline trial 2. Next poll
+that handle, complete all pairs and rerun the Pro checker before making any
+acceptance decision. Fresh open count remains 61 (M1 27/36 complete).

@@ -155,39 +155,43 @@ class MCPToolClient:
                 require_bound_mode(self._campaign_admission)
                 logger.debug("MCP client initialized by concurrent caller")
                 return
-            if not self._server_configs:
-                raise RuntimeError("no server configurations available")
+            await self._initialize_locked()
 
-            server_names = list(self._server_configs.keys())
-            logger.info(
-                "initializing MCP client for %s server(s): %s",
-                len(server_names),
-                server_names,
-            )
+    async def _initialize_locked(self) -> None:
+        """Discover and publish tools while the initialization lock is held."""
+        if not self._server_configs:
+            raise RuntimeError("no server configurations available")
 
-            admission = await prepare_admission(self._server_configs)
-            configs = (
-                admission.transport_configs()
-                if admission is not None
-                else self._server_configs
-            )
-            client = MultiServerMCPClient(cast(dict[str, Connection], configs))
-            # This round-trips to every configured server. Publish the client
-            # only after its tool indexes are ready so all callers see one
-            # complete initialization state.
-            tools = await client.get_tools()
-            if admission is not None:
-                tools = [tool for tool in tools if tool.name in PUBLIC_TOOLS]
-            self._campaign_admission = admission
-            self._client = client
-            self._index_tools(tools)
+        server_names = list(self._server_configs.keys())
+        logger.info(
+            "initializing MCP client for %s server(s): %s",
+            len(server_names),
+            server_names,
+        )
 
-            assert self._tools_dict is not None  # set by _index_tools above
-            logger.info(
-                "MCP client initialized with %s tools: %s",
-                len(self._tools_dict),
-                list(self._tools_dict.keys()),
-            )
+        admission = await prepare_admission(self._server_configs)
+        configs = (
+            admission.transport_configs()
+            if admission is not None
+            else self._server_configs
+        )
+        client = MultiServerMCPClient(cast(dict[str, Connection], configs))
+        # This round-trips to every configured server. Publish the client
+        # only after its tool indexes are ready so all callers see one
+        # complete initialization state.
+        tools = await client.get_tools()
+        if admission is not None:
+            tools = [tool for tool in tools if tool.name in PUBLIC_TOOLS]
+        self._campaign_admission = admission
+        self._client = client
+        self._index_tools(tools)
+
+        assert self._tools_dict is not None  # set by _index_tools above
+        logger.info(
+            "MCP client initialized with %s tools: %s",
+            len(self._tools_dict),
+            list(self._tools_dict.keys()),
+        )
 
     def _index_tools(self, tools: list[Any]) -> None:
         """Populate lookup structures from the tools fetched by initialize().

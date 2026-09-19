@@ -16,6 +16,8 @@ from co_scientist.llm_call_budget import (
     current_run_call_count,
     scoped_llm_call_budget,
 )
+from tests._llm_free_fakes import _catalog, _mock_catalog
+from tests._llm_free_fakes import _free_catalog as _free_catalog
 from tests._llm_wrapper_fakes import (
     make_completion,
     make_message,
@@ -24,29 +26,6 @@ from tests._llm_wrapper_fakes import (
 
 MODEL = "openrouter/campaign/zero:free"
 OPTIONS = LLMCallOptions(use_cache=False)
-
-
-@pytest.fixture(autouse=True)
-def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist import llm_free_catalog
-
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-
-
-def _catalog(pricing: Any) -> dict[str, Any]:
-    return {
-        "data": [
-            {
-                "id": "campaign/zero:free",
-                "pricing": pricing,
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
-            }
-        ]
-    }
 
 
 @pytest.mark.parametrize("entry_point", [call_llm, call_llm_json])
@@ -80,18 +59,6 @@ async def test_unverified_price_never_reaches_provider_or_consumes_budget(
         )
     assert requests == []
     assert current_run_call_count(run_id) == 0
-
-
-def _mock_catalog(monkeypatch: pytest.MonkeyPatch, data: Any) -> list[str]:
-    calls: list[str] = []
-
-    def get(url: str, **kwargs: Any) -> httpx.Response:
-        calls.append(url)
-        assert kwargs == {"timeout": 15, "trust_env": False}
-        return httpx.Response(200, json=data, request=httpx.Request("GET", url))
-
-    monkeypatch.setattr(httpx, "get", get)
-    return calls
 
 
 @pytest.mark.parametrize(
@@ -328,7 +295,7 @@ async def test_unknown_promotion_needs_explicit_ancillary_prices(
     data = _catalog({"prompt": "0", "completion": "0"})
     data["data"][0]["id"] = "campaign/promo"
     _mock_catalog(monkeypatch, data)
-    args = {
+    args: dict[str, Any] = {
         "model": "openrouter/campaign/promo",
         "messages": [{"role": "user", "content": "probe"}],
     }
