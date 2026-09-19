@@ -74,9 +74,10 @@
   },
   "live_qualification": {
     "session": 91986,
-    "status": "running",
+    "status": "complete_not_accepted",
     "arm": "candidate",
-    "trial": 3
+    "trial": 3,
+    "summary": "model-qualification/opposition-retrieval-pro-paired-summary.json"
   },
   "release_ready": false,
   "completion_cycle": 54

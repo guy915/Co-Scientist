@@ -2103,3 +2103,22 @@ Do not mistake live_requested or a method string for verified physical inference
 Next retain terminal candidate3 and full comparator; then wire this wrapper into
 the probe/manifest/comparator and launch new frozen prompt trials. No checkbox
 completed, model selection or deployment. M1 remains31/38; campaign59 open.
+
+**2026-09-20 — Cycle56, frozen live comparison closed without acceptance.**
+Starting3e8a798b. Previous cycle progressed scope wrapper. Repeated bounded
+observations confirmed91986 live until terminal exit0; no restarts. Candidate3
+completed .867 accuracy/.90 contradiction recall,46 physical calls. Unchanged
+comparator now reports complete=true, accepted=false, three pairs. Pair1 .733
+accuracy misses .75; pair2/3 .867 pass; all have .90 recall. Baselines are
+.433/.433/.367 accuracy and zero recall. All pairs improve both metrics and
+pass historical/secondary negative controls, no new false contradictions and
+no recorded deterministic fallback. All236 physical calls retain matched/free
+request evidence. Candidate3 configured-secret scan passed. Committed complete
+summary and final arm; existing failures remain visible, not averaged away.
+
+No inference used the revised scope prompts. The active-script freeze is now
+lifted because the process is terminal. Next integrate scope wrapper into
+probe/manifest/runner/comparator with both-mode and physical-telemetry gates,
+freeze new candidate source and execute three fresh matched pairs. Preserve old
+series and all its artifacts; do not reuse responses. M1 remains31/38, campaign
+59 open. No model selected, PR, merge, deployment or production mutation.

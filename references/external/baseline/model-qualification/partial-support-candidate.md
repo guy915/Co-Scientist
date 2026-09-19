@@ -62,3 +62,16 @@ calls with matching served model and usage, and zero deterministic fallbacks.
 `live=True` alone is not evidence of inference. Capture identity fingerprints
 existing evaluator/request policies; bind the helper and control hashes as well.
 Independent review approved this wrapper with those caller gates still pending.
+
+## Completed preceding comparison
+
+The frozen retrieval/opposition series completed all three pairs before any
+shared observer edits. Candidate accuracy was .733/.867/.867, recall .90 in
+all three; baseline accuracy .433/.433/.367 and recall zero throughout.
+236 physical requests were retained across six arms. Matched-source/input and
+zero-cap/served-model checks passed. Historical controls, secondary-verifier
+negative control, no-new-false-contradiction and no-recorded-fallback criteria
+passed throughout. Pair1 missed the unchanged .75 accuracy minimum; the complete
+series is not accepted. These results do not evaluate the revised scope prompts.
+Future trials must retain fresh responses in a distinct series, preserving these
+artifacts. Session91986 terminated successfully; shared integration may now proceed.
