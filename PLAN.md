@@ -177,7 +177,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
-- [ ] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
+- [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
 - [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
 - [ ] Freeze the post-switch baseline, evaluation inputs, model settings, cache-isolation procedure, and release/rollback procedure for subsequent comparisons.
@@ -1651,3 +1651,33 @@ Engine phase completed: 3124 passed, two existing skips in 116.22s. Session
 item open until every required phase/gate holds. Scoped cleanup/deslop retained
 only the fixture fix; no UI changed. Preserve both running processes and their
 scratch. Next poll 18752 and 50677; targeted final fixture rerun remains due.
+
+### 2026-09-19 — Cycle 41, offline baseline gates complete; Pro pair 2 fails
+
+Starting commit `403134a4`. The intervening user clarification turn changed no
+execution state; this cycle resumed the same live handles, without restarting.
+Session 18752 completed `make test-all` with exit 0. Build, offline smoke,
+frontend tests (718), and browser E2E (9) all exited 0. Final safety fixture
+regression rerun passed nine tests. Lint/typecheck successes from cycles 39–40
+remain applicable; see `references/external/baseline/verification-cycle41.md`.
+Independent review confirmed this proves the offline baseline suite/browser
+item, not live or production acceptance. Checked only that item. Corrected a
+stale safety-test docstring claiming contextual review could never clear a hold;
+existing behavioral tests already prove it can. No runtime behavior changed.
+
+Session 50677 completed Pro candidate trial 2: accuracy .70, contradiction
+recall .80, 44 physical requests; baseline trial 2 accuracy .433, recall 0,
+33 requests. The candidate misses the unchanged .75 accuracy gate. Retained
+both artifacts and refreshed the two-pair summary (complete=false,
+accepted=false). Known credential-value scan passes and installed runtime
+matches the pinned runtime manifest. Batch advanced to baseline trial 3;
+continue polling 50677, never restart completed trials. The scratch comparator
+`/tmp/coscientist-compare-pro35.py` and source snapshots remain needed.
+
+Scoped cleanup/deslop found no obsolete artifacts to remove; active trial
+scratch and unrelated AGENTS.md edits are preserved. No UI code changed.
+Reflog shows expected sequential commits and stash list is empty. No PR,
+merge or deployment occurred. Report counts as completed/total: M1 28/36,
+eight remaining; campaign 60 open. Next finish the third pair, preserve failed
+qualification evidence, and resolve scientific qualification without lowering
+gates; remaining provenance and publication-safety work stays open.

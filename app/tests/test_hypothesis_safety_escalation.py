@@ -9,8 +9,8 @@ match cleared by a benign marker plus an unlisted operational verb must
 never reach ALLOW). These tests cover: only a held UNCERTAIN review is ever
 escalated (a certain block or an already-blocking-but-uncorroborated Tier B
 match never even attempts a network call), fails closed on anything that
-stops the model from running, and the model may raise a held verdict to a
-certain block but the caller never sees it cleared.
+stops the model from running, and the model may either raise a held verdict
+to a certain block or clear it after contextual review.
 """
 
 from __future__ import annotations

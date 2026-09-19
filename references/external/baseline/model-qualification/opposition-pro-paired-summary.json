@@ -180,6 +180,185 @@
         33,
         43
       ]
+    },
+    {
+      "trial": 2,
+      "artifacts": [
+        {
+          "path": "opposition-pro-baseline-2.json",
+          "sha256": "c4fc03d793bc62cec64cc95c98deb80e65ab43cea56bb254188113df98acd24b"
+        },
+        {
+          "path": "opposition-pro-candidate-2.json",
+          "sha256": "dba9ced8ca3c82f4070cf688a59ef4ea5a743e678635c4808c2673f1906a6e2e"
+        }
+      ],
+      "controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+        "scientific_acceptance": "not_assessed"
+      },
+      "source_delta": {
+        "allowed_changed_modules": {
+          "app.claim_verifier": {
+            "baseline": {
+              "path": "app/app/claim_verifier.py",
+              "sha256": "dbf8a5df20ca19fd6198fb4f07c418f676b9b7c5fcec48e555e0125b7bcb6546"
+            },
+            "candidate": {
+              "path": "app/app/claim_verifier.py",
+              "sha256": "89da39707af716a82143b8c204e486840d9a8130988b18de1be9d6d0f76d47bb"
+            }
+          },
+          "app.claim_verifier_opposition": {
+            "baseline": null,
+            "candidate": {
+              "path": "app/app/claim_verifier_opposition.py",
+              "sha256": "3099d267957c49632f3debfbb6ea1fd4dfbfd1ca23e28ceae918907c2d778042"
+            }
+          }
+        },
+        "verified_unchanged_modules": [
+          "evaluations.citation_eval",
+          "app.claims_span",
+          "co_scientist.llm_request"
+        ],
+        "matched_controls": [
+          "dataset",
+          "model",
+          "routing",
+          "cache_policy",
+          "request_policy_files"
+        ],
+        "scope": "Single public assessor panel; batch behavior is covered separately by behavioral tests and pending full workflow."
+      },
+      "historical_controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+        "scientific_acceptance": "not_assessed"
+      },
+      "baseline_metrics": {
+        "accuracy": 0.433,
+        "contradiction_recall": 0.0,
+        "abstention_rate": 0.7,
+        "per_label": {
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.667
+          },
+          "insufficient": {
+            "precision": 0.429,
+            "recall": 0.643
+          },
+          "contradicts": {
+            "precision": 0.0,
+            "recall": 0.0
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.0,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.0,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.667,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "candidate_metrics": {
+        "accuracy": 0.7,
+        "contradiction_recall": 0.8,
+        "abstention_rate": 0.433,
+        "per_label": {
+          "contradicts": {
+            "precision": 1.0,
+            "recall": 0.8
+          },
+          "insufficient": {
+            "precision": 0.692,
+            "recall": 0.643
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.667
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.857,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.667,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.5,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.333,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 0.8,
+            "n": 5
+          }
+        }
+      },
+      "false_contradictions": [
+        0,
+        0
+      ],
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": false,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true
+      },
+      "passed": false,
+      "physical_requests": [
+        33,
+        44
+      ]
     }
   ],
   "complete": false,
