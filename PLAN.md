@@ -2147,3 +2147,9 @@ Ruff/diff checks pass; independent final review recommends launch. Product code
 unchanged since its full green verification. No scientific acceptance yet.
 Next run frozen scope series, preserve all results, and compare three fresh pairs.
 M1 remains31/38; campaign59 open. No model selection/deployment.
+
+Cycle57 launch evidence: committed integration9acebec9; runner session41647
+confirmed live and started baseline1 after fresh catalog admission. Catalog1
+retained. Freeze observer/helper/comparator/runner and scope inputs until this
+six-arm batch is terminal. Logs under /private/tmp/coscientist-scope57-reviewed/.
+Do not restart on silence; poll41647. Old session91986 is terminal, not resumable.
