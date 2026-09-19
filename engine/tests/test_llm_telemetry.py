@@ -36,6 +36,10 @@ def test_scoped_telemetry_records_under_its_phase() -> None:
     assert snapshot == {
         "generate::test-model": {
             "calls": 1,
+            "observed_model_calls": 0,
+            "reported_usage_calls": 0,
+            "priced_usage_calls": 0,
+            "requested_models": {},
             "prompt_tokens": 10,
             "completion_tokens": 0,
             "reasoning_tokens": 0,
@@ -167,7 +171,7 @@ def test_merging_fan_out_usage_keeps_every_field_stats_carries() -> None:
     numeric = {
         f.name: 2
         for f in dataclasses.fields(ModelCallStats)
-        if f.name != "errors"
+        if f.name not in {"errors", "requested_models"}
     }
     merged = _merge_usage_entry({**numeric, "errors": {}}, {**numeric})
 

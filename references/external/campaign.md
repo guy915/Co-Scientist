@@ -180,3 +180,15 @@ engine/provider settings before live admission. Citation usefulness accepts an
 explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
 No live panel results are accepted yet: actual served identity, usage, unknown
 cost and deterministic-fallback disclosure remain M1-03d3b.
+
+### Usage evidence semantics
+
+Shared telemetry retains requested model counts separately from its response-model
+aggregate key. `observed_model_calls` counts explicit nonblank response identities;
+`reported_usage_calls` counts explicit valid prompt/completion token totals;
+`priced_usage_calls` additionally requires an observed model with a static pricing
+entry. Subtract each counter from physical `calls` to identify incomplete evidence.
+Old checkpoint fields default to zero evidence, not retrospective verification.
+`cost_usd` remains a legacy static estimate and is never a billing receipt.
+Evaluator artifacts must expose these distinctions under M1-03d3b2 before live
+results can serve as campaign evidence.

@@ -163,7 +163,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
 - [x] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
 - [x] M1-03d3a: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration before app/engine imports; remove paid defaults and verify fail-closed admission without changing offline evaluation behavior.
-- [ ] M1-03d3b: Retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts, including deterministic fallbacks and missing provider identity.
+- [x] M1-03d3b1: Preserve requested and observed model identity plus missing usage/pricing evidence in shared completion telemetry and durable metric merges; keep old checkpoints compatible.
+- [ ] M1-03d3b2: Retain that telemetry, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts, including deterministic fallbacks; verify successful panel responses through the real interfaces.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -817,3 +818,38 @@ no test is claimed as a live scientific result. Positive panel response and
 fallback/served-model artifact evidence remain part of M1-03d3b. Scoped cleanup
 removed obsolete model imports/defaults and updated usage documentation. No UI
 changes. Next: M1-03d3b. Open count: 60; turn limit unchanged at 180.
+
+
+### 2026-09-19 — Cycle 18, M1-03d3b1
+
+Starting commit `a3bc5fc7`; prior cycle committed panel admission. Split remaining
+evidence work into shared telemetry fidelity and evaluator artifact integration
+before implementation. No live inference or deployment. Railway status snapshot
+retained locally at `/tmp/coscientist-cycle18-release.json`; production acceptance
+remains open.
+
+A failing public call_llm test reproduced missing requested/observed identity
+evidence. Added additive observed_model_calls, reported_usage_calls and
+priced_usage_calls plus requested_models counts. Positive counters deliberately
+leave old checkpoints without observation evidence; calls minus each counter
+identifies missing evidence. cost_usd remains a static estimate for compatibility,
+not a billing receipt. A priced call requires observed model identity, explicit
+valid prompt/completion counts and a static pricing entry. Failure attempts
+retain requested identity without claiming observed usage or known cost.
+
+Durable merge uses the existing count-map helper for request identities and
+errors. Tests cover observed fallback, absent/blank identity, absent usage, a
+known-zero estimate, provider failure, fan-out/checkpoint aggregation and legacy
+records. Independent review found whitespace-only model identities created
+bogus aggregate keys; a failing regression preceded normalizing that field.
+No LLM output, prompt content, credentials or per-call database writes added.
+
+Scoped cleanup reused the existing map merger and corrected the misleading
+claim that unscoped telemetry was captured. Artifact consumers still need scopes
+and explicit uncertainty/fallback handling in M1-03d3b2; they must not interpret
+old numeric zero as proof of zero billed cost. No UI changes. Next: M1-03d3b2.
+
+Final validation: all 88 targeted engine telemetry/runtime/model tests pass;
+strict mypy passes both changed source modules; Ruff lint/format and diff checks
+pass. Production API/MCP remain SUCCESS at `7dce086d`. Fresh open count: 60;
+no milestone acceptance or live scientific result is claimed.
