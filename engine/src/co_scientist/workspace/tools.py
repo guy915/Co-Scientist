@@ -35,12 +35,14 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from co_scientist.llm_free_policy import campaign_free_mode
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,
     SandboxPolicy,
     sandbox_backend,
 )
+from co_scientist.sandbox.policy import campaign_workspace_policy
 from co_scientist.skills import (
     available_skills,
     read_skill_document,
@@ -148,6 +150,7 @@ def workspace_tool_schemas(
         OpenAI-format tool definitions. The file tools are always
         present; ``run_command`` only when it could actually be confined.
     """
+    policy = campaign_workspace_policy(policy)
     schemas = [
         write_file_schema(),
         apply_patch_schema(),
@@ -162,7 +165,9 @@ def workspace_tool_schemas(
     # to a model that cannot run one.
     skills = (
         available_skills()
-        if skills_enabled and can_run_commands(policy)
+        if skills_enabled
+        and not campaign_free_mode()
+        and can_run_commands(policy)
         else ()
     )
     if skills:
@@ -346,6 +351,10 @@ class WorkspaceToolProvider:
             A tool-role message answering the call.
         """
         name = tool_call.function.name
+        if name == READ_SKILL and campaign_free_mode():
+            return tool_error_message(
+                name, tool_call.id, "skills are unavailable in campaign mode"
+            )
         handler = _HANDLERS.get(name) if name in self._names else None
         if handler is None:
             return await self._delegate_call(tool_call, name)

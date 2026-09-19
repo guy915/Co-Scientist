@@ -137,3 +137,41 @@ SDK transport and normal client compatibility. Standalone tests exercise actual
 server startup registration and synchronous/asynchronous registered execution.
 These are offline transport tests, not live retrieval evidence. The separate
 M1-03c3 item must demonstrate actual public-source results and provenance.
+
+## FREE-TOOLS-04/05 implementation — M1-03c2c
+
+Campaign workspace commands use the existing OS confinement with networking
+disabled, even if a caller requests network access or reuses a session created
+before campaign mode. Both bounded commands and persistent command sessions
+apply the shared policy immediately before launch. EXTERNAL and full-access
+workspace policies are rejected because their network confinement cannot be
+verified here. Ordinary non-campaign behavior is unchanged.
+
+The restriction is at workspace command entry points rather than globally in
+`wrap_argv`: trusted Git snapshot commands use a separate host-owned path for
+local provenance. Changing that path would risk breaking shadow-store writes
+without improving confinement of model-authored commands. Code executed by a
+workspace process remains inside its inherited OS sandbox.
+
+Skill credential resolution returns no host credentials in campaign mode.
+Drafting retains the existing guarded MCP provider and skips remote skill
+instructions, extra workspace allocation and licence seeding. Workspace schemas
+reflect offline execution, including sessions created before the mode change.
+Local computation and file tools remain available. This intentionally withholds
+unqualified arbitrary network scripts; public-source retrieval uses the separately
+guarded MCP tools, not an assumed-free script or ambient account.
+
+Regression evidence uses a real loopback listener: ordinary commands must reach
+it before campaign commands are required to fail the connection while completing
+local arithmetic. Both bounded and persistent execution paths are exercised.
+A real recognized skill script reports credential presence normally and absence
+in campaign mode using a synthetic key. These are confinement tests, not live
+scientific retrieval or provider-billing evidence.
+
+Final verification: 87 affected host tests; strict mypy on seven modules; Ruff
+and diff checks. The required Linux harness passes 133 tests under Landlock
+(3 existing platform skips) and 132 under bubblewrap (4 existing platform skips).
+All seven campaign boundary tests pass separately on both with the final module;
+none is skipped. Stale skill instruction requests are rejected and offline
+recognized scripts do not add source-query attribution. Live source verification
+remains M1-03c3; no inference or external scientific query was performed here.

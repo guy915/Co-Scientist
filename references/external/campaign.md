@@ -98,3 +98,15 @@ loopback and the existing Railway private network can use HTTP. No redirects,
 environment proxies, custom transport factories or additional servers are
 admitted. Each call checks the live policy; a missing or changed policy prevents
 execution. Retain exact serving revision/configuration in release evidence.
+
+### Workspace execution
+
+Campaign mode forces workspace processes offline and rejects unverified external
+or full-access sandbox policies. Both bounded and persistent launches check the
+current flag, so reusing an older online workspace does not preserve egress.
+Start campaign processes with the flag already enabled; do not toggle it around
+an already-running command. Skill credentials are omitted and remote skill
+instructions are withheld; scientific retrieval goes through qualified MCP.
+Local calculation, file operations and trusted Git provenance remain available.
+Run `make test-sandbox-linux` after changes here; its preflight must prove a
+working backend before denial assertions can count as confinement evidence.

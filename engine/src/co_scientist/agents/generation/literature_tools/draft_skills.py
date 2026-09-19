@@ -33,6 +33,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.llm_free_policy import campaign_free_mode
 from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.skills import (
     catalogue_section,
@@ -151,7 +152,7 @@ def attach_skills(
         What to run the loop with -- the arguments unchanged when no
         skills are installed or none could be offered.
     """
-    if not skills_section():
+    if campaign_free_mode() or not skills_section():
         return DraftSkills(provider, tools)
     run_id = state.get("run_id")
     if not run_id:

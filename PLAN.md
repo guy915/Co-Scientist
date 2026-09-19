@@ -155,7 +155,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c1: Map retrieval, tools, plugins, skills and embeddings to outbound paths and retained cost evidence; record concrete enforcement gaps and acceptance tests.
 - [x] M1-03c2a: Prevent metered web-provider requests/fallbacks and credentialed OpenAlex billing in campaign mode at the standalone MCP provider boundary; preserve anonymous public retrieval and non-campaign behavior.
 - [x] M1-03c2b: Qualify resolved MCP server/tool identities and enforce campaign restrictions on both direct and model-driven invocation paths, including custom configurations and availability probes.
-- [ ] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
+- [x] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
 - [ ] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -575,3 +575,41 @@ all milestone acceptance/release checks remain open. The 180-turn limit remains.
 Final independent read-only review found no concrete admission bypass. Item
 M1-03c2b is complete locally; its implementation and evidence are committed with
 this cycle. Fresh open count: 61. M1 acceptance remains unverified.
+
+### 2026-09-19 — Cycle 11, M1-03c2c
+
+Starting commit `407c3a04`; previous cycle made progress by committing MCP
+admission. Re-read the first unchecked item, code paths and cost dossier.
+Reproduced real network access after campaign mode on both bounded and persistent
+workspace commands, then enforced offline OS confinement at both launch paths.
+Two local computations and a live loopback connection control distinguish actual
+network denial from a sandbox that cannot launch commands.
+
+Decision: scope the policy to workspace execution, rather than globally changing
+all sandbox wrapping. The global option would reject trusted Git snapshot calls
+and damage provenance; those are host-owned local operations, not model-authored
+commands. Custom full-access/external workspace policies fail closed. Schemas
+use the effective policy too, including old sessions. Remote skill instructions
+are withheld; drafting keeps qualified MCP retrieval. Campaign commands receive
+no skill credentials and record no unperformed source-query attribution.
+Independent review found two stale-provider gaps; reproduced each before closing
+old read_skill dispatch and skill attribution in an offline command.
+
+No new dependency, runtime, reference checkout, inference or provider search.
+Docker Desktop was stopped and was started for required Linux verification.
+The initial nested macOS sandbox could not launch; elevated local tests proved
+real confinement instead of counting that launch failure as a passing denial.
+Fresh Railway read: API/MCP remain SUCCESS at `7dce086d`; no deployment or PR.
+Final validation and commit are recorded below. Next item is real guarded public
+retrieval (M1-03c3); M1 acceptance and release remain open.
+
+Final verification: 87 affected macOS checks pass; strict mypy covers seven
+changed modules; Ruff lint/format and diff checks pass. `make test-sandbox-linux`
+passes with preflight-confirmed Landlock (133 passed, 3 existing platform skips)
+and bubblewrap (132 passed, 4 existing platform skips). All seven campaign tests
+also pass against each backend with the final tool-dispatch module mounted;
+none of the new campaign checks is skipped. The scoped cleanup/deslop pass found
+no unused code or scratch files in the change; no UI changed. Final independent
+read-only review reports no remaining bypass. M1-03c2c is complete locally;
+commit contains its implementation and evidence. Open count: 60. No free-model
+selection, live retrieval, production acceptance or deployment is claimed.
