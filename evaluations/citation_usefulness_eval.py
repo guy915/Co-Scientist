@@ -216,8 +216,13 @@ def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_llm(dataset: dict[str, Any], model: str) -> dict[str, Any]:
+def run_llm(
+    dataset: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
+    from evaluations._live_config import configure_live_environment
+
+    model = configure_live_environment(model)
     labelled = asyncio.run(_judge_all(dataset, model))
     return {
         "judge": model,
@@ -266,8 +271,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--model",
-        default="deepseek/deepseek-v4-flash",
-        help="Model to judge with under --llm.",
+        default=None,
+        help="Explicit OpenRouter model; otherwise use MODEL_NAME.",
     )
     args = parser.parse_args()
 

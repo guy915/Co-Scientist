@@ -14,7 +14,6 @@ under ``evaluations/results/`` and prints a summary).
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import sys
 from collections import defaultdict
@@ -157,23 +156,21 @@ def _gate_report(metrics: dict[str, Any]) -> dict[str, Any]:
 
 def run(
     *,
-    assessor: Any = None,
-    assessor_id: str = "deterministic-v1",
+    use_llm: bool = False,
     dataset_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     """Evaluate the assessor over the dataset and return the metrics report.
 
-    The default (``assessor=None``) uses the offline deterministic assessor so
-    the eval runs in CI. Pass a real assessor (e.g. the LLM assessor from
-    ``app.claim_verifier.make_llm_assessor``) to score the semantic path; that
-    requires a provider and is run out of band, not in the offline suite.
-    ``dataset_path`` selects the panel; it defaults to the small v1 set and can
-    be pointed at the larger adversarial challenge panel for production gating.
+    The default uses the offline deterministic assessor for CI. ``use_llm``
+    selects the semantic assessor after explicit campaign configuration.
+    ``dataset_path`` selects the small v1 or adversarial challenge panel.
     """
-    from app.claims import deterministic_assessor
+    if use_llm:
+        assessor, assessor_id = _build_llm_assessor()
+    else:
+        from app.claims import deterministic_assessor
 
-    if assessor is None:
-        assessor = deterministic_assessor
+        assessor, assessor_id = deterministic_assessor, "deterministic-v1"
     dataset = _load_dataset(dataset_path or _DATASET)
     rows = _predict(dataset["items"], assessor, assessor_id)
     matrix = _confusion(rows)
@@ -199,9 +196,11 @@ def run(
 
 def _build_llm_assessor() -> tuple[Any, str]:
     """Build the LLM assessor from the MODEL_NAME env (for --llm runs)."""
+    from evaluations._live_config import configure_live_environment
+
+    model = configure_live_environment()
     from app.claim_verifier import make_llm_assessor
 
-    model = os.getenv("MODEL_NAME") or "deepseek/deepseek-chat"
     assessor, assessor_id = make_llm_assessor(model)
     return assessor, str(assessor_id)
 
@@ -211,12 +210,8 @@ def _run_selected_assessor(
 ) -> tuple[dict[str, Any], str]:
     """Run the eval with the ``--llm``-selected assessor -> (report, tag)."""
     if "--llm" in sys.argv[1:]:
-        assessor, assessor_id = _build_llm_assessor()
-        report = run(
-            assessor=assessor,
-            assessor_id=assessor_id,
-            dataset_path=dataset_path,
-        )
+        report = run(use_llm=True, dataset_path=dataset_path)
+        assessor_id = str(report["assessor"])
         return report, assessor_id.replace("/", "_").replace(":", "_")
     return run(dataset_path=dataset_path), "deterministic"
 

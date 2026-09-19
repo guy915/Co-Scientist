@@ -54,7 +54,8 @@ production judge's own position-parity alternation engages.
 
 Run:
     python -m evaluations.elo_concordance_eval             # offline stub
-    DEEPSEEK_API_KEY=... python -m evaluations.elo_concordance_eval --llm
+    # Export explicit MODEL_NAME and OPENROUTER_API_KEY first.
+    python -m evaluations.elo_concordance_eval --llm
 """
 
 from __future__ import annotations
@@ -63,7 +64,6 @@ import argparse
 import asyncio
 import itertools
 import json
-import os
 import pathlib
 import random
 import zlib
@@ -72,9 +72,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from math import sqrt
 from typing import Any
-
-from co_scientist.agents.ranking.ranking_elo import calculate_elo_update
-from co_scientist.constants import ELO_K_FACTOR
 
 from evaluations._artifacts import write_dated_artifact
 
@@ -214,6 +211,9 @@ def _run_item_tournament(
             shuffle is deterministic per item (seed = hash of item id) so a
             re-run reproduces the same matchups.
     """
+    from co_scientist.agents.ranking.ranking_elo import calculate_elo_update
+    from co_scientist.constants import ELO_K_FACTOR
+
     shuffled = list(candidates)
     random.Random(position_seed).shuffle(shuffled)
     ratings = {c.id: _INITIAL_ELO for c in candidates}
@@ -388,13 +388,15 @@ def _make_llm_comparator() -> tuple[Comparator, str]:
     triggers and a first-position-biased judge would inflate concordance on
     a dataset that happens to place the correct answer first most often.
     """
+    from evaluations._live_config import configure_live_environment
+
+    model = configure_live_environment()
     from co_scientist.agents.ranking.ranking_debate import (
         _DebateContext,
         judge_matchup,
     )
     from co_scientist.models import Hypothesis
 
-    model = os.getenv("MODEL_NAME") or "deepseek/deepseek-chat"
     counter = itertools.count()
 
     def _judge(a: Candidate, b: Candidate, question: str) -> str:
@@ -418,6 +420,7 @@ def run(*, use_llm: bool) -> dict[str, Any]:
     never empty even for a live invocation; ``--llm`` adds the real judge's
     result alongside them for direct comparison.
     """
+    live_comparator = _make_llm_comparator() if use_llm else None
     dataset = _load_dataset()
     items = dataset["items"]
     results = {
@@ -431,8 +434,8 @@ def run(*, use_llm: bool) -> dict[str, Any]:
             items, make_coin_flip_comparator(0), "coin_flip_seed0"
         ),
     }
-    if use_llm:
-        comparator, comparator_id = _make_llm_comparator()
+    if live_comparator is not None:
+        comparator, comparator_id = live_comparator
         results[comparator_id] = evaluate_concordance(
             items, comparator, comparator_id
         )

@@ -162,7 +162,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d0: Audit maintained live evaluation entry points, credential loading and evidence gaps; retain the concrete runner map and implementation boundaries.
 - [x] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
 - [x] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
-- [ ] M1-03d3: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration; retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts.
+- [x] M1-03d3a: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration before app/engine imports; remove paid defaults and verify fail-closed admission without changing offline evaluation behavior.
+- [ ] M1-03d3b: Retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts, including deterministic fallbacks and missing provider identity.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -786,3 +787,33 @@ Final independent review approved the runtime behavior and identified two stale
 procedure details. Corrected the scaling/ablation key requirements in the
 evaluator README and named COSCIENTIST_DB_PATH explicitly for persisted-run
 scoring. No remaining review blocker; diff check passes.
+
+
+### 2026-09-19 — Cycle 17, M1-03d3a
+
+Starting commit `bc8b73ff`; previous cycle completed golden admission/configuration
+and the public-evidence procedure. Fresh Railway status remains API/MCP SUCCESS
+at `7dce086d`. No live inference, spending, deployment or reference checkout.
+
+Split M1-03d3 before implementation: panel admission now; observed usage, unknown
+costs, deterministic fallback and missing provider identity remain M1-03d3b.
+Three failing subprocess cases reproduced implicit-model acceptance. Reused the
+shared environment configurator, returning its validated model and allowing an
+explicit model argument for citation usefulness. Removed panel paid defaults.
+Elo imports production rating math lazily so live configuration precedes engine
+imports; the formula and comparison thresholds are unchanged.
+
+Independent review found citation run's arbitrary-assessor injection bypassed
+the configured factory. Repository caller search found no external consumers
+of that argument. A failing public-run regression preceded replacing it with
+`use_llm=True`, which constructs the admitted assessor internally. CLI and
+programmatic live calls now use that same path. Offline behavior stays default.
+
+Verification: 32 targeted tests pass (six panel rejection/import cases, existing
+citation/usefulness/Elo cases and shared configuration/public LLM admission
+tests). Strict mypy passes four changed modules; Ruff and diff checks pass.
+The shared physical-boundary test uses mocked catalog/completion responses;
+no test is claimed as a live scientific result. Positive panel response and
+fallback/served-model artifact evidence remain part of M1-03d3b. Scoped cleanup
+removed obsolete model imports/defaults and updated usage documentation. No UI
+changes. Next: M1-03d3b. Open count: 60; turn limit unchanged at 180.

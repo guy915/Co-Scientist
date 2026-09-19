@@ -4,14 +4,14 @@ import os
 import sys
 
 
-def configure_live_environment() -> None:
+def configure_live_environment(model: str | None = None) -> str:
     """Pin model roles before app imports; transport verifies current prices.
 
-    MODEL_NAME and OPENROUTER_API_KEY must be explicitly supplied by the
-    caller. No credential is read from disk. Live evaluators run in a fresh
+    Supply MODEL_NAME (or the model argument) and OPENROUTER_API_KEY
+    explicitly. No credential is read from disk. Live evaluators run in a fresh
     process so previously constructed settings cannot retain paid defaults.
     """
-    model = _explicit_model()
+    model = _explicit_model(model)
     for name in list(os.environ):
         if name.upper().endswith("_API_KEY") and name != "OPENROUTER_API_KEY":
             del os.environ[name]
@@ -26,12 +26,15 @@ def configure_live_environment() -> None:
         "CLAIM_VERIFIER_MODEL",
     ):
         os.environ[name] = model
+    return model
 
 
-def _explicit_model() -> str:
+def _explicit_model(selected: str | None) -> str:
     if "app.config" in sys.modules:
         raise RuntimeError("live evaluation requires a fresh process")
-    model = os.getenv("MODEL_NAME", "").strip()
+    model = (
+        selected if selected is not None else os.getenv("MODEL_NAME", "")
+    ).strip()
     if not model.startswith("openrouter/") or model == "openrouter/":
         raise ValueError(
             "live evaluation requires explicit OpenRouter MODEL_NAME"

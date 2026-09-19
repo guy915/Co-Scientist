@@ -173,3 +173,10 @@ for the separate INDRA golden acceptance, which campaign mode rejects.
 
 The frozen model configuration, exact interview output, run IDs and observed
 results will be added during M1 live execution. None is claimed verified here.
+
+Direct citation and Elo panels now share the same isolated configuration. Elo
+loads production rating math lazily so importing its evaluator does not load
+engine/provider settings before live admission. Citation usefulness accepts an
+explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
+No live panel results are accepted yet: actual served identity, usage, unknown
+cost and deterministic-fallback disclosure remain M1-03d3b.
