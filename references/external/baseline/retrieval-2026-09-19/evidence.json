@@ -1,0 +1,157 @@
+{
+  "kind": "live MCP retrieval; no model inference",
+  "started_at": "2026-09-19T18:34:52.632532+00:00",
+  "revision": "3bd22758",
+  "isolation": {
+    "ambient_credentials": false,
+    "dotenv": false,
+    "campaign_mode": true
+  },
+  "advertised_tools": [
+    "check_pubmed_available",
+    "search_pubmed",
+    "pubmed_search_with_fulltext",
+    "search_openalex",
+    "search_chembl",
+    "search_uniprot",
+    "search_string_interactions",
+    "search_reactome_pathways",
+    "search_open_targets",
+    "search_europepmc",
+    "search_preprints",
+    "search_arxiv",
+    "search_biorxiv",
+    "search_ensembl_gene",
+    "search_gnomad_constraint",
+    "search_clinical_trials"
+  ],
+  "calls": [
+    {
+      "tool": "check_pubmed_available",
+      "arguments": {},
+      "interface": "call_tool",
+      "result": false,
+      "duration_seconds": 0.018
+    },
+    {
+      "tool": "search_europepmc",
+      "arguments": {
+        "query": "EXT_ID:22745249 AND SRC:MED",
+        "max_results": 1
+      },
+      "interface": "execute_tool_call",
+      "result": {
+        "source": "Europe PMC",
+        "query": "EXT_ID:22745249 AND SRC:MED",
+        "records": [
+          {
+            "source_id": "MED/22745249",
+            "title": "A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity.",
+            "abstract": "Clustered regularly interspaced short palindromic repeats (CRISPR)/CRISPR-associated (Cas) systems provide bacteria and archaea with adaptive immunity against viruses and plasmids by using CRISPR RNAs (crRNAs) to guide the silencing of invading nucleic acids. We show here that in a subset of these systems, the mature crRNA that is base-paired to trans-activating crRNA (tracrRNA) forms a two-RNA structure that directs the CRISPR-associated protein Cas9 to introduce double-stranded (ds) breaks in target DNA. At sites complementary to the crRNA-guide sequence, the Cas9 HNH nuclease domain cleaves the complementary strand, whereas the Cas9 RuvC-like domain cleaves the noncomplementary strand. The dual-tracrRNA:crRNA, when engineered as a single RNA chimera, also directs sequence-specific Cas9 dsDNA cleavage. Our study reveals a family of endonucleases that use dual-RNAs for site-specific DNA cleavage and highlights the potential to exploit the system for RNA-programmable genome editing.",
+            "year": "2012",
+            "journal": "Science (New York, N.Y.)",
+            "authors": "Jinek M, Chylinski K, Fonfara I, Hauer M, Doudna JA, Charpentier E.",
+            "doi": "10.1126/science.1225829",
+            "pmid": "22745249",
+            "is_preprint": false,
+            "cited_by_count": 11954,
+            "url": "https://doi.org/10.1126/science.1225829"
+          }
+        ]
+      },
+      "duration_seconds": 1.623,
+      "abstract_sha256": "c6f792a6beb80891b46e52e47d46a4fb879dabdb3c66f629c271ee1c1c2c3686",
+      "verified_doi": "10.1126/science.1225829"
+    },
+    {
+      "tool": "search_pubmed",
+      "arguments": {
+        "query": "22745249[uid]",
+        "max_papers": 1
+      },
+      "interface": "call_tool",
+      "result": {
+        "results": [
+          {
+            "title": "A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity.",
+            "url": "https://doi.org/10.1126/science.1225829",
+            "authors": [
+              "Martin Jinek",
+              "Krzysztof Chylinski",
+              "Ines Fonfara",
+              "Michael Hauer",
+              "Jennifer A Doudna",
+              "Emmanuelle Charpentier"
+            ],
+            "year": 2012,
+            "venue": "Science (New York, N.Y.)",
+            "citations": 0,
+            "abstract": "Clustered regularly interspaced short palindromic repeats (CRISPR)/CRISPR-associated (Cas) systems provide bacteria and archaea with adaptive immunity against viruses and plasmids by using CRISPR RNAs (crRNAs) to guide the silencing of invading nucleic acids. We show here that in a subset of these systems, the mature crRNA that is base-paired to trans-activating crRNA (tracrRNA) forms a two-RNA structure that directs the CRISPR-associated protein Cas9 to introduce double-stranded (ds) breaks in target DNA. At sites complementary to the crRNA-guide sequence, the Cas9 HNH nuclease domain cleaves the complementary strand, whereas the Cas9 RuvC-like domain cleaves the noncomplementary strand. The dual-tracrRNA:crRNA, when engineered as a single RNA chimera, also directs sequence-specific Cas9 dsDNA cleavage. Our study reveals a family of endonucleases that use dual-RNAs for site-specific DNA cleavage and highlights the potential to exploit the system for RNA-programmable genome editing.",
+            "content": null,
+            "source_id": "22745249",
+            "source": "pubmed",
+            "pdf_links": [],
+            "used_in_analysis": false
+          }
+        ],
+        "count": 1
+      },
+      "duration_seconds": 0.955,
+      "abstract_sha256": "c6f792a6beb80891b46e52e47d46a4fb879dabdb3c66f629c271ee1c1c2c3686",
+      "verified_doi": "10.1126/science.1225829"
+    },
+    {
+      "tool": "search_openalex",
+      "arguments": {
+        "query": "A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity",
+        "max_papers": 1
+      },
+      "interface": "call_tool",
+      "result": {
+        "W2045435533": {
+          "title": "A Programmable Dual-RNA\u2013Guided DNA Endonuclease in Adaptive Bacterial Immunity",
+          "authors": [
+            "Martin J\u00ednek",
+            "Krzysztof Chylinski",
+            "Ines Fonfara",
+            "M. Hauer",
+            "Jennifer A. Doudna",
+            "Emmanuelle Charpentier"
+          ],
+          "year": 2012,
+          "abstract": "Clustered regularly interspaced short palindromic repeats (CRISPR)/CRISPR-associated (Cas) systems provide bacteria and archaea with adaptive immunity against viruses and plasmids by using CRISPR RNAs (crRNAs) to guide the silencing of invading nucleic acids. We show here that in a subset of these systems, the mature crRNA that is base-paired to trans-activating crRNA (tracrRNA) forms a two-RNA structure that directs the CRISPR-associated protein Cas9 to introduce double-stranded (ds) breaks in target DNA. At sites complementary to the crRNA-guide sequence, the Cas9 HNH nuclease domain cleaves the complementary strand, whereas the Cas9 RuvC-like domain cleaves the noncomplementary strand. The dual-tracrRNA:crRNA, when engineered as a single RNA chimera, also directs sequence-specific Cas9 dsDNA cleavage. Our study reveals a family of endonucleases that use dual-RNAs for site-specific DNA cleavage and highlights the potential to exploit the system for RNA-programmable genome editing.",
+          "url": "https://doi.org/10.1126/science.1225829",
+          "source": "openalex",
+          "cited_by_count": 17687,
+          "publication_date": "2012-06-29",
+          "updated_date": "2026-09-19T07:32:40.446753",
+          "work_type": "article",
+          "is_retracted": false
+        }
+      },
+      "duration_seconds": 1.219,
+      "abstract_sha256": "c6f792a6beb80891b46e52e47d46a4fb879dabdb3c66f629c271ee1c1c2c3686",
+      "verified_doi": "10.1126/science.1225829"
+    }
+  ],
+  "purpose": "Verify anonymous public evidence through campaign-qualified MCP interfaces; no model inference.",
+  "excluded": [
+    "private documents",
+    "production user runs",
+    "provider credentials",
+    "paid tools",
+    "LLM calls",
+    "load tests"
+  ],
+  "qualified_endpoint": "http://127.0.0.1:8898/mcp",
+  "rate_limits": {
+    "observed_429": false,
+    "retry_at": null,
+    "note": "Small bounded searches; no quota exhaustion or paid fallback attempted."
+  },
+  "post_fix": {
+    "pubmed_available": true,
+    "paid_tool_rejected": "tool is unavailable under campaign MCP policy"
+  },
+  "limitation": "Europe PMC empty records cannot distinguish service failure from no results; tracked separately. Other public tool families and production remain unverified."
+}

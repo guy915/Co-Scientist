@@ -2,8 +2,9 @@
 
 ## Current execution state
 
-M1 is establishing the baseline. No live inference or campaign research run has
-been performed. No free model has been selected or qualified. Existing model
+M1 is establishing the baseline. Guarded anonymous retrieval was verified
+locally; see [retained evidence](baseline/retrieval-2026-09-19/README.md).
+No live inference or campaign research run has been performed. No free model has been selected or qualified. Existing model
 names are observations, not proof of current price or availability.
 
 Starting branch: `feat/external-m01-free-baseline`; execution starts at

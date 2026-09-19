@@ -157,7 +157,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c2b: Qualify resolved MCP server/tool identities and enforce campaign restrictions on both direct and model-driven invocation paths, including custom configurations and availability probes.
 - [x] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
 - [x] M1-03c3a: Correct the live-discovered PubMed availability mismatch: anonymous retrieval succeeds while the probe returns false before querying. Verify successful and failed actual reachability through the probe without treating a contact email as proof of availability.
-- [ ] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
+- [x] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
+- [ ] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -636,3 +637,16 @@ execution. All 266 standalone MCP tests pass, strict mypy passes 71 files, and
 the two new regression cases pass after formatting. No dependency or UI changes.
 Scoped cleanup removed the now-unused os import; no generic probe harness added.
 This correction is committed separately from the retained retrieval evidence.
+
+
+Live retrieval evidence is retained at
+`references/external/baseline/retrieval-2026-09-19/`, including exact results,
+source IDs, DOI, abstract hashes, input queries, durations, serving policy,
+filtered source status logs and the isolated experiment script. Independent
+review approved the PubMed correction and bounded retrieval acceptance.
+M1-03c3 is verified locally; no model inference or spending occurred. Discovery
+also exposed Europe PMC's service-error/empty-result ambiguity; added M1-03c3b
+rather than silently treating it as covered. Rate limiting was not observed and
+is not claimed tested live. Production API/MCP remain SUCCESS at `7dce086d`.
+No PR or deployment. After the evidence commit, next item is M1-03c3b; fresh
+open count is 60. M1 acceptance and the 180-turn limit remain unchanged.
