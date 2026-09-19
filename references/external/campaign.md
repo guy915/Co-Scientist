@@ -81,3 +81,20 @@ and current pricing evidence. Until M1-03c2/c3 pass, the free-model flag does no
 establish that a whole research run is free: MCP providers, custom servers and
 skill credentials have separate charge paths. Do not start campaign research
 inference yet. No retrieval billing settings have been altered.
+
+### MCP qualification
+
+Before campaign tool use, verify the endpoint is our reference MCP deployment
+at the intended campaign commit, then set `COSCIENTIST_CAMPAIGN_MCP_URL` to its
+exact `/mcp` URL in the caller. The resolved MCP configuration must contain only
+that one streamable-HTTP server and its existing shared-secret header, if used.
+Set `COSCIENTIST_REQUIRE_FREE_MODELS=1` on the MCP service as well as the caller.
+Deploy/verify the MCP policy before enabling caller admission. An old production
+server lacking the policy must fail admission; do not qualify it by tool names.
+
+Policy metadata is a compatibility check on an independently trusted endpoint,
+not cryptographic source attestation. Public transport must use HTTPS; local
+loopback and the existing Railway private network can use HTTP. No redirects,
+environment proxies, custom transport factories or additional servers are
+admitted. Each call checks the live policy; a missing or changed policy prevents
+execution. Retain exact serving revision/configuration in release evidence.

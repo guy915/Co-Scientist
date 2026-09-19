@@ -154,7 +154,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
 - [x] M1-03c1: Map retrieval, tools, plugins, skills and embeddings to outbound paths and retained cost evidence; record concrete enforcement gaps and acceptance tests.
 - [x] M1-03c2a: Prevent metered web-provider requests/fallbacks and credentialed OpenAlex billing in campaign mode at the standalone MCP provider boundary; preserve anonymous public retrieval and non-campaign behavior.
-- [ ] M1-03c2b: Qualify resolved MCP server/tool identities and enforce campaign restrictions on both direct and model-driven invocation paths, including custom configurations and availability probes.
+- [x] M1-03c2b: Qualify resolved MCP server/tool identities and enforce campaign restrictions on both direct and model-driven invocation paths, including custom configurations and availability probes.
 - [ ] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
 - [ ] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
@@ -539,3 +539,39 @@ M1 stays open and the 180-turn limit is unchanged.
 
 Final independent read-only review found no c2a blocker. All 18 new cases pass
 after the final proxy-setting assertion; the other provider checks are unchanged.
+
+### 2026-09-19 — Cycle 10, M1-03c2b
+
+Starting commit `d3ba165b`. The intervening goal-prompt reply made no repository
+progress; revalidated the pending implementation and resumed its red tests.
+Two stale-client schema/availability tests failed before adding discovery guards.
+The original direct/model rejection tests also failed before admission existed.
+
+The client now binds one explicit operator-qualified reference endpoint and its
+reviewed public tool set before discovery, then rechecks serving policy and
+configuration before both invocation paths. Custom transports, multiple servers,
+redirects and environment proxies cannot change that route. Registered server
+calls enforce the same allowlist even if registered before campaign mode.
+The server package remains independent of the engine; a cross-package policy
+contract test catches drift without creating a runtime dependency.
+
+Decision: use the existing caller/server campaign flag plus an explicit endpoint
+binding, rather than infer trust from familiar tool names or arbitrary server
+metadata. Metadata checks compatibility, not source authenticity. Operators must
+verify our deployed revision and trusted network/TLS route. Every call rechecks
+policy rather than caching it across potential deployment changes. No new tool
+runtime or dependency was introduced.
+
+Verification: 75 engine MCP boundary tests and all 264 standalone MCP tests pass;
+strict mypy passes for the two changed engine modules and all 70 server files.
+Ruff lint/format and diff checks pass. Scoped cleanup retained the small duplicated
+wire-protocol constants because packages deploy independently; no UI was changed.
+Evidence is offline, not live retrieval. No inference, provider search, spending,
+PR or deployment occurred. Fresh Railway state: API and MCP SUCCESS at
+`7dce086dd483831b40a12532a84cf7321f058e52`, deployment IDs unchanged from cycle 9.
+Next: workspace confinement and skill credentials (M1-03c2c); live retrieval and
+all milestone acceptance/release checks remain open. The 180-turn limit remains.
+
+Final independent read-only review found no concrete admission bypass. Item
+M1-03c2b is complete locally; its implementation and evidence are committed with
+this cycle. Fresh open count: 61. M1 acceptance remains unverified.

@@ -103,3 +103,37 @@ httpx request serialization, key omission, proxy bypass, invalid settings and
 429 propagation. No live provider request was sent. FREE-TOOLS-03/04/05 and
 live retrieval verification remain open; these controls alone do not qualify a
 custom MCP server or arbitrary workspace command.
+
+## FREE-TOOLS-03 implementation — M1-03c2b
+
+Campaign MCP admission binds one resolved streamable-HTTP configuration to the
+explicit `COSCIENTIST_CAMPAIGN_MCP_URL`. Multiple servers, stdio, extra transport
+options, alternate URLs and custom authentication headers are refused before
+SDK discovery. Only the existing shared-secret header is permitted. Both direct
+and model-driven calls recheck the bound configuration and serving policy before
+execution; stale clients created outside campaign mode cannot advertise tools or
+answer availability checks after the flag is enabled. Redirects and environment
+proxies are disabled for both policy and SDK transport.
+
+The reference server advertises policy `coscientist-public-retrieval-v1` at its
+root and registers only the 16 reviewed public literature/database tools in
+campaign mode. The existing registration wrapper also enforces the allowlist at
+each invocation, including tools registered before the flag was enabled. General
+URL fetching, web search/probes, INDRA and unknown tools remain unavailable.
+This is a local design choice, not a Google-backed requirement.
+
+The explicit endpoint must be our independently verified deployment. A matching
+self-reported manifest does not authenticate arbitrary third-party source code
+or establish its billing. Use HTTPS for public deployment transport, or the
+existing trusted Railway private network / local loopback. Root policy reads
+are public metadata; tool requests retain existing shared-secret authentication.
+Public tools need not be literally credentialless: NCBI rate-limit credentials
+are distinct from metered search accounts. OpenAlex is forced anonymous.
+
+Behavioral evidence includes failing direct/model admission tests and two failing
+stale-client discovery tests before their corrections. Targeted engine checks
+cover custom configurations, policy changes, bound-route mutation, hidden tools,
+SDK transport and normal client compatibility. Standalone tests exercise actual
+server startup registration and synchronous/asynchronous registered execution.
+These are offline transport tests, not live retrieval evidence. The separate
+M1-03c3 item must demonstrate actual public-source results and provenance.

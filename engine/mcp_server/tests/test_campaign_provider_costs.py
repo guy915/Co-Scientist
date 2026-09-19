@@ -128,6 +128,13 @@ names = {name for _, name in _MCP_TOOLS}
 assert 'search_web' not in names
 assert 'check_web_search_available' not in names
 assert 'search_pubmed' in names
+from mcp_server.campaign import PUBLIC_TOOLS, campaign_policy
+assert names == PUBLIC_TOOLS
+assert campaign_policy()['enabled'] is True
+from mcp_server.server import root
+import asyncio, json
+body = json.loads(asyncio.run(root()).body)
+assert body['campaign_policy'] == campaign_policy()
 """
     result = subprocess.run(
         [sys.executable, "-c", script],
