@@ -100,10 +100,16 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     """Score a run already in the store, without driving anything."""
     from app import store
 
+    from evaluations._usage_evidence import summarize_usage
+
+    metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
+    run = store.get_run(run_id, db_path=db_path)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
     edges = store.list_claim_evidence(run_id, db_path=db_path)
     return {
         "run_id": run_id,
+        "configured_backend": run.llm_backend if run is not None else None,
+        "usage_evidence": summarize_usage(metrics.get("model_usage") or {}),
         **score_claims(hypotheses_with_claim_counts(hyps, edges)),
     }
 
@@ -132,6 +138,7 @@ def drive_and_score(
         "run_id": arm["run_id"],
         "completed": arm["completed"],
         "used_real_backend": arm["used_real_backend"],
+        "usage_evidence": arm["metrics"]["usage_evidence"],
         **score_claims(arm["hypotheses"]),
     }
 

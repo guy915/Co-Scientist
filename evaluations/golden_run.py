@@ -227,13 +227,17 @@ def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
 
     ``model_usage`` is keyed ``"{phase}::{model}"`` (see
     ``co_scientist.models_metrics.ExecutionMetrics``); this sums the
-    ``cost_usd`` every key carries so the golden-run artifact records what
-    the run actually cost rather than leaving cost as an external unknown.
+    legacy ``cost_usd`` estimates. The evidence block separately identifies
+    complete estimates and unknowns; neither is a provider billing receipt.
     """
+    from evaluations._usage_evidence import summarize_usage
+
     usage = (metrics or {}).get("model_usage") or {}
-    total = sum(float(v.get("cost_usd") or 0.0) for v in usage.values())
+    evidence = summarize_usage(usage)
     return {
-        "total_usd": round(total, 6),
+        "total_usd": evidence["partial_estimated_total_usd"],
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": evidence,
         "llm_calls": (metrics or {}).get("llm_calls"),
         "by_phase_model": {
             key: round(float(v.get("cost_usd") or 0.0), 6)

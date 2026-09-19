@@ -164,7 +164,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
 - [x] M1-03d3a: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration before app/engine imports; remove paid defaults and verify fail-closed admission without changing offline evaluation behavior.
 - [x] M1-03d3b1: Preserve requested and observed model identity plus missing usage/pricing evidence in shared completion telemetry and durable metric merges; keep old checkpoints compatible.
-- [ ] M1-03d3b2: Retain that telemetry, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts, including deterministic fallbacks; verify successful panel responses through the real interfaces.
+- [x] M1-03d3b2a: Retain raw model telemetry and explicit unknown-cost/observed-model summaries in durable scaling, ablation, claim-support and golden artifacts without mistaking old zero estimates for verified costs.
+- [ ] M1-03d3b2b: Capture direct citation/usefulness/Elo panel telemetry and explicit deterministic-fallback/live/offline evidence in direct and durable artifacts; verify successful panel responses through the real interfaces.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -853,3 +854,38 @@ Final validation: all 88 targeted engine telemetry/runtime/model tests pass;
 strict mypy passes both changed source modules; Ruff lint/format and diff checks
 pass. Production API/MCP remain SUCCESS at `7dce086d`. Fresh open count: 60;
 no milestone acceptance or live scientific result is claimed.
+
+
+### 2026-09-19 — Cycle 19, M1-03d3b2a
+
+Starting commit `1a425c99`; previous cycle committed observation telemetry.
+Split artifact integration into durable summaries now and direct panel scopes/
+fallback disclosure next. Preserved all original acceptance requirements.
+No live inference, release, spending or reference acquisition in this cycle.
+
+Failing artifact tests reproduced loss of raw usage, missing model identity and
+unknown-cost evidence in golden/arm reports and derived scaling points. Added
+a shared summary retaining raw snapshots, requested model counts, observed
+model names and missing-evidence counts. Complete static estimates are null
+for missing/legacy/incomplete telemetry; billed_total_usd remains null because
+no receipt has been observed. Legacy numeric cost is explicitly labeled a
+partial static estimate. Known-zero complete estimates remain zero.
+
+Golden, arm metrics, scaling points, ablation paired records/summary means and
+claim-support artifacts now retain the evidence. Persisted claim scoring labels
+the configured backend without claiming that configuration proves a live call.
+A missing cost value and impossible evidence counters each produced a failing
+regression before being made incomplete rather than a complete zero estimate.
+Reused existing store and evaluator interfaces; no schema migration or dependency.
+
+Independent review found no dropped durable evidence or compatibility blocker.
+Scoped cleanup consolidated partial-cost summation in the shared helper. Direct
+panel response capture and deterministic fallback reporting remain unchecked in
+M1-03d3b2b; no scientific result or billing observation is claimed. No UI changes.
+Next: M1-03d3b2b.
+
+Validation: 31 targeted evaluator checks pass, including offline durable scaling/
+ablation flows and golden admission; persisted-run scoring retains the same
+evidence. Strict mypy passes six changed modules; Ruff lint/format and diff
+checks pass. Production API/MCP remain SUCCESS at `7dce086d`. Fresh open count:
+60; the campaign and M1 acceptance remain incomplete.

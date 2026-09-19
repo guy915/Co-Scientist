@@ -88,6 +88,8 @@ def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
         "top10_diversity": hypothesis_diversity([_text(item) for item in top]),
         "verified_claim_ratio": _verified_ratio(top),
         "cost_usd": metrics.get("cost_usd"),
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": metrics.get("usage_evidence"),
         "latency_seconds": metrics.get("latency_seconds"),
         "hypothesis_count": len(hypotheses),
     }
@@ -250,6 +252,17 @@ def temporal_scaling_curve(
     ]
 
 
+def _complete_cost_mean(items: Sequence[dict[str, Any]]) -> float | None:
+    costs: list[float] = []
+    for item in items:
+        evidence = item.get("usage_evidence") or {}
+        value = evidence.get("estimated_total_usd")
+        if not evidence.get("estimate_complete") or value is None:
+            return None
+        costs.append(float(value))
+    return _mean(costs)
+
+
 def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate paired controlled runs by feature arm and metric."""
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -275,6 +288,8 @@ def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
                 ]
             ),
             "cost_usd": _mean([float(item["cost_usd"]) for item in items]),
+            "cost_basis": "partial_static_estimate",
+            "estimated_mean_usd": _complete_cost_mean(items),
             "latency_seconds": _mean(
                 [float(item["latency_seconds"]) for item in items]
             ),

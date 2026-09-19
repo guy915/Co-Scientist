@@ -260,11 +260,15 @@ def compute_arm_metrics(
 
     metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
     model_usage = metrics.get("model_usage") or {}
-    cost = sum(float(v.get("cost_usd", 0.0)) for v in model_usage.values())
+    from evaluations._usage_evidence import summarize_usage
+
+    evidence = summarize_usage(model_usage)
     return {
         "llm_calls": int(metrics.get("llm_calls", 0)),
         "tasks": tasks_count,
-        "cost_usd": round(cost, 6),
+        "cost_usd": evidence["partial_estimated_total_usd"],
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": evidence,
         "latency_seconds": round(wall_clock_seconds, 3),
     }
 

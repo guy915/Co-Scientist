@@ -205,6 +205,8 @@ def _arm_record(
             else None
         ),
         "cost_usd": arm["metrics"]["cost_usd"],
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": arm["metrics"].get("usage_evidence"),
         "latency_seconds": arm["metrics"]["latency_seconds"],
     }
 

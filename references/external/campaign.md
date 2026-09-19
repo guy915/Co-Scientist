@@ -192,3 +192,12 @@ Old checkpoint fields default to zero evidence, not retrospective verification.
 `cost_usd` remains a legacy static estimate and is never a billing receipt.
 Evaluator artifacts must expose these distinctions under M1-03d3b2 before live
 results can serve as campaign evidence.
+
+Durable golden/arm, scaling, ablation and claim-support artifacts now retain
+`usage_evidence`, including raw snapshots and requested/observed identities.
+`estimated_total_usd` is null when evidence is incomplete; `billed_total_usd`
+is always null until an actual receipt is retained. Legacy numeric cost fields
+are labeled `partial_static_estimate`. Derived ablation estimated means are
+null if any included arm lacks a complete estimate. These fields are static
+accounting evidence, not proof of scientific quality. Direct-panel capture and
+fallback disclosure remain M1-03d3b2b.
