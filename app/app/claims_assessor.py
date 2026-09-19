@@ -20,6 +20,7 @@ import re
 from collections.abc import Callable, Sequence
 
 from app.claims_gate import EntailmentLabel
+from app.claims_retrieval_stopwords import RETRIEVAL_STOPWORDS
 
 # --- Evidence passages ------------------------------------------------------
 
@@ -250,6 +251,17 @@ def _lexical_score(claim: str, passage: str) -> float:
     return len(a & b) / len(a)
 
 
+@functools.lru_cache(maxsize=256)
+def _retrieval_tokens(text: str) -> frozenset[str]:
+    """Retain short content terms for recall, never for verdict scoring."""
+    short = {
+        token
+        for token in re.findall(r"[a-z0-9]+", text.lower())
+        if len(token) <= 3 and not token.isdigit()
+    }
+    return (_tokens(text) | short) - RETRIEVAL_STOPWORDS
+
+
 def retrieve_passages(
     claim: str,
     passages: Sequence[EvidencePassage],
@@ -260,9 +272,9 @@ def retrieve_passages(
 
     Claim-specific retrieval: the assessor sees only the passages most likely
     to bear on this claim, not the entire run-wide pool. Ranking is by lexical
-    overlap (a deterministic, offline signal); ties keep input order stable.
-    Passages with zero overlap are dropped so an unrelated passage cannot be
-    assessed against the claim at all.
+    overlap including short content terms; ties keep input order stable.
+    Zero-overlap passages are dropped. A retrieved passage is only a candidate;
+    its entailment still requires assessment.
 
     Args:
         claim: The atomic claim being grounded.
@@ -272,8 +284,10 @@ def retrieve_passages(
     Returns:
         The most relevant passages, most-relevant first.
     """
+    query = _retrieval_tokens(claim)
     scored = [
-        (i, p, _lexical_score(claim, p.text)) for i, p in enumerate(passages)
+        (i, p, len(query & _retrieval_tokens(p.text)))
+        for i, p in enumerate(passages)
     ]
     relevant = [(i, p, s) for i, p, s in scored if s > 0.0]
     relevant.sort(key=lambda t: (-t[2], t[0]))

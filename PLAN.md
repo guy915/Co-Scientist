@@ -172,6 +172,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04a: Refresh the public OpenRouter catalog, verify zero-cost eligibility, and record a capability-based shortlist including available new releases and explicit exclusions.
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
 - [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
+- [x] M1-04b1b-r1: Correct the demonstrated short-identifier retrieval omission with a bounded, retrieval-only candidate; verify unseen identifier/paraphrase examples, unrelated-stopword exclusion, unchanged deterministic verdict thresholds, and freshness tracking. Treat scientific adoption as pending the matched live qualification item below.
 - [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
@@ -1757,3 +1758,48 @@ Markdown report behavior is covered by public report tests and browser flow.
 Preserved unrelated AGENTS.md edits. No PR/merge/deployment. M1 is 29/36,
 seven open; campaign 59 open. Next scope a general, test-first correction from
 the stage-level failure analysis and compare it with matched frozen evidence.
+
+### 2026-09-20 — Cycle 44, short-term retrieval candidate
+
+Starting commit `37bfc0f0`; previous cycle was progress (durable method
+provenance and completed Pro comparison). Split the demonstrated retrieval
+omission into M1-04b1b-r1 before implementation; the scientific qualification
+item remains open. Four unseen identifier examples now reach the public
+assessment boundary (p53, DNA, Protein H, J/K). The first three failed before
+the correction. A separate failing case reproduced admission from only
+long function words (this/with), then passed after stopword filtering.
+
+Added a retrieval-only token set retaining short letter-bearing alphanumeric
+terms and excluding an explicit common function-word set. The deterministic
+verdict tokenizer, scores, thresholds and contradiction guard are unchanged.
+Shared-term counts preserve stable ranking for unchanged tokens; top-k remains
+bounded. Single, batch and freshness paths share the correction. Added an X
+to the existing batch passage-number fixture so its documented tied relevance
+remains true; its expected resolved source and label are unchanged.
+
+Independent design/final review endorsed the bounded correction and required
+honest limitations: any identifier colliding with the case-folded stopword
+set is still excluded; hyphen variants are not normalized. No entity allowlist,
+new dependency, semantic-search service or live inference was introduced.
+Retained rationale and hashed offline retrieval artifact under model-qualification/
+`retrieval-candidate.md` and `retrieval-candidate-offline.json`. All 30 frozen
+challenge items now provide candidate passages; this is not scientific evidence
+of improved labels. Both prior live model qualifications remain failed.
+
+76 targeted tests pass, including bounded ordering, no identifier-only support,
+recovery fingerprint changes and the existing contradiction regressions. All
+four explicit size checks pass. `make lint`, `make typecheck` and
+`make eval-smoke` exit 0. The broader `make test-app` is STILL RUNNING in
+session **93694**, log `/tmp/coscientist-cycle44-app.log`; latest confirmed
+live poll showed progress beyond 81 percent. Resume the same handle before
+starting another app/engine suite; do not restart from silence. No full app
+pass is claimed. Relevant logs use `/tmp/coscientist-cycle44-*`.
+
+Scoped cleanup/deslop kept the explicit stopword list separate to respect
+module size, found no obsolete runtime code, and preserved unrelated AGENTS.md
+changes and experiment sources. No UI changed, no PR/release/deployment.
+M1 is 30/37 (seven remaining); campaign 59 open. Next finish the regression
+suite, then freeze a matched evaluation protocol for the updated candidate.
+The original evaluator differs only by extracting its assessor-selection helper;
+compare the actual metric/gate code and declare all source deltas before any
+new live comparison. Do not reuse old live answers as new-arm results.

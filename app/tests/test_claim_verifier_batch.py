@@ -408,7 +408,7 @@ def test_batch_citation_by_passage_number_resolves_to_that_passage(
     # passage lands first, _PASSAGE second, matching the "2" cited below.
     other = EvidencePassage(
         evidence_id="ev-0",
-        text="Kinase inhibition reduces tumor growth in a different model.",
+        text="Kinase X inhibition reduces tumor growth in a different model.",
     )
     _install(
         monkeypatch,
