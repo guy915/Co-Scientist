@@ -89,7 +89,7 @@ def evaluate_scope_controls(dataset, assessor, assessor_id, *, batch=False):
     }
 
 
-def evaluate_model_scope_controls(dataset, model):
+def evaluate_model_scope_controls(dataset, model, *, before_mode=None):
     """Run both real assessor paths after the caller configures free admission.
 
     Capture usage separately for each interface. The caller still binds helper
@@ -101,6 +101,8 @@ def evaluate_model_scope_controls(dataset, model):
 
     results = {}
     for batch, factory in ((False, make_llm_assessor), (True, make_llm_batch_assessor)):
+        if before_mode is not None:
+            before_mode("batch_single_claim" if batch else "single")
         assessor, assessor_id = factory(model)
         with capture_panel(
             "citation_entailment", dataset, model, live=True
@@ -110,3 +112,50 @@ def evaluate_model_scope_controls(dataset, model):
             )
         results[result["mode"]] = {**evidence, **result}
     return results
+
+
+def validate_scope_evidence(record, dataset):
+    """Validate complete live evidence; return scientific control acceptance.
+
+    Parent comparator verifies every physical request's price caps and usage,
+    matched capture identities, and frozen source/input hashes.
+    """
+    panels = record["scope_controls"]
+    if set(panels) != {"single", "batch_single_claim"}:
+        raise ValueError("Missing scope modes")
+    expected = [item["id"] for item in dataset["items"]]
+    if not expected or len(set(expected)) != len(expected):
+        raise ValueError("Invalid scope items")
+    accepted = True
+    for mode, panel in panels.items():
+        checks = panel["checks"]
+        if panel["mode"] != mode or [c["id"] for c in checks] != expected:
+            raise ValueError("Missing or reordered scope items")
+        usage = panel["usage_evidence"]
+        physical = [
+            r for r in record["physical_requests"] if r["phase"] == "scope_" + mode
+        ]
+        if (
+            len(physical) < len(expected)
+            or usage["physical_calls"] != len(physical)
+            or usage["observed_models"] != [record["requested_model"]]
+            or usage["unobserved_model_calls"] != 0
+            or usage["unreported_usage_calls"] != 0
+        ):
+            raise ValueError("Incomplete scope physical usage evidence")
+        accepted &= not usage["recorded_deterministic_fallbacks"]
+        for check, item in zip(checks, dataset["items"]):
+            accepted &= (
+                check["passed"] is True
+                and check["label"] in item["allowed_labels"]
+                and check["allowed_labels"] == item["allowed_labels"]
+                and check["quotes_valid"] is True
+                and check["nonempty_assessor_invocations"] > 0
+                and check["verification_method"]
+                in {
+                    "model_primary",
+                    "model_opposition_verified",
+                    "model_opposition_unconfirmed",
+                }
+            )
+    return bool(accepted)

@@ -13,7 +13,12 @@ from evaluations.panel_comparison import compare_panels
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
     "--series",
-    choices=("opposition", "opposition-pro", "opposition-retrieval-pro"),
+    choices=(
+        "opposition",
+        "opposition-pro",
+        "opposition-retrieval-pro",
+        "opposition-scope-pro",
+    ),
     default="opposition",
 )
 series = parser.parse_args().series
@@ -25,11 +30,23 @@ summary = {
     "complete": False,
     "accepted": False,
 }
-composite = series == "opposition-retrieval-pro"
+scope = series == "opposition-scope-pro"
+composite = scope or series == "opposition-retrieval-pro"
 if composite:
     summary["candidate_commit"] = "94107aedd9c68df9811c69c48b3ac0b7d2ec119f"
-    preflight = json.loads((root / "retrieval-preflight.json").read_text())
+    preflight = json.loads(
+        (
+            root / ("scope-preflight.json" if scope else "retrieval-preflight.json")
+        ).read_text()
+    )
     frozen = preflight["source_manifest"]
+    if scope:
+        summary["candidate_commit"] = "03ea84841983c93da170902c05b3fd846fb87360"
+        from scope_controls import validate_scope_evidence
+
+        scope_dataset = json.loads(
+            (root / "partial-support-scope-controls.json").read_text()
+        )
 source_snapshots = {}
 for trial in range(1, 4):
     paths = [root / f"{series}-{arm}-{trial}.json" for arm in ("baseline", "candidate")]
@@ -215,6 +232,42 @@ for trial in range(1, 4):
             not u["recorded_deterministic_fallbacks"] for u in usage
         ),
     }
+    if scope:
+        for name, field in (
+            ("partial-support-scope-controls.json", "scope_controls_sha256"),
+            ("scope_controls.py", "scope_helper_sha256"),
+        ):
+            expected = hashlib.sha256((root / name).read_bytes()).hexdigest()
+            if (
+                expected != frozen[field]
+                or any(d[field] != expected for d in (b, c))
+                or catalog["execution_sources"][name] != expected
+            ):
+                raise RuntimeError("Scope helper or inputs differ from frozen identity")
+        for name in (
+            "run_retrieval_trials.py",
+            "compare_opposition_panels.py",
+            "probe_citation_panel.py",
+            "qualification_sources.py",
+        ):
+            if (
+                hashlib.sha256((root / name).read_bytes()).hexdigest()
+                != catalog["execution_sources"][name]
+            ):
+                raise RuntimeError("Scope execution observer changed: " + name)
+        # Baseline provenance stays unknown. Its outcomes are observed, not
+        # relabeled to satisfy candidate-only provenance acceptance.
+        validate_scope_evidence(b, scope_dataset)
+        criteria["candidate_scope_controls"] = validate_scope_evidence(c, scope_dataset)
+        for mode in ("single", "batch_single_claim"):
+            before, after = b["scope_controls"][mode], c["scope_controls"][mode]
+            compare_panels(before, after)
+            if before["evaluation_identity"]["dataset"] != scope_dataset:
+                raise RuntimeError("Scope capture inputs differ")
+            criteria["no_recorded_deterministic_fallback"] &= all(
+                not panel["usage_evidence"]["recorded_deterministic_fallbacks"]
+                for panel in (before, after)
+            )
     flips = []
     if composite:
         left = [a for a in b["assessments"] if a["phase"] == "challenge"]

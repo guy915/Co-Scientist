@@ -2122,3 +2122,28 @@ probe/manifest/runner/comparator with both-mode and physical-telemetry gates,
 freeze new candidate source and execute three fresh matched pairs. Preserve old
 series and all its artifacts; do not reuse responses. M1 remains31/38, campaign
 59 open. No model selected, PR, merge, deployment or production mutation.
+
+**2026-09-20 — Cycle57, scope comparison integrated and qualified for launch.**
+Starting87f678a7; previous cycle progressed terminal three-pair evidence.
+Added distinct opposition-scope-pro paths to existing preparer/preflight/runner/
+observer/comparator, preserving prior defaults and artifacts. Pin baseline14e8c599,
+candidate03ea8484 and evaluations14e8c599 for both. Scope helper/input hashes
+bound into manifest, checked before physical calls and by comparator. Both
+single and one-claim batch modes have separate usage capture/physical phases.
+Candidate acceptance requires both modes/all input IDs, allowed labels, located
+quotes, recognized provenance, actual model/usage evidence and no fallback.
+Baseline legacy-unknown stays observational; no acceptance provenance invented.
+Original challenge, historical and hybrid gates remain unchanged.
+
+Five red helper-gate tests preceded implementation;16 targeted tests now pass.
+Real historical telemetry exposed routed-model prefix mismatch; regression
+reproduced and fixed it. Offline preflight caught invalid None assessor stubs;
+replaced with valid inconclusive drafts compatible with old baseline. Final
+preflight verifies both pinned APIs/all10 nonempty retrievals and304/306 imported
+source hashes without credentials or inference. Snapshot manifest:
+/private/tmp/coscientist-scope57-reviewed/source-manifest.json. Earlier scope57
+snapshot is superseded; do not use it. Historical summaries regenerate unchanged.
+Ruff/diff checks pass; independent final review recommends launch. Product code
+unchanged since its full green verification. No scientific acceptance yet.
+Next run frozen scope series, preserve all results, and compare three fresh pairs.
+M1 remains31/38; campaign59 open. No model selection/deployment.

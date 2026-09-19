@@ -75,3 +75,12 @@ passed throughout. Pair1 missed the unchanged .75 accuracy minimum; the complete
 series is not accepted. These results do not evaluate the revised scope prompts.
 Future trials must retain fresh responses in a distinct series, preserving these
 artifacts. Session91986 terminated successfully; shared integration may now proceed.
+
+## Fresh series
+
+`opposition-scope-pro` pins candidate `03ea8484`, baseline `14e8c599`, and the
+baseline evaluation tree in both arms. `scope-preflight.json` retains the manifest
+and compatibility checks. Both live scope modes must pass in every candidate
+trial, alongside all original gates. Baseline legacy provenance remains unknown.
+The helper and inputs are hashed; the runner refreshes zero-price admission and
+checks immutable execution sources. No previous response is reused.

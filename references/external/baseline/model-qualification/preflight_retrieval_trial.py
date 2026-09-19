@@ -26,17 +26,40 @@ for name,module in list(sys.modules.items()):
  sources[name]={'path':str(path.relative_to(root)),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 print(json.dumps({'mode':'offline','report':report,'imports':sources}))
 """
+if manifest.get("series") == "opposition-scope-pro":
+    code = code.replace(
+        "root=Path.cwd().resolve()",
+        """from app import claim_verifier, claim_verifier_batch
+from app.claims import AssessorDraft, EntailmentLabel
+from scope_controls import evaluate_model_scope_controls
+# Exercise both snapshot APIs without calling a provider. These intentionally
+# inconclusive drafts are compatibility evidence, never scientific acceptance.
+claim_verifier.make_llm_assessor=lambda model: (lambda claim, passages: AssessorDraft(EntailmentLabel.INSUFFICIENT), 'offline')
+claim_verifier_batch.make_llm_batch_assessor=lambda model: (lambda claims, passages: [AssessorDraft(EntailmentLabel.INSUFFICIENT) for _ in claims], 'offline')
+controls=json.loads(Path(sys.argv[1]).read_text())
+scope_results=evaluate_model_scope_controls(controls, 'openrouter/nex-agi/nex-n2.5-pro:free')
+assert set(scope_results)=={'single','batch_single_claim'}
+assert all(len(p['checks'])==len(controls['items']) for p in scope_results.values())
+assert all(not p['usage_evidence']['physical_calls'] for p in scope_results.values())
+assert all(c['nonempty_assessor_invocations'] > 0 for p in scope_results.values() for c in p['checks'])
+root=Path.cwd().resolve()""",
+    )
 results = {}
 for arm, data in manifest["arms"].items():
     snapshot = Path(data["snapshot"])
     env = {
         "PATH": os.environ["PATH"],
-        "PYTHONPATH": f"{snapshot}:{snapshot}/app:{snapshot}/engine/src",
+        "PYTHONPATH": f"{snapshot}:{snapshot}/app:{snapshot}/engine/src:{Path(__file__).parent}",
         "PYTHON_DOTENV_DISABLED": "1",
         "COSCIENTIST_CACHE_ENABLED": "0",
     }
     result = subprocess.run(
-        [str(root / ".venv/bin/python"), "-c", code],
+        [
+            str(root / ".venv/bin/python"),
+            "-c",
+            code,
+            str(Path(__file__).with_name("partial-support-scope-controls.json")),
+        ],
         cwd=snapshot,
         env=env,
         text=True,
@@ -69,7 +92,7 @@ artifact = {
         "inherited": ["PATH"],
         "PYTHON_DOTENV_DISABLED": "1",
         "COSCIENTIST_CACHE_ENABLED": "0",
-        "PYTHONPATH": "<snapshot>:<snapshot>/app:<snapshot>/engine/src",
+        "PYTHONPATH": "<snapshot>:<snapshot>/app:<snapshot>/engine/src:<qualification-helper-dir>",
         "credentials": "none",
     },
     "source_manifest": manifest,
@@ -79,7 +102,14 @@ artifact = {
     },
     "arms": results,
 }
-(folder / "retrieval-preflight.json").write_text(json.dumps(artifact, indent=2) + "\n")
+(
+    folder
+    / (
+        "scope-preflight.json"
+        if manifest.get("series") == "opposition-scope-pro"
+        else "retrieval-preflight.json"
+    )
+).write_text(json.dumps(artifact, indent=2) + "\n")
 print(
     json.dumps(
         {

@@ -16,7 +16,15 @@ FOLDER = Path(__file__).resolve().parent
 ROOT = FOLDER.parents[3]
 manifest_path = Path(sys.argv[1]).resolve()
 manifest = json.loads(manifest_path.read_text())
-preflight = json.loads((FOLDER / "retrieval-preflight.json").read_text())
+series = manifest.get("series", "opposition-retrieval-pro")
+if series not in {"opposition-retrieval-pro", "opposition-scope-pro"}:
+    raise RuntimeError("Unknown comparison series")
+scope = series == "opposition-scope-pro"
+preflight = json.loads(
+    (
+        FOLDER / ("scope-preflight.json" if scope else "retrieval-preflight.json")
+    ).read_text()
+)
 if (
     hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     != preflight["source_manifest_sha256"]
@@ -47,7 +55,13 @@ key = os.environ.get("OPENROUTER_API_KEY") or dotenv_values(ROOT / ".env").get(
 )
 if not key:
     raise RuntimeError("OpenRouter credential unavailable")
-series = "opposition-retrieval-pro"
+if scope:
+    for name, field in (
+        ("partial-support-scope-controls.json", "scope_controls_sha256"),
+        ("scope_controls.py", "scope_helper_sha256"),
+    ):
+        if hashlib.sha256((FOLDER / name).read_bytes()).hexdigest() != manifest[field]:
+            raise RuntimeError("Scope observer or inputs changed")
 model = manifest["model"]
 # Freeze the exact execution observers before any inference.
 identities = {
@@ -60,6 +74,13 @@ identities = {
         manifest_path,
     )
 }
+if scope:
+    identities.update(
+        {
+            name: hashlib.sha256((FOLDER / name).read_bytes()).hexdigest()
+            for name in ("scope_controls.py", "partial-support-scope-controls.json")
+        }
+    )
 for trial, order in enumerate(manifest["trial_order"], 1):
     outputs = [FOLDER / f"{series}-{arm}-{trial}.json" for arm in order]
     logs = [manifest_path.parent / f"{arm}-{trial}.log" for arm in order]
@@ -130,6 +151,14 @@ for trial, order in enumerate(manifest["trial_order"], 1):
             "QUALIFICATION_MANIFEST": str(manifest_path),
             "QUALIFICATION_ARM": arm,
         }
+        if scope:
+            env["QUALIFICATION_SCOPE_CONTROLS"] = str(
+                FOLDER / "partial-support-scope-controls.json"
+            )
+        for name, expected in identities.items():
+            path = manifest_path if name == manifest_path.name else FOLDER / name
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError("Frozen execution script changed: " + name)
         time.sleep(4)
         print(f"Starting {arm} trial {trial}", flush=True)
         with (manifest_path.parent / f"{arm}-{trial}.log").open("x") as log:

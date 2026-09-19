@@ -45,6 +45,13 @@ async def observed_transport(**kwargs):
             ],
         )
     if _SOURCE_MANIFEST is not None:
+        if "scope_helper_sha256" in _SOURCE_MANIFEST:
+            for name, field in (
+                ("scope_controls.py", "scope_helper_sha256"),
+                ("partial-support-scope-controls.json", "scope_controls_sha256"),
+            ):
+                if digest(Path(__file__).with_name(name)) != _SOURCE_MANIFEST[field]:
+                    raise RuntimeError("Scope observer or input drift")
         _VERIFIED_IMPORTS.update(
             imported_sources(
                 _SOURCE_ROOT, _SOURCE_MANIFEST["arms"][_SOURCE_ARM]["verified_sources"]
@@ -238,6 +245,29 @@ if __name__ == "__main__":
             record["controls_sha256"] = digest(path)
             record["historical_controls"], record["controlled_primary"] = (
                 historical_controls(controls)
+            )
+        if os.environ.get("QUALIFICATION_SCOPE_CONTROLS"):
+            from scope_controls import evaluate_model_scope_controls
+
+            path = Path(os.environ["QUALIFICATION_SCOPE_CONTROLS"])
+            record["scope_controls_sha256"] = digest(path)
+            record["scope_helper_sha256"] = digest(
+                Path(__file__).with_name("scope_controls.py")
+            )
+            if _SOURCE_MANIFEST is None or any(
+                record[key] != _SOURCE_MANIFEST[key]
+                for key in ("scope_controls_sha256", "scope_helper_sha256")
+            ):
+                raise RuntimeError("Scope inputs or helper differ from manifest")
+
+            def scope_phase(mode):
+                global _PHASE
+                _PHASE = "scope_" + mode
+
+            record["scope_controls"] = evaluate_model_scope_controls(
+                json.loads(path.read_text()),
+                os.environ["MODEL_NAME"],
+                before_mode=scope_phase,
             )
     except Exception as exc:
         record["error_type"] = type(exc).__name__

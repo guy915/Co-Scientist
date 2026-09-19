@@ -25,7 +25,7 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def prepare(destination):
+def prepare(destination, *, scope=False):
     runtime = json.loads((FOLDER / "opposition-runtime.json").read_text())
     packages = sorted(
         [[d.metadata["Name"], d.version] for d in importlib.metadata.distributions()]
@@ -58,7 +58,16 @@ def prepare(destination):
         "preparation_script_sha256": sha(Path(__file__)),
         "arms": {},
     }
-    for arm, revision in (("baseline", BASELINE), ("candidate", CANDIDATE)):
+    candidate = CANDIDATE
+    if scope:
+        candidate = "03ea84841983c93da170902c05b3fd846fb87360"
+        manifest.update(
+            series="opposition-scope-pro",
+            scope_controls_sha256=sha(FOLDER / "partial-support-scope-controls.json"),
+            scope_helper_sha256=sha(FOLDER / "scope_controls.py"),
+        )
+        manifest["criteria"]["all_candidate_scope_controls_both_modes"] = True
+    for arm, revision in (("baseline", BASELINE), ("candidate", candidate)):
         snapshot = destination / arm
         snapshot.mkdir()
         sources = {}
@@ -123,4 +132,6 @@ def prepare(destination):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
-    prepare(parser.parse_args().destination.resolve())
+    parser.add_argument("--scope", action="store_true")
+    args = parser.parse_args()
+    prepare(args.destination.resolve(), scope=args.scope)

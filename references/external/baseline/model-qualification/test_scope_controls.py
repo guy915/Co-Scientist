@@ -149,3 +149,57 @@ def test_model_scope_panels_use_both_factories_and_completed_capture(monkeypatch
     assert factories == [("single", "test-model"), ("batch", "test-model")]
     assert set(results) == {"single", "batch_single_claim"}
     assert all(r["passed"] and r["capture_completed"] for r in results.values())
+
+
+def test_scope_evidence_requires_each_mode_and_physical_calls():
+    from scope_controls import validate_scope_evidence
+
+    with pytest.raises(ValueError, match="modes"):
+        validate_scope_evidence({"scope_controls": {}}, DATASET)
+
+
+@pytest.mark.parametrize(
+    "missing", ["physical_calls", "observed_models", "unreported_usage_calls"]
+)
+def test_scope_evidence_rejects_missing_telemetry(missing):
+    from scope_controls import validate_scope_evidence
+
+    record = scope_record()
+    del record["scope_controls"]["single"]["usage_evidence"][missing]
+    with pytest.raises((ValueError, KeyError)):
+        validate_scope_evidence(record, DATASET)
+
+
+def scope_record():
+    result = evaluate_scope_controls(DATASET, judge, "test")
+    usage = {
+        "physical_calls": 1,
+        "observed_models": ["openrouter/test-model"],
+        "unobserved_model_calls": 0,
+        "unreported_usage_calls": 0,
+        "recorded_deterministic_fallbacks": {},
+    }
+    from copy import deepcopy
+
+    return {
+        "requested_model": "openrouter/test-model",
+        "scope_controls": {
+            mode: {**deepcopy(result), "mode": mode, "usage_evidence": deepcopy(usage)}
+            for mode in ("single", "batch_single_claim")
+        },
+        "physical_requests": [
+            {"phase": "scope_" + mode} for mode in ("single", "batch_single_claim")
+        ],
+    }
+
+
+def test_scope_evidence_validates_all_ids_and_candidate_checks():
+    from scope_controls import validate_scope_evidence
+
+    record = scope_record()
+    assert validate_scope_evidence(record, DATASET)
+    record["scope_controls"]["batch_single_claim"]["checks"][0]["passed"] = False
+    assert not validate_scope_evidence(record, DATASET)
+    record["scope_controls"]["batch_single_claim"]["checks"] = []
+    with pytest.raises(ValueError, match="items"):
+        validate_scope_evidence(record, DATASET)
