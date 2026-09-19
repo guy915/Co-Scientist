@@ -64,3 +64,47 @@ warning remains. No scientific-quality improvement or production release is clai
   Also examine how completed artifacts prove final rendered-report screening;
   the evaluator currently lacks the live `_screen_final_report` behavior.
   This is separate from the verified contradiction fix and remains open.
+
+## M1-03a1 — Explicit zero provider-price ceiling
+
+Classification: **local design choice**. Reuse: the existing shared
+`llm_gateway_routing._gateway_provider` builder; no new request abstraction.
+Status: implemented and verified offline; production release pending.
+
+Gap: the builder returned early when prompt price was zero, so free routes
+carried no ceiling. Changed it to retain prompt/completion ceilings at zero
+and add a zero per-request ceiling when both token prices are zero. Paid
+BYOK routes retain their existing priced ceilings. The declared fallback list,
+provider ordering, and reasoning behavior are preserved.
+
+Contract evidence, checked 2026-09-19: OpenRouter's
+[provider-routing reference](https://openrouter.ai/docs/guides/routing/provider-selection#max-price)
+defines inclusive token-price ceilings and a per-request `request` ceiling.
+Zero ceilings therefore exclude positive prices under that API contract;
+they do not establish model availability or cover independently charged plugins.
+The [model catalog documentation](https://openrouter.ai/docs/guides/overview/models)
+also describes per-request, reasoning, cache and conditional pricing, which
+M1-03a2 must validate before live inference.
+
+Boundary: `call_llm`, `call_llm_json`, and `call_llm_with_tools` provider requests.
+Red: all three cases failed with missing `max_price`; paid BYOK passed.
+Green: `test_llm_zero_price_ceiling.py` covers those paths, JSON budget escalation,
+a tool request/result followed by a second completion, free BYOK credentials,
+and preserved paid BYOK. The pricing contract test also covers standalone
+catalogued routes, not only fallback-chain heads. One test runs the installed
+LiteLLM serializer with only HTTP transport replaced and verifies the actual
+OpenRouter JSON body. No real inference response was requested or fabricated.
+
+Verification: 61 engine routing/reasoning/BYOK tests and 19 app model/thinking
+tests passed. Targeted Ruff lint/format, mypy and diff checks passed. Installed
+LiteLLM emitted Pydantic serialization and async-client shutdown warnings after
+the HTTP-fixture test; assertions passed and no warnings were suppressed.
+Cleanup/deslop removed obsolete comments claiming free routes should be uncapped.
+
+Remaining: M1-03a2 must reject stale, paid, unknown, aliased or unverifiable routes
+and charged add-ons, checking every fallback as well as the primary. Validate
+applicable prices with decimal arithmetic, including conditional overrides;
+do not infer zero from missing fields or a `:free` suffix. Validate before
+counting a provider attempt, and preserve explicit/scoped BYOK behavior. The
+current-price audit, app integration, tools, live evaluators and live acceptance
+remain open. No system-wide zero-spend guarantee is claimed by this sub-item.

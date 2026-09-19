@@ -147,7 +147,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 
 - [x] M1-01: Establish campaign records, capture the starting commit and deployment state, and verify access to GitHub, Railway, Vercel, and OpenRouter without exposing credentials.
 - [x] M1-02: Reproduce and correct the known disagreement between the live publication gate and release evaluator for speculative contradictions; add a behavioral regression test.
-- [ ] M1-03a: Enforce verified zero-cost eligibility and request-level price constraints at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Verify paid/unknown routes fail before transport and eligible routes carry binding zero-price constraints.
+- [x] M1-03a1: Ensure catalogued zero-token-price OpenRouter routes carry zero prompt, completion and per-request price ceilings through the shared request builder, fallbacks and retries; preserve explicitly paid BYOK routing. Verify through the public LLM request boundary.
+- [ ] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
 - [ ] M1-03b: Verify and close zero-cost bypasses across streaming app calls, auxiliary models and durable engine tasks using their real request interfaces; reuse shared routing and preserve streaming/reasoning behavior and BYOK isolation.
 - [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
@@ -297,3 +298,37 @@ M1-01 committed as `765288a6`. M1-02 then reproduced the defect with a failing p
 The source audit split the oversized zero-cost item into M1-03a–d without changing its scope. Review found a separate legacy safety-status mismatch, recorded as M1-09; it is not bundled silently into the contradiction fix. App direct completions already reuse the engine's thinking/gateway body builder, so investigate actual outgoing requests before adding any abstraction. Unknown/free static pricing currently omits a gateway price cap. No live batch is authorized to run until enforcement and fresh price qualification hold. Fresh open count is 62 after two completions, a four-way split and one discovered item; the limit remains 180 turns. Next cycle starts with M1-03a. M1 acceptance is not yet satisfied.
 
 Final independent review found no M1-02 blocker and confirmed the obsolete helper is fully removed. It also noted that evaluator artifacts cannot currently reproduce final rendered-report safety screening; M1-09 now explicitly includes that preexisting gap. All 44 targeted app checks had passed before accepting M1-02. No additional cleanup changes were needed.
+
+### 2026-09-19 — Cycle 2, M1-03a1
+
+Previous turn: progress, with campaign records and the verified evaluator correction committed. Current start is `0e3ae327`, clean branch. Fresh Railway read confirms unchanged API/MCP SUCCESS deployments at `7dce086d`; no release action this cycle.
+
+Split M1-03a into the bounded request-ceiling correction (a1) and fresh eligibility enforcement (a2), preserving all acceptance requirements. Official OpenRouter provider-routing documentation supports inclusive zero token and per-request ceilings. Chose to fix the existing shared builder, rather than introduce another routing abstraction. The former zero-price early return was reproduced as three failing public-boundary cases. Now free routes send zero prompt/completion/request ceilings, including JSON budget escalation and tool calls; paid BYOK retains its existing priced route. A real LiteLLM serialization test with HTTP transport mocked proves the wire JSON preserves the cap. This is offline request evidence, not live pricing/serving evidence.
+
+Verification: 61 engine routing/reasoning/BYOK tests, 19 app model/thinking tests, targeted Ruff lint/format and mypy, and diff checks pass using the root `.venv` (LiteLLM 1.80.17, httpx 0.28.1, pytest 9.0.3). Scoped cleanup/deslop removed contradictory comments and retained no extra runtime abstraction. SDK Pydantic and async shutdown warnings remain unsuppressed; no assertion was weakened. No UI changed.
+
+Review execution incident: the read-only reviewer invoked `uv run`, generating `engine/uv.lock` and syncing the separate preexisting `engine/.venv` (46 packages installed, 43 uninstalled). Removed its confirmed generated lock; did not guess the previous package set. Root `.venv` is separate and unchanged, and all reported acceptance checks use it. Future checks use the existing root runner, never dependency-manager commands for read-only review.
+
+Architecture: one shared provider block now carries the zero ceiling across all callers that already use it. Full model eligibility, unknown/paid route rejection, charged add-on control, app/tool coverage, and live comparisons remain open. No provider inference, credentials changes, PR or deployment. Next: M1-03a2. Open count remains 62 (one split adds one; a1 completion removes one); the 180-turn limit is unchanged.
+
+### 2026-09-19 — Cycle 3, finish M1-03a1 review and commit
+
+The preceding prompt-only handoff made no execution progress. Revalidated the
+pending work against disk: cycle 2's a1 changes were still uncommitted at
+`0e3ae327`. Completed its review before starting the next dependent item.
+Railway read confirms API `a6ddd7f0-3bb5-4ad1-bed8-14809846e88e` and MCP
+`0d49864d-782b-421f-ab8b-02b608a9c5d4` remain SUCCESS at `7dce086d`.
+
+Review corrections: removed stale uncapped-free-route claims from pricing
+comments; expanded the catalog assertion to standalone routes; exercised a
+real tool-result continuation in the offline public-boundary test. Reused the
+existing queued completion fixtures instead of duplicating them. Root runner:
+61 engine tests and 19 app tests pass again; Ruff lint/format, targeted mypy and
+diff checks pass. Existing SDK warnings remain documented. No inference,
+production change, migration, or new dependency. Fresh eligibility remains
+M1-03a2; the static cap is not a current-price qualification. The architecture
+and release state recorded in cycle 2 otherwise remain unchanged.
+
+Final fresh-context read-only review found no blocker and confirmed the fixture
+simplification. M1-03a1 is ready for its item commit; M1 remains open. The next
+cycle starts at M1-03a2. Fresh open count: 62; authorized limit: 180 turns.

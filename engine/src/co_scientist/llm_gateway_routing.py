@@ -230,10 +230,9 @@ _GATEWAY_MAX_FALLBACKS: Final[int] = 3
 # rung was the routine destination rather than the emergency one. The guard
 # against it already existed -- ``_gateway_provider`` caps a routed call at
 # ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate -- but a primary
-# priced at zero has no meaningful multiple, so the cap was skipped and the
-# request could be served at any price the gateway liked. A *priced*
-# primary arms the ceiling; free rungs below it are safe for the same
-# reason they were dangerous above it.
+# priced at zero previously skipped the cap, leaving the request unbounded.
+# Zero is now an explicit ceiling for free routes, including per-request
+# fees. Current model eligibility still needs verification before live use.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     # A non-default chain head kept for a deployment that opts back into
     # it. It was the deployed primary from 2026-09-05 until a real express
@@ -268,17 +267,10 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     # a provider error, so a chain of N free models buys roughly N x 100
     # free calls/day before any of them needs a real spend.
     #
-    # **Every rung in this chain must be priced $0/$0.** A free primary
-    # disarms ``_gateway_provider``'s price cap outright (see the comment
-    # above ``_GATEWAY_MODELS``): zero has no meaningful multiple, so the
-    # route goes out uncapped. That is safe only because there is nothing
-    # here to overspend on -- a paid rung appended below a free primary was
-    # exactly the 2026-08-26 incident ($1.25/$4.25 "last resort" served
-    # 3.17M tokens, billed $5.23 in an afternoon, because 429 is the
-    # *normal* state of a shared free pool, not the rare case a last resort
-    # assumes). ``test_no_fallback_costs_more_than_the_model_above_it``
-    # holds this chain to that rule over the declared table, not by
-    # inspection.
+    # Every rung must be priced $0/$0. The provider's zero ceiling also
+    # binds fallback selection; a paid rung cannot escape it on a 429.
+    # ``test_no_fallback_costs_more_than_the_model_above_it`` keeps the
+    # declared chain consistent with that request-level constraint.
     #
     # Order follows the live probe (3 concurrent JSON requests each,
     # 2026-09-05/06): Nemotron Super and GLM M2.7 answered 3/3 fast
@@ -354,10 +346,12 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
     if order:
         provider["order"] = list(order)
     price = MODEL_PRICING.get(model_name)
-    if price is None or not price.prompt_usd_per_million:
+    if price is None:
         return provider
     provider["max_price"] = {
         "prompt": price.prompt_usd_per_million * _MAX_PRICE_MULTIPLE,
         "completion": (price.completion_usd_per_million * _MAX_PRICE_MULTIPLE),
     }
+    if price.prompt_usd_per_million == price.completion_usd_per_million == 0:
+        provider["max_price"]["request"] = 0.0
     return provider
