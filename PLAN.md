@@ -152,7 +152,9 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03b1: Enforce shared zero-cost admission on app interview, Q&A, announcement, title and restatement completions and credential probes; verify outgoing requests, streaming/reasoning preservation and explicit BYOK isolation.
 - [x] M1-03b2: Prevent campaign and credential-scoped executions from reading or writing shared node caches, including forced cache paths; verify isolation without changing ordinary cache behavior.
 - [x] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
-- [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
+- [x] M1-03c1: Map retrieval, tools, plugins, skills and embeddings to outbound paths and retained cost evidence; record concrete enforcement gaps and acceptance tests.
+- [ ] M1-03c2: Enforce campaign cost restrictions at MCP invocation/provider and workspace/skill boundaries, including fallbacks and custom configurations; preserve qualified public retrieval and ordinary user behavior.
+- [ ] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -470,3 +472,39 @@ verification. Open count: 60. M1 acceptance and the 180-turn limit are unchanged
 Final read-only review added an explicit assertion that ordinary paid BYOK
 requests do not carry the campaign zero-price cap. All 18 cases pass with that
 assertion, and targeted lint/format checks remain clean.
+
+### 2026-09-19 — Cycle 8, M1-03c1 cost-path audit
+
+Previous turn made progress: durable admission tests committed as `a44fc721`.
+Started clean. Split c into evidence-backed audit, implementation and live
+retrieval acceptance; no scope removed. Recorded source paths, current official
+pricing references, seven concrete findings and required boundary checks in
+`references/external/baseline/retrieval-cost-audit.md`.
+
+Findings: web provider credentials/fallbacks, optional OpenAlex credentials,
+custom MCP servers and skill credential injection escape the model-only guard.
+Whole-node cache isolation is already handled. No embedding API exists in the
+maintained app/engine path; semantic retrieval and proximity use guarded LLMs.
+Official OpenAlex and Tavily docs confirm free allowances can coexist with paid
+usage; no account billing guarantee was inferred. The separate read-only audit
+confirmed both MCP invocation paths and configuration override routes.
+
+Decision: use the existing campaign flag across upcoming enforcement rather
+than a second opt-in that can leave partial protection. Qualify actual server
+and tool identities, not just advertised names/effect labels. Keep local
+computation and useful public retrieval, and preserve non-campaign behavior.
+Implementation choices remain c2 work, to be driven by failing boundary tests.
+
+No runtime files changed; source inspection and official documentation reads
+only. No model/retrieval experiment, spending, dependencies, PR or deployment.
+Railway status returned API/MCP SUCCESS at `7dce086d`; CLI also warned that token
+refresh persistence lacked filesystem permission, but its read succeeded.
+No credentials were printed or changed. Scoped documentation cleanup distinguishes
+inventory from qualification and records remaining implementation/live evidence.
+Next: M1-03c2. Fresh open count: 61 (split adds two; audit completion removes one).
+M1 remains open, and the limit remains 180 turns.
+
+Final independent audit review corrected the network-enabled workspace source
+to `open_draft_workspace` (review workspaces default to network disabled), and
+clarified that configured web search is conditionally registered at runtime.
+These corrections are retained in the audit; no enforcement is claimed.

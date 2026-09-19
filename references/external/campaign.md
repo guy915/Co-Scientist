@@ -73,3 +73,11 @@ seconds and cannot be reused on failed refresh. A catalog fetch is not inference
 and can be used to assess availability without spending model credits. A
 `FreeModelEligibilityError` is terminal for that LLM request: change/qualify the
 configuration or wait for metadata availability, never substitute a paid model.
+
+### Retrieval qualification remains incomplete
+
+The [retrieval cost audit](baseline/retrieval-cost-audit.md) maps outbound routes
+and current pricing evidence. Until M1-03c2/c3 pass, the free-model flag does not
+establish that a whole research run is free: MCP providers, custom servers and
+skill credentials have separate charge paths. Do not start campaign research
+inference yet. No retrieval billing settings have been altered.
