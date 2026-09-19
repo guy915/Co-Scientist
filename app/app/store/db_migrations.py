@@ -408,6 +408,16 @@ def _migrate_hypothesis_creation_iteration(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "hypotheses", "creation_iteration", "INTEGER")
 
 
+def _migrate_claim_verification_method(conn: sqlite3.Connection) -> None:
+    """Keep pre-existing assessments explicit about missing provenance."""
+    _add_column_if_missing(
+        conn,
+        "claim_evidence",
+        "verification_method",
+        "TEXT NOT NULL DEFAULT 'legacy_unknown'",
+    )
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -431,3 +441,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_match_debate_transcript(conn)
     _migrate_message_applied_columns(conn)
     _migrate_hypothesis_creation_iteration(conn)
+    _migrate_claim_verification_method(conn)

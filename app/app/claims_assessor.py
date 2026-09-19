@@ -181,6 +181,7 @@ class AssessorDraft:
     label: EntailmentLabel
     supporting: tuple[tuple[str, str], ...] = ()
     contradicting: tuple[tuple[str, str], ...] = ()
+    verification_method: str = "legacy_unknown"
 
 
 # An assessor maps (claim, candidate passages) to a raw draft verdict.
@@ -460,4 +461,7 @@ def deterministic_assessor(
         label=_entailment_label(supporting, partial, contradicting),
         supporting=tuple(supporting) + tuple(partial),
         contradicting=tuple(contradicting),
+        verification_method="deterministic_lexical"
+        if passages
+        else "no_evidence",
     )

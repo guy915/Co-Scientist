@@ -206,6 +206,7 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
         return None
     draft = AssessorDraft(
         label=label,
+        verification_method="model_primary",
         supporting=_coerce_pairs(
             data.get("supporting"), "claim_verifier.supporting"
         ),
@@ -351,7 +352,10 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
         claim: str, passages: Sequence[EvidencePassage]
     ) -> AssessorDraft:
         if not passages:
-            return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+            return AssessorDraft(
+                label=EntailmentLabel.INSUFFICIENT,
+                verification_method="no_evidence",
+            )
         data = _call_llm_entailment(model, claim, passages)
         if data is None:
             record_deterministic_fallback(model, "claim_single")

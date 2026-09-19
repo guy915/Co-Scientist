@@ -159,4 +159,5 @@ def test_genuine_negation_still_yields_contradiction(
         claim, [passage], assessor=assessor, assessor_id=assessor_id
     )
     assert result.label is EntailmentLabel.CONTRADICTS
+    assert result.verification_method == "lexical_founded"
     assert result.contradicting_passages

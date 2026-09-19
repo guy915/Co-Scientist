@@ -1,5 +1,6 @@
 """Validate frozen paired artifacts; never run inference or relax gates."""
 
+import argparse
 import json, sys, hashlib
 from pathlib import Path
 from datetime import datetime
@@ -7,6 +8,9 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from evaluations.panel_comparison import compare_panels
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--series", choices=("opposition", "opposition-pro"), default="opposition")
+series = parser.parse_args().series
 root = Path(__file__).resolve().parent
 summary = {
     "baseline_commit": "14e8c59950204c96cdfa2195594885383d1d5720",
@@ -18,7 +22,7 @@ summary = {
 source_snapshots = {}
 for trial in range(1, 4):
     paths = [
-        root / f"opposition-{arm}-{trial}.json" for arm in ("baseline", "candidate")
+        root / f"{series}-{arm}-{trial}.json" for arm in ("baseline", "candidate")
     ]
     if not all(p.exists() for p in paths):
         break
@@ -165,7 +169,7 @@ summary["complete"] = len(summary["pairs"]) == 3 and all(
     "criteria" in p for p in summary["pairs"]
 )
 summary["accepted"] = summary["complete"] and all(p["passed"] for p in summary["pairs"])
-(root / "opposition-paired-summary.json").write_text(
+(root / f"{series}-paired-summary.json").write_text(
     json.dumps(summary, indent=2) + "\n"
 )
 print(

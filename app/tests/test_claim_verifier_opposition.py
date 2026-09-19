@@ -72,6 +72,7 @@ def test_directional_opposition_is_verified_and_located(
             assessor_id=assessor_id,
         )
     assert result.label is EntailmentLabel.CONTRADICTS
+    assert result.verification_method == "model_opposition_verified"
     assert result.contradicting_passages[0].quote == QUOTE
     assert result.contradicting_passages[0].evidence_id == "ev-1"
     assert len(requests) == 2
@@ -114,6 +115,9 @@ def test_batch_verifies_multiple_oppositions_in_one_request(
             assessor_id=assessor_id,
         )
     assert [r.label for r in results] == [EntailmentLabel.CONTRADICTS] * 2
+    assert [r.verification_method for r in results] == [
+        "model_opposition_verified"
+    ] * 2
     assert [r.contradicting_passages[0].evidence_id for r in results] == [
         "ev-1",
         "ev-2",
@@ -148,6 +152,7 @@ def test_unconfirmed_opposition_remains_insufficient(
         )
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert result.contradicting_passages == ()
+    assert result.verification_method == "model_opposition_unconfirmed"
 
 
 @pytest.mark.parametrize(
@@ -173,6 +178,7 @@ def test_unlocated_or_unrelated_quotes_never_request_verification(
         )
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert len(requests) == 1
+    assert result.verification_method == "contradiction_guard_rejected"
 
 
 def test_unavailable_verification_is_observable_without_deterministic_fallback(
@@ -194,6 +200,7 @@ def test_unavailable_verification_is_observable_without_deterministic_fallback(
         )
     assert result.label is EntailmentLabel.INSUFFICIENT
     rows = telemetry.snapshot().values()
+    assert result.verification_method == "model_opposition_unconfirmed"
     assert (
         sum(
             r["errors"].get("opposition_verification_unavailable", 0)

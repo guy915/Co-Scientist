@@ -126,12 +126,19 @@ def _prepare_candidates(
             results[position] = AssessorDraft(
                 EntailmentLabel.CONTRADICTS,
                 contradicting=tuple((s.evidence_id, s.quote) for s in founded),
+                verification_method="lexical_founded",
             )
         else:
-            results[position] = AssessorDraft(EntailmentLabel.INSUFFICIENT)
-            candidates.extend(
-                (position, s) for s in _eligible_spans(claims[position], spans)
+            eligible = _eligible_spans(claims[position], spans)
+            results[position] = AssessorDraft(
+                EntailmentLabel.INSUFFICIENT,
+                verification_method=(
+                    "model_opposition_unconfirmed"
+                    if eligible
+                    else "contradiction_guard_rejected"
+                ),
             )
+            candidates.extend((position, s) for s in eligible)
     return candidates
 
 
@@ -233,7 +240,9 @@ def _apply_confirmations(
             )
     for position, quotes in confirmed.items():
         results[position] = AssessorDraft(
-            EntailmentLabel.CONTRADICTS, contradicting=tuple(quotes)
+            EntailmentLabel.CONTRADICTS,
+            contradicting=tuple(quotes),
+            verification_method="model_opposition_verified",
         )
     logger.info(
         "Opposition verification: %d pairs, %d valid answers, "

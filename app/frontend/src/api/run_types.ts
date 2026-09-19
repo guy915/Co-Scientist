@@ -338,6 +338,7 @@ export interface ClaimEvidenceRow {
   supporting: (SupportSpan | string)[];
   contradicting: (SupportSpan | string)[];
   assessor: string;
+  verification_method?: string;
 }
 
 /** A reviewer agent's critique and per-axis scores for a hypothesis. */

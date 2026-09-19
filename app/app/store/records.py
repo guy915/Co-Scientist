@@ -283,7 +283,8 @@ class NewClaimEvidence:
     the spans for/against the claim -- JSON-serializable provenance
     objects (``{evidence_id, quote, start, end, source, url}``; legacy
     rows stored bare passage strings). ``assessor`` is the provenance id
-    of the entailment assessor.
+    of the entailment assessor. ``verification_method`` records the decision
+    path without upgrading its scientific authority; old rows remain unknown.
     """
 
     run_id: str
@@ -294,6 +295,7 @@ class NewClaimEvidence:
     contradicting: Iterable[Any]
     assessor: str
     claim_role: str = "categorical"
+    verification_method: str = "legacy_unknown"
 
 
 def _insert_claim_evidence_row(
@@ -303,7 +305,7 @@ def _insert_claim_evidence_row(
     conn.execute(
         "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
         "claim_role, supporting_json, contradicting_json, assessor, "
-        "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        "created_at, verification_method) VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
             edge.run_id,
             edge.hypothesis_id,
@@ -314,6 +316,7 @@ def _insert_claim_evidence_row(
             json.dumps(list(edge.contradicting)),
             edge.assessor,
             _now(),
+            edge.verification_method,
         ),
     )
 

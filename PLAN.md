@@ -173,7 +173,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
 - [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
 - [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
-- [ ] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
+- [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -1712,3 +1712,48 @@ scope a test-first correction without treating model judgments as proof.
 Final poll: baseline trial 3 completed (.433 accuracy, 0 contradiction recall,
 33 physical requests), retained after JSON/known-credential validation. Session
 50677 advanced to candidate trial 3; this is now the active child to resume.
+
+### 2026-09-20 — Cycle 43, persisted verification methods; Pro trials complete
+
+Starting commit `92938ee3`; previous cycle was progress (failure diagnosis).
+Worked on independent M1-04b1c while the unchanged final live trial ran in
+its pinned snapshot. Reproduced missing single/batch metadata, absent stored
+API/report metadata, loss on reused assessments, and custom-assessor empty
+retrieval misclassification with failing behavioral tests before corrections.
+
+Added `verification_method` from draft through assessment, gate enrichment and
+recovery, append-only claim-evidence rows, API/report payloads and Markdown.
+An additive idempotent SQLite migration leaves existing rows `legacy_unknown`.
+Known paths distinguish no evidence, deterministic lexical fallback, primary
+model judgment, lexical-founded contradiction, guard rejection, unconfirmed
+opposition request and separately model-verified opposition. Reports explicitly
+say the separate model check is not scientific validation. Requested assessor
+identity remains separate and unchanged. No entailment labels or publication
+thresholds changed. Production migration still requires a verified backup at
+release; no production database was touched.
+
+Independent approach and final review caught and resolved the generic empty-
+evidence case and confirmed final propagation/compatibility. 83 targeted tests
+pass, including API reopen, migration twice, report output, gate reuse,
+single/batch and failure cases. All four explicit size checks pass. `make lint`
+and `make typecheck` exit 0; nine browser E2E tests pass (exit 0, 34.3s).
+Logs: `/tmp/coscientist-cycle43-{final-targeted,lint,final-types,e2e}.log`.
+The prior full-suite result predates this metadata change; rerun affected/full
+required checks before release. Completed M1-04b1c only, not model qualification.
+
+Session 50677 exited 0 after candidate trial 3 (.700 accuracy, .90 recall,
+43 requests). The three Pro pairs are complete but unaccepted: trials 2 and 3
+miss .75 accuracy. All three pass other declared criteria; total 229 physical
+requests. Final artifact known-secret scan and pinned runtime comparison pass.
+Retained candidate3 and full summary. The maintained comparator now accepts
+`--series opposition-pro`; default Mini and Pro both regenerate complete=true,
+accepted=false without inference. No trial remains active. README and campaign
+state now reflect both completed failed model qualifications. Investigation
+must address the recorded retrieval/semantic limitations, not lower gates.
+
+Scoped cleanup/deslop removed no required artifacts; active/reference snapshots
+are retained for the next controlled experiment. No UI component changed;
+Markdown report behavior is covered by public report tests and browser flow.
+Preserved unrelated AGENTS.md edits. No PR/merge/deployment. M1 is 29/36,
+seven open; campaign 59 open. Next scope a general, test-first correction from
+the stage-level failure analysis and compare it with matched frozen evidence.

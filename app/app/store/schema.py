@@ -368,6 +368,7 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
     supporting_json TEXT,            -- JSON list of supporting passages
     contradicting_json TEXT,         -- JSON list of contradicting passages
     assessor TEXT NOT NULL,          -- provenance id of the entailment assessor
+    verification_method TEXT NOT NULL DEFAULT 'legacy_unknown',
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE

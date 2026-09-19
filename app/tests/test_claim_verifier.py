@@ -95,6 +95,7 @@ def test_valid_supports_verdict_locates_span(
         assessor_id=assessor_id,
     )
     assert result.label is EntailmentLabel.SUPPORTS
+    assert result.verification_method == "model_primary"
     span = result.supporting_passages[0]
     assert span.evidence_id == "ev-1"
     assert (
@@ -200,6 +201,7 @@ def test_provider_error_falls_back_to_deterministic(
         assessor_id=assessor_id,
     )
     assert result.label is EntailmentLabel.SUPPORTS
+    assert result.verification_method == "deterministic_lexical"
     assert result.supporting_passages  # deterministic located a span
 
 
@@ -231,6 +233,7 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
     draft = assessor("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
+    assert draft.verification_method == "no_evidence"
 
 
 def test_prompt_renders_evidence_before_the_claim() -> None:

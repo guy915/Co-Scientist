@@ -284,8 +284,42 @@ rejects matching conditions for the Drug A survival claim; the receptor-Y
 paraphrase never reaches verification because its quote fails the unchanged
 coverage floor. Other errors include partial labels on insufficient evidence.
 The observed recall gain alone does not authorize deployment. M1-04b1b stays
-open; next evaluate Nex Pro on unchanged baseline/candidate code with three
-fresh matched pairs. Do not assume it is scientifically better or reuse Mini
-baselines. Per-edge method provenance and full batched workflow verification
-also remain required. The six-process launcher exited successfully; no trial
+open. Nex Pro was subsequently evaluated on the same pinned source revisions
+with fresh matched baselines, as recorded below. Full batched workflow
+verification remains required. The six-process launcher exited successfully; no trial
 remains active. Source snapshots can be reconstructed from the full commits.
+
+
+## Nex Pro paired qualification — completed cycle 43
+
+Model: `openrouter/nex-agi/nex-n2.5-pro:free`. Source revisions, observer,
+dataset, historical controls and runtime match the recorded frozen protocol.
+
+| Trial | Baseline accuracy / recall | Candidate accuracy / recall |
+| --- | --- | --- |
+| 1 | .467 / .0 | .767 / .8 |
+| 2 | .433 / .0 | .700 / .8 |
+| 3 | .433 / .0 | .700 / .9 |
+
+**Not accepted.** Two trials miss the unchanged .75 accuracy gate. All three
+improve accuracy/recall, pass historical and controlled-primary/live-verifier
+negative controls, and record no new challenge false contradictions or
+deterministic fallback. The 229 physical calls retain explicit zero caps and
+served-model evidence. Empty retrieval can still avoid a model request; absence
+of fallback is not proof that every item reached the model.
+
+Reproduce both summaries without inference:
+
+```bash
+.venv/bin/python references/external/baseline/model-qualification/compare_opposition_panels.py
+.venv/bin/python references/external/baseline/model-qualification/compare_opposition_panels.py --series opposition-pro
+```
+
+Both report complete=true, accepted=false. The [failure analysis](pro-failure-analysis.md)
+separates model labels from retrieval/guard limitations. Session 50677 exited 0;
+no trial is running. No free model has been selected for production.
+
+After this frozen experiment, per-assessment method provenance was added to
+current code, persisted rows, reusable gate records, API/report payloads and
+Markdown. That metadata change does not turn these failed qualifications into
+acceptance; any subsequent scientific correction needs new matched evidence.

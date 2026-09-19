@@ -110,9 +110,8 @@ def _fallback_assessment(
 
     Matches ``assess_claim``'s own convention: a fallback verdict still
     carries the caller's ``assessor_id`` (naming which assessor was asked
-    for), not the deterministic assessor's id -- the fallback is an
-    implementation detail of that assessor's best-effort contract, not a
-    different provenance.
+    for), not the deterministic assessor's id. ``verification_method``
+    separately records the deterministic path that produced the verdict.
     """
     draft = deterministic_assessor(claim, candidates)
     supporting = _locate_all(draft.supporting, candidates)
@@ -124,6 +123,7 @@ def _fallback_assessment(
         supporting_passages=tuple(supporting),
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
+        verification_method=draft.verification_method,
     )
 
 
@@ -234,4 +234,5 @@ def _assess_from_draft(
         supporting_passages=tuple(supporting),
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
+        verification_method=draft.verification_method,
     )

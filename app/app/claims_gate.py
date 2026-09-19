@@ -67,13 +67,18 @@ class SupportSpan:
 
 @dataclasses.dataclass(frozen=True)
 class ClaimAssessment:
-    """The entailment outcome for one claim against retrieved evidence."""
+    """The entailment outcome and decision path, not scientific validation.
+
+    ``assessor`` names the requested assessor; ``verification_method`` records
+    the path actually taken. Missing historical metadata stays unknown.
+    """
 
     claim: str
     label: EntailmentLabel
     supporting_passages: tuple[SupportSpan, ...]
     contradicting_passages: tuple[SupportSpan, ...]
     assessor: str
+    verification_method: str = "legacy_unknown"
 
     @property
     def is_fundamental_failure(self) -> bool:
