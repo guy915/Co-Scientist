@@ -17,17 +17,7 @@ def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
     free execution nor absence of inference.
     """
     calls = sum(int(row.get("calls", 0)) for row in usage.values())
-    missing = {
-        label: sum(
-            max(0, int(row.get("calls", 0)) - _evidenced_calls(row, field))
-            for row in usage.values()
-        )
-        for label, field in (
-            ("unobserved_model_calls", "observed_model_calls"),
-            ("unreported_usage_calls", "reported_usage_calls"),
-            ("unpriced_calls", "priced_usage_calls"),
-        )
-    }
+    missing = _missing_evidence_counts(usage)
     fallbacks: Counter[str] = Counter()
     requested: Counter[str] = Counter()
     for row in usage.values():
@@ -57,6 +47,22 @@ def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "partial_estimated_total_usd": round(partial_estimate, 6),
         "billed_total_usd": None,
         "cost_basis": "static_estimate_not_billing_receipt",
+    }
+
+
+def _missing_evidence_counts(
+    usage: dict[str, dict[str, Any]],
+) -> dict[str, int]:
+    return {
+        label: sum(
+            max(0, int(row.get("calls", 0)) - _evidenced_calls(row, field))
+            for row in usage.values()
+        )
+        for label, field in (
+            ("unobserved_model_calls", "observed_model_calls"),
+            ("unreported_usage_calls", "reported_usage_calls"),
+            ("unpriced_calls", "priced_usage_calls"),
+        )
     }
 
 

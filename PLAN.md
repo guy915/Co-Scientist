@@ -1484,3 +1484,36 @@ results yet at this checkpoint; M1-04b1b remains open. After completion, validat
 all six artifacts with the Pro checker, verify unchanged runtime, retain sanitized
 evidence and remove scratch files. If a rate limit parks execution, record the
 actual reset and resume outstanding trials only. No production changes.
+
+### 2026-09-19 — Cycle 36, M1-04b1b running; baseline size repairs
+
+Starting commit `ee80ddba`. Previous cycle was progress: pinned the Pro batch,
+started a real process and retained its resume handle. Polled session 50677;
+baseline trial 1 completed and candidate trial 1 started without restarting.
+Baseline artifact records 33 physical Pro requests with zero price caps, accuracy
+.467 and contradiction recall 0; historical controls pass. This is one arm,
+not a completed pair or model qualification. Remaining batch still runs in
+session 50677, using frozen source snapshots untouched by this cycle's edits.
+
+While waiting, repaired four reproduced evaluation function-size failures under
+the existing baseline-suite item. Extracted baseline/model-policy assembly,
+missing-usage counts and assessor selection; used an ordered comprehension for
+Elo's three offline controls. No threshold, dataset, provider or scientific
+behavior changed. Independent approach review preceded edits. The same 60
+targeted tests passed before and after: comparison identity/drift/groups,
+panel comparison/admission/usage, usage evidence, citation and Elo evaluation.
+Ruff and diff checks pass. Explicit repository size tests still exit 1, now only
+for MCPToolClient.initialize (47 code lines) and test_llm_free_eligibility.py
+(524 lines); these remain pending within baseline verification.
+
+Final review found comparator-factory timing had moved before the first two
+controls. Restored its original creation/evaluation order; no lazy-factory
+abstraction added. Mypy found an Any-return boundary from the ignored app import;
+a typed baseline local resolves it without a cast or behavior change. All four
+changed modules now pass mypy and Ruff, and 29 affected identity/drift/Elo/panel
+usage tests pass after those final edits. The function-size gate confirms only
+the previously recorded engine method remains oversized. Independent final
+review reports no remaining findings. Scoped cleanup/deslop found no further
+code changes; deleted the completed edit scratch script. No UI changed.
+Live session 50677 remains active on candidate trial 1; preserve its scratch
+launcher, comparator and snapshots. No acceptance checkbox changed, no release.

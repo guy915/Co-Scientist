@@ -434,18 +434,15 @@ def run(*, use_llm: bool) -> dict[str, Any]:
         "elo_concordance", dataset, model, live=use_llm
     ) as evidence:
         results = {
-            "correctness_preferring": evaluate_concordance(
-                items,
-                correctness_preferring_comparator,
-                "correctness_preferring",
-            ),
-            "inverting": evaluate_concordance(
-                items, inverting_comparator, "inverting"
-            ),
-            "coin_flip_seed0": evaluate_concordance(
-                items, make_coin_flip_comparator(0), "coin_flip_seed0"
-            ),
+            name: evaluate_concordance(items, comparator, name)
+            for name, comparator in (
+                ("correctness_preferring", correctness_preferring_comparator),
+                ("inverting", inverting_comparator),
+            )
         }
+        results["coin_flip_seed0"] = evaluate_concordance(
+            items, make_coin_flip_comparator(0), "coin_flip_seed0"
+        )
         for result in results.values():
             result["execution_mode"] = "offline"
         if live_comparator is not None:

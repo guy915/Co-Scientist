@@ -165,12 +165,7 @@ def run(
     selects the semantic assessor after explicit campaign configuration.
     ``dataset_path`` selects the small v1 or adversarial challenge panel.
     """
-    if use_llm:
-        assessor, assessor_id = _build_llm_assessor()
-    else:
-        from app.claims import deterministic_assessor
-
-        assessor, assessor_id = deterministic_assessor, "deterministic-v1"
+    assessor, assessor_id = _selected_assessor(use_llm)
     dataset = _load_dataset(dataset_path or _DATASET)
     from evaluations._panel_identity import capture_panel
 
@@ -201,6 +196,14 @@ def run(
             "here isolates only the assessor, not the full pipeline."
         ),
     }
+
+
+def _selected_assessor(use_llm: bool) -> tuple[Any, str]:
+    if use_llm:
+        return _build_llm_assessor()
+    from app.claims import deterministic_assessor
+
+    return deterministic_assessor, "deterministic-v1"
 
 
 def _build_llm_assessor() -> tuple[Any, str]:

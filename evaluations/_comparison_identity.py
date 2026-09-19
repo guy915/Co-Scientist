@@ -66,6 +66,38 @@ def _tools_identity() -> dict[str, str | None]:
     }
 
 
+def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
+    from app.run_modes import resolved_run_config, setup_config
+
+    baseline: dict[str, Any] = resolved_run_config(
+        {"setup": setup_config(research_goal=goal, tier=tier), "tier": tier}
+    )
+    return baseline
+
+
+def _model_policy() -> dict[str, Any]:
+    from app.config import settings
+    from co_scientist.llm_gateway_body import deepseek_thinking_extra_body
+
+    models = _configured_models()
+    policy = _request_policy()
+    return {
+        "configured_models": models,
+        "routing": {
+            model: {
+                "reasoning_enabled": deepseek_thinking_extra_body(model),
+                "reasoning_disabled": deepseek_thinking_extra_body(
+                    model, enabled=False
+                ),
+            }
+            for model in sorted({m for m in models.values() if m})
+        },
+        "claim_assessor": settings.claim_assessor,
+        "request_policy_files": policy,
+        "request_policy_sha256": identity_digest(policy),
+    }
+
+
 def arm_identity(
     goal: str,
     config: dict[str, Any],
@@ -78,49 +110,21 @@ def arm_identity(
     Retrieved evidence is an output here and needs a separately matched replay
     when a scientific comparison requires identical source material.
     """
-    from app.config import settings
-    from co_scientist.llm_gateway_body import deepseek_thinking_extra_body
-
     if os.getenv("COSCIENTIST_CACHE_ENABLED") != "0":
         raise ValueError(
             "comparison identity requires disabled response caches"
         )
-    from app.run_modes import (
-        RUN_TIER_DEFAULTS,
-        resolved_run_config,
-        setup_config,
-    )
+    from app.run_modes import RUN_TIER_DEFAULTS
 
     tier = config["tier"]
-    baseline = resolved_run_config(
-        {
-            "setup": setup_config(research_goal=goal, tier=tier),
-            "tier": tier,
-        }
-    )
-    models = _configured_models()
-    policy = _request_policy()
     manifest = {
         "version": 1,
         "goal_sha256": hashlib.sha256(goal.encode()).hexdigest(),
         "backend": backend,
         "resolved_config": config,
-        "baseline_config": baseline,
+        "baseline_config": _baseline_config(goal, tier),
         "tier_fields": sorted(RUN_TIER_DEFAULTS[tier]),
-        "configured_models": models,
-        "routing": {
-            model: {
-                "reasoning_enabled": deepseek_thinking_extra_body(model),
-                "reasoning_disabled": deepseek_thinking_extra_body(
-                    model,
-                    enabled=False,
-                ),
-            }
-            for model in sorted({m for m in models.values() if m})
-        },
-        "claim_assessor": settings.claim_assessor,
-        "request_policy_files": policy,
-        "request_policy_sha256": identity_digest(policy),
+        **_model_policy(),
         "tools": _tools_identity(),
         "cache_policy": "disabled",
         "execution_environment": {
