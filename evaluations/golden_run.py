@@ -26,12 +26,15 @@ numeric knobs may only raise a tier baseline. ``express`` is therefore the
 smallest run available, and only ``evidence_count`` is raised above it (more
 retrieved evidence is what the two cited requirements are about).
 
-This makes real provider (DeepSeek) + MCP (PubMed/INDRA) calls and is run out of
+This makes real model-provider + MCP (PubMed/INDRA) calls and is run out of
 band, never in CI. It is LOCAL only; it never touches Railway prod. Re-running
-is safe (fresh temp DB each time).
+uses a fresh temp DB each time. Campaign mode refuses this runner before
+execution because INDRA is not a qualified campaign tool. Do not disable
+campaign mode to bypass that restriction.
 
 Run:
-    DEEPSEEK_API_KEY=... .venv/bin/python -m evaluations.golden_run
+    # Export MODEL_NAME and its matching provider key explicitly.
+    .venv/bin/python -m evaluations.golden_run
 """
 
 from __future__ import annotations
@@ -84,36 +87,28 @@ _GOAL = (
 )
 
 
-def _load_provider_key() -> str:
-    """Read DEEPSEEK_API_KEY from the environment or the checkout's .env."""
-    key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if key:
-        return key
-    env_file = _ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("DEEPSEEK_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    return ""
-
-
 def _configure_env(db_path: str) -> None:
-    """Set the run's environment BEFORE any app import loads settings.
-
-    Literature review is left enabled (no FORCE_LITERATURE_REVIEW=0), so the
-    INDRA/PubMed search tools actually run — the whole point of the golden run.
-    ``MODEL_NAME`` is deliberately not pinned here: an operator override is
-    honoured, and otherwise the app's own default model applies, so the
-    artifact records what actually ran instead of a name frozen in this file.
-    Forcing the offline backend would make every acceptance check vacuous, so
-    it is cleared rather than trusted.
-    """
+    """Pin explicit model settings without reading credentials from disk."""
+    model = os.getenv("MODEL_NAME", "").strip()
+    if not model or "/" not in model:
+        raise ValueError(
+            "golden run requires explicit provider/model MODEL_NAME"
+        )
+    if "app.config" in sys.modules:
+        raise RuntimeError("golden run requires a fresh process")
+    os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    for role in (
+        "MODEL_NAME",
+        "SUPERVISOR_MODEL_NAME",
+        "CHAT_MODEL_NAME",
+        "SEMANTIC_SAFETY_MODEL",
+        "CLAIM_VERIFIER_MODEL",
+    ):
+        os.environ[role] = model
     os.environ["MCP_SERVER_URL"] = "http://localhost:8888/mcp"
     os.environ["TOOLS_CONFIG"] = str(_INDRA_CONFIG)
     os.environ["CLAIM_ASSESSOR"] = "llm"
     os.environ["COSCIENTIST_DB_PATH"] = db_path
-    os.environ["DEEPSEEK_API_KEY"] = _load_provider_key()
     os.environ.pop("FORCE_LITERATURE_REVIEW", None)
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
     os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
@@ -348,7 +343,7 @@ def _build_report(
 
     Configuration is read back from the resolved settings rather than from
     the environment this script wrote, so the artifact records what the run
-    actually used (notably the model, which is no longer pinned here).
+    actually used (including the explicitly selected model).
     """
     from app.config import settings
 
@@ -374,7 +369,8 @@ def _build_report(
         ),
         "cost": _cost_summary(collected["metrics"]),
         "reproduce": (
-            "DEEPSEEK_API_KEY=... .venv/bin/python -m evaluations.golden_run"
+            "Export MODEL_NAME and its provider key; "
+            ".venv/bin/python -m evaluations.golden_run"
         ),
         "captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
@@ -382,17 +378,28 @@ def _build_report(
 
 def run() -> dict[str, Any]:
     """Execute the golden run and return the reproducibility report."""
+    # LiteLLM may load dotenv during the engine import itself.
+    os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+    from co_scientist.llm_free_policy import campaign_free_mode
+
+    if campaign_free_mode():
+        raise RuntimeError(
+            "INDRA golden acceptance is unavailable under campaign "
+            "tool policy; "
+            "use the campaign public-evidence workflow"
+        )
     tmp_db = tempfile.mkdtemp(prefix="golden-run-")
     db_path = str(pathlib.Path(tmp_db) / "golden.db")
     _configure_env(db_path)
 
-    if not os.environ.get("DEEPSEEK_API_KEY"):
-        raise SystemExit("no DEEPSEEK_API_KEY available; cannot run")
+    from app.config import has_provider_credential, settings
+
+    if not has_provider_credential(settings.model_name):
+        raise SystemExit("no environment credential for explicit MODEL_NAME")
 
     tool_calls = _install_tool_call_counter()
 
     from app import engine_adapter
-    from app.config import settings
 
     # The app lifespan validates this before serving; without it a bad
     # TOOLS_CONFIG silently falls back to default tools and the run would

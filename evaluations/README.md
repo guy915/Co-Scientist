@@ -180,12 +180,12 @@ python -m evaluations.citation_eval --challenge --llm  # adversarial panel, sema
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
 python -m evaluations.scaling_eval path/to/controlled-runs.json
 python -m evaluations.scaling_budget_driver              # offline; writes results/scaling-budget-curve-<date>.json
-python -m evaluations.scaling_budget_driver --live        # needs DEEPSEEK_API_KEY; real spend/time
+python -m evaluations.scaling_budget_driver --live        # explicit MODEL_NAME + OPENROUTER_API_KEY
 python -m evaluations.ablation_driver                     # offline; writes results/ablation-sweep-<date>.json
-python -m evaluations.ablation_driver --live               # needs DEEPSEEK_API_KEY + reachable MCP
+python -m evaluations.ablation_driver --live               # explicit MODEL_NAME + OPENROUTER_API_KEY + qualified MCP
 python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
 python -m evaluations.elo_concordance_eval --llm            # needs DEEPSEEK_API_KEY; scores the real judge
-python -m evaluations.golden_run            # LIVE; needs DEEPSEEK_API_KEY + a local MCP server
+python -m evaluations.golden_run            # Non-campaign INDRA acceptance only
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
@@ -315,3 +315,13 @@ labs and are recorded honestly rather than fabricated:
 - **Wet-lab validation** (AML / fibrosis / AMR) is out of scope.
 
 Each runner records its own `external_gap` in its result artifact.
+
+### Golden run and campaign acceptance
+
+The INDRA golden runner requires explicit `MODEL_NAME` and its matching provider
+credential in the environment; it does not read `.env` or choose a model default.
+It remains a separate non-campaign acceptance check and may incur charges.
+Campaign mode rejects it before execution because INDRA is not qualified by the
+campaign MCP policy. Do not turn off campaign mode to run it during the campaign.
+Use the [public-evidence procedure](../references/external/campaign.md#public-evidence-acceptance-workflow)
+for campaign acceptance. Passing that procedure does not establish INDRA acceptance.

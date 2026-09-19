@@ -161,7 +161,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
 - [x] M1-03d0: Audit maintained live evaluation entry points, credential loading and evidence gaps; retain the concrete runner map and implementation boundaries.
 - [x] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
-- [ ] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
+- [x] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
 - [ ] M1-03d3: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration; retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -747,3 +747,42 @@ modules; app config typecheck passes. Ruff lint/format and diff checks pass.
 Independent read-only approach and final reviews found no blocking issue;
 scoped cleanup removed the obsolete credential loader without unrelated changes.
 No UI changes. Next: M1-03d2. Fresh open count: 61; M1 remains unverified.
+
+
+### 2026-09-19 — Cycle 16, M1-03d2
+
+Starting commit `23cdf92f`; previous cycle committed verified shared-runner
+isolation. Fresh Railway metadata still reports API/MCP SUCCESS at `7dce086d`.
+No model inference, upstream acquisition or deployment occurred.
+
+The golden runner still hard-coded a DeepSeek key loader and allowed implicit
+model defaults. Its INDRA requirement cannot be satisfied by campaign public
+tools. Independent approach review rejected making it an always-campaign runner,
+which would disable its distinct noncampaign purpose. Decision: retain explicit
+noncampaign INDRA acceptance; reject campaign invocation before configuration,
+run persistence or execution. No campaign opt-out was added.
+
+A failing public-run regression proved execution began before campaign admission.
+The corrected path rejects with an INDRA-specific explanation. Noncampaign
+configuration now requires an explicit model and matching environment credential,
+pins all model roles and never loads keys from disk. A second regression exposed
+LiteLLM's import-time dotenv loading; dotenv is now disabled before importing
+the engine policy, not merely before app Settings. Tests use synthetic keys and
+stop before any execution or network request.
+
+Provided the public-evidence acceptance procedure in campaign.md using existing
+browser/API, persisted-run claim-support scoring and production smoke interfaces.
+It includes interview, retrieval provenance, local recovery, event replay, report
+publication and production observation. This is an execution procedure, not live
+acceptance evidence; the corresponding M1 live items remain open.
+
+Verification: five golden/shared-runner tests pass, Ruff lint/format and strict
+golden-runner mypy pass. AST comparison confirms INDRA acceptance, real-completion
+predicates and run-persistence logic are unchanged. Scoped cleanup removed the
+obsolete DeepSeek loader and stale reproduction instructions; no UI changed.
+Next: M1-03d3 direct-panel admission and observed usage artifacts. Open count: 60.
+
+Final independent review approved the runtime behavior and identified two stale
+procedure details. Corrected the scaling/ablation key requirements in the
+evaluator README and named COSCIENTIST_DB_PATH explicitly for persisted-run
+scoring. No remaining review blocker; diff check passes.

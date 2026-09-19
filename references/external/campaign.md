@@ -132,3 +132,44 @@ synthetic credentials and mocked catalog/completion responses. This does not
 qualify a live model. Golden and direct-panel migration, observed-model/cost
 artifacts and comparison identities remain open; do not start campaign
 inference until those controls and model qualification are complete.
+
+### Public-evidence acceptance workflow
+
+This procedure uses existing product interfaces; execution remains pending until
+M1 model qualification and runner evidence controls pass. It does not substitute
+for the separate INDRA golden acceptance, which campaign mode rejects.
+
+1. Start an isolated local API, UI and reference MCP at the campaign revision,
+   with fresh SQLite/cache paths and the same qualified model settings on all
+   roles. Enable campaign mode on both API and MCP; disable dotenv and supply
+   only the required OpenRouter credential and existing MCP authentication.
+   Qualify the exact MCP endpoint using the procedure above. Keep notifications
+   disabled and use a campaign-owned identity with no uploaded documents.
+2. In the browser, submit the public research goal: “What testable mechanisms
+   explain acquired resistance to EGFR inhibitors in EGFR-mutant lung cancer?”
+   Complete the interview, retain its final research specification, and start
+   the express research flow. Record the exact inputs before comparisons.
+3. Observe actual public retrieval, durable task progress and authenticated
+   event replay. Pause/resume and reopen the campaign run; for local recovery,
+   restart only the isolated API while preserving its database. Confirm work
+   resumes without duplicated lineage. Never restart production for this test.
+4. Retain sanitized `/api/runs/{id}/evidence`, `/claim-evidence`, `/metrics`,
+   `/tasks`, `/events` and `/report` responses plus report Markdown under the
+   baseline directory. Inspect source identifiers and nonempty quoted passages;
+   require a completed real-backend run, published report, safety/claim gates,
+   observed model/price evidence and functional browser refresh/error flows.
+   Offline output, a queued task or an empty report does not satisfy acceptance.
+5. Score the isolated run using `evaluations.claim_support_eval --run <id>`
+   with `COSCIENTIST_DB_PATH` set to the isolated database path and
+   `PYTHON_DOTENV_DISABLED=1`. There is no database CLI argument. That existing-run
+   scoring path is read-only;
+   retain raw artifacts alongside its score. A score alone does not establish
+   scientific quality. Use the existing release gate and other applicable
+   evaluators; resolve failures under M1 rather than lower thresholds.
+6. After merge/deployment, run the existing production smoke evaluator and
+   repeat the browser public-goal flow under a campaign-owned production identity.
+   Record deployment IDs, serving configuration and replay/report evidence.
+   Production smoke does not create a run and cannot replace this observation.
+
+The frozen model configuration, exact interview output, run IDs and observed
+results will be added during M1 live execution. None is claimed verified here.
