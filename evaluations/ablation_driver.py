@@ -194,6 +194,9 @@ def _arm_record(
         "goal_id": goal_id,
         "arm": arm_name,
         "run_id": arm["run_id"],
+        "goal": arm.get("goal"),
+        "tier": arm.get("tier"),
+        "overrides": arm.get("overrides"),
         "evaluation_identity": arm.get("evaluation_identity"),
         "completed": arm["completed"],
         # No expert panel; ablation_summary treats a missing quality score
@@ -282,7 +285,11 @@ def run_ablation_sweep(
     driven, records = _drive_every_pair(
         goals, tier, arm_overrides, db_path, live=live
     )
+    from evaluations._comparison_groups import validate_comparison
+
+    validation = validate_comparison(driven, kind="ablation")
     return {
+        "comparison_validation": validation,
         "tier": tier,
         "mode": "live" if live else "offline",
         "goals": dict(goals),

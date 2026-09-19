@@ -85,6 +85,19 @@ def arm_identity(
         raise ValueError(
             "comparison identity requires disabled response caches"
         )
+    from app.run_modes import (
+        RUN_TIER_DEFAULTS,
+        resolved_run_config,
+        setup_config,
+    )
+
+    tier = config["tier"]
+    baseline = resolved_run_config(
+        {
+            "setup": setup_config(research_goal=goal, tier=tier),
+            "tier": tier,
+        }
+    )
     models = _configured_models()
     policy = _request_policy()
     manifest = {
@@ -92,6 +105,8 @@ def arm_identity(
         "goal_sha256": hashlib.sha256(goal.encode()).hexdigest(),
         "backend": backend,
         "resolved_config": config,
+        "baseline_config": baseline,
+        "tier_fields": sorted(RUN_TIER_DEFAULTS[tier]),
         "configured_models": models,
         "routing": {
             model: {

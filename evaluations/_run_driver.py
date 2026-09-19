@@ -312,6 +312,7 @@ def run_arm(
     tasks_count = len(store.list_tasks(run_id, db_path=db_path))
     return {
         "run_id": run_id,
+        "goal": goal,
         "evaluation_identity": run.config["evaluation_identity"],
         "tier": tier,
         "overrides": overrides,

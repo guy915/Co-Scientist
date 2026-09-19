@@ -258,3 +258,20 @@ policy environment. A mismatch raises before an arm result is emitted; rerun
 both members of a scientific pair after restoring the intended settings.
 These boundary checks do not prove absence of transient changes between checks.
 Cross-arm and direct-panel matching remain open in M1-03d4b.
+
+Scaling/ablation drivers and the `scaling_eval` artifact CLI now validate
+comparison inputs before producing reports. Descriptors retain exact goal,
+tier and declared overrides. Each arm freezes its baseline config and tier
+field set so historical records are not reinterpreted using current defaults.
+Missing identities/profiles, changed shared controls, undeclared differences,
+unapplied or unchanged override declarations, duplicate goal/arm entries and
+one exact goal relabeled as multiple goals are rejected. Ablation goal groups
+must contain the same arms, including an unchanged baseline.
+
+`comparison_validation.status=matched_declared_inputs` covers those controls
+only. `retrieval_matching=not_verified` deliberately prevents treating it as
+matched scientific evidence. Run repeated paired trials as separate invocations;
+do not relabel the same goal to inflate independent-goal counts. Earlier records
+without frozen baseline profiles cannot pass this comparison gate and must be
+rerun. The low-level metric functions remain descriptive calculations; campaign
+comparison artifacts go through the validated drivers or artifact CLI.

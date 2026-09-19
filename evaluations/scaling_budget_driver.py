@@ -92,6 +92,9 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         "run_id": arm["run_id"],
+        "goal": arm.get("goal"),
+        "tier": arm.get("tier"),
+        "overrides": arm.get("overrides"),
         "evaluation_identity": arm.get("evaluation_identity"),
         "goal_id": _GOAL_ID,
         "metrics": arm["metrics"],
@@ -133,8 +136,12 @@ def run_budget_curve(
         )
         for tier in tiers
     ]
+    from evaluations._comparison_groups import validate_comparison
+
+    validation = validate_comparison(arms, kind="scaling")
     snapshots = [_arm_to_snapshot(arm) for arm in arms]
     return {
+        "comparison_validation": validation,
         "goal": goal,
         "goal_id": _GOAL_ID,
         "mode": "live" if live else "offline",

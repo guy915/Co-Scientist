@@ -314,7 +314,18 @@ def main() -> int:
     parser.add_argument("artifact", type=Path)
     args = parser.parse_args()
     payload = json.loads(args.artifact.read_text())
+    from evaluations._comparison_groups import validate_comparison
+
+    validation = {
+        "scaling": validate_comparison(
+            payload.get("snapshots", []), kind="scaling"
+        ),
+        "ablation": validate_comparison(
+            payload.get("ablations", []), kind="ablation"
+        ),
+    }
     result = {
+        "comparison_validation": validation,
         "scaling_curve": scaling_curve(payload.get("snapshots", [])),
         "ablation": ablation_summary(payload.get("ablations", [])),
         "provenance": {

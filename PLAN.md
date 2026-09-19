@@ -1029,3 +1029,40 @@ Production state snapshot: `/tmp/coscientist-cycle23-release.json`. Next remains
 M1-03d4b: enforce cross-arm matching with declared tier/ablation differences,
 cover direct-panel dataset identity and matched retrieval requirements, and
 reject missing/mismatched comparison evidence. Open count: 59.
+
+
+### 2026-09-19 — Cycle 24, M1-03d4b (partial)
+
+Starting commit `448685c2`; prior cycle progressed by committing execution-boundary
+drift checks. This cycle adds cross-arm validation; M1-03d4b stays unchecked
+until direct-panel identities and matched retrieval requirements are handled.
+
+Failing artifact-CLI tests reproduced acceptance of missing identities, different
+goals and changed model roles. Added shared comparison validation used by scaling/
+ablation drivers and the artifact CLI before results. Descriptors now retain
+exact goal, tier and declared overrides. Shared model/routing/cache/policy
+controls must match. Config differences must be the declared intervention;
+scaling permits only the recorded tier profile. Froze baseline profiles and tier
+field sets in the manifest instead of re-resolving old runs through today's
+defaults, following independent review. Historical-profile tests verify this.
+
+Review found duplicate arms could overweight aggregates and a baseline could
+be relabeled as an intervention without applying its override. Both reproduced
+in failing CLI tests before fixes. Validation now rejects duplicate goal/arm
+entries, one goal under several labels, incomplete arm sets and unapplied or
+unchanged declarations. Existing default ablations remain valid. No metric,
+threshold or scientific gate was relaxed. The validation status explicitly says
+matched declared inputs; retrieval remains not_verified. Repeated paired trials
+use separate invocations, not invented independent-goal labels.
+
+Validation includes group rejection/acceptance and historical-profile tests,
+identity/drift regression suites and real offline scaling/ablation workflows.
+Strict mypy passes six changed modules; Ruff and diff checks pass. Final review
+found no further blocker. Scoped cleanup kept low-level metrics descriptive and
+reused the canonical digest/manifest validator. No UI changes, model inference,
+spending, checkout acquisition or deployment. Production latest API/MCP remain
+SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`, snapshot
+`/tmp/coscientist-cycle24-release.json`.
+
+Next: finish M1-03d4b direct-panel dataset/model identity and comparison checks,
+and define/enforce matching retrieval evidence where required. Open count: 59.
