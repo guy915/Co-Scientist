@@ -1,0 +1,17 @@
+{
+  "source_commit": "3bbb65d4",
+  "scope": "Pre-release verification while scientific qualification remains open",
+  "checks": {
+    "evaluation_suite": {"status": "passed", "exit_code": 0, "session": 36810, "log": "/tmp/coscientist-cycle47-evaluations.log"},
+    "make_lint": {"status": "passed", "session": 96871},
+    "make_typecheck": {"status": "passed", "app_files": 492, "engine_files": 559, "evaluation_files": 60, "session": 96871},
+    "make_build": {"status": "passed", "warning": "Existing frontend bundle exceeds 500 kB chunk advisory", "session": 96871},
+    "make_eval_smoke": {"status": "passed", "session": 96871},
+    "frontend_tests": {"status": "passed", "tests": 718, "files": 119, "session": 96871},
+    "make_test_all_outer_sandbox": {"status": "failed", "exit_code": 2, "engine_passed": 3102, "engine_failed": 22, "engine_skipped": 2, "cause": "Nested macOS sandbox_apply denied; outer sandbox prevented confinement tests from starting their commands", "session": 48458, "log": "/tmp/coscientist-cycle48-test-all.log"},
+    "make_test_all_host": {"status": "running", "session": 15594, "log": "/tmp/coscientist-cycle48-test-all-host.log", "note": "Unchanged suite, outside outer sandbox; no assertions weakened"},
+    "make_e2e": {"status": "running", "session": 2658, "log": "/tmp/coscientist-cycle48-e2e.log"}
+  },
+  "live_qualification": {"session": 91986, "status": "running", "current_arm": "candidate", "trial": 1},
+  "release_ready": false
+}

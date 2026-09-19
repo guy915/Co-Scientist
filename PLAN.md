@@ -1917,3 +1917,29 @@ another test suite; focused safety suite2145 and mypy67368 exited0. Full-suite
 success is not claimed. Next poll91986 and36810, compare complete live pairs,
 and retain actual outcomes. M1 now31/37, six remaining; campaign58 open.
 No merge, deployment, selected model or scientific adoption occurred.
+
+**2026-09-20 — Cycle48, verification and observed waits.** Previous cycle
+made progress by fixing the release evaluator and retaining baseline1 evidence.
+Read actual tree (only unrelated AGENTS.md edit), resumed91986 and36810.
+Evaluation suite36810 exited0. Live candidate1 remains running in91986; no
+restart and no new acceptance claim. Broader checks at source3bbb65d4:
+lint/typecheck/build/eval-smoke and718 frontend tests (119 files) all passed,
+combined session96871 exited0. Retained verification-cycle48.json.
+
+Full suite48458 exited2 in engine:3102 passed,22 failed,2 skipped. Failures
+show nested macOS sandbox_apply denied by this session's outer sandbox;
+unchanged suite relaunched with approved host execution as session**15594**,
+log /tmp/coscientist-cycle48-test-all-host.log. Original failed log retained.
+This is a confirmed terminal failure followed by an environment correction,
+not a restart on observation timeout. Browser e2e is independently running
+in session**2658**, log /tmp/coscientist-cycle48-e2e.log. Poll both handles;
+do not start another app/engine suite while15594 runs. No green full-suite
+or browser result claimed yet.
+
+Read-only Railway/Vercel deployment refresh confirms the prior API/MCP
+SUCCESS IDs and Vercel READY deployment on7dce086d; record releases-cycle48.json.
+Railway status returned null replicas, so current replica configuration is not
+inferred. Vercel project lookup has a connector argument mismatch; deployment
+lookup by production domain succeeded instead. No services/config were changed.
+Next resume91986,15594,2658; retain results and diagnose actual failures without
+changing assertions. M1 remains31/37;58 campaign items open.
