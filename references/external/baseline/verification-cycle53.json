@@ -39,9 +39,29 @@
       ]
     },
     "make test-all": {
-      "status": "running",
+      "status": "passed",
+      "exit_code": 0,
       "session": 50595,
-      "log": "/tmp/coscientist-cycle53-test-all.log"
+      "log": "/tmp/coscientist-cycle53-test-all.log",
+      "log_sha256": "53bd30e468f15c8ffc05d9e8f80506ef93956faaf4f14bfd1c9ac12de4c0b52b",
+      "result_lines": [
+        "3124 passed, 2 skipped in 131.34s (0:02:11)",
+        "1844 passed, 24 warnings in 224.64s (0:03:44)",
+        "274 passed in 1.76s",
+        "Success: no issues found in 71 source files",
+        "parity: 115 requirement rows (divergent=8, external=3, partial=4, verified=100)",
+        "parity: OK \u2014 every 'verified' row cites test/eval evidence that exists on disk"
+      ]
+    },
+    "make e2e": {
+      "status": "passed",
+      "exit_code": 0,
+      "session": 91901,
+      "log": "/tmp/coscientist-cycle54-e2e.log",
+      "log_sha256": "757ad84380d6966ed2a698f54ce0c6f14bebc6a82a6f6a9827117b2e54366e2c",
+      "result_lines": [
+        "  9 passed (27.7s)"
+      ]
     }
   },
   "reuse": {
@@ -55,8 +75,9 @@
   "live_qualification": {
     "session": 91986,
     "status": "running",
-    "arm": "baseline",
+    "arm": "candidate",
     "trial": 3
   },
-  "release_ready": false
+  "release_ready": false,
+  "completion_cycle": 54
 }
