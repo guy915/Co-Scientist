@@ -44,23 +44,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
 from app.hypothesis_safety import is_blocking_status
 from app.report_content_gates import (
     EXCLUDED_HYPOTHESIS_STATUSES,
+    _contradicted_hypothesis_ids,
 )
 
 _REQUIRED_PROVENANCE = ("model", "policy_version", "retrieval_sources")
-
-
-def _contradicted_ids(claims: list[dict[str, Any]]) -> set[str]:
-    """Ids the evidence contradicts, by the live rule.
-
-    Mirrors ``report_content_gates._contradicted_hypothesis_ids`` over an
-    already-fetched edge list, which is the same shape that function
-    accepts via its ``claim_edges`` argument.
-    """
-    return {
-        str(claim.get("hypothesis_id"))
-        for claim in claims
-        if claim.get("label") == "contradicts"
-    }
 
 
 def _releasable(
@@ -118,7 +105,7 @@ def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
         reported rather than enforced.
     """
     claims = artifact.get("claims") or []
-    contradicted = _contradicted_ids(claims)
+    contradicted = _contradicted_hypothesis_ids("", None, claim_edges=claims)
     releasable = _releasable(artifact.get("hypotheses") or [], contradicted)
 
     reasons = _safety_reasons(artifact.get("safety") or [])

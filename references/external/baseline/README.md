@@ -28,7 +28,7 @@ No infrastructure mutation, inference, email, or upstream checkout occurred.
 
 ## M1-02 — Publication evaluator contradiction drift
 
-Status: investigating. Classification: **local design choice**; reuse: existing
+Status: implemented and verified locally; release pending. Classification: **local design choice**; reuse: existing
 live publication predicate. No external source code involved.
 
 The evaluator's `_contradicted_ids` treats every contradicting claim as blocking;
@@ -38,3 +38,29 @@ contradiction; categorical/legacy contradictions and safety holds still withhold
 Boundary: report publication (`scientific_release_gate` and live report finalization).
 No quality threshold is relaxed; this aligns the evaluator with existing behavior.
 Costs: offline tests only. Release remains pending M1's complete acceptance checks.
+
+Red: `test_a_contradicted_speculative_proposal_is_still_published` failed with
+`withhold` instead of `release` before the change. Removed the evaluator's duplicate
+predicate; it now calls the live helper with supplied edges, without database I/O.
+Green: all 10 release-gate tests pass, including the mixed speculative/categorical
+case and legacy role-less contradictions. All 44 app claim-gate, grounding, drain
+and drain-safety tests pass, including `test_a_contradicted_proposal_still_reaches_the_report`.
+Ruff lint/format and targeted mypy pass. One existing Starlette/httpx deprecation
+warning remains. No scientific-quality improvement or production release is claimed.
+
+## Open investigations
+
+- **M1-03a–d, local design choice:** `_gateway_provider` omits `max_price` for
+  zero-priced or unknown entries; static pricing and suffixes cannot establish
+  current free eligibility. Inspect provider contract before enforcing zero caps.
+  App `config_thinking` already delegates to engine thinking/gateway body shaping:
+  verify its outgoing requests before adding any new wrapper. Inspect evaluation
+  `_run_driver` paid credential loading and each tool provider's billing path.
+  No embeddings spend path was identified in preliminary code inspection; that
+  is not a completed audit. These slices replace the oversized original item.
+- **M1-09, local design choice:** review found evaluator `_releasable` only checks
+  persisted safety status, while live publication screens absent/pending legacy
+  statuses. Determine the actual artifact precondition and reproduce before fixing.
+  Also examine how completed artifacts prove final rendered-report screening;
+  the evaluator currently lacks the live `_screen_final_report` behavior.
+  This is separate from the verified contradiction fix and remains open.

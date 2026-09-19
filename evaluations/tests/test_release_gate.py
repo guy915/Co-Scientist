@@ -71,6 +71,43 @@ def test_a_blocked_idea_is_dropped() -> None:
     assert result["decision"] == "withhold"
 
 
+def test_a_contradicted_speculative_proposal_is_still_published() -> None:
+    """A contradicted proposal stays visible, as in live publication."""
+    artifact = _ready_artifact()
+    artifact["claims"] = [
+        {
+            "hypothesis_id": "h1",
+            "label": "contradicts",
+            "claim_role": "speculative",
+        }
+    ]
+
+    result = scientific_release_gate(artifact)
+
+    assert result["decision"] == "release"
+    assert result["releasable_hypotheses"] == 1
+    assert result["contradicted_hypotheses"] == 0
+
+
+def test_a_categorical_contradiction_still_blocks_a_speculative_idea() -> None:
+    """A proposal exemption cannot override a contradicted factual claim."""
+    artifact = _ready_artifact()
+    artifact["claims"] = [
+        {
+            "hypothesis_id": "h1",
+            "label": "contradicts",
+            "claim_role": role,
+        }
+        for role in ("speculative", "categorical")
+    ]
+
+    result = scientific_release_gate(artifact)
+
+    assert result["decision"] == "withhold"
+    assert result["releasable_hypotheses"] == 0
+    assert result["contradicted_hypotheses"] == 1
+
+
 def test_a_rejected_or_duplicate_idea_is_dropped() -> None:
     """Live: both excluded statuses keep an idea out of synthesis."""
     artifact = _ready_artifact()
