@@ -168,7 +168,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d3b2b1: Capture direct citation/usefulness/Elo panel telemetry and explicit requested-live/offline modes; verify successful panel responses and observed usage through their public interfaces.
 - [x] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
 - [x] M1-03d4a: Persist reproducible per-arm identities for exact public inputs, resolved configuration, model roles, fallback/request policies and disabled response caches; retain them in comparison artifacts.
-- [ ] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
+- [x] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [ ] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
@@ -1102,3 +1102,37 @@ comparisons and finish any remaining comparison acceptance gaps. Open count: 59.
 
 Final review found no further correctness blocker. The existing citation,
 usefulness and Elo regressions plus the comparison CLI tests pass (29 tests).
+
+### 2026-09-19 — Cycle 26, M1-03d4b complete
+
+Starting commit `f757000b`; previous cycle made progress by committing direct
+panel identity capture and comparison validation. Inspected current comparison
+consumers and durable retrieval storage. Retrieval ledgers preserve queries,
+ranked hits and admission decisions; stored evidence alone does not prove the
+exact subset/order passed to a model. No new replay mechanism is implied.
+
+Closed the remaining specification requirement with explicit matched retrieval
+acceptance rules in `references/external/campaign.md`. Fixed-evidence changes
+use equal frozen panel inputs and three paired trials. Retrieval interventions
+freeze public questions, versioned source content and labels while treating
+returned evidence as an output. Whole-run comparisons remain descriptive when
+retrieval is not verified; isolated-effect claims require exact model-consumed
+evidence mappings. Missing/mismatched evidence requires matched reruns of both
+versions, not a rejection of a promising candidate. Claim-support single-run
+metrics are explicitly descriptive unless wrapped in the same paired procedure.
+
+Independent read-only review confirmed this closes the remaining specification
+gap and identified the claim-support clarification, now recorded. Alternative
+of implementing a generic whole-run retrieval replay now was rejected as
+unspecified infrastructure: add concrete work only when an accepted candidate
+needs that boundary. This does not weaken the campaign's scientific acceptance
+requirements or claim a live result.
+
+Validation reuses the unchanged comparison CLI, direct-panel and runtime drift
+checks recorded in cycles 23–25; this cycle changes documentation only. Scoped
+cleanup kept the rule in the campaign acceptance procedure. M1-03d4b is checked;
+the M1 milestone itself remains unverified. No inference, charges, deployments
+or reference checkout acquisition. Next: qualify current free OpenRouter models
+through actual application interfaces. Open count: 58.
+Release observation: `/tmp/coscientist-cycle26-release.json` confirms latest
+API/MCP SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`.

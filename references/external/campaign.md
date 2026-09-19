@@ -293,3 +293,37 @@ rubrics and model request policies must remain fixed. Changing those requires
 rerunning both sides. Panel inputs include supplied passages, so comparison
 matches that evidence exactly; matching retrieval for whole research runs
 remains open under M1-03d4b.
+
+### Matched retrieval requirements
+
+Classification: local design choice. A matching goal, model configuration or
+source URL does not prove identical evidence reached the model. Apply these
+rules before accepting a scientific-quality candidate:
+
+| Comparison | Required control and evidence |
+| --- | --- |
+| Citation, claim entailment, review or ranking change with retrieval held fixed | Freeze the exact ordered questions/claims/hypotheses and supplied passages, including labels and source provenance; run both versions on that same public panel. Direct panel manifests and `panel_comparison` enforce equality of their supplied dataset. |
+| Retrieval algorithm or evidence-selection change | Freeze public questions, relevance/support labels, source corpus revision/content hashes and candidate-independent corpus availability. Returned passages may differ because they are the intervention. Declare retrieval and downstream non-regression metrics before running; retain requests, results and failure provenance for each arm. |
+| Whole-run scaling or ablation with fresh searches | Treat results as descriptive until the required controls are established. `retrieval_matching=not_verified` is not acceptance evidence for an isolated scientific improvement. Increasing a tier or disabling search can legitimately change evidence; report that as part of the intervention, not matched retrieval. |
+| Whole-run change requiring identical retrieved evidence | Retain and compare the exact evidence actually supplied at each affected model request, including order, text, identifiers, source/version and retrieval failures. A saved DB evidence inventory alone is insufficient because prompts can select different subsets. Use a bounded matched panel instead when the affected behavior can be exercised there. |
+
+For a fixed-evidence trial, missing or unequal evidence makes the pair
+inconclusive: freeze a common public input set and rerun **both** versions.
+Do not infer a match from equal citation counts, URLs, cache settings, aggregate
+scores or empty retrieval ledgers. No automatic whole-run replay is currently
+claimed. If an accepted future candidate requires one, add its concrete replay
+and verification work to that repository's milestone before implementation.
+
+Keep baseline and candidate source commits, dataset artifacts and their
+manifests, exact invocation/configuration, observed model/fallback telemetry,
+primary metric and non-regression criteria with each of the initial three paired
+trials. Different served models or fallback behavior require investigation and
+matched reruns before attributing quality changes to the code. Model configuration
+or evaluation-rubric changes require rerunning both sides. A successful manifest
+comparison is a prerequisite, not scientific acceptance; production smoke and
+full workflow checks remain separate release requirements.
+
+`claim_support_eval.drive_and_score` is a single-run descriptive measure. It
+requires the same paired identity and retrieval procedure before its output can
+support a baseline/candidate acceptance decision. Offline results test contracts;
+they do not establish improved live scientific quality.
