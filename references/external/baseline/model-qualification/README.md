@@ -50,3 +50,21 @@ schema branch currently forwards the plain schema directly; production callers
 also supply plain schemas. This is a compatibility investigation, not a quality
 rejection. M1-04a1 tracks regression-first correction and live retry. No completion
 or successful model qualification is claimed; usage/cost estimates remain unknown.
+
+Native-envelope correction (cycle 28): the shared builder wraps bare schemas in
+`{name: "response", schema: original}` and supplies the same default name for an
+unnamed envelope. Existing names and envelope options remain intact; local
+validation and the json_object path are unchanged. This matches the
+[documented OpenRouter envelope](https://openrouter.ai/docs/guides/features/structured-outputs).
+
+`nex-pro-json-envelope-fix.json` records the live retry: one physical call, valid
+JSON, observed Nex Pro route, 71 prompt/112 completion tokens including 94
+reasoning tokens. The requested reasoning-off flag did not disable reasoning
+for this undeclared model, as anticipated. The artifact's `passed: false` is
+retained: its verbatim quote check compares raw whitespace, while the returned
+quote removes the input's newline between “viability” and “by 30%”. This is not
+a schema failure; it remains a recorded probe outcome, not a scientific-quality
+acceptance. Later tests should supply a single unwrapped passage string rather
+than treating document layout as scientific content. Static billing estimates
+remain unknown. The native request compatibility defect is corrected; broader
+capability and scientific qualification remain open.

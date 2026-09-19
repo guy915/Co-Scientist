@@ -170,7 +170,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d4a: Persist reproducible per-arm identities for exact public inputs, resolved configuration, model roles, fallback/request policies and disabled response caches; retain them in comparison artifacts.
 - [x] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
 - [x] M1-04a: Refresh the public OpenRouter catalog, verify zero-cost eligibility, and record a capability-based shortlist including available new releases and explicit exclusions.
-- [ ] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
+- [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -1177,3 +1177,32 @@ code verification. Scoped cleanup retains only the reusable probe and sanitized
 public evidence. Railway snapshot `/tmp/coscientist-cycle27-release.json` confirms
 API/MCP latest SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`.
 Next: M1-04a1 regression and native-schema correction. Open count: 60.
+
+### 2026-09-19 — Cycle 28, M1-04a1 complete
+
+Starting commit `ae23733f`; previous cycle made progress via current catalog
+assessment and a live provider failure. Reproduced the bare native-schema
+envelope defect at the public `call_llm_json` physical request seam. The shared
+builder now wraps bare schemas with a stable provider name and preserves named
+envelopes. Review identified unnamed envelopes; a second failing wire test
+preceded filling their absent name. This follows existing local schema-unwrapping
+semantics rather than sending different schemas to provider and local validator.
+
+Native/local validation, named-envelope and json_object-shim regressions pass
+with wrapper tests (31 tests). Ruff, strict mypy and diff checks pass. Scoped
+cleanup changes only the native response-format branch and reuses the existing
+public-boundary fixtures. No assertion or scientific threshold was weakened.
+
+Live retry through fresh zero-cost admission returned valid JSON from the
+requested Nex Pro model in one physical call, with usage retained. Overall
+probe flag remains false because the exact quote removed a source line break;
+the artifact is not rewritten as a passing scientific trial. The provider 400
+is resolved. Reasoning remained present despite requested disabled mode, which
+is expected for a model not yet declared in gateway reasoning settings and
+remains part of M1-04b. No selected model/fallback or production setting changed.
+
+Evidence and the official envelope source are recorded in the model-qualification
+README. Railway snapshot `/tmp/coscientist-cycle28-release.json` retains current
+release observation; no deployment or reference acquisition. Next: M1-04b full
+capability trials including reasoning, tools, streaming and long inputs.
+Open count: 59.
