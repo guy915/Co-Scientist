@@ -256,7 +256,9 @@ class Settings(BaseSettings):
     evidence_resolver: str = "live"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            None if os.getenv("PYTHON_DOTENV_DISABLED") == "1" else ".env"
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

@@ -160,7 +160,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [x] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
 - [x] M1-03d0: Audit maintained live evaluation entry points, credential loading and evidence gaps; retain the concrete runner map and implementation boundaries.
-- [ ] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
+- [x] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
 - [ ] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
 - [ ] M1-03d3: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration; retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
@@ -714,3 +714,36 @@ Scoped documentation cleanup also corrected stale campaign procedure statements
 about already-verified local controls, without claiming production qualification.
 No runtime code changed; source cross-check and `git diff --check` pass.
 Fresh open count: 62 (three additional unchecked items from the explicit split).
+
+
+### 2026-09-19 — Cycle 15, M1-03d1
+
+Starting commit `a16e3458`; previous cycle completed the runner audit and
+implementation split. Revalidated the worktree and live Railway metadata:
+API/MCP remain SUCCESS at `7dce086d`. No campaign inference or deployment.
+
+Reproduced absent free-mode enforcement through a fresh-process shared-runner
+test. Removed the DeepSeek disk loader and obsolete CLI key gates. Scaling,
+ablation and claim-support now require explicit OpenRouter MODEL_NAME and an
+environment OpenRouter key before app imports. A shared evaluation helper pins
+all model roles, enables existing physical request admission, strips other API
+keys and disables dotenv; app Settings now honors that disable flag. A second
+failing subprocess exposed case-insensitive credential loading; removal now
+also handles lowercase keys. Calls after app settings load are rejected rather
+than pretending an already-configured process has been isolated.
+
+The public call_llm test supplies synthetic catalog/provider responses: paid
+metadata is rejected before transport, while a zero-price response carries
+zero prompt/completion/request ceilings. This is behavioral verification, not
+live model qualification or billing evidence. dotenv restoration and auxiliary
+model isolation are exercised in fresh subprocesses with synthetic credentials.
+No additional dependencies or pricing implementation. Golden/direct-panel
+migration and telemetry/comparison evidence remain M1-03d2–d4.
+
+Verification: 19 targeted evaluation tests pass, including offline ablation,
+scaling and claim-support flows. Five configuration tests pass again after the
+case-insensitive credential fix. Strict evaluator mypy passes four changed
+modules; app config typecheck passes. Ruff lint/format and diff checks pass.
+Independent read-only approach and final reviews found no blocking issue;
+scoped cleanup removed the obsolete credential loader without unrelated changes.
+No UI changes. Next: M1-03d2. Fresh open count: 61; M1 remains unverified.

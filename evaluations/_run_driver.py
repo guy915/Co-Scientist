@@ -35,20 +35,6 @@ if str(_ROOT / "app") not in sys.path:
 _SUPPORTED_CLAIM_LABELS = ("supports", "partial")
 
 
-def load_provider_key() -> str:
-    """Read DEEPSEEK_API_KEY from the environment or the checkout's .env."""
-    key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if key:
-        return key
-    env_file = _ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("DEEPSEEK_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    return ""
-
-
 def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     """Set process env for one controlled-experiment invocation.
 
@@ -94,9 +80,9 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
     os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
-    key = load_provider_key()
-    if key:
-        os.environ["DEEPSEEK_API_KEY"] = key
+    from evaluations._live_config import configure_live_environment
+
+    configure_live_environment()
 
 
 @dataclasses.dataclass(frozen=True)

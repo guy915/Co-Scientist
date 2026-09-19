@@ -115,3 +115,20 @@ instructions are withheld; scientific retrieval goes through qualified MCP.
 Local calculation, file operations and trusted Git provenance remain available.
 Run `make test-sandbox-linux` after changes here; its preflight must prove a
 working backend before denial assertions can count as confinement evidence.
+
+### Shared live evaluation configuration
+
+Scaling, ablation and claim-support live runners require a fresh process with
+explicit `MODEL_NAME=openrouter/<qualified-model>` and `OPENROUTER_API_KEY`
+supplied in the environment. They no longer read provider keys from disk.
+All model roles use that selected model, other API keys are removed, and dotenv
+loading is disabled before app imports. The request boundary checks fresh
+prices and fallback eligibility on every call; supplying a name alone does not
+qualify it. Existing MCP qualification is still required for retrieval.
+
+Regression evidence: `evaluations/tests/test_live_runner_config.py` exercises
+subprocess isolation, dotenv suppression and the public LLM boundary using
+synthetic credentials and mocked catalog/completion responses. This does not
+qualify a live model. Golden and direct-panel migration, observed-model/cost
+artifacts and comparison identities remain open; do not start campaign
+inference until those controls and model qualification are complete.

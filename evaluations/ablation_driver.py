@@ -67,7 +67,8 @@ reachable MCP server to make the toggles actually bite.
 
 Run:
     python -m evaluations.ablation_driver                 # offline
-    DEEPSEEK_API_KEY=... python -m evaluations.ablation_driver --live
+    # Export explicit MODEL_NAME and OPENROUTER_API_KEY before live use.
+    python -m evaluations.ablation_driver --live
 """
 
 from __future__ import annotations
@@ -303,7 +304,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run on the real provider backend (costs money and time).",
+        help="Run live with explicit verified free MODEL_NAME.",
     )
     return parser.parse_args()
 
@@ -311,8 +312,6 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Run the CLI: drive the sweep, write the artifact, print a summary."""
     args = _parse_args()
-    if args.live and not _run_driver.load_provider_key():
-        raise SystemExit("no DEEPSEEK_API_KEY available; cannot run --live")
     report = run_ablation_sweep(_DEFAULT_GOALS, args.tier, live=args.live)
     out = write_dated_artifact(report, "ablation-sweep")
 
