@@ -206,6 +206,8 @@ def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
         for item in dataset["items"]
     ]
     return {
+        "execution_mode": "offline",
+        "usage_evidence": None,
         "judge": "deterministic_coverage",
         "panel": dataset["name"],
         "metrics": score(labelled),
@@ -221,10 +223,13 @@ def run_llm(
 ) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
     from evaluations._live_config import configure_live_environment
+    from evaluations._usage_evidence import capture_usage
 
     model = configure_live_environment(model)
-    labelled = asyncio.run(_judge_all(dataset, model))
+    with capture_usage("citation_usefulness", live=True) as evidence:
+        labelled = asyncio.run(_judge_all(dataset, model))
     return {
+        **evidence,
         "judge": model,
         "panel": dataset["name"],
         "metrics": score(labelled),

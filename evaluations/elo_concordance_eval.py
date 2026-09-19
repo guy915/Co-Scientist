@@ -434,12 +434,20 @@ def run(*, use_llm: bool) -> dict[str, Any]:
             items, make_coin_flip_comparator(0), "coin_flip_seed0"
         ),
     }
+    from evaluations._usage_evidence import capture_usage
+
+    for result in results.values():
+        result["execution_mode"] = "offline"
+    with capture_usage("elo_concordance", live=use_llm) as evidence:
+        if live_comparator is not None:
+            comparator, comparator_id = live_comparator
+            results[comparator_id] = evaluate_concordance(
+                items, comparator, comparator_id
+            )
     if live_comparator is not None:
-        comparator, comparator_id = live_comparator
-        results[comparator_id] = evaluate_concordance(
-            items, comparator, comparator_id
-        )
+        results[live_comparator[1]].update(evidence)
     return {
+        **evidence,
         "dataset": dataset["name"],
         "dataset_version": dataset["version"],
         "external_gap": _EXTERNAL_GAP,

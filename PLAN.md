@@ -165,7 +165,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d3a: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration before app/engine imports; remove paid defaults and verify fail-closed admission without changing offline evaluation behavior.
 - [x] M1-03d3b1: Preserve requested and observed model identity plus missing usage/pricing evidence in shared completion telemetry and durable metric merges; keep old checkpoints compatible.
 - [x] M1-03d3b2a: Retain raw model telemetry and explicit unknown-cost/observed-model summaries in durable scaling, ablation, claim-support and golden artifacts without mistaking old zero estimates for verified costs.
-- [ ] M1-03d3b2b: Capture direct citation/usefulness/Elo panel telemetry and explicit deterministic-fallback/live/offline evidence in direct and durable artifacts; verify successful panel responses through the real interfaces.
+- [x] M1-03d3b2b1: Capture direct citation/usefulness/Elo panel telemetry and explicit requested-live/offline modes; verify successful panel responses and observed usage through their public interfaces.
+- [ ] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -889,3 +890,35 @@ ablation flows and golden admission; persisted-run scoring retains the same
 evidence. Strict mypy passes six changed modules; Ruff lint/format and diff
 checks pass. Production API/MCP remain SUCCESS at `7dce086d`. Fresh open count:
 60; the campaign and M1 acceptance remain incomplete.
+
+
+### 2026-09-19 — Cycle 20, M1-03d3b2b1
+
+Starting commit `e522e5f1`. The intervening goal-prompt reply made no campaign
+progress; resumed from the current uncommitted panel changes. Split direct
+capture from fallback instrumentation before further implementation, preserving
+both requirements. This cycle completes capture only; no live inference,
+spending, deployment or reference acquisition.
+
+The initial failing usefulness public-path test exposed absent execution mode
+and usage evidence. Shared scoped capture now wraps the citation assessor,
+citation-usefulness judge and Elo comparator. Reused the durable usage summary;
+no second accounting representation. Offline paths explicitly report offline;
+requested live mode is not proof of an observed provider response. Elo labels
+its deterministic controls separately. Scientific metrics and gates unchanged.
+
+Successful public-path tests verify requested versus observed route identity,
+unknown pricing, physical call count and outgoing zero-price caps. Citation
+crosses the actual synchronous-to-async bridge; Elo crosses its per-match event
+loop. Provider/catalog responses are mocked, not live scientific evidence.
+Fallback behavior remains unverified and open in M1-03d3b2b2: instrument single
+and batch claim deterministic substitution and invalid/tied ranking judgments,
+retain events through durable merges, and preserve legacy tracking unknowns.
+Do not interpret absent fallback records as proof that no fallback occurred.
+
+Validation: 38 targeted panel/admission/artifact tests pass; strict mypy passes
+four changed source modules; Ruff lint/format passes. Scoped cleanup reused the
+existing summary and normalized imports. No UI changes. Production API/MCP
+latest deployments remain SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`
+(snapshot `/tmp/coscientist-cycle20-release.json`); campaign deployment acceptance
+remains open. Next: M1-03d3b2b2. Open count: 60; turn limit remains 180.

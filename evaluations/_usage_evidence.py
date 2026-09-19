@@ -3,6 +3,8 @@
 import copy
 import math
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 
@@ -69,3 +71,22 @@ def _evidenced_calls(row: dict[str, Any], field: str) -> int:
         return 0
     value = int(row.get(field, 0))
     return value if 0 <= value <= int(row.get("calls", 0)) else 0
+
+
+@contextmanager
+def capture_usage(phase: str, *, live: bool) -> Iterator[dict[str, Any]]:
+    """Capture live physical calls without labeling offline output as live."""
+    evidence: dict[str, Any] = {
+        "execution_mode": "live_requested" if live else "offline",
+        "usage_evidence": None,
+    }
+    if not live:
+        yield evidence
+        return
+    from co_scientist.llm_telemetry import scoped_telemetry
+
+    with scoped_telemetry(phase) as telemetry:
+        try:
+            yield evidence
+        finally:
+            evidence["usage_evidence"] = summarize_usage(telemetry.snapshot())

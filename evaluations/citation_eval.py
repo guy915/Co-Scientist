@@ -172,11 +172,15 @@ def run(
 
         assessor, assessor_id = deterministic_assessor, "deterministic-v1"
     dataset = _load_dataset(dataset_path or _DATASET)
-    rows = _predict(dataset["items"], assessor, assessor_id)
+    from evaluations._usage_evidence import capture_usage
+
+    with capture_usage("citation_entailment", live=use_llm) as evidence:
+        rows = _predict(dataset["items"], assessor, assessor_id)
     matrix = _confusion(rows)
     metrics = _metrics(matrix)
     metrics["by_kind"] = _accuracy_by_kind(rows)
     return {
+        **evidence,
         "dataset": dataset["name"],
         "dataset_version": dataset["version"],
         "assessor": assessor_id,

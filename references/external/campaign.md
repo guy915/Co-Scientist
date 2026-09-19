@@ -178,8 +178,9 @@ Direct citation and Elo panels now share the same isolated configuration. Elo
 loads production rating math lazily so importing its evaluator does not load
 engine/provider settings before live admission. Citation usefulness accepts an
 explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
-No live panel results are accepted yet: actual served identity, usage, unknown
-cost and deterministic-fallback disclosure remain M1-03d3b.
+No live panel results are accepted yet. Direct capture is verified with mocked
+provider responses; deterministic-fallback disclosure and live qualification
+remain open.
 
 ### Usage evidence semantics
 
@@ -199,5 +200,15 @@ Durable golden/arm, scaling, ablation and claim-support artifacts now retain
 is always null until an actual receipt is retained. Legacy numeric cost fields
 are labeled `partial_static_estimate`. Derived ablation estimated means are
 null if any included arm lacks a complete estimate. These fields are static
-accounting evidence, not proof of scientific quality. Direct-panel capture and
-fallback disclosure remain M1-03d3b2b.
+accounting evidence, not proof of scientific quality.
+
+Citation, citation-usefulness and Elo public live panel entry points now capture
+physical calls into the same summary. `execution_mode=live_requested` records
+intent, while observed model and usage fields record provider response evidence;
+it does not claim that every verdict came from a model. Offline panels have
+`execution_mode=offline` and null usage evidence. Elo labels its three offline
+controls separately and attaches captured evidence to its live comparator.
+The successful-path tests use synthetic provider responses, including citation's
+async bridge and Elo's per-match event loops. They are not live evaluations.
+Deterministic fallback disclosure remains M1-03d3b2b2; do not accept these panels
+as pure-model scientific evidence until that requirement is verified.
