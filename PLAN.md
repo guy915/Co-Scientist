@@ -151,7 +151,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
 - [x] M1-03b1: Enforce shared zero-cost admission on app interview, Q&A, announcement, title and restatement completions and credential probes; verify outgoing requests, streaming/reasoning preservation and explicit BYOK isolation.
 - [x] M1-03b2: Prevent campaign and credential-scoped executions from reading or writing shared node caches, including forced cache paths; verify isolation without changing ordinary cache behavior.
-- [ ] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
+- [x] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
 - [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -442,3 +442,31 @@ structural bypass. Evidence and next behavioral tests are retained in the
 baseline dossier. M1-03b3 stays open until worker-level and auxiliary admission
 checks pass. Open count remains 61 after splitting and completing one item;
 turn limit remains 180. M1 acceptance is still unverified.
+
+### 2026-09-19 — Cycle 7, M1-03b3
+
+Previous turn made progress: node-cache isolation committed as `dc73a822`.
+Started clean. Rechecked durable dispatch, recovery and auxiliary call sites;
+all already share the intended credential and admission boundaries. Added
+worker-level behavioral evidence rather than another runtime wrapper.
+
+Eighteen new cases exercise persisted credential reload, fresh and reclaimed
+leases, child tasks and the off-loop/async bridge, across claim, batched claim
+and semantic safety calls. Paid campaign requests stop before transport;
+synthetic qualified free requests carry zero ceilings and the run's key;
+ordinary paid BYOK remains separate. Recovered tasks increment their attempt,
+complete, and leave no credential context behind. Admitted transport calls stop
+at a test sentinel, so this is request/lifecycle evidence, not live inference
+or scientific-quality evidence. No defect required a new runtime correction.
+
+Forty-five worker/recovery/BYOK/bridge tests pass, with six existing dependency
+warnings. Scoped cleanup extracted repeated outgoing-request assertions and
+kept the test within lint complexity limits; all 18 new cases pass afterward.
+Ruff and diff checks pass. No UI, dependencies or production settings changed.
+Fresh Railway read shows API/MCP SUCCESS at `7dce086d`; no PR/deployment or spend.
+Next: M1-03c retrieval/tools/plugins/skills/embeddings audit and free retrieval
+verification. Open count: 60. M1 acceptance and the 180-turn limit are unchanged.
+
+Final read-only review added an explicit assertion that ordinary paid BYOK
+requests do not carry the campaign zero-price cap. All 18 cases pass with that
+assertion, and targeted lint/format checks remain clean.

@@ -229,3 +229,29 @@ through assessment threads; claim verification and semantic safety use the
 engine JSON boundary. Next verification must exercise persisted credential
 reloading through the worker and reject paid auxiliary calls under campaign
 mode before the provider transport. Inspection alone is not acceptance.
+
+## M1-03b3 — durable and auxiliary admission verification
+
+Disposition: already covered by existing durable credential scoping plus the
+campaign request policy; no additional runtime implementation needed. Boundary:
+durable worker execution/recovery and auxiliary LLM requests. The new
+`app/tests/test_durable_free_admission.py` persists an encrypted credential,
+queues a real task, and drives `task_worker.run_once`. It replaces only the
+scientific task body with calls to the actual claim, batched-claim and semantic
+safety completion helpers; policy, credential reload and worker lifecycle run.
+
+Eighteen cases cross fresh/reclaimed leases, three auxiliary paths, and paid
+campaign rejection/free campaign admission/ordinary paid BYOK admission. Both
+child-coroutine and off-loop-to-bridge calls see the stored credential. Recovered
+tasks reach attempt two and complete. Paid campaign calls send zero provider
+requests; qualified synthetic free calls retain zero caps and the stored key;
+ordinary BYOK retains its chosen model/key. Credential context is empty again
+when the worker returns. The provider transport raises a terminal test sentinel
+on admitted calls: this proves request admission, not successful model output.
+No real provider or catalog request occurs in these tests.
+
+Verification: 45 worker/recovery/BYOK/async-bridge tests pass; after cleanup all
+18 new cases pass again. Ruff and diff checks pass. Six existing dependency
+warnings remain unsuppressed. Runtime typechecking and full baseline/release
+checks remain governed by their open items; this cycle changes tests and records
+only. Railway API/MCP remain SUCCESS at `7dce086d`; no release mutation.
