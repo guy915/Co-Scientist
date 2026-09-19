@@ -16,6 +16,7 @@ import json
 from typing import Any, cast
 
 import pytest
+from langchain_core.tools import ToolException
 
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.mcp_client import MCPToolClient
@@ -140,11 +141,10 @@ async def test_a_tool_reported_error_is_not_retried() -> None:
         "search."
     )
 
-    result = await search._call_search_tool(
-        cast(MCPToolClient, client), "search_openalex", {}
-    )
-
-    assert result == {}
+    with pytest.raises(ToolException, match="HTTP 400"):
+        await search._call_search_tool(
+            cast(MCPToolClient, client), "search_openalex", {}
+        )
     assert client.calls == 1
 
 
@@ -183,3 +183,22 @@ def test_undecodable_payload_is_quoted_in_the_error(
         parse_mcp_result(payload)
 
     assert expected in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_sdk_tool_failure_preserves_provenance_without_retry() -> None:
+    class Client:
+        calls = 0
+
+        async def call_tool(self, _name: str, **_params: Any) -> Any:
+            self.calls += 1
+            raise ToolException(
+                "Europe PMC unavailable: HTTP 429; Retry-After=60"
+            )
+
+    client = Client()
+    with pytest.raises(ToolException, match="Retry-After=60"):
+        await search._call_search_tool(
+            cast(MCPToolClient, client), "search_europepmc", {}
+        )
+    assert client.calls == 1

@@ -36,9 +36,27 @@ _PREPRINT_FILTER = "SRC:PPR"
 _BIORXIV_FILTER = 'PUBLISHER:"bioRxiv"'
 
 
-def _empty_result(source: str, query: str) -> dict[str, Any]:
-    """Builds the envelope a search returns when it cannot answer."""
-    return {"source": source, "query": query, "records": []}
+def _results(payload: Any) -> list[dict[str, Any]]:
+    """Require a result list so a broken response cannot imply no matches."""
+    result_list = (
+        payload.get("resultList") if isinstance(payload, dict) else None
+    )
+    results = (
+        result_list.get("result") if isinstance(result_list, dict) else None
+    )
+    if not isinstance(results, list) or any(
+        not isinstance(record, dict) for record in results
+    ):
+        raise ValueError("invalid Europe PMC resultList.result")
+    return results
+
+
+def _failure_detail(exc: Exception) -> str:
+    """Keep HTTP status and retry timing when MCP serializes the error."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        retry_after = exc.response.headers.get("retry-after", "unspecified")
+        return f"HTTP {exc.response.status_code}; Retry-After={retry_after}"
+    return f"{type(exc).__name__}: {exc}"
 
 
 def _record(result: dict[str, Any]) -> dict[str, Any]:
@@ -93,7 +111,10 @@ async def _search(
             guess whether the filter was part of its question.
 
     Returns:
-        The normalized envelope, empty-records on any failure.
+        The normalized envelope, empty only for a successful empty search.
+
+    Raises:
+        RuntimeError: The source could not be queried or parsed.
     """
     limit = max(1, min(max_results, 25))
     asked = echo if echo is not None else query
@@ -111,16 +132,18 @@ async def _search(
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(_EUROPEPMC_URL, params=params)
             response.raise_for_status()
-        results = (
-            (response.json().get("resultList") or {}).get("result") or []
-        )[:limit]
-    except (httpx.HTTPError, ValueError) as exc:
+        records = [
+            _record(result) for result in _results(response.json())[:limit]
+        ]
+    except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Europe PMC search failed for %r: %s", query, exc)
-        return _empty_result(source_label, asked)
+        raise RuntimeError(
+            f"{source_label} search unavailable: {_failure_detail(exc)}"
+        ) from exc
     return {
         "source": source_label,
         "query": asked,
-        "records": [_record(result) for result in results],
+        "records": records,
     }
 
 

@@ -175,3 +175,25 @@ All seven campaign boundary tests pass separately on both with the final module;
 none is skipped. Stale skill instruction requests are rejected and offline
 recognized scripts do not add source-query attribution. Live source verification
 remains M1-03c3; no inference or external scientific query was performed here.
+
+
+## Europe PMC failure provenance — M1-03c3b
+
+The three Europe PMC tools now raise source-labelled failures for transport,
+JSON/container and record-normalization errors. A valid empty result list stays
+a successful empty search. HTTP status and Retry-After survive MCP serialization;
+no credential or alternate-provider fallback is added.
+
+The existing engine retry boundary also needed correction: its legacy MCP error
+text branch returned an empty dictionary. It now raises the SDK's ToolException,
+matching the actual adapter's exception shape, and does not retry a source-reported
+failure. Connection/decoding transients retain the bounded retry policy. Existing
+per-source handling records the cause and allows healthy sources to finish.
+
+Offline regression checks cover all three wrappers, malformed bodies, valid
+empty results, status/retry hints, node error versus empty diagnostics, and a
+healthy sibling's retained paper. The local wire experiment
+[evidence](europepmc-errors-2026-09-19.json) used the actual MCP server/client
+with an injected upstream 429: exactly one source attempt produced ToolException
+with the source/status/retry hint. It made no external provider or model call;
+it does not claim a live rate-limit event or automatic delayed resumption.

@@ -158,7 +158,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c2c: Enforce campaign restrictions on workspace network execution and skill credential injection while preserving local computation; verify confinement including the Linux sandbox checks.
 - [x] M1-03c3a: Correct the live-discovered PubMed availability mismatch: anonymous retrieval succeeds while the probe returns false before querying. Verify successful and failed actual reachability through the probe without treating a contact email as proof of availability.
 - [x] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
-- [ ] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
+- [x] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -650,3 +650,34 @@ rather than silently treating it as covered. Rate limiting was not observed and
 is not claimed tested live. Production API/MCP remain SUCCESS at `7dce086d`.
 No PR or deployment. After the evidence commit, next item is M1-03c3b; fresh
 open count is 60. M1 acceptance and the 180-turn limit remain unchanged.
+
+
+### 2026-09-19 — Cycle 13, M1-03c3b
+
+Starting commit `b6eba783`; previous cycle committed the PubMed correction and
+real public retrieval evidence. Re-read the current plan and failure paths.
+Nine failing server cases reproduced false-empty and malformed-response behavior
+across Europe PMC and its wrappers. Two failing engine cases exposed the legacy
+MCP error text returning an empty dictionary and SDK errors being re-requested.
+A separate failing HTTP429 case pinned preservation of Retry-After.
+
+Decision: reuse SDK ToolException at the existing search boundary rather than
+add a parallel error protocol. Source-labelled server errors carry status/retry
+hints in text because that is what survives MCP serialization. Reported failures
+are not immediately retried or broadened; genuine transport/decoding transients
+retain bounded retry. Existing per-source exception handling retains diagnostics
+while allowing healthy sources to finish. No paid fallback or new dependency.
+
+Actual local MCP transport with an injected 429 returned the expected exception
+and preserved its retry hint after exactly one source attempt. This was local
+fault injection, not a live public-service quota event; no inference or external
+provider request occurred. The temporary server was stopped. Retained evidence:
+`references/external/baseline/europepmc-errors-2026-09-19.json`.
+
+Final verification: all 274 standalone MCP tests and 34 affected engine tests
+pass; strict mypy passes all 71 MCP files and the changed engine module. Ruff
+and diff checks pass. Scoped cleanup removed the false-empty helper and duplicate
+error logging; no UI changed. Independent final review approved the behavior and
+retained evidence. Fresh Railway status remains API/MCP SUCCESS at `7dce086d`;
+no PR or deployment. Item complete locally. Next: M1-03d evaluation-runner
+admission and served-model/cost evidence. Fresh open count: 59; M1 remains open.

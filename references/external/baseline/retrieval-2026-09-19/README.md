@@ -32,6 +32,6 @@ passed. Caches and literature output were under
 paths because the isolated PATH intentionally excludes development tools.
 
 Limits: the three-source success path is verified, not every exposed database
-connector. Europe PMC still hides service errors in an empty result envelope;
-that gap is an explicit open plan item. Model selection, full workflow, rate-limit
+connector. The subsequent M1-03c3b correction distinguishes Europe PMC service errors
+from empty results; see [fault-injection evidence](../europepmc-errors-2026-09-19.json). Model selection, full workflow, rate-limit
 recovery and production release remain separate acceptance work.
