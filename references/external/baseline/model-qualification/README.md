@@ -68,3 +68,31 @@ acceptance. Later tests should supply a single unwrapped passage string rather
 than treating document layout as scientific content. Static billing estimates
 remain unknown. The native request compatibility defect is corrected; broader
 capability and scientific qualification remain open.
+
+Cycle 29 Nex Pro capability trials (`nex-pro-capabilities.json`): short structured
+entailment passes with requested thinking off and on; observed reasoning was
+107 and 129 tokens respectively, so these flags do not demonstrate distinct
+effective reasoning modes. A 126,555-character synthetic public context plus
+explicit passage returns the correct label and verbatim quote (294 reasoning
+tokens). This tests a long request with evidence at the end, not the full 262k
+context limit or dispersed-evidence scientific synthesis.
+
+The app's real admission and stream-draining interfaces yielded ten content
+deltas, a `stop` finish, SDK model field `nex-agi/nex-n2.5-pro:free` and usage.
+Shared engine telemetry shows zero for this case because app streams have a
+separate observation path; use `stream_model_fields` and `reported_usage` rather
+than interpreting that zero as no request. This does not exercise browser/SSE
+or durable interview persistence, which remain full-workflow acceptance work.
+
+The first tool case failed because the experimental executor returned a plain
+payload instead of the engine's required tool-role message. This was a probe
+error, not a product or model defect. Retained unchanged; superseded for tool
+capability by `nex-pro-tools-corrected-probe.json`: two physical calls, one
+validated local lookup invocation, final answer containing its numeric result,
+and observed Nex model on both calls. The executor performs no network access.
+
+No model is selected yet. M1-04b still needs other candidates, actual effective
+reasoning control/budget behavior and representative complex schemas; M1-04c
+still needs scientific panels. The current probe hashes itself in new artifacts
+and checkpoints each case. All live calls traverse existing fresh eligibility
+and zero-price admission. No paid alternative is substituted on failure.

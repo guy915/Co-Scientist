@@ -1206,3 +1206,35 @@ README. Railway snapshot `/tmp/coscientist-cycle28-release.json` retains current
 release observation; no deployment or reference acquisition. Next: M1-04b full
 capability trials including reasoning, tools, streaming and long inputs.
 Open count: 59.
+
+### 2026-09-19 — Cycle 29, M1-04b partial
+
+Starting commit `2ca151e8`; previous cycle progressed by correcting and verifying
+native schema envelopes. Tested Nex Pro through actual engine structured output,
+tool-loop and app streaming interfaces using isolated campaign credentials,
+disabled caches and guarded zero-price requests. Public synthetic fixtures and
+sanitized observations are retained under model-qualification. No production
+code changed; no candidate is selected or declared scientifically improved.
+
+Short JSON passes with caller thinking flags off/on; both actually reasoned.
+A 126,555-character prompt passes label and verbatim quote checks, with evidence
+at its end. App streaming yields ten content deltas and stop plus SDK model and
+usage. These are compatibility checks, not full-context or browser verification.
+
+Initial tool test returned a malformed tool-result message from our experiment
+executor, caught by free-request admission before a second transport. Corrected
+the probe to return the existing tool-role protocol and retained the failure.
+The corrected live trial executes exactly one expected local lookup and reports
+its result across two observed Nex requests. No engine policy was relaxed.
+
+Independent approach review informed single-invocation checks, explicit stream
+metadata and bounded trials. No production test suite rerun is needed for this
+experiment-only change; diff checks pass, artifacts are sanitized, and temporary
+logs stay outside the repository. Current probe/fixtures remain reproducible;
+new artifacts record the script hash. Initial trial used the earlier executor
+and intentionally remains documented as superseded for tool capability.
+
+M1-04b remains open: qualify other shortlisted models and effective reasoning/
+budget behavior, then M1-04c scientific panels and selection. Railway state is
+retained in `/tmp/coscientist-cycle29-release.json`; no deployment performed.
+Open count: 59.
