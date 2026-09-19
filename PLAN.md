@@ -1681,3 +1681,34 @@ merge or deployment occurred. Report counts as completed/total: M1 28/36,
 eight remaining; campaign 60 open. Next finish the third pair, preserve failed
 qualification evidence, and resolve scientific qualification without lowering
 gates; remaining provenance and publication-safety work stays open.
+
+### 2026-09-20 — Cycle 42, trace Pro qualification failures
+
+Starting commit `9fb275fc`; previous goal cycle was progress (offline gates and
+retained second pair). Session 50677 remains live on baseline trial 3; no trial
+was restarted. Read current plan/worktree and inspected the actual candidate
+source and retained physical-response artifacts. Independent fresh-context
+review agreed with the nine-error decomposition. Retained analysis in
+`references/external/baseline/model-qualification/pro-failure-analysis.md`.
+
+Five pair-2 errors originate in primary PARTIAL judgments (species/time/topic),
+two are pre-model zero-overlap retrieval omissions, one is the .25 lexical
+opposition eligibility floor rejecting .20 coverage, and one is an actual
+secondary-model opposition denial. Pure offline calls reproduced retrieval and
+coverage outcomes. No inference was performed outside the existing batch.
+The source files inspected have no diff from pinned candidate `06a17a70`.
+This evidence changes the next investigation: switching models alone cannot
+resolve the deterministic pre-model omissions. After the unchanged third pair,
+inspect representative identifier/paraphrase claims and partial-support
+semantics before choosing a general correction. No benchmark-specific rules,
+label changes, gate reductions or adoption were made.
+
+Cleanup/deslop was documentation-only; retained active scratch/snapshots and
+unrelated AGENTS.md work. No runtime/UI changes, no test rerun needed for this
+analysis, no PR or release. M1 remains 28/36, eight open; campaign 60 open.
+Next resume 50677, finish/retain the third pair, and use the failure analysis to
+scope a test-first correction without treating model judgments as proof.
+
+Final poll: baseline trial 3 completed (.433 accuracy, 0 contradiction recall,
+33 physical requests), retained after JSON/known-credential validation. Session
+50677 advanced to candidate trial 3; this is now the active child to resume.
