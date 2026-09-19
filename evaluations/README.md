@@ -136,8 +136,15 @@ explicitly says otherwise; machine-readable results are written under
   blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
   latency; also aggregates paired feature-ablation arms without treating Elo
   as quality ground truth.
-- `release_gate.py` — fail-closed scientific publication readiness over claim,
-  safety, and provenance artifacts.
+- `release_gate.py` — scientific publication readiness over supplied claim,
+  hypothesis and safety artifacts. Supply the full public safety-audit records
+  (including integer `id` and `stage`): the newest final-stage `allow` or
+  actionable `redact` decision is required. An approved old hold requires a
+  newer successful final screen. Hypothesis holds exclude ideas, not the whole
+  report. Legacy/pending hypotheses are re-screened with the live deterministic
+  classifier and require their statement. This pure evaluator performs no
+  inference or audit writes and cannot attest an export's authenticity;
+  provenance completeness and supported-claim ratio remain observations.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
 - `golden_run.py` — a deliberate exception to "runs offline": drives one small
   biomedical run through the real durable path (`store.create_run` ->

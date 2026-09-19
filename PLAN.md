@@ -179,7 +179,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
-- [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
+- [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
 - [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
@@ -1882,3 +1882,38 @@ The empty paired-summary artifact is an explicitly incomplete comparator
 preflight result, not a live result. Next poll91986, retain terminal results,
 and run the composite comparator after complete pairs. No deployment occurred.
 M1 remains30/37, seven remaining; campaign59 open.
+
+
+**2026-09-20 — Cycle47, M1-09 locally verified; M1-04b1b live.** Previous
+cycle made progress by committing verified instrumentation and starting the
+confirmed live batch. Starting18bc688f. Batch91986 remains live; baseline1
+completed with accuracy.433/contradictionrecall0, 33 physical requests, all
+zero caps and expected served model with usage, 307 source-verified imports.
+Candidate1 started in the same process. Retained sanitized baseline artifact.
+Do not restart the batch or overwrite any prior trial/log.
+
+Reproduced three release-evaluator defects with failing public-interface tests:
+missing final screen, final block without review flag, and blocked legacy/pending
+hypothesis content were incorrectly released. Corrected the evaluator using
+the exact pure classifier called by live publication, without its audit writes,
+and the highest-ID final safety record. Hold/block/unknown/missing final records
+withhold; allow and redaction-with-matches follow live finalization. Approval
+of an old hold alone is not a new successful screen. Removed the incorrect
+all-stage unresolved-review veto: a held hypothesis excludes that idea, while
+a final redaction may publish despite its review flag. No app source changed.
+
+24 evaluator tests and45 combined evaluator/public-finalization/redaction/drain
+tests passed. Evaluation mypy passed60 source files; Ruff/diff checks passed.
+Independent approach and final reviews found no blocker. Missing legacy statement
+is an explicit artifact-integrity precondition, not a new production policy.
+Malformed redaction matches and export authenticity remain documented limits:
+this evaluator consumes the public audit shape, cannot authenticate exports,
+and does not claim to prove scrubbing independently of the app integration tests.
+No UI change or new dependency; scoped cleanup kept the correction in the evaluator.
+
+Full evaluation suite is still LIVE in session36810, log
+/tmp/coscientist-cycle47-evaluations.log. Resume this handle before starting
+another test suite; focused safety suite2145 and mypy67368 exited0. Full-suite
+success is not claimed. Next poll91986 and36810, compare complete live pairs,
+and retain actual outcomes. M1 now31/37, six remaining; campaign58 open.
+No merge, deployment, selected model or scientific adoption occurred.
