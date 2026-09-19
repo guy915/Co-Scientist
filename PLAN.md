@@ -1238,3 +1238,30 @@ M1-04b remains open: qualify other shortlisted models and effective reasoning/
 budget behavior, then M1-04c scientific panels and selection. Railway state is
 retained in `/tmp/coscientist-cycle29-release.json`; no deployment performed.
 Open count: 59.
+
+### 2026-09-19 — Cycle 30, M1-04b partial
+
+Starting commit `ef2a7a41`; previous cycle made progress through Nex Pro live
+capability evidence. Ran the unchanged committed probe sequentially for Nex Mini,
+DeepSeek Flash 0731 and Dots Preview, each in a fresh isolated process with
+explicit model and fresh campaign eligibility. Retained all checkpointed reports;
+no rate limit, paid fallback, configuration change or deployment occurred.
+
+Mini and Dots passed all five basic cases. DeepSeek passed both short JSON modes,
+local tool execution and app streaming, but its disabled-reasoning long trial
+returned the wrong label plus a fabricated quote. It remains inconclusive for
+selection; one failed task is not a scientific-quality rejection. Independent
+review clarified actual mode semantics: Nex flags currently send no distinct
+reasoning control, DeepSeek uses its existing JSON-object/enable-disable path,
+and Dots maps disabled requests to bounded mandatory reasoning. Observed model
+and usage evidence is retained with its stream-specific limits.
+
+No production code or probe changed; prior code checks remain applicable. Diff
+checks pass and scoped cleanup retains only reports and findings. Railway latest
+API/MCP remain SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`, snapshot
+`/tmp/coscientist-cycle30-release.json`. No temporary reference acquired.
+
+Next within M1-04b: qualify explicit Nex reasoning/budget profiles through the
+shared request seam and realistic complex-schema calls; follow up DeepSeek's
+long-output failure without weakening the check. Scientific model comparison
+and production selection remain M1-04c. Open count: 59.

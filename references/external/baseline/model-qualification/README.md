@@ -96,3 +96,36 @@ reasoning control/budget behavior and representative complex schemas; M1-04c
 still needs scientific panels. The current probe hashes itself in new artifacts
 and checkpoints each case. All live calls traverse existing fresh eligibility
 and zero-price admission. No paid alternative is substituted on failure.
+
+Cycle 30 ran the same committed capability probe sequentially for the other
+three candidates. Fresh eligibility was checked for every case; no rate limit
+was observed. The original artifacts are retained without correcting outputs.
+
+| Model | Short JSON off/on | Local tool loop | App stream | Long JSON |
+| --- | --- | --- | --- | --- |
+| Nex Mini | Both pass; 97/143 reasoning tokens | Pass | 10 content deltas, stop | Pass |
+| DeepSeek Flash 0731 | Both pass; 0/53 reasoning tokens | Pass | 4 content deltas, stop | Wrong label and fabricated quote |
+| Dots Preview | Both pass; 1400/716 reasoning tokens | Pass | 4 content deltas, stop | Pass |
+
+Each tool trial records the expected local invocation and final numeric result.
+Engine calls record the requested model as observed; app streams retain their
+separate SDK model and usage fields. No claim of independent billing receipts
+or comprehensive scientific capability follows from these smoke results.
+
+Nex Mini, like Pro, has no declared reasoning profile: off/on flags currently
+send the same control shape, and it reasons anyway. Before using either as a
+selected deployment model, qualify an explicit profile that funds its reasoning
+budget and test the resulting effective requests. DeepSeek's existing family
+handling sends distinct enabled/disabled controls and uses JSON-object mode;
+its failed long case used disabled reasoning and returned `contradicts` plus
+an invented quote spanning “Record 0” to “Record 853”. This is a real incorrect
+output, not a schema or transport error. Follow up with matched trials before
+rejecting the candidate or attributing the effect to reasoning mode.
+
+Dots has an existing declared mandatory-reasoning profile: “off” means bounded
+minimal reasoning, not disabled reasoning. Its results support basic interface
+compatibility under that profile. All long successes retain the prior limitation:
+126k characters with the decisive passage at the end, not general long-context
+scientific synthesis. M1-04b remains open for effective Nex reasoning/budget
+qualification and representative complex schemas; M1-04c handles scientific
+panels and final model/fallback selection.
