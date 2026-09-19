@@ -201,3 +201,33 @@ telemetry calls; zero there is not evidence of no provider request or no spend.
 The existing zero-cost admission still applies. This supports investigating its
 reasoning configuration, not selecting the current disabled path as a reliable
 fallback. No model selection or deployment followed.
+
+Cycle 33 candidate protocol (before implementation/results): use a separate
+semantic request for initial CONTRADICTS drafts rejected only by the lexical
+marker requirement. Quotes must first resolve to actual source spans and clear
+the existing .25 coverage floor. The verifier sees indexed claim/source-quote
+pairs with source context, never the initial label; it checks matching conditions
+and mutually exclusive assertions. Several eligible pairs share one request in
+the batch assessor; the single-claim assessor can require one extra request per
+claim. Missing, duplicated, ambiguous or failed verdicts remain insufficient.
+The old lexical path and deterministic fallback retain their existing rules.
+
+This is a local design choice, not Google-backed behavior. A same-model second
+request remains correlated semantic evidence, not independent scientific proof.
+Rejected alternatives: adding benchmark-specific words to the marker list;
+trusting an opposition certificate in the original response; lowering gates.
+Verified free requests do not add monetary spend, but their tokens, latency and
+call-budget use must be retained. No production adoption precedes three paired
+challenge trials: primary metric accuracy, contradiction recall must improve,
+existing .80/.75 gates remain; all historical confirmatory/wrong-subject cases
+must remain non-contradicting in each trial. Freeze source commits, model,
+retrieval evidence and inputs; compare both sides on identical settings.
+
+Candidate implementation note: malformed verification envelopes (missing,
+duplicated, unknown or ill-typed indices/answers) invalidate the verification
+wave. Valid false answers reject their own pairs. Provider/parse failures are
+counted as `opposition_verification_unavailable` and missing valid answers as
+`opposition_verification_incomplete`, under a separate `claim_opposition`
+telemetry subphase. They are not deterministic fallback. Individual persisted
+edges still name only the model; M1-04b1c requires verification-method lineage
+before adoption. No experimental branch result is a deployed improvement.

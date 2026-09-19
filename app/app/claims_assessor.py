@@ -282,12 +282,15 @@ def retrieve_passages(
 def _quote_negates_claim(claim: str, quote: str) -> bool:
     """Whether a quote cited as contradicting ``claim`` is actually founded.
 
-    Two cheap, offline checks any CONTRADICTS verdict must clear before it
-    is trusted, whoever produced it: the quote has to cover the claim's
+    Two cheap, offline checks for lexical contradictions: the quote has
+    to cover the claim's
     subject (at least ``_MIN_CONTRADICTION_COVERAGE`` of the claim's own
     concept tokens, so "kinase antagonist" and "kinase blocker" count as
     the same concept), and it has to carry an actual negation/contrast cue
     from :data:`_CONTRADICTION_MARKERS`.
+
+    Markerless LLM contradictions need a separate semantic check in
+    ``claim_verifier_opposition``; this predicate stays conservative.
 
     Lives here rather than in ``claim_verifier`` (which called it on the
     LLM judge's drafts alone) because the deterministic assessor below

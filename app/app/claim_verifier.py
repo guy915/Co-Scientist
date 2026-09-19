@@ -66,6 +66,7 @@ from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
+from app.claim_verifier_opposition import guard_contradictions
 from app.claims import (
     Assessor,
     AssessorDraft,
@@ -73,7 +74,6 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.claims_assessor import _quote_negates_claim
 
 logger = logging.getLogger(__name__)
 
@@ -191,45 +191,7 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _reject_unfounded_contradiction(
-    claim: str, draft: AssessorDraft
-) -> AssessorDraft:
-    """Downgrade a CONTRADICTS verdict none of whose citations hold up.
-
-    Degrades to INSUFFICIENT rather than trusting the draft's ``supporting``
-    citations instead: the model's own verdict was wrong, so its other
-    citations are not more trustworthy just because they point the other
-    way -- see the root AGENTS.md "Never score a short claim against a long
-    document with Jaccard" gotcha, whose closing paragraph names this
-    exact judgement as the LLM entailment assessor's job.
-
-    This guards the *judge's* drafts only, and deliberately so: the
-    deterministic assessor this module falls back to cites the sentence
-    that negates the claim (``claims_assessor._contradicting_sentence``),
-    so its contradictions clear ``_quote_negates_claim`` by construction.
-    That gap used to be real and invisible, because a fallback verdict
-    keeps the ``llm:<model>`` provenance of the assessor that was asked
-    for: standard run e47a3ba1 (2026-09-08) persisted 11 unfounded
-    CONTRADICTS edges stamped ``llm:`` that this guard never saw. Any new
-    producer of a CONTRADICTS draft must be founded the same way -- by
-    construction, or by passing through here.
-    """
-    if draft.label is not EntailmentLabel.CONTRADICTS:
-        return draft
-    if any(
-        _quote_negates_claim(claim, quote) for _, quote in draft.contradicting
-    ):
-        return draft
-    logger.warning(
-        "LLM claim assessor's CONTRADICTS verdict failed the subject/negation "
-        "check; downgrading to insufficient rather than inventing support. "
-        "Claim: %.200r",
-        claim,
-    )
-    return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-
-
-def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
+def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
     """Parse the model's validated JSON reply into an :class:`AssessorDraft`.
 
     Returns None when the shape is still unusable (an empty/invalid label)
@@ -251,7 +213,7 @@ def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
             data.get("contradicting"), "claim_verifier.contradicting"
         ),
     )
-    return _reject_unfounded_contradiction(claim, draft)
+    return draft
 
 
 def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
@@ -394,7 +356,7 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
         if data is None:
             record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
-        draft = _parse_draft(data, claim)
+        draft = _parse_draft(data)
         if draft is None:
             logger.warning(
                 "LLM claim assessor returned unparseable output; falling "
@@ -403,6 +365,8 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
             )
             record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
-        return draft
+        guarded = guard_contradictions(model, [claim], passages, [draft])[0]
+        assert guarded is not None
+        return guarded
 
     return _assessor, assessor_id

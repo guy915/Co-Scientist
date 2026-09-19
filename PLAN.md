@@ -171,7 +171,9 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
 - [x] M1-04a: Refresh the public OpenRouter catalog, verify zero-cost eligibility, and record a capability-based shortlist including available new releases and explicit exclusions.
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
-- [ ] M1-04b1: Investigate and correct the challenge/live contradiction-guard mismatch: preserve subject and quoted-evidence safeguards plus historical false-contradiction regressions, verify genuine directional/numeric opposition through the public assessor boundary, and rerun matched live panels without lowering gates.
+- [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
+- [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
+- [ ] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -1337,3 +1339,51 @@ production configuration change or reference checkout. Railway observation:
 Final review completed diagnostic provenance: every contradiction row now retains
 its exact prompt SHA256 and zero-based physical-request index in the source trial;
 all new trial source commits are resolved to full Git identifiers.
+
+### 2026-09-19 — Cycle 33, M1-04b1a; scientific acceptance remains open
+
+Starting commit `14e8c599`. Cycle 32 produced live failure evidence; the intervening
+goal-prompt response made no repository progress. Revalidated the clean branch
+and Railway state before resuming the first unchecked investigation. Split
+M1-04b1 into tested implementation, paired scientific acceptance, and per-edge
+verification provenance. The split preserves all acceptance work and the
+180-turn limit.
+
+Reproduced genuine directional opposition becoming insufficient through the
+single public assessor, then numeric/directional opposition through the batch
+public assessor. Both failed before their respective integration. Added shared
+`claim_verifier_opposition`: canonical source-span resolution and the existing
+coverage floor precede a separate semantic request only for markerless drafts.
+The ordinary lexical-founded path and deterministic assessor remain conservative.
+Batch candidates share one request; single-claim panels may add one per claim.
+The request uses the existing credential, free-admission, reasoning, budget and
+telemetry machinery. Unavailable verification never becomes deterministic
+fallback; errors and physical calls are retained in a verification subphase.
+
+Decision: use a separately prompted, same-model semantic check as an experimental
+candidate. It is correlated evidence, not independent scientific proof. Adding
+benchmark-specific markers, trusting a same-response certificate, and lowering
+gates were rejected. Extra verified-free calls spend time and call budget, not
+money. No live inference occurred this cycle and no scientific improvement is
+claimed. M1-04b1b requires three paired trials plus historical negative controls;
+M1-04b1c retains the review finding that per-edge method provenance must be
+persisted before adoption.
+
+Read-only review found that a valid answer plus an unknown index could still
+confirm a contradiction. Reproduced that leak, then required an exact, typed,
+complete index envelope. Malformed envelopes leave the verification wave
+insufficient. Final independent review found no remaining blocker to committing
+the experimental candidate. Scoped cleanup removed the superseded lexical-only
+LLM guard, reused existing span and telemetry helpers, and checked changed files
+with Ruff; no UI changed or temporary repository artifacts remain.
+
+Verification: 111 app claim tests pass (`app/tests/test_claim*.py`), including
+historical quote/subject safeguards, single and batched opposition, invalid
+indices, malformed extras, verifier failures, and budget/rate-limit propagation.
+Ruff lint/format and diff checks pass. Changed modules have no mypy errors;
+the invocation still fails on the previously recorded 19 safety-type errors in
+`human_input.py` and `hypothesis_screening.py`, pending baseline repair. No checks
+were weakened or skipped to pass. No merge/deployment/reference acquisition.
+Railway API `a6ddd7f0-3bb5-4ad1-bed8-14809846e88e` and MCP
+`0d49864d-782b-421f-ab8b-02b608a9c5d4` remain SUCCESS (observation
+`/tmp/coscientist-cycle33-release.json`). Next: M1-04b1b matched live panels.

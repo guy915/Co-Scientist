@@ -46,9 +46,9 @@ from app.async_bridge import run_coroutine_sync
 from app.claim_verifier import (
     _CITATION_LIST,
     _coerce_pairs,
-    _reject_unfounded_contradiction,
     _render_passages,
 )
+from app.claim_verifier_opposition import guard_contradictions
 from app.claims import (
     AssessorDraft,
     BatchAssessor,
@@ -149,9 +149,8 @@ def _parse_batch_drafts(
     unparseable verdict leaves that position ``None`` rather than raising,
     so the caller (``claims.assess_claims_batch``) falls only that one
     claim back to the deterministic assessor instead of losing the whole
-    batch to one bad entry. Each parsed draft passes through
-    ``claim_verifier._reject_unfounded_contradiction`` against its own
-    claim before being stored, exactly like the single-claim path.
+    batch to one bad entry. The caller then guards contradictions against
+    located source quotes, exactly like the single-claim path.
     """
     num_claims = len(claims)
     drafts: list[AssessorDraft | None] = [None] * num_claims
@@ -180,9 +179,7 @@ def _parse_batch_drafts(
                 item.get("contradicting"), "claim_verifier.batch_contradicting"
             ),
         )
-        drafts[position] = _reject_unfounded_contradiction(
-            claims[position], draft
-        )
+        drafts[position] = draft
     return drafts
 
 
@@ -276,13 +273,8 @@ def make_llm_batch_assessor(
 
     Args:
         model: The litellm model id (e.g. ``deepseek/deepseek-chat``).
-        call_counter: When given, ``call_counter[0]`` is incremented once
-            per actual provider call this assessor makes (not once per
-            Python call -- a group with no retrievable evidence never
-            calls the provider at all). Lets a caller report how many
-            entailment calls a pass actually spent, without threading a
-            return value through every layer between here and the log
-            line that reports it.
+        call_counter: Counts logical primary and verification requests.
+            Physical retries are counted separately by completion telemetry.
 
     Returns:
         ``(batch_assessor, assessor_id)`` where ``assessor_id`` matches
@@ -301,6 +293,12 @@ def make_llm_batch_assessor(
         data = _call_llm_batch_entailment(model, claims, passages)
         if data is None:
             return [None] * len(claims)
-        return _parse_batch_drafts(data, claims)
+        return guard_contradictions(
+            model,
+            claims,
+            passages,
+            _parse_batch_drafts(data, claims),
+            call_counter=call_counter,
+        )
 
     return _batch_assessor, assessor_id

@@ -255,3 +255,28 @@ Verification: 45 worker/recovery/BYOK/async-bridge tests pass; after cleanup all
 warnings remain unsuppressed. Runtime typechecking and full baseline/release
 checks remain governed by their open items; this cycle changes tests and records
 only. Railway API/MCP remain SUCCESS at `7dce086d`; no release mutation.
+
+## M1-04b1a — Markerless contradiction candidate
+
+Classification: **local design choice**; independently implemented through
+existing model, quote-resolution and telemetry interfaces. The challenge panel
+exposed a lexical guard that rejects real directional/numeric opposition.
+[Qualification evidence and predeclared acceptance](model-qualification/README.md)
+retain the failure and comparison protocol. This is an experimental candidate,
+not an accepted scientific improvement or deployed change.
+
+Single and batch public assessors now locate actual source quotes first. A
+markerless quote with sufficient subject coverage can receive a separate
+semantic judgment about matching conditions and mutually exclusive assertions.
+Several pairs share one batch request. Malformed verification envelopes or
+unavailable judgments leave claims insufficient; task budget/parking errors
+propagate. The old deterministic rule is unchanged. Verification-specific
+errors and physical calls use the existing telemetry subphase; logical batch
+request counts include the second judgment.
+
+Tests reproduced both single and batch failures before implementation. All 111
+app claim tests pass, including the historical false-contradiction cases and a
+review-discovered extra-index confirmation leak. Ruff lint/format pass. Mypy
+finds no changed-module errors, but still reports the 19 recorded safety-module
+errors. Paired live scientific acceptance and persisted per-edge verification
+method remain required under M1-04b1b/c. No inference or deployment this cycle.
