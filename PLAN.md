@@ -1548,3 +1548,44 @@ changes; live launcher/snapshots/comparison script remain necessary. No UI
 changed. Batch session 50677 is confirmed active on baseline trial 2. Next poll
 that handle, complete all pairs and rerun the Pro checker before making any
 acceptance decision. Fresh open count remains 61 (M1 27/36 complete).
+
+### 2026-09-19 — Cycle 38, baseline type repairs during Pro trials
+
+Starting commit `d91cfa8c`. Previous cycle was progress (first passing Pro pair
+retained, all size checks repaired). Session 50677 remains live on baseline
+trial 2; no restart or new inference process. No production changes.
+
+Ran required `make typecheck` directly: exit 2, 27 app errors. Corrected the
+canonical safety compatibility exports with explicit TypeAlias annotations,
+imported RateLimitError from litellm.exceptions, and replaced two partial
+SimpleNamespace stream inputs with real isolated store-created RunRow fixtures.
+No runtime policy, stream contract, gate threshold or assertion changed.
+Independent approach review preceded edits. App mypy now passes all 489 files;
+57 targeted safety/human-input/claim/free-model/offline tests pass. Ruff and
+format checks pass on changed files.
+
+Baseline failures discovered before edits remain explicit: the broader safety
+selection gave 63 passes and three failures in test_hypothesis_safety_escalation
+(model allow, model raise, admission model raise). Each logs `zero-cost model
+is not an explicit catalog route`, so its expected fake model response is never
+reached. Repair the fixtures at the real boundary without bypassing admission
+or weakening assertions; these three were not included in the subsequent
+57-test passing selection and are NOT claimed fixed.
+
+The repeated full `make typecheck` proceeds beyond app but still exits 2 on nine
+engine test errors: test_workspace_campaign (union result inference and three
+missing annotations), test_mcp_campaign_admission (heterogeneous changes map and
+transport TypedDict narrowing), test_campaign_node_cache (expanded string dict
+inferred as potentially supplying bool force). These remain under the existing
+baseline-suite item. No new checkboxes or acceptance scope. Logs:
+`/tmp/coscientist-cycle38-typecheck.log`,
+`/tmp/coscientist-cycle38-after-typecheck.log`,
+`/tmp/coscientist-cycle38-before.log`,
+`/tmp/coscientist-cycle38-after-tests.log`.
+
+Independent final review reports no findings: canonical class identity,
+stream/offline guards and transport mocking are preserved; created run fixtures
+write only isolated test databases. Scoped cleanup/deslop found no further
+changes or disposable source files. Preserve all active Pro batch scratch and
+snapshots. Next poll 50677, then repair the recorded engine type errors and
+safety test setup while waiting as needed. No item checked complete.

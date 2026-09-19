@@ -9,6 +9,7 @@ from typing import Any
 import litellm
 import pytest
 from co_scientist.cache import scoped_cache_override
+from litellm.exceptions import RateLimitError
 
 from app.claim_verifier import make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
@@ -216,7 +217,7 @@ def test_verification_propagates_task_control_errors(
     error = (
         LLMCallBudgetExceededError(2, 1)
         if kind == "budget"
-        else litellm.RateLimitError(
+        else RateLimitError(
             message="free-models-per-day rate limit exceeded",
             llm_provider="openrouter",
             model="test-model",

@@ -11,6 +11,7 @@ from app import (
     interviews_model,
     qa_stream,
     run_start_announcement,
+    store,
     title_gen,
 )
 from app.config import settings
@@ -35,7 +36,7 @@ async def _stream_call(kind: str, model: str) -> Any:
                 model, "system", "question", []
             )
         ]
-    run = SimpleNamespace(research_goal="Public research", title=None)
+    run = store.create_run("Public research", "express", "engine", {})
     return [
         item
         async for item in run_start_announcement._stream_model_fragments(run)

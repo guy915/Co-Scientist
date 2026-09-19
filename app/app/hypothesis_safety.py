@@ -11,6 +11,7 @@ import dataclasses
 import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from typing import TypeAlias
 
 from co_scientist.safety import (
     POLICY_VERSION,
@@ -25,8 +26,8 @@ from app.litellm_shutdown import run_in_scoped_loop
 
 # Compatibility names retained for existing API/store callers. They are aliases
 # of the canonical engine types, not parallel policy implementations.
-HypothesisSafetyOutcome = SafetyOutcome
-HypothesisSafetyReview = SafetyReview
+HypothesisSafetyOutcome: TypeAlias = SafetyOutcome
+HypothesisSafetyReview: TypeAlias = SafetyReview
 
 logger = logging.getLogger(__name__)
 

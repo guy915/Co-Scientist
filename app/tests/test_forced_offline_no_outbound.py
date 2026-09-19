@@ -178,13 +178,11 @@ async def test_restatement_makes_no_outbound_request(
 async def test_announcement_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    from types import SimpleNamespace
-
     from app.offline_guard import OfflineModeError
 
     with pytest.raises(OfflineModeError):
         async for _ in run_start_announcement._stream_model_fragments(
-            SimpleNamespace(research_goal=_GOAL, title=None)
+            store.create_run(_GOAL, "express", "engine", {})
         ):
             pass
     assert attempts == []
