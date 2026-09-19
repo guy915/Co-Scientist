@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from co_scientist.sandbox import ExecResult
 from co_scientist.workspace import WorkspaceSession
+from co_scientist.workspace.command_session import SessionRead
 
 
 @pytest.mark.parametrize("persistent", [False, True])
@@ -34,6 +36,7 @@ async def test_campaign_confines_preexisting_network_workspace(
         assert control.result.ok, control.result.stderr
         assert "NETWORK_REACHED" in control.result.stdout
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+        result: ExecResult | SessionRead
         if persistent:
             command = await session.sessions.start(
                 argv, policy=session.policy, cwd=session.root
@@ -48,7 +51,9 @@ async def test_campaign_confines_preexisting_network_workspace(
         assert "NETWORK_REACHED" not in result.stdout
 
 
-def test_campaign_does_not_inject_skill_credentials(monkeypatch) -> None:
+def test_campaign_does_not_inject_skill_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from co_scientist.skills.credentials import skill_environment
 
     monkeypatch.setenv("OPENALEX_API_KEY", "test-only-key")
@@ -58,7 +63,9 @@ def test_campaign_does_not_inject_skill_credentials(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("kind", ["external", "danger_full_access"])
-def test_campaign_rejects_unverified_confinement(monkeypatch, tmp_path, kind):
+def test_campaign_rejects_unverified_confinement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
+) -> None:
     from co_scientist.sandbox import SandboxKind, SandboxPolicy
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
@@ -67,8 +74,8 @@ def test_campaign_rejects_unverified_confinement(monkeypatch, tmp_path, kind):
 
 
 def test_campaign_schema_for_preexisting_workspace_is_offline(
-    monkeypatch, tmp_path
-):
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from co_scientist.workspace.tools import WorkspaceToolProvider
 
     session = WorkspaceSession(tmp_path, network_allowed=True)

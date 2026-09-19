@@ -58,7 +58,10 @@ def test_model_and_fallback_changes_change_persisted_identity(
             {},
             invocation,
         )
-        return store.get_run(run_id, db_path=db).config["evaluation_identity"]
+        identity: dict[str, Any] = store.get_run(run_id, db_path=db).config[
+            "evaluation_identity"
+        ]
+        return identity
 
     original = capture()
     model = settings.model_name

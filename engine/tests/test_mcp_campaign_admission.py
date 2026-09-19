@@ -96,7 +96,7 @@ async def test_custom_configuration_is_rejected_before_sdk_connection(
     qualified: dict[str, Any], _patch_mcp_seam: Any, change: str
 ) -> None:
     config: dict[str, Any] = {"transport": "streamable_http", "url": URL}
-    changes = {
+    changes: dict[str, dict[str, Any]] = {
         "url": {"url": "https://unqualified.example/mcp"},
         "transport": {"transport": "stdio"},
         "headers": {"headers": {"Authorization": "fake"}},
@@ -155,7 +155,9 @@ async def test_qualified_sdk_transport_has_no_redirect_or_proxy_escape(
     client = MCPToolClient(server_url=URL)
     await client.initialize()
     assert client._client is not None
-    factory = client._client.connections["default"]["httpx_client_factory"]
+    connection = client._client.connections["default"]
+    assert connection["transport"] == "streamable_http"
+    factory = connection["httpx_client_factory"]
     assert factory is campaign_http_client
     async with factory() as transport:
         assert transport.follow_redirects is False

@@ -1589,3 +1589,34 @@ write only isolated test databases. Scoped cleanup/deslop found no further
 changes or disposable source files. Preserve all active Pro batch scratch and
 snapshots. Next poll 50677, then repair the recorded engine type errors and
 safety test setup while waiting as needed. No item checked complete.
+
+### 2026-09-19 — Cycle 39, complete typecheck gate; Pro pair two running
+
+Starting commit `ca490f11`. Previous cycle was progress: app type fixes committed.
+Polled existing batch session 50677. Pro baseline trial 2 finished with accuracy
+.433, contradiction recall 0 and 33 physical requests; candidate trial 2 started.
+No restart, selection or acceptance decision. First pair remains the only
+completed passing pair; the required total is three.
+
+Repaired nine engine test typing errors with precise result unions, fixture
+parameter/map annotations, explicit default force=False on baseline cache calls,
+and a transport discriminator assertion before its HTTP-only factory field.
+No implementation, existing assertion or confinement behavior changed.
+31 tests pass before and after on the host. The first sandboxed invocation had
+three failures because the outer sandbox prohibits sandbox-exec sandbox_apply;
+authorized host execution exercised the real macOS confinement successfully.
+No skip or mocked replacement of confinement was introduced.
+
+The complete typecheck then exposed four evaluation-test annotation errors;
+added generic parameters and a typed identity local at the ignored app-import
+boundary. `make typecheck` now exits 0 across app (489 files), engine (559) and
+evaluations (60). 13 targeted evaluation/size checks pass. Ruff and diff checks
+pass. No type ignores, casts, relaxed thresholds or disabled tests added.
+Remaining baseline safety-escalation fixture failures from cycle 38 are still
+open, as are live qualification/full workflow/release criteria.
+
+Independent final review found no semantic regressions across the five test
+files. Scoped cleanup/deslop found no additional changes or obsolete scratch
+from this repair. Preserve active trial files and the unrelated AGENTS.md edit.
+Next poll 50677 (candidate trial 2), repair the recorded safety-test setup, and
+continue baseline verification. Fresh open-item count remains 61.
