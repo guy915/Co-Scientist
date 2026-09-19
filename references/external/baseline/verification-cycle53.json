@@ -1,0 +1,62 @@
+{
+  "source_commit": "c46cd6f517b2ead3b7a63c0f2ebda5d2c9e4c94f",
+  "scope": "Post-prompt offline verification; not live scientific acceptance",
+  "checks": {
+    "make lint": {
+      "status": "passed",
+      "exit_code": 0,
+      "log": "/tmp/coscientist-cycle53-lint.log",
+      "log_sha256": "2a7f55804ee7c06728d6277d3ee33382afef1c65a01c971d45a91b53943b9a49",
+      "result_tail": [
+        "492 files already formatted",
+        "60 files already formatted",
+        "All checks passed!",
+        "All checks passed!",
+        "All checks passed!",
+        ">> Linting frontend (gts)",
+        "$ gts lint",
+        "version: 25"
+      ]
+    },
+    "make typecheck": {
+      "status": "passed",
+      "exit_code": 0,
+      "log": "/tmp/coscientist-cycle53-typecheck.log",
+      "log_sha256": "3404bdef86d1620179b10428bdea5aa4da068c25fc5392ca0cecd340396a6ab2",
+      "result_tail": [
+        "Success: no issues found in 492 source files",
+        "Success: no issues found in 559 source files",
+        "Success: no issues found in 60 source files"
+      ]
+    },
+    "make eval-smoke": {
+      "status": "passed",
+      "exit_code": 0,
+      "log": "/tmp/coscientist-cycle53-eval-smoke.log",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6",
+      "result_tail": [
+        "evaluations smoke: OK (safety + citation offline evals passed)"
+      ]
+    },
+    "make test-all": {
+      "status": "running",
+      "session": 50595,
+      "log": "/tmp/coscientist-cycle53-test-all.log"
+    }
+  },
+  "reuse": {
+    "artifact": "verification-cycle48.json",
+    "checks": [
+      "make build",
+      "frontend tests"
+    ],
+    "reason": "Only product delta is two Python assessor prompt strings; frontend code, dependencies and inputs unchanged"
+  },
+  "live_qualification": {
+    "session": 91986,
+    "status": "running",
+    "arm": "baseline",
+    "trial": 3
+  },
+  "release_ready": false
+}
