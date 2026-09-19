@@ -150,7 +150,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03a1: Ensure catalogued zero-token-price OpenRouter routes carry zero prompt, completion and per-request price ceilings through the shared request builder, fallbacks and retries; preserve explicitly paid BYOK routing. Verify through the public LLM request boundary.
 - [x] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
 - [x] M1-03b1: Enforce shared zero-cost admission on app interview, Q&A, announcement, title and restatement completions and credential probes; verify outgoing requests, streaming/reasoning preservation and explicit BYOK isolation.
-- [ ] M1-03b2: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls, including node-cache behavior; correct any bypass while preserving task lifecycle semantics.
+- [x] M1-03b2: Prevent campaign and credential-scoped executions from reading or writing shared node caches, including forced cache paths; verify isolation without changing ordinary cache behavior.
+- [ ] M1-03b3: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls; correct any bypass while preserving task lifecycle semantics.
 - [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -417,3 +418,27 @@ six dependency deprecation warnings remain unsuppressed. Independent final
 read-only review found no remaining app-admission blocker. M1-03b1 is complete
 at the request boundary; its item commit records these changes. Fresh open
 count: 61.
+
+### 2026-09-19 — Cycle 6, M1-03b2
+
+Previous turn: progress, committed app admission as `f400defe`; began clean.
+Split the remaining b2 scope into node-cache isolation (b2) and durable/auxiliary
+execution verification (b3), preserving all criteria. Reproduced four shared
+cache leaks for campaign/BYOK contexts with and without force. The cache now
+ignores reads and writes in those contexts; ordinary behavior remains covered.
+Chose the existing credential ContextVar and campaign flag over a new namespace
+because old entries carry no experiment or credential provenance.
+
+Architecture: whole-node reuse can no longer skip campaign execution or share
+BYOK outputs across runs. This complements the earlier LLM response-cache guard.
+A literature-node regression observes source failure rather than stale success.
+Seventy cache/storage/generation/literature-node tests, targeted mypy, Ruff and
+diff checks pass. Scoped cleanup found no redundant runtime abstraction or UI
+change. No live inference, spending, dependency installation, PR or deployment.
+Fresh Railway status confirms API/MCP SUCCESS at `7dce086d`.
+
+Read-only review traced recovery and auxiliary credential flow; it found no
+structural bypass. Evidence and next behavioral tests are retained in the
+baseline dossier. M1-03b3 stays open until worker-level and auxiliary admission
+checks pass. Open count remains 61 after splitting and completing one item;
+turn limit remains 180. M1 acceptance is still unverified.

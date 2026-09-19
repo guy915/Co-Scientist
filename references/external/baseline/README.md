@@ -205,3 +205,27 @@ Final verification: 103 tests passed across `test_free_model_requests`,
 `test_credentials`, `test_byok_flow`, and `test_forced_offline_no_outbound`.
 Ruff lint/format and diff checks pass; six existing dependency warnings remain.
 Independent final review found no remaining app-admission blocker.
+
+## M1-03b2 — shared node-cache isolation
+
+Classification: local design choice. Whole literature-node results could bypass
+fresh execution and price admission, even when the LLM response cache was off.
+The developer force-cache option also bypassed ordinary cache disabling.
+Four failing cases reproduced shared-result reads in campaign and BYOK contexts,
+with and without force. `NodeCache.get/set` now refuse shared reads and writes
+in either context, leaving ordinary cache operation unchanged. This uses the
+existing campaign flag and credential ContextVar, not a new cache namespace.
+
+Verified through the cache interface and actual literature node: a warm result
+is returned outside campaign mode; with campaign mode and a simulated source
+outage, the node reports the outage instead of replaying that prior review.
+Seventy cache/storage/generation/literature-node tests pass, as do targeted mypy,
+Ruff and diff checks. No live inference was run.
+
+Durable trace for M1-03b3: `engine_tasks.execute_engine_task` reloads credentials
+per leased task and scopes app and engine credentials around dispatch. Resume
+and startup recovery re-enter that worker path. `async_bridge` copies context
+through assessment threads; claim verification and semantic safety use the
+engine JSON boundary. Next verification must exercise persisted credential
+reloading through the worker and reject paid auxiliary calls under campaign
+mode before the provider transport. Inspection alone is not acceptance.
