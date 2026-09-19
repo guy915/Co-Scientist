@@ -1438,3 +1438,49 @@ checker also asserts same-arm imported-source hashes across all three trials.
 Credential-value scans of new artifacts pass. Scoped cleanup removed the
 completed temporary source snapshots, launch/analysis scratch scripts and raw
 provider logs; sanitized evidence and reproducible checker remain. Open count: 61.
+
+### 2026-09-19 — Cycle 35, M1-04b1b in progress
+
+Starting commit `f9a00439`. The preceding user-question turn clarified status
+but changed no execution state (no progress); resume the recorded next action.
+Status notation now means completed/total plus remaining, never completed/open
+presented as a fraction. M1 remains 27/36 completed, nine open; the campaign has
+61 open checkboxes. Splitting tasks is not an overall completion percentage.
+
+Prepared three Nex Pro pairs using the same baseline `14e8c599` and candidate
+`06a17a70` archive snapshots, unchanged retained probe and historical controls.
+Both arms use `openrouter/nex-agi/nex-n2.5-pro:free`; all other settings and
+acceptance gates remain fixed. Runtime Python and every installed package match
+`opposition-runtime.json`. Explicit child environments isolate credentials,
+disable caches/dotenv, and require fresh free eligibility and zero price caps.
+Launcher `/tmp/coscientist-pro35.py` refuses artifact overwrites and stops on
+recorded errors; artifact prefix is `opposition-pro-`. No result is accepted
+merely because a process exits successfully.
+
+Read-only Railway status succeeded: latest deployment IDs
+`a6ddd7f0-3bb5-4ad1-bed8-14809846e88e` and
+`0d49864d-782b-421f-ab8b-02b608a9c5d4` report SUCCESS. No release performed.
+Preserved the concurrent uncommitted AGENTS.md change.
+
+Reproduced pending size-gate failures (pytest exit 1) under the existing baseline
+verification item: function code-line counts arm_identity 63,
+MCPToolClient.initialize 47, elo_concordance_eval.run 43, summarize_usage 43,
+citation_eval.run 41 against 40; test_llm_free_eligibility.py 524 against 500.
+These require behavior-preserving repairs before release, not threshold changes.
+Log: `/tmp/coscientist-cycle35-size.log`. No new acceptance scope or checkboxes.
+
+Independent pre-launch review required binding snapshot contents to commits,
+not merely labeling them. The launcher now verifies every archived Git blob
+against the full pinned revision before inference, and verifies each recorded
+imported module SHA256 against `git show` after each child. Both snapshots passed
+preflight. Pro-specific artifact checker prepared at
+`/tmp/coscientist-compare-pro35.py`; it reads only `opposition-pro-*` and writes
+`opposition-pro-paired-summary.json`, preserving Mini evidence.
+
+Batch launched in unified exec session **50677**, confirmed running baseline
+trial 1. Resume by polling that same handle; never restart on an observation
+timeout. Launcher and snapshots must remain until the batch terminates. No trial
+results yet at this checkpoint; M1-04b1b remains open. After completion, validate
+all six artifacts with the Pro checker, verify unchanged runtime, retain sanitized
+evidence and remove scratch files. If a rate limit parks execution, record the
+actual reset and resume outstanding trials only. No production changes.
