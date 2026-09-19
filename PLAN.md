@@ -1803,3 +1803,15 @@ suite, then freeze a matched evaluation protocol for the updated candidate.
 The original evaluator differs only by extracting its assessor-selection helper;
 compare the actual metric/gate code and declare all source deltas before any
 new live comparison. Do not reuse old live answers as new-arm results.
+
+Cycle 44 final suite result supersedes the running status above: session 93694
+exited 2, with 1843 tests passing and one strict report-output fixture failing.
+That fixture predated cycle 43's intentional legacy-method disclosure. Added
+only the expected `Assessment method: not recorded.` line, preserving the
+full ordered-output assertion. Independent review verified the fixture lacks
+method metadata and the fallback is correct. All 12 report/provenance tests
+now pass; Ruff and diff checks pass. No process remains active. The full app
+command did not exit 0, so retain its actual outcome and run the required
+release gates after subsequent changes rather than claiming a green full run.
+Next prepare matched live qualification from committed source; no inference
+batch has been started for the retrieval candidate.
