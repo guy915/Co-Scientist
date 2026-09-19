@@ -1848,3 +1848,24 @@ artifact, added runner SHA and actual runtime/environment policy, checked the
 frozen executable path, and replaced optimizable assertions with explicit errors.
 Recreated reviewed snapshots and reran both offline panels successfully. Earlier
 45 and 45-final snapshot directories are superseded. No acceptance box changed.
+
+**2026-09-20 — Cycle 46, M1-04b1b live launch preparation.** Previous cycle
+made progress: pinned composite snapshots and retained successful offline
+compatibility evidence. Starting commit9f86b47c. Extended the existing observer
+with transitive source verification before physical calls and after completion,
+actual response usage/identity, runtime and verification-method evidence. New
+runner binds manifest and controls to retained preflight, rechecks every source
+file and frozen runtime, uses pinned zero-cost admission, counterbalances the
+three pairs, and refuses existing trial/catalog/log outputs. Comparator keeps
+prior failed series byte-identical and validates the new composite source,
+usage, historical-control, method and item-level evidence without loosening gates.
+
+Source-guard valid/altered/escaped cases and a fake transport's usage/identity
+capture passed offline. Initial temporary-directory test needed canonicalizing
+macOS's /var alias; production snapshot roots were already canonicalized.
+Independent Terra review found manifest/control binding and log preservation
+holes; fixed both before launch. Ruff and diff checks pass. Current public
+catalog lists Nex Pro :free at zero prompt/completion prices; the pinned engine
+admission contract handles omitted ancillary rates for explicit free routes.
+No product source changed; candidate remains94107aed. New inference series is
+opposition-retrieval-pro. Running-handle/result evidence follows below.

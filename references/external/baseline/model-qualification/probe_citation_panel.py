@@ -9,10 +9,12 @@ import os
 import re
 import time
 import types
+import sys
 from pathlib import Path
 
 import litellm
 from evaluations import citation_eval
+from qualification_sources import imported_sources
 
 _REQUESTS = []
 _ASSESSMENTS = []
@@ -20,6 +22,10 @@ _TRANSPORT = litellm.acompletion
 _LAST_START = 0.0
 _CONTROLLED_PRIMARY = None
 _PHASE = "challenge"
+_SOURCE_MANIFEST = None
+_SOURCE_ROOT = None
+_SOURCE_ARM = None
+_VERIFIED_IMPORTS = {}
 
 
 def digest(path):
@@ -38,6 +44,12 @@ async def observed_transport(**kwargs):
                 )
             ],
         )
+    if _SOURCE_MANIFEST is not None:
+        _VERIFIED_IMPORTS.update(
+            imported_sources(
+                _SOURCE_ROOT, _SOURCE_MANIFEST["arms"][_SOURCE_ARM]["verified_sources"]
+            )
+        )
     await asyncio.sleep(max(0, 4 - (time.monotonic() - _LAST_START)))
     _LAST_START = time.monotonic()
     record = {
@@ -53,6 +65,11 @@ async def observed_transport(**kwargs):
     response = await _TRANSPORT(**kwargs)
     record["response_model"] = getattr(response, "model", None)
     record["content"] = response.choices[0].message.content
+    usage = getattr(response, "usage", None)
+    record["usage"] = (
+        usage.model_dump(mode="json") if hasattr(usage, "model_dump") else usage
+    )
+    record["finish_reason"] = getattr(response.choices[0], "finish_reason", None)
     return response
 
 
@@ -69,6 +86,9 @@ def install_assessment_observer(root):
                 "phase": _PHASE,
                 "claim": claim,
                 "label": result.label.value,
+                "verification_method": getattr(
+                    result, "verification_method", "legacy_unknown"
+                ),
                 "physical_request_indices": list(range(start, len(_REQUESTS))),
                 "supporting_quotes": [s.quote for s in result.supporting_passages],
                 "contradicting_quotes": [
@@ -121,6 +141,9 @@ def historical_controls(dataset):
         {
             "id": item["id"],
             "label": result.label.value,
+            "verification_method": getattr(
+                result, "verification_method", "legacy_unknown"
+            ),
             "passed": result.label.value in item["allowed_labels"],
         }
         for item, result in zip(dataset["items"], results)
@@ -150,6 +173,7 @@ def historical_controls(dataset):
         "id": item["id"],
         "primary_response_controlled": True,
         "label": result.label.value,
+        "verification_method": getattr(result, "verification_method", "legacy_unknown"),
         "passed": result.label.value in item["allowed_labels"],
         "live_verifier_request_indices": list(range(start, len(_REQUESTS))),
         "note": "The primary completion is simulated and excluded from physical_requests. Only listed verifier requests are live.",
@@ -162,12 +186,28 @@ if __name__ == "__main__":
     ).resolve()
     record = {
         "source_commit": os.environ["QUALIFICATION_REVISION"],
+        "runtime": {"executable": sys.executable, "python": sys.version},
         "probe_sha256": digest(Path(__file__)),
         "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "requested_model": os.environ["MODEL_NAME"],
         "trial": int(os.environ["QUALIFICATION_TRIAL"]),
         "minimum_physical_start_spacing_seconds": 4,
     }
+    if os.environ.get("QUALIFICATION_MANIFEST"):
+        manifest_path = Path(os.environ["QUALIFICATION_MANIFEST"])
+        _SOURCE_MANIFEST = json.loads(manifest_path.read_text())
+        _SOURCE_ROOT = root
+        _SOURCE_ARM = os.environ["QUALIFICATION_ARM"]
+        record["source_manifest_sha256"] = digest(manifest_path)
+        record["source_revisions"] = _SOURCE_MANIFEST["arms"][_SOURCE_ARM][
+            "subtree_revisions"
+        ]
+        record["source_guard_sha256"] = digest(
+            Path(__file__).with_name("qualification_sources.py")
+        )
+        record["challenge_sha256"] = digest(
+            root / "evaluations/datasets/citation_entailment_challenge_v1.json"
+        )
     original_factory = citation_eval._build_llm_assessor
 
     def observed_factory():
@@ -206,6 +246,17 @@ if __name__ == "__main__":
             "[redacted-account]",
             str(exc).replace(os.environ["OPENROUTER_API_KEY"], "[redacted]"),
         )[:2000]
+    if _SOURCE_MANIFEST is not None:
+        try:
+            _VERIFIED_IMPORTS.update(
+                imported_sources(
+                    root, _SOURCE_MANIFEST["arms"][_SOURCE_ARM]["verified_sources"]
+                )
+            )
+            record["verified_project_imports"] = _VERIFIED_IMPORTS
+        except Exception as exc:
+            record["error_type"] = type(exc).__name__
+            record["error"] = str(exc)[:2000]
     record["physical_requests"] = _REQUESTS
     record["assessments"] = _ASSESSMENTS
     record["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()

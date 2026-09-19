@@ -1,7 +1,9 @@
 """Validate frozen paired artifacts; never run inference or relax gates."""
 
 import argparse
-import json, sys, hashlib
+import json
+import sys
+import hashlib
 from pathlib import Path
 from datetime import datetime
 
@@ -9,7 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from evaluations.panel_comparison import compare_panels
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--series", choices=("opposition", "opposition-pro"), default="opposition")
+parser.add_argument(
+    "--series",
+    choices=("opposition", "opposition-pro", "opposition-retrieval-pro"),
+    default="opposition",
+)
 series = parser.parse_args().series
 root = Path(__file__).resolve().parent
 summary = {
@@ -19,11 +25,14 @@ summary = {
     "complete": False,
     "accepted": False,
 }
+composite = series == "opposition-retrieval-pro"
+if composite:
+    summary["candidate_commit"] = "94107aedd9c68df9811c69c48b3ac0b7d2ec119f"
+    preflight = json.loads((root / "retrieval-preflight.json").read_text())
+    frozen = preflight["source_manifest"]
 source_snapshots = {}
 for trial in range(1, 4):
-    paths = [
-        root / f"{series}-{arm}-{trial}.json" for arm in ("baseline", "candidate")
-    ]
+    paths = [root / f"{series}-{arm}-{trial}.json" for arm in ("baseline", "candidate")]
     if not all(p.exists() for p in paths):
         break
     b, c = [json.loads(p.read_text()) for p in paths]
@@ -74,10 +83,63 @@ for trial in range(1, 4):
         ],
         "scope": "Single public assessor panel; batch behavior is covered separately by behavioral tests and pending full workflow.",
     }
+    if composite:
+        for arm, data in (("baseline", b), ("candidate", c)):
+            if data["controls_sha256"] != frozen["controls_sha256"]:
+                raise RuntimeError("Historical controls differ from frozen inputs")
+            if (
+                data["requested_model"] != frozen["model"]
+                or data["source_manifest_sha256"] != preflight["source_manifest_sha256"]
+            ):
+                raise RuntimeError("Model or frozen manifest differs")
+            if any(
+                data["runtime"].get(k) != preflight["runtime"][k]
+                for k in ("python", "executable")
+            ):
+                raise RuntimeError("Trial runtime differs")
+            if data["source_revisions"] != frozen["arms"][arm]["subtree_revisions"]:
+                raise RuntimeError("Composite source revisions mismatch")
+            for module, entry in data["verified_project_imports"].items():
+                if (
+                    entry["sha256"]
+                    != frozen["arms"][arm]["verified_sources"][entry["path"]]["sha256"]
+                ):
+                    raise RuntimeError(f"Imported source mismatch: {module}")
+            if not data["verified_project_imports"]:
+                raise RuntimeError("Missing transitive import evidence")
+        source_delta = {
+            "scope": "Composite app/engine candidate; no individual-change causal attribution",
+            "subtree_revisions": {
+                "baseline": b["source_revisions"],
+                "candidate": c["source_revisions"],
+            },
+            "verified_project_import_counts": [
+                len(d["verified_project_imports"]) for d in (b, c)
+            ],
+        }
+        if (
+            b["challenge_sha256"] != c["challenge_sha256"]
+            or b["source_guard_sha256"] != c["source_guard_sha256"]
+        ):
+            raise RuntimeError("Comparison observers or inputs differ")
+        catalog = json.loads((root / f"{series}-catalog-{trial}.json").read_text())
+        if any(
+            d["probe_sha256"] != catalog["execution_sources"]["probe_citation_panel.py"]
+            for d in (b, c)
+        ):
+            raise RuntimeError("Probe differs from frozen batch observer")
     bm, cm = b["report"]["metrics"], c["report"]["metrics"]
     false_positives = []
     for d in (b, c):
         for req in d["physical_requests"]:
+            if composite:
+                usage_record = req.get("usage")
+                if not isinstance(usage_record, dict) or any(
+                    not isinstance(usage_record.get(k), (int, float))
+                    or usage_record[k] < 0
+                    for k in ("prompt_tokens", "completion_tokens", "total_tokens")
+                ):
+                    raise RuntimeError("Missing physical request usage evidence")
             assert req["extra_body"]["provider"]["max_price"] == {
                 "prompt": 0,
                 "completion": 0,
@@ -128,10 +190,16 @@ for trial in range(1, 4):
             )
         except (ValueError, TypeError):
             pass
+    earlier, later = (c, b) if composite and trial == 2 else (b, c)
     assert (
-        datetime.fromisoformat(c["physical_requests"][0]["started_at"])
-        - datetime.fromisoformat(b["physical_requests"][-1]["started_at"])
+        datetime.fromisoformat(later["physical_requests"][0]["started_at"])
+        - datetime.fromisoformat(earlier["physical_requests"][-1]["started_at"])
     ).total_seconds() >= 4
+    if (
+        composite
+        and hybrid.get("verification_method") != "model_opposition_unconfirmed"
+    ):
+        raise RuntimeError("Hybrid did not record a rejected secondary verification")
     criteria = {
         "improved_accuracy": cm["accuracy"] > bm["accuracy"],
         "improved_contradiction_recall": cm["contradiction_recall"]
@@ -147,9 +215,27 @@ for trial in range(1, 4):
             not u["recorded_deterministic_fallbacks"] for u in usage
         ),
     }
+    flips = []
+    if composite:
+        left = [a for a in b["assessments"] if a["phase"] == "challenge"]
+        right = [a for a in c["assessments"] if a["phase"] == "challenge"]
+        if len(left) != len(right) or len(left) != 30:
+            raise RuntimeError("Incomplete item-level assessment evidence")
+        for index, (before, after) in enumerate(zip(left, right)):
+            if before["claim"] != after["claim"]:
+                raise RuntimeError("Assessment inputs differ")
+            if before["label"] != after["label"]:
+                flips.append(
+                    {
+                        "index": index,
+                        "baseline": before["label"],
+                        "candidate": after["label"],
+                    }
+                )
     summary["pairs"].append(
         {
             "trial": trial,
+            **({"item_label_flips": flips} if composite else {}),
             "artifacts": [
                 {"path": p.name, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
                 for p in paths
