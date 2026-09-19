@@ -1620,3 +1620,34 @@ files. Scoped cleanup/deslop found no additional changes or obsolete scratch
 from this repair. Preserve active trial files and the unrelated AGENTS.md edit.
 Next poll 50677 (candidate trial 2), repair the recorded safety-test setup, and
 continue baseline verification. Fresh open-item count remains 61.
+
+### 2026-09-19 — Cycle 40, safety fixture repair; full suite running
+
+Starting commit `56f2aae7`. Previous cycle was progress (complete typecheck gate).
+Resumed session 50677, still running candidate trial 2. Never restarted a trial.
+Reproduced safety escalation failures again: three failed/six passed. These
+fixtures faked completion but relied on a real default free model's catalog
+eligibility, so allow/raise outcomes never reached the fake. Added a module-local
+synthetic explicit free route with a mocked zero-priced text catalog, resetting
+the snapshot while preserving actual request admission. No production policy or
+outcome assertions changed. All nine tests pass after the fixture correction.
+The provider-error test now records physical fake requests and asserts model/
+zero caps outside the fail-closed catch, proving the fake was reached and
+preventing swallowed assertion errors from masquerading as provider failures.
+Positive fake responses also assert model/caps before returning their verdicts.
+
+Independent approach and final reviews found no remaining issues. Targeted
+mypy and Ruff pass. Required `make lint` exited 0 across Python and frontend;
+it introduced no unrelated tracked changes. Started required `make test-all`
+in host-capable unified exec session **18752**, output at
+`/tmp/coscientist-cycle40-test-all.log`. It is still running the engine suite;
+resume that handle before running any other app/engine pytest process. The final
+provider-error assertion relocation and settings import were made during that
+run, so rerun the nine targeted tests after it terminates regardless of whether
+its collection saw the final file. No full-suite pass is claimed yet.
+
+Engine phase completed: 3124 passed, two existing skips in 116.22s. Session
+18752 has advanced to the app phase and remains live. Keep the full baseline
+item open until every required phase/gate holds. Scoped cleanup/deslop retained
+only the fixture fix; no UI changed. Preserve both running processes and their
+scratch. Next poll 18752 and 50677; targeted final fixture rerun remains due.
