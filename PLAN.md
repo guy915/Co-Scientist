@@ -2034,3 +2034,21 @@ No acceptance checkbox completed: wire helper/input hashes/telemetry/comparator
 after91986 terminates, then run the new matched candidate. Current frozen scripts
 remain untouched. No model selected, PR, deployment or production mutation.
 M1 remains31/38 and campaign59 open. User AGENTS.md changes preserved.
+
+**2026-09-20 — Cycle52, second matched pair retained.** Starting7de388e9.
+Previous cycle was progress: reviewed scope evaluator and tests committed.
+Confirmed session91986 live; baseline2 finished and baseline3 started. Existing
+unchanged comparator validates pair2: baseline .433 accuracy/0 recall against
+candidate .867/.90, all seven acceptance predicates true,33 versus45 physical
+requests. Pair1 still fails accuracy; two pairs are incomplete and unaccepted.
+Retained baseline2, pair summary and third fresh catalog, configured secret-value
+scan passed. No observer/runner/source snapshot edits or restarted inference.
+
+Offline prospective scope-control preflight confirms all10 inputs retrieve
+nonempty evidence through both public single and one-claim batch interfaces.
+Retained scope-controls-retrieval-preflight.json explicitly labels simulated
+verdicts and no inference; it proves retrieval admission only, not model quality.
+No checkbox completed and no production changes. Next finish live pair3, then
+wire prospective scope controls into a new frozen matched comparison. Current
+session91986 is the exact live handle; preserve artifacts and do not restart
+on observation silence. M1 remains31/38, campaign59 open.
