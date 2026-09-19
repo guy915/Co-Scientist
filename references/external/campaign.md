@@ -249,3 +249,12 @@ M1-03d4b remains open: validate identity integrity and comparison groups, check
 for runtime configuration drift, allow only declared tier/ablation changes,
 include direct-panel dataset identities, and reject missing/mismatched records
 before accepting a comparison. The presence of a digest alone is not acceptance.
+
+The durable driver now verifies manifest integrity and current persisted
+controls before enqueueing and after the worker returns. It retains the initial
+manifest to reject a replacement even if its digest was recomputed. The checks
+bind the actual stored config, goal and backend to the current model/routing/
+policy environment. A mismatch raises before an arm result is emitted; rerun
+both members of a scientific pair after restoring the intended settings.
+These boundary checks do not prove absence of transient changes between checks.
+Cross-arm and direct-panel matching remain open in M1-03d4b.

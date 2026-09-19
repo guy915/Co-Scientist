@@ -161,6 +161,10 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     from app import store, task_worker
     from co_scientist.offline_llm import install_offline_router
 
+    from evaluations._comparison_identity import validate_stored_arm
+
+    identity = validate_stored_arm(run_id, db_path)
+
     # This driver calls ``run_run_worker_pool`` directly rather than going
     # through the app's lifespan or the standalone ``run_forever`` loop, and
     # neither installs the offline router for it. Idempotent and a harmless
@@ -180,6 +184,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
         )
     )
     elapsed = time.monotonic() - start
+    validate_stored_arm(run_id, db_path, identity)
     return len(store.list_events(run_id, db_path=db_path)), elapsed
 
 

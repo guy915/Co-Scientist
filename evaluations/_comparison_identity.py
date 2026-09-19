@@ -121,3 +121,40 @@ def arm_identity(
     # Snapshot mutable config/routing maps before placing this in run.config.
     frozen: dict[str, Any] = json.loads(json.dumps(manifest))
     return {**frozen, "digest": identity_digest(frozen)}
+
+
+def validate_identity(value: Any) -> dict[str, Any]:
+    """Reject missing, unsupported or altered comparison evidence."""
+    if not isinstance(value, dict) or value.get("version") != 1:
+        raise ValueError("comparison identity is missing or unsupported")
+    contents = {key: item for key, item in value.items() if key != "digest"}
+    if value.get("digest") != identity_digest(contents):
+        raise ValueError(
+            "comparison identity digest does not match its contents"
+        )
+    return value
+
+
+def validate_stored_arm(
+    run_id: str,
+    db_path: str,
+    expected: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Check the stored controls and current process before/after execution."""
+    from app import store
+
+    run = store.get_run(run_id, db_path=db_path)
+    if run is None:
+        raise ValueError("comparison run is missing")
+    identity = validate_identity(run.config.get("evaluation_identity"))
+    if expected is not None and identity != expected:
+        raise ValueError("comparison identity changed during execution")
+    config = {
+        key: value
+        for key, value in run.config.items()
+        if key != "evaluation_identity"
+    }
+    current = arm_identity(run.research_goal, config, str(run.llm_backend))
+    if current != identity:
+        raise ValueError("comparison controls changed; rerun both arms")
+    return identity

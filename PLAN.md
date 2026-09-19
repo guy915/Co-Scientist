@@ -999,3 +999,33 @@ Next M1-03d4b must check manifest integrity, runtime drift and matched groups;
 allow only declared tier/ablation differences; cover direct-panel dataset
 identity and matched retrieval requirements. Missing or mismatched evidence
 must prevent accepted comparisons. Open count: 59; turn limit unchanged.
+
+
+### 2026-09-19 — Cycle 23, M1-03d4b (partial)
+
+Starting commit `3fe71d5f`; prior cycle progressed through committed arm
+identity capture. M1-03d4b remains unchecked: this cycle adds execution-boundary
+drift checks, not cross-arm or direct-panel comparison acceptance.
+
+Failing public-driver tests showed that missing/corrupt identities and changed
+model settings still reached the worker. Added manifest version/digest validation
+before scheduling and after completion. Reconstruction uses actual persisted
+config, goal and backend, not the manifest's own frozen config. An independent
+review caught that self-comparison risk before implementation. Repository search
+confirmed durable execution does not write runtime config annotations: only the
+identity field is excluded, so added/changed execution options cannot hide.
+The original identity is held through execution, rejecting even a resealed
+replacement. Boundary checks cannot detect a transient mutation restored before
+the final check; observed usage remains separate evidence.
+
+Tests exercise missing/corrupt identity and model/config drift before execution;
+model/config/resealed-identity drift after the worker; and unchanged real offline
+scaling/ablation workflows. No scientific decisions or thresholds changed.
+Independent final review found no blocker. Scoped cleanup normalized imports and
+formatting; no UI changes. Type checking of both changed source modules, Ruff
+and diff checks pass. No inference, release or external checkout.
+
+Production state snapshot: `/tmp/coscientist-cycle23-release.json`. Next remains
+M1-03d4b: enforce cross-arm matching with declared tier/ablation differences,
+cover direct-panel dataset identity and matched retrieval requirements, and
+reject missing/mismatched comparison evidence. Open count: 59.
