@@ -145,7 +145,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 
 **Done when:** the existing research flow completes locally and in production using verified free models, required baseline checks pass, zero-cost enforcement covers campaign execution paths, and reproducible baseline artifacts are recorded.
 
-- [ ] Establish campaign records, capture the starting commit and deployment state, and verify access to GitHub, Railway, Vercel, and OpenRouter without exposing credentials.
+- [x] M1-01: Establish campaign records, capture the starting commit and deployment state, and verify access to GitHub, Railway, Vercel, and OpenRouter without exposing credentials.
 - [ ] Reproduce and correct the known disagreement between the live publication gate and release evaluator for speculative contradictions; add a behavioral regression test.
 - [ ] Audit and enforce zero-cost execution across engine calls, streaming app calls, auxiliary models, retrieval, and evaluation runners, including runners that currently load DeepSeek credentials or use paid defaults.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -279,3 +279,11 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 **Cycle entry format**
 
 Date and cycle number; milestone and item IDs; starting and resulting commits; actions and evidence; decisions with alternatives and rationale; architecture changes and connections; PR/deployment identifiers; free-model configuration and rate-limit state; remaining work and next action. Do not put checkboxes in this log.
+
+### 2026-09-19 — Cycle 1, M1 in progress
+
+Started at `927d2bd3` on `feat/external-m01-free-baseline` (preserves the trust-boundary documentation added after plan commit `cd54b76c`). Previous preparation made progress by committing the approved plan; this is execution cycle 1 of 180.
+
+M1-01 complete: created source inventory, campaign procedures and baseline dossier with sanitized access and deployment snapshots under `references/external/`. Ignored sequential work checkouts. GitHub, Railway, Vercel connector and authenticated OpenRouter metadata reads succeeded; API health is healthy. All three services still serve `7dce086d`. No inference or production mutations. Local model settings are paid-route names; production selects a free-suffix model whose current pricing and availability remain unverified. Use Vercel connector reads after CLI token failure; do not interpret platform READY/health as scientific workflow acceptance. Campaign deployment authorization remains in force under the task's precedence over general confirmation guidelines.
+
+Architecture: records now connect the authoritative checklist to source inventory, operational procedures, and dated sanitized deployment evidence. No runtime change yet. Next: M1-02, reproduce evaluator drift and reuse the live claim-role-aware predicate. Independent read-only review supports this approach. Full baseline and zero-cost qualification remain open.
