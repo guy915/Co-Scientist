@@ -107,6 +107,8 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 
 ## Cycle protocol
 
+**Session orchestration decision (2026-09-20):** After M1 is complete and verified, the primary agent switches from implementer to orchestrator using `/Users/guy/.codex/skills/orchestrate/SKILL.md`. Delegate implementation to `gpt-5.6-luna` at `max` effort by default for light work, or `gpt-5.6-sol` at `medium` effort for heavy work. Specify model and effort explicitly on fresh-context dispatches. The coordinator owns scope, acceptance criteria, integration, verification, and the persistent `slice · owner · status · evidence · next` ledger; inspect worker diffs and independently verify results before accepting them. Preserve sequential repository investigation and the concurrency ceiling. This user instruction overrides earlier worker-model defaults; M1 remains under the current implementation approach until verified.
+
 At the start of every turn, read `PLAN.md`, relevant project instructions, and the active dossier. Check the working tree and actual release state before acting.
 
 Take the first unchecked item. Search the current codebase before implementing. Replace oversized implementation items with concrete candidate-ID checkboxes before starting them, preserving scope and acceptance criteria on disk.
@@ -1815,3 +1817,34 @@ command did not exit 0, so retain its actual outcome and run the required
 release gates after subsequent changes rather than claiming a green full run.
 Next prepare matched live qualification from committed source; no inference
 batch has been started for the retrieval candidate.
+
+
+**2026-09-20 — Cycle 45, M1-04b1b preparation (open).** Starting commit
+94107aed. Previous turn made authoritative progress by recording the user's
+post-M1 orchestration instruction; it did not advance scientific acceptance.
+Recorded the independently reviewed composite comparison protocol in
+model-qualification/retrieval-trial-protocol.md. Both arms use the same pinned
+baseline evaluation subtree; app/engine are baseline14e8c599 and candidate94107aed.
+Counterbalanced trial order replaces always-baseline-first; unchanged per-trial
+accuracy/contradiction-recall gates remain mandatory. No new inference ran.
+
+Retained preparation and offline preflight scripts verify the frozen runtime,
+all 1647/1653 source blobs and all 301/302 imported project modules respectively.
+Both offline challenge executions completed with isolated credential-free
+environments; retrieval-preflight.json records results as offline only. Final
+snapshots and full manifest: /tmp/coscientist-retrieval45-reviewed/. The earlier
+/tmp/coscientist-retrieval45/ was superseded after formatting the preparer; use
+the final directory. This is compatibility evidence, not scientific acceptance.
+Ruff and diff checks pass. No running trial, deployment, PR or model selection.
+
+Next extend the existing live observer/comparator with transitive source checks,
+per-request usage and composite identities, then fresh catalog admission and
+three counterbalanced pairs. Preserve prior failed results. M1 remains30/37,
+seven remaining; total59 open. User AGENTS.md changes remain untouched.
+
+Independent preflight review identified ephemeral manifest retention and missing
+runner/runtime provenance. Embedded the entire source manifest in the retained
+artifact, added runner SHA and actual runtime/environment policy, checked the
+frozen executable path, and replaced optimizable assertions with explicit errors.
+Recreated reviewed snapshots and reran both offline panels successfully. Earlier
+45 and 45-final snapshot directories are superseded. No acceptance box changed.
