@@ -159,6 +159,7 @@ async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
         )
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-house-key")
+    monkeypatch.setenv("OPENROUTER_API_BASE", "https://unverified.example/v1")
     monkeypatch.setattr(httpx.AsyncClient, "send", send)
     answer = await call_llm(
         "Price ceiling probe", CompletionSpec(_FREE_MODEL), options=_NO_CACHE

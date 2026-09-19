@@ -31,6 +31,9 @@ from co_scientist.constants import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.llm_call_budget import record_provider_request
+from co_scientist.llm_credentials import current_api_key
+from co_scientist.llm_free_policy import enforce_free_request
 from co_scientist.llm_request_schema import (
     _ANSWER_DISCIPLINE as _ANSWER_DISCIPLINE,
 )
@@ -169,6 +172,8 @@ async def _acompletion_within_timeout(
     Raises:
         LLMTimeoutError: If the call exceeds the configured ceiling.
     """
+    await enforce_free_request(completion_args, byok=bool(current_api_key()))
+    record_provider_request()
     start = time.monotonic()
     try:
         response = await _run_completion(completion_args, model_name)

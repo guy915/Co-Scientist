@@ -33,6 +33,7 @@ from co_scientist.cache import (
 from co_scientist.llm_credentials import (
     scoped_api_key,
 )
+from co_scientist.llm_free_policy import campaign_free_mode
 from co_scientist.llm_request import (
     _clamp_temperature,
     _save_prompt_if_named,
@@ -95,13 +96,20 @@ logger = logging.getLogger(__name__)
 def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
     """Resolves the cache to use for a call, honoring the disable overrides.
 
+    Campaign mode also bypasses cached completions so every evaluation
+    request reaches current-price admission.
+
     NullCache when this call opted out, or the current task's generator was
     constructed with enable_cache=False (see cache.scoped_cache_override) --
     scoped to this task rather than the process-wide get_cache() singleton,
     so it never disables caching for any other concurrently-running
     generator.
     """
-    cache_active = use_cache and cache_enabled_override() is not False
+    cache_active = (
+        use_cache
+        and cache_enabled_override() is not False
+        and not campaign_free_mode()
+    )
     return get_cache() if cache_active else NullCache()
 
 

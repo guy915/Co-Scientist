@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from litellm.exceptions import ContextWindowExceededError
 
 from co_scientist.exceptions import (
+    FreeModelEligibilityError,
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
     LLMTimeoutError,
@@ -352,6 +353,8 @@ async def _handle_json_call_failure(
     Returns:
         An outcome carrying the error, for the retry loop to continue from.
     """
+    if isinstance(error, FreeModelEligibilityError):
+        raise error
     _raise_if_platform_rate_limit_park(error, attempt)
     # This is the one layer that knows whether the failure is terminal, so
     # it is the one that decides the severity: an attempt another attempt

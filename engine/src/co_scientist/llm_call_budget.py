@@ -9,7 +9,7 @@ minutes. This module is the enforcement point *inside* a task: every
 public entry point that actually reaches a provider funnels through
 ``_acompletion_within_timeout`` (``llm_call._call_llm_and_cache`` for
 ``call_llm``/``call_llm_json``, ``llm_tool_iteration`` for the tool-calling
-loop), and each of those calls ``record_provider_request()`` first.
+loop). That shared seam counts only after zero-cost admission succeeds.
 
 The counter is scoped to a run via a ``ContextVar`` rather than threaded
 as an explicit parameter through every retry/escalation call chain --

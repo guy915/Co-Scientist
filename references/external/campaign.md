@@ -57,3 +57,19 @@ reference, not a verified zero-cost rollback target. Establish that target in M1
 Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
+
+### Engine zero-cost admission
+
+Set `COSCIENTIST_REQUIRE_FREE_MODELS=1` for campaign inference processes. This
+forces current-price admission even when a runner explicitly supplies a key;
+it disables the LLM response cache so every campaign completion reaches that
+admission boundary. It does not yet cover direct app completions, retrieval,
+node caches, tools, embeddings or evaluation-runner configuration; M1-03b–d
+must close those paths before a live research experiment.
+
+Outside campaign mode, system `:free` requests still use current-price admission;
+explicit/scoped user BYOK remains separate. Catalog evidence expires after 60
+seconds and cannot be reused on failed refresh. A catalog fetch is not inference
+and can be used to assess availability without spending model credits. A
+`FreeModelEligibilityError` is terminal for that LLM request: change/qualify the
+configuration or wait for metadata availability, never substitute a paid model.

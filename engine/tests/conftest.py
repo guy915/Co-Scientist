@@ -74,3 +74,28 @@ def _patch_mcp_seam(
     reset_mcp_client()
     yield _Fake
     reset_mcp_client()
+
+
+@pytest.fixture(autouse=True)
+def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Synthetic metadata keeps mocked free-model requests hermetic."""
+    from co_scientist import llm_free_catalog
+    from co_scientist.constants_pricing import MODEL_PRICING
+
+    catalog = {
+        model.removeprefix("openrouter/"): {
+            "pricing": {
+                "prompt": str(price.prompt_usd_per_million),
+                "completion": str(price.completion_usd_per_million),
+            },
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        for model, price in MODEL_PRICING.items()
+        if model.startswith("openrouter/")
+    }
+    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: catalog)

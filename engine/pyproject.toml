@@ -32,6 +32,7 @@ dependencies = [
     # with an adapter release that supports the new major.
     "mcp>=1.24.0,<2",
     "litellm~=1.80.16",
+    "httpx~=0.28.1",
     "typing-extensions~=4.15.0",
     "jsonschema~=4.26.0",
     "pyyaml~=6.0.3",

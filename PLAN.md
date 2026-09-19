@@ -148,7 +148,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-01: Establish campaign records, capture the starting commit and deployment state, and verify access to GitHub, Railway, Vercel, and OpenRouter without exposing credentials.
 - [x] M1-02: Reproduce and correct the known disagreement between the live publication gate and release evaluator for speculative contradictions; add a behavioral regression test.
 - [x] M1-03a1: Ensure catalogued zero-token-price OpenRouter routes carry zero prompt, completion and per-request price ceilings through the shared request builder, fallbacks and retries; preserve explicitly paid BYOK routing. Verify through the public LLM request boundary.
-- [ ] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
+- [x] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
 - [ ] M1-03b: Verify and close zero-cost bypasses across streaming app calls, auxiliary models and durable engine tasks using their real request interfaces; reuse shared routing and preserve streaming/reasoning behavior and BYOK isolation.
 - [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
@@ -332,3 +332,55 @@ and release state recorded in cycle 2 otherwise remain unchanged.
 Final fresh-context read-only review found no blocker and confirmed the fixture
 simplification. M1-03a1 is ready for its item commit; M1 remains open. The next
 cycle starts at M1-03a2. Fresh open count: 62; authorized limit: 180 turns.
+
+### 2026-09-19 — Cycle 4, M1-03a2
+
+Previous turn: progress, committed M1-03a1 as `367d8a22`; this cycle began with
+a clean tree. Fresh Railway status still shows API/MCP SUCCESS at `7dce086d`
+with unchanged deployment IDs. No inference, production mutation or PR.
+
+Implemented current-price admission at the shared physical-completion boundary,
+before moving the existing provider counter there from its three callers.
+Exact model/fallback entries are checked against public catalog data cached for
+60 seconds; expired evidence cannot survive refresh failure. Decimal prices,
+text-only request scope and binding zero-price ceilings enforce the selected
+contract. Campaign mode applies even to explicit credentials; ordinary BYOK
+remains separate. No paid substitute is attempted. Declared the already-installed
+httpx 0.28.1 as a direct engine dependency; no environment was synchronized.
+
+Decision: listed :free variants with explicit zero token prices can use the
+provider's documented free-inference contract for omitted ancillary fields;
+other zero-price promotions need explicit ancillary rates. A suffix or missing
+price alone is insufficient. Nonempty conditional schedules are unqualified
+until their applicability can be established; this is not a permanent candidate
+rejection. All selected fallback routes must pass, rather than silently deleting
+unavailable ones. Full policy and source links are in the baseline dossier.
+
+Review uncovered two admission bypasses: old paid BYOK cache entries skipped the
+transport seam, and LiteLLM global aliases/fallbacks could reroute later. Both
+were reproduced before fixing. Chose campaign-only LLM cache disable over a
+second pre-cache admission implementation; ordinary BYOK cache behavior stays
+intact. Rejected SDK routing overrides without modifying shared globals.
+Malformed request/catalog structures now produce terminal policy errors rather
+than retries. The engine test catalog is a synthetic external-boundary fixture;
+it never replaces the policy under test or makes live network calls.
+
+Verification: six initial missing/paid-price cases failed before implementation;
+three cache cases, two SDK-route cases, six malformed-container cases and three
+malformed-modality cases also failed before their corrections. All 429 LLM tests
+passed before the final malformed-structure tightening; all 109 affected policy,
+wire-format, budget, cache and wrapper tests passed afterward. Targeted Ruff
+lint/format and mypy pass; existing LiteLLM Pydantic/shutdown warnings remain
+unsuppressed. Scoped cleanup/simplification reused the shared cache and counter
+instead of adding parallel machinery. No UI changed.
+
+A real credential-free catalog request and the actual admission function found
+447 entries, 22 metadata-qualified routes, and the deployed primary absent.
+Retained sanitized evidence in `openrouter-eligibility-2026-09-19.json`; this is
+metadata evidence, not an inference or capability result. Current production is
+unchanged and M1 is not accepted. Next: M1-03b, wire and verify the same admission
+policy in streaming/auxiliary app paths and durable tasks. Open items: 61;
+authorized turn limit remains 180.
+
+Final independent read-only review found no remaining M1-03a2 blocker after
+confirming the request/cache/SDK protections and strict modality validation.
