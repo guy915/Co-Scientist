@@ -1869,3 +1869,16 @@ catalog lists Nex Pro :free at zero prompt/completion prices; the pinned engine
 admission contract handles omitted ancillary rates for explicit free routes.
 No product source changed; candidate remains94107aed. New inference series is
 opposition-retrieval-pro. Running-handle/result evidence follows below.
+
+Cycle46 launch: instrumentation committed9f7e4708. The sequential six-arm
+batch is LIVE in exec session **91986**, confirmed by a successful poll with
+`Starting baseline trial 1` and live assessor responses in
+/tmp/coscientist-retrieval45-reviewed/baseline-1.log. Resume this exact handle;
+do not relaunch because an artifact has not yet been written. Probe artifacts
+are written only when each child finishes. Runner logs remain in the reviewed
+snapshot directory; retained catalog1 records current zero-price eligibility
+and runner/probe/comparator/source-guard hashes. No trial is yet complete.
+The empty paired-summary artifact is an explicitly incomplete comparator
+preflight result, not a live result. Next poll91986, retain terminal results,
+and run the composite comparator after complete pairs. No deployment occurred.
+M1 remains30/37, seven remaining; campaign59 open.
