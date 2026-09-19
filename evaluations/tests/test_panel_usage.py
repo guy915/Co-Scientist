@@ -71,6 +71,9 @@ with patch.object(httpx, "get", return_value=metadata), \
         with patch.object(elo_concordance_eval, "_load_dataset",
                           return_value=dataset):
             report = elo_concordance_eval.run(use_llm=True)
+assert report["evaluation_identity"]["kind"] == "panel"
+assert report["evaluation_identity"]["model"] == (
+    "openrouter/campaign/primary:free")
 assert report["execution_mode"] == "live_requested"
 evidence = report["usage_evidence"]
 calls = 3 if panel == "citation_failure" else 1
@@ -129,6 +132,8 @@ def test_offline_panels_do_not_claim_live_usage() -> None:
         elo_concordance_eval.run(use_llm=False),
     ]
     for report in reports:
+        assert report["evaluation_identity"]["kind"] == "panel"
+        assert report["evaluation_identity"]["execution_mode"] == "offline"
         assert report["execution_mode"] == "offline"
         assert report["usage_evidence"] is None
     assert all(

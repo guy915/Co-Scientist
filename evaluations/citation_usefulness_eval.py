@@ -197,17 +197,24 @@ def _recall(labelled: list[tuple[str, str, str]], label: str) -> float:
 
 def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     """Score the lexical floor over the panel."""
-    labelled = [
-        (
-            str(item["id"]),
-            str(item["label"]),
-            deterministic_label(str(item["question"]), str(item["span"])),
-        )
-        for item in dataset["items"]
-    ]
+    from evaluations._panel_identity import capture_panel
+
+    with capture_panel(
+        "citation_usefulness",
+        dataset,
+        "deterministic_coverage",
+        live=False,
+    ) as evidence:
+        labelled = [
+            (
+                str(item["id"]),
+                str(item["label"]),
+                deterministic_label(str(item["question"]), str(item["span"])),
+            )
+            for item in dataset["items"]
+        ]
     return {
-        "execution_mode": "offline",
-        "usage_evidence": None,
+        **evidence,
         "judge": "deterministic_coverage",
         "panel": dataset["name"],
         "metrics": score(labelled),
@@ -223,10 +230,12 @@ def run_llm(
 ) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
     from evaluations._live_config import configure_live_environment
-    from evaluations._usage_evidence import capture_usage
+    from evaluations._panel_identity import capture_panel
 
     model = configure_live_environment(model)
-    with capture_usage("citation_usefulness", live=True) as evidence:
+    with capture_panel(
+        "citation_usefulness", dataset, model, live=True
+    ) as evidence:
         labelled = asyncio.run(_judge_all(dataset, model))
     return {
         **evidence,

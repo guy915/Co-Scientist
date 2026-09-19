@@ -1066,3 +1066,39 @@ SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`, snapshot
 
 Next: finish M1-03d4b direct-panel dataset/model identity and comparison checks,
 and define/enforce matching retrieval evidence where required. Open count: 59.
+
+### 2026-09-19 — Cycle 25, M1-03d4b (partial)
+
+Starting commit `28c053f8`. Previous goal work made progress in cross-arm
+validation; the intervening user-facing goal-prompt answer did not change
+execution state. Resumed the existing panel capture changes and confirmed the
+previous test process completed successfully rather than restarting it.
+
+Direct citation, usefulness and Elo reports now freeze ordered datasets,
+requested models, evaluation mode, cache policy, wrapper/request-policy hashes
+and routing before evaluation, with a post-evaluation drift check. Cache use
+is disabled in the panel scope. The new panel comparison CLI rejects missing,
+incomplete, wrong-kind and mismatched identities or inconsistent modes.
+Failing CLI tests preceded implementation, including a resealed incomplete
+manifest regression. Successful validation claims matched declared inputs only;
+scientific acceptance still requires metrics and physical usage/fallback review.
+
+Independent review proposed hashing production assessor/ranking code as an
+identical control. Rejected that option because this code can be the scientific
+candidate itself; source commits are retained with trial records, while evaluator
+rubrics and request policy remain matched controls. This is a local design
+choice, not a claim about Google's implementation.
+
+Panel admission/usage/comparison tests: 17 passed, with synthetic physical
+provider responses only. Strict mypy passes five modules; Ruff and diff checks
+pass. Scoped cleanup reuses the existing canonical manifest validator and usage
+capture, and introduces no dependencies or UI changes. No campaign inference,
+spending, reference checkout or deployment. Railway snapshot
+`/tmp/coscientist-cycle25-release.json` reports latest API/MCP SUCCESS at
+`7dce086dd483831b40a12532a84cf7321f058e52`.
+
+M1-03d4b remains open: define/enforce matched retrieval requirements for whole-run
+comparisons and finish any remaining comparison acceptance gaps. Open count: 59.
+
+Final review found no further correctness blocker. The existing citation,
+usefulness and Elo regressions plus the comparison CLI tests pass (29 tests).

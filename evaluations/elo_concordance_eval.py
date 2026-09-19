@@ -423,22 +423,31 @@ def run(*, use_llm: bool) -> dict[str, Any]:
     live_comparator = _make_llm_comparator() if use_llm else None
     dataset = _load_dataset()
     items = dataset["items"]
-    results = {
-        "correctness_preferring": evaluate_concordance(
-            items, correctness_preferring_comparator, "correctness_preferring"
-        ),
-        "inverting": evaluate_concordance(
-            items, inverting_comparator, "inverting"
-        ),
-        "coin_flip_seed0": evaluate_concordance(
-            items, make_coin_flip_comparator(0), "coin_flip_seed0"
-        ),
-    }
-    from evaluations._usage_evidence import capture_usage
+    from evaluations._panel_identity import capture_panel
 
-    for result in results.values():
-        result["execution_mode"] = "offline"
-    with capture_usage("elo_concordance", live=use_llm) as evidence:
+    model = (
+        live_comparator[1].removeprefix("llm:")
+        if live_comparator
+        else "offline_controls"
+    )
+    with capture_panel(
+        "elo_concordance", dataset, model, live=use_llm
+    ) as evidence:
+        results = {
+            "correctness_preferring": evaluate_concordance(
+                items,
+                correctness_preferring_comparator,
+                "correctness_preferring",
+            ),
+            "inverting": evaluate_concordance(
+                items, inverting_comparator, "inverting"
+            ),
+            "coin_flip_seed0": evaluate_concordance(
+                items, make_coin_flip_comparator(0), "coin_flip_seed0"
+            ),
+        }
+        for result in results.values():
+            result["execution_mode"] = "offline"
         if live_comparator is not None:
             comparator, comparator_id = live_comparator
             results[comparator_id] = evaluate_concordance(

@@ -275,3 +275,21 @@ do not relabel the same goal to inflate independent-goal counts. Earlier records
 without frozen baseline profiles cannot pass this comparison gate and must be
 rerun. The low-level metric functions remain descriptive calculations; campaign
 comparison artifacts go through the validated drivers or artifact CLI.
+
+Direct citation-entailment, citation-usefulness and Elo panels now retain a
+`kind=panel` identity with their full ordered dataset, requested model, mode,
+cache policy, evaluator wrapper and shared request-policy hashes, and routing.
+The runner freezes these before evaluation and checks again afterward; caches
+are disabled for the scope. Compare retained reports with
+`python -m evaluations.panel_comparison BASELINE.json CANDIDATE.json`.
+Missing, incomplete or mismatched identities and inconsistent execution modes
+are rejected. Its success means matched declared inputs, not scientific
+acceptance or a successful live provider call. Inspect usage/fallback evidence
+and the declared primary/non-regression metrics separately.
+
+Production assessor/ranking implementation may differ as the candidate under
+evaluation; retain both source commits with the trial records. Evaluation
+rubrics and model request policies must remain fixed. Changing those requires
+rerunning both sides. Panel inputs include supplied passages, so comparison
+matches that evidence exactly; matching retrieval for whole research runs
+remains open under M1-03d4b.
