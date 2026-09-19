@@ -1,0 +1,110 @@
+{
+  "name": "prospective_partial_support_scope_controls",
+  "version": 1,
+  "classification": "local design choice",
+  "purpose": "Prospective synthetic non-regression controls for the primary prompt correction; not a blind held-out benchmark or expert-adjudicated scientific truth. Frozen before any live call on these inputs. Existing 30-item challenge and historical controls remain unchanged.",
+  "acceptance": "Every control must receive an allowed label in each fresh candidate trial, with located quotes for supports/partial/contradicts, same frozen model and zero-cost routing. Preserve baseline outcomes; improvement remains measured on the existing challenge.",
+  "items": [
+    {
+      "id": "same_scope_part_of_result",
+      "claim": "In adult human hepatocytes, compound R reduces lipid accumulation and restores insulin sensitivity after seven days.",
+      "passages": [
+        "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured."
+      ],
+      "allowed_labels": [
+        "partial"
+      ]
+    },
+    {
+      "id": "same_scope_unspecified_magnitude",
+      "claim": "Treatment S completely stops migration of human fibroblasts during a 24-hour assay.",
+      "passages": [
+        "Treatment S reduced migration of human fibroblasts during a 24-hour assay; the magnitude of reduction was not reported."
+      ],
+      "allowed_labels": [
+        "partial"
+      ]
+    },
+    {
+      "id": "broad_claim_no_invented_species",
+      "claim": "Compound R can reduce lipid accumulation in cultured cells.",
+      "passages": [
+        "Compound R reduced lipid accumulation in cultured rat hepatocytes."
+      ],
+      "allowed_labels": [
+        "supports",
+        "partial"
+      ]
+    },
+    {
+      "id": "matching_scope_full_support",
+      "claim": "Treatment S reduces migration of adult human fibroblasts after 24 hours.",
+      "passages": [
+        "Adult human fibroblasts migrated less after 24 hours of treatment S."
+      ],
+      "allowed_labels": [
+        "supports"
+      ]
+    },
+    {
+      "id": "changed_population",
+      "claim": "Intervention L lowers blood pressure in adults with chronic kidney disease.",
+      "passages": [
+        "Intervention L lowered blood pressure in healthy adults; people with chronic kidney disease were excluded."
+      ],
+      "allowed_labels": [
+        "insufficient"
+      ]
+    },
+    {
+      "id": "changed_model",
+      "claim": "Compound R reduces lipid accumulation in primary human hepatocytes.",
+      "passages": [
+        "Compound R reduced lipid accumulation in rat hepatocytes; no human hepatocytes were tested."
+      ],
+      "allowed_labels": [
+        "insufficient"
+      ]
+    },
+    {
+      "id": "changed_endpoint",
+      "claim": "Intervention L reduces stroke incidence over two years in hypertensive adults.",
+      "passages": [
+        "In hypertensive adults followed for two years, intervention L lowered systolic blood pressure; stroke incidence was not measured."
+      ],
+      "allowed_labels": [
+        "insufficient"
+      ]
+    },
+    {
+      "id": "changed_followup",
+      "claim": "Treatment S suppresses fibroblast migration for fourteen days.",
+      "passages": [
+        "Treatment S suppressed fibroblast migration at six hours; no later measurements were collected."
+      ],
+      "allowed_labels": [
+        "insufficient"
+      ]
+    },
+    {
+      "id": "changed_dose",
+      "claim": "Compound R reduces lipid accumulation at 1 micromolar in human hepatocytes.",
+      "passages": [
+        "Compound R reduced lipid accumulation in human hepatocytes at 100 micromolar; 1 micromolar was not tested."
+      ],
+      "allowed_labels": [
+        "insufficient"
+      ]
+    },
+    {
+      "id": "matching_scope_contradiction",
+      "claim": "Treatment S increases migration of adult human fibroblasts after 24 hours.",
+      "passages": [
+        "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration."
+      ],
+      "allowed_labels": [
+        "contradicts"
+      ]
+    }
+  ]
+}

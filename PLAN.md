@@ -175,6 +175,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
 - [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
 - [x] M1-04b1b-r1: Correct the demonstrated short-identifier retrieval omission with a bounded, retrieval-only candidate; verify unseen identifier/paraphrase examples, unrelated-stopword exclusion, unchanged deterministic verdict thresholds, and freshness tracking. Treat scientific adoption as pending the matched live qualification item below.
+- [ ] M1-04b1b-s1: Clarify the primary single/batch partial-support contract for claim-defining scope without schema or runtime-gate changes; preserve same-scope partial support and broad claims through dedicated controls, then verify a fresh matched live candidate. Existing mismatch failures are the red behavioral evidence; prompt edits alone do not complete this item.
 - [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
@@ -1972,3 +1973,41 @@ its recorded reasoning-budget exhaustion entered the existing raised-budget
 retry, not a restarted experiment. Poll91986 next and run the paired comparator
 when a pair completes. No other test process remains live. M1 remains31/37,
 six remaining;58 campaign items open. No scientific adoption claimed.
+
+**2026-09-20 — Cycle50, failed live pair and scope candidate (open).** Previous
+cycle progressed by completing full/browser verification and recording current
+production invariants. Startingf3b1166a. Resumed91986: retrieval-candidate1
+finished22/30=.733 accuracy and.90 contradiction recall,46 physical requests.
+Paired baseline was.433/0. Comparator verified improved metrics, historical
+controls, live secondary-verifier negative control, no new false contradictions
+and no recorded deterministic fallback, but the unchanged.75 accuracy gate
+failed. Retained candidate1, pair1 summary and catalog2, with secret-value scan.
+Batch91986 continues unchanged on candidate2 (counterbalanced order); still
+incomplete and not accepted. Do not stop/restart or modify its shared observers.
+
+Seven primary-model errors label species/time/endpoint mismatches PARTIAL;
+the remaining error is the existing contradiction subject-coverage guard.
+All six support paraphrases now succeed. Independent review traced the seven
+to instructions explicitly permitting adjacent findings/narrower conditions.
+Added concrete open itemM1-04b1b-s1 and implemented a prompt-only candidate in
+both single/batch assessors: partial must address a component/result within the
+claim's explicit scope, without inventing absent restrictions. Four labels,
+quote validation, contradiction guard, budgets and publication gates unchanged.
+This is a local design choice, not Google-backed private implementation evidence.
+
+Prospective synthetic scope controls protect same-scope partial, broad claims,
+full support and same-scope contradiction against overcorrection, alongside
+population/model/dose/time/endpoint negatives. They are not blind hold-outs or
+expert scientific judgments.59 targeted public-assessor/provenance/gate tests
+passed after final edit; Ruff/diff passed. No live call used the new prompts.
+Independent final review approved the prompt/control semantics but requires
+wiring scope-control hashes, per-item/quote evidence and comparator gates before
+future trial launch. That wiring is intentionally pending while the existing
+runner remains active; candidate item stays unchecked. Prior full-suite green
+results apply to pre-prompt source3bbb65d4, not a release claim for this candidate.
+
+Next poll91986 and retain remaining unchanged pairs. After terminal completion,
+extend the retained probe/runner/comparator for the prospective scope controls,
+freeze new sources and run fresh matched trials. Do not reuse old answers as
+new-arm results. M1 is31/38 (seven remaining); campaign59 open. No deployment,
+model selection or scientific adoption. Unrelated AGENTS.md edit preserved.
