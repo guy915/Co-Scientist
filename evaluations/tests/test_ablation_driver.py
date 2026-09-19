@@ -87,6 +87,12 @@ def test_offline_ablation_sweep_pairs_every_goal_across_arms() -> None:
     summary = report["summary"]
     assert summary["paired_goal_count"] == 1
     assert set(summary["arms"]) == set(_ARMS)
+    by_run = {arm["run_id"]: arm for arm in report["driven"]}
+    for record in report["records"]:
+        assert (
+            record["evaluation_identity"]
+            == (by_run[record["run_id"]]["evaluation_identity"])
+        )
 
 
 def test_ablation_records_carry_real_floats_ablation_summary_requires() -> None:

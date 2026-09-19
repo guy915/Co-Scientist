@@ -92,6 +92,7 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         "run_id": arm["run_id"],
+        "evaluation_identity": arm.get("evaluation_identity"),
         "goal_id": _GOAL_ID,
         "metrics": arm["metrics"],
         "hypotheses": arm["hypotheses"],

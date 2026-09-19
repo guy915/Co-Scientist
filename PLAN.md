@@ -167,7 +167,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d3b2a: Retain raw model telemetry and explicit unknown-cost/observed-model summaries in durable scaling, ablation, claim-support and golden artifacts without mistaking old zero estimates for verified costs.
 - [x] M1-03d3b2b1: Capture direct citation/usefulness/Elo panel telemetry and explicit requested-live/offline modes; verify successful panel responses and observed usage through their public interfaces.
 - [x] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
-- [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
+- [x] M1-03d4a: Persist reproducible per-arm identities for exact public inputs, resolved configuration, model roles, fallback/request policies and disabled response caches; retain them in comparison artifacts.
+- [ ] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [ ] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
@@ -961,3 +962,40 @@ hypothesis_screening.py, outside changed modules; baseline repair remains open.
 Ruff and diff checks pass. Production state snapshot retained at
 `/tmp/coscientist-cycle21-release.json`; no deployment performed. M1 acceptance
 remains open. Next: M1-03d4, matched comparison identities. Open count: 59.
+
+
+### 2026-09-19 — Cycle 22, M1-03d4a
+
+Starting commit `933e459e`; preceding cycle made progress by committing fallback
+disclosure. Split M1-03d4 into persistent identity capture and comparison
+validation before implementation; no acceptance requirement removed.
+
+Failing persisted-run and scaling-artifact tests reproduced absent frozen input
+identities. Added one canonical manifest at persist_arm_run, shared by scaling,
+ablation and claim-support. It contains exact goal identity, resolved config,
+declared backend, configured model roles, production-rendered routing and
+ordered fallbacks, request/reasoning policy source identities, selected process
+flags and hashed tool settings. Deep-copied before attaching to run.config to
+avoid circular/mutable records. Existing artifact provenance remains the source
+for revision and prompt identities; observed models remain usage evidence.
+
+Disabled response caching at comparison setup and scoped arm execution rather
+than switching per-arm directories against a memoized singleton. Capture
+rejects enabled caches. Tests verify stable repeated inputs, changed goals,
+changed primary model and changed fallback list, rejection of enabled cache,
+and persistence through real offline durable runs and artifact shaping.
+Legacy scoring preserves missing identity as null. This does not prove matched
+retrieval or comparable scientific results.
+
+Independent approach/final review found no capture blocker. Scoped cleanup
+corrected cache documentation and preserved score_run's missing-run behavior.
+All targeted identity, scaling, ablation, environment, usage and claim-support
+suites pass; strict mypy passes six changed source modules, Ruff/diff checks pass.
+No live inference, external checkout, release or UI change. Production API/MCP
+remain SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52` (snapshot
+`/tmp/coscientist-cycle22-release.json`).
+
+Next M1-03d4b must check manifest integrity, runtime drift and matched groups;
+allow only declared tier/ablation differences; cover direct-panel dataset
+identity and matched retrieval requirements. Missing or mismatched evidence
+must prevent accepted comparisons. Open count: 59; turn limit unchanged.

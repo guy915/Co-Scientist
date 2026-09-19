@@ -78,6 +78,7 @@ def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
     metrics = snapshot.get("metrics") or {}
     return {
         "run_id": snapshot.get("run_id"),
+        "evaluation_identity": snapshot.get("evaluation_identity"),
         "goal_id": snapshot.get("goal_id"),
         "compute": {
             "llm_calls": int(metrics.get("llm_calls", 0)),

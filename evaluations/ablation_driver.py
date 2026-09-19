@@ -194,6 +194,7 @@ def _arm_record(
         "goal_id": goal_id,
         "arm": arm_name,
         "run_id": arm["run_id"],
+        "evaluation_identity": arm.get("evaluation_identity"),
         "completed": arm["completed"],
         # No expert panel; ablation_summary treats a missing quality score
         # as an omission, never as a zero.

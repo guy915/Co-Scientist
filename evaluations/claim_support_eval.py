@@ -109,6 +109,9 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "configured_backend": run.llm_backend if run is not None else None,
+        "evaluation_identity": (
+            run.config.get("evaluation_identity") if run is not None else None
+        ),
         "usage_evidence": summarize_usage(metrics.get("model_usage") or {}),
         **score_claims(hypotheses_with_claim_counts(hyps, edges)),
     }
@@ -138,6 +141,7 @@ def drive_and_score(
         "run_id": arm["run_id"],
         "completed": arm["completed"],
         "used_real_backend": arm["used_real_backend"],
+        "evaluation_identity": arm.get("evaluation_identity"),
         "usage_evidence": arm["metrics"]["usage_evidence"],
         **score_claims(arm["hypotheses"]),
     }

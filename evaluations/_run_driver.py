@@ -39,10 +39,9 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     """Set process env for one controlled-experiment invocation.
 
     Must run before any ``app``/``co_scientist`` import loads settings. A
-    fresh cache directory isolates this invocation's LLM response cache: a
-    later arm cache-hitting an earlier arm's identical call would silently
-    corrupt the cost/latency/llm_calls numbers these drivers exist to
-    measure, and caching is on by default.
+    disabled response cache prevents a later arm from reusing an earlier
+    arm's calls. The directory remains isolated for other cache artifacts.
+    run_arm also scopes caching off to cover an already-created singleton.
 
     An offline invocation forces ``COSCIENTIST_FORCE_OFFLINE=1`` rather than
     merely omitting the provider key. The per-run ``llm_backend="offline"``
@@ -60,6 +59,7 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     """
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+    os.environ["COSCIENTIST_CACHE_ENABLED"] = "0"
     if not live:
         os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
         # Forcing the flag is necessary but was not sufficient: it only
@@ -128,6 +128,11 @@ def persist_arm_run(
             "tier": tier,
             **overrides,
         }
+    )
+    from evaluations._comparison_identity import arm_identity
+
+    config["evaluation_identity"] = arm_identity(
+        goal, config, invocation.backend
     )
     run = store.create_run(
         goal,
@@ -291,7 +296,10 @@ def run_arm(
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)
-    events, elapsed = drive_arm_run(run_id, db_path)
+    from co_scientist.cache import scoped_cache_override
+
+    with scoped_cache_override(False):
+        events, elapsed = drive_arm_run(run_id, db_path)
     run = store.get_run(run_id, db_path=db_path)
     completed, real_backend = run_completion_status(run)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
@@ -299,6 +307,7 @@ def run_arm(
     tasks_count = len(store.list_tasks(run_id, db_path=db_path))
     return {
         "run_id": run_id,
+        "evaluation_identity": run.config["evaluation_identity"],
         "tier": tier,
         "overrides": overrides,
         "completed": completed,

@@ -224,3 +224,28 @@ legacy records or other uninstrumented mechanisms. Inspect judgment provenance
 and raw artifacts when accepting scientific results; never label a whole run
 pure-model solely because this map is empty. This instrumentation does not alter
 claim verdicts, ranking winners, safety gates or their acceptance thresholds.
+
+### Controlled arm identities
+
+Scaling, ablation and claim-support arms retain `evaluation_identity` in the
+persisted run configuration and exported artifacts. Version 1 records the exact
+goal hash, resolved run configuration, declared backend, configured model roles,
+production-built gateway routing (including ordered fallbacks and reasoning
+modes), request-policy source hashes, tool configuration identity and selected
+execution flags. Canonical JSON supplies its digest. Credentials are not part
+of the record; tool paths/endpoints and local tool-file contents are hashed.
+
+These are declared inputs, not observed serving or retrieval results. Model
+responses remain in usage evidence; retrieved material must be retained or
+replayed separately when matching evidence is part of the experiment. The
+existing artifact provenance retains revision and prompt-template identity.
+
+Comparison drivers disable response caching before imports and scope caching
+off during arm execution, covering an existing cache singleton as well. Identity
+capture rejects an enabled-cache configuration. Missing legacy identities remain
+null when scoring old runs; they are not reconstructed after execution.
+
+M1-03d4b remains open: validate identity integrity and comparison groups, check
+for runtime configuration drift, allow only declared tier/ablation changes,
+include direct-panel dataset identities, and reject missing/mismatched records
+before accepting a comparison. The presence of a digest alone is not acceptance.
