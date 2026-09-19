@@ -54,3 +54,11 @@ full multi-claim behavior remains a workflow check. Original baseline provenance
 is legacy-unknown: preserve that observation rather than manufacturing a model
 method; candidate all-pass gating and physical telemetry remain separate checks.
 Manifest, observer and comparator integration is still pending batch completion.
+
+The prospective `evaluate_model_scope_controls` wrapper now calls both real
+assessor factories with separate completed usage captures. Before launch, the
+comparator must require both mode keys, every individual candidate check, physical
+calls with matching served model and usage, and zero deterministic fallbacks.
+`live=True` alone is not evidence of inference. Capture identity fingerprints
+existing evaluator/request policies; bind the helper and control hashes as well.
+Independent review approved this wrapper with those caller gates still pending.

@@ -2086,3 +2086,20 @@ its shared scripts. Pair1 remains failed; no scientific acceptance inferred
 from green software tests. Next finish candidate3 and comparator, then integrate
 scope controls and freeze the new prompt candidate for fresh matched trials.
 M1 remains31/38 and59 campaign items open. No deployment or model selection.
+
+**2026-09-20 — Cycle55, scope-panel integration prepared.** Startingac62456d.
+Previous cycle progressed full verification and third baseline evidence.
+Confirmed91986 still live on candidate3; no frozen shared script edits. Added
+prospective evaluate_model_scope_controls to the separate scope helper: lazy
+real single/batch factories, separate existing capture_panel usage scopes,
+results assembled after capture completion. Regression failed before wrapper
+existed;11 tests now pass, Ruff/diff pass. No inference in these tests.
+
+Independent review found no wrapper blocker, reiterated caller-owned acceptance:
+require both mode keys/all individual controls, physical model/usage evidence,
+zero fallback, and helper/control/source hashes. Single-claim batch limitation
+remains explicit. Added these requirements to partial-support-candidate.md.
+Do not mistake live_requested or a method string for verified physical inference.
+Next retain terminal candidate3 and full comparator; then wire this wrapper into
+the probe/manifest/comparator and launch new frozen prompt trials. No checkbox
+completed, model selection or deployment. M1 remains31/38; campaign59 open.

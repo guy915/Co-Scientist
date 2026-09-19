@@ -115,3 +115,37 @@ def test_unproven_provenance_cannot_pass(method):
         )
 
     assert not evaluate_scope_controls(DATASET, unproven, "test")["passed"]
+
+
+def test_model_scope_panels_use_both_factories_and_completed_capture(monkeypatch):
+    from contextlib import contextmanager
+    from app import claim_verifier, claim_verifier_batch
+    from evaluations import _panel_identity
+    from scope_controls import evaluate_model_scope_controls
+
+    factories = []
+
+    def single(model):
+        factories.append(("single", model))
+        return judge, "test-single"
+
+    def batch(model):
+        factories.append(("batch", model))
+        return lambda claims, passages: [judge(claims[0], passages)], "test-batch"
+
+    @contextmanager
+    def capture(panel, dataset, model, *, live):
+        assert panel == "citation_entailment"
+        assert dataset == DATASET
+        assert live
+        evidence = {"model": model}
+        yield evidence
+        evidence["capture_completed"] = True
+
+    monkeypatch.setattr(claim_verifier, "make_llm_assessor", single)
+    monkeypatch.setattr(claim_verifier_batch, "make_llm_batch_assessor", batch)
+    monkeypatch.setattr(_panel_identity, "capture_panel", capture)
+    results = evaluate_model_scope_controls(DATASET, "test-model")
+    assert factories == [("single", "test-model"), ("batch", "test-model")]
+    assert set(results) == {"single", "batch_single_claim"}
+    assert all(r["passed"] and r["capture_completed"] for r in results.values())

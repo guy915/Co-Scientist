@@ -87,3 +87,26 @@ def evaluate_scope_controls(dataset, assessor, assessor_id, *, batch=False):
         "passed": all(c["passed"] for c in checks),
         "limitation": "Batch controls preserve evidence isolation using one claim per call; multi-claim behavior requires separate workflow verification.",
     }
+
+
+def evaluate_model_scope_controls(dataset, model):
+    """Run both real assessor paths after the caller configures free admission.
+
+    Capture usage separately for each interface. The caller still binds helper
+    and input hashes, observes physical requests, and verifies model identity.
+    """
+    from app.claim_verifier import make_llm_assessor
+    from app.claim_verifier_batch import make_llm_batch_assessor
+    from evaluations._panel_identity import capture_panel
+
+    results = {}
+    for batch, factory in ((False, make_llm_assessor), (True, make_llm_batch_assessor)):
+        assessor, assessor_id = factory(model)
+        with capture_panel(
+            "citation_entailment", dataset, model, live=True
+        ) as evidence:
+            result = evaluate_scope_controls(
+                dataset, assessor, assessor_id, batch=batch
+            )
+        results[result["mode"]] = {**evidence, **result}
+    return results
