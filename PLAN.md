@@ -2209,3 +2209,15 @@ not failed/cancelled; no substantive security coverage claimed. Recover this
 same scan before release, never create a replacement. This scan-specific setup
 issue does not stop live scientific qualification or establish campaign blockage.
 Next poll41647 and retain candidate1. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle62, preflight diagnosis and verified live wait.**
+Starting7f151962. Previous cycle established scan setup failure. Read-only
+inspection confirms helper error source: /Users/guy/.codex/config.toml has
+features.multi_agent_v2=true (line41) and agents.max_threads=6 (line562).
+The helper rejects that combination at config_preflight.py:542 before returning
+capability results or concrete remediation. No configuration edits or fabricated
+runtime overrides; existing scan remains recoverable in preflight. This is host
+setup evidence, not a product vulnerability or completed security review.
+Session41647 repeatedly confirmed live on candidate1; no terminal artifact,
+restart, source changes or new inference batch. Next collect candidate1 and
+compare the pair. M1 remains31/38;59 open items.
