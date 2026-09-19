@@ -1,0 +1,13 @@
+{
+  "purpose": "Synthetic local WAL backup and additive migration drill; not a production backup or full old-application compatibility proof",
+  "inference_performed": false,
+  "private_data_used": false,
+  "wal_committed_row_captured": true,
+  "backup_quick_check": "ok",
+  "backup_sha256": "9ce73d2d4b63c0dff7494ca1a9d01afeb4fb345e21e6dbc55f265e8f651a2f0e",
+  "migration_idempotent": true,
+  "legacy_default": "legacy_unknown",
+  "old_named_column_insert_works": true,
+  "backup_preserves_pre_migration_schema": true,
+  "temporary_databases_removed": true
+}

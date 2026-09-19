@@ -333,3 +333,28 @@ full workflow checks remain separate release requirements.
 requires the same paired identity and retrieval procedure before its output can
 support a baseline/candidate acceptance decision. Offline results test contracts;
 they do not establish improved live scientific quality.
+
+### M1 database release preparation
+
+The campaign adds only `claim_evidence.verification_method`, a non-null text
+column defaulting to `legacy_unknown`. Existing rows are not scientifically
+reclassified. The migration is idempotent; old named-column inserts receive the
+default. Existing public-store migration coverage is in
+`app/tests/test_claim_verification_provenance.py`. The synthetic local WAL drill
+in `baseline/backup-readiness-cycle58.json` is preparation, not production proof.
+
+Before merging to the auto-deployed production branch, create a consistent
+backup using SQLite's online backup API from a separate read-only connection;
+do not copy just the main DB file while WAL is active. Use the existing approved
+storage location only after checking available capacity, and never emit private
+rows into logs or campaign artifacts. Verify the completed backup with
+`PRAGMA quick_check`, record its timestamp, size, hash and secure location, and
+retain the pre-migration schema identity. Do not run VACUUM or a forced checkpoint
+in the serving process. If consistent backup verification fails, keep release open.
+
+The additive column normally remains during application rollback; do not drop it
+or restore an older data snapshot merely to roll back code. Restoring data would
+lose writes made after the backup and requires a separately justified recovery.
+Before release, identify an audited zero-cost recovery code/configuration target;
+the pre-campaign production commit is not automatically such a target. Actual
+backup, deployed migration, recovery configuration and smoke evidence remain pending.

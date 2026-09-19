@@ -2153,3 +2153,24 @@ confirmed live and started baseline1 after fresh catalog admission. Catalog1
 retained. Freeze observer/helper/comparator/runner and scope inputs until this
 six-arm batch is terminal. Logs under /private/tmp/coscientist-scope57-reviewed/.
 Do not restart on silence; poll41647. Old session91986 is terminal, not resumable.
+
+**2026-09-20 — Cycle58, migration release readiness while live trials run.**
+Starting619fdb71; previous cycle progressed integrated/frozen live launch.
+Polled41647, confirmed still live on baseline1. Shared qualification code and
+inputs remain unchanged. Independent read-only review found no code-level
+blocker in the sole persistent change: additive claim_evidence.verification_method
+with legacy_unknown default, idempotent migration and old named-column inserts
+compatible. Existing real-store tests cover migration/reopen/report provenance.
+
+Ran a synthetic local WAL backup drill using SQLite online backup from a read-only
+connection. Committed WAL row captured; backup quick_check ok; migration twice
+preserved row/default; old named-column insert worked; backup retained old schema.
+Temporary synthetic DBs removed. Retained backup-readiness-cycle58.json, explicitly
+not a production backup or full old-application compatibility proof. Expanded
+campaign release procedures: verify consistent backup before auto-deploying merge,
+check existing storage capacity, retain only non-private metadata, avoid serving
+VACUUM, preserve additive column on code rollback, and prepare a genuinely free
+recovery code/config target. Actual production backup/rollback evidence stays open.
+
+No code or inference changes, no deployment, no checklist completion. Next poll
+41647 and retain scope-arm evidence when terminal. M1 remains31/38;59 open items.
