@@ -89,9 +89,9 @@ async def _stream_completion(
     Yields:
         Non-empty ``(kind, fragment)`` pairs, in the order they arrive.
     """
-    import litellm
+    from app import llm_request
 
-    response = await litellm.acompletion(**request)
+    response = await llm_request.acompletion(**request)
     async for chunk in stream_chunks(
         response,
         stall_seconds=_QA_STALL_SECONDS,

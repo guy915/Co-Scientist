@@ -155,14 +155,14 @@ async def _run_interview_completion(
         thinking-only turn from one that simply answered with nothing to
         say.
     """
-    import litellm
+    from app import llm_request
 
     thinking_kwargs = (
         deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
         if thinking_enabled
         else thinking_off_kwargs(model)
     )
-    response = await litellm.acompletion(
+    response = await llm_request.acompletion(
         model=model,
         messages=messages,
         temperature=0.3,

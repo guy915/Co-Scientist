@@ -173,3 +173,35 @@ malformed-container/modality corrections, the five affected policy, wire,
 budget and wrapper files passed 109 checks. Targeted Ruff lint/format and mypy
 passed. Existing SDK warnings remain unsuppressed. `httpx~=0.28.1` now declares
 the installed transport dependency directly; no package installation occurred.
+
+## M1-03b1 — app completion admission
+
+Classification: local design choice; independently implemented using the existing
+engine policy. The app's interview, Q&A, start announcement, title, goal
+restatement and credential-validation calls previously bypassed that policy.
+Six failing request-boundary tests reproduced paid campaign calls reaching the
+transport. They now use `app.llm_request.acompletion`, which applies offline and
+free-model admission before returning the original completion or stream.
+Credential validation scopes its supplied credential using the existing context
+manager; the shared wrapper has no separate BYOK override. Review reproduced an
+unscoped override bypass before its removal. User BYOK outside campaign mode
+retains its behavior; campaign mode still applies to it.
+
+Boundary evidence is offline, with synthetic catalog data and captured provider
+requests. It covers all six paths, zero ceilings, paid rejection, BYOK isolation,
+streamed reasoning/prose, Q&A's second tool-result request, re-admission after a
+reasoning-only interview answer and catalog expiry, and forced-offline behavior.
+No inference, production mutation, or capability claim is implied. Durable tasks,
+node caches and auxiliary engine calls remain M1-03b2.
+
+App typechecking currently reports 21 errors in three unchanged safety modules
+(`human_input`, `hypothesis_screening`, `runs_contrib`) concerning the
+`HypothesisSafetyReview` alias. These are an unresolved baseline/release check,
+not a passing typecheck. The baseline verification item must resolve them.
+
+Final verification: 103 tests passed across `test_free_model_requests`,
+`test_interviews_model`, `test_qa_stream_effort`, `test_qa_ideas`,
+`test_run_start_announcement`, `test_title_gen`, `test_goal_restatement`,
+`test_credentials`, `test_byok_flow`, and `test_forced_offline_no_outbound`.
+Ruff lint/format and diff checks pass; six existing dependency warnings remain.
+Independent final review found no remaining app-admission blocker.

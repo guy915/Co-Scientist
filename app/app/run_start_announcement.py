@@ -130,7 +130,7 @@ async def _stream_model_fragments(
             is the same branch an absent or failing provider takes -- the
             caller answers all three with the deterministic announcement.
     """
-    import litellm
+    from app import llm_request
 
     # Refuse before the request is shaped, not after: the prompt carries the
     # scientist's research goal verbatim.
@@ -143,7 +143,7 @@ async def _stream_model_fragments(
         if thinking_enabled
         else thinking_off_kwargs(model)
     )
-    response = await litellm.acompletion(
+    response = await llm_request.acompletion(
         model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},

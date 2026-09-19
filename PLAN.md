@@ -149,7 +149,8 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-02: Reproduce and correct the known disagreement between the live publication gate and release evaluator for speculative contradictions; add a behavioral regression test.
 - [x] M1-03a1: Ensure catalogued zero-token-price OpenRouter routes carry zero prompt, completion and per-request price ceilings through the shared request builder, fallbacks and retries; preserve explicitly paid BYOK routing. Verify through the public LLM request boundary.
 - [x] M1-03a2: Enforce fresh verified zero-cost eligibility at the shared LLM boundary, including unknown models, retries and fallbacks; preserve explicit BYOK. Reject paid/unknown/unverifiable campaign routes before transport, block charged add-ons, and verify eligible requests carry binding zero-price constraints. The static cap in M1-03a1 alone does not establish current free eligibility.
-- [ ] M1-03b: Verify and close zero-cost bypasses across streaming app calls, auxiliary models and durable engine tasks using their real request interfaces; reuse shared routing and preserve streaming/reasoning behavior and BYOK isolation.
+- [x] M1-03b1: Enforce shared zero-cost admission on app interview, Q&A, announcement, title and restatement completions and credential probes; verify outgoing requests, streaming/reasoning preservation and explicit BYOK isolation.
+- [ ] M1-03b2: Verify zero-cost admission and credential isolation through durable task execution/recovery and auxiliary engine calls, including node-cache behavior; correct any bypass while preserving task lifecycle semantics.
 - [ ] M1-03c: Audit retrieval, tools, plugins, skills and embeddings for metered paths; disable unverifiable or paid campaign capabilities and verify that remaining public-evidence workflows have usable free retrieval.
 - [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
@@ -384,3 +385,35 @@ authorized turn limit remains 180.
 
 Final independent read-only review found no remaining M1-03a2 blocker after
 confirming the request/cache/SDK protections and strict modality validation.
+
+### 2026-09-19 — Cycle 5, M1-03b1
+
+Previous prompt-only turn made no execution progress. Revalidated pending b1
+work at `56684cbb` and completed its verification. Split b into app admission
+(b1) and durable execution/cache isolation (b2) to preserve concrete boundaries.
+Six red tests demonstrated paid campaign requests reaching app transports.
+One shared app wrapper now applies existing engine admission to interview, Q&A,
+announcement, title, restatement and credential probes. It preserves streams,
+reasoning and existing retry/fallback behavior. Review's unscoped BYOK-flag
+bypass was reproduced before removing the flag; credential probes instead use
+the existing scoped credential context. This avoids a second provenance scheme.
+
+Verification uses the root virtual environment and synthetic provider/catalog
+fixtures, never live inference. Q&A tool continuation and interview reasoning
+retry exercise repeated admission; forced-offline tests include restatements
+and announcements. Scoped cleanup/deslop reused existing QA fixtures and removed
+the redundant override. No UI changed. Full app mypy reports 21 errors in three
+unchanged safety modules around the HypothesisSafetyReview alias; keep baseline
+verification open to resolve these, with no skipped assertions or weakened rules.
+
+Fresh Railway read: API/MCP still SUCCESS at `7dce086d`, deployment IDs unchanged
+from cycle 4. No PR, deployment, new model selection, spend or live evaluation.
+App request-boundary tests do not establish scientific or production acceptance.
+Next: M1-03b2 durable execution/recovery, auxiliary calls and node-cache isolation.
+The 180-turn limit is unchanged; M1 remains open.
+
+Final result: 103 targeted app tests pass; Ruff and diff checks pass. Existing
+six dependency deprecation warnings remain unsuppressed. Independent final
+read-only review found no remaining app-admission blocker. M1-03b1 is complete
+at the request boundary; its item commit records these changes. Fresh open
+count: 61.
