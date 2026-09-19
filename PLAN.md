@@ -2180,3 +2180,17 @@ progressed migration readiness. Repeated bounded polls confirm session41647 live
 on baseline1; log reached historical controls, no terminal artifact or error.
 No restart, shared-script edit, new inference batch or acceptance change. Next
 poll41647 and retain its complete arm; M1 remains31/38 and59 campaign items open.
+
+**2026-09-20 — Cycle60, first scope baseline retained.** Starting2fbfac92.
+Previous cycle was a verified wait; resumed41647 through baseline1 completion.
+Baseline challenge .40 accuracy/0 contradiction recall,53 physical requests;
+runner is confirmed live on candidate1. Both scope modes produced10 physical
+calls with complete recorded model/usage evidence. Single labels match8/10:
+changed-model and changed-follow-up incorrectly partial. One-claim batch matches
+10/10. Provenance remains legacy_unknown, so candidate-only acceptance correctly
+returns false for baseline; do not relabel it as model-qualified provenance.
+Source/control/helper identities, all zero-price caps, served model and configured
+secret-value scan passed. Full paired source/metric comparison awaits candidate1.
+No shared script edits, restart, new model selection or production change. Next
+poll41647; retain candidate1 and run unchanged scope-series comparator. M1 remains
+31/38,59 open. Current live logs: /private/tmp/coscientist-scope57-reviewed/.
