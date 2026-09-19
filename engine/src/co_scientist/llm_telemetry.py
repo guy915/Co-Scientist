@@ -48,6 +48,8 @@ class ModelCallStats:
     own.
 
     Attributes:
+        deterministic_fallbacks: Substituted judgments by reason, independent
+            of physical call counts and attributed to the requested model.
         calls: Physical completion attempts (successes and failures alike).
         observed_model_calls: Responses with a nonempty provider model identity.
         reported_usage_calls: Responses with explicit valid token counts.
@@ -79,6 +81,7 @@ class ModelCallStats:
             exception's class name).
     """
 
+    deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
     calls: int = 0
     observed_model_calls: int = 0
     reported_usage_calls: int = 0
@@ -106,6 +109,10 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
     for kind, count in b.errors.items():
         errors[kind] = errors.get(kind, 0) + count
     return ModelCallStats(
+        deterministic_fallbacks=dict(
+            Counter(a.deterministic_fallbacks)
+            + Counter(b.deterministic_fallbacks)
+        ),
         calls=a.calls + b.calls,
         observed_model_calls=a.observed_model_calls + b.observed_model_calls,
         reported_usage_calls=a.reported_usage_calls + b.reported_usage_calls,
@@ -373,3 +380,12 @@ def record_cache_result(model_name: str, hit: bool) -> None:
         ModelCallStats(cache_hits=1) if hit else ModelCallStats(cache_misses=1)
     )
     record_call(model_name, stats)
+
+
+def record_deterministic_fallback(model_name: str, reason: str) -> None:
+    """Record a substituted judgment against its requested model, not a call.
+
+    Counts describe recorded events only; absent events in old checkpoints
+    cannot establish that all judgments came from a model.
+    """
+    record_call(model_name, ModelCallStats(deterministic_fallbacks={reason: 1}))

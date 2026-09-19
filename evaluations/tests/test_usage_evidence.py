@@ -44,10 +44,16 @@ def test_durable_artifact_retains_requested_and_observed_models(
             "cost_usd": 0.0,
         }
     }
+    raw["judge::openrouter/asked"] = {
+        "calls": 0,
+        "deterministic_fallbacks": {"claim_batch": 1},
+    }
     store.save_run_metrics(run.id, {"model_usage": raw}, db_path=db)
     report = compute_arm_metrics(run.id, db, 0.5, 1)
     evidence = report["usage_evidence"]
     assert evidence["model_usage"] == raw
+    assert evidence["recorded_deterministic_fallbacks"] == {"claim_batch": 1}
+    assert evidence["fallback_evidence"] == "recorded_events_only"
     assert evidence["observed_models"] == ["openrouter/served"]
     assert evidence["requested_models"] == {"openrouter/asked": 1}
     assert evidence["estimated_total_usd"] == 0.0
@@ -118,3 +124,30 @@ def test_overclaimed_observations_cannot_complete_cost_evidence() -> None:
         }
     )
     assert report["estimated_total_usd"] is None
+
+
+def test_durable_merge_retains_events_without_claiming_complete_tracking() -> (
+    None
+):
+    import json
+
+    from co_scientist.models_metrics import ExecutionMetrics, merge_metrics
+
+    legacy = ExecutionMetrics(model_usage={"judge::model": {"calls": 2}})
+    delta = ExecutionMetrics(
+        model_usage={
+            "judge::model": {
+                "calls": 1,
+                "deterministic_fallbacks": {"claim_single": 1},
+            }
+        }
+    )
+    combined = merge_metrics(merge_metrics(legacy, delta), delta)
+    checkpoint = json.loads(json.dumps(combined.model_usage))
+    evidence = _cost_summary({"model_usage": checkpoint})["usage_evidence"]
+    assert evidence["physical_calls"] == 4
+    assert evidence["recorded_deterministic_fallbacks"] == {"claim_single": 2}
+    assert evidence["fallback_evidence"] == "recorded_events_only"
+    old = _cost_summary({"model_usage": legacy.model_usage})["usage_evidence"]
+    assert old["recorded_deterministic_fallbacks"] == {}
+    assert old["fallback_evidence"] == "recorded_events_only"

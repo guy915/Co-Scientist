@@ -108,7 +108,7 @@ def _merge_usage_entry(
 
     Every field a ``ModelCallStats.as_dict()`` entry carries is additive
     (see that dataclass), so this is a plain field-by-field sum with the
-    "errors" and "requested_models" maps merged by ``_merge_counts``.
+    error, request and deterministic-fallback maps merged by ``_merge_counts``.
 
     The field list is read off ``ModelCallStats`` rather than restated
     here. A hand-written list is a second place to remember, and the one
@@ -119,7 +119,8 @@ def _merge_usage_entry(
     numeric_fields = tuple(
         f.name
         for f in dataclasses.fields(ModelCallStats)
-        if f.name not in {"errors", "requested_models"}
+        if f.name
+        not in {"errors", "requested_models", "deterministic_fallbacks"}
     )
     merged = {
         field_name: existing_entry.get(field_name, 0)
@@ -132,6 +133,10 @@ def _merge_usage_entry(
     merged["requested_models"] = _merge_counts(
         existing_entry.get("requested_models", {}),
         new_entry.get("requested_models", {}),
+    )
+    merged["deterministic_fallbacks"] = _merge_counts(
+        existing_entry.get("deterministic_fallbacks", {}),
+        new_entry.get("deterministic_fallbacks", {}),
     )
     return merged
 

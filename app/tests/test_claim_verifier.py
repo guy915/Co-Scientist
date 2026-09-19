@@ -390,6 +390,25 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         )
 
     _install(monkeypatch, _capturing_completion)
+    from co_scientist import llm_free_catalog
+    from co_scientist.constants_pricing import MODEL_PRICING
+
+    catalog = {
+        model.removeprefix("openrouter/"): {
+            "pricing": {
+                "prompt": str(price.prompt_usd_per_million),
+                "completion": str(price.completion_usd_per_million),
+            },
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        for model, price in MODEL_PRICING.items()
+        if model.startswith("openrouter/")
+    }
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: catalog)
     assessor, _ = make_llm_assessor("openrouter/minimax/minimax-m3:free")
     assessor("some claim", [_PASSAGE])
 

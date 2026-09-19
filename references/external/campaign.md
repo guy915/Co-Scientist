@@ -210,5 +210,17 @@ it does not claim that every verdict came from a model. Offline panels have
 controls separately and attaches captured evidence to its live comparator.
 The successful-path tests use synthetic provider responses, including citation's
 async bridge and Elo's per-match event loops. They are not live evaluations.
-Deterministic fallback disclosure remains M1-03d3b2b2; do not accept these panels
-as pure-model scientific evidence until that requirement is verified.
+Deterministic substitutions now appear as `recorded_deterministic_fallbacks`
+in these summaries and in persisted-run artifacts. Events are keyed to the
+requested model: `claim_single` and `claim_batch` count substituted claim
+judgments; `ranking_invalid_turn` counts invalid turns and `ranking_tied_votes`
+counts matchups resolved by the deterministic tiebreaker. A matchup may contain
+both kinds. Events do not increment physical calls. A batch with no retrieved
+evidence makes no call and emits no substitution event.
+
+`fallback_evidence=recorded_events_only` is deliberately not a completeness
+claim: an empty event map does not prove absence of fallback, especially for
+legacy records or other uninstrumented mechanisms. Inspect judgment provenance
+and raw artifacts when accepting scientific results; never label a whole run
+pure-model solely because this map is empty. This instrumentation does not alter
+claim verdicts, ranking winners, safety gates or their acceptance thresholds.

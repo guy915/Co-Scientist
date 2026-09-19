@@ -166,7 +166,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d3b1: Preserve requested and observed model identity plus missing usage/pricing evidence in shared completion telemetry and durable metric merges; keep old checkpoints compatible.
 - [x] M1-03d3b2a: Retain raw model telemetry and explicit unknown-cost/observed-model summaries in durable scaling, ablation, claim-support and golden artifacts without mistaking old zero estimates for verified costs.
 - [x] M1-03d3b2b1: Capture direct citation/usefulness/Elo panel telemetry and explicit requested-live/offline modes; verify successful panel responses and observed usage through their public interfaces.
-- [ ] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
+- [x] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
 - [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -922,3 +922,42 @@ existing summary and normalized imports. No UI changes. Production API/MCP
 latest deployments remain SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`
 (snapshot `/tmp/coscientist-cycle20-release.json`); campaign deployment acceptance
 remains open. Next: M1-03d3b2b2. Open count: 60; turn limit remains 180.
+
+
+### 2026-09-19 — Cycle 21, M1-03d3b2b2
+
+Starting commit `92eb82aa`; preceding turn made progress by committing direct
+panel capture. Reproduced absent fallback evidence through the public single
+and batch claim interfaces and ranking judge, then added additive in-memory
+substitution counts. Events use the requested model and do not create physical
+calls or database writes. Single/batch claim judgments and invalid ranking
+turns/tied vote resolutions retain their original decisions.
+
+The shared metric reducer preserves event maps across fan-out/checkpoint JSON;
+the evaluator summary retains recorded counts through direct panels and stored
+run scoring. No-evidence batch skips and valid judgments emit no substitution.
+Chose `recorded_events_only` rather than a completeness counter derived from
+physical calls: several calls can produce one judgment, one batch can produce
+several judgments, and old records have no tracking. Empty maps therefore
+remain inconclusive, not proof of pure-model execution.
+
+Public failed-citation panel test verifies that three failed physical attempts
+produce one recorded substitution. Stored-run tests retain the same evidence
+through arm metrics and claim-support scoring. Ranking tests cover valid JSON
+without a prose verdict, malformed winner, and a position-balanced vote tie.
+Independent approach/final review found no remaining disclosure blocker.
+
+A pre-existing reasoning test failed admission because its mocked free model
+had no qualifying metadata. Primary-only metadata also failed: admission checks
+every fallback route. Reused the engine suite's synthetic full-route catalog
+pattern, preserving the original reasoning assertions and avoiding live metadata.
+No live model inference or scientific-quality claim. Scoped cleanup normalized
+imports and count-map documentation; no UI or dependency changes.
+
+Validation: 30 app and 32 engine targeted checks pass; 11 evaluator checks pass.
+Engine changed-module type checks and evaluator type checks pass. App checking
+still reports 19 existing safety type-alias errors in human_input.py and
+hypothesis_screening.py, outside changed modules; baseline repair remains open.
+Ruff and diff checks pass. Production state snapshot retained at
+`/tmp/coscientist-cycle21-release.json`; no deployment performed. M1 acceptance
+remains open. Next: M1-03d4, matched comparison identities. Open count: 59.

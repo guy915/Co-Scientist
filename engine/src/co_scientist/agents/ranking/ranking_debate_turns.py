@@ -17,6 +17,7 @@ from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt,
     _MatchupPromptContext,
 )
+from co_scientist.llm_telemetry import record_deterministic_fallback
 from co_scientist.models import Hypothesis
 
 logger = logging.getLogger(__name__)
@@ -437,6 +438,7 @@ def _finalize_debate_response(
     winner = "a" if votes.count("a") > votes.count("b") else "b"
     if votes.count("a") == votes.count("b"):
         winner = run.fallback
+        record_deterministic_fallback(model_name, "ranking_tied_votes")
 
     response["debate_turns"] = turns
     response["debate_transcript"] = run.transcript

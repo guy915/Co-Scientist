@@ -40,6 +40,7 @@ def test_scoped_telemetry_records_under_its_phase() -> None:
             "reported_usage_calls": 0,
             "priced_usage_calls": 0,
             "requested_models": {},
+            "deterministic_fallbacks": {},
             "prompt_tokens": 10,
             "completion_tokens": 0,
             "reasoning_tokens": 0,
@@ -171,7 +172,8 @@ def test_merging_fan_out_usage_keeps_every_field_stats_carries() -> None:
     numeric = {
         f.name: 2
         for f in dataclasses.fields(ModelCallStats)
-        if f.name not in {"errors", "requested_models"}
+        if f.name
+        not in {"errors", "requested_models", "deterministic_fallbacks"}
     }
     merged = _merge_usage_entry({**numeric, "errors": {}}, {**numeric})
 

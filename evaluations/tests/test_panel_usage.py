@@ -10,7 +10,9 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize("panel", ["usefulness", "citation", "elo"])
+@pytest.mark.parametrize(
+    "panel", ["usefulness", "citation", "elo", "citation_failure"]
+)
 def test_panel_artifact_records_served_model_and_unknown_price(
     tmp_path: Path,
     panel: str,
@@ -42,17 +44,19 @@ metadata = httpx.Response(200, json=catalog,
     request=httpx.Request("GET", "https://openrouter.ai/api/v1/models"))
 response = litellm.ModelResponse(model="campaign/served:free",
     choices=[{"message": {"role": "assistant",
-              "content": json.dumps(payloads[panel])},
+              "content": json.dumps(payloads.get(panel, {}))},
               "finish_reason": "stop"}],
     usage={"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10})
 provider = AsyncMock(return_value=response)
+if panel == "citation_failure":
+    provider.side_effect = RuntimeError("offline test provider failure")
 with patch.object(httpx, "get", return_value=metadata), \
      patch.object(litellm, "acompletion", provider):
     if panel == "usefulness":
         report = citation_usefulness_eval.run_llm({"name": "probe",
             "items": [{"id": "one", "question": "Does X inhibit Y?",
                 "span": "X inhibits Y.", "label": "useful"}]})
-    elif panel == "citation":
+    elif panel.startswith("citation"):
         dataset = Path("citation.json")
         dataset.write_text(json.dumps({"name": "probe", "version": 1,
             "items": [{"claim": "Kinase X inhibition reduces tumor growth",
@@ -69,9 +73,16 @@ with patch.object(httpx, "get", return_value=metadata), \
             report = elo_concordance_eval.run(use_llm=True)
 assert report["execution_mode"] == "live_requested"
 evidence = report["usage_evidence"]
-assert evidence["physical_calls"] == 1
-assert evidence["observed_models"] == ["openrouter/campaign/served:free"]
-assert evidence["requested_models"] == {"openrouter/campaign/primary:free": 1}
+calls = 3 if panel == "citation_failure" else 1
+observed = [] if panel == "citation_failure" else [
+    "openrouter/campaign/served:free"]
+assert evidence["physical_calls"] == calls
+assert evidence["observed_models"] == observed
+assert evidence["requested_models"] == {
+    "openrouter/campaign/primary:free": calls}
+assert evidence["recorded_deterministic_fallbacks"] == (
+    {"claim_single": 1} if panel == "citation_failure" else {})
+assert evidence["fallback_evidence"] == "recorded_events_only"
 assert evidence["estimated_total_usd"] is None
 assert evidence["billed_total_usd"] is None
 if panel == "elo":

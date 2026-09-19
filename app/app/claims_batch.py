@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+from co_scientist.llm_telemetry import record_deterministic_fallback
+
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     AssessorDraft,
@@ -220,6 +222,8 @@ def _assess_from_draft(
 ) -> ClaimAssessment:
     """Turn one claim's batch draft (or its absence) into an assessment."""
     if draft is None:
+        if shown and assessor_id.startswith("llm:"):
+            record_deterministic_fallback(assessor_id[4:], "claim_batch")
         return _fallback_assessment(claim, own_candidates, assessor_id)
     supporting = _locate_all(draft.supporting, shown)
     contradicting = _locate_all(draft.contradicting, shown)

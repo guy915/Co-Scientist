@@ -61,6 +61,7 @@ from co_scientist.exceptions import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm_telemetry import record_deterministic_fallback
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
@@ -391,6 +392,7 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
             return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
         data = _call_llm_entailment(model, claim, passages)
         if data is None:
+            record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
         draft = _parse_draft(data, claim)
         if draft is None:
@@ -399,6 +401,7 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
                 "back to deterministic assessor. Reply began: %.200r",
                 data,
             )
+            record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
         return draft
 

@@ -28,9 +28,11 @@ def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
             ("unpriced_calls", "priced_usage_calls"),
         )
     }
+    fallbacks: Counter[str] = Counter()
     requested: Counter[str] = Counter()
     for row in usage.values():
         requested.update(row.get("requested_models", {}))
+        fallbacks.update(row.get("deterministic_fallbacks", {}))
     partial_estimate = sum(
         float(row["cost_usd"]) for row in usage.values() if _valid_cost(row)
     )
@@ -38,6 +40,8 @@ def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
     return {
         "model_usage": copy.deepcopy(usage),
         "physical_calls": calls,
+        "recorded_deterministic_fallbacks": dict(sorted(fallbacks.items())),
+        "fallback_evidence": "recorded_events_only",
         "requested_models": dict(sorted(requested.items())),
         "observed_models": sorted(
             {
