@@ -96,6 +96,8 @@ async def main():
     cases=[('json_off',lambda:structured()),('json_on',lambda:structured(True)),
         ('tools',tools_case),('streaming',streaming),('long_json',lambda:structured(False,True))]
     selected = os.getenv('QUALIFICATION_CASES','').split(',')
+    if 'long_json_on' in selected:
+        cases.append(('long_json_on', lambda: structured(True, True)))
     for name, run in cases:
         if selected != [''] and name not in selected: continue
         verify_model(MODEL.removeprefix('openrouter/'),current_catalog())

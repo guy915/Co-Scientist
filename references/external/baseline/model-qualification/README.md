@@ -153,3 +153,51 @@ and zero ceilings remain mandatory. Live artifacts above predate that estimate
 addition and correctly retain `unpriced_calls`; they are not rewritten.
 Ninety-three routing, reasoning and free-admission regressions pass. Complex
 scientific-schema/panel qualification remains outstanding before selection.
+
+Scientific selection protocol (declared before trial results): use the existing
+30-item citation-entailment challenge, not just the easy 20-item regression set.
+Run three trials per shortlisted model on frozen code and evidence. Primary
+metric is challenge accuracy; every selected model must also meet the existing
+0.80 contradiction-recall and 0.75 accuracy gates in all three trials. Inspect
+per-label precision/recall and abstention as non-regression evidence; do not
+accept a higher score driven by deterministic fallback or unobserved models.
+Ties favor consistent results then observed latency. This is model qualification,
+not a claim of scientific improvement over the unavailable former primary.
+
+Cross-model selection permits only the predeclared model and corresponding
+routing profile to differ. Validate each manifest digest and compare every
+remaining identity field; same-model repeated trials must have identical full
+identities. The ordinary same-model panel comparison CLI is intentionally not
+used to bypass that model distinction. Retain all failures. Rate limits stop
+the batch for recorded later resumption. Physical starts are paced at least
+four seconds apart. Model selection still requires ranking/usefulness and the
+full research workflow; challenge success alone is not final acceptance.
+
+Cycle 32 challenge investigation: the first Nex Mini challenge trial scored
+0.433 accuracy and 0.0 contradiction recall, failing both unchanged gates.
+It made 32 physical requests (two schema re-asks), all observing Nex Mini, with
+no recorded deterministic fallback. The offline deterministic challenge scored
+0.033 accuracy and 0.0 contradiction recall. These are failed results, not
+successful model qualification. Further selection trials are deferred until the
+assessment incompatibility is resolved; repeating the same structurally blocked
+comparison cannot establish a winner.
+
+`challenge-contradiction-diagnostic.json` maps the ten expected contradiction
+items to initial physical responses using exact prompt hashes. All ten source
+passages lack the marker required by `_quote_negates_claim`; even a correct
+on-subject quote expressing reversed direction or numeric opposition is rejected
+by that guard. Raw responses show both actual model insufficiency and correct
+contradiction drafts subsequently downgraded. M1-04b1 investigates a correction
+that preserves source/subject checks and historical false-contradiction
+regressions. Do not merely add broad words to the marker list or lower recall
+requirements to make the benchmark pass.
+
+DeepSeek follow-up uses three identical long-input off/on pairs at `e0bc71af`.
+All three enabled-reasoning cases returned the correct label and verbatim quote.
+Disabled-reasoning cases produced two 100-second observation timeouts and one
+wrong contradiction label with a fabricated quote. Timeouts record one attempted
+physical request in `physical_request_controls` despite zero completed engine
+telemetry calls; zero there is not evidence of no provider request or no spend.
+The existing zero-cost admission still applies. This supports investigating its
+reasoning configuration, not selecting the current disabled path as a reliable
+fallback. No model selection or deployment followed.

@@ -171,6 +171,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
 - [x] M1-04a: Refresh the public OpenRouter catalog, verify zero-cost eligibility, and record a capability-based shortlist including available new releases and explicit exclusions.
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
+- [ ] M1-04b1: Investigate and correct the challenge/live contradiction-guard mismatch: preserve subject and quoted-evidence safeguards plus historical false-contradiction regressions, verify genuine directional/numeric opposition through the public assessor boundary, and rerun matched live panels without lowering gates.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -1298,3 +1299,41 @@ Final evidence review required a resolvable source identity: profile artifacts
 now identify base commit `aadef4a4` in full plus the retained routing-only patch
 and SHA256. That recreates the exact code used before static pricing was added;
 the probe script's own hash is retained separately.
+
+### 2026-09-19 — Cycle 32, M1-04b partial; M1-04b1 discovered
+
+Starting commit `e0bc71af`; prior cycle progressed through tested Nex profiles.
+Used the existing 30-case citation challenge to exercise realistic nested
+scientific schemas, after independent review distinguished it from the easy
+regression panel. Declared unchanged recall/accuracy gates and three-trial
+selection procedure before results, with model/routing as the explicit selection
+intervention and all other controls held fixed. The paced first live Mini trial
+failed: accuracy .433, contradiction recall 0, 32 observed requests, no recorded
+deterministic fallback. Offline deterministic results .033/0 are separately
+labeled and retained. No failed result is converted to acceptance.
+
+Independent code/data review and a retained per-item prompt-hash diagnostic show
+all ten challenge contradiction passages lack the guard's required lexical
+marker. Correct directional/numeric contradiction drafts therefore cannot pass;
+some raw model verdicts are also insufficient. Added M1-04b1 before more model
+selection: preserve subject, quote and historical false-positive safeguards,
+but resolve genuine semantic opposition through behavioral tests and matched
+live evidence. Thresholds and dataset remain unchanged; do not fit a word list
+merely to pass. Defer repeated selection trials while this structural barrier
+remains, rather than rejecting promising models for a shared product limitation.
+
+Three DeepSeek long-input mode pairs completed. Enabled reasoning passes all
+three; disabled reasoning has two observation timeouts and a wrong label/fake
+quote. Attempted physical controls are retained alongside telemetry, which omits
+cancelled responses and must not be interpreted as no request. No rate-limit
+exception observed and no paid substitution used. Processes were polled by their
+live handles until confirmed finished. No background trial is left running.
+
+No production code changed. Public input artifacts, script hashes, exact source
+commits and sanitized observations are retained; diff checks pass. Existing
+production checks are reusable for this experiment-only change. No deployment,
+production configuration change or reference checkout. Railway observation:
+`/tmp/coscientist-cycle32-release.json`. Next: M1-04b1. Open count: 60.
+Final review completed diagnostic provenance: every contradiction row now retains
+its exact prompt SHA256 and zero-based physical-request index in the source trial;
+all new trial source commits are resolved to full Git identifiers.
