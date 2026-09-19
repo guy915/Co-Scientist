@@ -169,7 +169,10 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03d3b2b2: Record explicit deterministic-fallback evidence for citation and ranking judgments in direct and durable artifacts, preserving legacy unknowns; verify fallback and no-fallback behavior without changing scientific decisions.
 - [x] M1-03d4a: Persist reproducible per-arm identities for exact public inputs, resolved configuration, model roles, fallback/request policies and disabled response caches; retain them in comparison artifacts.
 - [x] M1-03d4b: Enforce matched baseline/candidate identities across comparison consumers and direct panels, allowing only declared tier/ablation differences; reject missing or mismatched evidence or rerun both sides, and specify matched retrieval requirements.
-- [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
+- [x] M1-04a: Refresh the public OpenRouter catalog, verify zero-cost eligibility, and record a capability-based shortlist including available new releases and explicit exclusions.
+- [ ] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
+- [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
+- [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [ ] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
@@ -1136,3 +1139,41 @@ or reference checkout acquisition. Next: qualify current free OpenRouter models
 through actual application interfaces. Open count: 58.
 Release observation: `/tmp/coscientist-cycle26-release.json` confirms latest
 API/MCP SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`.
+
+### 2026-09-19 — Cycle 27, M1-04a complete; M1-04a1 discovered
+
+Starting commit `2a898f82`; previous cycle progressed by closing comparison
+requirements. Split model qualification into catalog shortlist, live capability
+qualification, and scientific comparison/selection so state survives turns;
+the 180-turn authorization is unchanged.
+
+Fresh public catalog admission finds 22 eligible explicit text routes, retained
+under `references/external/baseline/model-qualification/catalog.json`. The deployed
+minimax primary is absent. Prioritized Nex Pro/Mini, DeepSeek Flash 0731 and Dots
+preview based on advertised structured-output/tool/context capabilities; other
+eligible candidates remain available. Metadata does not establish quality.
+M1-04a is checked; selection and full qualification remain open.
+
+Ran one actual public entailment request via `call_llm_json` in a credential-
+isolated subprocess, with fresh free admission, zero-price ceilings, caches off
+and one attempt. Nex Pro returned provider 400: native response-format schema
+missing `name`. No completion, served-model identity or usage was reported.
+The sanitized artifact retains that failure without claiming successful inference
+or verified billing totals. The shared admission guard enforces price ceilings
+for newly catalogued models even before static pricing registration.
+
+Independent review confirmed the shared native-schema branch forwards bare
+schemas unchanged, while callers use both bare and named-envelope forms.
+`claim_verifier` supplies a bare `obj(...)` schema; citation-usefulness already
+supplies a named envelope. Added M1-04a1 before further capability work: normalize
+bare schemas at the native request boundary, preserve existing named envelopes
+and the json_object shim, test at the physical request seam, then retry live.
+Do not reject Nex for this application compatibility error.
+
+The experiment script, public inputs, caps and failure telemetry are retained.
+No paid fallback or tool was used, no production settings changed, and no external
+reference acquired. Diff checks pass; no production code changed, so reuse prior
+code verification. Scoped cleanup retains only the reusable probe and sanitized
+public evidence. Railway snapshot `/tmp/coscientist-cycle27-release.json` confirms
+API/MCP latest SUCCESS at `7dce086dd483831b40a12532a84cf7321f058e52`.
+Next: M1-04a1 regression and native-schema correction. Open count: 60.
