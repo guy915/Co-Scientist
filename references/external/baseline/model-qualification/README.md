@@ -129,3 +129,27 @@ compatibility under that profile. All long successes retain the prior limitation
 scientific synthesis. M1-04b remains open for effective Nex reasoning/budget
 qualification and representative complex schemas; M1-04c handles scientific
 panels and final model/fallback selection.
+
+Cycle 31 explicit Nex profiles: both variants are now declared reasoning-capable
+with the existing conservative mandatory-reasoning behavior, no fallback chain
+and no default-model change. Caller-off requests bounded reasoning (2048 tokens);
+caller-on requests high effort. Both receive the existing 18k total-token floor.
+This is not a claim that disabling reasoning is impossible: it is the bounded
+mode qualified here while actual disable support remains unestablished.
+
+Declaring these routes selects the existing JSON-object shim, including local
+schema validation. `nex-pro-reasoning-profile.json` and
+`nex-mini-reasoning-profile.json` rerun all five probes successfully under that
+actual path. The probe observes non-secret kwargs at the physical LiteLLM seam
+and forwards the real request unchanged; every recorded round has explicit zero
+prompt/completion/request caps, the intended model, no fallback array and the
+18k floor. Stream deltas and local tool execution still pass. No prior native
+schema result is substituted for this changed configuration.
+
+The existing static-pricing invariant required zero ModelPrice estimates for
+the two newly declared routes; entries were added from their verified current
+free metadata. These estimates do not authorize transport: fresh catalog checks
+and zero ceilings remain mandatory. Live artifacts above predate that estimate
+addition and correctly retain `unpriced_calls`; they are not rewritten.
+Ninety-three routing, reasoning and free-admission regressions pass. Complex
+scientific-schema/panel qualification remains outstanding before selection.

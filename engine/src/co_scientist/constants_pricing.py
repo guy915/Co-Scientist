@@ -103,6 +103,8 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     "openrouter/google/gemma-4-31b-it:free": ModelPrice(0.0, 0.0),
     "openrouter/minimax/minimax-m2.7:free": ModelPrice(0.0, 0.0),
     "openrouter/dots-studio/dots-3-note-preview:free": ModelPrice(0.0, 0.0),
+    "openrouter/nex-agi/nex-n2.5-pro:free": ModelPrice(0.0, 0.0),
+    "openrouter/nex-agi/nex-n2.5-mini:free": ModelPrice(0.0, 0.0),
     "openrouter/nvidia/nemotron-3.5-lightning:free": ModelPrice(0.0, 0.0),
     # Historical promotional rate for the paid alternative chain head;
     # its routing ceiling uses the same configured price multiple as other

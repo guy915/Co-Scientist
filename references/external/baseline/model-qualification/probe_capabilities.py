@@ -14,6 +14,18 @@ from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.llm_tool_loop import ToolLoop, call_llm_with_tools
 from co_scientist.llm_free_catalog import current_catalog, verify_model
 from evaluations._usage_evidence import capture_usage
+import litellm
+
+_REQUESTS = []
+_TRANSPORT = litellm.acompletion
+
+async def observed_transport(**kwargs):
+    # Observe only non-secret controls after the real admission seam.
+    _REQUESTS.append({key: kwargs.get(key) for key in
+        ('model', 'max_tokens', 'extra_body', 'response_format', 'stream')})
+    return await _TRANSPORT(**kwargs)
+
+litellm.acompletion = observed_transport
 
 PASSAGE = 'Treatment X reduced cell viability by 30% relative to vehicle.'
 SCHEMA = {'type': 'object', 'properties': {'label': {'type': 'string',
@@ -88,13 +100,16 @@ async def main():
         if selected != [''] and name not in selected: continue
         verify_model(MODEL.removeprefix('openrouter/'),current_catalog())
         result={'case':name}
+        _REQUESTS.clear()
         with capture_usage(name,live=True) as evidence:
             try: result.update(await asyncio.wait_for(run(),timeout=100))
             except Exception as exc:
                 result.update(passed=False,error_type=type(exc).__name__,
                     error=re.sub(r'user_[A-Za-z0-9]+','[redacted-account]',
                         str(exc).replace(os.environ['OPENROUTER_API_KEY'],'[redacted]'))[:2000])
-        result.update(evidence);report['cases'].append(result)
+        result.update(evidence)
+        result['physical_request_controls'] = list(_REQUESTS)
+        report['cases'].append(result)
         path.write_text(json.dumps(report,indent=2)+'\n')
         print(name,result['passed'],result.get('error_type'),flush=True)
         if 'RateLimit' in result.get('error_type',''): break

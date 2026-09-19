@@ -1265,3 +1265,36 @@ Next within M1-04b: qualify explicit Nex reasoning/budget profiles through the
 shared request seam and realistic complex-schema calls; follow up DeepSeek's
 long-output failure without weakening the check. Scientific model comparison
 and production selection remain M1-04c. Open count: 59.
+
+### 2026-09-19 — Cycle 31, M1-04b partial
+
+Starting commit `aadef4a4`; previous cycle progressed via three additional live
+model trials. Nex variants spend reasoning tokens while undeclared, so the
+existing token floor/control selection missed them. Four failing public LLM
+request regressions preceded explicit model profiles using the shared bounded
+minimal-reasoning behavior and token floor. No default, fallback chain or BYOK
+behavior changed. Profiles do not assert unverified disable support.
+
+Review identified the associated native-schema to JSON-object path change;
+regressions now assert that request format and retain local validation. Reran
+all five live probes for both explicit profiles: all pass. Actual non-secret
+physical kwargs are retained for every call, including both tool rounds and
+streaming: zero price caps, exact requested model, no fallback, 18k allowance.
+The live recorder forwards real transport unchanged and contains no credentials.
+
+The broader pricing invariant caught missing static estimate entries; added
+catalog-verified zero rates for the new declarations, preserving fresh catalog
+admission as the authority. Existing live artifacts retain their earlier unknown
+static estimates. Final targeted routing, free-admission and mandatory-reasoning
+suite: 93 passed; Ruff, strict mypy and diff checks pass. Scoped cleanup reused
+GatewayModel and the existing budget machinery, with no new runtime abstraction.
+
+No production configuration changed or deployment performed. Railway observation
+is `/tmp/coscientist-cycle31-release.json`. No external checkout acquired.
+M1-04b stays open for representative complex scientific schemas and follow-up of
+DeepSeek's long-input failure. M1-04c remains scientific comparison and selection.
+Open count: 59.
+Final evidence review required a resolvable source identity: profile artifacts
+now identify base commit `aadef4a4` in full plus the retained routing-only patch
+and SHA256. That recreates the exact code used before static pricing was added;
+the probe script's own hash is retained separately.

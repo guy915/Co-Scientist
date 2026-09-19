@@ -469,3 +469,56 @@ async def test_malformed_input_modalities_are_not_admitted(
     patch_acompletion(monkeypatch, [make_completion(make_message("ok"))])
     with pytest.raises(FreeModelEligibilityError):
         await call_llm("probe", CompletionSpec(MODEL), options=OPTIONS)
+
+
+@pytest.mark.parametrize("variant", ["pro", "mini"])
+@pytest.mark.parametrize("thinking", [False, True])
+async def test_nex_requests_fund_and_control_observed_reasoning(
+    monkeypatch: pytest.MonkeyPatch, variant: str, thinking: bool
+) -> None:
+    """Observed reasoning gets an explicit control and funded answer budget."""
+    from co_scientist.constants import (
+        MINIMAL_REASONING_MAX_TOKENS,
+        THINKING_FLOOR_MAX_TOKENS,
+    )
+
+    model = f"openrouter/nex-agi/nex-n2.5-{variant}:free"
+    catalog = _catalog({"prompt": "0", "completion": "0"})
+    catalog["data"][0]["id"] = model.removeprefix("openrouter/")
+    _mock_catalog(monkeypatch, catalog)
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch,
+        [make_completion(make_message('{"answer":"public"}'))],
+        requests,
+    )
+    await call_llm_json(
+        "public probe",
+        CompletionSpec(
+            model_name=model,
+            max_tokens=100,
+            json_schema={
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+            },
+        ),
+        options=LLMCallOptions(use_cache=False, enable_thinking=thinking),
+        max_attempts=1,
+    )
+    assert requests[0]["response_format"] == {"type": "json_object"}
+    body = requests[0]["extra_body"]
+    assert body["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+    assert "models" not in body
+    if thinking:
+        assert body["reasoning"] == {"enabled": True, "effort": "high"}
+    else:
+        assert body["reasoning"] == {
+            "enabled": True,
+            "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
+        }
+    assert requests[0]["max_tokens"] >= THINKING_FLOOR_MAX_TOKENS
