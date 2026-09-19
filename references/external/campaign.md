@@ -7,9 +7,9 @@ locally; see [retained evidence](baseline/retrieval-2026-09-19/README.md).
 Live capability probes and an initial scientific challenge have run through
 verified zero-cost admission; [model qualification](baseline/model-qualification/README.md)
 retains all results, including failures. No model is selected for production and
-no full campaign research run has completed. The contradiction-verification
-candidate is tested offline; paired live acceptance and per-edge provenance
-remain open. Existing model names alone do not prove current eligibility.
+no full campaign research run has completed. Three matched live pairs show improved contradiction recall but fail the
+unchanged quality gates. The contradiction-verification candidate remains
+unaccepted; further model comparison and per-edge provenance remain open. Existing model names alone do not prove current eligibility.
 
 Starting branch: `feat/external-m01-free-baseline`; execution starts at
 `927d2bd3a0f8480833661ff3a83b8c3549a6e85f`. The plan was committed at `cd54b76c`.

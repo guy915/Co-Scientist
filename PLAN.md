@@ -1387,3 +1387,54 @@ were weakened or skipped to pass. No merge/deployment/reference acquisition.
 Railway API `a6ddd7f0-3bb5-4ad1-bed8-14809846e88e` and MCP
 `0d49864d-782b-421f-ab8b-02b608a9c5d4` remain SUCCESS (observation
 `/tmp/coscientist-cycle33-release.json`). Next: M1-04b1b matched live panels.
+
+### 2026-09-19 — Cycle 34, M1-04b1b partial; three failed Mini pairs retained
+
+Starting commit `06a17a70`; cycle 33 was progress (tested semantic candidate).
+Ran three matched live baseline/candidate challenge pairs using archive-only
+snapshots of `14e8c59950204c96cdfa2195594885383d1d5720` and
+`06a17a70e9aaf7d3f51bbc8c5c8157825c82c368`. Fixed Nex Mini route, explicit
+credential isolation, fresh catalog eligibility, disabled caches and identical
+inputs. Actual imported module hashes prove snapshot execution. All six panel
+and control identities, observer hashes and dependency versions match; explicit
+allowed assessor changes are listed separately from unchanged request/evaluator
+code. The observer retains per-assessment labels and physical-request indices.
+
+Baseline accuracy: .367/.433/.400, recall 0/0/0. Candidate accuracy:
+.667/.567/.667, recall .8/.6/.6. The candidate improves each paired result but
+fails the .75 accuracy gate every time and the .80 recall gate twice. No
+acceptance, model selection or production-quality claim. All 30 full-live
+historical negative assessments remain non-contradictory, without pretending
+they exercised the new branch. Three separately labeled controlled-primary
+cases did exercise actual candidate verifier calls; all explicitly rejected a
+confirmatory GBM quote as opposition. Simulated primary completions are excluded
+from physical request lists and live panel telemetry.
+
+All 248 actual physical requests observed Nex Mini, with zero provider-price
+ceilings and no recorded deterministic fallback in either challenge or control
+panels. Intra- and inter-process four-second spacing was checked. No rate-limit
+park occurred. Session 99372 completed with exit 0; no trial remains running.
+Retained artifacts and comparison checker live under
+`references/external/baseline/model-qualification/`; comparison reports complete
+three-pair evidence and accepted=false. Imported-source records and full commit
+identifiers were tightened after independent review. Scripts compile, artifact
+identity/cap/pacing assertions and diff checks pass. Product code is unchanged,
+so cycle 33's targeted behavioral checks remain applicable; full release checks
+are still pending their items.
+
+Decision: keep M1-04b1b open. Next compare the already capability-tested Nex Pro
+route on the same frozen code, rerunning both arms for three pairs. Its scientific
+performance is unverified. Lowering gates, relabeling dataset cases, deploying
+the partial result, or changing prompts before separating model effects were
+rejected. Mini results also show insufficient-evidence cases labeled partial;
+the first candidate misses include strict condition matching and the retained
+subject-coverage floor. Preserve those diagnostics while investigating; do not
+fit a marker list to the benchmark. M1-04b1c still requires per-edge method
+provenance before adoption. No merge, deployment or external checkout.
+Railway read-only observation: `/tmp/coscientist-cycle34-release.json`.
+
+Final independent review found no remaining evidence blocker. The retained
+checker also asserts same-arm imported-source hashes across all three trials.
+Credential-value scans of new artifacts pass. Scoped cleanup removed the
+completed temporary source snapshots, launch/analysis scratch scripts and raw
+provider logs; sanitized evidence and reproducible checker remain. Open count: 61.

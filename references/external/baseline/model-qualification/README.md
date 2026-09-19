@@ -231,3 +231,61 @@ counted as `opposition_verification_unavailable` and missing valid answers as
 telemetry subphase. They are not deterministic fallback. Individual persisted
 edges still name only the model; M1-04b1c requires verification-method lineage
 before adoption. No experimental branch result is a deployed improvement.
+
+Cycle 34 matched execution uses archive-only snapshots of baseline `14e8c599`
+and candidate `06a17a70` in `/tmp/coscientist-paired-34/`. Both run from their
+snapshot directory with explicit snapshot import paths and the same installed
+dependency environment. The observer asserts and hashes actual imported modules;
+the candidate-only verifier is explicitly absent from the baseline. The same
+probe SHA256, complete dataset identity and fixed Nex Mini configuration must
+match between arms. Each child freshly verifies the catalog and every physical
+request retains its zero-price controls. The parent waits four seconds between
+children; the probe paces actual requests at least four seconds apart.
+
+Run order is baseline/candidate for trials 1, 2 and 3. The five historical
+negative controls are extracted unchanged from committed regression fixtures;
+only the allowed non-contradiction labels are adjudicated. Full live controls
+are separate from a controlled-primary/live-verifier diagnostic: the latter
+supplies the original erroneous contradiction label on the confirmatory GBM
+quote, then lets the actual candidate verifier judge it. Its primary completion
+is simulated, explicitly excluded from physical-request records and live-panel
+telemetry. Baseline makes no verifier request; the candidate must make a real
+one and reject opposition. This is not counted as a full live scientific panel.
+All physical requests have phase and timestamp; per-assessment request indices
+show which controls reached verification. No artifact is overwritten.
+
+Cycle 34 results are complete and **not accepted**:
+
+| Trial | Baseline accuracy / recall | Candidate accuracy / recall |
+| --- | --- | --- |
+| 1 | .367 / .0 | .667 / .8 |
+| 2 | .433 / .0 | .567 / .6 |
+| 3 | .400 / .0 | .667 / .6 |
+
+The candidate improves each pair but fails the .75 accuracy gate in all trials
+and the .80 recall gate twice. `compare_opposition_panels.py` validates the
+retained `opposition-{baseline,candidate}-{1,2,3}.json` reports and regenerates
+`opposition-paired-summary.json`. The summary explicitly allows only the named
+assessor source delta; matched panel controls do not imply identical assessor
+implementation. The same observer and historical-control hashes apply to all
+six artifacts; `opposition-runtime.json` records the unchanged dependency set.
+
+All 248 actual requests retain fresh free admission, zero-price caps, observed
+Nex Mini identities and paced timestamps. All 30 full-live historical controls
+across both arms passed; their primary responses were non-contradictory, so
+these do not establish that the new semantic branch ran. The three separately
+labeled controlled-primary diagnostics did invoke a live candidate verifier;
+each returned explicit false conditions/opposition booleans. Simulated primary
+responses are excluded from the physical requests and live-panel telemetry.
+No challenge or historical panel recorded deterministic fallback.
+
+The remaining errors are retained per assessment. In trial 1, the verifier
+rejects matching conditions for the Drug A survival claim; the receptor-Y
+paraphrase never reaches verification because its quote fails the unchanged
+coverage floor. Other errors include partial labels on insufficient evidence.
+The observed recall gain alone does not authorize deployment. M1-04b1b stays
+open; next evaluate Nex Pro on unchanged baseline/candidate code with three
+fresh matched pairs. Do not assume it is scientifically better or reuse Mini
+baselines. Per-edge method provenance and full batched workflow verification
+also remain required. The six-process launcher exited successfully; no trial
+remains active. Source snapshots can be reconstructed from the full commits.
