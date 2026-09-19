@@ -90,6 +90,14 @@ The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `T
 
 With no provider key set, or with `COSCIENTIST_FORCE_OFFLINE=1` (deprecated alias `COSCIENTIST_FORCE_MOCK=1`), the viewer runs every hypothesis-generation call through the engine's deterministic offline LLM backend (`co_scientist.offline_llm`, which intercepts `litellm.acompletion` for `offline/`-prefixed models) instead of a real provider — no key required.
 
+## Trust boundaries
+
+`main` is protected. Treat production Railway targets (`api-production-97eb.up.railway.app`, `api.ai-co-scientist.com`) and any `prod` or `production` target as protected.
+
+- Keep `.env`, `.env.local`, `app/.env`, `engine/mcp_server/.env`, credentials, MCP shared secrets, `coscientist.db`, and run outputs out of commits and external sharing.
+- Read-only `railway status` / `railway logs` and local read-only SQLite queries are routine. Confirm before `railway up`, `deploy`, `redeploy`, `variables` writes, `run`, `down`, service deletion, or environment deletion.
+- Local services are API `:8008`, UI `:5173`, and reference MCP `:8888`; use only the documented localhost and production domains.
+
 ## Git hygiene
 
 Never mention yourself or any other AI tool in commits, pull requests, or pushes. This applies to all AI agents working in this repo.
