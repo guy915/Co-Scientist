@@ -43,3 +43,14 @@ persist labels and located-quote results, and require every candidate control
 to pass in the comparator. The current frozen runner does not yet execute these
 controls. Do not alter its shared probe while batch91986 remains active; this
 wiring is pending, and no new scientific acceptance is claimed.
+
+Cycle51 prepares `scope_controls.py` independently of the active observer. It
+exercises single and batch public assessment interfaces with each control's own
+evidence, retains located quotes, and requires a recognized model provenance.
+Ten offline behavioral tests pass, including three reproduced false accepts for
+unknown/non-model provenance. No live inference has used this helper. Batch
+controls contain one claim per call to prevent cross-control evidence leakage;
+full multi-claim behavior remains a workflow check. Original baseline provenance
+is legacy-unknown: preserve that observation rather than manufacturing a model
+method; candidate all-pass gating and physical telemetry remain separate checks.
+Manifest, observer and comparator integration is still pending batch completion.

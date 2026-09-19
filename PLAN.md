@@ -2011,3 +2011,26 @@ extend the retained probe/runner/comparator for the prospective scope controls,
 freeze new sources and run fresh matched trials. Do not reuse old answers as
 new-arm results. M1 is31/38 (seven remaining); campaign59 open. No deployment,
 model selection or scientific adoption. Unrelated AGENTS.md edit preserved.
+
+
+**2026-09-20 — Cycle51, prospective scope-control evaluator.** Starting03ea8484.
+The preceding instruction-acknowledgment turn changed no campaign evidence;
+revalidated the next safe action. Polled session91986 and confirmed it remains
+live on baseline2; no restart or shared observer edits. Retained candidate2:
+26/30 accuracy (.867), .90 contradiction recall,45 physical requests. Its
+paired baseline is pending and pair1 failed, so the series remains unaccepted.
+
+Added separate scope-control helper and10 offline tests through public single
+and batch assessor interfaces. Controls retain source-located spans, reject
+wrong labels, invented quotes, empty evidence and deterministic fallback.
+Independent review identified unknown provenance falsely passing: three red
+regressions reproduced it; explicit recognized model methods now required.
+All10 tests and Ruff pass. The helper makes no inference calls or credential
+loads. Single-claim batch controls preserve evidence isolation; full multi-claim
+verification remains required. Legacy baseline methods must remain unknown,
+with candidate acceptance distinguished from observational baseline results.
+
+No acceptance checkbox completed: wire helper/input hashes/telemetry/comparator
+after91986 terminates, then run the new matched candidate. Current frozen scripts
+remain untouched. No model selected, PR, deployment or production mutation.
+M1 remains31/38 and campaign59 open. User AGENTS.md changes preserved.
