@@ -159,7 +159,11 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-03c3a: Correct the live-discovered PubMed availability mismatch: anonymous retrieval succeeds while the probe returns false before querying. Verify successful and failed actual reachability through the probe without treating a contact email as proof of availability.
 - [x] M1-03c3: Verify real public-evidence retrieval through the guarded project interfaces using isolated credentials/configuration; record provenance, availability and rate limits without paid fallback.
 - [x] M1-03c3b: Make Europe PMC and its preprint wrappers distinguish transport/parse failures from genuine empty searches through the public tool boundary; preserve failure provenance without paid fallback and verify existing callers handle it.
-- [ ] M1-03d: Make campaign live evaluation runners use explicit verified free configurations without loading paid DeepSeek defaults or credentials; verify fail-closed routing, served-model/cost evidence, and matched baseline/candidate settings.
+- [x] M1-03d0: Audit maintained live evaluation entry points, credential loading and evidence gaps; retain the concrete runner map and implementation boundaries.
+- [ ] M1-03d1: Isolate live scaling, ablation and claim-support runner configuration before app imports: require explicit free OpenRouter settings, prevent paid credential/default and dotenv loading, and verify fail-closed routing through the LLM boundary.
+- [ ] M1-03d2: Remove the golden runner’s paid configuration assumptions; preserve its INDRA-specific acceptance meaning and fail closed where campaign tool qualification cannot satisfy it. Provide the authorized public-evidence workflow for campaign acceptance without weakening the INDRA check.
+- [ ] M1-03d3: Migrate live citation, citation-usefulness and Elo panels to explicit free configuration; retain requested and actually served models, raw usage, unknown-cost distinctions and live/offline evidence in direct and durable evaluation artifacts.
+- [ ] M1-03d4: Freeze and verify matched baseline/candidate configuration and input identities across comparison runners, including fallbacks and isolated caches; reject or rerun mismatched comparisons.
 - [ ] Compare compatible current free OpenRouter candidates, including available new releases; select and document a primary and compatible free fallbacks using representative application tests.
 - [ ] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [ ] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
@@ -681,3 +685,32 @@ error logging; no UI changed. Independent final review approved the behavior and
 retained evidence. Fresh Railway status remains API/MCP SUCCESS at `7dce086d`;
 no PR or deployment. Item complete locally. Next: M1-03d evaluation-runner
 admission and served-model/cost evidence. Fresh open count: 59; M1 remains open.
+
+
+### 2026-09-19 — Cycle 14, M1-03d0
+
+Starting commit `5b39e218`; the intervening goal-prompt reply changed no campaign
+state. Revalidated the clean worktree, runner source and Railway deployment
+metadata. API/MCP remain SUCCESS at `7dce086d`; no inference or release occurred.
+Read-only independent review and direct inspection identify two credential
+loaders, three paid panel defaults, independent Pydantic dotenv loading, and
+missing served-model/comparison evidence. Retained audit:
+`references/external/baseline/evaluation-runner-audit.md`.
+
+Split M1-03d into concrete implementation boundaries before edits. Audit complete;
+all configuration, telemetry, comparison and live acceptance work remains open.
+Reuse the existing transport admission and telemetry rather than another pricing
+or routing system. Do not require a :free suffix alone: a freshly verified
+zero-price promotional route can qualify under the existing policy. Preserve
+unknown observed costs as unknown; estimated zero is not a billing receipt.
+Golden run requires INDRA, which campaign MCP does not admit; preserve that
+check and use the authorized public-evidence research flow for campaign acceptance.
+No runtime changes, dependencies or new reference acquisitions in this cycle.
+Next: M1-03d1. Turn limit remains 180.
+
+Independent final review found no lost scope and corrected the audit wording:
+only scaling/ablation live modes require the paid key; offline modes do not.
+Scoped documentation cleanup also corrected stale campaign procedure statements
+about already-verified local controls, without claiming production qualification.
+No runtime code changed; source cross-check and `git diff --check` pass.
+Fresh open count: 62 (three additional unchecked items from the explicit split).

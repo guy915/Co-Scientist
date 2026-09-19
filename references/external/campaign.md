@@ -64,9 +64,11 @@ and deployments; routine implementation choices do not require re-interview.
 Set `COSCIENTIST_REQUIRE_FREE_MODELS=1` for campaign inference processes. This
 forces current-price admission even when a runner explicitly supplies a key;
 it disables the LLM response cache so every campaign completion reaches that
-admission boundary. It does not yet cover direct app completions, retrieval,
-node caches, tools, embeddings or evaluation-runner configuration; M1-03b–d
-must close those paths before a live research experiment.
+admission boundary. App completions, node caches, durable tasks and qualified retrieval/workspace
+paths now have locally verified campaign controls (M1-03b/c). Evaluation-runner
+configuration and evidence remain open in M1-03d; see the
+[runner audit](baseline/evaluation-runner-audit.md). These local controls have
+not yet been deployed or verified through a full live research run.
 
 Outside campaign mode, system `:free` requests still use current-price admission;
 explicit/scoped user BYOK remains separate. Catalog evidence expires after 60
@@ -75,13 +77,15 @@ and can be used to assess availability without spending model credits. A
 `FreeModelEligibilityError` is terminal for that LLM request: change/qualify the
 configuration or wait for metadata availability, never substitute a paid model.
 
-### Retrieval qualification remains incomplete
+### Retrieval qualification status
 
 The [retrieval cost audit](baseline/retrieval-cost-audit.md) maps outbound routes
-and current pricing evidence. Until M1-03c2/c3 pass, the free-model flag does not
-establish that a whole research run is free: MCP providers, custom servers and
-skill credentials have separate charge paths. Do not start campaign research
-inference yet. No retrieval billing settings have been altered.
+and retained cost evidence. M1-03c2/c3 now cover local provider restrictions,
+MCP identity admission, workspace confinement and real anonymous public retrieval.
+Production qualification remains open: caller and server controls must both be
+deployed and observed before a live production campaign run. Evaluation-runner
+isolation and model qualification must also pass before campaign inference.
+No production retrieval billing settings have been altered.
 
 ### MCP qualification
 
