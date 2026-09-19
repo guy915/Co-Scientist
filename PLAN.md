@@ -2194,3 +2194,18 @@ secret-value scan passed. Full paired source/metric comparison awaits candidate1
 No shared script edits, restart, new model selection or production change. Next
 poll41647; retain candidate1 and run unchanged scope-series comparator. M1 remains
 31/38,59 open. Current live logs: /private/tmp/coscientist-scope57-reviewed/.
+
+**2026-09-20 — Cycle61, release security preflight attempted.** Startingc3cdef26.
+Previous cycle progressed first baseline evidence. Session41647 confirmed live
+on candidate1; frozen scripts unchanged. Started required pre-release security
+DIFF scan for exact7dce086d..c3cdef26, ID37397870-2c59-4fa1-b638-30445fd598f6.
+Scan directory /private/var/folders/sn/2cg90mwd5fsdyrdzxp0t4rfc0000gn/T/codex-security-scans-MVfosz/co-scientist/c3cdef26769aefc4bd877755871473cc7e0b36e8_20260919T235409Z_6oel70jc.
+Dedicated preflight worker spawn failed (agent thread limit reached); prescribed
+parent fallback ran helper. Exit2: agents.max_threads cannot be set when
+multi_agent_v2 is enabled. No concrete remediation patches returned; no user
+configuration changed. Raw result /tmp/coscientist-security-preflight61.json.
+Saved exact command/error in authoritative scan context. Scan remains in preflight,
+not failed/cancelled; no substantive security coverage claimed. Recover this
+same scan before release, never create a replacement. This scan-specific setup
+issue does not stop live scientific qualification or establish campaign blockage.
+Next poll41647 and retain candidate1. M1 remains31/38;59 open.
