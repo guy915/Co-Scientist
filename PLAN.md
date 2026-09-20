@@ -2605,3 +2605,12 @@ runner rechecks per pair. Named size gates4pass; focused runner/correction tests
 No item accepted or deployment performed. Next commit execution sources and launch
 the pinned fresh series, retain live evidence and verify all three pairs. M1
 remains31/38; fresh open count59.
+
+Cycle93 launch update: independent re-review confirmed provenance blocker closed.
+Committed execution revisionb77878324e1170866007eee24480f073bc10aa66. Runner26568
+confirmed live with Starting baseline trial1; catalog1 records that exact revision,
+all three selected trials, the retained manifest hash and Nex Pro zero pricing.
+No completed arm or scientific acceptance yet. Continue observing the same handle;
+do not restart on an observation timeout. Snapshots/logs:
+/private/tmp/coscientist-magnitude93/. No frozen execution source may change while
+this batch runs. Next retain baseline1/candidate1 results and continue all pairs.
