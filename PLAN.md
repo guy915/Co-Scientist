@@ -2452,3 +2452,10 @@ pass; independent review found no weakened gate or preservation/cost blocker.
 Dry-run reproduces exact manifest/order with no inference. Next launch explicit
 recovery1 after this commit; record handle and free admission before yielding.
 No original artifact or scientific observer changed. M1 remains31/38;59 open.
+Recovery launch after f052d77a: exec session28291 is live, starting candidate2.
+Fresh recovery catalog2 admits nex-agi/nex-n2.5-pro:free with zero prompt and
+completion rates via the existing fail-closed admission policy. Retained catalog
+binds all execution sources and original-artifact hashes. Frozen four-arm order:
+candidate2,baseline2,baseline3,candidate3. No additional attempt is authorized if
+this one is inconclusive without investigation. Next poll28291; never restart
+solely on silence. Preserve frozen runner/comparator/helpers until terminal.
