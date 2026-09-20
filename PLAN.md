@@ -2498,3 +2498,15 @@ confirm28291 remains live on recovery baseline2, with advancing assessment outpu
 and no new reported timeout or terminal artifact. No restart, extra batch,
 frozen-source mutation or acceptance change. Next retain baseline2 when complete
 and continue the same runner through pair3. M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle85, recovery baseline2 retained.** Startingde10a4ad.
+Previous cycle was a verified wait. Session28291 completed recovery baseline2:
+accuracy.433, contradiction recall0,53 physical requests, no terminal error.
+All53 have numeric usage, expected served model and exact zero-price caps;
+probe/manifest identities match recovery catalog2. Configured secret-value scan
+passed for baseline artifact and fresh recovery catalog3. Original timeout-bearing
+baseline remains retained. Recovery comparator processes pairs1/2 then exits1
+with Missing recovery artifacts for trial3, preserving its fail-closed full-series
+requirement; no recovered summary or acceptance claimed. Runner is now live on
+recovery baseline3. Next retain both pair3 arms and run paired/corrected receipts
+once terminal. M1 remains31/38; fresh open count59. No source edits or release.
