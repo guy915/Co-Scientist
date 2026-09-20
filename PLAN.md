@@ -2525,3 +2525,13 @@ live on recovery baseline3 with new assessment output; no terminal artifact or
 new reported error. No source changes, restart, extra batch or acceptance claim.
 Next preserve baseline3 on completion and continue the same runner to candidate3.
 M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle88, recovery baseline3 retained.** Starting47ff417d.
+Previous cycle was a verified wait. Session28291 completed recovery baseline3:
+accuracy.400, contradiction recall0,53 physical requests, no terminal error.
+All53 have complete numeric usage, expected served model and exact zero-price
+caps. Probe/manifest identities match recovery catalog3; secret-value scan passed.
+Retained the recovery artifact without replacing original baseline3. Runner is
+confirmed live on final recovery candidate3. Next retain candidate3 and confirm
+terminal status, then execute recovery paired comparison and separate correction
+receipt. No acceptance item checked prematurely. M1 remains31/38; fresh count59.
