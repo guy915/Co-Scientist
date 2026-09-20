@@ -2287,3 +2287,13 @@ Previous cycle retained candidate2. Bounded repeated polls confirm41647 remains
 live on baseline2, with challenge-panel log activity and no terminal artifact.
 No restart, extra inference, source edit or acceptance change. Next observe the
 same handle, then validate original/corrected pair2. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle68, live provider timeout retained.** Starting690543c6.
+Previous cycle verified wait. Session41647 remains live on baseline2. Log records
+attempt1 timeout: litellm.Timeout / OpenrouterException, max_tokens18000 (callsite
+6000). Existing bounded retry policy is still executing; no agent restart or
+replacement inference. Final raw request/usage evidence is not yet available.
+Retain this failed attempt and assess evidence completeness before pair2 can
+qualify; do not silently discard it or claim a served model for an unanswered
+request. No source/gate changes or acceptance advancement. Next poll41647 and
+inspect completed artifact/error. M1 remains31/38;59 open items.
