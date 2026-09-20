@@ -2887,3 +2887,21 @@ intervention check to meet existing complexity limits; no new UI or scratch
 artifacts, user AGENTS.md untouched. M1-03d4c complete; M1 36/41,57 open.
 Next prepare the remaining schema qualification and local-workflow launch
 without inference; provider reset remains2026-09-21 00:00 UTC.
+
+**2026-09-20 — Cycle 109, multi-claim schema qualification prepared offline.**
+Starting174c59a2. Previous cycle fixed ablation intervention matching. Reused
+four existing scope controls as a single shared-evidence group, with unchanged
+partial/supports/insufficient/contradicts expectations. Offline fixture validated
+against the actual nested batch schema and passed through assess_claims_batch:
+one invocation carried all four claims and returned located verdict spans.
+Initial fixture used evidence_id instead of the schema's passage field; corrected
+the fixture, not product code. Independent review confirmed shared evidence
+preserves the expected labels and remains below the split/union caps.
+batch-schema-preflight109.json freezes source IDs/hash, schema hash, three-trial
+acceptance, fallback definition and limitations. lexical_founded remains a
+primary-model guard result, not a deterministic substitute. No inference, model
+qualification claim or checkbox completion. This is preparation for M1-04b,
+not scientific quality or full-workflow evidence. Scoped cleanup retained only
+the intended manifest; diff check passed, user AGENTS.md untouched. M1 36/41,
+57 open. Next verify local-workflow launch prerequisites without inference;
+all live qualification remains not-before2026-09-21 00:00 UTC.
