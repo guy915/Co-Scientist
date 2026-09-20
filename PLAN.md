@@ -2307,3 +2307,15 @@ Preserve both failed attempts when validating physical-request completeness;
 no restart, frozen-source mutation, model selection or acceptance advancement.
 Next poll the same handle and retain the terminal arm evidence before comparing.
 M1 remains31/38; fresh checkbox count59. User AGENTS.md changes remain untouched.
+
+**2026-09-20 — Cycle70, verified wait and telemetry diagnosis.** Starting4b104bc9.
+Previous cycle was a verified wait. Repeated bounded polls confirm41647 remains
+live, with new assessment output beyond the two timeouts; baseline2 artifact is
+not yet written. Read-only inspection establishes that observed_transport appends
+its request before awaiting transport but attaches usage/model only on success.
+The original comparator requires numeric usage and served model for every request
+(compare_opposition_panels.py:151-168). Thus timeout records are expected to
+fail closed even if subsequent retries succeed; inspect terminal evidence before
+concluding. No request was dropped, no gate relaxed, no frozen source changed.
+Next preserve baseline2 and exact comparator failure or result, then finish the
+existing batch without restarting it. M1 remains31/38;59 open. No release.
