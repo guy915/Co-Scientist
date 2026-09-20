@@ -2281,3 +2281,9 @@ pending. Original and corrected series summaries still contain only pair1.
 No frozen-source changes, additional batch, model selection or deployment.
 Next poll41647; retain baseline2 and run both original and corrected comparisons.
 M1 remains31/38;59 open items.
+
+**2026-09-20 — Cycle67, verified matched-baseline wait.** Startinge553b441.
+Previous cycle retained candidate2. Bounded repeated polls confirm41647 remains
+live on baseline2, with challenge-panel log activity and no terminal artifact.
+No restart, extra inference, source edit or acceptance change. Next observe the
+same handle, then validate original/corrected pair2. M1 remains31/38;59 open.
