@@ -2535,3 +2535,15 @@ Retained the recovery artifact without replacing original baseline3. Runner is
 confirmed live on final recovery candidate3. Next retain candidate3 and confirm
 terminal status, then execute recovery paired comparison and separate correction
 receipt. No acceptance item checked prematurely. M1 remains31/38; fresh count59.
+
+**2026-09-20 — Cycle89, current qualification index restored.** Startingb8e85823.
+Previous cycle retained complete recovery baseline3. Session28291 confirmed live
+on recovery candidate3 with new assessment output. Updated model-qualification
+README, whose last comparison account was cycle43, to link current scope and
+recovery protocols/receipts and retained metrics without claiming acceptance.
+Explicitly preserved outstanding ranking/usefulness, fallback qualification and
+full-workflow requirements. Independent read-only review verified metrics,
+telemetry and statuses; clarified that only the evaluations subtree is shared
+at baseline revision. Documentation-only; no frozen execution source changed.
+Next retain final candidate3 and execute recovered comparison/correction after
+terminal status. M1 remains31/38; fresh open count59. Diff check passed.

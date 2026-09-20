@@ -323,3 +323,31 @@ After this frozen experiment, per-assessment method provenance was added to
 current code, persisted rows, reusable gate records, API/report payloads and
 Markdown. That metadata change does not turn these failed qualifications into
 acceptance; any subsequent scientific correction needs new matched evidence.
+
+## Current scope comparison and recovery — cycle 89
+
+The current candidate is `03ea8484`, compared with baseline `14e8c599` using
+`openrouter/nex-agi/nex-n2.5-pro:free`; the evaluations subtree is pinned to
+the baseline revision in both arms. See [the scope protocol](partial-support-candidate.md) for
+fixed inputs, criteria, and the independently reviewed provenance correction.
+
+Original pair 1 passes the separate corrected scope predicate and all other
+paired gates. Original pair 2 is inconclusive because two baseline requests
+lack usage and served-model telemetry. Original candidate 3 was interrupted
+without a retained result. Neither gap is silently excluded: the
+[pair-2 receipt](opposition-scope-pro-pair-2-evidence-gap.json) and
+[interruption record](scope-interruption-recovery.json) remain authoritative.
+
+`recovery1` repeats both arms of pairs 2 and 3 under separate names, preserving
+pair 1. Recovery candidate 2 scores .933 accuracy/.80 contradiction recall;
+recovery baselines 2 and 3 score .433/.0 and .400/.0. All three completed recovery
+arms retain complete usage and model evidence plus zero-price caps. Recovery
+candidate 3 remains pending. The full recovered series is not yet accepted.
+
+After all replacement arms finish, run the paired comparator and separate
+correction receipt with `--series opposition-scope-pro --attempt recovery1`
+(comparator) and `--attempt recovery1` (correction). The original summaries stay
+unchanged. A passing challenge comparison alone does not close model selection:
+ranking/usefulness, independent fallback qualification, and the live research
+workflow remain required by the selection protocol above. No production model
+has been selected or deployed by this campaign.
