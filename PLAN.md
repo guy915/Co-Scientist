@@ -2221,3 +2221,9 @@ setup evidence, not a product vulnerability or completed security review.
 Session41647 repeatedly confirmed live on candidate1; no terminal artifact,
 restart, source changes or new inference batch. Next collect candidate1 and
 compare the pair. M1 remains31/38;59 open items.
+
+**2026-09-20 — Cycle63, verified candidate wait.** Starting8a2e519d.
+Previous cycle diagnosed the security setup issue. Repeated bounded polls of
+41647 confirm candidate1 is still running; no terminal result/error. No new
+inference, restart, frozen-source edit or acceptance change. Next observe the
+same handle and validate the first completed pair. M1 remains31/38;59 open.
