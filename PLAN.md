@@ -2269,3 +2269,15 @@ focused red regression remains pending batch termination (not skipped). This
 separate correction permits progress without breaking the live-source freeze.
 Next poll41647, retain remaining arms and regenerate original plus correction
 receipts. M1 remains31/38,59 open. No deployment or model selection.
+
+**2026-09-20 — Cycle66, second candidate retained.** Startingbb047c79.
+Previous cycle progressed auditable provenance correction. Resumed41647 through
+candidate2 completion: .933 accuracy/.80 contradiction recall,64 physical calls,
+no error. Both scope modes have10 calls/all10 labels correct; separate corrected
+scope predicate passes without changing the original artifacts. All requests
+carry zero-price caps and expected served-model identity; secret-value scan passed.
+Matched baseline2 now running under same handle, so pair2 acceptance remains
+pending. Original and corrected series summaries still contain only pair1.
+No frozen-source changes, additional batch, model selection or deployment.
+Next poll41647; retain baseline2 and run both original and corrected comparisons.
+M1 remains31/38;59 open items.
