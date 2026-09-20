@@ -2479,3 +2479,15 @@ contradicting assessment output after the recorded schema retry. No terminal
 artifact or new reported error. No restart, extra batch, frozen-source change or
 acceptance advancement. Next retain the completed arm and assess full telemetry
 before comparing. M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle83, recovery candidate2 retained.** Starting9b07472f.
+Previous cycle was a verified wait. Session28291 completed recovery candidate2:
+accuracy.933, contradiction recall.80,65 physical requests, no terminal error.
+All65 requests retain numeric usage, expected served model and exact zero-price
+caps, including the schema retry. Both scope modes pass the separate corrected
+predicate; configured secret-value scan passed. Retained raw candidate under
+its recovery namespace; original candidate unchanged. Runner now confirmed live
+on recovery baseline2. Matched pair and campaign acceptance remain pending;
+no source changes, new model selection or release. Next poll28291, preserve
+baseline2 and the two remaining arms, then run recovery comparison/correction.
+M1 remains31/38; fresh open count59.
