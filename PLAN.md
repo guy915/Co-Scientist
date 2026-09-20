@@ -2905,3 +2905,26 @@ not scientific quality or full-workflow evidence. Scoped cleanup retained only
 the intended manifest; diff check passed, user AGENTS.md untouched. M1 36/41,
 57 open. Next verify local-workflow launch prerequisites without inference;
 all live qualification remains not-before2026-09-21 00:00 UTC.
+
+**2026-09-20 — Cycle 110, local launch prerequisites checked without inference.**
+Starting2ceab1fe. Previous goal cycle109 was progress: it froze independently
+reviewed batch-schema inputs; the intervening orchestration acknowledgement was
+not a campaign execution cycle. Current clock11:09UTC precedes the recorded
+provider reset2026-09-21 00:00UTC. No live process was polled or wait claimed.
+Verified API modules, MCP Python3.12/fastmcp, Bun and the installed Node Playwright
+Chromium executable; Python Playwright is absent but unnecessary for that path.
+Proposed isolated ports8208/5373/8988 had no listeners; recheck at launch.
+Remote main remains7dce086d. Source inspection confirms matching MCP shared-secret
+and campaign URL settings, explicit CORS/frontend target, request-level disabled
+notifications and absent SMTP configuration. Existing e2e is intentionally offline
+and cannot be reused unchanged as live evidence. local-launch-preflight110.json
+records the checks and limitations. No server, browser or inference was launched;
+no model selection, deployment health or workflow completion claimed. No new
+implementation or checkbox. Scoped cleanup retains this prerequisite evidence
+and user AGENTS.md instructions; JSON and diff checks pass. M1 36/41,57 open.
+Next resume incomplete usefulness trial2 under its frozen configuration after
+fresh zero-price admission at the provider reset, then trial3 and remaining
+schema/ranking qualification. Do not create additional planning tasks merely to
+fill the waiting period; M1 acceptance still depends on real model results.
+Independent review confirmed the launch contracts and required dotenv disabling
+in both API and MCP processes; made that explicit in the retained artifact.
