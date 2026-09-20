@@ -2830,3 +2830,22 @@ No checkbox completed; M1 35/40, 57 open. Scoped cleanup retained raw failures
 and intended invocation; Ruff/diff checks and secret scans passed. User AGENTS.md
 untouched. Next do inference-free qualification/release preparation; live
 screens and research workflow await the recorded provider reset.
+
+**2026-09-20 — Cycle 106, capability evidence gaps isolated without inference.**
+Starting 22bed91f. Previous cycle retained a passing usefulness trial and
+provider-rate-limit evidence. Reset remains future at 2026-09-21 00:00 UTC;
+no inference requests or replacement model calls made. Audited actual responses
+and separate streaming telemetry for 15 Nex Pro/Mini/Dots interface cases,
+rather than relying on passed flags. Nex profiles retain physical zero-price
+controls; Dots' older artifact does not. Existing long inputs test a 126555-char
+tail passage, not general synthesis. Representative complex scientific-schema
+qualification remains explicitly outstanding for proposed alternatives.
+Independent review confirmed M1-04b stays open: retain DeepSeek's failed
+reasoning-off and passing reasoning-on evidence as unresolved, not rejected
+because its route is now unavailable. interface-audit-cycle106.json records
+source hashes, verified outputs and exact gaps. After reset, use existing
+application schema paths for selected models and retain complete physical
+controls, alongside remaining scientific screens. No checkbox changes,
+M1 35/40 and 57 open. Scoped cleanup retained intentional audit evidence;
+diff check passed, user AGENTS.md untouched. Next address inference-free
+release-review preparation while preserving the recorded live retry time.
