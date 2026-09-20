@@ -2849,3 +2849,20 @@ controls, alongside remaining scientific screens. No checkbox changes,
 M1 35/40 and 57 open. Scoped cleanup retained intentional audit evidence;
 diff check passed, user AGENTS.md untouched. Next address inference-free
 release-review preparation while preserving the recorded live retry time.
+
+**2026-09-20 — Cycle 107, existing security scan preflight revalidated.**
+Starting 1ffd1149. Previous cycle recorded precise interface evidence gaps.
+Reloaded existing scan37397870-2c59-4fa1-b638-30445fd598f6; no duplicate scan.
+Dedicated worker reran preflight with current seven-slot native session facts.
+Exit2: agents.max_threads cannot be set when multi_agent_v2 is enabled.
+Read-only config confirms v2 true/max_threads6; helper returns no capability
+array, user-config path or concrete remediation. Skill requires ready before
+source review, so scan remains preflight with no substantive coverage. Updated
+its durable context and retained security-preflight-cycle107.json; no config
+change, cancellation or failed-scan claim. Main remains7dce086d. Since the
+scan's c3cdef26 head, two verifier files and app test fixture changed; later
+release review must include them. No inference against the daily cap.
+Scoped cleanup retained only intentional evidence; diff check passed and user
+AGENTS.md untouched. M1 35/40, 57 open. Next conduct independent general code
+quality release preparation; live qualification still awaits2026-09-21 00:00 UTC,
+and security scan awaits supported preflight recovery.
