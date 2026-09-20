@@ -203,3 +203,25 @@ def test_scope_evidence_validates_all_ids_and_candidate_checks():
     record["scope_controls"]["batch_single_claim"]["checks"] = []
     with pytest.raises(ValueError, match="items"):
         validate_scope_evidence(record, DATASET)
+
+
+def test_primary_model_contradiction_with_lexical_guard_is_not_a_fallback():
+    dataset = {
+        "items": [
+            {
+                "id": "explicit_negation",
+                "claim": "Treatment reduces cell growth.",
+                "passages": ["Treatment did not reduce cell growth."],
+                "allowed_labels": ["contradicts"],
+            }
+        ]
+    }
+
+    def model_then_guard(claim, passages):
+        return AssessorDraft(
+            EntailmentLabel.CONTRADICTS,
+            contradicting=((passages[0].evidence_id, passages[0].text),),
+            verification_method="lexical_founded",
+        )
+
+    assert evaluate_scope_controls(dataset, model_then_guard, "test")["passed"]

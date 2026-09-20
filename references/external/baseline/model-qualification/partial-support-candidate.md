@@ -84,3 +84,23 @@ and compatibility checks. Both live scope modes must pass in every candidate
 trial, alongside all original gates. Baseline legacy provenance remains unknown.
 The helper and inputs are hashed; the runner refreshes zero-price admission and
 checks immutable execution sources. No previous response is reused.
+
+### First scope pair: evaluator provenance defect
+
+Candidate1 scored .933 accuracy/.80 recall and met every original gate. All20
+scope labels and quotes match the declared controls. The frozen scope evaluator
+rejects only the explicit-negation case in each mode because it omits
+`lexical_founded` from its accepted-method set. Raw physical responses show the
+model itself returned CONTRADICTS with the exact quote; the app then checked
+subject coverage and negation. This is not `deterministic_lexical` fallback.
+Independent review confirmed the distinction against the production code and
+existing genuine-negation regression. No deterministic fallback events occurred.
+
+A focused regression now fails (16 earlier tests pass). Keep this failure explicit
+until the frozen batch ends; shared observers must not change mid-series. Then
+correct the provenance evaluator and retain an auditable evaluation correction
+against the immutable raw evidence. Recompute all candidate-control predicates;
+do not blindly trust the old derived `passed=false` or overwrite raw responses.
+Preserve the original failed summary and identify the corrected evaluator revision.
+No thresholds, label expectations, required quotes, zero-cost requirements or
+fallback prohibitions change. Whole-series scientific acceptance stays pending.

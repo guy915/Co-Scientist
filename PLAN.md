@@ -2227,3 +2227,23 @@ Previous cycle diagnosed the security setup issue. Repeated bounded polls of
 41647 confirm candidate1 is still running; no terminal result/error. No new
 inference, restart, frozen-source edit or acceptance change. Next observe the
 same handle and validate the first completed pair. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle64, first candidate and evaluator defect evidenced.**
+Startinge5a569a1. Previous cycle verified wait. Polled41647 through candidate1
+completion: .933 accuracy/.80 recall,64 physical calls; candidate2 now live.
+Original comparator validates all seven prior gates but rejects scope controls.
+All20 scope labels are correct; sole false predicate in each mode is the
+explicit-negation control's lexical_founded method, absent from helper allowlist.
+Raw served-model completions contain correct CONTRADICTS and located quotes.
+Independent review confirms this is a primary model verdict retained by the
+subject/negation guard, not deterministic fallback. Actual fallback events zero.
+Secret-value scan passed; retained candidate1/catalog2/original paired summary.
+
+Added focused red regression (1 expected failure,16 passes) without editing any
+frozen shared observer. No weakened tests or skipped failure. Existing M1 scope
+qualification item includes correcting this evaluator defect after batch ends.
+Preserve raw artifacts/original failed summary; recompute controlled predicates
+with audited correction rather than fabricate provenance or reuse answers for a
+new model comparison. No original scientific threshold changes. Whole series
+remains unaccepted. Next observe41647 candidate2 and preserve frozen scripts.
+M1 remains31/38;59 open. No model selection or deployment.
