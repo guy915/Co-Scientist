@@ -2297,3 +2297,13 @@ Retain this failed attempt and assess evidence completeness before pair2 can
 qualify; do not silently discard it or claim a served model for an unanswered
 request. No source/gate changes or acceptance advancement. Next poll41647 and
 inspect completed artifact/error. M1 remains31/38;59 open items.
+
+**2026-09-20 — Cycle69, verified retry progress.** Startingba164d56.
+Previous goal cycle was a verified wait; intervening user instruction was checked
+against the persisted post-M1 orchestration rule. Session41647 is confirmed live
+on baseline2. A second provider timeout is now recorded, followed by two new
+assessor output messages; the bounded runner continues. No terminal artifact yet.
+Preserve both failed attempts when validating physical-request completeness;
+no restart, frozen-source mutation, model selection or acceptance advancement.
+Next poll the same handle and retain the terminal arm evidence before comparing.
+M1 remains31/38; fresh checkbox count59. User AGENTS.md changes remain untouched.
