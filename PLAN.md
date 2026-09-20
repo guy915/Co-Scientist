@@ -2491,3 +2491,10 @@ on recovery baseline2. Matched pair and campaign acceptance remain pending;
 no source changes, new model selection or release. Next poll28291, preserve
 baseline2 and the two remaining arms, then run recovery comparison/correction.
 M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle84, verified recovery baseline wait.** Startingf117667b.
+Previous cycle progressed retained candidate2 evidence. Repeated bounded polls
+confirm28291 remains live on recovery baseline2, with advancing assessment output
+and no new reported timeout or terminal artifact. No restart, extra batch,
+frozen-source mutation or acceptance change. Next retain baseline2 when complete
+and continue the same runner through pair3. M1 remains31/38; fresh open count59.
