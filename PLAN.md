@@ -2808,3 +2808,25 @@ cycle's temporary replay archives. User AGENTS.md remains untouched.
 M1-04b1d complete; M1 35/40, 57 open. Next continue actual-interface model
 qualification and the predeclared usefulness/ranking screens; primary/fallback,
 local workflow and production verification remain open.
+
+**2026-09-20 — Cycle 105, usefulness screen launched and rate-limit parked.**
+Starting 5aca64a0. Previous cycle completed the observer repair. Added a minimal
+invocation of existing usefulness/ranking public evaluators, reusing the actual
+request observer; no scientific evaluator change. Independent launch review
+found an eligibility-error retention gap, fixed and verified offline with zero
+inference. Invocation pinned at 1a5713f9 before live work. Public catalog still
+admits Nex Pro/Mini/Dots at zero price; prior DeepSeek route now unavailable.
+Runner 44736 completed usefulness trial1: 13/16 accuracy, 6/7 useful recall,
+3/3 partial recall, no false-useful. All 16 requests have expected model,
+complete usage, zero caps and reported zero cost. Trial2 stopped with
+LLMRateLimitParkError (message_per_day), reset epoch1789948800 =
+2026-09-21 00:00 UTC / 02:00 Europe/Amsterdam. Retained 15 completed responses
+and the rate-limited attempt; terminal runner exit1, trial3 never launched.
+No paid substitute or retries against the cap. usefulness-cycle105-status.json
+records hashes, telemetry and exact recovery. After reset, recheck eligibility
+and rerun incomplete trial2 into a new filename, then trial3 with unchanged
+configuration; changing configuration requires a fresh full series.
+No checkbox completed; M1 35/40, 57 open. Scoped cleanup retained raw failures
+and intended invocation; Ruff/diff checks and secret scans passed. User AGENTS.md
+untouched. Next do inference-free qualification/release preparation; live
+screens and research workflow await the recorded provider reset.
