@@ -2760,3 +2760,17 @@ remain required. No restart, inference addition, source mutation or acceptance
 claim. Scoped cleanup found only intentional user-authored AGENTS.md preferences;
 left them untouched. M1 remains 32/39 and 59 items remain open. Next poll the
 same handle, retain candidate 3 when terminal, and run both comparison receipts.
+
+**2026-09-20 — Cycle 103, remaining screens predeclared.** Starting 8edcb4cf.
+Previous cycle was a verified wait. Runner 26568 remains live on candidate 3
+under repeated bounded polls; no restart or frozen-source change. Independently
+reviewed the remaining usefulness/ranking screen criteria before any new live
+batch. Recorded remaining-panel-criteria.md: all three trials must pass,
+usefulness at least 13/16 with zero false-useful and per-class floors, ranking
+at least 6/8 top choices and tau-b .50. These are local engineering screens,
+not scientific-improvement or expert-validation claims. Preserve every attempt
+and require completed judgment telemetry and zero-cost admission; recovered
+transport retries remain visible rather than silently discarded. No model
+selected or checkbox completed. Scoped cleanup retained the intentional evidence
+and user AGENTS.md changes; documentation diff check passed. M1 remains 32/39,
+59 open. Next collect final candidate 3 and run paired/corrected receipts.
