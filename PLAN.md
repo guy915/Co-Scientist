@@ -2518,3 +2518,10 @@ no terminal artifact or new reported error. No restart, additional attempt,
 frozen-source mutation or acceptance change. Next retain baseline3 and then
 candidate3 from the same runner before full recovered comparison. M1 remains
 31/38; fresh open count59.
+
+**2026-09-20 — Cycle87, verified baseline3 continuation.** Startingf632360a.
+Previous cycle was a verified wait. Repeated bounded polls confirm28291 remains
+live on recovery baseline3 with new assessment output; no terminal artifact or
+new reported error. No source changes, restart, extra batch or acceptance claim.
+Next preserve baseline3 on completion and continue the same runner to candidate3.
+M1 remains31/38; fresh open count59.
