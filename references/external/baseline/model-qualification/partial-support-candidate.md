@@ -117,3 +117,31 @@ scoring of the same observations, not a new scientific trial or reused response.
 First pair passes the corrected predicate; the incomplete series is still not
 accepted. Nine correction tests pass, including receipt integrity. The original frozen evaluator's focused
 red regression remains intentionally unresolved until that batch is terminal.
+
+### Transport-incomplete pair continuation (cycle 73)
+
+Pair 2 is inconclusive: baseline request indices 11 and 12 timed out without
+returned usage or served-model identity. Its observed scores remain in the raw
+artifact and `opposition-scope-pro-pair-2-evidence-gap.json`; they cannot establish
+acceptance. All recorded requests carried zero-price caps.
+
+After the current batch terminates, inspect all three pairs before launching
+anything further. If the only unresolved pair has incomplete transport evidence,
+one new matched attempt of **both** its arms is permitted under new filenames.
+For pair 2 retain candidate-then-baseline, the order fixed before the original
+series began; do not choose order from observed results. Keep the same frozen
+app/engine/evaluation revisions, inputs, runtime, model, routing, cache isolation,
+and scoring semantics, including the separately recorded provenance correction.
+Bind those identities before either arm and recheck free eligibility. Preserve
+all original and replacement attempts in the final account, including reliability
+failures; do not present replacement success as erasing a timeout.
+
+Every physical request in both replacement arms must have complete usage and
+served-model evidence and zero-price caps, and all scientific and fallback gates
+still apply. A second transport-incomplete pair remains inconclusive and requires
+investigation rather than an automatic repeat loop. A completed scientific failure
+is not eligible for this transport-only continuation. Changed model settings,
+runtime, inputs, or scientific scoring require a new complete three-pair series.
+Do not modify the currently running frozen observers to implement this procedure.
+Independent review checked the distinction between transport incompleteness and
+scientific failure and the need to retain the predeclared counterbalanced order.

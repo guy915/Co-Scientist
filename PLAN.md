@@ -2349,3 +2349,17 @@ M1 remains31/38; fresh count59. No model selection, release, or frozen-source ed
 Independent read-only review confirmed the receipt against raw and aggregate
 telemetry (two timeouts/unobserved calls/unreported usage records); no factual
 flaw found. Final session poll confirms41647 still live on baseline3.
+
+**2026-09-20 — Cycle73, transport continuation rule recorded.** Starting72149031.
+Previous cycle progressed retained pair2 evidence. Session41647 confirmed live
+on baseline3 by repeated bounded polls, with new assessor output. Independently
+reviewed the minimal response to pair2's missing transport evidence. Recorded
+in partial-support-candidate.md: finish current batch first; permit one new
+matched attempt of both incomplete arms with identical frozen identities and
+predeclared candidate-first pair2 order; retain original attempts and failures;
+never rerun a completed scientific failure just to obtain a pass. Another
+transport gap requires investigation, not automatic looping. Configuration or
+scientific scoring changes require a fresh full series. No inference launched,
+observer changed, threshold relaxed, model selected or deployment performed.
+Next await baseline3/candidate3 terminal evidence and apply the recorded rule.
+M1 remains31/38; fresh open count59. Diff check passed.
