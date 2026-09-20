@@ -181,3 +181,22 @@ all results and do not rerun this completed scientific failure unchanged. Inspec
 the partial/magnitude prompt contract and pursue a justified correction under
 M1-04b1b-s1; any changed candidate requires fresh matched qualification. No score
 threshold, allowed label, or scope control was relaxed.
+
+### Magnitude clarification candidate (cycle 92; unqualified)
+
+Independent semantic review identified ambiguity between permitting partial
+support for effect magnitude and forbidding untested claim-defining conditions.
+The retained cycle-91 single/batch live failures are the red behavioral evidence
+at the authorized claim-assessment boundary. Both primary prompts now explicitly
+classify an established direction with unreported extent as partial when stated
+population, model, intervention/dose, outcome, and observation time match.
+Measured extent contradicts only when it entails negation. No fixture nouns,
+labels, thresholds, quote requirements, or deterministic relabeling were added.
+This is a local design choice, not evidence of Google's implementation.
+
+Targeted claim-verifier suites: 45 passed; changed-file Ruff and diff checks pass.
+These offline tests establish compatibility only, not scientific improvement.
+The candidate remains unqualified: prepare a distinct pinned series and run all
+three matched pairs with fresh zero-price admission before any acceptance.
+Retain the failed scope/recovery series unchanged; do not overwrite its frozen
+observers or provenance. No inference or deployment occurred this cycle.

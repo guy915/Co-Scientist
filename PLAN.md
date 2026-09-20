@@ -2570,3 +2570,19 @@ provenance issue. All other paired gates pass. Retain failure, no blind rerun or
 threshold/label change. Next investigate minimal general magnitude-contract
 correction under existing M1-04b1b-s1, then fresh matched evidence if changed.
 M1 remains31/38; fresh open count59. No model selection or release.
+
+**2026-09-20 — Cycle92, general magnitude-contract clarification.** Startingc223b9ae.
+Previous reply only acknowledged preferences (no progress); revalidated actual
+working tree, completed failed series and source prompts. Independent Terra
+semantic review found an ambiguity between partial effect magnitude and untested
+claim-defining conditions. Added matching general wording to primary single/batch
+prompts: matching scope plus established direction with unreported extent is
+partial; measured extent contradicts only if it entails negation. Preserved all
+labels, scope controls, scientific gates and prior failures. Existing retained
+live failures supply red evidence; 45 targeted offline tests pass, Ruff/diff checks
+pass. Scoped cleanup/deslop found no leftovers or new abstractions; user's
+AGENTS.md remains untouched/uncommitted. Reflog inspected; stash list empty.
+This candidate is not scientifically verified; no checkbox completed, inference,
+model selection, PR or deployment. Next pin a separate candidate series and run
+three fresh matched pairs with verified zero-cost routing, preserving old frozen
+observer identities and receipts. M1 remains31/38; fresh open count59.
