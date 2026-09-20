@@ -2382,3 +2382,13 @@ Retained raw artifact without altering any source or prior pair. Pair3 acceptanc
 awaits candidate3; pair2 still inconclusive and all M1 acceptance items stay open.
 Next await candidate3 and terminal runner, then reconcile pairs and execute only
 the recorded transport continuation if applicable. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle76, verified candidate3 wait.** Startingceafebe7.
+Previous cycle retained complete baseline3 evidence. Session41647 confirmed live
+on candidate3 with new assessment output; no terminal artifact or new reported
+failure. Read existing runner continuation mechanics: it rejects any existing
+arm/log/catalog and hashes execution sources before each child. Preserve those
+safeguards; a transport continuation needs explicit new artifact names and bound
+source identities after this batch terminates. No active source changed or
+additional experiment started. Next await candidate3, reconcile complete pairs,
+and address pair2 under the cycle73 protocol. M1 remains31/38;59 open.
