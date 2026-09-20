@@ -2247,3 +2247,25 @@ with audited correction rather than fabricate provenance or reuse answers for a
 new model comparison. No original scientific threshold changes. Whole series
 remains unaccepted. Next observe41647 candidate2 and preserve frozen scripts.
 M1 remains31/38;59 open. No model selection or deployment.
+
+**2026-09-20 — Cycle65, auditable post-evaluation correction.** Starting0be9284e.
+Previous cycle progressed first pair and reproduced evaluator bug. Confirmed41647
+live on candidate2. Independent review supports correcting deterministic scoring
+of retained responses without rerunning inference: lexical_founded is guarded
+model output, not fallback. Implemented separate scope_correction.py; no frozen
+observer/helper/runner/comparator changes. Original summary and per-control checks
+retained verbatim in separate corrected receipt, all raw artifact hashes verified,
+helper/input/correction digests bound. Only candidate_scope_controls is corrected;
+every original non-scope criterion survives. Only lexical_founded contradictions
+with allowed labels, independently located quotes, nonempty calls and complete
+no-fallback telemetry qualify. Other original method results stay unchanged.
+
+Red import preceded implementation;9 correction tests pass, including mutated
+raw artifact rejection and preservation of an unrelated failed gate. Ruff/diff
+pass. Independent semantic review found no broadened scientific criterion and
+requested the two receipt tests now included. First corrected pair passes;
+whole corrected series remains incomplete/unaccepted. Original frozen evaluator's
+focused red regression remains pending batch termination (not skipped). This
+separate correction permits progress without breaking the live-source freeze.
+Next poll41647, retain remaining arms and regenerate original plus correction
+receipts. M1 remains31/38,59 open. No deployment or model selection.

@@ -104,3 +104,16 @@ do not blindly trust the old derived `passed=false` or overwrite raw responses.
 Preserve the original failed summary and identify the corrected evaluator revision.
 No thresholds, label expectations, required quotes, zero-cost requirements or
 fallback prohibitions change. Whole-series scientific acceptance stays pending.
+
+### Separate correction receipt
+
+To avoid modifying frozen observers, `scope_correction.py` independently consumes
+the original paired summary and immutable raw artifacts. It checks their hashes,
+retains the original summary/checks, and emits a separate corrected summary.
+Only `lexical_founded` contradictions receive the evidenced correction; quotes,
+nonempty assessment, complete telemetry, and no fallback remain mandatory. Every
+other original criterion is carried forward. This is corrected deterministic
+scoring of the same observations, not a new scientific trial or reused response.
+First pair passes the corrected predicate; the incomplete series is still not
+accepted. Nine correction tests pass, including receipt integrity. The original frozen evaluator's focused
+red regression remains intentionally unresolved until that batch is terminal.

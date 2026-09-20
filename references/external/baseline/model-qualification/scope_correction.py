@@ -1,0 +1,111 @@
+"""Auditable post-evaluation correction; never alter frozen trials or their gates."""
+
+import hashlib
+import json
+from pathlib import Path
+
+from scope_controls import validate_scope_evidence
+
+
+def corrected_scope_acceptance(record, dataset):
+    from app.claims import as_passages
+
+    # Preserve all structural and physical-evidence requirements. The return
+    # value includes the known allowlist defect, so only its exceptions matter.
+    validate_scope_evidence(record, dataset)
+    accepted = True
+    for panel in record["scope_controls"].values():
+        accepted &= not panel["usage_evidence"]["recorded_deterministic_fallbacks"]
+        for check, item in zip(panel["checks"], dataset["items"]):
+            if check["verification_method"] != "lexical_founded":
+                accepted &= check["passed"] is True
+                continue
+            texts = {p.evidence_id: p.text for p in as_passages(item["passages"])}
+            quotes = check["quotes"]
+            located = bool(quotes) and all(
+                q["quote"]
+                and type(q["start"]) is int
+                and type(q["end"]) is int
+                and 0 <= q["start"] < q["end"] <= len(texts.get(q["evidence_id"], ""))
+                and texts[q["evidence_id"]][q["start"] : q["end"]] == q["quote"]
+                for q in quotes
+            )
+            accepted &= bool(
+                check["label"] == "contradicts"
+                and check["label"] in item["allowed_labels"]
+                and check["allowed_labels"] == item["allowed_labels"]
+                and check["quotes_valid"] is True
+                and located
+                and check["nonempty_assessor_invocations"] > 0
+            )
+    return bool(accepted)
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def receipt(folder):
+    summary_path = folder / "opposition-scope-pro-paired-summary.json"
+    summary = json.loads(summary_path.read_text())
+    dataset_path = folder / "partial-support-scope-controls.json"
+    dataset = json.loads(dataset_path.read_text())
+    frozen = json.loads((folder / "scope-preflight.json").read_text())[
+        "source_manifest"
+    ]
+    helper_path = folder / "scope_controls.py"
+    if (
+        digest(helper_path) != frozen["scope_helper_sha256"]
+        or digest(dataset_path) != frozen["scope_controls_sha256"]
+    ):
+        raise ValueError("Frozen helper or dataset changed")
+    pairs = []
+    for pair in summary["pairs"]:
+        for artifact in pair["artifacts"]:
+            if digest(folder / artifact["path"]) != artifact["sha256"]:
+                raise ValueError("Raw artifact changed")
+        candidate = json.loads((folder / pair["artifacts"][1]["path"]).read_text())
+        corrected = corrected_scope_acceptance(candidate, dataset)
+        criteria = dict(pair["criteria"])
+        criteria["candidate_scope_controls"] = corrected
+        pairs.append(
+            {
+                "trial": pair["trial"],
+                "criteria": criteria,
+                "passed": all(criteria.values()),
+                "original_scope_checks": {
+                    m: p["checks"] for m, p in candidate["scope_controls"].items()
+                },
+            }
+        )
+    return {
+        "purpose": "Correct the lexical_founded provenance false rejection only; no inference or changed scientific observations",
+        "semantic_delta": "A primary model contradiction retained by a located-quote/subject/negation guard is not deterministic fallback",
+        "correction_sha256": digest(Path(__file__)),
+        "frozen_helper_sha256": digest(helper_path),
+        "dataset_sha256": digest(dataset_path),
+        "original_summary_sha256": digest(summary_path),
+        "original_summary": summary,
+        "pairs": pairs,
+        "complete": summary["complete"],
+        "corrected_acceptance": summary["complete"]
+        and len(pairs) == 3
+        and all(p["passed"] for p in pairs),
+    }
+
+
+if __name__ == "__main__":
+    folder = Path(__file__).resolve().parent
+    result = receipt(folder)
+    (folder / "opposition-scope-pro-corrected-summary.json").write_text(
+        json.dumps(result, indent=2) + "\n"
+    )
+    print(
+        json.dumps(
+            {
+                "complete": result["complete"],
+                "corrected_acceptance": result["corrected_acceptance"],
+                "pairs": len(result["pairs"]),
+            }
+        )
+    )
