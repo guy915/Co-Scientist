@@ -1,11 +1,14 @@
 # Free-model qualification
 
-Current status (cycle 93): the completed scope recovery series is **not accepted**;
-its third pair failed the unreported-magnitude scope control in both assessor
-modes. Candidate `e57ad3cf` clarifies that contract and is awaiting a new three-pair
-`opposition-magnitude-pro` qualification. No primary or fallback is selected.
-See [the candidate record](partial-support-candidate.md) for retained failures
-and the unchanged acceptance protocol. Earlier results below are historical.
+Current status (cycle 97): `opposition-magnitude-pro` is in progress, not
+accepted. Candidate `e57ad3cf` passes every corrected criterion in completed pair
+1 (.967 accuracy/.9 recall versus baseline .433/0). Candidate 2 records .933/.8
+and passes corrected scope controls; its matched baseline is still running.
+Pair 3 is also required. No primary or fallback is selected. The earlier scope
+recovery series remains unaccepted after failing its magnitude control, with all evidence
+retained. See [the candidate record](partial-support-candidate.md) and
+[the current paired receipt](opposition-magnitude-pro-corrected-summary.json).
+Earlier results below are historical.
 
 This is live eligibility and compatibility research, not a selected production
 configuration. `catalog.json` retains the dated public catalog fields used by

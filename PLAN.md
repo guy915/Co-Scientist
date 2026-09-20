@@ -2683,3 +2683,14 @@ Runner 26568 is now confirmed live on baseline 2. Retained the raw candidate
 artifact; no execution source changes, restart or additional inference batch.
 M1 remains 32/39; fresh open count 59. Next retain baseline 2 and assess the pair,
 then continue the same runner through both arms of pair 3.
+
+**2026-09-20 — Cycle 97, qualification index updated during baseline-2 wait.**
+Starting 6f816d56. Previous cycle retained candidate 2. Repeated bounded polls
+confirm runner 26568 remains live on baseline 2, with assessment output and no
+completed artifact or reported terminal error. Updated the qualification README,
+which still described the magnitude series as awaiting launch, to link its
+current paired receipt and distinguish complete pair 1 from the unmatched
+candidate 2. No scientific acceptance, source mutation, restart, or repeated test
+suite. User AGENTS.md remains untouched. M1 remains 32/39; fresh open count 59.
+Next retain baseline 2 and compare the completed pair, then observe pair 3 from
+the same runner before full-series acceptance.
