@@ -2459,3 +2459,15 @@ binds all execution sources and original-artifact hashes. Frozen four-arm order:
 candidate2,baseline2,baseline3,candidate3. No additional attempt is authorized if
 this one is inconclusive without investigation. Next poll28291; never restart
 solely on silence. Preserve frozen runner/comparator/helpers until terminal.
+
+**2026-09-20 — Cycle81, verified recovery wait.** Startingede5590c.
+Previous cycle progressed recovery integration and launch. Session28291 remains
+live on recovery candidate2; schema validation failed on attempt1 (empty string
+not valid under schema), followed by new supporting-assessment output under
+existing retries. No terminal artifact; retain retry evidence at completion.
+GitHub main currently7dce086dd483831b40a12532a84cf7321f058e52, so campaign remains
+unmerged. Read-only host check confirms prior security preflight conflict persists
+(multi_agent_v2=true plus agents.max_threads=6); no scan completion claimed or
+host configuration changed. No frozen-source edit, extra inference batch or
+acceptance change. Next poll28291 and retain the completed recovery arm.
+M1 remains31/38; fresh open count59.
