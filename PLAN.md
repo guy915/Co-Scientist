@@ -176,9 +176,10 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
 - [x] M1-04b1b-r1: Correct the demonstrated short-identifier retrieval omission with a bounded, retrieval-only candidate; verify unseen identifier/paraphrase examples, unrelated-stopword exclusion, unchanged deterministic verdict thresholds, and freshness tracking. Treat scientific adoption as pending the matched live qualification item below.
 - [x] M1-05a: Remove local dotenv/model-catalog dependence from mocked-provider app tests using synthetic catalog metadata; preserve production default routes and zero-cost admission, reproduce the isolated failures, and pass the serialized offline verification suite.
-- [ ] M1-04b1b-s1: Clarify the primary single/batch partial-support contract for claim-defining scope without schema or runtime-gate changes; preserve same-scope partial support and broad claims through dedicated controls, then verify a fresh matched live candidate. Existing mismatch failures are the red behavioral evidence; prompt edits alone do not complete this item.
-- [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
+- [x] M1-04b1b-s1: Clarify the primary single/batch partial-support contract for claim-defining scope without schema or runtime-gate changes; preserve same-scope partial support and broad claims through dedicated controls, then verify a fresh matched live candidate. Existing mismatch failures are the red behavioral evidence; prompt edits alone do not complete this item.
+- [x] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
+- [ ] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -2774,3 +2775,16 @@ transport retries remain visible rather than silently discarded. No model
 selected or checkbox completed. Scoped cleanup retained the intentional evidence
 and user AGENTS.md changes; documentation diff check passed. M1 remains 32/39,
 59 open. Next collect final candidate 3 and run paired/corrected receipts.
+
+**Cycle 103 final-trial addendum.** Runner 26568 then exited 0. Final candidate
+accuracy .933/recall .80; all three corrected pairs pass. Independently reviewed
+raw scope outcomes and correction logic: the only original receipt failure is
+the frozen lexical_founded provenance omission, not scientific behavior. Marked
+M1-04b1b-s1 and M1-04b1b complete; added M1-04b1d for the maintained observer's
+existing red regression while preserving historical reproducibility. Verified
+all 352 physical responses have expected served model, zero-price caps, reported
+zero cost and numeric usage. Retained 102 inconsistent provider reasoning-token
+subtotals explicitly; no token-derived billing claim. Raw artifacts, complete
+receipts and telemetry audit retained. M1 now 34/40; 58 open. Next repair the
+maintained provenance observer, then continue model screens and workflow
+qualification. No production change, model selection or M1 completion claimed.

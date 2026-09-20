@@ -500,8 +500,250 @@
         53,
         64
       ]
+    },
+    {
+      "trial": 3,
+      "item_label_flips": [
+        {
+          "index": 1,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 2,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 3,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 4,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 5,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 6,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 7,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 19,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 20,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 22,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 24,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 26,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 27,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 28,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 29,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "opposition-magnitude-pro-baseline-3.json",
+          "sha256": "7441f7472b3f750a3aaf01d7edd0cc04d801d411074d08899198b1fec92af9ce"
+        },
+        {
+          "path": "opposition-magnitude-pro-candidate-3.json",
+          "sha256": "651ff61168c8f5570e2e3a1523c902389c0f13f29cc5f6908a40e88c872f18f9"
+        }
+      ],
+      "controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+        "scientific_acceptance": "not_assessed"
+      },
+      "source_delta": {
+        "scope": "Composite app/engine candidate; no individual-change causal attribution",
+        "subtree_revisions": {
+          "baseline": {
+            "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          },
+          "candidate": {
+            "app": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+            "engine": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          }
+        },
+        "verified_project_import_counts": [
+          308,
+          310
+        ]
+      },
+      "historical_controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+        "scientific_acceptance": "not_assessed"
+      },
+      "baseline_metrics": {
+        "accuracy": 0.433,
+        "contradiction_recall": 0.0,
+        "abstention_rate": 0.7,
+        "per_label": {
+          "contradicts": {
+            "precision": 0.0,
+            "recall": 0.0
+          },
+          "insufficient": {
+            "precision": 0.429,
+            "recall": 0.643
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.667
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.0,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.0,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.667,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "candidate_metrics": {
+        "accuracy": 0.933,
+        "contradiction_recall": 0.8,
+        "abstention_rate": 0.533,
+        "per_label": {
+          "contradicts": {
+            "precision": 1.0,
+            "recall": 0.8
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "insufficient": {
+            "precision": 0.875,
+            "recall": 1.0
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.857,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 1.0,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 1.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 1.0,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "false_contradictions": [
+        0,
+        0
+      ],
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": false
+      },
+      "passed": false,
+      "physical_requests": [
+        53,
+        64
+      ]
     }
   ],
-  "complete": false,
+  "complete": true,
   "accepted": false
 }

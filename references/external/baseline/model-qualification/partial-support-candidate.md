@@ -243,3 +243,14 @@ calls versus candidate .933/.8/64 calls. Complete expected-model usage, zero cap
 and zero reported cost were verified. Every corrected pair-2 criterion passes;
 two passing pairs do not complete the required three-pair series. Fresh catalog
 admission succeeded for pair 3, now running on the original execution revision.
+
+Cycle 103: runner 26568 exited successfully after final candidate 3 (.933
+accuracy/.80 contradiction recall/64 requests); baseline 3 was .433/0/53.
+All three corrected pairs pass every declared criterion. The original receipt
+remains unaccepted solely because its frozen observer omits lexical_founded
+primary-model provenance; the separate correction changes that interpretation,
+not any judgment, quote, label or scientific threshold. All 352 physical
+responses have expected model identity, zero-price caps and reported zero cost.
+See opposition-magnitude-pro-telemetry-audit.json for hashes and the provider's
+reasoning-token accounting limitation. This verifies the bounded candidate
+comparison, not a production model selection or complete research workflow.
