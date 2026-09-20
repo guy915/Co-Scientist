@@ -2660,3 +2660,12 @@ the known lexical_founded observer false flag; the correction verifies their rea
 located primary-model evidence. No changed labels or thresholds. Retained raw
 candidate 1, pair-1 summaries and fresh pair-2 catalog. Runner 26568 confirmed
 live on candidate 2. Next preserve both pair-2 arms, then pair 3 from that handle.
+
+**2026-09-20 — Cycle 95, verified candidate-2 wait.** Starting a62db70e.
+Previous cycle progressed hermetic test verification and retained magnitude pair 1.
+Repeated bounded polls confirm runner 26568 remains live on candidate trial 2;
+the current log contains ongoing assessment output, with no completed arm artifact
+or terminal error. No restart, new inference batch, source mutation, repeated suite,
+or acceptance change. User AGENTS.md remains untouched. M1 remains 32/39; fresh
+open count 59. Next retain candidate 2 and its matched baseline from this runner,
+then pair 3 before evaluating full-series acceptance.
