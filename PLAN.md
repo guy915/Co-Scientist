@@ -2415,3 +2415,24 @@ explicit matched recovery alongside transport-incomplete pair2, preserving all
 original evidence and reporting missing interrupted observations. Next implement
 minimal non-overwriting recovery using existing guards, with fresh free admission
 before either arm; keep scoring and model settings fixed. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle79, explicit recovery runner verified.** Startingda27ea01.
+Previous execution cycle progressed reconstruction; cleanup follow-up preserved
+intentional user AGENTS changes. Applied ponytail/tdd/karpathy to recovery.
+Added the minimal schedule and existing-runner CLI for exactly recovery1 pairs
+2,3, preserving C/B then B/C ordering. Every output/log/catalog is suffixed;
+all collision checks run before credential loading/network. Catalog records
+bind attempt, selected trials, manifest hash, original artifact names/hashes or
+missing status, and execution identities including scheduler. Plan-only exits
+without inference. Red missing-module test preceded implementation;8 focused
+schedule/CLI tests now pass, including collision refusal and original schedule;
+Ruff format/check and diff check pass. Independent review found no blocking
+cost/preservation/default regression. Actual plan-only run matched retained
+manifest19896e07... and selected only pairs2/3. No inference launched.
+Next extend comparator and separate correction receipt with explicit recovery
+namespaces: original pair1 identities must match Git9acebec9 plus its catalog;
+recovery pairs must match new catalog identities and retain recovery_of metadata.
+Scientific observer/helper/input bytes and every acceptance gate stay fixed.
+This completes runner preparation only, not live qualification. Original scope
+helper regression remains pending; no claim all helper tests are green.
+M1 remains31/38; fresh open count59. No model selection or release.
