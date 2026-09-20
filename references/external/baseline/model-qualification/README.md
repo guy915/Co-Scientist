@@ -1,13 +1,12 @@
 # Free-model qualification
 
-Current status (cycle 97): `opposition-magnitude-pro` is in progress, not
-accepted. Candidate `e57ad3cf` passes every corrected criterion in completed pair
-1 (.967 accuracy/.9 recall versus baseline .433/0). Candidate 2 records .933/.8
-and passes corrected scope controls; its matched baseline is still running.
-Pair 3 is also required. No primary or fallback is selected. The earlier scope
-recovery series remains unaccepted after failing its magnitude control, with all evidence
-retained. See [the candidate record](partial-support-candidate.md) and
-[the current paired receipt](opposition-magnitude-pro-corrected-summary.json).
+Current status (cycle 99): `opposition-magnitude-pro` is in progress, not
+accepted. Candidate `e57ad3cf` passes every corrected criterion in completed pairs
+1 and 2: accuracy/recall .967/.9 and .933/.8 versus baseline .433/0 and .367/0.
+Pair 3 is running and remains required. No primary or fallback is selected.
+The earlier scope recovery series remains unaccepted after failing its magnitude
+control, with all evidence retained. See [the candidate record](partial-support-candidate.md)
+and [the current paired receipt](opposition-magnitude-pro-corrected-summary.json).
 Earlier results below are historical.
 
 This is live eligibility and compatibility research, not a selected production

@@ -2704,3 +2704,17 @@ from silence, restart the runner, mutate frozen sources, or rerun offline suites
 M1 remains 32/39; fresh open count 59. Next retain baseline 2 and evaluate its
 matched pair, then observe both pair-3 arms through the same handle. User AGENTS.md
 remains untouched; no acceptance or deployment change.
+
+**2026-09-20 — Cycle 99, second matched magnitude pair passes.** Starting 69d6ba60.
+Previous cycle was a verified wait. Baseline 2 completed with accuracy .367,
+recall 0 and 53 requests. All requests have numeric usage, expected served model,
+zero caps and reported cost zero; source checks and secret-value scan passed.
+Both comparison commands exit 0 with two complete pairs, full-series acceptance
+false. Every corrected criterion passes for pairs 1 and 2, including both scope
+modes and no false-contradiction/fallback regression. Preserved raw baseline 2,
+updated paired receipts and current qualification index. Fresh catalog 3 admits
+Nex Pro at zero pricing and records execution revision b7787832. Runner 26568 is
+confirmed live on baseline 3. No frozen source changes, repeat batch, model
+selection or release. M1 remains 32/39; fresh open count 59. Next retain baseline
+3 and candidate 3 from this handle, confirm terminal status, then assess all
+three pairs. User AGENTS.md remains untouched; scoped diff check passed.

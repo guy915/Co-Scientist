@@ -1,0 +1,92 @@
+{
+  "attempt": "",
+  "execution_revision": "b77878324e1170866007eee24480f073bc10aa66",
+  "selected_trials": [
+    1,
+    2,
+    3
+  ],
+  "source_manifest_sha256": "501510f81e0954ab06019ecfc8d425f80a40d5e55108b51752bb3d28f88c85b5",
+  "recovery_of": [],
+  "selected": {
+    "id": "nex-agi/nex-n2.5-pro:free",
+    "canonical_slug": "nex-agi/nex-n2.5-pro-20260907",
+    "hugging_face_id": "nex-agi/Nex-N2.5-Pro",
+    "name": "Nex AGI: Nex-N2.5-Pro (free)",
+    "created": 1788890050,
+    "description": "Nex-N2.5 is an agentic model built to turn goals into working, verified outcomes. Its core strength is agentic coding within a visual feedback loop: it can explore codebases, implement multi-file...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Qwen3",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 235929,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "top_k": 40
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/nex-agi/nex-n2.5-pro-20260907/endpoints"
+    },
+    "reasoning": {
+      "mandatory": false,
+      "supported_efforts": [
+        "high",
+        "medium",
+        "none"
+      ],
+      "default_effort": "high"
+    }
+  },
+  "fetched_unix": 1789899215.6875,
+  "catalog_sha256": "cafc3d8b6b03427f8770dd2166908c8917e6af5413ce96c289f302211a31bc57",
+  "execution_sources": {
+    "run_retrieval_trials.py": "b2dfbe5d5716ac1fa6a943f393b34c9bf4d832c7515c426ef8bc3ec6fe511f34",
+    "recovery_schedule.py": "a033e8cc6d4c91ddc3c8109ef1a18e47f8e6d019776f4030d56176f299a84f09",
+    "comparison_recovery.py": "e8c9ec71ab29508520a0a315067f5426665c200b05cf5642ecf481ad788dd94a",
+    "probe_citation_panel.py": "6f180906b01e384722747abf251b83d7f161b01f38998a03559630f3db4e69d1",
+    "qualification_sources.py": "64edc5d5f57f6594ea0cdf9836c9a9a302a21b51e18faa0ccc1c76c04541238c",
+    "compare_opposition_panels.py": "6ade3f273a3fea7f5b999e9915bb8767fb7b098eb146c95ae8004e4cf72ea981",
+    "prepare_retrieval_trial.py": "d978f0b8021b45c08b84f686666dc854e8f2c3c8d43bf01cc6ebe649f99ca91a",
+    "scope_correction.py": "f7357966cf39eb4c090e9c58d5e571ae545d0215b7472dda4a2755525f8492a2",
+    "source-manifest.json": "501510f81e0954ab06019ecfc8d425f80a40d5e55108b51752bb3d28f88c85b5",
+    "scope_controls.py": "5b1f562f3738d48116f5b9427e057cb98789968b08243ee5360a8925b32733d0",
+    "partial-support-scope-controls.json": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015"
+  }
+}

@@ -237,3 +237,9 @@ zero-price caps and reported zero cost. Every corrected pair criterion passes,
 including both scope-control modes. The full series remains incomplete and
 unaccepted; pairs 2 and 3 are required. Original scope-observer flags remain in
 raw artifacts; the established provenance correction is retained separately.
+
+Cycle 99: matched magnitude pair 2 completed. Baseline .367 accuracy/0 recall/53
+calls versus candidate .933/.8/64 calls. Complete expected-model usage, zero caps
+and zero reported cost were verified. Every corrected pair-2 criterion passes;
+two passing pairs do not complete the required three-pair series. Fresh catalog
+admission succeeded for pair 3, now running on the original execution revision.
