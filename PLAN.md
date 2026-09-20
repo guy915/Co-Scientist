@@ -2547,3 +2547,11 @@ telemetry and statuses; clarified that only the evaluations subtree is shared
 at baseline revision. Documentation-only; no frozen execution source changed.
 Next retain final candidate3 and execute recovered comparison/correction after
 terminal status. M1 remains31/38; fresh open count59. Diff check passed.
+
+**2026-09-20 — Cycle90, verified final recovery wait.** Starting24057213.
+Previous cycle progressed the qualification index. Repeated bounded polls
+confirm28291 remains live on recovery candidate3 with advancing assessment
+output and no terminal artifact or new reported error. No source mutation,
+restart, extra inference batch or acceptance change. Next retain candidate3,
+confirm terminal status and run full recovery comparison/correction. M1 remains
+31/38; fresh open count59.
