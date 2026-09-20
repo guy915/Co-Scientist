@@ -2555,3 +2555,18 @@ output and no terminal artifact or new reported error. No source mutation,
 restart, extra inference batch or acceptance change. Next retain candidate3,
 confirm terminal status and run full recovery comparison/correction. M1 remains
 31/38; fresh open count59.
+
+**2026-09-20 — Cycle91, recovery completed but not accepted.** Startingd8fccab1.
+Previous cycle was a verified wait. Session28291 terminal exit0. Final candidate3
+accuracy.900/recall.80,64 requests; every request has usage, expected model and
+zero-price caps. Secret scans passed for raw artifact and summaries. Both recovery
+comparison and correction commands exit0 with complete=true, acceptance=false.
+Pairs1/2 pass all corrected criteria. Pair3 fails only candidate_scope_controls:
+same_scope_unspecified_magnitude returns insufficient rather than required partial
+in both modes. Inspected source dataset, primary prompt text and actual response
+bodies: complete cessation claim versus reduction with magnitude unreported;
+both models return insufficient and no quotes. This is not the lexical_founded
+provenance issue. All other paired gates pass. Retain failure, no blind rerun or
+threshold/label change. Next investigate minimal general magnitude-contract
+correction under existing M1-04b1b-s1, then fresh matched evidence if changed.
+M1 remains31/38; fresh open count59. No model selection or release.

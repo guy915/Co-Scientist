@@ -1,0 +1,766 @@
+{
+  "baseline_commit": "14e8c59950204c96cdfa2195594885383d1d5720",
+  "candidate_commit": "03ea84841983c93da170902c05b3fd846fb87360",
+  "pairs": [
+    {
+      "trial": 1,
+      "item_label_flips": [
+        {
+          "index": 1,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 2,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 3,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 4,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 5,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 6,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 7,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 8,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 19,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 20,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 22,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 24,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 26,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 27,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 28,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 29,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "opposition-scope-pro-baseline-1.json",
+          "sha256": "8c161dfc787d4ebe52f224f2ad69472bf5450df95da211f09176af3eaab8c8e0"
+        },
+        {
+          "path": "opposition-scope-pro-candidate-1.json",
+          "sha256": "fa5b6269c4899ffe99405bc3b13284af1fba6488752b9ad726694a981177e815"
+        }
+      ],
+      "controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+        "scientific_acceptance": "not_assessed"
+      },
+      "source_delta": {
+        "scope": "Composite app/engine candidate; no individual-change causal attribution",
+        "subtree_revisions": {
+          "baseline": {
+            "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          },
+          "candidate": {
+            "app": "03ea84841983c93da170902c05b3fd846fb87360",
+            "engine": "03ea84841983c93da170902c05b3fd846fb87360",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          }
+        },
+        "verified_project_import_counts": [
+          308,
+          310
+        ]
+      },
+      "historical_controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+        "scientific_acceptance": "not_assessed"
+      },
+      "baseline_metrics": {
+        "accuracy": 0.4,
+        "contradiction_recall": 0.0,
+        "abstention_rate": 0.667,
+        "per_label": {
+          "contradicts": {
+            "precision": 0.0,
+            "recall": 0.0
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.667
+          },
+          "insufficient": {
+            "precision": 0.4,
+            "recall": 0.571
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.0,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.0,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.667,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.333,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "candidate_metrics": {
+        "accuracy": 0.933,
+        "contradiction_recall": 0.8,
+        "abstention_rate": 0.533,
+        "per_label": {
+          "supports": {
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "contradicts": {
+            "precision": 1.0,
+            "recall": 0.8
+          },
+          "insufficient": {
+            "precision": 0.875,
+            "recall": 1.0
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.857,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 1.0,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 1.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 1.0,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "false_contradictions": [
+        0,
+        0
+      ],
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": false
+      },
+      "passed": false,
+      "physical_requests": [
+        53,
+        64
+      ]
+    },
+    {
+      "trial": 2,
+      "attempt": "recovery1",
+      "recovery_of": [
+        {
+          "path": "opposition-scope-pro-candidate-2.json",
+          "sha256": "c4ddbb7aec317fdc663425876e85e89b3dfd5a51d7468b6214857f5711e62c35",
+          "status": "retained"
+        },
+        {
+          "path": "opposition-scope-pro-baseline-2.json",
+          "sha256": "d8ef2eeaeb922bdde9e9e5dcb8149399bc0d1709af21d279978dfa085ba07663",
+          "status": "retained"
+        }
+      ],
+      "item_label_flips": [
+        {
+          "index": 1,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 2,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 3,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 4,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 5,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 7,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 19,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 20,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 22,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 23,
+          "baseline": "partial",
+          "candidate": "supports"
+        },
+        {
+          "index": 24,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 26,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 27,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 28,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 29,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "opposition-scope-pro-baseline-2-recovery1.json",
+          "sha256": "16cef46d2913fba50d4250b41b2617b8dac15775cb1bc98f1728314fb351da6e"
+        },
+        {
+          "path": "opposition-scope-pro-candidate-2-recovery1.json",
+          "sha256": "01514f7163d80e4e95b1c6d12c711030b951fc201a1824df5e74e92e2b40e2db"
+        }
+      ],
+      "controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+        "scientific_acceptance": "not_assessed"
+      },
+      "source_delta": {
+        "scope": "Composite app/engine candidate; no individual-change causal attribution",
+        "subtree_revisions": {
+          "baseline": {
+            "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          },
+          "candidate": {
+            "app": "03ea84841983c93da170902c05b3fd846fb87360",
+            "engine": "03ea84841983c93da170902c05b3fd846fb87360",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          }
+        },
+        "verified_project_import_counts": [
+          308,
+          310
+        ]
+      },
+      "historical_controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+        "scientific_acceptance": "not_assessed"
+      },
+      "baseline_metrics": {
+        "accuracy": 0.433,
+        "contradiction_recall": 0.0,
+        "abstention_rate": 0.733,
+        "per_label": {
+          "contradicts": {
+            "precision": 0.0,
+            "recall": 0.0
+          },
+          "insufficient": {
+            "precision": 0.455,
+            "recall": 0.714
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.5
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.0,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.0,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.5,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.25,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "candidate_metrics": {
+        "accuracy": 0.933,
+        "contradiction_recall": 0.8,
+        "abstention_rate": 0.533,
+        "per_label": {
+          "contradicts": {
+            "precision": 1.0,
+            "recall": 0.8
+          },
+          "insufficient": {
+            "precision": 0.875,
+            "recall": 1.0
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.857,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 1.0,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 1.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 1.0,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "false_contradictions": [
+        0,
+        0
+      ],
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": false
+      },
+      "passed": false,
+      "physical_requests": [
+        53,
+        65
+      ]
+    },
+    {
+      "trial": 3,
+      "attempt": "recovery1",
+      "recovery_of": [
+        {
+          "path": "opposition-scope-pro-baseline-3.json",
+          "sha256": "3b061c5ca0f3940067e921558a842aa4f5ba97b55f73c9f2d5fe528d08910567",
+          "status": "retained"
+        },
+        {
+          "path": "opposition-scope-pro-candidate-3.json",
+          "sha256": null,
+          "status": "missing_after_interruption"
+        }
+      ],
+      "item_label_flips": [
+        {
+          "index": 1,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 2,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 3,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 4,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 5,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 6,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 9,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 19,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 20,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 22,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 24,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        },
+        {
+          "index": 25,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 26,
+          "baseline": "partial",
+          "candidate": "insufficient"
+        },
+        {
+          "index": 27,
+          "baseline": "insufficient",
+          "candidate": "supports"
+        },
+        {
+          "index": 28,
+          "baseline": "insufficient",
+          "candidate": "contradicts"
+        }
+      ],
+      "artifacts": [
+        {
+          "path": "opposition-scope-pro-baseline-3-recovery1.json",
+          "sha256": "fc1d93cf7165e14bf7637643fefbfddad519b27649e72cd8c062728abbd6d672"
+        },
+        {
+          "path": "opposition-scope-pro-candidate-3-recovery1.json",
+          "sha256": "05f37d1df863b3ffae1b869cd04bb87ac392265c1372f6b77a09650f3884be80"
+        }
+      ],
+      "controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+        "scientific_acceptance": "not_assessed"
+      },
+      "source_delta": {
+        "scope": "Composite app/engine candidate; no individual-change causal attribution",
+        "subtree_revisions": {
+          "baseline": {
+            "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          },
+          "candidate": {
+            "app": "03ea84841983c93da170902c05b3fd846fb87360",
+            "engine": "03ea84841983c93da170902c05b3fd846fb87360",
+            "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+          }
+        },
+        "verified_project_import_counts": [
+          308,
+          310
+        ]
+      },
+      "historical_controls": {
+        "status": "matched_declared_inputs",
+        "panel": "citation_entailment",
+        "execution_mode": "live_requested",
+        "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+        "scientific_acceptance": "not_assessed"
+      },
+      "baseline_metrics": {
+        "accuracy": 0.4,
+        "contradiction_recall": 0.0,
+        "abstention_rate": 0.667,
+        "per_label": {
+          "insufficient": {
+            "precision": 0.4,
+            "recall": 0.571
+          },
+          "contradicts": {
+            "precision": 0.0,
+            "recall": 0.0
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 0.667
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.0,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.0,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 0.667,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 0.25,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.333,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 0.8,
+            "n": 5
+          }
+        }
+      },
+      "candidate_metrics": {
+        "accuracy": 0.9,
+        "contradiction_recall": 0.8,
+        "abstention_rate": 0.5,
+        "per_label": {
+          "contradicts": {
+            "precision": 1.0,
+            "recall": 0.8
+          },
+          "supports": {
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "insufficient": {
+            "precision": 0.867,
+            "recall": 0.929
+          }
+        },
+        "n": 30,
+        "by_kind": {
+          "numeric_conflict": {
+            "accuracy": 0.857,
+            "n": 7
+          },
+          "paraphrase_contradiction": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "paraphrase_support": {
+            "accuracy": 1.0,
+            "n": 6
+          },
+          "retracted": {
+            "accuracy": 1.0,
+            "n": 2
+          },
+          "species_mismatch": {
+            "accuracy": 1.0,
+            "n": 4
+          },
+          "temporal_mismatch": {
+            "accuracy": 0.667,
+            "n": 3
+          },
+          "topic_mention_only": {
+            "accuracy": 1.0,
+            "n": 5
+          }
+        }
+      },
+      "false_contradictions": [
+        0,
+        0
+      ],
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": false
+      },
+      "passed": false,
+      "physical_requests": [
+        53,
+        64
+      ]
+    }
+  ],
+  "complete": true,
+  "accepted": false,
+  "attempt": "recovery1"
+}

@@ -164,3 +164,20 @@ observer, scope helper, input, source, runtime, routing, and scoring requirement
 remain unchanged. The new summary retains each original artifact's hash or its
 explicit missing status. All four replacement arms must finish with complete
 request evidence; another missing observation remains inconclusive.
+
+### Completed recovery: scientific scope failure (cycle 91)
+
+The runner terminated with exit 0. All three recovered comparison pairs pass the
+unchanged accuracy/recall, historical, live-verifier, false-contradiction and
+fallback criteria. Candidate accuracies are .933, .933 and .900; recall is .80
+in each. Pair 3 nevertheless fails the scope criterion in **both** single and
+batch modes. The predeclared magnitude control claims complete cessation, while
+the matching passage reports reduction without its magnitude. Both live model
+responses label it `insufficient` with no supporting quotes; expected `partial`.
+This is a real model output, not the previously corrected lexical-provenance bug.
+
+The original and corrected recovery summaries both remain unaccepted. Preserve
+all results and do not rerun this completed scientific failure unchanged. Inspect
+the partial/magnitude prompt contract and pursue a justified correction under
+M1-04b1b-s1; any changed candidate requires fresh matched qualification. No score
+threshold, allowed label, or scope control was relaxed.
