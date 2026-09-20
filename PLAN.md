@@ -2749,3 +2749,14 @@ M1 remains 32/39; fresh open count 59. Next retain candidate 3, confirm terminal
 runner status and execute full paired/corrected receipts before deciding whether
 M1-04b1b-s1 and M1-04b1b meet their criteria. User AGENTS.md remains untouched;
 scoped diff check passed.
+
+**2026-09-20 — Cycle 102, verified final-trial wait.** Starting 7aedc115.
+The preceding status-only response produced no new campaign evidence. Revalidated
+runner 26568 directly: repeated bounded polls returned the same live session,
+with no terminal result. Candidate 3 log updated at 10:27:22 UTC; no final
+artifact was available at this checkpoint. Inspected comparator source to
+confirm all three pairs, pinned sources and matched input/model/usage evidence
+remain required. No restart, inference addition, source mutation or acceptance
+claim. Scoped cleanup found only intentional user-authored AGENTS.md preferences;
+left them untouched. M1 remains 32/39 and 59 items remain open. Next poll the
+same handle, retain candidate 3 when terminal, and run both comparison receipts.
