@@ -2510,3 +2510,11 @@ with Missing recovery artifacts for trial3, preserving its fail-closed full-seri
 requirement; no recovered summary or acceptance claimed. Runner is now live on
 recovery baseline3. Next retain both pair3 arms and run paired/corrected receipts
 once terminal. M1 remains31/38; fresh open count59. No source edits or release.
+
+**2026-09-20 — Cycle86, verified third recovery baseline wait.** Starting17b89f70.
+Previous cycle progressed retained baseline2 evidence. Repeated bounded polls
+confirm28291 remains live on recovery baseline3 with new assessment output and
+no terminal artifact or new reported error. No restart, additional attempt,
+frozen-source mutation or acceptance change. Next retain baseline3 and then
+candidate3 from the same runner before full recovered comparison. M1 remains
+31/38; fresh open count59.
