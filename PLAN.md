@@ -2371,3 +2371,14 @@ historical controls into batch scope controls. No terminal arm artifact yet;
 latest output shows no new timeout. No restart, additional inference batch,
 frozen-source mutation, or acceptance change. Next retain baseline3 on completion
 and continue observing candidate3 under the same runner. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle75, third baseline retained.** Starting81ced2a9.
+Previous cycle was a verified wait. Session41647 completed baseline3 and started
+candidate3. Baseline3 .400 accuracy/0 contradiction recall,53 physical requests,
+no terminal error. All53 have numeric usage, expected served model, and exact
+zero-price caps. Both scope modes retain10 checks/10 physical calls. Manifest
+and probe identities match frozen records; configured secret-value scan passed.
+Retained raw artifact without altering any source or prior pair. Pair3 acceptance
+awaits candidate3; pair2 still inconclusive and all M1 acceptance items stay open.
+Next await candidate3 and terminal runner, then reconcile pairs and execute only
+the recorded transport continuation if applicable. M1 remains31/38;59 open.
