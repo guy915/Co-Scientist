@@ -175,6 +175,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04a1: Reproduce the native structured-output schema envelope failure at the LLM request boundary, correct the shared envelope while preserving local schema validation and the json_object shim, then retry the live Nex probe.
 - [x] M1-04b1a: Reproduce the markerless contradiction failure and implement a shared, bounded semantic verification candidate through single/batch public assessors; preserve located quotes, subject coverage, historical false-positive regressions, budget/parking behavior and verification-failure evidence. This establishes a tested candidate, not scientific acceptance.
 - [x] M1-04b1b-r1: Correct the demonstrated short-identifier retrieval omission with a bounded, retrieval-only candidate; verify unseen identifier/paraphrase examples, unrelated-stopword exclusion, unchanged deterministic verdict thresholds, and freshness tracking. Treat scientific adoption as pending the matched live qualification item below.
+- [x] M1-05a: Remove local dotenv/model-catalog dependence from mocked-provider app tests using synthetic catalog metadata; preserve production default routes and zero-cost admission, reproduce the isolated failures, and pass the serialized offline verification suite.
 - [ ] M1-04b1b-s1: Clarify the primary single/batch partial-support contract for claim-defining scope without schema or runtime-gate changes; preserve same-scope partial support and broad claims through dedicated controls, then verify a fresh matched live candidate. Existing mismatch failures are the red behavioral evidence; prompt edits alone do not complete this item.
 - [ ] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
@@ -2614,3 +2615,48 @@ No completed arm or scientific acceptance yet. Continue observing the same handl
 do not restart on an observation timeout. Snapshots/logs:
 /private/tmp/coscientist-magnitude93/. No frozen execution source may change while
 this batch runs. Next retain baseline1/candidate1 results and continue all pairs.
+
+**2026-09-20 — Cycle 94, hermetic app verification corrected; baseline 1 retained.**
+Starting commit 11beaa71. Previous cycle progressed by preparing and launching
+fresh magnitude trials. Runner 26568 remained live, completed baseline 1, and
+started candidate 1. Baseline accuracy .433, recall 0, 53 requests: every request
+has numeric usage, expected served model, zero-price caps and reported cost zero.
+Source identities and secret-value scan passed; retained the raw artifact.
+
+The required offline suite exposed 18 app failures with dotenv disabled: mocked
+requests inherited default free routes and fetched current catalog metadata,
+which no longer contains that default. Reproduced two failures in isolation.
+Added M1-05a before fixing it. An initial test-model override passed targeted tests
+but independent review rejected it because it stopped exercising free admission;
+its intermediate full-suite attempt was deliberately cancelled (exit 130).
+Final correction uses the existing engine synthetic-catalog fixture pattern in
+app tests and an OpenRouter dummy credential. Production defaults, request
+admission and fake transport boundaries remain intact. Dedicated policy tests
+still provide their own catalog/env overrides. This is local test infrastructure,
+not a new product mode or a live catalog claim.
+
+Final evidence: 103 targeted tests pass; make test-all exit 0 (engine 3124 passed,
+2 existing skips; app 1844 passed; MCP 274 passed plus strict mypy; parity evidence
+and its tests pass); make lint, make typecheck, make eval-smoke and both named
+size gates pass; make e2e passes all 9 tests. Build and 718 frontend tests reused
+from cycle 48 after verifying unchanged frontend/Makefile trees. Details and
+failed-run provenance: references/external/baseline/verification-cycle94.json.
+Independent final review found no issue. Scoped cleanup retained failed evidence,
+removed the superseded model override, and found no other session leftovers;
+user AGENTS.md remains untouched. Reflog checked; no stashes. Checked M1-05a.
+
+M1 is now 32/39: one discovered item added and completed, leaving 59 open overall.
+The magnitude series is still unaccepted; no production change or model selection.
+Next continue the same live handle 26568 on candidate 1 and retain all six arms
+before paired acceptance. Do not mutate frozen execution sources during the batch.
+
+Cycle 94 completion update: candidate 1 also completed, accuracy .967 and recall
+.9 with 65 physical requests. All requests have usage, expected model, zero caps
+and reported zero cost; source checks and secret-value scan pass. Both comparison
+commands exit 0: one complete pair, full-series complete=false/accepted=false.
+The separate established provenance correction passes every pair-1 criterion,
+including magnitude scope in both modes. Raw matching-scope contradictions retain
+the known lexical_founded observer false flag; the correction verifies their real
+located primary-model evidence. No changed labels or thresholds. Retained raw
+candidate 1, pair-1 summaries and fresh pair-2 catalog. Runner 26568 confirmed
+live on candidate 2. Next preserve both pair-2 arms, then pair 3 from that handle.

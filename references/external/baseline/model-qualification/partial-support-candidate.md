@@ -230,3 +230,10 @@ Historical orchestration now resolves from Git `f052d77a`; no historical scienti
 observer or input changed. New catalogs record `execution_revision`, and the
 runner checks all participating tracked source bytes against that commit before
 credential lookup. A precommit attempt correctly refused the uncommitted runner.
+
+Cycle 94: magnitude pair 1 completed. Baseline .433 accuracy/0 recall/53 calls;
+candidate .967/.9/65 calls. All 118 calls have numeric usage, expected model,
+zero-price caps and reported zero cost. Every corrected pair criterion passes,
+including both scope-control modes. The full series remains incomplete and
+unaccepted; pairs 2 and 3 are required. Original scope-observer flags remain in
+raw artifacts; the established provenance correction is retained separately.
