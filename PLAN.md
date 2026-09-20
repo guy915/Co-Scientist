@@ -2331,3 +2331,21 @@ against initialize_entrez, check_pubmed_available, and the existing anonymous
 reachability regression; independent read-only review agrees. Documentation only,
 no inference or runtime change. Diff check passed. Next retain the current arm
 and compare without discarding timeout evidence. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle72, baseline2 retained with evidence gap.** Starting365637a6.
+Previous cycle progressed the local setup documentation. Session41647 completed
+baseline2 and started baseline3 without intervention. Baseline2 accuracy .400,
+contradiction recall0,55 physical requests; candidate2 .933/.80,64 requests.
+Original comparison exits1 with RuntimeError: Missing physical request usage
+evidence. Raw indices11 and12 lack usage and served model, matching the two
+observed timeout attempts. Every physical request still carries binding zero
+price caps; every returned model is the expected Nex Pro free model. Retained
+raw baseline2, fresh catalog3, and a hash-bound pair2 evidence-gap receipt;
+configured secret-value scan passed. Pair2 is inconclusive, not accepted or a
+scientific rejection. No raw requests discarded, no provenance invented and no
+comparison gate relaxed. Original/corrected summaries remain at pair1. Finish
+the existing batch before deciding matched rerun; promising candidate stays open.
+M1 remains31/38; fresh count59. No model selection, release, or frozen-source edit.
+Independent read-only review confirmed the receipt against raw and aggregate
+telemetry (two timeouts/unobserved calls/unreported usage records); no factual
+flaw found. Final session poll confirms41647 still live on baseline3.
