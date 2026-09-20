@@ -69,6 +69,17 @@ def test_runner_plan_is_offline_and_refuses_existing_recovery_log(tmp_path):
         "scope-preflight.json",
     ):
         shutil.copy(source / name, folder / name)
+    # Historical recovery fixtures must use the observer pinned by their manifest.
+    (folder / "scope_controls.py").write_bytes(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                "c8a11d511268616ade139d217ffae2762a2a5da9:references/external/baseline/model-qualification/scope_controls.py",
+            ],
+            cwd=source.parents[3],
+        )
+    )
     frozen = json.loads((folder / "scope-preflight.json").read_text())[
         "source_manifest"
     ]

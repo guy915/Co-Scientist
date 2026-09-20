@@ -3,8 +3,8 @@
 Current status (cycle 103): all three `opposition-magnitude-pro` pairs pass
 with the documented provenance correction. Candidate accuracy/recall are
 .967/.9, .933/.8 and .933/.8; baselines are .433/0, .367/0 and .433/0.
-M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair remains
-open as M1-04b1d. No primary or fallback is selected. The earlier failed scope
+M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair is verified
+as M1-04b1d; historical receipts retain their original observer. No primary or fallback is selected. The earlier failed scope
 series remains retained. See [candidate evidence](partial-support-candidate.md),
 [corrected receipt](opposition-magnitude-pro-corrected-summary.json),
 [telemetry audit](opposition-magnitude-pro-telemetry-audit.json), and
@@ -362,3 +362,27 @@ unchanged. A passing challenge comparison alone does not close model selection:
 ranking/usefulness, independent fallback qualification, and the live research
 workflow remain required by the selection protocol above. No production model
 has been selected or deployed by this campaign.
+
+## Replaying frozen comparisons after observer maintenance
+
+The maintained scope observer now accepts guarded primary-model contradictions
+without treating them as deterministic fallback. Historical raw flags and their
+separate corrections remain unchanged. Run historical comparisons from their
+original source, not the maintained helper: the current comparator deliberately
+rejects a helper whose hash differs from a frozen manifest.
+
+Archive `references/external/baseline/model-qualification` from
+`c8a11d511268616ade139d217ffae2762a2a5da9` for the completed magnitude series,
+or `c223b9ae19eb51fc5354618017627e87b8a3aae3` for scope recovery. Extract into
+an isolated temporary directory. Use this repository's Python environment with
+absolute repository/app/engine-src/evaluations paths on PYTHONPATH, dotenv
+disabled, and GIT_DIR pointing to the repository's Git directory for historical
+source verification. These comparator commands perform no inference.
+
+For magnitude, run the archived `compare_opposition_panels.py` and
+`scope_correction.py`, both with `--series opposition-magnitude-pro`.
+For scope, run the archived comparator with `--series opposition-scope-pro
+--attempt recovery1`, then its correction with `--attempt recovery1`.
+Compare generated receipts byte-for-byte with the retained files before deleting
+the temporary archive. `observer-replay-cycle104.json` records successful replay
+of all four receipts, including the scope series' scientifically failed result.

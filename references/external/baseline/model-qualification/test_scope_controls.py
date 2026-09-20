@@ -105,7 +105,9 @@ def test_recorded_fallback_cannot_pass_a_model_control():
     assert not evaluate_scope_controls(DATASET, fallback, "test")["passed"]
 
 
-@pytest.mark.parametrize("method", ["legacy_unknown", "no_evidence", "unrecognized"])
+@pytest.mark.parametrize(
+    "method", ["legacy_unknown", "no_evidence", "unrecognized", "lexical_founded"]
+)
 def test_unproven_provenance_cannot_pass(method):
     def unproven(claim, passages):
         return AssessorDraft(
@@ -170,8 +172,8 @@ def test_scope_evidence_rejects_missing_telemetry(missing):
         validate_scope_evidence(record, DATASET)
 
 
-def scope_record():
-    result = evaluate_scope_controls(DATASET, judge, "test")
+def scope_record(dataset=DATASET, assessor=judge):
+    result = evaluate_scope_controls(dataset, assessor, "test")
     usage = {
         "physical_calls": 1,
         "observed_models": ["openrouter/test-model"],
@@ -205,7 +207,8 @@ def test_scope_evidence_validates_all_ids_and_candidate_checks():
         validate_scope_evidence(record, DATASET)
 
 
-def test_primary_model_contradiction_with_lexical_guard_is_not_a_fallback():
+@pytest.mark.parametrize("batch", [False, True])
+def test_primary_model_contradiction_with_lexical_guard_is_not_a_fallback(batch):
     dataset = {
         "items": [
             {
@@ -224,4 +227,27 @@ def test_primary_model_contradiction_with_lexical_guard_is_not_a_fallback():
             verification_method="lexical_founded",
         )
 
-    assert evaluate_scope_controls(dataset, model_then_guard, "test")["passed"]
+    assessor = (
+        (lambda claims, passages: [model_then_guard(claims[0], passages)])
+        if batch
+        else model_then_guard
+    )
+    assert evaluate_scope_controls(dataset, assessor, "test", batch=batch)["passed"]
+    from scope_controls import validate_scope_evidence
+
+    record = scope_record(dataset, model_then_guard)
+    assert validate_scope_evidence(record, dataset)
+    record["scope_controls"]["single"]["usage_evidence"][
+        "recorded_deterministic_fallbacks"
+    ] = {"citation": 1}
+    assert not validate_scope_evidence(record, dataset)
+
+
+def test_scope_evidence_rejects_lexical_provenance_for_partial_label():
+    from scope_controls import validate_scope_evidence
+
+    record = scope_record()
+    check = record["scope_controls"]["single"]["checks"][0]
+    check["verification_method"] = "lexical_founded"
+    assert check["passed"] and check["label"] == "partial"
+    assert not validate_scope_evidence(record, DATASET)

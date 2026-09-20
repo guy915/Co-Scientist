@@ -179,7 +179,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1b-s1: Clarify the primary single/batch partial-support contract for claim-defining scope without schema or runtime-gate changes; preserve same-scope partial support and broad claims through dedicated controls, then verify a fresh matched live candidate. Existing mismatch failures are the red behavioral evidence; prompt edits alone do not complete this item.
 - [x] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
-- [ ] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
+- [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -2788,3 +2788,23 @@ subtotals explicitly; no token-derived billing claim. Raw artifacts, complete
 receipts and telemetry audit retained. M1 now 34/40; 58 open. Next repair the
 maintained provenance observer, then continue model screens and workflow
 qualification. No production change, model selection or M1 completion claimed.
+
+**2026-09-20 — Cycle 104, maintained scope provenance repaired.** Starting
+c8a11d51. Previous cycle completed the three paired live comparisons. Reproduced
+the observer defect (1 failed/16 passed), expanded single/batch regression
+coverage (2 failed/17 passed), then reused one provenance predicate for both
+evaluation and evidence validation. lexical_founded is accepted only for
+contradicts; invocation, label, quotes and fallback gates stay intact. Recovery
+fixtures now read their immutable observer bytes instead of copying current
+code. Final focused suite 46 passed; Ruff and diff checks passed. Independent
+review approved, including an added validator-only negative-label regression.
+Archived original observers reproduced all four magnitude/scope-recovery raw
+and corrected receipts byte-for-byte, preserving the failed scope series.
+Recorded hashes/revisions in observer-replay-cycle104.json and replay procedure
+in the qualification README. No scientific threshold or historical artifact
+changed; no inference or application runtime edit. Scoped cleanup retained
+evidence, consolidated the duplicate provenance predicate, and removed this
+cycle's temporary replay archives. User AGENTS.md remains untouched.
+M1-04b1d complete; M1 35/40, 57 open. Next continue actual-interface model
+qualification and the predeclared usefulness/ranking screens; primary/fallback,
+local workflow and production verification remain open.

@@ -36,6 +36,17 @@ def test_missing_replacement_does_not_fall_back_or_overwrite_original_summary(tm
         "qualification_sources.py",
     ):
         shutil.copy(FOLDER / name, tmp_path / name)
+    # Historical recovery fixtures must use the observer pinned by their manifest.
+    (tmp_path / "scope_controls.py").write_bytes(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                "c8a11d511268616ade139d217ffae2762a2a5da9:references/external/baseline/model-qualification/scope_controls.py",
+            ],
+            cwd=FOLDER.parents[3],
+        )
+    )
     original = tmp_path / "opposition-scope-pro-paired-summary.json"
     before = hashlib.sha256(original.read_bytes()).hexdigest()
     result = subprocess.run(

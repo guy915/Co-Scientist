@@ -7,6 +7,14 @@ control's evidence from answering a deliberately unsupported claim.
 """
 
 
+def _model_provenance(method, label):
+    return method in {
+        "model_primary",
+        "model_opposition_verified",
+        "model_opposition_unconfirmed",
+    } or (method == "lexical_founded" and label == "contradicts")
+
+
 def evaluate_scope_controls(dataset, assessor, assessor_id, *, batch=False):
     # The live runner must configure admission before any app import.
     from app.claims import as_passages, assess_claim, assess_claims_batch
@@ -73,12 +81,7 @@ def evaluate_scope_controls(dataset, assessor, assessor_id, *, batch=False):
                 "passed": any(invocations)
                 and label in item["allowed_labels"]
                 and quotes_valid
-                and method
-                in {
-                    "model_primary",
-                    "model_opposition_verified",
-                    "model_opposition_unconfirmed",
-                },
+                and _model_provenance(method, label),
             }
         )
     return {
@@ -151,11 +154,6 @@ def validate_scope_evidence(record, dataset):
                 and check["allowed_labels"] == item["allowed_labels"]
                 and check["quotes_valid"] is True
                 and check["nonempty_assessor_invocations"] > 0
-                and check["verification_method"]
-                in {
-                    "model_primary",
-                    "model_opposition_verified",
-                    "model_opposition_unconfirmed",
-                }
+                and _model_provenance(check["verification_method"], check["label"])
             )
     return bool(accepted)
