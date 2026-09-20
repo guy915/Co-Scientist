@@ -2392,3 +2392,11 @@ safeguards; a transport continuation needs explicit new artifact names and bound
 source identities after this batch terminates. No active source changed or
 additional experiment started. Next await candidate3, reconcile complete pairs,
 and address pair2 under the cycle73 protocol. M1 remains31/38;59 open.
+
+**2026-09-20 — Cycle77, verified final-arm wait.** Starting41ebfd05.
+Previous cycle was a verified wait. Repeated bounded polls over several minutes
+confirm41647 remains live on candidate3; new supporting-assessment log output
+appeared after the contradiction-assessment output. No terminal artifact or new
+reported error. No restart, source mutation, extra batch, or acceptance change.
+Next retain candidate3 and confirm runner termination before reconciliation and
+the recorded transport continuation. M1 remains31/38; fresh open count59.
