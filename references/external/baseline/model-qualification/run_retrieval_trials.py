@@ -26,15 +26,27 @@ args = parser.parse_args()
 manifest_path = args.manifest.resolve()
 manifest = json.loads(manifest_path.read_text())
 series = manifest.get("series", "opposition-retrieval-pro")
-if series not in {"opposition-retrieval-pro", "opposition-scope-pro"}:
+if series not in {
+    "opposition-retrieval-pro",
+    "opposition-scope-pro",
+    "opposition-magnitude-pro",
+}:
     raise RuntimeError("Unknown comparison series")
 scope = series == "opposition-scope-pro"
+scope_controls = scope or series == "opposition-magnitude-pro"
 if args.attempt and not scope:
     raise ValueError("Recovery is only recorded for the scope series")
 planned = schedule(manifest["trial_order"], args.trials, args.attempt)
 preflight = json.loads(
     (
-        FOLDER / ("scope-preflight.json" if scope else "retrieval-preflight.json")
+        FOLDER
+        / (
+            "scope-preflight.json"
+            if scope
+            else "magnitude-preflight.json"
+            if scope_controls
+            else "retrieval-preflight.json"
+        )
     ).read_text()
 )
 if (
@@ -62,7 +74,7 @@ if (
     != manifest["runtime_sha256"]
 ):
     raise RuntimeError("Frozen runtime mismatch")
-if scope:
+if scope_controls:
     for name, field in (
         ("partial-support-scope-controls.json", "scope_controls_sha256"),
         ("scope_controls.py", "scope_helper_sha256"),
@@ -80,10 +92,12 @@ identities = {
         FOLDER / "probe_citation_panel.py",
         FOLDER / "qualification_sources.py",
         FOLDER / "compare_opposition_panels.py",
+        FOLDER / "prepare_retrieval_trial.py",
+        FOLDER / "scope_correction.py",
         manifest_path,
     )
 }
-if scope:
+if scope_controls:
     identities.update(
         {
             name: hashlib.sha256((FOLDER / name).read_bytes()).hexdigest()
@@ -112,6 +126,18 @@ if args.plan_only:
         )
     )
     raise SystemExit(0)
+execution_revision = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+).strip()
+for name, expected in identities.items():
+    if name == manifest_path.name:
+        continue
+    relative = (FOLDER / name).relative_to(ROOT)
+    committed = subprocess.check_output(
+        ["git", "show", f"{execution_revision}:{relative}"], cwd=ROOT
+    )
+    if hashlib.sha256(committed).hexdigest() != expected:
+        raise RuntimeError("Uncommitted execution source: " + name)
 key = os.environ.get("OPENROUTER_API_KEY") or dotenv_values(ROOT / ".env").get(
     "OPENROUTER_API_KEY"
 )
@@ -144,6 +170,7 @@ for trial, order, suffix in planned:
         json.dumps(
             {
                 "attempt": args.attempt,
+                "execution_revision": execution_revision,
                 "selected_trials": args.trials,
                 "source_manifest_sha256": hashlib.sha256(
                     manifest_path.read_bytes()
@@ -203,7 +230,7 @@ for trial, order, suffix in planned:
             "QUALIFICATION_MANIFEST": str(manifest_path),
             "QUALIFICATION_ARM": arm,
         }
-        if scope:
+        if scope_controls:
             env["QUALIFICATION_SCOPE_CONTROLS"] = str(
                 FOLDER / "partial-support-scope-controls.json"
             )

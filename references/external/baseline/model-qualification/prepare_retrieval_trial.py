@@ -13,6 +13,7 @@ import tempfile
 
 BASELINE = "14e8c59950204c96cdfa2195594885383d1d5720"
 CANDIDATE = "94107aedd9c68df9811c69c48b3ac0b7d2ec119f"
+MAGNITUDE_CANDIDATE = "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2"
 ROOT = Path(__file__).resolve().parents[4]
 FOLDER = Path(__file__).resolve().parent
 
@@ -25,7 +26,9 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def prepare(destination, *, scope=False):
+def prepare(destination, *, scope=False, magnitude=False):
+    if scope and magnitude:
+        raise ValueError("Choose one comparison series")
     runtime = json.loads((FOLDER / "opposition-runtime.json").read_text())
     packages = sorted(
         [[d.metadata["Name"], d.version] for d in importlib.metadata.distributions()]
@@ -59,10 +62,14 @@ def prepare(destination, *, scope=False):
         "arms": {},
     }
     candidate = CANDIDATE
-    if scope:
-        candidate = "03ea84841983c93da170902c05b3fd846fb87360"
+    if scope or magnitude:
+        candidate = (
+            "03ea84841983c93da170902c05b3fd846fb87360"
+            if scope
+            else MAGNITUDE_CANDIDATE
+        )
         manifest.update(
-            series="opposition-scope-pro",
+            series="opposition-scope-pro" if scope else "opposition-magnitude-pro",
             scope_controls_sha256=sha(FOLDER / "partial-support-scope-controls.json"),
             scope_helper_sha256=sha(FOLDER / "scope_controls.py"),
         )
@@ -133,5 +140,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
     parser.add_argument("--scope", action="store_true")
+    parser.add_argument("--magnitude", action="store_true")
     args = parser.parse_args()
-    prepare(args.destination.resolve(), scope=args.scope)
+    prepare(args.destination.resolve(), scope=args.scope, magnitude=args.magnitude)

@@ -18,15 +18,21 @@ parser.add_argument(
         "opposition-pro",
         "opposition-retrieval-pro",
         "opposition-scope-pro",
+        "opposition-magnitude-pro",
     ),
     default="opposition",
 )
 parser.add_argument("--attempt", choices=("recovery1",))
+parser.add_argument("--artifact-root", type=Path, help=argparse.SUPPRESS)
 args = parser.parse_args()
 series = args.series
 if args.attempt and series != "opposition-scope-pro":
     parser.error("Recovery is only recorded for the scope series")
-root = Path(__file__).resolve().parent
+root = (
+    args.artifact_root.resolve()
+    if args.artifact_root
+    else Path(__file__).resolve().parent
+)
 summary = {
     "baseline_commit": "14e8c59950204c96cdfa2195594885383d1d5720",
     "candidate_commit": "06a17a70e9aaf7d3f51bbc8c5c8157825c82c368",
@@ -37,12 +43,20 @@ summary = {
 if args.attempt:
     summary["attempt"] = args.attempt
 scope = series == "opposition-scope-pro"
-composite = scope or series == "opposition-retrieval-pro"
+scope_controls = scope or series == "opposition-magnitude-pro"
+composite = scope_controls or series == "opposition-retrieval-pro"
 if composite:
     summary["candidate_commit"] = "94107aedd9c68df9811c69c48b3ac0b7d2ec119f"
     preflight = json.loads(
         (
-            root / ("scope-preflight.json" if scope else "retrieval-preflight.json")
+            root
+            / (
+                "scope-preflight.json"
+                if scope
+                else "magnitude-preflight.json"
+                if scope_controls
+                else "retrieval-preflight.json"
+            )
         ).read_text()
     )
     frozen = preflight["source_manifest"]
@@ -53,6 +67,13 @@ if composite:
             validate_execution_sources,
             validate_recovery_catalog,
         )
+
+        scope_dataset = json.loads(
+            (root / "partial-support-scope-controls.json").read_text()
+        )
+    elif scope_controls:
+        summary["candidate_commit"] = "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2"
+        from scope_controls import validate_scope_evidence
 
         scope_dataset = json.loads(
             (root / "partial-support-scope-controls.json").read_text()
@@ -164,6 +185,25 @@ for trial in range(1, 4):
             for d in (b, c)
         ):
             raise RuntimeError("Probe differs from frozen batch observer")
+        if series == "opposition-magnitude-pro":
+            for name in (
+                "run_retrieval_trials.py",
+                "recovery_schedule.py",
+                "comparison_recovery.py",
+                "probe_citation_panel.py",
+                "qualification_sources.py",
+                "compare_opposition_panels.py",
+                "prepare_retrieval_trial.py",
+                "scope_correction.py",
+                "scope_controls.py",
+                "partial-support-scope-controls.json",
+            ):
+                if catalog["execution_sources"].get(name) != hashlib.sha256(
+                    (root / name).read_bytes()
+                ).hexdigest():
+                    raise RuntimeError(
+                        "Execution source differs from magnitude catalog: " + name
+                    )
     bm, cm = b["report"]["metrics"], c["report"]["metrics"]
     false_positives = []
     for d in (b, c):
@@ -251,7 +291,7 @@ for trial in range(1, 4):
             not u["recorded_deterministic_fallbacks"] for u in usage
         ),
     }
-    if scope:
+    if scope_controls:
         for name, field in (
             ("partial-support-scope-controls.json", "scope_controls_sha256"),
             ("scope_controls.py", "scope_helper_sha256"),
@@ -263,11 +303,12 @@ for trial in range(1, 4):
                 or catalog["execution_sources"][name] != expected
             ):
                 raise RuntimeError("Scope helper or inputs differ from frozen identity")
-        validate_execution_sources(root, catalog, recovered=recovered)
-        if recovered:
-            validate_recovery_catalog(
-                root, catalog, trial, preflight["source_manifest_sha256"]
-            )
+        if scope:
+            validate_execution_sources(root, catalog, recovered=recovered)
+            if recovered:
+                validate_recovery_catalog(
+                    root, catalog, trial, preflight["source_manifest_sha256"]
+                )
         # Baseline provenance stays unknown. Its outcomes are observed, not
         # relabeled to satisfy candidate-only provenance acceptance.
         validate_scope_evidence(b, scope_dataset)

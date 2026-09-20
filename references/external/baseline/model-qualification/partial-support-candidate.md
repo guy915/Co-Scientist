@@ -200,3 +200,33 @@ The candidate remains unqualified: prepare a distinct pinned series and run all
 three matched pairs with fresh zero-price admission before any acceptance.
 Retain the failed scope/recovery series unchanged; do not overwrite its frozen
 observers or provenance. No inference or deployment occurred this cycle.
+
+### Fresh magnitude series protocol (cycle 93)
+
+Use the distinct `opposition-magnitude-pro` namespace for three new matched
+pairs, ordered baseline/candidate, candidate/baseline, baseline/candidate.
+Pin app/engine baseline `14e8c59950204c96cdfa2195594885383d1d5720` and candidate
+`e57ad3cf` (full commit resolved in the source manifest); both evaluation trees
+remain at the baseline revision. Reuse the same frozen public challenge,
+historical controls, scope controls, runtime, model, reasoning and request
+budgets. Prepare fresh snapshots and credential-free compatibility evidence in
+`magnitude-preflight.json`. No recovery arms or earlier pairs count toward this
+new series. No scope/retrieval artifact may be overwritten.
+
+Acceptance remains three improved pairs, each at least .75 accuracy and .80
+contradiction recall, no false-contradiction regression, all scope controls in
+both modes, complete physical request/served-model/zero-price evidence, and no
+recorded deterministic fallback. The existing independently justified
+lexical-provenance correction applies separately; preserve raw observer results.
+Fresh catalog admission precedes each live pair; unknown/nonzero prices stop
+execution. Preparation and offline preflight are not live qualification.
+
+Preflight completed: 1,647 baseline and 1,653 candidate source files verified;
+304/306 imported modules verified with no provider calls. Manifest SHA-256:
+`501510f81e0954ab06019ecfc8d425f80a40d5e55108b51752bb3d28f88c85b5`.
+Runner plan-only selects all six fresh arms. The historical recovery comparator
+regenerated exactly the retained unaccepted summary in an isolated output folder.
+Historical orchestration now resolves from Git `f052d77a`; no historical scientific
+observer or input changed. New catalogs record `execution_revision`, and the
+runner checks all participating tracked source bytes against that commit before
+credential lookup. A precommit attempt correctly refused the uncommitted runner.

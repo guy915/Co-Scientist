@@ -1,5 +1,12 @@
 # Free-model qualification
 
+Current status (cycle 93): the completed scope recovery series is **not accepted**;
+its third pair failed the unreported-magnitude scope control in both assessor
+modes. Candidate `e57ad3cf` clarifies that contract and is awaiting a new three-pair
+`opposition-magnitude-pro` qualification. No primary or fallback is selected.
+See [the candidate record](partial-support-candidate.md) for retained failures
+and the unchanged acceptance protocol. Earlier results below are historical.
+
 This is live eligibility and compatibility research, not a selected production
 configuration. `catalog.json` retains the dated public catalog fields used by
 the application's existing `verify_model` admission policy. Twenty-two explicit

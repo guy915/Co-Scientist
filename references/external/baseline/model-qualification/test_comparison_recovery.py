@@ -21,8 +21,22 @@ def test_historical_execution_is_verified_against_recorded_git_bytes():
         validate_execution_sources(FOLDER, catalog, recovered=False)
 
 
-def test_missing_replacement_does_not_fall_back_or_overwrite_original_summary():
-    original = FOLDER / "opposition-scope-pro-paired-summary.json"
+def test_missing_replacement_does_not_fall_back_or_overwrite_original_summary(tmp_path):
+    import shutil
+
+    for name in (
+        "opposition-scope-pro-paired-summary.json",
+        "opposition-scope-pro-baseline-1.json",
+        "opposition-scope-pro-candidate-1.json",
+        "opposition-scope-pro-catalog-1.json",
+        "scope-preflight.json",
+        "scope_controls.py",
+        "partial-support-scope-controls.json",
+        "probe_citation_panel.py",
+        "qualification_sources.py",
+    ):
+        shutil.copy(FOLDER / name, tmp_path / name)
+    original = tmp_path / "opposition-scope-pro-paired-summary.json"
     before = hashlib.sha256(original.read_bytes()).hexdigest()
     result = subprocess.run(
         [
@@ -32,6 +46,8 @@ def test_missing_replacement_does_not_fall_back_or_overwrite_original_summary():
             "opposition-scope-pro",
             "--attempt",
             "recovery1",
+            "--artifact-root",
+            str(tmp_path),
         ],
         capture_output=True,
         text=True,
@@ -41,18 +57,17 @@ def test_missing_replacement_does_not_fall_back_or_overwrite_original_summary():
     assert hashlib.sha256(original.read_bytes()).hexdigest() == before
 
 
-def test_recovery_requires_current_orchestration_but_frozen_scientific_observers():
-    catalog = json.loads((FOLDER / "opposition-scope-pro-catalog-1.json").read_text())
-    for name in (
-        "run_retrieval_trials.py",
-        "compare_opposition_panels.py",
-        "recovery_schedule.py",
-        "comparison_recovery.py",
-    ):
-        catalog["execution_sources"][name] = hashlib.sha256(
-            (FOLDER / name).read_bytes()
-        ).hexdigest()
+def test_recovery_requires_pinned_orchestration_and_frozen_scientific_observers():
+    catalog = json.loads(
+        (FOLDER / "opposition-scope-pro-catalog-2-recovery1.json").read_text()
+    )
     validate_execution_sources(FOLDER, catalog, recovered=True)
+    catalog["execution_sources"]["run_retrieval_trials.py"] = "0" * 64
+    with pytest.raises(ValueError, match="execution"):
+        validate_execution_sources(FOLDER, catalog, recovered=True)
+    catalog = json.loads(
+        (FOLDER / "opposition-scope-pro-catalog-2-recovery1.json").read_text()
+    )
     catalog["execution_sources"]["probe_citation_panel.py"] = "0" * 64
     with pytest.raises(ValueError, match="execution"):
         validate_execution_sources(FOLDER, catalog, recovered=True)

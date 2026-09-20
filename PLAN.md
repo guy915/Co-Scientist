@@ -2586,3 +2586,22 @@ This candidate is not scientifically verified; no checkbox completed, inference,
 model selection, PR or deployment. Next pin a separate candidate series and run
 three fresh matched pairs with verified zero-cost routing, preserving old frozen
 observer identities and receipts. M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle93, fresh magnitude comparison prepared.** Startinge57ad3cf.
+Previous cycle progressed the general prompt correction. Added distinct magnitude
+series through existing preparation, runner, comparator and correction interfaces;
+no changed scientific observer, dataset, threshold or raw-result relabeling.
+Worker tests red then green; parent inspected diff and reproduced old recovery
+summary exactly in isolated output. Historical recovery orchestration pinned to
+f052d77a, preserving evidence after helper evolution. Offline snapshots verify
+1647/1653 files and304/306 imports with no calls. Manifest501510f81e0954ab06019ecfc8d425f80a40d5e55108b51752bb3d28f88c85b5.
+Plan-only schedules six new arms. Independent launch review required immutable
+execution provenance: runner now verifies tracked source bytes against HEAD before
+credentials and records execution_revision in catalog. Actual precommit refusal
+verified; no credentials loaded or inference performed by that check. Current
+public Nex Pro catalog passes admission with zero prompt/completion pricing;
+runner rechecks per pair. Named size gates4pass; focused runner/correction tests
+26pass, Ruff and diff checks pass. Main remains7dce086d. User AGENTS preserved.
+No item accepted or deployment performed. Next commit execution sources and launch
+the pinned fresh series, retain live evidence and verify all three pairs. M1
+remains31/38; fresh open count59.

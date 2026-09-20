@@ -46,17 +46,24 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def receipt(folder, attempt=None):
+def receipt(folder, attempt=None, series="opposition-scope-pro"):
+    if series not in {"opposition-scope-pro", "opposition-magnitude-pro"}:
+        raise ValueError("Unknown correction series")
+    if attempt and series != "opposition-scope-pro":
+        raise ValueError("Recovery is only recorded for the scope series")
     suffix = f"-{attempt}" if attempt else ""
-    summary_path = folder / f"opposition-scope-pro-paired-summary{suffix}.json"
+    summary_path = folder / f"{series}-paired-summary{suffix}.json"
     summary = json.loads(summary_path.read_text())
     if summary.get("attempt") != attempt:
         raise ValueError("Attempt metadata mismatch")
     dataset_path = folder / "partial-support-scope-controls.json"
     dataset = json.loads(dataset_path.read_text())
-    frozen = json.loads((folder / "scope-preflight.json").read_text())[
-        "source_manifest"
-    ]
+    preflight = (
+        "scope-preflight.json"
+        if series == "opposition-scope-pro"
+        else "magnitude-preflight.json"
+    )
+    frozen = json.loads((folder / preflight).read_text())["source_manifest"]
     helper_path = folder / "scope_controls.py"
     if (
         digest(helper_path) != frozen["scope_helper_sha256"]
@@ -84,6 +91,7 @@ def receipt(folder, attempt=None):
             corrected_pair["recovery_of"] = pair["recovery_of"]
         pairs.append(corrected_pair)
     result = {
+        "series": series,
         "purpose": "Correct the lexical_founded provenance false rejection only; no inference or changed scientific observations",
         "semantic_delta": "A primary model contradiction retained by a located-quote/subject/negation guard is not deterministic fallback",
         "correction_sha256": digest(Path(__file__)),
@@ -104,12 +112,17 @@ def receipt(folder, attempt=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--series",
+        choices=["opposition-scope-pro", "opposition-magnitude-pro"],
+        default="opposition-scope-pro",
+    )
     parser.add_argument("--attempt", choices=["recovery1"])
     args = parser.parse_args()
     folder = Path(__file__).resolve().parent
-    result = receipt(folder, attempt=args.attempt)
+    result = receipt(folder, attempt=args.attempt, series=args.series)
     suffix = f"-{args.attempt}" if args.attempt else ""
-    (folder / f"opposition-scope-pro-corrected-summary{suffix}.json").write_text(
+    (folder / f"{args.series}-corrected-summary{suffix}.json").write_text(
         json.dumps(result, indent=2) + "\n"
     )
     print(

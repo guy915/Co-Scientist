@@ -48,7 +48,27 @@ def test_runner_plan_is_offline_and_refuses_existing_recovery_log(tmp_path):
     import subprocess
     import sys
 
-    folder = Path(__file__).resolve().parent
+    import shutil
+
+    source = Path(__file__).resolve().parent
+    folder = tmp_path / "qualification"
+    folder.mkdir()
+    for name in (
+        "run_retrieval_trials.py",
+        "recovery_schedule.py",
+        "comparison_recovery.py",
+        "probe_citation_panel.py",
+        "qualification_sources.py",
+        "compare_opposition_panels.py",
+        "prepare_retrieval_trial.py",
+        "scope_correction.py",
+        "scope_controls.py",
+        "partial-support-scope-controls.json",
+        "historical-negative-controls.json",
+        "opposition-runtime.json",
+        "scope-preflight.json",
+    ):
+        shutil.copy(source / name, folder / name)
     frozen = json.loads((folder / "scope-preflight.json").read_text())[
         "source_manifest"
     ]

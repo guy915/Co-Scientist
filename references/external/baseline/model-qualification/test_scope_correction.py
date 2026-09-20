@@ -75,7 +75,7 @@ def test_requires_physical_usage_even_for_correct_labels():
         corrected_scope_acceptance(record, dataset)
 
 
-def receipt_files(folder):
+def receipt_files(folder, *, series="opposition-scope-pro"):
     import hashlib
     import json
     from pathlib import Path
@@ -95,7 +95,12 @@ def receipt_files(folder):
     def sha(path):
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    (folder / "scope-preflight.json").write_text(
+    preflight = (
+        "magnitude-preflight.json"
+        if series == "opposition-magnitude-pro"
+        else "scope-preflight.json"
+    )
+    (folder / preflight).write_text(
         json.dumps(
             {
                 "source_manifest": {
@@ -122,7 +127,7 @@ def receipt_files(folder):
             }
         ],
     }
-    (folder / "opposition-scope-pro-paired-summary.json").write_text(
+    (folder / f"{series}-paired-summary.json").write_text(
         json.dumps(summary)
     )
     return summary
@@ -202,3 +207,14 @@ def test_original_receipt_rejects_attempt_metadata(tmp_path):
 
     with pytest.raises(ValueError, match="Attempt metadata mismatch"):
         receipt(tmp_path)
+
+
+def test_magnitude_receipt_uses_its_own_preflight_and_summary(tmp_path):
+    from scope_correction import receipt
+
+    original = receipt_files(tmp_path, series="opposition-magnitude-pro")
+    result = receipt(tmp_path, series="opposition-magnitude-pro")
+
+    assert result["series"] == "opposition-magnitude-pro"
+    assert result["original_summary"] == original
+    assert not (tmp_path / "opposition-scope-pro-corrected-summary.json").exists()

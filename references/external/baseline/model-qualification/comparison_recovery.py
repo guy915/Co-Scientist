@@ -2,8 +2,10 @@
 
 import hashlib
 import subprocess
+from pathlib import Path
 
 HISTORICAL_REVISION = "9acebec9"
+RECOVERY_REVISION = "f052d77a"
 
 
 def digest(path):
@@ -11,25 +13,36 @@ def digest(path):
 
 
 def validate_execution_sources(folder, catalog, *, recovered):
+    repository = Path(__file__).resolve().parents[4]
+    relative_folder = Path(__file__).resolve().parent.relative_to(repository)
     scientific = ("probe_citation_panel.py", "qualification_sources.py")
     orchestration = ("run_retrieval_trials.py", "compare_opposition_panels.py")
     for name in scientific + orchestration:
-        if recovered and name in orchestration:
-            expected = digest(folder / name)
-        else:
-            relative = (folder / name).relative_to(folder.parents[3])
-            content = subprocess.check_output(
-                ["git", "show", f"{HISTORICAL_REVISION}:{relative}"],
-                cwd=folder.parents[3],
-            )
-            expected = hashlib.sha256(content).hexdigest()
+        relative = relative_folder / name
+        revision = (
+            RECOVERY_REVISION
+            if recovered and name in orchestration
+            else HISTORICAL_REVISION
+        )
+        content = subprocess.check_output(
+            ["git", "show", f"{revision}:{relative}"], cwd=repository
+        )
+        expected = hashlib.sha256(content).hexdigest()
         if catalog["execution_sources"].get(name) != expected:
             raise ValueError("Recorded execution source differs: " + name)
         if name in scientific and digest(folder / name) != expected:
             raise ValueError("Frozen scientific observer changed: " + name)
     if recovered:
         for name in ("recovery_schedule.py", "comparison_recovery.py"):
-            if catalog["execution_sources"].get(name) != digest(folder / name):
+            relative = relative_folder / name
+            content = subprocess.check_output(
+                ["git", "show", f"{RECOVERY_REVISION}:{relative}"],
+                cwd=repository,
+            )
+            if (
+                catalog["execution_sources"].get(name)
+                != hashlib.sha256(content).hexdigest()
+            ):
                 raise ValueError("Recovery execution source differs: " + name)
 
 

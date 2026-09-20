@@ -26,7 +26,7 @@ for name,module in list(sys.modules.items()):
  sources[name]={'path':str(path.relative_to(root)),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 print(json.dumps({'mode':'offline','report':report,'imports':sources}))
 """
-if manifest.get("series") == "opposition-scope-pro":
+if manifest.get("series") in {"opposition-scope-pro", "opposition-magnitude-pro"}:
     code = code.replace(
         "root=Path.cwd().resolve()",
         """from app import claim_verifier, claim_verifier_batch
@@ -105,7 +105,9 @@ artifact = {
 (
     folder
     / (
-        "scope-preflight.json"
+        "magnitude-preflight.json"
+        if manifest.get("series") == "opposition-magnitude-pro"
+        else "scope-preflight.json"
         if manifest.get("series") == "opposition-scope-pro"
         else "retrieval-preflight.json"
     )
