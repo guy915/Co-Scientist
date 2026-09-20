@@ -2669,3 +2669,17 @@ or terminal error. No restart, new inference batch, source mutation, repeated su
 or acceptance change. User AGENTS.md remains untouched. M1 remains 32/39; fresh
 open count 59. Next retain candidate 2 and its matched baseline from this runner,
 then pair 3 before evaluating full-series acceptance.
+
+**2026-09-20 — Cycle 96, magnitude candidate 2 retained.** Starting b84cb219.
+Previous cycle was a verified wait. Repeated bounded polls of runner 26568
+confirmed continued execution, then candidate 2 completed with accuracy .933,
+contradiction recall .8 and 64 requests. All requests have numeric usage, the
+expected served model, binding zero-price caps and reported zero cost; source
+identities and secret-value scan passed. All corrected scope controls pass in
+both modes. Raw matching-scope contradiction flags retain the known
+lexical_founded observer classification issue; no label or threshold changed.
+Candidate 2 alone does not establish a matched pair or full-series acceptance.
+Runner 26568 is now confirmed live on baseline 2. Retained the raw candidate
+artifact; no execution source changes, restart or additional inference batch.
+M1 remains 32/39; fresh open count 59. Next retain baseline 2 and assess the pair,
+then continue the same runner through both arms of pair 3.
