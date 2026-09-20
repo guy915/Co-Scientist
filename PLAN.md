@@ -2718,3 +2718,22 @@ confirmed live on baseline 3. No frozen source changes, repeat batch, model
 selection or release. M1 remains 32/39; fresh open count 59. Next retain baseline
 3 and candidate 3 from this handle, confirm terminal status, then assess all
 three pairs. User AGENTS.md remains untouched; scoped diff check passed.
+
+**2026-09-20 — Cycle 100, remaining panel interfaces audited during final-pair wait.**
+Starting 7b7f3d1f. Previous cycle retained passing pair 2. Runner 26568 repeatedly
+confirmed live on baseline 3; no completed third-pair artifact yet. Read-only
+inspection of existing citation-usefulness and Elo evaluators confirmed fresh
+process, explicit model, free admission, cache isolation and captured panel/usage
+identities. Exercised only their offline controls: usefulness has 16 items
+(7 useful/3 partial/6 useless), lexical accuracy .375/false-useful .1667; ranking
+has 8 questions, 4 candidates each, 48 pairings, with correctness-preferring
+control tau .9129/top1 1 and seeded chance tau -.0051/top1 0. These are not live
+qualification. Independent review confirmed no existing numeric hard gate for
+these two panels. Historical DeepSeek usefulness reports (.8125 accuracy, zero
+false-useful) lack current identity/usage evidence and cannot establish matched
+non-regression. Recorded source hashes, interfaces, limitations and launch
+constraints in remaining-panels-preflight.json. Use public APIs and exclusive
+trial filenames: the dated CLI writer otherwise overwrites repeated same-day
+runs. No new harness, inference batch, frozen source change or acceptance claim.
+Next retain final magnitude arms from handle 26568; finish that comparison before
+launching remaining qualification. M1 remains 32/39; fresh open count 59.
