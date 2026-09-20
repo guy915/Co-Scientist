@@ -2363,3 +2363,11 @@ scientific scoring changes require a fresh full series. No inference launched,
 observer changed, threshold relaxed, model selected or deployment performed.
 Next await baseline3/candidate3 terminal evidence and apply the recorded rule.
 M1 remains31/38; fresh open count59. Diff check passed.
+
+**2026-09-20 — Cycle74, verified third-baseline wait.** Startingeaf99e0e.
+Previous cycle progressed the continuation protocol. Repeated bounded polls over
+several minutes confirm41647 is live on baseline3, with log progression through
+historical controls into batch scope controls. No terminal arm artifact yet;
+latest output shows no new timeout. No restart, additional inference batch,
+frozen-source mutation, or acceptance change. Next retain baseline3 on completion
+and continue observing candidate3 under the same runner. M1 remains31/38;59 open.
