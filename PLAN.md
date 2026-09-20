@@ -2471,3 +2471,11 @@ unmerged. Read-only host check confirms prior security preflight conflict persis
 host configuration changed. No frozen-source edit, extra inference batch or
 acceptance change. Next poll28291 and retain the completed recovery arm.
 M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle82, verified recovery candidate wait.** Starting263f37d4.
+Previous cycle was a verified wait. Repeated bounded polls across several minutes
+confirm28291 remains live on recovery candidate2, with additional supporting and
+contradicting assessment output after the recorded schema retry. No terminal
+artifact or new reported error. No restart, extra batch, frozen-source change or
+acceptance advancement. Next retain the completed arm and assess full telemetry
+before comparing. M1 remains31/38; fresh open count59.
