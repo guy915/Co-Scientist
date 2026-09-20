@@ -2319,3 +2319,15 @@ fail closed even if subsequent retries succeed; inspect terminal evidence before
 concluding. No request was dropped, no gate relaxed, no frozen source changed.
 Next preserve baseline2 and exact comparator failure or result, then finish the
 existing batch without restarting it. M1 remains31/38;59 open. No release.
+
+**2026-09-20 — Cycle71, local workflow documentation correction.** Startingb35eaeb8.
+Previous cycle was a verified wait with telemetry diagnosis. Session41647 remains
+live on baseline2; no restart or frozen-source edit. While awaiting completion,
+checked the public-workflow setup against current local instructions and found
+RUNNING-LOCALLY.md still claimed missing ENTREZ_EMAIL disables PubMed. Corrected
+that stale statement as follow-through on completed M1-03c3a: email is optional,
+anonymous access proceeds, and a real canary determines availability. Verified
+against initialize_entrez, check_pubmed_available, and the existing anonymous
+reachability regression; independent read-only review agrees. Documentation only,
+no inference or runtime change. Diff check passed. Next retain the current arm
+and compare without discarding timeout evidence. M1 remains31/38;59 open.
