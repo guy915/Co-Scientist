@@ -2737,3 +2737,15 @@ trial filenames: the dated CLI writer otherwise overwrites repeated same-day
 runs. No new harness, inference batch, frozen source change or acceptance claim.
 Next retain final magnitude arms from handle 26568; finish that comparison before
 launching remaining qualification. M1 remains 32/39; fresh open count 59.
+
+**2026-09-20 — Cycle 101, final magnitude baseline retained.** Starting 9e290283.
+Previous cycle progressed the remaining-panel audit while observing the live run.
+Runner 26568 completed baseline 3: accuracy .433, contradiction recall 0, 53
+physical requests. Every request has numeric usage, expected served model,
+zero-price caps and reported zero cost. Manifest/scientific-source identities and
+secret-value scan passed. Retained the raw artifact. Runner confirmed live on
+final candidate 3. No frozen source mutation, restart or acceptance claim.
+M1 remains 32/39; fresh open count 59. Next retain candidate 3, confirm terminal
+runner status and execute full paired/corrected receipts before deciding whether
+M1-04b1b-s1 and M1-04b1b meet their criteria. User AGENTS.md remains untouched;
+scoped diff check passed.
