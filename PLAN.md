@@ -2400,3 +2400,18 @@ appeared after the contradiction-assessment output. No terminal artifact or new
 reported error. No restart, source mutation, extra batch, or acceptance change.
 Next retain candidate3 and confirm runner termination before reconciliation and
 the recorded transport continuation. M1 remains31/38; fresh open count59.
+
+**2026-09-20 — Cycle78, interrupted-run recovery.** Startingb64c9bfa.
+Previous completed cycle was a verified wait; subsequent observation was user-
+interrupted before a cycle log. Session41647 now reports Unknown process id;
+its temporary logs/snapshots are absent. Escalated OS process inspection finds
+neither runner nor probe. Thus the batch is stopped, not merely silent. Five
+committed arms survive; candidate3 has no result and its in-flight requests
+cannot be reconstructed or claimed complete. Rebuilt3300 snapshot files from
+pinned Git objects using existing preparer; manifest byte hash exactly matches
+retained preflight. Python, executable and package versions also match. Retained
+scope-interruption-recovery.json. No inference restarted. Pair3 now requires
+explicit matched recovery alongside transport-incomplete pair2, preserving all
+original evidence and reporting missing interrupted observations. Next implement
+minimal non-overwriting recovery using existing guards, with fresh free admission
+before either arm; keep scoring and model settings fixed. M1 remains31/38;59 open.
