@@ -145,3 +145,22 @@ runtime, inputs, or scientific scoring require a new complete three-pair series.
 Do not modify the currently running frozen observers to implement this procedure.
 Independent review checked the distinction between transport incompleteness and
 scientific failure and the need to retain the predeclared counterbalanced order.
+
+### Recovery after interruption (cycle 80)
+
+The stopped runner lost candidate 3's in-flight observation and temporary logs;
+`scope-interruption-recovery.json` preserves that gap. Reconstructing the pinned
+snapshots reproduced the exact retained manifest and runtime. `recovery1` repeats
+both arms of pairs 2 and 3, retaining pair 1 unchanged and all original artifacts.
+The existing runner accepts `--trials 2 3 --attempt recovery1`; `--plan-only`
+checks the local plan and collisions without inference. Replacement logs, raw
+artifacts, catalogs, paired summary, and correction receipt use `-recovery1`.
+Both comparison CLIs accept `--attempt recovery1`. No replacement is selected
+implicitly. Missing replacement arms cannot fall back to originals.
+
+Historical execution hashes are verified against Git `9acebec9` and the original
+catalog. Recovery orchestration hashes are bound to its new catalog; scientific
+observer, scope helper, input, source, runtime, routing, and scoring requirements
+remain unchanged. The new summary retains each original artifact's hash or its
+explicit missing status. All four replacement arms must finish with complete
+request evidence; another missing observation remains inconclusive.

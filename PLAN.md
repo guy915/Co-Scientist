@@ -2436,3 +2436,19 @@ Scientific observer/helper/input bytes and every acceptance gate stay fixed.
 This completes runner preparation only, not live qualification. Original scope
 helper regression remains pending; no claim all helper tests are green.
 M1 remains31/38; fresh open count59. No model selection or release.
+
+**2026-09-20 — Cycle80, recovery comparison integrated.** Startinga4887e54.
+Previous cycle progressed the tested runner. Added explicit recovery comparison:
+pair1 uses original artifacts and Git9acebec9 observer hashes matched against
+its catalog; pairs2/3 require both suffixed replacement arms, fresh catalogs,
+current orchestration identities and frozen scientific observers/inputs. Missing
+replacement cannot fall back. Original recovery_of hashes/missing status are
+validated and retained in separate paired/corrected summaries. Receipt namespace
+work delegated to bounded Terra worker; primary integrated comparator. Red
+missing-module/namespace tests preceded code;25 focused tests pass. One combined
+CLI test exposed inherited PYTHONPATH changing package enumeration; its subprocess
+now uses the real launcher environment, preserving the runtime check. Ruff/diff
+pass; independent review found no weakened gate or preservation/cost blocker.
+Dry-run reproduces exact manifest/order with no inference. Next launch explicit
+recovery1 after this commit; record handle and free admission before yielding.
+No original artifact or scientific observer changed. M1 remains31/38;59 open.

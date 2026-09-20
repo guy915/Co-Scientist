@@ -43,6 +43,7 @@ def test_original_schedule_keeps_original_names():
 
 def test_runner_plan_is_offline_and_refuses_existing_recovery_log(tmp_path):
     import json
+    import os
     from pathlib import Path
     import subprocess
     import sys
@@ -64,7 +65,8 @@ def test_runner_plan_is_offline_and_refuses_existing_recovery_log(tmp_path):
         "recovery1",
         "--plan-only",
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stderr
     plan = json.loads(result.stdout)
     assert plan["inference_performed"] is False
@@ -74,7 +76,7 @@ def test_runner_plan_is_offline_and_refuses_existing_recovery_log(tmp_path):
     ]
     collision = tmp_path / "candidate-2-recovery1.log"
     collision.write_text("original evidence\n")
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     assert result.returncode != 0
     assert "Existing trial artifacts" in result.stderr
     assert collision.read_text() == "original evidence\n"

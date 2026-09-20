@@ -21,7 +21,11 @@ parser.add_argument(
     ),
     default="opposition",
 )
-series = parser.parse_args().series
+parser.add_argument("--attempt", choices=("recovery1",))
+args = parser.parse_args()
+series = args.series
+if args.attempt and series != "opposition-scope-pro":
+    parser.error("Recovery is only recorded for the scope series")
 root = Path(__file__).resolve().parent
 summary = {
     "baseline_commit": "14e8c59950204c96cdfa2195594885383d1d5720",
@@ -30,6 +34,8 @@ summary = {
     "complete": False,
     "accepted": False,
 }
+if args.attempt:
+    summary["attempt"] = args.attempt
 scope = series == "opposition-scope-pro"
 composite = scope or series == "opposition-retrieval-pro"
 if composite:
@@ -43,14 +49,25 @@ if composite:
     if scope:
         summary["candidate_commit"] = "03ea84841983c93da170902c05b3fd846fb87360"
         from scope_controls import validate_scope_evidence
+        from comparison_recovery import (
+            validate_execution_sources,
+            validate_recovery_catalog,
+        )
 
         scope_dataset = json.loads(
             (root / "partial-support-scope-controls.json").read_text()
         )
 source_snapshots = {}
 for trial in range(1, 4):
-    paths = [root / f"{series}-{arm}-{trial}.json" for arm in ("baseline", "candidate")]
+    recovered = bool(args.attempt and trial in (2, 3))
+    suffix = f"-{args.attempt}" if recovered else ""
+    paths = [
+        root / f"{series}-{arm}-{trial}{suffix}.json"
+        for arm in ("baseline", "candidate")
+    ]
     if not all(p.exists() for p in paths):
+        if args.attempt:
+            raise RuntimeError(f"Missing recovery artifacts for trial {trial}")
         break
     b, c = [json.loads(p.read_text()) for p in paths]
     if any("error_type" in d for d in (b, c)):
@@ -139,7 +156,9 @@ for trial in range(1, 4):
             or b["source_guard_sha256"] != c["source_guard_sha256"]
         ):
             raise RuntimeError("Comparison observers or inputs differ")
-        catalog = json.loads((root / f"{series}-catalog-{trial}.json").read_text())
+        catalog = json.loads(
+            (root / f"{series}-catalog-{trial}{suffix}.json").read_text()
+        )
         if any(
             d["probe_sha256"] != catalog["execution_sources"]["probe_citation_panel.py"]
             for d in (b, c)
@@ -244,17 +263,11 @@ for trial in range(1, 4):
                 or catalog["execution_sources"][name] != expected
             ):
                 raise RuntimeError("Scope helper or inputs differ from frozen identity")
-        for name in (
-            "run_retrieval_trials.py",
-            "compare_opposition_panels.py",
-            "probe_citation_panel.py",
-            "qualification_sources.py",
-        ):
-            if (
-                hashlib.sha256((root / name).read_bytes()).hexdigest()
-                != catalog["execution_sources"][name]
-            ):
-                raise RuntimeError("Scope execution observer changed: " + name)
+        validate_execution_sources(root, catalog, recovered=recovered)
+        if recovered:
+            validate_recovery_catalog(
+                root, catalog, trial, preflight["source_manifest_sha256"]
+            )
         # Baseline provenance stays unknown. Its outcomes are observed, not
         # relabeled to satisfy candidate-only provenance acceptance.
         validate_scope_evidence(b, scope_dataset)
@@ -288,6 +301,11 @@ for trial in range(1, 4):
     summary["pairs"].append(
         {
             "trial": trial,
+            **(
+                {"attempt": args.attempt, "recovery_of": catalog["recovery_of"]}
+                if recovered
+                else {}
+            ),
             **({"item_label_flips": flips} if composite else {}),
             "artifacts": [
                 {"path": p.name, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
@@ -308,9 +326,9 @@ summary["complete"] = len(summary["pairs"]) == 3 and all(
     "criteria" in p for p in summary["pairs"]
 )
 summary["accepted"] = summary["complete"] and all(p["passed"] for p in summary["pairs"])
-(root / f"{series}-paired-summary.json").write_text(
-    json.dumps(summary, indent=2) + "\n"
-)
+(
+    root / f"{series}-paired-summary{'-' + args.attempt if args.attempt else ''}.json"
+).write_text(json.dumps(summary, indent=2) + "\n")
 print(
     json.dumps(
         {

@@ -76,6 +76,7 @@ identities = {
     for p in (
         Path(__file__),
         FOLDER / "recovery_schedule.py",
+        FOLDER / "comparison_recovery.py",
         FOLDER / "probe_citation_panel.py",
         FOLDER / "qualification_sources.py",
         FOLDER / "compare_opposition_panels.py",

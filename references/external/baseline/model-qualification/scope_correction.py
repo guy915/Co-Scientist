@@ -1,5 +1,6 @@
 """Auditable post-evaluation correction; never alter frozen trials or their gates."""
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -45,9 +46,12 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def receipt(folder):
-    summary_path = folder / "opposition-scope-pro-paired-summary.json"
+def receipt(folder, attempt=None):
+    suffix = f"-{attempt}" if attempt else ""
+    summary_path = folder / f"opposition-scope-pro-paired-summary{suffix}.json"
     summary = json.loads(summary_path.read_text())
+    if summary.get("attempt") != attempt:
+        raise ValueError("Attempt metadata mismatch")
     dataset_path = folder / "partial-support-scope-controls.json"
     dataset = json.loads(dataset_path.read_text())
     frozen = json.loads((folder / "scope-preflight.json").read_text())[
@@ -68,17 +72,18 @@ def receipt(folder):
         corrected = corrected_scope_acceptance(candidate, dataset)
         criteria = dict(pair["criteria"])
         criteria["candidate_scope_controls"] = corrected
-        pairs.append(
-            {
-                "trial": pair["trial"],
-                "criteria": criteria,
-                "passed": all(criteria.values()),
-                "original_scope_checks": {
-                    m: p["checks"] for m, p in candidate["scope_controls"].items()
-                },
-            }
-        )
-    return {
+        corrected_pair = {
+            "trial": pair["trial"],
+            "criteria": criteria,
+            "passed": all(criteria.values()),
+            "original_scope_checks": {
+                m: p["checks"] for m, p in candidate["scope_controls"].items()
+            },
+        }
+        if "recovery_of" in pair:
+            corrected_pair["recovery_of"] = pair["recovery_of"]
+        pairs.append(corrected_pair)
+    result = {
         "purpose": "Correct the lexical_founded provenance false rejection only; no inference or changed scientific observations",
         "semantic_delta": "A primary model contradiction retained by a located-quote/subject/negation guard is not deterministic fallback",
         "correction_sha256": digest(Path(__file__)),
@@ -92,12 +97,19 @@ def receipt(folder):
         and len(pairs) == 3
         and all(p["passed"] for p in pairs),
     }
+    if attempt:
+        result["attempt"] = attempt
+    return result
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--attempt", choices=["recovery1"])
+    args = parser.parse_args()
     folder = Path(__file__).resolve().parent
-    result = receipt(folder)
-    (folder / "opposition-scope-pro-corrected-summary.json").write_text(
+    result = receipt(folder, attempt=args.attempt)
+    suffix = f"-{args.attempt}" if args.attempt else ""
+    (folder / f"opposition-scope-pro-corrected-summary{suffix}.json").write_text(
         json.dumps(result, indent=2) + "\n"
     )
     print(

@@ -1,6 +1,7 @@
 """Correct only the evidenced provenance false rejection, never missing evidence."""
 
 from copy import deepcopy
+import json
 
 import pytest
 
@@ -148,4 +149,56 @@ def test_receipt_rejects_changed_raw_artifact(tmp_path):
     with (tmp_path / "candidate.json").open("a") as stream:
         stream.write(" ")
     with pytest.raises(ValueError, match="Raw artifact changed"):
+        receipt(tmp_path)
+
+
+def test_recovery_receipt_uses_its_own_summary_and_preserves_pair_provenance(
+    tmp_path,
+):
+    from scope_correction import receipt
+
+    original = receipt_files(tmp_path)
+    recovery = deepcopy(original)
+    recovery["attempt"] = "recovery1"
+    recovery["pairs"][0]["recovery_of"] = [
+        {"path": "candidate.json", "sha256": "original-candidate"}
+    ]
+    recovery_path = tmp_path / "opposition-scope-pro-paired-summary-recovery1.json"
+    recovery_path.write_text(json.dumps(recovery))
+
+    result = receipt(tmp_path, attempt="recovery1")
+
+    assert result["attempt"] == "recovery1"
+    assert result["original_summary"] == recovery
+    assert result["pairs"][0]["recovery_of"] == recovery["pairs"][0]["recovery_of"]
+    assert json.loads(
+        (tmp_path / "opposition-scope-pro-paired-summary.json").read_text()
+    ) == original
+
+
+@pytest.mark.parametrize("recorded_attempt", [None, "other"])
+def test_recovery_receipt_rejects_attempt_metadata_mismatch(tmp_path, recorded_attempt):
+    from scope_correction import receipt
+
+    recovery = receipt_files(tmp_path)
+    if recorded_attempt is not None:
+        recovery["attempt"] = recorded_attempt
+    (tmp_path / "opposition-scope-pro-paired-summary-recovery1.json").write_text(
+        json.dumps(recovery)
+    )
+
+    with pytest.raises(ValueError, match="Attempt metadata mismatch"):
+        receipt(tmp_path, attempt="recovery1")
+
+
+def test_original_receipt_rejects_attempt_metadata(tmp_path):
+    from scope_correction import receipt
+
+    original = receipt_files(tmp_path)
+    original["attempt"] = "recovery1"
+    (tmp_path / "opposition-scope-pro-paired-summary.json").write_text(
+        json.dumps(original)
+    )
+
+    with pytest.raises(ValueError, match="Attempt metadata mismatch"):
         receipt(tmp_path)
