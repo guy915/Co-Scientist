@@ -180,6 +180,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1b: Run three matched baseline/candidate live challenge trials and historical false-contradiction controls with fixed free-model settings and isolated caches. Require improved challenge accuracy/contradiction recall, unchanged .80 recall/.75 accuracy gates, and no material false-contradiction regression; resolve inconclusive results before adoption.
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
+- [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -2866,3 +2867,23 @@ Scoped cleanup retained only intentional evidence; diff check passed and user
 AGENTS.md untouched. M1 35/40, 57 open. Next conduct independent general code
 quality release preparation; live qualification still awaits2026-09-21 00:00 UTC,
 and security scan awaits supported preflight recovery.
+
+**2026-09-20 — Cycle 108, quality review found and fixed ablation pooling.**
+Starting 5060c9e9. Previous cycle preserved security preflight evidence.
+General quality review split across app (parent), engine and evaluations
+(independent reviewers); no security-coverage claim. Evaluation review found
+one arm label could mean different overrides across goals while aggregation
+reported matched inputs. Added M1-03d4c before implementation; public comparison
+CLI regression reproduced the error (1 failed/10 passed). Shared validation
+now matches declared intervention maps across goals. Matched interventions
+still pass. Final targeted comparison/identity/release tests45 passed; mypy
+60 evaluation sources, named size gates4 passed, Ruff/diff checks passed.
+Independent semantic review approved. Clarified release-gate documentation
+to distinguish reused publication predicates from stricter artifact prerequisites;
+no safety behavior changed. No changed source crosses1000lines. Engine/app
+review found no other high-confidence actionable issue in the inspected scope.
+Retained code-quality-cycle108.json. Scoped cleanup extracted one focused
+intervention check to meet existing complexity limits; no new UI or scratch
+artifacts, user AGENTS.md untouched. M1-03d4c complete; M1 36/41,57 open.
+Next prepare the remaining schema qualification and local-workflow launch
+without inference; provider reset remains2026-09-21 00:00 UTC.

@@ -1,15 +1,12 @@
 """Scientific release gate over a completed run artifact.
 
-**This gate applies the rules the app actually publishes by.** It used to
-apply its own, which is the defect recorded as ``L1``: an evaluator that
-invents thresholds proves only that the evaluator is self-consistent, and
-a green run of it said nothing about whether live finalization withholds
-anything. Every predicate below is imported from the modules the live
-finalize path calls (``app.report_content_gates``,
-``app.hypothesis_safety``), so a change to publication behavior either
-shows up here or is not a change to publication behavior.
+Publication decisions reuse the live predicates in ``app.report_content_gates``
+and ``app.hypothesis_safety``. Artifact admission is deliberately stricter:
+missing final-screen evidence or a statement needed to reconstruct a legacy
+hypothesis decision prevents this evaluator from proving publication readiness.
+Those completeness prerequisites are not additional live publication rules.
 
-The live rules, in the order finalization applies them
+The publication checks and artifact prerequisites, in finalization order
 (``app.report_render._finalize_report_pipeline``):
 
 1. The final report-level safety screen withholds the whole report on a

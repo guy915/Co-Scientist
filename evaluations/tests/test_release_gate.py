@@ -1,9 +1,7 @@
-"""Scientific release-gate tests.
+"""Test publication rules and stricter artifact-completeness prerequisites.
 
-The gate applies the live publication rules rather than its own (``L1``),
-so these are also the regression tests for those rules: each one names the
-live behavior it pins, and a change to publication that does not break one
-of these is a change this evaluator would not have caught.
+A complete artifact follows the live predicates; an incomplete export must not
+be accepted merely because the evaluator cannot reconstruct the live decision.
 """
 
 from typing import Any

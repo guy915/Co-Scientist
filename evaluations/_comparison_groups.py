@@ -108,6 +108,7 @@ def validate_comparison(
     _match_goals(records, kind)
     if kind == "ablation" and records:
         _match_ablation_arms(records)
+        _match_ablation_interventions(records)
     return {
         "status": "matched_declared_inputs" if records else "empty",
         "kind": kind,
@@ -148,3 +149,11 @@ def _match_ablation_arms(records: Sequence[dict[str, Any]]) -> None:
         arms != expected for arms in groups.values()
     ):
         raise ValueError("comparison ablations require paired baseline arms")
+
+
+def _match_ablation_interventions(records: Sequence[dict[str, Any]]) -> None:
+    interventions: dict[str, dict[str, Any]] = {}
+    for record in records:
+        overrides = record["overrides"]
+        if interventions.setdefault(record["arm"], overrides) != overrides:
+            raise ValueError("comparison arm interventions differ across goals")

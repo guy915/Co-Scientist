@@ -154,3 +154,32 @@ def test_ablation_cli_rejects_a_baseline_relabeled_as_an_intervention(
     monkeypatch.setattr("sys.argv", ["scaling_eval", str(path)])
     with pytest.raises(ValueError, match="comparison"):
         scaling_eval.main()
+
+
+@pytest.mark.parametrize("same_intervention", [True, False])
+def test_ablation_cli_matches_interventions_across_goals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, same_intervention: bool
+) -> None:
+    records = []
+    for index, goal in enumerate(("Public goal one", "Public goal two")):
+        intervention = {"enable_web_search": False}
+        if index and not same_intervention:
+            intervention = {"enable_meta_review": False}
+        for arm, overrides in (("baseline", {}), ("no_feature", intervention)):
+            record = _record(tmp_path, goal, overrides=overrides)
+            record.update(
+                goal_id=str(index),
+                arm=arm,
+                diversity=0.0,
+                cost_usd=0.0,
+                latency_seconds=0.0,
+            )
+            records.append(record)
+    path = tmp_path / "interventions.json"
+    path.write_text(json.dumps({"ablations": records}))
+    monkeypatch.setattr("sys.argv", ["scaling_eval", str(path)])
+    if same_intervention:
+        assert scaling_eval.main() == 0
+    else:
+        with pytest.raises(ValueError, match="intervention"):
+            scaling_eval.main()
