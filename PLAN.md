@@ -4031,3 +4031,12 @@ isolated ports, then bounded the worker investigation and confirmed ports clear
 after shutdown. Retained baseline/local-preparation171-coordinator.md. Socket
 readiness alone does not prove HTTP, authentication or workflow acceptance;
 those claims require the worker receipt. No acceptance item checked.
+
+Cycle171 final receipt: baseline/local-preparation171.md records API health,
+config and status 200, UI HTML 200 and correct CORS, unauthenticated API 401,
+successful invite/bearer access and draft persistence with zero durable tasks.
+Authenticated MCP discovery exposed 16 public tools and a public PubMed
+availability probe succeeded. No inference occurred. Preparation used offline
+settings and a temporary demo-seeding override; neither is live acceptance.
+All three services stopped and ports are clear. Security config approval remains
+pending; release scope implementation is independent of the provider reset.
