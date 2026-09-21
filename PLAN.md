@@ -3857,3 +3857,29 @@ requests have no response usage and are not claimed as free billing receipts.
 No acceptance inferred. Runner72261 remained live through one bounded wait;
 retain same handle. No source/UI changes or scratch files to remove; completed
 probe records are retained. Earliest Nemotron retry is 2026-09-21T12:18:31.384092+00:00 (local backoff, no provider reset supplied).
+
+
+**2026-09-21 — Cycle 165, production release prerequisites refreshed.**
+Previous cycle made progress through fallback interface probes and committed
+provider failures separately from scientific judgments. Pro runner72261 confirmed
+live at turn start; no restart. Read-only Railway API/MCP configuration refresh
+retained in deployment-readiness165.json: existing api deploymenta6ddd7f0-3bb5-4ad1-bed8-14809846e88e
+and mcp deployment0d49864d-782b-421f-ab8b-02b608a9c5d4 reportSUCCESS; API config
+confirms one sfo replica and /app/data volume. Filtered CLI variable read confirms
+UID0, cache/tmp/coscientist-cache, DB/app/data/coscientist.db, embedded worker1.
+All four model roles still use old Minimax; campaign free-enforcement flag absent.
+No production inference, configuration mutation, backup or deployment performed.
+Public API health and frontend return200; health store/engine/queue/disk checks
+pass. This does not establish research workflow behavior. Remote main remains
+7dce086dd483831b40a12532a84cf7321f058e52. Existing consistent-backup runbook
+reviewed; actual backup must be verified immediately before migration/release.
+Qwen/Nemotron local backoff floors remain in cycle164; do not retry early or
+reject candidates for rate/availability limits. M1 38/5;57open. Next receive
+Pro series, retry incomplete capabilities after backoff, then full fallback
+qualification. No source/UI changes or cleanup removals.
+
+Independent Luna review confirmed retained invariants and flagged missing deployed
+source identity; resolved via Railway deployment metadata: both exact deployment
+IDs use commit7dce086dd483831b40a12532a84cf7321f058e52. Added snapshot IDs and
+source evidence to receipt. Remaining live workflow, backup and zero-cost release
+requirements stay open; source identity alone is not acceptance.
