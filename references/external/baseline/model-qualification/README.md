@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 119): no production primary or fallback is selected.
+Current status (cycle 121): no production primary or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -13,10 +13,11 @@ Current status (cycle 119): no production primary or fallback is selected.
 - **Nex Pro ranking:** all three trials passed with no top ties; see
   [series 114 acceptance](ranking-series114-acceptance.json). Trial 3 retained
   one recovered timeout with no response usage; all attempts had zero-price caps.
-- **Nex Pro batch schema:** the complete three-trial series is not accepted.
-  Trial 3 cited a subject-free fragment for a contradiction, which the guard
-  rejected. See [series 119 findings](batch-schema119-summary.json).
-- **Remaining:** resolve that interface failure, independently qualify fallbacks,
+- **Nex Pro batch schema:** all three fresh context120 trials pass after the
+  self-contained-quote prompt correction; guards remain unchanged. See
+  [acceptance](batch-context120-acceptance.json). The failed
+  [series 119](batch-schema119-summary.json) remains retained.
+- **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 
 M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair is verified

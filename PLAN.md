@@ -181,7 +181,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
-- [ ] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
+- [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -3138,3 +3138,31 @@ under one fixed source/configuration and record every outcome.
 Final independent review requested outgoing prompt-contract coverage; added it
 at the mocked provider boundary so reverting the instruction fails the probe
 tests. All five standalone tests and Ruff pass with that assertion.
+Candidate committed as0131ad69. Launched fresh series via runner44308 under
+caffeinate -is; trial1 is live, with trials2/3 sequentially queued by the same
+launcher. Each child refreshes catalog eligibility before inference; explicit
+OpenRouter-only credential environment, caches disabled and free enforcement.
+Artifacts nex-pro-batch-context120-{1,2,3}.json, logs
+/private/tmp/coscientist-batch-context120-{1,2,3}.log. Empty trial1 file is owned
+by the live process, not scratch. Do not restart or change HEAD until this
+series finishes: its children pin QUALIFICATION_REVISION=0131ad69. Poll44308.
+The launch note remains uncommitted to preserve that source identity until all
+children finish; commit it with terminal results. No new acceptance claim.
+
+**2026-09-21 — Cycle 121, batch quote-context qualification accepted.**
+Starting0131ad69. Previous goal turn progressed by committing the candidate and
+launching its live series; intervening cleanup hook verified the same live runner.
+Runner44308 completed all three trials exit0. Every trial returned all four
+expected labels in one shared four-claim/four-passage request; all required
+quotes located with exact source offsets and <=200 characters. Contradictions
+retain Treatment S, adult human fibroblasts,24 hours and lexical_founded method.
+All three have identical source/probe/prompt/config identities, expected served
+Nex Pro model, numeric usage, response-reported cost0, zero request caps and no
+recorded fallback/retry. Independent Sol review agrees; trial3 support drawn
+from another shared passage correctly states the claim and is allowed by design.
+Retained batch-context120-acceptance.json and all three raw artifacts. Checked
+M1-04b-Q1 only. Prior series119 remains failed evidence; no general scientific
+quality, fallback or workflow acceptance inferred. M1 now37/42,57 total open.
+No live runners remain. Scoped cleanup retains intended evidence and user's
+AGENTS.md edits; no UI changes. Next independently qualify Nex Mini using the
+existing probes and frozen scientific gates before selecting a fallback.
