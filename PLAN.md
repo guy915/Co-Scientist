@@ -3996,3 +3996,13 @@ threshold. Retained code-quality-cycle170.json. This does not replace behavioral
 security, deployment, or live workflow acceptance. M1 remains 38/5; 57 open.
 Next action remains a new Liquid scientific series after the recorded reset,
 followed by final fallback selection.
+
+Cycle170 continuation: the frozen probe and manifest inputs remain reproducible;
+the current probe hash matches the ee775074 source snapshot and the interrupted
+Liquid artifact remains immutable. OpenRouter exposes no quota-reset event to
+subscribe to, so an event watcher is unavailable. Created a one-time same-task
+wake-up named `Resume Liquid fallback qualification` for 2026-09-22 02:01
+Europe/Amsterdam, one minute after the provider-declared reset. It must recheck
+current zero-price eligibility, launch one fresh series, and wait on the actual
+process handle without interval polling. The active goal may remain blocked on
+the provider cap until that external state changes; no paid route is authorized.
