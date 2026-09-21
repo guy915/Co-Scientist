@@ -4025,3 +4025,9 @@ persistent-config removal required by the security skill; no config changed.
 Source diff against ee775074 remains empty for app/engine/evaluations/e2e/Makefile.
 M1 now has 38 done and 6 open; campaign has 58 open. The original turn limit is
 unchanged. Local startup preparation is recorded separately when verified.
+
+Cycle171 startup observation: coordinator confirmed API/UI/MCP listening on
+isolated ports, then bounded the worker investigation and confirmed ports clear
+after shutdown. Retained baseline/local-preparation171-coordinator.md. Socket
+readiness alone does not prove HTTP, authentication or workflow acceptance;
+those claims require the worker receipt. No acceptance item checked.
