@@ -3166,3 +3166,29 @@ quality, fallback or workflow acceptance inferred. M1 now37/42,57 total open.
 No live runners remain. Scoped cleanup retains intended evidence and user's
 AGENTS.md edits; no UI changes. Next independently qualify Nex Mini using the
 existing probes and frozen scientific gates before selecting a fallback.
+
+**2026-09-21 — Cycle 122, independent fallback qualification.**
+Starting85a32d74. Previous cycle progressed by accepting all three Pro batch
+trials and committing their evidence. Mini's existing reasoning-profile artifact
+records five passing capability cases; its old challenge failed before the
+current assessment corrections. No Pro result transfers to Mini. Reuse the
+committed batch probe for three fresh Mini trials first, governed by the same
+preflight109 and quote-context120 criteria, with only model/profile different.
+Then independently run existing challenge/usefulness/ranking screens; keep all
+failures and existing thresholds. No new harness or model-selection claim.
+Independent Sol review approved bounded batch-first ordering, and noted that
+historical capability evidence predates current request/pricing evidence. Before
+selection, refresh Mini's structured/tool/stream/long/reasoning capability checks
+under current admission; batch/scientific panels alone do not close M1-04b.
+Launched runner64877, sequential nex-mini-batch-context122-{1,2,3}.json with
+fresh catalog checks, isolated credential environment, caches disabled and
+zero-cost enforcement. Logs /private/tmp/coscientist-mini-batch122-{1,2,3}.log.
+Pinned85a32d74; do not change HEAD until all children finish. Current launch note
+intentionally uncommitted until terminal results. Do not restart on timeout.
+Runner64877 completed all three trials exit0. Parent and independent Sol review
+accepted the Mini-specific batch receipt: all labels/required context/exact
+source offsets, fixed identities, expected served Mini model and usage, reported
+zero cost/caps, no retries/errors/fallback. Trial2 explains population mismatch
+with a located quote on insufficient, permitted by the existing contract.
+Retained mini-batch-context122-acceptance.json and all raw trials; no additional
+checkbox closed. Next refresh existing capability probe, then scientific panels.
