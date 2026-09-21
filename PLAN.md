@@ -3883,3 +3883,22 @@ source identity; resolved via Railway deployment metadata: both exact deployment
 IDs use commit7dce086dd483831b40a12532a84cf7321f058e52. Added snapshot IDs and
 source evidence to receipt. Remaining live workflow, backup and zero-cost release
 requirements stay open; source identity alone is not acceptance.
+
+
+**2026-09-21 — Cycle 166, Pro trial1 passed.**
+Previous cycle refreshed production prerequisites and committed evidence. Runner72261
+confirmed live and emitted trial1 terminal completion; trial2 then started in the
+same runner. pro-challenge163-1.json scores accuracy.933 and contradiction
+recall.80 on30items, passing both unchanged gates. Historical, controlled-primary,
+single and batch-single-claim scope controls all pass. pro-trial1-audit166.json
+retains the raw artifact digest:64requests, all observed as expected Nex Pro with
+usage and zero prompt/completion/request caps. No independent billing receipt or
+whole-series acceptance claimed. Source freeze remains ee775074 by manifest;
+documentation-only commits do not alter it. Retain original runner; no duplicate
+inference or early fallback retry. Remaining two Pro trials and independently
+qualified fallback still required. M1 38/5;57open.
+
+Luna independently checked the raw trial and digest, confirming all pass claims
+and no recorded deterministic fallback. lexical_founded scope methods are
+explicit provenance, not fallback. Scoped cleanup retains the completed raw
+trial/audit and leaves active trial2 and user AGENTS.md untouched.

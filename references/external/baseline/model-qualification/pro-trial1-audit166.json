@@ -1,0 +1,69 @@
+{
+  "purpose": "First current-code Pro scientific trial; not whole-series acceptance",
+  "artifact": "pro-challenge163-1.json",
+  "sha256": "f15bb16cb2377466dfd34419c291f6fe1610468920e3fd2d204cb2c4e8a6fd98",
+  "source_commit": "ee77507415a248889683cef551ec1dd083645bb4",
+  "physical_requests": 64,
+  "bad_zero_price_cap_indices": [],
+  "missing_response_evidence_indices": [],
+  "unexpected_model_indices": [],
+  "challenge_metrics": {
+    "accuracy": 0.933,
+    "contradiction_recall": 0.8,
+    "abstention_rate": 0.533,
+    "per_label": {
+      "insufficient": {
+        "precision": 0.875,
+        "recall": 1.0
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "contradicts": {
+        "precision": 1.0,
+        "recall": 0.8
+      }
+    },
+    "n": 30,
+    "by_kind": {
+      "numeric_conflict": {
+        "accuracy": 0.857,
+        "n": 7
+      },
+      "paraphrase_contradiction": {
+        "accuracy": 0.667,
+        "n": 3
+      },
+      "paraphrase_support": {
+        "accuracy": 1.0,
+        "n": 6
+      },
+      "retracted": {
+        "accuracy": 1.0,
+        "n": 2
+      },
+      "species_mismatch": {
+        "accuracy": 1.0,
+        "n": 4
+      },
+      "temporal_mismatch": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "topic_mention_only": {
+        "accuracy": 1.0,
+        "n": 5
+      }
+    }
+  },
+  "challenge_passed": true,
+  "historical_passed": true,
+  "controlled_primary_passed": true,
+  "scope_passed": {
+    "single": true,
+    "batch_single_claim": true
+  },
+  "series_complete": false,
+  "independent_billing_receipt": false
+}
