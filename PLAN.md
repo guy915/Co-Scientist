@@ -3049,3 +3049,18 @@ intentional in-flight ranking artifact. User AGENTS.md untouched. Commit recorde
 before live use so its source revision is reproducible. Next poll45354 for
 remaining ranking trials, then run this frozen batch probe in three fresh trials
 with full request evidence and verified free admission. M1 36/41,57 open.
+
+**2026-09-21 — Cycle 117, second ranking trial passed.**
+Starting1ae2c79e. Previous cycle progressed by committing the reviewed batch probe.
+Continued polling the existing45354 runner; trial2 completed exit0 and trial3
+started. Trial2 meets the frozen gate:8/8correct top choices,mean tau.8673,no top
+Elo ties.48 physical responses match48 telemetry calls; numeric usage and expected
+served model on every response, binding zero caps/require_parameters,reported
+cost0,no retries/errors/deterministic fallback. Full evaluation identity matches
+trial1. Parent validation and independent Sol review agree on this per-trial
+result only. Retained sanitized raw trial2 and ranking-series114-status117.json.
+Trial3 remains live; its initially empty artifact belongs to the active process,
+not scratch. No new inference launcher, source change, threshold change or
+qualification claim. Scoped cleanup retained intended evidence and user AGENTS.md;
+diff check passed. M1 36/41,57 open. Next poll45354 to terminal/completed trial3,
+then assess the complete series and execute the approved batch-schema probe.
