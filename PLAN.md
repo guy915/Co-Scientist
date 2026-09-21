@@ -3922,3 +3922,28 @@ repeat the same request immediately. Next local retry floor 2026-09-21T12:50:43.
 (no provider reset supplied). Qwen remains pending its12:30:07Z floor. Existing
 security scan context updated with cycle167 failure; no status/coverage claim.
 No source/UI changes or scratch cleanup needed. M1 38/5;57open.
+
+
+**2026-09-21 — Cycle 168, Pro trial2 passed and fallback availability.**
+Previous cycle retained bounded recovery/preflight failures. Held waits in this
+turn instead of repeated status-only continuations. Same runner72261 emitted
+trial2 terminal completion and proceeded to trial3; no restart. Trial2 accuracy
+.933/recall.80; all historical, controlled-primary and scope checks pass. Retained
+pro-trial2-audit168.json:67physical responses with expected identity, usage and
+zero-price caps. Luna independently confirmed no deterministic fallback. Two
+empty-content physical responses (error/length) were recovered, retained and
+explicitly noted; identity/usage evidence is complete, not every retry's content.
+After its backoff, Qwen recovery168 runner36788 again terminated on first-case
+upstream shared-pool429. Preserve as operationally incomplete, not rejected;
+no immediate further retry. Gemma31B supports required interfaces in catalog and
+already exists in the gateway; launched existing capability probe, runner47547,
+gemma31-capabilities168.json. No scientific or selection claim from metadata.
+All source/thresholds unchanged; M1 remains38/5;57open. Next assess Gemma terminal
+results and Pro trial3, then complete eligible fallback qualification.
+
+Gemma runner47547 terminal0: first json_off case hit Google AI Studio upstream
+shared-pool429; no remaining cases executed. Retained, not a model-quality
+rejection. Both this attempt and Qwen recovery carry verified zero-price caps.
+Qwen/Gemma earliest local retry floor 2026-09-21T13:33:58.634787+00:00 (conservative backoff; no provider reset supplied).
+No further capability requests this cycle. Cleanup retains completed raw/audit
+and failure records; active Pro trial3 and user's AGENTS.md remain untouched.
