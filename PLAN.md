@@ -2947,3 +2947,24 @@ full trial2 in a new artifact and trial3 under the frozen settings, then schema
 and ranking qualification. Retain every failed artifact and all57 open items.
 No checklist changes. Scoped cleanup found no new scratch or code changes;
 user AGENTS.md remains untouched. Diff check clean, stash list empty.
+
+**2026-09-21 — Cycle 112, scheduled recovery ran and retained a timeout.**
+Starting3fb8e7c5. One-time heartbeat fired after reset and was disabled through
+its automation API. Native goal remains blocked; no available goal tool resumes
+it. Work proceeded under the explicit heartbeat authorization. Relevant evaluator,
+engine, observer and invocation sources match trial1; independent Sol review
+confirmed hashes/configuration. Fresh catalog admitted the requested zero-price
+Nex Pro route; all14 physical attempts carried zero prompt/completion/request
+caps. Thirteen returned the expected model; request14 ended LLMTimeoutError.
+Runner93781 confirmed terminal exit1; trial3 never launched. Retained unique
+nex-pro-usefulness-2-recovery112.json and recovery-cycle112-status.json. No partial
+score or qualification claimed. Long wall-clock gap does not prove provider-only
+latency: host suspension was not excluded. Read-only process/stack observation
+confirmed the runner alive before termination; it was never restarted on timeout
+of observation. Independent review raised the all-trials rule: original daily-cap
+and current timeout remain incomplete attempts, never discarded successes; any
+future scientific failure must remain part of selection. Diagnose transport/host
+timing before another full trial; preserve frozen configuration or start a new
+complete series if it changes. No checkbox complete; M1 36/41,57 open. Sanitized
+artifact checked for configured key disclosure; no code changes or scratch added
+to maintained source, user AGENTS.md preserved. No deployment or M2 acquisition.
