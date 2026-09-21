@@ -3977,3 +3977,22 @@ liquid-challenge169-interruption.json; trials2-3 were never started. Do not retr
 before reset or relabel the candidate rejected. M1 remains38/5;57open. Next
 resume Liquid scientific qualification after reset, then complete remaining
 fallback panels and final model-chain selection.
+
+
+**2026-09-21 — Cycle 170, M1 structural release review.**
+The previous interactive turn only restated status and made no progress. The
+Liquid daily cap remains active until 2026-09-22T00:00:00Z, so no inference was
+attempted. Reviewed the complete main...d700f457 M1 production diff under the
+thermo-nuclear maintainability standard. Seventy-five production files contain
+2265 insertions and 422 deletions; the largest current file is 496 lines and no
+file crosses 1000 lines. Batched Ruff C901 checks pass for every changed Python
+production file and git diff --check passes. Manual review covered the new
+zero-cost catalog/request policy, MCP admission, markerless opposition verifier,
+and evaluation identity/comparison boundaries plus their integration sites.
+No structural blocker or justified rewrite was found: the new behavior is held
+behind focused canonical modules rather than scattered call-site branches, and
+the validation-heavy comparison code remains below the configured complexity
+threshold. Retained code-quality-cycle170.json. This does not replace behavioral,
+security, deployment, or live workflow acceptance. M1 remains 38/5; 57 open.
+Next action remains a new Liquid scientific series after the recorded reset,
+followed by final fallback selection.

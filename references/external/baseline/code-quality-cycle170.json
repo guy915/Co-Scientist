@@ -1,0 +1,73 @@
+{
+  "purpose": "Thermo-nuclear maintainability review of the M1 campaign branch before model selection and release",
+  "reviewed_at": "2026-09-21T14:07:07Z",
+  "base": "main",
+  "head": "d700f457796016d04aaa34862151fca518907327",
+  "scope": {
+    "changed_code_files": 142,
+    "production_code_files": 75,
+    "production_diff": {
+      "insertions": 2265,
+      "deletions": 422
+    },
+    "largest_current_production_file": {
+      "path": "engine/mcp_server/tools/web/providers.py",
+      "lines": 496
+    },
+    "files_crossing_1000_lines": []
+  },
+  "checks": [
+    {
+      "command": "ruff check --select C901 over all changed Python production files in batches",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check main...HEAD",
+      "result": "passed"
+    },
+    {
+      "command": "manual structural review of new modules and their integration diffs",
+      "result": "passed",
+      "reviewed_modules": [
+        "app/app/claim_verifier_opposition.py",
+        "app/app/claims_retrieval_stopwords.py",
+        "app/app/llm_request.py",
+        "engine/mcp_server/campaign.py",
+        "engine/src/co_scientist/llm_free_catalog.py",
+        "engine/src/co_scientist/llm_free_policy.py",
+        "engine/src/co_scientist/mcp_campaign.py",
+        "engine/src/co_scientist/mcp_client_session.py",
+        "evaluations/_comparison_groups.py",
+        "evaluations/_comparison_identity.py",
+        "evaluations/_panel_identity.py",
+        "evaluations/_usage_evidence.py",
+        "evaluations/panel_comparison.py"
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "area": "zero-cost admission",
+      "decision": "retain the catalog, request-policy, and MCP-admission modules as separate canonical boundaries",
+      "reason": "they remove campaign checks from transport and workflow call sites while keeping fail-closed validation testable"
+    },
+    {
+      "area": "markerless opposition verification",
+      "decision": "retain the dedicated verifier module and its reuse of existing claim and span primitives",
+      "reason": "moving the logic back into single and batch assessors would duplicate the same guard and make both paths harder to audit"
+    },
+    {
+      "area": "evaluation identity",
+      "decision": "retain focused identity, comparison, panel, and usage modules",
+      "reason": "the validation branches express separate boundary invariants, pass the complexity gate, and replace repeated runner-specific checks"
+    }
+  ],
+  "findings": [],
+  "outcome": "No maintainability blocker or justified structural rewrite found. This review does not replace behavioral, security, deployment, or live workflow acceptance.",
+  "remaining_release_dependencies": [
+    "complete independently qualified free fallback evidence after provider reset",
+    "select and configure the final free model chain",
+    "complete local and production workflow acceptance",
+    "obtain substantive security diff coverage before release"
+  ]
+}
