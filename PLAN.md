@@ -3032,3 +3032,20 @@ reviewed, no live batch inference yet. They are intentional pending work, not
 scratch. No production source, frozen ranking evaluator or user AGENTS.md changed.
 Next poll45354 and finish/review the bounded batch invocation. M1 36/41,57 open;
 no overall model qualification or milestone completion claimed. Diff check passed.
+
+**2026-09-21 — Cycle 116, batch invocation verified offline and approved.**
+Starting5bd780df. Previous cycle progressed with ranking trial1 evidence and a
+reviewed list of probe defects. Runner45354 remains confirmed live in trial2;
+no restart or parallel inference. Worker fixed the two new batch-probe files:
+actual assessor/shared-source hashes plus gitHEAD validation before requests,
+panel_evidence attached inside capture context so failure-finalized telemetry
+survives, real schema-shaped adapter test and failure/redaction receipt test.
+Red tests preceded correction; parent independently ran3tests passing and Ruff,
+diff checks clean. Independent Sol reviewer approved the fixes and verified
+located spans/contradiction guard through the actual batch adapter. No live
+schema call or scientific qualification claimed. Scoped cleanup found no dead
+imports via Ruff or scratch to remove; retained only the invocation/test and
+intentional in-flight ranking artifact. User AGENTS.md untouched. Commit recorder
+before live use so its source revision is reproducible. Next poll45354 for
+remaining ranking trials, then run this frozen batch probe in three fresh trials
+with full request evidence and verified free admission. M1 36/41,57 open.
