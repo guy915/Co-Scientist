@@ -1,0 +1,53 @@
+{
+  "scope": "Bounded eight-question one-turn production-judge ranking screen, not full tournament or expert scientific validation",
+  "passed": true,
+  "runner_session": 45354,
+  "runner_exit_code": 0,
+  "matched_identity": true,
+  "trials": [
+    {
+      "trial": 1,
+      "artifact": "nex-pro-ranking-series114-1.json",
+      "sha256": "8f07e456689ea5ec3262f32d916208d6e1aac11bada1060584385a2653bab509",
+      "top1_accuracy": 1.0,
+      "mean_tau_b": 0.7781,
+      "top_ties": 0,
+      "physical_attempts": 48,
+      "successful_responses": 48,
+      "all_attempts_zero_caps": true,
+      "successful_reported_cost_usd": 0,
+      "failed_attempt_response_usage_unknown": 0,
+      "passed": true
+    },
+    {
+      "trial": 2,
+      "artifact": "nex-pro-ranking-series114-2.json",
+      "sha256": "1ddbb1a0cc1970655a1081fc5a28ef83a9cb49622f3977b90f5e4f44c7d5ba35",
+      "top1_accuracy": 1.0,
+      "mean_tau_b": 0.8673,
+      "top_ties": 0,
+      "physical_attempts": 48,
+      "successful_responses": 48,
+      "all_attempts_zero_caps": true,
+      "successful_reported_cost_usd": 0,
+      "failed_attempt_response_usage_unknown": 0,
+      "passed": true
+    },
+    {
+      "trial": 3,
+      "artifact": "nex-pro-ranking-series114-3.json",
+      "sha256": "9a903202f8a555c743bde85b7cf338b9e1379c4a9fef14cb70867d08e4c87dc7",
+      "top1_accuracy": 1.0,
+      "mean_tau_b": 0.9129,
+      "top_ties": 0,
+      "physical_attempts": 49,
+      "successful_responses": 48,
+      "all_attempts_zero_caps": true,
+      "successful_reported_cost_usd": 0,
+      "failed_attempt_response_usage_unknown": 1,
+      "passed": true
+    }
+  ],
+  "retry_limitations": "Trial3 retained one timeout and successful retry. Declared criteria permit recovered transport attempts. Failed attempt has no response model/usage or billing receipt; all attempts had verified eligibility and binding zero price caps. Aggregate cost completeness remains false for trial3. Host sleep events retained separately; causation not established.",
+  "next": "Complete live batch schema and independent fallback qualification before model selection."
+}

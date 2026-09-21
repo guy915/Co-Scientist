@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 118): no production primary or fallback is selected.
+Current status (cycle 119): no production primary or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -10,12 +10,14 @@ Current status (cycle 118): no production primary or fallback is selected.
 - **Nex Pro usefulness:** all three fresh trials passed; see
   [series 113 acceptance](usefulness-series113-acceptance.json). Earlier daily-cap
   and timeout attempts remain retained separately.
-- **Nex Pro ranking:** trials 1 and 2 passed with no top ties; trial 3 is running
-  in runner 45354. See [trial 1](ranking-series114-status115.json) and
-  [trial 2](ranking-series114-status117.json). The series is not yet accepted.
-- **Remaining:** live multi-claim schema qualification, independent fallback
-  qualification, model selection, local research workflow, and release verification.
-  The [batch probe](probe_batch_schema.py) is committed and tested offline only.
+- **Nex Pro ranking:** all three trials passed with no top ties; see
+  [series 114 acceptance](ranking-series114-acceptance.json). Trial 3 retained
+  one recovered timeout with no response usage; all attempts had zero-price caps.
+- **Nex Pro batch schema:** the complete three-trial series is not accepted.
+  Trial 3 cited a subject-free fragment for a contradiction, which the guard
+  rejected. See [series 119 findings](batch-schema119-summary.json).
+- **Remaining:** resolve that interface failure, independently qualify fallbacks,
+  select models, complete the local research workflow, and verify the release.
 
 M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair is verified
 as M1-04b1d; historical receipts retain their original observer. Failed scientific

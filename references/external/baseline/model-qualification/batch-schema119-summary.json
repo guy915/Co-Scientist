@@ -1,0 +1,76 @@
+{
+  "scope": "Four-claim shared-evidence interface series",
+  "complete": true,
+  "accepted": false,
+  "trials": [
+    {
+      "trial": 1,
+      "artifact": "nex-pro-batch-schema119-1.json",
+      "sha256": "29840b89376f0a3c81bb8d1f7c430f409b150fe1bbb0dbc421e1ee93641d7228",
+      "labels": [
+        "partial",
+        "supports",
+        "insufficient",
+        "contradicts"
+      ],
+      "expected": [
+        "partial",
+        "supports",
+        "insufficient",
+        "contradicts"
+      ],
+      "passed": true,
+      "physical_calls": 1,
+      "zero_caps_verified": true,
+      "reported_cost_usd": 0,
+      "retained_spans_located": true
+    },
+    {
+      "trial": 2,
+      "artifact": "nex-pro-batch-schema119-2.json",
+      "sha256": "bd7bdb59c8a691b78356d15617a6091232d1586918106a8b3610f97a4941306c",
+      "labels": [
+        "partial",
+        "supports",
+        "insufficient",
+        "contradicts"
+      ],
+      "expected": [
+        "partial",
+        "supports",
+        "insufficient",
+        "contradicts"
+      ],
+      "passed": true,
+      "physical_calls": 1,
+      "zero_caps_verified": true,
+      "reported_cost_usd": 0,
+      "retained_spans_located": true
+    },
+    {
+      "trial": 3,
+      "artifact": "nex-pro-batch-schema119-3.json",
+      "sha256": "1d4e635f144204e64fa24e08a3e4fe874f2278f0726d7903f47eec75e6180848",
+      "labels": [
+        "partial",
+        "supports",
+        "insufficient",
+        "insufficient"
+      ],
+      "expected": [
+        "partial",
+        "supports",
+        "insufficient",
+        "contradicts"
+      ],
+      "passed": false,
+      "physical_calls": 1,
+      "zero_caps_verified": true,
+      "reported_cost_usd": 0,
+      "retained_spans_located": true
+    }
+  ],
+  "finding": "Trial3 model contradicted the correct claim but quoted only it decreased migration. The production subject/contradiction guard rejected this fragment and emitted insufficient. Preserve the safety guard and diagnose quote-context handling; no 2-of-3 acceptance.",
+  "next": "Reproduce through public batch assessor before any correction; rerun applicable declared acceptance and non-regression if prompts or behavior change.",
+  "trial3_limitation": "No contradiction span survived the guard; retained_spans_located does not claim otherwise. The rejected raw quote is present in its cited source but lacks subject context."
+}

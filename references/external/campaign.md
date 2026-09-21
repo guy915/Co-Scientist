@@ -10,9 +10,9 @@ retains all results, including failures. No model is selected for production and
 no full campaign research run has completed. The final Nex Pro magnitude candidate
 passed all three matched pairs with the documented provenance correction; earlier
 failed candidates remain retained. See the [accepted comparison](baseline/model-qualification/opposition-magnitude-pro-corrected-summary.json).
-Three fresh Nex Pro usefulness trials passed; ranking trials 1 and 2 passed,
-with trial 3 still running. Model selection and full workflow verification remain
-open. These bounded results do not establish production readiness.
+Three fresh Nex Pro usefulness trials and all three ranking trials passed.
+The multi-claim schema series remains inconclusive after one guarded quote failure.
+Model selection and full workflow verification remain open. These bounded results do not establish production readiness.
 Per-assessment method provenance is now retained locally through assessment,
 recovery, storage and report output; it has not been deployed. Existing model names alone do not prove current eligibility.
 
@@ -189,7 +189,8 @@ engine/provider settings before live admission. Citation usefulness accepts an
 explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
 Direct capture and deterministic-fallback disclosure have been verified. The
 Nex Pro usefulness screen is accepted with retained physical request evidence;
-the ranking series and overall model qualification remain open. See the
+the ranking screen is also accepted. Overall model qualification remains open
+after the multi-claim schema series failed one of its three trials. See the
 [qualification status](baseline/model-qualification/README.md) for current receipts.
 
 ### Usage evidence semantics

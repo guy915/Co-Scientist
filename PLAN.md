@@ -3083,3 +3083,33 @@ only intentional status corrections and the in-flight trial3 artifact; user
 AGENTS.md untouched. Diff check passed. M1 36/41,57 open. Next poll45354 to its
 terminal result, inspect trial3/full-series evidence, then run the committed
 batch-schema probe. This is a verified live wait, not an impasse.
+
+**2026-09-21 — Cycle 119, ranking accepted; batch schema failure retained.**
+Startingcbe82f47. Previous cycle was a verified wait plus stale status correction.
+Observed primary pmset clamshell/battery sleep events during trial3 despite idle
+sleep assertions; retained ranking-host-sleep119.json, no permanent power change.
+Runner45354 ultimately exited0. Trial3:8/8top choices,tau.9129,no top ties,49attempts
+including one Timeout then successful retry. All48successful responses retained
+model/usage/reported zero cost; every attempt retained zero caps. Timed-out attempt
+has no response billing/model/usage; aggregate completeness remains false. Declared
+criteria permit recovered transport attempts. Parent and independent Sol review
+accepted the bounded ranking series:tau.7781/.8673/.9129,identical identities,
+no deterministic fallbacks. See ranking-series114-acceptance.json, not an expert
+or full-tournament validation claim.
+Then ran committed probe_batch_schema in3fresh processes after new zero-price
+admission, with the same credential/cache isolation and temporary sleep assertions.
+Runner66382 exited0; every trial used one actual4claim/4passage batch and one
+expected-model response at reported cost0. Trials1/2match all labels. Trial3raw
+model says contradicts but quotes only "it decreased migration."; the located
+fragment omits subject/context and the existing guard correctly returns insufficient
+with contradiction_guard_rejected. Thus series complete but NOT accepted; retained
+all raw artifacts and batch-schema119-summary.json. Sol review confirms this is
+protective behavior, not deterministic fallback. No2-of-3 acceptance or discarded
+failure. Next offline-replay that exact response and the two successful quote
+variants through the public assessor; inspect coverage/markers/opposition calls
+before deciding whether a self-contained-quote prompt correction is justified.
+Any change needs fresh declared trials and relevant non-regression; do not weaken
+the guard. Updated status docs, sanitized artifacts verified against configured
+keys, diff check passed. User AGENTS.md preserved. M1 36/41,57 open; goal active.
+No live runners remain. Model selection, fallback qualification and workflow
+acceptance remain open; no deployment or external repository acquisition.
