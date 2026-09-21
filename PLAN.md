@@ -3351,3 +3351,34 @@ Refreshed existing probe atbf08a788 with free checks and isolated environment:
 runner98613 exited0, dots-capabilities127.json all5cases pass, expected engine/SDK
 model identities and zero caps. Scientific and batch qualification still pending.
 No live runners remain. M1 38/43,57open.
+Q2 evidence committed3b587290. Scoped cleanup removed the temporary Q2 invocation
+script/compiled scratch after embedding its source in retained artifacts; no
+runtime source/UI changed this cycle. Independent Sol found no blocker in Dots
+capability refresh; retained streaming telemetry and catalog-snapshot limitations.
+Started runner3945: dots-batch127-{1,2,3}.json, same frozen preflight109/context120
+criteria, explicit Dots model, fresh free catalog snapshots, isolated credentials/
+caches and current source hashes. Logs/private/tmp/coscientist-dots-batch127-{1,2,3}.log.
+Pinned3b587290; do not change HEAD until all children finish. Launch note pending
+commit with results. Next poll3945; Q2 closed, fallback qualification still open.
+
+**2026-09-21 — Cycle 128, Dots batch qualification.**
+Starting3b587290. Previous cycle progressed by verifying Q2 and refreshing Dots
+interfaces. Runner3945 completed all3batch trials exit0. Initial parent check recorded apparent passing results in
+dots-batch127-acceptance.json for: four labels,
+shared batch, exact source offsets, self-contained contradiction context, expected
+Dots identity/usage, zero caps and reported cost0, fixed source/config and no
+fallback. Independent review requested before final acceptance. No model selected.
+Next scientific challenge uses new current-source manifest after Q2, unchanged
+historical/scope inputs and .75accuracy/.80recall per-trial gates. Old Mini source
+manifest cannot be reused across runtime change. No current live runners.
+
+Independent Sol review found missing scope in trial1 partial-support quote:
+"compound R reduced lipid accumulation after seven days" omits required adult
+human hepatocytes. Corrected receipt: explicit partial-population check false
+for trial1, series accepted=false. No two-of-three acceptance. Initial check
+covered contradiction context but missed scope in the partial quote; retained
+raw evidence and recorded correction. No source change or threshold relaxation.
+Decision: inspect scientific challenge as separate characterization before any
+further prompt adjustment, rather than assume this model deserves optimization.
+This is not batch qualification or selection; missing quote scope remains open
+within M1-04b. Scientific success alone cannot override that interface failure.
