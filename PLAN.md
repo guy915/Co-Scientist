@@ -2992,3 +2992,24 @@ goal now verified active after user resume. No checklist change:57 open,M1 36/41
 Next run ranking qualification and remaining batch-schema interface checks.
 Cleanup retained only intentional sanitized evidence; diff check passed; no
 product-code change or new UI. Temporary sleep assertions end with the runner.
+
+**2026-09-21 — Cycle 114, ranking series launched; verified live wait.**
+Starting71752c75. Cycle113 progressed: three usefulness trials passed with retained
+physical evidence. Started existing probe_remaining_panel ranking trials1–3 as
+series114, unchanged Nex Pro/free model configuration and declared ranking gates,
+fresh catalog admission per trial, exclusive artifacts and temporary caffeinate
+assertions verified via pmset. Runner45354 remains live on authoritative polling;
+trial1 has not written its final artifact. Do not restart it or read an empty
+in-flight artifact as a failed evaluation. Logs in /private/tmp/coscientist-ranking114-N.log;
+outputs nex-pro-ranking-series114-N.json. No score or checkbox claim.
+Independent Sol review confirmed evaluator/dataset/config/identity hashes match
+preflight and mapped live criteria:8items,at least6correct top choices,mean tau>=.50
+in every trial. The panel invokes the production one-turn judge, not the richer
+multi-turn tournament; full workflow remains required. Review noted top Elo ties
+are resolved by insertion order: inspect each live per_item.ratings for tied maxima
+before acceptance; retain a concrete follow-up under M1-04c if this affects evidence.
+Recorded LiteLLM async logging-worker warning is not itself proof of lost telemetry;
+reconcile final physical requests with usage evidence. No product change, scratch
+or UI work; user AGENTS.md preserved. Next poll the SAME live runner45354 and assess
+completed trials, including failures, ties, served identity, caps and usage.
+M1 36/41,57 open. Goal remains active; this is a verified wait, not a blocker.
