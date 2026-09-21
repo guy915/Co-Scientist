@@ -3013,3 +3013,22 @@ reconcile final physical requests with usage evidence. No product change, scratc
 or UI work; user AGENTS.md preserved. Next poll the SAME live runner45354 and assess
 completed trials, including failures, ties, served identity, caps and usage.
 M1 36/41,57 open. Goal remains active; this is a verified wait, not a blocker.
+
+**2026-09-21 — Cycle 115, first ranking trial passed; batch probe under review.**
+Starting3cd2254d. Previous cycle was a verified wait on45354. Same runner remains
+live and completed trial1 exit0, then started trial2. Trial1:8/8correct top choices,
+mean tau.7781, no top ties;48 expected-model responses with numeric usage, reported
+cost0, binding zero caps and no deterministic fallback/retries. Sanitized raw
+nex-pro-ranking-series114-1.json and ranking-series114-status115.json retained.
+Measured provider-call latency1307s explains long runtime without inferring a hang.
+Series remains incomplete; poll45354 for trials2/3, never launch duplicate trials.
+While waiting, worker /root/batch_invocation115 owns new probe_batch_schema.py and
+test_probe_batch_schema.py ONLY. Offline one-invocation/four-claim test and Ruff
+passed, but independent Sol review withheld approval: need actual assessor-source
+hashes/validated revision, evidence attached before failure can skip assignment,
+and a test exercising the real schema adapter rather than parsed drafts only.
+Worker is fixing those files under a follow-up; keep them uncommitted until
+reviewed, no live batch inference yet. They are intentional pending work, not
+scratch. No production source, frozen ranking evaluator or user AGENTS.md changed.
+Next poll45354 and finish/review the bounded batch invocation. M1 36/41,57 open;
+no overall model qualification or milestone completion claimed. Diff check passed.
