@@ -3192,3 +3192,28 @@ zero cost/caps, no retries/errors/fallback. Trial2 explains population mismatch
 with a located quote on insufficient, permitted by the existing contract.
 Retained mini-batch-context122-acceptance.json and all raw trials; no additional
 checkbox closed. Next refresh existing capability probe, then scientific panels.
+Batch evidence committedf1241652; credential scan passed. Launched current Mini
+capability refresh runner28085 using existing probe_capabilities.py, fresh
+admission per case and isolated free-only environment. Output
+nex-mini-capabilities122.json, log/private/tmp/coscientist-mini-capabilities122.log.
+It checkpoints each case; retain partial evidence and poll the same handle.
+No final fallback selection yet. Launch note intentionally pending commit with
+results. No production or UI changes; intended evidence retained by cleanup.
+Runner28085 completed exit0: all five capability cases pass. JSON caller-off
+sends bounded reasoning2048, caller-on high effort, both18k total floor; no claim
+that reasoning is disabled. Tool loop executed lookup and returned137. App
+stream retains SDK Mini identity and usage separately from engine telemetry.
+Long input31,701prompt tokens passes. All six recorded transport controls have
+zero-price caps; engine five calls have model/usage and zero static estimates.
+Stream lacks reported cost and has no engine usage record; do not describe its
+empty engine counters as zero requests or a billing receipt. Provider prompt
+cache tokens appear despite application cache disabled; no cache isolation claim
+beyond application caches. Raw capability artifact retained for review.
+Read-only Luna inventory confirms Mini is the closest existing fallback lead;
+DeepSeek long disabled-reasoning failures and Dots missing current wire evidence
+remain unresolved, not rejected. No unrelated model investigation launched.
+Independent Sol reviewed the refreshed artifact: all five expected cases and
+runner exit0 establish completion despite no finished_at field. Catalog was
+checked per case but not snapshotted by this existing probe; retain that limit.
+No blocker to scientific challenge. Scoped cleanup retains only intended trial
+and capability records; user AGENTS.md remains untouched. M1 37/42,57 open.
