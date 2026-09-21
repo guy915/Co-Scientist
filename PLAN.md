@@ -181,6 +181,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1c: Before adopting semantic verification, persist per-assessment verification method with backward-compatible lineage/readback; distinguish lexical-founded, separately verified and legacy-unknown decisions. Confirm public assessment/report provenance without presenting a model judgment as scientific proof.
 - [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
+- [ ] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -3113,3 +3114,27 @@ the guard. Updated status docs, sanitized artifacts verified against configured
 keys, diff check passed. User AGENTS.md preserved. M1 36/41,57 open; goal active.
 No live runners remain. Model selection, fallback qualification and workflow
 acceptance remain open; no deployment or external repository acquisition.
+
+**2026-09-21 — Cycle 120, batch quote-context candidate.**
+Starting3fd03fec. Exact raw-response replay of all three series119 trials through
+public batch assessment reproduced both contextual contradictions and the short
+fragment's protective insufficient verdict. Coverage .875/.875/.125 against .25;
+one primary stub request each, zero opposition requests. Retained replay120.
+Independent Sol review supports a minimal self-contained-quote instruction;
+rejected deterministic quote expansion because it could invent an antecedent.
+Added M1-04b-Q1, still open: prompt retains subject and necessary scope within
+200 characters, with insufficient when no such span exists. No guard/schema/
+threshold changes. Declared three-trial acceptance before the edit in
+quote-context-criteria120.md. Series119 remains the failing live evidence.
+Parametrized existing public-boundary regression with all three quote variants.
+26 app batch/opposition tests passed; five probe tests passed separately.
+The combined command failed only because the probe requires a fresh process
+before app.config import; preserved isolation and did not relax that guard.
+Ruff and diff checks passed. Scoped cleanup/deslop retained intentional evidence,
+changed no UI, and left the user's AGENTS.md edits untouched. No adoption,
+model selection, deployment or milestone-completion claim. M1 36/42,58 open.
+Next commit this candidate, then run three fresh free-admitted batch trials
+under one fixed source/configuration and record every outcome.
+Final independent review requested outgoing prompt-contract coverage; added it
+at the mocked provider boundary so reverting the instruction fails the probe
+tests. All five standalone tests and Ruff pass with that assertion.

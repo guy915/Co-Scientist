@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from app.claims import AssessorDraft, EntailmentLabel
 
 
@@ -50,13 +52,35 @@ def test_run_batch_uses_one_shared_four_claim_invocation(monkeypatch) -> None:
     result = probe.run_batch(dataset, assessor, "llm:test-model")
 
     assert [(len(claims), len(passages)) for claims, passages in calls] == [(4, 4)]
-    assert [check["label"] for check in result["checks"]] == preflight["expected_labels"]
-    assert all(check["verification_method"] == "model_primary" for check in result["checks"])
+    assert [check["label"] for check in result["checks"]] == preflight[
+        "expected_labels"
+    ]
+    assert all(
+        check["verification_method"] == "model_primary" for check in result["checks"]
+    )
     assert result["checks"][0]["supporting_spans"][0]["quote"]
     assert result["checks"][3]["contradicting_spans"][0]["quote"]
 
 
-def test_run_batch_exercises_the_real_batch_adapter_offline(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("quote", "label", "method"),
+    [
+        (
+            "Treatment S did not increase migration of adult human fibroblasts after 24 hours",
+            "contradicts",
+            "lexical_founded",
+        ),
+        (
+            "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+            "contradicts",
+            "lexical_founded",
+        ),
+        ("it decreased migration.", "insufficient", "contradiction_guard_rejected"),
+    ],
+)
+def test_run_batch_exercises_the_real_batch_adapter_offline(
+    monkeypatch, quote, label, method
+) -> None:
     """A schema-shaped provider reply reaches all four recorded checks."""
     probe = _probe(monkeypatch)
     dataset, preflight = probe.load_frozen_panel()
@@ -64,6 +88,15 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(monkeypatch) -> None
     replies = []
 
     async def completion(**_kwargs):
+        prompt = json.dumps(_kwargs["messages"])
+        for requirement in (
+            "shortest self-contained verbatim span",
+            "explicitly named subject",
+            "conditions needed to interpret the finding",
+            "Never cite a pronoun-only or otherwise context-dependent fragment",
+            "If no self-contained span fits within 200 characters, choose INSUFFICIENT",
+        ):
+            assert requirement in prompt
         replies.append(1)
         return SimpleNamespace(
             choices=[
@@ -75,13 +108,17 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(monkeypatch) -> None
                                     {
                                         "index": 1,
                                         "label": "partial",
-                                        "supporting": [{"passage": 1, "quote": texts[0]}],
+                                        "supporting": [
+                                            {"passage": 1, "quote": texts[0]}
+                                        ],
                                         "contradicting": [],
                                     },
                                     {
                                         "index": 2,
                                         "label": "supports",
-                                        "supporting": [{"passage": 2, "quote": texts[1]}],
+                                        "supporting": [
+                                            {"passage": 2, "quote": texts[1]}
+                                        ],
                                         "contradicting": [],
                                     },
                                     {
@@ -94,7 +131,9 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(monkeypatch) -> None
                                         "index": 4,
                                         "label": "contradicts",
                                         "supporting": [],
-                                        "contradicting": [{"passage": 4, "quote": texts[3]}],
+                                        "contradicting": [
+                                            {"passage": 4, "quote": quote}
+                                        ],
                                     },
                                 ]
                             }
@@ -116,8 +155,11 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(monkeypatch) -> None
     result = probe.run_batch(dataset, assessor, assessor_id)
 
     assert len(replies) == 1
-    assert [check["label"] for check in result["checks"]] == preflight["expected_labels"]
-    assert result["checks"][3]["verification_method"] == "lexical_founded"
+    assert [check["label"] for check in result["checks"]] == [
+        *preflight["expected_labels"][:3],
+        label,
+    ]
+    assert result["checks"][3]["verification_method"] == method
 
 
 def test_main_retains_finalized_panel_evidence_and_redacts_failures(
@@ -144,8 +186,14 @@ def test_main_retains_finalized_panel_evidence_and_redacts_failures(
             evidence["finished"] = True
 
     monkeypatch.setattr(probe, "capture_panel", capture)
-    monkeypatch.setattr(probe, "make_llm_batch_assessor", lambda *_args: (None, "llm:test"))
-    monkeypatch.setattr(probe, "run_batch", lambda *_args: (_ for _ in ()).throw(RuntimeError("test-key")))
+    monkeypatch.setattr(
+        probe, "make_llm_batch_assessor", lambda *_args: (None, "llm:test")
+    )
+    monkeypatch.setattr(
+        probe,
+        "run_batch",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("test-key")),
+    )
 
     assert probe.main() == 1
     record = json.loads(output.read_text())
