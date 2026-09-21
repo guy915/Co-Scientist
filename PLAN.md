@@ -182,7 +182,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
 - [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
-- [ ] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
+- [x] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -3320,3 +3320,34 @@ deslop retained required failed evidence and minimal source change; no UI touche
 no scratch deletion needed. Next bounded applicable live Q2 verification through
 the existing historical/controlled verifier interfaces, with raw requests and
 free admission, before checking Q2. Full future model selection stays separate.
+
+**2026-09-21 — Cycle 127, bounded live Q2 verification.**
+Startingbf08a788. Previous cycle progressed with failed Mini series evidence,
+red/green reliability fix and52passing verifier tests. Declared
+opposition-retry-criteria127.md before inference. Reuse historical_controls:
+five fully live controls plus explicitly controlled-primary/live-verifier case.
+Independent review requires complete returned verifier envelope, not merely an
+insufficient final label (which would hide exhaustion). Added per-call phase,
+expected count, schema, max_attempts, normalized return/error recording in a
+forwarding wrapper before launch; no request behavior changed.
+Runner96529 executes3fresh Mini processes, current free admission/caps, isolated
+OpenRouter-only environment, cache off, pinnedbf08a788 from repo root. Artifacts
+opposition-retry127-{1,2,3}.json retain invocation source and physical requests;
+logs/private/tmp/coscientist-opposition-retry127-{1,2,3}.log. Script
+/private/tmp/coscientist-opposition-controls127.py is temporary invocation only.
+Keep runtime source fixed through completion. Trial1 live; no acceptance claim.
+
+Runner96529 completed all3trials exit0. Independent Sol and parent acceptance:
+15/15historical controls pass; each controlled-primary case made one live verifier
+call returning complete index1,false/false with minItems1,no maxItems,max_attempts2.
+All19physical responses have expected Mini identity, usage, reported cost0 and
+zero caps, no fallback/terminal error. Trial2extra call was a recovered primary
+schema error (contradicting:null), not verifier failure. Checked Q2 with52green
+behavioral tests; live checks do not claim a naturally induced empty response
+or reverse Mini's failed scientific qualification. Receipt and raw evidence kept.
+Next fallback candidate is Dots: historical basic interfaces passed, missing
+current request-control evidence rather than demonstrated same Mini weaknesses.
+Refreshed existing probe atbf08a788 with free checks and isolated environment:
+runner98613 exited0, dots-capabilities127.json all5cases pass, expected engine/SDK
+model identities and zero caps. Scientific and batch qualification still pending.
+No live runners remain. M1 38/43,57open.

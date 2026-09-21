@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 126): no production primary or fallback is selected.
+Current status (cycle 127): no production primary or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -22,6 +22,11 @@ Current status (cycle 126): no production primary or fallback is selected.
   passed on refresh, but all three scientific challenge trials failed recall
   (.7/.6/.7 versus .8); see [series 123](mini-challenge123-summary.json).
   The current Mini configuration remains unselected.
+- **Verifier reliability:** incomplete envelopes now retry within the existing
+  ceiling; [Q2 evidence](opposition-retry127-acceptance.json) passes. This does
+  not change Mini’s failed scientific result.
+- **Dots Preview:** [current capability refresh](dots-capabilities127.json)
+  passes; batch and scientific qualification remain pending.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 
