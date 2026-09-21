@@ -430,3 +430,12 @@ historical controls and one controlled-primary/live-verifier control; all six
 actual requests retain observed model, usage, and zero-price caps. Three full
 scientific trials are running separately against `pro-current-sources163.json`.
 No primary or fallback is selected.
+
+## Fallback probes — cycle 164
+
+Qwen3.8's first structured-output request hit an upstream shared-pool429;
+[qwen-capabilities164.json](qwen-capabilities164.json) is incomplete, not a
+scientific rejection. Nemotron Super passed both short JSON reasoning settings,
+tools and streaming; its long-prompt case hit provider overload. See
+[nemotron-super-capabilities164.json](nemotron-super-capabilities164.json).
+Both remain unqualified; retain failures and honor backoff before new attempts.

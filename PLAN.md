@@ -3821,3 +3821,39 @@ priority is qwen/qwen3.8-27b:free based only on advertised tools, structured
 outputs, reasoning and262k context; it is not qualified or selected. GLM5.2's
 listed capability/context coverage is narrower. Scoped cleanup retains failed
 and interrupted evidence intentionally; no source cleanup or UI scan needed.
+
+
+**2026-09-21 — Cycle 164, fallback interface qualification.**
+Previous cycle made progress: retained/committed failed Dots evidence and passing
+Pro Q2 compatibility, then launched Pro scientific trials. Runner72261 confirmed
+live this cycle; no restart or source edits. Qwen capability runner24188 terminal0
+but its first json_off case failed with upstream ModelRun shared-pool429 and no
+reset time; no further cases ran. Retain qwen-capabilities164.json as incomplete,
+not rejection. No paid/BYOK remedy used. Earliest chosen retry 2026-09-21T12:30:07.208357+00:00
+(conservative local backoff, not provider-reported reset); no timer or automatic
+retry scheduled. Qualified alternatives may proceed meanwhile.
+Launched existing five-case probe for nvidia/nemotron-3-super-120b-a12b:free,
+runner25277, nemotron-super-capabilities164.json; fresh catalog verification and
+zero-price caps enforced. Choice based on advertised structured outputs, tools,
+reasoning and262k context; no capability success inferred from metadata.
+Existing security scan37397870-2c59-4fa1-b638-30445fd598f6 was reloaded: remains
+preflight at old headc3cdef26769aefc4bd877755871473cc7e0b36e8 with zero substantive
+coverage. No duplicate scan, source review, host config changes or unsupported
+remediation performed. The known incompatible agents.max_threads/native-v2
+preflight remains a release dependency. M1 38/5;57open.
+
+Cycle164 result: Nemotron runner25277 exited0. json_off, json_on, tools and
+streaming pass; long_json returned Nvidia ServiceUnavailableError (temporarily
+overloaded). All attempted Qwen/Nemotron requests carry zero prompt/completion/
+request caps. Neither candidate is selected or rejected on this operational
+failure. Next Nemotron action: retry long_json in a new artifact after provider
+backoff, then batch and scientific panels if compatibility completes; retain
+original failure. Pro series continues independently, no new source changes.
+
+Luna independently verified both capability artifacts: successful non-stream
+Nemotron calls have exact observed identity and complete usage; streaming uses
+SDK model/usage fields with its existing independent-receipt caveat. Unsuccessful
+requests have no response usage and are not claimed as free billing receipts.
+No acceptance inferred. Runner72261 remained live through one bounded wait;
+retain same handle. No source/UI changes or scratch files to remove; completed
+probe records are retained. Earliest Nemotron retry is 2026-09-21T12:18:31.384092+00:00 (local backoff, no provider reset supplied).
