@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 127): no production primary or fallback is selected.
+Current status (cycle 163): no production primary or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -26,7 +26,10 @@ Current status (cycle 127): no production primary or fallback is selected.
   ceiling; [Q2 evidence](opposition-retry127-acceptance.json) passes. This does
   not change Mini’s failed scientific result.
 - **Dots Preview:** [current capability refresh](dots-capabilities127.json)
-  passes; batch and scientific qualification remain pending.
+  passes, but [batch series 127](dots-batch127-acceptance.json) is unaccepted:
+  trial 1 omitted population scope from a partial-support quote. Scientific
+  characterization also failed all three recall gates; see
+  [series closure](dots-challenge128-summary.json).
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 
@@ -411,3 +414,19 @@ For scope, run the archived comparator with `--series opposition-scope-pro
 Compare generated receipts byte-for-byte with the retained files before deleting
 the temporary archive. `observer-replay-cycle104.json` records successful replay
 of all four receipts, including the scope series' scientifically failed result.
+
+## Dots characterization closure — cycle 162
+
+The three retained challenge panels score contradiction recall .70/.60/.70,
+below the unchanged .80 criterion in every trial. This configuration is not
+selected. See `dots-challenge128-summary.json`; trial1 batch fallback labels
+are operational failures, not Dots judgments. Interrupted trial2 is preserved
+separately. No thresholds or protective gates were changed.
+
+## Nex Pro current-code checks — cycle 163
+
+[Bounded Q2 compatibility](pro-opposition-compatibility163.json) passes five
+historical controls and one controlled-primary/live-verifier control; all six
+actual requests retain observed model, usage, and zero-price caps. Three full
+scientific trials are running separately against `pro-current-sources163.json`.
+No primary or fallback is selected.

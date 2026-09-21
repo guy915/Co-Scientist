@@ -109,6 +109,8 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 
 **Session orchestration decision (2026-09-20):** After M1 is complete and verified, the primary agent switches from implementer to orchestrator using `/Users/guy/.codex/skills/orchestrate/SKILL.md`. Delegate implementation to `gpt-5.6-luna` at `max` effort by default for light work, or `gpt-5.6-sol` at `medium` effort for heavy work. Specify model and effort explicitly on fresh-context dispatches. The coordinator owns scope, acceptance criteria, integration, verification, and the persistent `slice · owner · status · evidence · next` ledger; inspect worker diffs and independently verify results before accepting them. Preserve sequential repository investigation and the concurrency ceiling. This user instruction overrides earlier worker-model defaults; M1 remains under the current implementation approach until verified.
 
+**Worker preference clarified (2026-09-21):** Effective immediately, use Luna/max for routine day-to-day work and reviews; reserve Sol/medium for heavy work. The requested Luna xhigh tier is unavailable on this launcher, so use its supported max tier. This overrides the broad Sol second-opinion default. Do not interrupt active work merely to switch models.
+
 At the start of every turn, read `PLAN.md`, relevant project instructions, and the active dossier. Check the working tree and actual release state before acting.
 
 Take the first unchecked item. Search the current codebase before implementing. Replace oversized implementation items with concrete candidate-ID checkboxes before starting them, preserving scope and acceptance criteria on disk.
@@ -3382,3 +3384,440 @@ Decision: inspect scientific challenge as separate characterization before any
 further prompt adjustment, rather than assume this model deserves optimization.
 This is not batch qualification or selection; missing quote scope remains open
 within M1-04b. Scientific success alone cannot override that interface failure.
+Failed batch evidence committedee775074. Created dots-current-sources128.json
+with585current Python hashes; offline existing imported_sources audit passes303
+loaded project modules, no inference. Started runner67726 with explicit Dots,
+manifest current arm, scope+historical controls, free admission/caps, isolated
+credentials/caches and four-second pacing. Artifacts dots-challenge128-{1,2,3}.json;
+logs/private/tmp/coscientist-dots-challenge128-{1,2,3}.log. Every child checks HEAD
+pinnedee775074. Do not commit/change source until terminal. This is separate
+scientific characterization; batch scope failure remains unresolved. Launch
+notes/manifest pending commit with results. Scoped cleanup retains intentional
+evidence and user's AGENTS.md, no scratch/runtime/UI changes. M1 38/43,57open.
+Next poll67726 and diagnose full outcomes before further model/prompt choices.
+
+**2026-09-21 — Cycle 129, verified Dots live wait.**
+Startingee775074 unchanged. Previous cycle progressed by retaining the failed
+batch-context result and starting separate scientific characterization. Repeated
+bounded polls confirm runner67726 still live in trial1; no terminal result,
+restart or source change. Sparse log has two dict-to-list coercion notices, no
+terminal failure; absence of new log text is not completion. Keep observing the
+same handle. Read-only host config check still shows multi_agent_v2=true and
+agents.max_threads=6, the previously recorded security-preflight conflict;
+no host settings changed and no scan readiness claimed. Scientific inference
+is unaffected. Intended in-flight artifact and manifest retained by cleanup;
+user AGENTS.md untouched. Pending records stay uncommitted because later children
+assert HEAD==ee775074. M1 38/43,57open. Next poll67726 and inspect complete trial1.
+
+**2026-09-21 — Cycle 130, verified live wait.**
+Previous goal cycle was a verified wait; intervening cleanup inspected intentional
+records without advancing acceptance. Runner 67726 is confirmed live again by
+bounded polling. Trial 1 log has advanced with normalization notices and one
+schema-validation retry; no terminal result is available. No restart, source
+change, new inference batch, or acceptance claim. Keep HEAD ee775074 fixed for
+the remaining sequential children. Cleanup retains the active artifact and
+manifest; no scratch code or UI changed. M1 remains 38 done / 5 open, campaign
+57 open. Next inspect the same runner and evaluate terminal evidence.
+
+**2026-09-21 — Cycle 131, verified wait and selection review.**
+Previous goal turn was a verified wait. Repeated bounded polls confirm runner
+67726 remains active in trial 1; its reserved output is not yet finalized. No
+restart or new batch launched. Requested read-only independent review from
+quote_context120_review of the exact remaining primary/fallback selection
+evidence and permissible reuse after Q2, while inference continues. Review is
+pending; no acceptance criteria or disposition changed. HEAD stays ee775074.
+Scoped cleanup retains intentional records and in-flight outputs, with no code
+or UI edits. M1 38 done / 5 open; 57 campaign items open. Next inspect runner
+67726 and the independent selection review before choosing further work.
+
+**2026-09-21 — Cycle 132, release verification started during live wait.**
+Previous cycle was a verified wait with independent review dispatched. Runner
+67726 remains live, trial 1 log advances, no terminal artifact yet. Independent
+selection review remains running. Started required make test-all against HEAD
+ee775074 because Q1/Q2 changed code after the last full suite; runner 87304 is
+confirmed active, log /private/tmp/coscientist-test-all132.log shows engine
+progress beyond 32 percent with no failure shown so far. This is not a passing
+result. Keep app/engine pytest serialized; do not launch a duplicate suite.
+No source or HEAD change, inference restart, or new model batch. Scoped cleanup
+retains intentional evidence and active logs. M1 38 done / 5 open; 57 open.
+Next observe both runners and receive the independent selection review.
+
+Independent review returned: preserve Pro capability, usefulness113, ranking114
+and batch-context120 acceptance (Q2 verifier was not reached by that batch).
+Current Q1/Q2 scientific behavior still needs a fresh three-trial Pro challenge,
+historical and scope series with current hashes and Pro verifier-schema evidence.
+No fallback is qualified: Mini failed recall; Dots failed batch scope. Dots
+science cannot override that failure. Complete characterization before deciding
+whether its scope issue warrants a changed candidate and full fresh batch series.
+Do not repeat unaffected Pro panels. Freeze independently qualified routes before
+full workflow; defaults remain unsuitable. This review changes the next-action
+map, not any acceptance result.
+
+**2026-09-21 — Cycle 133, confinement test environment diagnosis.**
+Previous turn progressed by starting full verification and receiving the selection
+review. Runner 87304 terminated with exit 2: engine 3102 passed, 22 failed, two
+existing skips. Failures show sandbox-exec sandbox_apply Operation not permitted
+under the outer host sandbox, including downstream workspace/session assertions.
+No assertions or implementation changed. Authorized host-permission retry of
+unchanged make test-all is active as runner 69531, log
+/private/tmp/coscientist-test-all133-host.log. Original failure log remains at
+/private/tmp/coscientist-test-all132.log. Dots runner 67726 is independently
+confirmed live, no terminal artifact yet; do not restart either live runner.
+HEAD remains ee775074; intentional records retained, no cleanup removals needed.
+M1 38 done / 5 open; 57 campaign items open. Next inspect both terminal results.
+
+**2026-09-21 — Cycle 134, current-code static checks passed.**
+Previous turn progressed by diagnosing the outer-sandbox test failure and
+starting the authorized unchanged host retry. make lint and make typecheck
+both terminated exit 0 against ee775074; logs are
+/private/tmp/coscientist-lint134.log and /private/tmp/coscientist-typecheck134.log.
+No source files changed. Host suite runner 69531 and Dots runner 67726 are
+confirmed live; no terminal acceptance inferred. Keep HEAD fixed while Dots
+children run. Cleanup retains intentional campaign records and in-flight
+evidence; user AGENTS.md untouched. M1 38 done / 5 open; 57 total open.
+Next inspect both runners, retain final verification receipts, and proceed
+with the recorded primary/fallback qualification decisions.
+
+**2026-09-21 — Cycle 135, Dots first scientific result inspected.**
+Previous cycle progressed with passing static checks. Runner 67726 finalized
+trial 1 without terminal error and is confirmed running trial 2. Trial 1
+challenge accuracy .90 passes, contradiction recall .70 fails the unchanged
+.80 gate. Historical and controlled-primary controls pass. Single scope fails
+changed_followup (partial instead of insufficient). Batch-single-claim scope
+contains deterministic_lexical results and fails five checks; requested an
+independent read-only diagnosis of the fallback cause from raw evidence and
+observer code before attributing it to the model or harness. All remaining
+trials continue unchanged; trial 1 is not acceptance. Host test suite 69531
+remains active. Keep HEAD ee775074 fixed. Intentional completed/in-flight
+artifacts retained; no source edits or scratch removal. M1 38/5, 57 open.
+Next inspect fallback diagnosis and both active runners.
+
+**2026-09-21 — Cycle 136, operational and test failures distinguished.**
+Previous cycle progressed by inspecting Dots trial 1. Independent review traced
+its batch tail: five successful model calls, then provider malformed-JSON APIError,
+then failed fresh zero-cost catalog admission before retry/remaining transport.
+Five deterministic fallbacks are not Dots semantic judgments. Batch subpanel
+is operationally incomplete; complete challenge recall and single-scope failures
+remain valid. Keep the original trial and unchanged running series.
+Host suite 69531 exited 2: engine 3124 passed/two existing skips; app 1850 passed
+and test_cli_commands_runs::test_pause_then_resume_cycle failed to complete.
+MCP/parity not reached. Isolated unchanged reproduction active as runner 20597,
+log /private/tmp/coscientist-pause-resume136.log. No concurrent pytest suite.
+make eval-smoke passed exit 0, log /private/tmp/coscientist-eval-smoke136.log.
+No code changes, acceptance ticks, or source commits while Dots is active.
+Cleanup retains required evidence. M1 38/5; 57 open. Next inspect reproduction
+and Dots runner 67726; diagnose before changing behavior.
+
+**2026-09-21 — Cycle 137, worker preference and isolated reproduction.**
+Previous goal turn progressed by distinguishing trial failures and starting
+isolated test reproduction. Runner 20597 passed the unchanged pause/resume test
+in 8.77 seconds; this does not clear the full-suite failure. Dispatched Luna/max
+pause137_diagnosis for read-only order/timing diagnosis and next reproduction.
+User clarified routine workers/reviews must default to Luna; recorded this
+above immediately, reserving Sol for heavy work. Started make test-mcp parity
+as runner 82016, log /private/tmp/coscientist-mcp-parity137.log, to cover checks
+not reached by failed test-all. Dots runner 67726 confirmed live in trial 2.
+No source or HEAD changes; preserve ee775074 until the series finishes.
+Scoped cleanup retains intentional records/evidence; user AGENTS.md untouched.
+M1 38/5, 57 open. Next inspect MCP/parity, Luna diagnosis and Dots results.
+
+**2026-09-21 — Cycle 138, remaining offline release checks progressed.**
+Previous turn progressed by recording worker preference and isolated reproduction.
+Runner 82016 completed make test-mcp parity exit 0: MCP 274 passed, strict mypy
+71 files clean, parity 115 rows/100 verified with all evidence references valid,
+and parity tests completed. make build also passed exit 0 (runner 25881),
+log /private/tmp/coscientist-build138.log; existing large-bundle warning retained.
+No source changes. Dots runner 67726 remains live in trial 2; Luna pause/resume
+diagnosis remains pending. Full test-all is still not accepted because its app
+failure has only passed in isolation. Cleanup preserves required evidence and
+user changes. M1 38/5; 57 open. Next receive Luna diagnosis, inspect Dots, and
+complete remaining applicable release checks without repeating passed ones.
+
+**2026-09-21 — Cycle 139, frontend and browser verification passed.**
+Previous cycle progressed with MCP/parity/build completion. Current-code frontend
+unit suite passed 718 tests across 119 files (runner 10200 exit 0); log
+/private/tmp/coscientist-frontend139.log. Isolated offline make e2e passed all
+nine Chromium flows (runner 7745 exit 0), log /private/tmp/coscientist-e2e139.log.
+These are offline evidence, not the required live research workflow. Dots
+runner 67726 was confirmed live in trial 2. Luna diagnosis remains pending;
+requested a bounded conclusion without expanding the task. No source edits
+or acceptance changes. Cleanup retains intentional evidence; HEAD ee775074
+remains fixed. M1 38/5; 57 open. Next resolve app-suite failure from diagnosis
+and inspect Dots series results.
+
+**2026-09-21 — Cycle 140, verification receipt and contextual reproduction.**
+Previous cycle progressed with frontend/E2E acceptance. Retained check statuses
+and log hashes in baseline/release-verification140.json; complete=false because
+full-suite app failure remains unresolved. Dots runner 67726 confirmed live
+again in trial 2. Requested bounded Luna findings; while pending, started the
+unchanged full tests/test_cli_commands_runs.py file as runner 33521, log
+/private/tmp/coscientist-cli-runs140.log, to test neighboring-test context after
+the isolated test passed. No duplicate pytest process or source changes.
+Keep HEAD ee775074 fixed; receipt awaits commit with completed trial evidence.
+Cleanup retains intentional records. M1 38/5, 57 open. Next inspect contextual
+reproduction, Luna findings, and Dots completion.
+
+**2026-09-21 — Cycle 141, contextual reproductions passed.**
+Previous cycle progressed with verification receipt/contextual launch. Full CLI
+lifecycle file passed 11 tests in45.13s. Luna found original failure only reports
+90-second completion timeout after successful resume; actual run state is absent
+from assertion. Recommended preceding CLI module plus pause/resume; this passed
+28 tests in20.61s (runner12893, log /private/tmp/coscientist-cli-order141.log).
+Both results added to verification receipt; full-suite failure remains open.
+Luna now searches only retained test databases for original failed run
+43442562-9934-4b57-a31a-5ae5898aeb7c to establish task state, no production data.
+Dots runner67726 confirmed live in trial2. No source/HEAD changes. Cleanup
+retains evidence, no assertions weakened. M1 38/5;57open. Next inspect original
+run evidence before any fix and continue observing the live series.
+
+**2026-09-21 — Cycle 142, retained full-app reproduction started.**
+Previous cycle progressed with two passing contextual reproductions. Luna
+confirmed original failed run database was removed by pytest retention cleanup;
+retained CLI databases lack its UUID. Successful comparison runs have completed
+status, 157 completed tasks each, attempts 1, zero errors. Original timeout cause
+therefore remains unknown, not fixed. Started unchanged full app pytest with
+explicit --basetemp=/private/tmp/coscientist-app142 so recurrence leaves durable
+test rows: runner40822, log /private/tmp/coscientist-app142.log. No concurrent
+pytest. Dots runner67726 confirmed live in trial2; no restart/source changes.
+Scoped cleanup retains intentional evidence. M1 38/5;57open. Next inspect full
+app result and retained task state on failure, plus Dots trial completion.
+
+**2026-09-21 — Cycle 143, verified waits on retained reproductions.**
+Previous turn progressed by starting a full app rerun with retained test data.
+Repeated bounded polls confirm both runner40822 (app suite) and runner67726
+(Dots trial2) remain live. App log reached54percent without a displayed failure;
+no terminal outcome inferred. Dots log advances but artifact remains reserved
+until completion. No restarts, source edits, additional inference or acceptance
+changes. Cleanup retains active outputs and intentional records. M1 38/5;
+57open. Next inspect terminal results using the same handles; preserve HEAD
+ee775074 while sequential Dots children remain active.
+
+**2026-09-21 — Cycle 144, interruption recovery.**
+Previous turn was interrupted during verified waits, before writing a cycle
+entry. Both old handles40822/67726 now return Unknown process id. Authorized
+host ps confirms no campaign Python/caffeinate runner survived; logs lack final
+app outcome, Dots trial2 remains empty. This is confirmed termination, not a
+poll timeout. Preserve original artifacts and test directory. Started unchanged
+full app suite with new basetemp /private/tmp/coscientist-app144 as runner57244,
+log /private/tmp/coscientist-app144.log. Started Dots recovery trials2/3 as
+runner59287, new artifacts dots-challenge128-recovery144-{2,3}.json and logs
+/private/tmp/coscientist-dots-recovery144-{2,3}.log. Same manifest, source
+ee775074, model, isolated credentials/cache policy, controls, pacing and fresh
+zero-price admission; each child verifies HEAD. Original completed trial1 is
+retained, including its scientific failures; recovery does not replace it.
+No acceptance claimed. Cleanup retains all interrupted/active evidence and user
+changes. M1 38/5;57open. Next inspect runners57244 and59287.
+
+**2026-09-21 — Cycle 145, recovery jobs confirmed live.**
+Previous campaign turn progressed by recovering confirmed interrupted jobs.
+Repeated bounded polls confirm runners57244 (full app suite, retained basetemp144)
+and59287 (Dots recovery trial2) remain active; no terminal result or restart.
+App log progressed beyond42percent. User separately requested session cleanup
+hook suppression: exact current session bypass was verified in the hook adapter;
+future-session disabled configuration remains unchanged. This changes reminder
+delivery, not campaign cleanup or acceptance obligations. No project source or
+HEAD changes; retain ee775074 for the live series. Scoped cleanup preserves
+intentional evidence and user AGENTS.md. M1 38/5;57open. Next inspect the same
+runner handles and retain terminal outcomes before selecting further work.
+
+**2026-09-21 — Cycle 146, full app rerun passed.**
+Previous goal turn was a verified wait. Runner57244 terminated exit0:1851 app
+tests passed in469.50s; retained directory /private/tmp/coscientist-app144 and
+log hash added to release-verification140.json. Original pause/resume timeout
+did not recur in isolated, contextual or full-app reruns; cause remains unknown,
+not claimed fixed. Reuse unchanged passing engine3124/MCP274/parity components
+and static/build/frontend/E2E/eval-smoke checks. Original make test-all invocation
+still records failure, not rewritten as success. Offline components now pass;
+live acceptance remains incomplete. Runner59287 repeatedly confirmed live in
+Dots recovery trial2. No source or HEAD changes; cleanup retains evidence and
+user edits. M1 38/5;57open. Next inspect Dots recovery and proceed with recorded
+current-code Pro scientific verification and fallback decisions.
+
+**2026-09-21 — Cycle 147, Pro verification preflight during live wait.**
+Previous cycle progressed with full-app pass. Runner59287 confirmed live by
+bounded polls in Dots recovery trial2, no terminal result. Dispatched Luna/max
+pro147_preflight for read-only current hash verification and whether existing
+source manifest/request schema evidence suffices for the next Pro scientific
+series; no new harness or inference authorized to that worker. Existing Q2
+compatibility invocation is retained in opposition-retry127-1.json if needed.
+No source/HEAD changes. Cleanup retains intentional evidence. M1 38/5;57open.
+Next inspect Dots and preflight results before launching the recorded Pro work.
+
+**2026-09-21 — Cycle 148, verified recovery wait.**
+Previous cycle was a verified wait with Pro preflight dispatched. Repeated
+bounded polls confirm runner59287 remains live in Dots recovery trial2; log
+advances, no final artifact. Luna preflight is pending; requested its bounded
+conclusion. No new inference batch, restart, source change or acceptance claim.
+Keep ee775074 fixed; intentional evidence retained by cleanup. M1 38/5;57open.
+Next inspect runner59287 and preflight findings using the existing handles.
+
+**2026-09-21 — Cycle 149, verified Dots recovery wait.**
+Previous cycle was a verified wait. Runner59287 confirmed active again via
+bounded polls; recovery trial2 log advances, artifact not finalized. Pro
+preflight remains pending. No restart, source/config change, new inference or
+acceptance claim. Preserve same source ee775074 and original failed/incomplete
+evidence. Scoped cleanup retains required records. M1 38/5;57open. Next inspect
+runner59287 and Luna preflight before further model qualification.
+
+**2026-09-21 — Cycle 150, verified runner and preflight wait.**
+Previous cycle was a verified wait. Runner59287 remains live after repeated
+bounded polls, no final trial2 result. Agent listing independently confirms
+pro147_preflight still running. Neither wait is treated as completion or a
+terminal blocker. No restart, source change or new inference. Preserve fixed
+HEAD ee775074 and all retained evidence. Cleanup has no removals. M1 38/5;
+57open. Next inspect both existing handles for completed evidence.
+
+**2026-09-21 — Cycle 151, Pro preflight resolved.**
+Previous cycle was a verified wait. Luna verified585/585 current source hashes
+match unchanged model-independent dots-current-sources128.json; receipt retained
+in pro-preflight151.json. Reuse manifest without modifying its Dots purpose.
+Next Pro series changes only explicit model, output names and trial indices;
+all source/control/free/cache/pacing settings remain fixed. Scientific probe
+does not retain internal verifier minItems, so use existing opposition-retry127
+invocation once for Pro schema compatibility as well. No new harness needed.
+Runner59287 confirmed live by bounded polls; no new inference launched.
+Cleanup retains intentional records. M1 38/5;57open. Next finish Dots recovery,
+then execute the verified Pro qualification path.
+
+**2026-09-21 — Cycle 152, Dots recovery trial2 completed.**
+Previous cycle progressed with Pro preflight. Runner59287 finalized recovery
+trial2 without terminal error and began trial3 unchanged. Trial2 challenge
+accuracy .867 passes but contradiction recall .60 fails unchanged .80 gate;
+historical, controlled-primary, single-scope and batch-single-claim scope all
+pass. Artifact retains65 physical requests; comprehensive telemetry audit is
+pending full series completion. This is failed scientific qualification, not
+a replacement for original trial1 or permission to select Dots. Original
+interrupted trial2 remains retained. No source/HEAD change; cleanup preserves
+evidence. M1 38/5;57open. Next observe runner59287 trial3, audit the full series,
+and execute recorded Pro verification with existing probes.
+
+**2026-09-21 — Cycle 153, completed trial2 telemetry audited.**
+Previous cycle progressed with recovery trial2 result. Audit retained in
+dots-recovery2-audit153.json: all65 physical requests have expected Dots served
+identity, numeric prompt/completion usage and exact zero prompt/completion/
+request caps, no missing or unexpected response identities. No independent
+billing receipt claimed. Scientific recall gate still fails; historical and
+scope controls pass. Luna pro147_preflight now traces missed contradictions by
+aligned dataset index, comparing trial1 only for those cases; no edits/inference.
+Runner59287 confirmed live in recovery trial3. Cleanup retains evidence; source
+ee775074 unchanged. M1 38/5;57open. Next inspect diagnosis and trial3, then
+finalize Dots disposition and run prepared Pro checks.
+
+**2026-09-21 — Cycle 154, verified trial3 wait.**
+Previous cycle progressed with completed trial2 telemetry audit. Runner59287
+is confirmed live in recovery trial3 by bounded polling. Failure analysis
+remains pending. No source changes, restarts, selective replacements or new
+inference batches. Completed failed evidence remains authoritative; acceptance
+is unchanged. Cleanup retains intentional records. M1 38/5;57open. Next inspect
+the same runner and diagnosis, then run the prepared Pro qualification path.
+
+**2026-09-21 — Cycle 155, verified unchanged trial3 wait.**
+Previous cycle was a verified wait. Runner59287 remains active after bounded
+polls; no final trial3 artifact. Completed trial1 and trial2 scientific failures
+remain retained and unchanged. No source/config change, new inference, restart
+or acceptance tick. Cleanup retains required records. M1 38/5;57open. Next
+inspect the same runner and pending diagnosis; prepared Pro verification remains
+the next inference work after this series finishes.
+
+**2026-09-21 — Cycle 156, Dots recall failures localized.**
+Previous cycle was a verified wait. Luna aligned exact dataset indices and
+located recovery trial2 misses: index0 primary insufficient; indices1/24
+opposition declines same-condition/exclusivity confirmation; index21 rejected
+by subject-coverage guard before verifier (also original trial1, known shared
+limitation). Retained in dots-recovery2-audit153.json. Do not weaken the guard
+or tune to these examples merely to qualify Dots. Candidate stays unselected;
+finish trial3 for full disposition. Runner59287 confirmed live, source unchanged.
+Cleanup retains evidence. M1 38/5;57open. Next inspect trial3 and execute Pro
+verification after the active series closes.
+
+**2026-09-21 — Cycle 157, verified live wait.**
+Previous cycle progressed by localizing recall failures. Runner59287 remains
+confirmed live in trial3 after repeated bounded polls; no terminal result.
+No source/config changes, restarts, additional inference or acceptance ticks.
+Retain fixed ee775074 and all failed/interrupted evidence. Cleanup retains
+intentional records. M1 38/5;57open. Next inspect runner59287, close the Dots
+series on evidence, and execute the prepared Pro verification.
+
+**2026-09-21 — Cycle 158, user-requested polling reduction.**
+User objected to repeated polling/usage. Created same-thread heartbeat
+resume-co-scientist-after-trial-wait for14:05 Europe/Amsterdam, with instructions
+to disable after first firing, inspect once and resume authorized work only
+from evidence. Native goal remains active: explicit pause authorization requested
+because scheduling alone does not stop goal continuations. No trial poll or
+restart this turn; last live handle59287 and frozen HEADee775074 retained.
+Do not repeat status-only polling turns. Next obtain pause answer or process
+scheduled follow-up. M1 38/5;57open, campaign incomplete.
+
+**2026-09-21 — Cycle 159, waiting-policy correction.**
+User requested event-driven completion instead of scheduling or polling. Deleted
+resume-co-scientist-after-trial-wait automation; no scheduled follow-up remains.
+CLI resume exists but safe same-task event wake is unverified; no watcher wake
+claimed or duplicate Codex execution launched. One saved-artifact read this turn
+shows trial3 is not finalized; no process polling loop. Native goal still causes
+automatic turns, and explicit pause authorization is pending. Do not reinstate
+the prior polling cadence. Campaign remains incomplete at M1 38/5,57open.
+
+**2026-09-21 — Cycle 160, event watcher attached.**
+Previous turn recorded waiting-policy constraint without campaign progress.
+Attached macOS kqueue NOTE_EXIT one-shot watcher to actual trial3 PID377;
+watcher runner63867 confirmed registration. It waits on kernel event without
+polling, writes /private/tmp/coscientist-trial-exit160.json and displays native
+notification when the process exits. No duplicate inference or Codex execution.
+Initial process-name lookup matched none; corrected command-identity lookup
+matched exactly one, and runner59287 was confirmed live before attachment.
+Watcher does not auto-resume native goal or imply success. Goal pause request
+remains unanswered; scheduled automation deleted. M1 38/5;57open. On next
+meaningful continuation inspect event receipt and terminal trial evidence.
+
+**2026-09-21 — Cycle 162, event completion and Dots closure.**
+Cycle161 was a no-progress receipt check; this turn held the event wait instead
+of repeatedly ending status-only turns. Watcher63867 fired at11:44:24Z for
+PID377; runner59287 terminal exit0. Trial3 accuracy .90/recall .70; historical
+and both scope controls pass, but recall fails .80. Summary retained in
+dots-challenge128-summary.json: all three challenge panels fail recall
+(.70/.60/.70), so this exact configuration is not selected. Original interrupted
+trial2 retained. Trial1 operational batch failures distinguished from model
+judgments. No usefulness/ranking expansion or gate weakening justified.
+Next commit completed evidence, then current-source Pro scientific and bounded
+verifier compatibility checks. M1 38/5;57open.
+
+
+**2026-09-21 — Cycle 163, evidence closure and Pro compatibility launch.**
+Previous interactive turn verified the completed watcher receipt but made no
+campaign progress. This cycle checked all 585 frozen source hashes, parsed
+retained records, checked for OpenRouter key leakage, and verified all 14
+release log hashes. Corrected the dossier's stale running status. Dots remains
+unaccepted; failed and interrupted artifacts are intentional evidence. No
+product source, test thresholds, or user AGENTS.md edits changed.
+Launched the existing Q2 invocation with Nex Pro to
+pro-opposition-compatibility163.json (runner47010; log
+/private/tmp/coscientist-pro-q2-163.log). Fresh catalog verification and zero
+price caps remain enforced before transport; no inference success claimed yet.
+Retained free-catalog163.json for the remaining fallback decision: DeepSeek
+Flash is absent; newly listed routes require interface/scientific qualification.
+No timer or scheduled task created. Next consume the terminal compatibility
+result and launch the three current-source Pro scientific trials; preserve
+accepted unaffected evidence. M1 remains38/5;57open.
+
+Cycle163 result: runner47010 exited0; five historical controls and the explicitly
+controlled-primary/live-verifier control pass. All six actual requests retain
+expected served model, usage and zero prompt/completion/request caps. The
+verifier record proves minItems=1 for one pair, max_attempts=2. This closes the
+bounded Pro/Q2 compatibility check, not full model qualification. Temporary
+wrapper removed after its source was retained in the artifact.
+
+Cycle163 continuation: launched sequential Pro science trials1–3 in runner72261,
+using pro-current-sources163.json and pro-challenge163-{1,2,3}.json. Each child
+checks fresh zero-cost eligibility; the parent verifies all585 frozen source
+hashes before each trial and stops on terminal operational error. Source remains
+ee775074; documentation commits do not change the frozen implementation. Logs:
+/private/tmp/coscientist-pro-challenge163-{1,2,3}.log. Parent blocks on child exit
+without polling. Do not restart on an observation timeout. No acceptance tick;
+next action is terminal result review, then remaining fallback qualification.
+
+Independent Luna closure review found no material false completion claims and
+confirmed the Dots summary against all three raw artifacts. Next fallback
+priority is qwen/qwen3.8-27b:free based only on advertised tools, structured
+outputs, reasoning and262k context; it is not qualified or selected. GLM5.2's
+listed capability/context coverage is narrower. Scoped cleanup retains failed
+and interrupted evidence intentionally; no source cleanup or UI scan needed.

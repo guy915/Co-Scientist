@@ -1,0 +1,13 @@
+{
+  "purpose": "Read-only preflight for current-code Nex Pro scientific qualification",
+  "source_commit": "ee77507415a248889683cef551ec1dd083645bb4",
+  "manifest": "dots-current-sources128.json",
+  "manifest_sha256": "6d4dd985d3c0c88fa334bb17a9f375deacc037e99df35d924c47f37bd3b74bfa",
+  "verified_source_files": 585,
+  "mismatches": 0,
+  "reviewer": "pro147_preflight",
+  "decision": "Reuse unchanged model-independent manifest. Run three fresh Pro challenge/historical/scope trials and the existing bounded opposition-retry127 invocation with Pro. Do not repeat accepted unaffected capabilities/usefulness/ranking/batch-context panels.",
+  "required_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "schema_evidence": "Use existing wrapper verifier_requests to retain CompletionSpec.json_schema.minItems; physical response_format alone is insufficient.",
+  "inference_performed": false
+}
