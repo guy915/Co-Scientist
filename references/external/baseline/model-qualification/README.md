@@ -1,6 +1,7 @@
 # Free-model qualification
 
-Current status (cycle 163): no production primary or fallback is selected.
+Current status (cycle 169): Nex Pro is accepted as the primary candidate; no
+production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -17,6 +18,10 @@ Current status (cycle 163): no production primary or fallback is selected.
   self-contained-quote prompt correction; guards remain unchanged. See
   [acceptance](batch-context120-acceptance.json). The failed
   [series 119](batch-schema119-summary.json) remains retained.
+- **Nex Pro current scientific panel:** all three post-Q1/Q2 trials pass at
+  .933 accuracy and .80 contradiction recall, with every historical and scope
+  control passing. See [series 163](pro-challenge163-summary.json). Production
+  selection still requires an independently qualified fallback and workflow.
 - **Nex Mini batch schema:** three independent fresh trials pass; see
   [Mini acceptance](mini-batch-context122-acceptance.json). Capability refresh
   passed on refresh, but all three scientific challenge trials failed recall
@@ -30,6 +35,11 @@ Current status (cycle 163): no production primary or fallback is selected.
   trial 1 omitted population scope from a partial-support quote. Scientific
   characterization also failed all three recall gates; see
   [series closure](dots-challenge128-summary.json).
+- **Liquid LFM 2.5 2.6B:** all five interface checks pass across the original
+  and post-reset artifacts; see [combined evidence](liquid-capabilities169-summary.json).
+  Scientific trial 1 then hit a daily platform cap after seven requests and
+  produced no report. It remains pending until the recorded reset; see the
+  [interruption receipt](liquid-challenge169-interruption.json).
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 

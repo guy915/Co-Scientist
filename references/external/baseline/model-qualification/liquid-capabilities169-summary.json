@@ -1,0 +1,27 @@
+{
+  "purpose": "Combined Liquid interface qualification; scientific selection remains pending",
+  "requested_model": "openrouter/liquid/lfm-2.5-2.6b:free",
+  "accepted": true,
+  "cases": {
+    "json_off": "liquid-capabilities169.json",
+    "json_on": "liquid-capabilities169.json",
+    "tools": "liquid-capabilities-recovery169.json",
+    "streaming": "liquid-capabilities-recovery169.json",
+    "long_json": "liquid-capabilities-recovery169.json"
+  },
+  "interrupted_case": {
+    "artifact": "liquid-capabilities169.json",
+    "case": "tools",
+    "error_type": "RateLimitError",
+    "provider": "Liquid",
+    "retry_after_seconds": 19,
+    "disposition": "Retained; exact provider reset honored before recovery"
+  },
+  "all_successful_cases_have_zero_price_caps": true,
+  "all_successful_non_stream_cases_have_expected_served_model_and_usage": true,
+  "successful_non_stream_response_pricing": "unreported; request caps and current catalog eligibility are the zero-cost evidence",
+  "series_shape": "Five passing cases split across the original and post-reset recovery artifacts",
+  "streaming_identity_basis": "SDK stream model and usage fields; no independent provider receipt",
+  "independent_billing_receipt": false,
+  "scientific_qualification": "pending"
+}

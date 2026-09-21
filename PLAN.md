@@ -3947,3 +3947,33 @@ rejection. Both this attempt and Qwen recovery carry verified zero-price caps.
 Qwen/Gemma earliest local retry floor 2026-09-21T13:33:58.634787+00:00 (conservative backoff; no provider reset supplied).
 No further capability requests this cycle. Cleanup retains completed raw/audit
 and failure records; active Pro trial3 and user's AGENTS.md remain untouched.
+
+
+**2026-09-21 — Cycle 169, Nex Pro primary accepted; fallback remains pending.**
+The previous interactive status turn was a verified wait on runner72261. The
+same runner completed Pro trial3 without restart. All three post-Q1/Q2 trials
+score accuracy .933 and contradiction recall .80; every historical,
+controlled-primary, single-scope and batch-scope control passes. All requests
+carry binding zero-price caps, every successful response has expected served
+model and usage, and no deterministic judgment fallback is recorded. Trial3
+retains one malformed-JSON APIError at request63, recovered at request64.
+Mechanical verification and independent Luna review support accepting Nex Pro
+as the primary candidate only. Retained pro-challenge163-summary.json; no
+production chain or deployment acceptance claimed.
+
+Fresh endpoint inspection found one free upstream per Qwen, Gemma and Nemotron,
+so provider rerouting cannot clear their availability failures. Liquid's separate
+free route passed JSON with reasoning off/on, tools, streaming and the 126555-
+character long-prompt case across original and post-19-second-reset artifacts.
+Successful non-stream responses retain served identity and usage but no response-
+side price record; current catalog eligibility plus binding zero caps are the
+cost evidence, not an independent billing receipt. Independent Luna review
+confirmed the combined interface result.
+
+Liquid scientific series runner46786 stopped trial1 after seven requests on
+LLMRateLimitParkError message_per_day, provider reset 2026-09-22T00:00:00Z.
+No report or scientific judgment was produced. Retained raw artifact and
+liquid-challenge169-interruption.json; trials2-3 were never started. Do not retry
+before reset or relabel the candidate rejected. M1 remains38/5;57open. Next
+resume Liquid scientific qualification after reset, then complete remaining
+fallback panels and final model-chain selection.
