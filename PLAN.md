@@ -3902,3 +3902,23 @@ Luna independently checked the raw trial and digest, confirming all pass claims
 and no recorded deterministic fallback. lexical_founded scope methods are
 explicit provenance, not fallback. Scoped cleanup retains the completed raw
 trial/audit and leaves active trial2 and user AGENTS.md untouched.
+
+
+**2026-09-21 — Cycle 167, verified wait and release blocker audit.**
+Previous cycle completed Pro trial1 evidence. Runner72261 remains live in trial2
+through bounded waits, not restarted. Dedicated Luna security preflight reran
+once with verified native-v2/cap7/delegation/goal facts: exit2, same incompatible
+agents.max_threads error. Helper validation errors before constructing results,
+user_config_path or remediation. Retained security-preflight-cycle167.json;
+no config changes or substantive security review. Do not repeat unchanged helper
+checks. Preserve existing scan; this independent release dependency remains open.
+
+After recorded backoff, Nemotron long_json recovery167 ran in runner4895 and
+terminated0 with the same upstream ServiceUnavailableError, not a scientific
+result. One attempted request retained zero-price caps; response usage/model
+unavailable. Public OpenRouter endpoint inventory for the exact free model lists
+only Nvidia (tag nvidia), so no alternate free provider can be selected. Do not
+repeat the same request immediately. Next local retry floor 2026-09-21T12:50:43.682662+00:00
+(no provider reset supplied). Qwen remains pending its12:30:07Z floor. Existing
+security scan context updated with cycle167 failure; no status/coverage claim.
+No source/UI changes or scratch cleanup needed. M1 38/5;57open.
