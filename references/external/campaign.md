@@ -7,9 +7,12 @@ locally; see [retained evidence](baseline/retrieval-2026-09-19/README.md).
 Live capability probes and an initial scientific challenge have run through
 verified zero-cost admission; [model qualification](baseline/model-qualification/README.md)
 retains all results, including failures. No model is selected for production and
-no full campaign research run has completed. Three matched pairs on Nex Mini and three on Nex Pro show improved
-contradiction recall but fail the unchanged quality gates. The contradiction-verification candidate remains
-unaccepted; scientific qualification and full workflow verification remain open.
+no full campaign research run has completed. The final Nex Pro magnitude candidate
+passed all three matched pairs with the documented provenance correction; earlier
+failed candidates remain retained. See the [accepted comparison](baseline/model-qualification/opposition-magnitude-pro-corrected-summary.json).
+Three fresh Nex Pro usefulness trials passed; ranking trials 1 and 2 passed,
+with trial 3 still running. Model selection and full workflow verification remain
+open. These bounded results do not establish production readiness.
 Per-assessment method provenance is now retained locally through assessment,
 recovery, storage and report output; it has not been deployed. Existing model names alone do not prove current eligibility.
 
@@ -184,9 +187,10 @@ Direct citation and Elo panels now share the same isolated configuration. Elo
 loads production rating math lazily so importing its evaluator does not load
 engine/provider settings before live admission. Citation usefulness accepts an
 explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
-No live panel results are accepted yet. Direct capture is verified with mocked
-provider responses; deterministic-fallback disclosure and live qualification
-remain open.
+Direct capture and deterministic-fallback disclosure have been verified. The
+Nex Pro usefulness screen is accepted with retained physical request evidence;
+the ranking series and overall model qualification remain open. See the
+[qualification status](baseline/model-qualification/README.md) for current receipts.
 
 ### Usage evidence semantics
 

@@ -3064,3 +3064,22 @@ not scratch. No new inference launcher, source change, threshold change or
 qualification claim. Scoped cleanup retained intended evidence and user AGENTS.md;
 diff check passed. M1 36/41,57 open. Next poll45354 to terminal/completed trial3,
 then assess the complete series and execute the approved batch-schema probe.
+
+**2026-09-21 — Cycle 118, live wait and stale status correction.**
+Starting4eda6626. Previous cycle progressed with verified ranking trial2.
+Repeated bounded polls confirm the SAME runner45354 remains live in trial3;
+no terminal result or complete artifact, no restart. Its log contains the same
+LiteLLM logging-worker warning, not a terminal failure. Continue observing it.
+Corrected campaign.md and model-qualification/README.md: they still said the
+final contradiction candidate and all live panels were unaccepted despite the
+retained accepted comparison/usefulness receipts. Independent Sol review checked
+those receipts and found one additional stale sentence, also corrected. No
+acceptance criteria changed; ranking series, model selection and production
+readiness remain open. Source inspection of security preflight confirms --config
+and --effective-config are inputs for real known config, not permission to hide
+the old max_threads/v2 conflict; no host setting or scan status changed.
+No new inference launched, code modified or checkbox completed. Cleanup retained
+only intentional status corrections and the in-flight trial3 artifact; user
+AGENTS.md untouched. Diff check passed. M1 36/41,57 open. Next poll45354 to its
+terminal result, inspect trial3/full-series evidence, then run the committed
+batch-schema probe. This is a verified live wait, not an impasse.

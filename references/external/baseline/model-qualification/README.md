@@ -1,14 +1,26 @@
 # Free-model qualification
 
-Current status (cycle 103): all three `opposition-magnitude-pro` pairs pass
-with the documented provenance correction. Candidate accuracy/recall are
-.967/.9, .933/.8 and .933/.8; baselines are .433/0, .367/0 and .433/0.
+Current status (cycle 118): no production primary or fallback is selected.
+
+- **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
+  with the documented provenance correction. Candidate accuracy/recall were
+  .967/.9, .933/.8 and .933/.8; baselines were .433/0, .367/0 and .433/0.
+  See the [corrected receipt](opposition-magnitude-pro-corrected-summary.json)
+  and [telemetry audit](opposition-magnitude-pro-telemetry-audit.json).
+- **Nex Pro usefulness:** all three fresh trials passed; see
+  [series 113 acceptance](usefulness-series113-acceptance.json). Earlier daily-cap
+  and timeout attempts remain retained separately.
+- **Nex Pro ranking:** trials 1 and 2 passed with no top ties; trial 3 is running
+  in runner 45354. See [trial 1](ranking-series114-status115.json) and
+  [trial 2](ranking-series114-status117.json). The series is not yet accepted.
+- **Remaining:** live multi-claim schema qualification, independent fallback
+  qualification, model selection, local research workflow, and release verification.
+  The [batch probe](probe_batch_schema.py) is committed and tested offline only.
+
 M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair is verified
-as M1-04b1d; historical receipts retain their original observer. No primary or fallback is selected. The earlier failed scope
-series remains retained. See [candidate evidence](partial-support-candidate.md),
-[corrected receipt](opposition-magnitude-pro-corrected-summary.json),
-[telemetry audit](opposition-magnitude-pro-telemetry-audit.json), and
-[remaining model screens](remaining-panel-criteria.md).
+as M1-04b1d; historical receipts retain their original observer. Failed scientific
+series remain visible in [candidate evidence](partial-support-candidate.md).
+The [declared model screens](remaining-panel-criteria.md) still govern acceptance.
 Earlier results below are historical.
 
 This is live eligibility and compatibility research, not a selected production
