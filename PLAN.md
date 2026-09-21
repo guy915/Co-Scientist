@@ -2968,3 +2968,27 @@ timing before another full trial; preserve frozen configuration or start a new
 complete series if it changes. No checkbox complete; M1 36/41,57 open. Sanitized
 artifact checked for configured key disclosure; no code changes or scratch added
 to maintained source, user AGENTS.md preserved. No deployment or M2 acquisition.
+
+**2026-09-21 — Cycle 113, recovery approach declared before inference.**
+Starting30c07888. Cycle112 retained a real incomplete trial, but stopping after
+its timeout was premature. Current06:19UTC is past the daily reset. Primary
+pmset records show Sleep at02:08:33 Amsterdam during the pending request, then
+repeated long sleep intervals and brief DarkWakes. This explains extended wall
+time but does not establish provider-side causation. Run the existing unchanged
+usefulness evaluator in three fresh processes with temporary caffeinate -i -s
+assertions scoped to each process. Predeclare a new three-trial series113; retain
+all earlier attempts and do not combine selected successes across series. Same
+model/settings/thresholds, fresh zero-price admission each trial, exclusive output
+files. This changes host availability, not scientific prompts or scoring. No
+permanent power setting change; no paid fallback; do not mark M1 complete.
+Cycle113 result: runner11718 exited0 after all three trials. Each achieved13/16,
+useful6/7,partial3/3,false-useful0;48/48 responses identified the expected model,
+retained numeric usage and reported cost0 with binding zero caps. Evaluation
+identities match; no deterministic fallback or retry. Independent Sol review
+accepts the bounded usefulness screen and notes the same three errors persist.
+usefulness-series113-acceptance.json retains raw hashes and primary sleep records.
+No threshold or scientific prompt changed, no old attempts discarded. Native
+goal now verified active after user resume. No checklist change:57 open,M1 36/41.
+Next run ranking qualification and remaining batch-schema interface checks.
+Cleanup retained only intentional sanitized evidence; diff check passed; no
+product-code change or new UI. Temporary sleep assertions end with the runner.
