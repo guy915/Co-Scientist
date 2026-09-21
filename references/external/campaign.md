@@ -75,7 +75,7 @@ forces current-price admission even when a runner explicitly supplies a key;
 it disables the LLM response cache so every campaign completion reaches that
 admission boundary. App completions, node caches, durable tasks and qualified retrieval/workspace
 paths now have locally verified campaign controls (M1-03b/c). Evaluation-runner
-configuration and evidence remain open in M1-03d; see the
+configuration and evidence controls are verified in M1-03d; see the
 [runner audit](baseline/evaluation-runner-audit.md). These local controls have
 not yet been deployed or verified through a full live research run.
 
@@ -139,8 +139,8 @@ Regression evidence: `evaluations/tests/test_live_runner_config.py` exercises
 subprocess isolation, dotenv suppression and the public LLM boundary using
 synthetic credentials and mocked catalog/completion responses. This does not
 qualify a live model. Golden and direct-panel migration, observed-model/cost
-artifacts and comparison identities remain open; do not start campaign
-inference until those controls and model qualification are complete.
+artifacts and comparison identities are verified under M1-03d. Full workflow
+acceptance still requires the selected qualified model configuration.
 
 ### Public-evidence acceptance workflow
 
@@ -189,8 +189,9 @@ engine/provider settings before live admission. Citation usefulness accepts an
 explicit model argument or MODEL_NAME; both pass the same OpenRouter validation.
 Direct capture and deterministic-fallback disclosure have been verified. The
 Nex Pro usefulness screen is accepted with retained physical request evidence;
-the ranking screen is also accepted. Overall model qualification remains open
-after the multi-claim schema series failed one of its three trials. See the
+the ranking screen is also accepted. Nex Pro now passes the fresh multi-claim
+schema series and all three post-Q1/Q2 scientific trials. Overall model
+qualification remains open for an independently qualified fallback. See the
 [qualification status](baseline/model-qualification/README.md) for current receipts.
 
 ### Usage evidence semantics
@@ -268,7 +269,8 @@ bind the actual stored config, goal and backend to the current model/routing/
 policy environment. A mismatch raises before an arm result is emitted; rerun
 both members of a scientific pair after restoring the intended settings.
 These boundary checks do not prove absence of transient changes between checks.
-Cross-arm and direct-panel matching remain open in M1-03d4b.
+Cross-arm and direct-panel matching are verified in M1-03d4b; the additional
+cross-goal intervention consistency check is verified in M1-03d4c.
 
 Scaling/ablation drivers and the `scaling_eval` artifact CLI now validate
 comparison inputs before producing reports. Descriptors retain exact goal,

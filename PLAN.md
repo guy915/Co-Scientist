@@ -190,6 +190,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
+- [ ] M1-release-scope: Resolve production campaign-mode scope before deployment: global campaign mode overrides BYOK, while ordinary users' explicit BYOK behavior must remain available. Verify the chosen boundary through public request and durable-run interfaces without loosening campaign cost controls.
 - [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
 - [ ] Freeze the post-switch baseline, evaluation inputs, model settings, cache-isolation procedure, and release/rollback procedure for subsequent comparisons.
 
@@ -4006,3 +4007,21 @@ Europe/Amsterdam, one minute after the provider-declared reset. It must recheck
 current zero-price eligibility, launch one fresh series, and wait on the actual
 process handle without interval polling. The active goal may remain blocked on
 the provider cap until that external state changes; no paid route is authorized.
+
+**2026-09-21 — Cycle 171, independent release preparation.**
+User authorized useful work during the provider cap. Prepared the PR description,
+configuration matrix and ordered release gates in baseline/release-handoff171.md;
+no PR, deployment or production configuration change performed. Corrected stale
+campaign.md statements about completed evaluator migration and comparison gates.
+Discovered a deployment boundary gap: process-global campaign mode overrides
+ordinary BYOK. Added M1-release-scope rather than silently weakening either
+requirement. Independent Sol/medium review confirmed existing tests separate the
+modes and do not prove coexistence; the release handoff now requires public-request
+and durable-run coexistence verification before deploying the chosen boundary.
+Luna/xhigh diagnosed the security helper failure in baseline/security-recovery171.md:
+the obsolete user-config agents.max_threads setting conflicts with native V2;
+the helper raises before producing remediation. Requested approval for the exact
+persistent-config removal required by the security skill; no config changed.
+Source diff against ee775074 remains empty for app/engine/evaluations/e2e/Makefile.
+M1 now has 38 done and 6 open; campaign has 58 open. The original turn limit is
+unchanged. Local startup preparation is recorded separately when verified.
