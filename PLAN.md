@@ -182,6 +182,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-04b1d: Correct the maintained scope observer to recognize guarded primary-model lexical_founded provenance; make its existing failing behavioral test pass while preserving immutable historical observers and reproducible raw/corrected receipts. Do not alter scientific labels or thresholds.
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
 - [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
+- [ ] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -3217,3 +3218,105 @@ runner exit0 establish completion despite no finished_at field. Catalog was
 checked per case but not snapshotted by this existing probe; retain that limit.
 No blocker to scientific challenge. Scoped cleanup retains only intended trial
 and capability records; user AGENTS.md remains untouched. M1 37/42,57 open.
+Capability evidence committedfd056ad1. Started runner12570: three sequential
+fresh Mini scientific challenge trials with historical-negative-controls.json
+and partial-support-scope-controls.json, existing four-second request pacing,
+free admission/caps and isolated credentials/caches. Unique artifacts
+nex-mini-challenge122-{1,2,3}.json; logs/private/tmp/coscientist-mini-challenge122-{1,2,3}.log.
+The launcher stops on process or recorded terminal error, retains all outcomes,
+and never accepts a scientific failure as success. Source pinnedfd056ad1;
+keep code/config fixed through the series. Trial1 live. Poll12570 rather than
+restart; launch note pending commit with results. Next inspect all three against
+.75accuracy/.80contradiction-recall and controls, then usefulness/ranking if eligible.
+
+**2026-09-21 — Cycle 123, correct missing qualification manifest.**
+Startingfd056ad1. Previous cycle progressed by verifying Mini batch/capability
+interfaces and launching challenge. Runner12570 became terminal after trial1:
+challenge .933accuracy/.8contradiction-recall passes, historical controls ran,
+then optional scope controls raised RuntimeError: Scope inputs or helper differ
+from manifest. The launch omitted QUALIFICATION_MANIFEST while enabling scope
+controls; this is invocation error, not model failure. Retain entire44request
+artifact as incomplete; trials2/3 were not launched. Do not claim acceptance.
+Prepared mini-current-sources123.json from585 tracked Python files with exact
+scope input/helper hashes. Existing imported_sources guard passes303 loaded
+project modules in fresh offline process; no inference and no guard bypass.
+Use current arm and this manifest for a fresh complete three-trial series;
+no production/probe/schema/threshold change. Keep source/config fixed.
+Independent Sol review recomputed all585 hashes and confirmed the manifest
+contract. All44 responses from incomplete122 trial retained expected Mini model,
+reported cost0 and zero caps; credential scan passed. Launched corrected
+runner36142 with QUALIFICATION_MANIFEST=mini-current-sources123.json,
+QUALIFICATION_ARM=current, explicit root and pinnedfd056ad1. Exclusive artifacts
+nex-mini-challenge123-{1,2,3}.json and logs/private/tmp/coscientist-mini-challenge123-{1,2,3}.log.
+Launcher checks HEAD before every child and stops on terminal error; do not
+commit/change HEAD or source during series. Current manifest, failed evidence
+and launch notes intentionally await commit with terminal results. No item
+checked, no model rejection/selection, no production changes. Cleanup retained
+intended evidence and user's AGENTS.md. M1 37/42,57 open. Next poll36142.
+
+**2026-09-21 — Cycle 124, first corrected Mini challenge fails recall.**
+Startingfd056ad1 unchanged. Previous cycle progressed by diagnosing invocation
+failure and starting corrected runner36142. Repeated bounded polls confirm same
+live runner, no restart. Trial1 completed with no terminal error; trial2 started.
+Accuracy.9 passes but contradiction recall.7 fails unchanged.8 gate. Single and
+batch-single-claim scope controls pass.69physical requests include reasoning
+budget escalation and schema re-ask; retain them. Interim evidence recorded in
+mini-challenge123-status124.json. Series remains unaccepted regardless of later
+passes; do not replace a failed trial or average it away. Independent Sol is
+examining missed contradictions while the unchanged series continues.
+Existing full local workflow is documented in campaign.md145+ and isolated
+launch preflight110: API8208/UI5373/MCP8988, existing browser/API/CLI interfaces,
+public EGFR goal, notifications off, no private documents, local-only recovery.
+No new orchestration harness needed. No source edit, deployment or checkbox
+completion. Intentional in-flight/failed evidence retained; user AGENTS.md left
+alone. Do not commit until current pinned series completes. M1 37/42,57 open.
+Next poll36142 and inspect remaining results plus independent diagnosis.
+
+**2026-09-21 — Cycle 125, second failed Mini trial and concrete retry defect.**
+Startingfd056ad1 unchanged. Previous cycle progressed with first-trial evidence.
+Runner36142 remains live, now trial3; trial2 completed with accuracy.833 and
+contradiction recall.6 (fails.8), single-scope fails, batch-scope/historical pass.
+No acceptance, deletion or selective replacement. Independent Sol diagnosed
+trial1 misses at dataset positions0/21/28: incorrect semantic verifier judgment,
+shared conservative paraphrase eligibility, and malformed empty verifier JSON.
+Offline exact validation-seam replay confirms {} becomes verdicts=[] through
+json_object backfill and validates, bypassing the shared retry; adding only
+minItems=expected_pair_count makes it a schema failure inside the existing retry
+budget. Retained opposition-empty-envelope125.json. No production source edited.
+Sol independently confirms call37 was not retried. Added M1-04b-Q2 for this
+bounded reliability correction. Fresh per-call schema required for concurrency;
+maxItems rejected because shim truncation could accept ambiguous excess verdicts.
+Keep false/false, duplicate/excess/out-of-range guards, two-attempt ceiling and
+fail-closed exhaustion. Missing booleans already schema-fail; don't broaden.
+Defer source edits/commits until pinned series ends. Intentional evidence retained,
+user AGENTS.md untouched. M1 37/43,58 open. Next finish36142, preserve full failed
+series, then reproduce Q2 at public boundary before implementing the correction.
+
+**2026-09-21 — Cycle 126, Mini series complete; runtime freeze released.**
+Startingfd056ad1. Previous cycle progressed by diagnosing Q2 and recording trial2.
+Runner36142 exited0 after trial3; all three corrected trials are complete.
+Recall.7/.6/.7 fails.8 in every trial; accuracy.9/.833/.9 passes. Single scope
+passes/fails/fails; batch scope and historical controls pass throughout.204
+physical responses retain expected Mini model, numeric usage, reported zero cost
+and binding zero caps. See mini-challenge123-summary.json. Current profile stays
+unselected; no averaging, dropped failure or generic model rejection. Earlier
+incomplete122 invocation remains separate. No live runners remain; source freeze
+released. Q2 tests delegated to Terra with ownership limited to app/tests,
+production code unchanged pending red behavioral evidence. Continue with bounded
+schema minimum-length correction, then verify rather than assuming it fixes
+Mini's separate semantic/scope misses. M1 37/43,58 open.
+Q2 public-boundary regressions were red (3failed,18passed) before runtime edit.
+Minimal implementation deep-copies verifier schema per call and sets only
+minItems=len(pairs); existing max_attempts2 and ambiguity/semantic guards stay.
+All52 claim-verifier tests pass, including33 targeted opposition/batch cases;
+Ruff and diff checks pass. Tests cover one/two-pair recovery, two malformed
+attempts failing closed, complete negative no-retry, and unchanged excess/
+duplicate/out-of-range rejection. Q2 remains open pending applicable live
+verification. Source change is a reliability candidate, not acceptance of Mini.
+Final independent Sol review verified all series hashes/metrics and Q2 diff;
+no blocker. Trial3 has no incomplete-envelope event yet recall.7; retry fix alone
+cannot rescue this profile. Current Mini remains unselected. Scoped cleanup/
+deslop retained required failed evidence and minimal source change; no UI touched,
+no scratch deletion needed. Next bounded applicable live Q2 verification through
+the existing historical/controlled verifier interfaces, with raw requests and
+free admission, before checking Q2. Full future model selection stays separate.

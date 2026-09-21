@@ -78,6 +78,26 @@ def test_directional_opposition_is_verified_and_located(
     assert len(requests) == 2
 
 
+def test_empty_verification_envelope_retries_before_confirming_opposition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = install_replies(
+        monkeypatch,
+        [draft(), {}, {"verdicts": [confirmation()]}],
+    )
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        result = assess_claim(
+            CLAIM,
+            [EvidencePassage("ev-1", QUOTE)],
+            assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert result.label is EntailmentLabel.CONTRADICTS
+    assert result.verification_method == "model_opposition_verified"
+    assert len(requests) == 3
+
+
 def test_batch_verifies_multiple_oppositions_in_one_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -125,6 +145,94 @@ def test_batch_verifies_multiple_oppositions_in_one_request(
     assert len(requests) == counter[0] == 2
 
 
+def test_batch_short_verification_envelope_retries_before_confirming(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.claim_verifier_batch import make_llm_batch_assessor
+    from app.claims import assess_claims_batch
+
+    second_claim = "Drug A increases progression-free survival."
+    second_quote = (
+        "Drug A shortened progression-free survival from 9.2 to 6.1 months."
+    )
+    requests = install_replies(
+        monkeypatch,
+        [
+            {
+                "verdicts": [
+                    {"index": 1, **draft()},
+                    {"index": 2, **draft(second_quote)},
+                ]
+            },
+            {"verdicts": [confirmation(1)]},
+            {"verdicts": [confirmation(1), confirmation(2)]},
+        ],
+    )
+    assessor, assessor_id = make_llm_batch_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        results = assess_claims_batch(
+            [CLAIM, second_claim],
+            [
+                EvidencePassage("ev-1", QUOTE),
+                EvidencePassage("ev-2", second_quote),
+            ],
+            batch_assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert [result.label for result in results] == [
+        EntailmentLabel.CONTRADICTS,
+        EntailmentLabel.CONTRADICTS,
+    ]
+    assert len(requests) == 3
+
+
+def test_two_malformed_verification_envelopes_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = install_replies(monkeypatch, [draft(), {}, {}])
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        result = assess_claim(
+            CLAIM,
+            [EvidencePassage("ev-1", QUOTE)],
+            assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert result.label is EntailmentLabel.INSUFFICIENT
+    assert result.verification_method == "model_opposition_unconfirmed"
+    assert len(requests) == 3
+
+
+def test_complete_negative_verification_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = install_replies(
+        monkeypatch,
+        [
+            draft(),
+            {
+                "verdicts": [
+                    confirmation(
+                        same_conditions=False,
+                        mutually_exclusive=False,
+                    )
+                ]
+            },
+        ],
+    )
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        result = assess_claim(
+            CLAIM,
+            [EvidencePassage("ev-1", QUOTE)],
+            assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert result.label is EntailmentLabel.INSUFFICIENT
+    assert result.verification_method == "model_opposition_unconfirmed"
+    assert len(requests) == 2
+
+
 @pytest.mark.parametrize(
     "verdicts",
     [
@@ -141,7 +249,10 @@ def test_unconfirmed_opposition_remains_insufficient(
     monkeypatch: pytest.MonkeyPatch,
     verdicts: list[dict[str, Any]],
 ) -> None:
-    install_replies(monkeypatch, [draft(), {"verdicts": verdicts}])
+    install_replies(
+        monkeypatch,
+        [draft(), {"verdicts": verdicts}, {"verdicts": verdicts}],
+    )
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
     with scoped_cache_override(False):
         result = assess_claim(
@@ -153,6 +264,55 @@ def test_unconfirmed_opposition_remains_insufficient(
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert result.contradicting_passages == ()
     assert result.verification_method == "model_opposition_unconfirmed"
+
+
+@pytest.mark.parametrize(
+    "verdicts",
+    [
+        [confirmation(1), confirmation(2), confirmation(3)],
+        [confirmation(1), confirmation(1)],
+        [confirmation(1), confirmation(3)],
+    ],
+)
+def test_complete_invalid_batch_verification_envelopes_remain_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    verdicts: list[dict[str, Any]],
+) -> None:
+    from app.claim_verifier_batch import make_llm_batch_assessor
+    from app.claims import assess_claims_batch
+
+    second_claim = "Drug A increases progression-free survival."
+    second_quote = (
+        "Drug A shortened progression-free survival from 9.2 to 6.1 months."
+    )
+    requests = install_replies(
+        monkeypatch,
+        [
+            {
+                "verdicts": [
+                    {"index": 1, **draft()},
+                    {"index": 2, **draft(second_quote)},
+                ]
+            },
+            {"verdicts": verdicts},
+        ],
+    )
+    assessor, assessor_id = make_llm_batch_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        results = assess_claims_batch(
+            [CLAIM, second_claim],
+            [
+                EvidencePassage("ev-1", QUOTE),
+                EvidencePassage("ev-2", second_quote),
+            ],
+            batch_assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert [result.label for result in results] == [
+        EntailmentLabel.INSUFFICIENT,
+        EntailmentLabel.INSUFFICIENT,
+    ]
+    assert len(requests) == 2
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,3982 @@
+{
+  "source_commit": "fd056ad1a2d63ab0ef2c659f962184aaa632b806",
+  "runtime": {
+    "executable": "/Users/guy/Code/co-scientist/.venv/bin/python",
+    "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.3.19.1)]"
+  },
+  "probe_sha256": "6f180906b01e384722747abf251b83d7f161b01f38998a03559630f3db4e69d1",
+  "started_at": "2026-09-21T09:16:40.109793+00:00",
+  "requested_model": "openrouter/nex-agi/nex-n2.5-mini:free",
+  "trial": 1,
+  "minimum_physical_start_spacing_seconds": 4,
+  "eligibility": {
+    "id": "nex-agi/nex-n2.5-mini:free",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Qwen3",
+      "instruct_type": null
+    },
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ]
+  },
+  "imported_sources": {
+    "evaluations.citation_eval": {
+      "path": "evaluations/citation_eval.py",
+      "sha256": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee"
+    },
+    "app.claim_verifier": {
+      "path": "app/app/claim_verifier.py",
+      "sha256": "aaa98c378e11aeb1d2be085b52fe1667f9004ab071d006a0b078e5c10419c1ef"
+    },
+    "app.claims_span": {
+      "path": "app/app/claims_span.py",
+      "sha256": "8e791f624be2403ac3d6f391205c274dc59de19bd136b72da8e34b25281bd911"
+    },
+    "co_scientist.llm_request": {
+      "path": "engine/src/co_scientist/llm_request.py",
+      "sha256": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b"
+    },
+    "app.claim_verifier_opposition": {
+      "path": "app/app/claim_verifier_opposition.py",
+      "sha256": "4b741bc3c772801c787a06a74fdc1f4a505e8f84ecc7e2f4d1415293e64979b7"
+    },
+    "opposition_module_present": true
+  },
+  "report": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 30,
+          "observed_model_calls": 30,
+          "reported_usage_calls": 30,
+          "priced_usage_calls": 30,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 30
+          },
+          "prompt_tokens": 38278,
+          "completion_tokens": 6491,
+          "reasoning_tokens": 6155,
+          "cached_prompt_tokens": 3136,
+          "cost_usd": 0.0,
+          "latency_seconds": 117.29663754202193,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        },
+        "citation_entailment.claim_opposition::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 8,
+          "observed_model_calls": 8,
+          "reported_usage_calls": 8,
+          "priced_usage_calls": 8,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 8
+          },
+          "prompt_tokens": 4710,
+          "completion_tokens": 2748,
+          "reasoning_tokens": 3169,
+          "cached_prompt_tokens": 0,
+          "cost_usd": 0.0,
+          "latency_seconds": 36.6180274990038,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 38,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/nex-agi/nex-n2.5-mini:free": 38
+      },
+      "observed_models": [
+        "openrouter/nex-agi/nex-n2.5-mini:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "name": "citation-entailment-challenge-v1",
+        "version": 1,
+        "license": "synthetic, CC0 \u2014 hand-written examples, no external corpus",
+        "description": "Adversarial claim/evidence panel for the entailment assessor, deliberately harder than citation-entailment-v1. Every item is designed so a lexical-overlap assessor is misled: the passage shares the claim's vocabulary but a semantic reader must reject or invert the naive match. Categories: `numeric_conflict` (the passage reports the opposite direction or an incompatible magnitude with no explicit negation cue), `species_mismatch` (evidence is in a different organism/model than the claim asserts), `temporal_mismatch` (evidence is about a different time window or endpoint), `topic_mention_only` (the passage mentions every keyword but never asserts the claimed relationship), `retracted` (the only supporting passage is a retracted study and must not count as support), `paraphrase_support` (an entailing passage restates the claim with little shared vocabulary), and `paraphrase_contradiction` (a contradicting passage with no lexicon negation marker). Expected labels use supports/contradicts/insufficient. A retracted or unavailable source yields insufficient because no admissible passage supports the claim. Synthetic and legally shareable; NOT Google's private set. Human audit and threshold selection remain an external gap (no annotator panel).",
+        "items": [
+          {
+            "kind": "numeric_conflict",
+            "claim": "Drug A increases progression-free survival in glioblastoma.",
+            "passages": [
+              "In the phase III cohort, Drug A shortened progression-free survival relative to placebo, from 9.2 months to 6.1 months."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Kinase X inhibition reduces AML tumor growth by roughly half.",
+            "passages": [
+              "Kinase X inhibition increased AML tumor volume threefold across the cell lines tested."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Compound C lowers pathogen P viability at micromolar doses.",
+            "passages": [
+              "Compound C raised pathogen P colony counts at every micromolar dose evaluated."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Blocking receptor Y restores CD8 T-cell infiltration.",
+            "passages": [
+              "Blocking receptor Y further depleted CD8 T cells from the tumor microenvironment."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Vaccine V raises neutralizing antibody titers by ten-fold.",
+            "passages": [
+              "Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Metabolic reprogramming via Z sensitizes human tumors to therapy.",
+            "passages": [
+              "Metabolic reprogramming via Z sensitized murine xenograft tumors to therapy; human tissue was not examined."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Pathway W drives fibrosis progression in human lung.",
+            "passages": [
+              "Pathway W drove fibrosis progression in a zebrafish fin-regeneration model."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Gene G confers drug resistance in human breast carcinoma.",
+            "passages": [
+              "Gene G conferred drug resistance in Drosophila S2 cell culture assays."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Vaccine V elicits durable antibody responses at twelve months.",
+            "passages": [
+              "Vaccine V elicited strong antibody responses when measured at day 14 post-immunization; later timepoints were not reported."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Drug A improves five-year overall survival in glioblastoma.",
+            "passages": [
+              "Drug A improved the 30-day tumor response rate in glioblastoma; overall survival was not assessed."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Inhibiting kinase X reduces tumor growth in AML.",
+            "passages": [
+              "Kinase X is a serine/threonine kinase frequently discussed in the context of AML tumor growth and cell proliferation."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Target T is druggable in solid tumors.",
+            "passages": [
+              "Target T, its solid-tumor expression, and the general concept of druggability have attracted considerable research interest."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "This review surveys many compounds, including compound C, and many pathogens, including pathogen P, without reporting new efficacy data."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Protein Q folds via a two-state mechanism.",
+            "passages": [
+              "Protein Q folding has been studied for decades, and two-state versus multi-state mechanisms remain debated."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "retracted",
+            "claim": "Drug A improves survival in glioblastoma.",
+            "passages": [
+              "RETRACTED: Drug A improved survival in glioblastoma. This article has been retracted for image duplication and unreliable data."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "retracted",
+            "claim": "Gene G is associated with disease D.",
+            "passages": [
+              "This study reporting that gene G is associated with disease D was retracted after the cohort was found to be fabricated."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Kinase X inhibition reduces AML tumor growth.",
+            "passages": [
+              "Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Blocking receptor Y restores immune surveillance.",
+            "passages": [
+              "Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+            "passages": [
+              "Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Protein Q folds via a two-state mechanism.",
+            "passages": [
+              "Q adopts its native structure through a single cooperative transition with no detectable intermediate."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "Across all assays, pathogen P grew just as vigorously in the presence of compound C as in its absence."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Blocking receptor Y restores immune surveillance.",
+            "passages": [
+              "Antagonizing the Y receptor left the animals just as unable to reject tumors as before treatment."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+            "passages": [
+              "Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "Treatment with compound C sharply curtailed the proliferation of the P organism in culture."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Pathway W drives fibrosis progression.",
+            "passages": [
+              "Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Drug A improves survival in glioblastoma.",
+            "passages": [
+              "Glioblastoma remains lethal, and many agents such as drug A are under active investigation for survival benefit."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Vaccine V elicits durable antibody responses in humans.",
+            "passages": [
+              "Vaccine V elicited durable antibody responses in rhesus macaques; a human trial has not been conducted."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Gene G is associated with disease D.",
+            "passages": [
+              "Carriers of the G locus showed a markedly elevated incidence of the D phenotype in the cohort."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Target T inhibition slows solid tumor growth.",
+            "passages": [
+              "Inhibiting target T accelerated solid tumor growth in every model examined."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Compound C durably suppresses pathogen P over four weeks.",
+            "passages": [
+              "Compound C suppressed pathogen P at the 24-hour readout; suppression at later timepoints was not measured."
+            ],
+            "label": "insufficient"
+          }
+        ]
+      },
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b",
+        "llm_gateway_routing.py": "125cd90fb3be7c2d68d20bcd4229c7a4a55cc1809085d7c87c4c96d2222bb10c",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "c1c7851b9128716260007d2311003c1d79a7609c781f22f7a2f4ed591ad07cb5"
+    },
+    "dataset": "citation-entailment-challenge-v1",
+    "dataset_version": 1,
+    "assessor": "llm:openrouter/nex-agi/nex-n2.5-mini:free",
+    "metrics": {
+      "accuracy": 0.933,
+      "contradiction_recall": 0.8,
+      "abstention_rate": 0.533,
+      "per_label": {
+        "contradicts": {
+          "precision": 1.0,
+          "recall": 0.8
+        },
+        "supports": {
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "insufficient": {
+          "precision": 0.875,
+          "recall": 1.0
+        }
+      },
+      "n": 30,
+      "by_kind": {
+        "numeric_conflict": {
+          "accuracy": 0.857,
+          "n": 7
+        },
+        "paraphrase_contradiction": {
+          "accuracy": 0.667,
+          "n": 3
+        },
+        "paraphrase_support": {
+          "accuracy": 1.0,
+          "n": 6
+        },
+        "retracted": {
+          "accuracy": 1.0,
+          "n": 2
+        },
+        "species_mismatch": {
+          "accuracy": 1.0,
+          "n": 4
+        },
+        "temporal_mismatch": {
+          "accuracy": 1.0,
+          "n": 3
+        },
+        "topic_mention_only": {
+          "accuracy": 1.0,
+          "n": 5
+        }
+      }
+    },
+    "confusion": {
+      "contradicts": {
+        "insufficient": 2,
+        "contradicts": 8
+      },
+      "insufficient": {
+        "insufficient": 14
+      },
+      "supports": {
+        "supports": 6
+      }
+    },
+    "production_gates": {
+      "passed": true,
+      "checks": {
+        "contradiction_recall": {
+          "value": 0.8,
+          "threshold": 0.8,
+          "passed": true
+        },
+        "accuracy": {
+          "value": 0.933,
+          "threshold": 0.75,
+          "passed": true
+        }
+      }
+    },
+    "external_gap": "Human-audited representative sample and threshold calibration not performed (no annotator panel); synthetic dataset only. Retraction handling is upstream of this assessor (retracted sources are quarantined before grounding), so a retracted-passage item scored here isolates only the assessor, not the full pipeline."
+  },
+  "controls_sha256": "2c226b079f5337b76919a842245744b429fbb76d78cc4ff70661b94f1300ec3a",
+  "historical_controls": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 5,
+          "observed_model_calls": 5,
+          "reported_usage_calls": 5,
+          "priced_usage_calls": 5,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 5
+          },
+          "prompt_tokens": 6727,
+          "completion_tokens": 2620,
+          "reasoning_tokens": 2795,
+          "cached_prompt_tokens": 448,
+          "cost_usd": 0.0,
+          "latency_seconds": 23.073634083004436,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 5,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/nex-agi/nex-n2.5-mini:free": 5
+      },
+      "observed_models": [
+        "openrouter/nex-agi/nex-n2.5-mini:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "name": "historical_false_contradiction_controls",
+        "version": 1,
+        "purpose": "Existing committed regression examples; only non-contradiction is adjudicated. No private production documents accessed.",
+        "items": [
+          {
+            "id": "test_offtarget_quote_does_not_yield_contradiction",
+            "claim": "Donepezil, at clinically achievable human brain free concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the ER-mitochondria contact site.",
+            "passages": [
+              "The same ligand is ineffective at blocking wild-type NaVs and does not disrupt action potential signals in neuronal cells or brain tissue at working concentrations."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claim_verifier_contradiction.py:54",
+            "source_sha256": "916c723165c480f12f7d8bdb8d4a09e640f21f5beabf1800db282688a5eb0641"
+          },
+          {
+            "id": "test_confirmatory_quote_does_not_yield_contradiction",
+            "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+            "passages": [
+              "These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claim_verifier_contradiction.py:95",
+            "source_sha256": "916c723165c480f12f7d8bdb8d4a09e640f21f5beabf1800db282688a5eb0641"
+          },
+          {
+            "id": "test_confirmatory_quote_is_not_a_contradiction",
+            "claim": "Together, these actions reduce collagen synthesis and \u03b1-SMA expression, attenuating the fibrotic phenotype.",
+            "passages": [
+              "Wnt inhibition and the fibrotic phenotype in cardiac fibroblasts. Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:78",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          },
+          {
+            "id": "test_off_drug_quote_is_not_a_contradiction",
+            "claim": "Metformin activates AMPK in human cardiac fibroblasts, leading to inhibitory phosphorylation of Smad3 (Ser203/207) and suppression of HIF-1\u03b1-mediated glycolysis, thereby blocking TGF-\u03b2-induced myofibroblast transition and collagen deposition.",
+            "passages": [
+              "Pirfenidone attenuates lung fibrotic fibroblast responses to transforming growth factor-\u03b21. Furthermore, pirfenidone attenuated TGF-\u03b21- and CTHRC1-induced fibroblast activity, upregulation of bone morphogenic protein-4(BMP-4)/Gremlin1, and downregulation of \u03b1-smooth muscle actin, fibronectin, and FHL2, similar to that observed post-CTHRC1 inhibition. Myofibroblast transition and collagen deposition were assessed in human cardiac fibroblasts after TGF-\u03b21 stimulation. AMPK phosphorylation, Smad3 phosphorylation and glycolysis were measured; HIF-1\u03b1 protein was quantified. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:105",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          },
+          {
+            "id": "test_off_stimulus_quote_is_not_a_contradiction",
+            "claim": "Metformin enters cardiac fibroblasts and activates AMPK via LKB1.",
+            "passages": [
+              "AMPK activation in fibroblasts under nutrient stress. We found that glucose starvation transiently activates AMPK, whereas changes in glucagon and insulin levels had no impact on AMPK. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:137",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          }
+        ]
+      },
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b",
+        "llm_gateway_routing.py": "125cd90fb3be7c2d68d20bcd4229c7a4a55cc1809085d7c87c4c96d2222bb10c",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "18ee12bca5e666438fa33d0caf347dc12b7d68465d25bf87408025f426e8c9f2"
+    },
+    "checks": [
+      {
+        "id": "test_offtarget_quote_does_not_yield_contradiction",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "passed": true
+      },
+      {
+        "id": "test_confirmatory_quote_does_not_yield_contradiction",
+        "label": "partial",
+        "verification_method": "model_primary",
+        "passed": true
+      },
+      {
+        "id": "test_confirmatory_quote_is_not_a_contradiction",
+        "label": "supports",
+        "verification_method": "model_primary",
+        "passed": true
+      },
+      {
+        "id": "test_off_drug_quote_is_not_a_contradiction",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "passed": true
+      },
+      {
+        "id": "test_off_stimulus_quote_is_not_a_contradiction",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "controlled_primary": {
+    "mode": "controlled_primary_live_verifier",
+    "id": "test_confirmatory_quote_does_not_yield_contradiction",
+    "primary_response_controlled": true,
+    "label": "insufficient",
+    "verification_method": "model_opposition_unconfirmed",
+    "passed": true,
+    "live_verifier_request_indices": [
+      43
+    ],
+    "note": "The primary completion is simulated and excluded from physical_requests. Only listed verifier requests are live."
+  },
+  "scope_controls_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+  "scope_helper_sha256": "e059c65dda9c0cd69cf55b86725e695aa03f2e70270cae7204f28897db1db6de",
+  "error_type": "RuntimeError",
+  "error": "Scope inputs or helper differ from manifest",
+  "physical_requests": [
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:16:40.889736+00:00",
+      "prompt_sha256": "fa88f615e325c74bd387a3616567954035aedb52d3a8dce38376a7d7fee523b6",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 225,
+        "prompt_tokens": 1286,
+        "total_tokens": 1511,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 226,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:16:44.890933+00:00",
+      "prompt_sha256": "89b514a24e4b363877a80d3ce6d5472e7ddc04b92889f796465afdf8714d0c65",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Kinase X inhibition increased AML tumor volume threefold across the cell lines tested.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 176,
+        "prompt_tokens": 1275,
+        "total_tokens": 1451,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 142,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:16:48.892046+00:00",
+      "prompt_sha256": "dca7a433f1027f65101b77bcb86380b49ba455d63fe4501d70d4d494f84c32a3",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 142,
+        "prompt_tokens": 590,
+        "total_tokens": 732,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 121,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:16:52.893315+00:00",
+      "prompt_sha256": "9e3b19b0d73e4c49c77ededc197669151a781860c827b1743b8d3dcc3016a29d",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Compound C raised pathogen P colony counts at every micromolar dose evaluated.\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 701,
+        "prompt_tokens": 1274,
+        "total_tokens": 1975,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 773,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:16:58.024099+00:00",
+      "prompt_sha256": "72274ddcb30bfcffc0a7afea5bbbb76b2e4b5cfb16ca533d88287b5bf8f2cbc1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 476,
+        "prompt_tokens": 588,
+        "total_tokens": 1064,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 551,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:02.025146+00:00",
+      "prompt_sha256": "15032d9a8fc77422eb4368398531ee706732fd80530dcebc67fd5747d82516d5",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Blocking receptor Y further depleted CD8 T cells from the tumor microenvironment.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 194,
+        "prompt_tokens": 1270,
+        "total_tokens": 1464,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 151,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:06.025673+00:00",
+      "prompt_sha256": "83b154a547ea4f8169d4aa58f3614f178b02db5b941a3de78e60e5bf98659a9e",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\"verdicts\":[{\"index\":1,\"same_conditions\":true,\"mutually_exclusive\":true}]}",
+      "usage": {
+        "completion_tokens": 168,
+        "prompt_tokens": 583,
+        "total_tokens": 751,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 191,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:10.026765+00:00",
+      "prompt_sha256": "6b926cfcf85ee5c0fbbff4bb27eeb5055da9bbe0822d6e5aa1d503b3d28867e7",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 228,
+        "prompt_tokens": 1277,
+        "total_tokens": 1505,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 186,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:14.027861+00:00",
+      "prompt_sha256": "f332cf6a412335ffe2af6fbaf9f852ad69e7d0a8677eda52b5524082016a2d17",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 372,
+        "prompt_tokens": 596,
+        "total_tokens": 968,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 392,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:18.028991+00:00",
+      "prompt_sha256": "b7ff11a6438e8e5b9ac12e6326d4383ead3986955fbb6e5457e8b5d75383b1ce",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 211,
+        "prompt_tokens": 1281,
+        "total_tokens": 1492,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 225,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:22.029720+00:00",
+      "prompt_sha256": "ad775366195a03ab31261b5841bf3ad3ff83fa97db56b7d654a91550d7b02a06",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 104,
+        "prompt_tokens": 1274,
+        "total_tokens": 1378,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 94,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:26.030862+00:00",
+      "prompt_sha256": "f79f16bb90dced3b06ce9534c8d275462e6cfeb7f10a020be0712d2c2fefbf45",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 154,
+        "prompt_tokens": 1272,
+        "total_tokens": 1426,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 157,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:30.031901+00:00",
+      "prompt_sha256": "48323a71f2a0c937019385102e01bea2d5058dcc0e245ea9bde27e64b4870e08",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 214,
+        "prompt_tokens": 1283,
+        "total_tokens": 1497,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 243,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:34.032728+00:00",
+      "prompt_sha256": "440f8e067abefa06cee1b6ac7ac7312983a5b1d230a9531b1287aabf1accdf2d",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 186,
+        "prompt_tokens": 1281,
+        "total_tokens": 1467,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 177,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:38.033920+00:00",
+      "prompt_sha256": "06cee7b606602e93ea6160b2a83192a0f8d4d97d49bcc4b5304359e0239240b8",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 158,
+        "prompt_tokens": 1282,
+        "total_tokens": 1440,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 157,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:42.035122+00:00",
+      "prompt_sha256": "89e1e8dfc3370ed3e91077d585fa5e65be20e69b1f887c18792287a2bc12724c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 166,
+        "prompt_tokens": 1278,
+        "total_tokens": 1444,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 168,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:46.036299+00:00",
+      "prompt_sha256": "2835a11d858b54b40738cf35a3e15a06bce436547cd48b823f6554fdba8d7e4c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 98,
+        "prompt_tokens": 1279,
+        "total_tokens": 1377,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 87,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:50.037438+00:00",
+      "prompt_sha256": "92112e7e82cdc5a3f8e79c166bd82a64d22be0233c83b732304ffd2d9b3e21a8",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 1274,
+        "total_tokens": 1393,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 107,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:54.038569+00:00",
+      "prompt_sha256": "0b3fd14c5df67578c0ea58ec9aaead6a5fef77b3204a1a511e30c649b3bf8f9f",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 197,
+        "prompt_tokens": 1282,
+        "total_tokens": 1479,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 204,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:17:58.039698+00:00",
+      "prompt_sha256": "48ba8854f9594ca2903cd87697484e33d53bd718fef2bb5586829c52c354f0bc",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 187,
+        "prompt_tokens": 1276,
+        "total_tokens": 1463,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 201,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:02.040850+00:00",
+      "prompt_sha256": "b7d4c325bef57ba71f694a58bc9962b19175498daf99825113dde68738656e09",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies.\"\n  },\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 244,
+        "prompt_tokens": 1276,
+        "total_tokens": 1520,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 200,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:06.042029+00:00",
+      "prompt_sha256": "aab711c5509e941b02a90ed7cdda26a611ea86f4afeb37d9eef71978887312e3",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells.\"\n    }\n  ],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 177,
+        "prompt_tokens": 1272,
+        "total_tokens": 1449,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 128,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:10.044906+00:00",
+      "prompt_sha256": "8e1f278591820dc33c00f9be75af384c717ace982c1d40edc1fdb610408c8d28",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed.\"\n  },\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 343,
+        "prompt_tokens": 1276,
+        "total_tokens": 1619,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 334,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:14.045842+00:00",
+      "prompt_sha256": "657d9ac7f5f080e826dbc0162252985a88c8dec92e31aeae43c7e2e2893deb66",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Q adopts its native structure through a single cooperative transition with no detectable intermediate.\"\n  },\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 141,
+        "prompt_tokens": 1271,
+        "total_tokens": 1412,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 104,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:18.047436+00:00",
+      "prompt_sha256": "439ed120ef1048645ef7f1405172459bb3a3fa83b0b3551199e9566d762c8dcc",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Across all assays, pathogen P grew just as vigorously in the presence of compound C as in its absence.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 187,
+        "prompt_tokens": 1276,
+        "total_tokens": 1463,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 152,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:22.048618+00:00",
+      "prompt_sha256": "a512bf45028adda95ca5ce827ccda49c0bb6f96d6e0252f4d599ee441b96af1b",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 154,
+        "prompt_tokens": 596,
+        "total_tokens": 750,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 137,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:26.049751+00:00",
+      "prompt_sha256": "2d57af7c0a5698495d610d426d9e44ae558916e977b8e0c1954a3c904743c145",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Antagonizing the Y receptor left the animals just as unable to reject tumors as before treatment.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 173,
+        "prompt_tokens": 1271,
+        "total_tokens": 1444,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 129,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:30.052676+00:00",
+      "prompt_sha256": "460b336ef7ae461180ddedbd840922823995344f9dfce5e7fd79ca553ceb795f",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy.\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 181,
+        "prompt_tokens": 1276,
+        "total_tokens": 1457,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 129,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:34.053264+00:00",
+      "prompt_sha256": "579e819e50107d5432d6825ccaaa0a0c46c73648515712277553a98f60216268",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 184,
+        "prompt_tokens": 593,
+        "total_tokens": 777,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 185,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:38.054444+00:00",
+      "prompt_sha256": "2a0a6aae7c669a9875721a56a3db6a3a19de4a60fb2ef47e079f4813c0dcd25e",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Treatment with compound C sharply curtailed the proliferation of the P organism in culture.\"\n  },\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 360,
+        "prompt_tokens": 1270,
+        "total_tokens": 1630,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 352,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:42.055556+00:00",
+      "prompt_sha256": "2c68946e7cd4784ed17d5ff263779dc2bf4e6d2e7f8464822014307c8e5a8245",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective.\"\n  }\n}",
+      "usage": {
+        "completion_tokens": 318,
+        "prompt_tokens": 1269,
+        "total_tokens": 1587,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 309,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:46.056754+00:00",
+      "prompt_sha256": "f343a357c41078d117386dbbb796b77418624554f379bcc49ab383006806f0bd",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 1052,
+        "prompt_tokens": 585,
+        "total_tokens": 1637,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1355,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:52.652248+00:00",
+      "prompt_sha256": "906ae27bd962f12b05c0a943ccf1ce1218a08d39d2f945d1d3affc4e4f8478bb",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 194,
+        "prompt_tokens": 1277,
+        "total_tokens": 1471,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:18:56.653886+00:00",
+      "prompt_sha256": "12c4aa57aa6495e9f9d5cf20a5db099411d6c2aa8be9fc23c9a4f9dde430b94e",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 208,
+        "prompt_tokens": 1279,
+        "total_tokens": 1487,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:19:00.654210+00:00",
+      "prompt_sha256": "62a71de78f4fe7db02b6aa2e79a41b1ee19676f4f75710f7a4c9dfc16c4712fc",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Carriers of the G locus showed a markedly elevated incidence of the D phenotype in the cohort.\"\n    }\n  ],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 169,
+        "prompt_tokens": 1272,
+        "total_tokens": 1441,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 118,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:19:04.655293+00:00",
+      "prompt_sha256": "d1e4bb200a3a748b0f9c7182948009bb1c431b8463116f9fe27cf568b9c95168",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Inhibiting target T accelerated solid tumor growth in every model examined.\"\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 189,
+        "prompt_tokens": 1267,
+        "total_tokens": 1456,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 152,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:19:08.655924+00:00",
+      "prompt_sha256": "ef0b6a5146ad315b56c9e762426a36b04cc86b2226045fd85139b2c3c8a02d2c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\"verdicts\":[{\"index\":1,\"same_conditions\":true,\"mutually_exclusive\":true}]}",
+      "usage": {
+        "completion_tokens": 200,
+        "prompt_tokens": 579,
+        "total_tokens": 779,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 237,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T09:19:12.657032+00:00",
+      "prompt_sha256": "3f5a93ab00ea58a8e884ffcbd33eb19ccf7f195c65709be1741e3db23b6a7e40",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 289,
+        "prompt_tokens": 1282,
+        "total_tokens": 1571,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 324,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-21T09:19:16.658150+00:00",
+      "prompt_sha256": "4243797f1887fcd228525b128e0565eef241e8700ebb38d4b73810ff245090b9",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 220,
+        "prompt_tokens": 1318,
+        "total_tokens": 1538,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 211,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-21T09:19:20.659340+00:00",
+      "prompt_sha256": "01f4871661889084a5910ee93ba9a77cf216c7193f8af3f9073aab31d71c6df8",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations.\"\n    }\n  ],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 832,
+        "prompt_tokens": 1309,
+        "total_tokens": 2141,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 886,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-21T09:19:25.586675+00:00",
+      "prompt_sha256": "ee46ba995b09d23ab726f0fdd28dcce618f09107bd9a3b0aa3d4d6c3fadf8080",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I.\"\n  },\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 1126,
+        "prompt_tokens": 1323,
+        "total_tokens": 2449,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1283,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-21T09:19:32.899534+00:00",
+      "prompt_sha256": "e33bb49b0ac815cfce4442328e7e6bc5a30fec185292c3a4054b822a1aea3897",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 228,
+        "prompt_tokens": 1468,
+        "total_tokens": 1696,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 215,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-21T09:19:36.900681+00:00",
+      "prompt_sha256": "5c9a8b3afe629901b928b0cebcb1f772d11957ebcd15e1e9f658eb5e06b8eb37",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}",
+      "usage": {
+        "completion_tokens": 214,
+        "prompt_tokens": 1309,
+        "total_tokens": 1523,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 200,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "controlled_primary_live_verifier",
+      "started_at": "2026-09-21T09:19:40.901820+00:00",
+      "prompt_sha256": "2a5db5a84ca6bcb956861b33e7ee62eaba2bbe5c8c66d9450fdf76fd85034ab1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": false,\n      \"mutually_exclusive\": false\n    }\n  ]\n}",
+      "usage": {
+        "completion_tokens": 693,
+        "prompt_tokens": 645,
+        "total_tokens": 1338,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 814,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "assessments": [
+    {
+      "phase": "challenge",
+      "claim": "Drug A increases progression-free survival in glioblastoma.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        0
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Kinase X inhibition reduces AML tumor growth by roughly half.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        1,
+        2
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Kinase X inhibition increased AML tumor volume threefold across the cell lines tested."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C lowers pathogen P viability at micromolar doses.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        3,
+        4
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Compound C raised pathogen P colony counts at every micromolar dose evaluated."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores CD8 T-cell infiltration.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        5,
+        6
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Blocking receptor Y further depleted CD8 T cells from the tumor microenvironment."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V raises neutralizing antibody titers by ten-fold.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        7,
+        8
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes human tumors to therapy.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        9
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Pathway W drives fibrosis progression in human lung.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        10
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G confers drug resistance in human breast carcinoma.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        11
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V elicits durable antibody responses at twelve months.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        12
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves five-year overall survival in glioblastoma.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        13
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Inhibiting kinase X reduces tumor growth in AML.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        14
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Target T is druggable in solid tumors.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        15
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        16
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Protein Q folds via a two-state mechanism.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        17
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves survival in glioblastoma.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        18
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G is associated with disease D.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        19
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Kinase X inhibition reduces AML tumor growth.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        20
+      ],
+      "supporting_quotes": [
+        "Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores immune surveillance.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        21
+      ],
+      "supporting_quotes": [
+        "Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        22
+      ],
+      "supporting_quotes": [
+        "Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Protein Q folds via a two-state mechanism.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        23
+      ],
+      "supporting_quotes": [
+        "Q adopts its native structure through a single cooperative transition with no detectable intermediate."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        24,
+        25
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Across all assays, pathogen P grew just as vigorously in the presence of compound C as in its absence."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores immune surveillance.",
+      "label": "insufficient",
+      "verification_method": "contradiction_guard_rejected",
+      "physical_request_indices": [
+        26
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        27,
+        28
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        29
+      ],
+      "supporting_quotes": [
+        "Treatment with compound C sharply curtailed the proliferation of the P organism in culture."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Pathway W drives fibrosis progression.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        30,
+        31
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves survival in glioblastoma.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        32
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V elicits durable antibody responses in humans.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        33
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G is associated with disease D.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        34
+      ],
+      "supporting_quotes": [
+        "Carriers of the G locus showed a markedly elevated incidence of the D phenotype in the cohort."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Target T inhibition slows solid tumor growth.",
+      "label": "contradicts",
+      "verification_method": "model_opposition_verified",
+      "physical_request_indices": [
+        35,
+        36
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Inhibiting target T accelerated solid tumor growth in every model examined."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C durably suppresses pathogen P over four weeks.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        37
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Donepezil, at clinically achievable human brain free concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the ER-mitochondria contact site.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        38
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+      "label": "partial",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        39
+      ],
+      "supporting_quotes": [
+        "These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Together, these actions reduce collagen synthesis and \u03b1-SMA expression, attenuating the fibrotic phenotype.",
+      "label": "supports",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        40
+      ],
+      "supporting_quotes": [
+        "Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Metformin activates AMPK in human cardiac fibroblasts, leading to inhibitory phosphorylation of Smad3 (Ser203/207) and suppression of HIF-1\u03b1-mediated glycolysis, thereby blocking TGF-\u03b2-induced myofibroblast transition and collagen deposition.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        41
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Metformin enters cardiac fibroblasts and activates AMPK via LKB1.",
+      "label": "insufficient",
+      "verification_method": "model_primary",
+      "physical_request_indices": [
+        42
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "controlled_primary_live_verifier",
+      "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+      "label": "insufficient",
+      "verification_method": "model_opposition_unconfirmed",
+      "physical_request_indices": [
+        43
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    }
+  ],
+  "finished_at": "2026-09-21T09:19:46.175109+00:00"
+}

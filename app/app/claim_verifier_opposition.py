@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
+from copy import deepcopy
 from typing import Any
 
 from co_scientist.exceptions import (
@@ -77,6 +78,9 @@ async def _verify(model: str, pairs: list[dict[str, Any]]) -> dict[str, Any]:
     from app import credentials
 
     resolved_model, api_key = credentials.byok_model_and_key(model)
+    # Empty backfilled arrays must fail inside the JSON retry boundary.
+    schema = deepcopy(_SCHEMA)
+    schema["properties"]["verdicts"]["minItems"] = len(pairs)
     result: dict[str, Any] = await call_llm_json(
         _PROMPT + json.dumps(pairs, ensure_ascii=False),
         CompletionSpec(
@@ -84,7 +88,7 @@ async def _verify(model: str, pairs: list[dict[str, Any]]) -> dict[str, Any]:
             api_key=api_key,
             max_tokens=6000,
             temperature=0,
-            json_schema=_SCHEMA,
+            json_schema=schema,
         ),
         max_attempts=2,
         options=LLMCallOptions(

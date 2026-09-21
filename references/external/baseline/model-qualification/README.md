@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 122): no production primary or fallback is selected.
+Current status (cycle 126): no production primary or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
@@ -19,7 +19,9 @@ Current status (cycle 122): no production primary or fallback is selected.
   [series 119](batch-schema119-summary.json) remains retained.
 - **Nex Mini batch schema:** three independent fresh trials pass; see
   [Mini acceptance](mini-batch-context122-acceptance.json). Capability refresh
-  and scientific panels remain open before fallback selection.
+  passed on refresh, but all three scientific challenge trials failed recall
+  (.7/.6/.7 versus .8); see [series 123](mini-challenge123-summary.json).
+  The current Mini configuration remains unselected.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 

@@ -1,0 +1,118 @@
+{
+  "purpose": "Interim first-trial result, full series still live",
+  "artifact": "nex-mini-challenge123-1.json",
+  "sha256": "274424f7e0c5fd41927a83f2717e6ce4b5c93c4570cfe8ba6ac711790b9765cf",
+  "metrics": {
+    "accuracy": 0.9,
+    "contradiction_recall": 0.7,
+    "abstention_rate": 0.567,
+    "per_label": {
+      "insufficient": {
+        "precision": 0.824,
+        "recall": 1.0
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "contradicts": {
+        "precision": 1.0,
+        "recall": 0.7
+      }
+    },
+    "n": 30,
+    "by_kind": {
+      "numeric_conflict": {
+        "accuracy": 0.714,
+        "n": 7
+      },
+      "paraphrase_contradiction": {
+        "accuracy": 0.667,
+        "n": 3
+      },
+      "paraphrase_support": {
+        "accuracy": 1.0,
+        "n": 6
+      },
+      "retracted": {
+        "accuracy": 1.0,
+        "n": 2
+      },
+      "species_mismatch": {
+        "accuracy": 1.0,
+        "n": 4
+      },
+      "temporal_mismatch": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "topic_mention_only": {
+        "accuracy": 1.0,
+        "n": 5
+      }
+    }
+  },
+  "production_gates": {
+    "passed": false,
+    "checks": {
+      "contradiction_recall": {
+        "value": 0.7,
+        "threshold": 0.8,
+        "passed": false
+      },
+      "accuracy": {
+        "value": 0.9,
+        "threshold": 0.75,
+        "passed": true
+      }
+    }
+  },
+  "scope_passed": {
+    "single": true,
+    "batch_single_claim": true
+  },
+  "historical_passed": true,
+  "physical_requests": 69,
+  "missed_contradictions": [
+    {
+      "phase": "challenge",
+      "claim": "Drug A increases progression-free survival in glioblastoma.",
+      "label": "insufficient",
+      "verification_method": "model_opposition_unconfirmed",
+      "physical_request_indices": [
+        0,
+        1
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [],
+      "dataset_index": 0
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores immune surveillance.",
+      "label": "insufficient",
+      "verification_method": "contradiction_guard_rejected",
+      "physical_request_indices": [
+        27
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [],
+      "dataset_index": 21
+    },
+    {
+      "phase": "challenge",
+      "claim": "Target T inhibition slows solid tumor growth.",
+      "label": "insufficient",
+      "verification_method": "model_opposition_unconfirmed",
+      "physical_request_indices": [
+        36,
+        37
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [],
+      "dataset_index": 28
+    }
+  ],
+  "series_accepted": false,
+  "remaining": "Trial2 and3 live/queued in runner36142; diagnose failures without changing fixed source."
+}
