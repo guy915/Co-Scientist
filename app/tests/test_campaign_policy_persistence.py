@@ -118,7 +118,9 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     )
     assert run.status_code == 200
     assert run.json()["execution_policy"] == "campaign"
-    assert store.get_run(run.json()["id"]).execution_policy == "campaign"
+    stored_run = store.get_run(run.json()["id"])
+    assert stored_run is not None
+    assert stored_run.execution_policy == "campaign"
 
 
 def test_unsigned_identity_and_body_cannot_originate_campaign(

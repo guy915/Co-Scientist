@@ -79,7 +79,7 @@ def test_propagate_context_restores_a_reused_worker_thread() -> None:
 def test_run_coroutine_sync_restores_the_shared_bridge_loop() -> None:
     """The persistent bridge loop is standard again after campaign work."""
     async def read_campaign_mode() -> bool:
-        return campaign_free_mode()
+        return bool(campaign_free_mode())
 
     with scoped_campaign_mode(True):
         assert run_coroutine_sync(read_campaign_mode) is True
