@@ -10,10 +10,12 @@ and reads live process environment at import time.
 import pytest
 from mcp_server.auth_middleware import (
     MCP_AUTH_HEADER,
+    MCP_CAMPAIGN_HEADER,
     MCP_SHARED_SECRET_ENV,
     SharedSecretAuthMiddleware,
     resolve_shared_secret,
 )
+from mcp_server.campaign import campaign_free_mode
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
@@ -21,11 +23,11 @@ from starlette.testclient import TestClient
 
 
 async def _root(request):  # type: ignore[no-untyped-def]
-    return PlainTextResponse("status")
+    return PlainTextResponse(f"status:{campaign_free_mode()}")
 
 
 async def _tool_endpoint(request):  # type: ignore[no-untyped-def]
-    return PlainTextResponse("tool result")
+    return PlainTextResponse(f"tool result:{campaign_free_mode()}")
 
 
 def _make_app(secret: str | None) -> Starlette:
@@ -46,7 +48,7 @@ def test_unset_secret_allows_every_request() -> None:
     response = client.post("/mcp")
 
     assert response.status_code == 200
-    assert response.text == "tool result"
+    assert response.text == "tool result:False"
 
 
 def test_configured_secret_rejects_missing_header() -> None:
@@ -71,7 +73,7 @@ def test_configured_secret_accepts_matching_header() -> None:
     response = client.post("/mcp", headers={MCP_AUTH_HEADER: "s3cret"})
 
     assert response.status_code == 200
-    assert response.text == "tool result"
+    assert response.text == "tool result:False"
 
 
 def test_status_route_stays_exempt_even_with_secret_set() -> None:
@@ -81,6 +83,53 @@ def test_status_route_stays_exempt_even_with_secret_set() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
+
+
+def test_campaign_header_requires_matching_shared_secret_on_root() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+
+    missing = client.get("/", headers={MCP_CAMPAIGN_HEADER: "1"})
+    forged = client.get(
+        "/",
+        headers={MCP_CAMPAIGN_HEADER: "1", MCP_AUTH_HEADER: "wrong"},
+    )
+
+    assert missing.status_code == 401
+    assert forged.status_code == 401
+
+
+def test_authenticated_campaign_root_reports_campaign_policy() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+
+    response = client.get(
+        "/",
+        headers={
+            MCP_CAMPAIGN_HEADER: "1",
+            MCP_AUTH_HEADER: "s3cret",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.text == "status:True"
+
+
+def test_campaign_header_fails_closed_without_server_secret() -> None:
+    client = TestClient(_make_app(secret=None))
+
+    response = client.post("/mcp", headers={MCP_CAMPAIGN_HEADER: "1"})
+
+    assert response.status_code == 401
+
+
+def test_authenticated_campaign_request_is_scoped_and_resets() -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+    headers = {MCP_CAMPAIGN_HEADER: "1", MCP_AUTH_HEADER: "s3cret"}
+
+    campaign = client.post("/mcp", headers=headers)
+    ordinary = client.post("/mcp", headers={MCP_AUTH_HEADER: "s3cret"})
+
+    assert campaign.text == "tool result:True"
+    assert ordinary.text == "tool result:False"
 
 
 def test_resolve_shared_secret_reads_env_var(

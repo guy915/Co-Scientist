@@ -43,6 +43,7 @@ def qualified(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     monkeypatch.setenv("COSCIENTIST_CAMPAIGN_MCP_URL", URL)
+    monkeypatch.setenv("COSCIENTIST_MCP_SHARED_SECRET", "secret")
     data = {
         "service": "coscientist-lit-review",
         "campaign_policy": campaign_policy(),
@@ -51,6 +52,8 @@ def qualified(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     def reply(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "http://localhost:8888/"
+        assert request.headers["X-CoScientist-Campaign"] == "1"
+        assert request.headers["X-MCP-Shared-Secret"] == "secret"
         return httpx.Response(200, json=data)
 
     def client(**kwargs: Any) -> httpx.AsyncClient:

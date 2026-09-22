@@ -10,6 +10,7 @@ import httpx
 from co_scientist.llm_free_policy import campaign_free_mode
 from co_scientist.mcp_client_helpers import (
     MCP_AUTH_HEADER,
+    MCP_CAMPAIGN_HEADER,
     MCP_SHARED_SECRET_ENV,
 )
 
@@ -45,7 +46,12 @@ def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
         )
     config = next(iter(configs.values()))
     secret = os.getenv(MCP_SHARED_SECRET_ENV)
-    headers = {MCP_AUTH_HEADER: secret} if secret else {}
+    if not secret:
+        raise RuntimeError("campaign MCP requires shared-secret authentication")
+    headers = {
+        MCP_AUTH_HEADER: secret,
+        MCP_CAMPAIGN_HEADER: "1",
+    }
     if (
         set(config) - {"transport", "url", "headers"}
         or config.get("transport") != "streamable_http"
@@ -71,8 +77,10 @@ def campaign_http_client(
     headers: dict[str, str] | None = None,
     timeout: httpx.Timeout | None = None,
     auth: httpx.Auth | None = None,
+    follow_redirects: bool = False,
 ) -> httpx.AsyncClient:
     """Prevent redirects and proxies from changing the qualified route."""
+    del follow_redirects
     if auth is not None:
         raise RuntimeError("campaign MCP custom authentication is unavailable")
     return httpx.AsyncClient(
@@ -99,7 +107,8 @@ class CampaignAdmission:
             )
         url = urlsplit(self.url)
         root = urlunsplit((url.scheme, url.netloc, "/", "", ""))
-        async with campaign_http_client() as client:
+        headers = next(iter(self.configs.values())).get("headers")
+        async with campaign_http_client(headers=headers) as client:
             response = await client.get(root)
             response.raise_for_status()
             data = response.json()

@@ -1,6 +1,13 @@
 """Campaign cost policy for the independently packaged reference server."""
 
+import contextlib
 import os
+from collections.abc import Iterator
+from contextvars import ContextVar
+
+_campaign_request: ContextVar[bool] = ContextVar(
+    "mcp_campaign_request", default=False
+)
 
 
 def campaign_free_mode() -> bool:
@@ -10,7 +17,17 @@ def campaign_free_mode() -> bool:
     )
     if configured not in {"0", "false", "", "1", "true"}:
         raise RuntimeError("zero-cost campaign mode setting is invalid")
-    return configured in {"1", "true"}
+    return _campaign_request.get() or configured in {"1", "true"}
+
+
+@contextlib.contextmanager
+def scoped_campaign_request(enabled: bool) -> Iterator[None]:
+    """Bind monotone campaign policy to one server request."""
+    token = _campaign_request.set(_campaign_request.get() or enabled)
+    try:
+        yield
+    finally:
+        _campaign_request.reset(token)
 
 
 def require_metered_search_allowed() -> None:

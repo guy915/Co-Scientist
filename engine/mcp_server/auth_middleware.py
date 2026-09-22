@@ -27,11 +27,16 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from mcp_server.campaign import scoped_campaign_request
+
 MCP_SHARED_SECRET_ENV = "COSCIENTIST_MCP_SHARED_SECRET"
 """Env var carrying the shared secret. Unset disables the check entirely."""
 
 MCP_AUTH_HEADER = "X-MCP-Shared-Secret"
 """HTTP header the client must send once a shared secret is configured."""
+
+MCP_CAMPAIGN_HEADER = "X-CoScientist-Campaign"
+"""Authenticated request marker enabling campaign MCP policy."""
 
 # The plain status route stays open even when a secret is configured: it is
 # what Compose's own healthcheck and `curl http://.../` probe (see AGENTS.md),
@@ -72,13 +77,25 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
             A 401 JSON response when a secret is configured and the request
             fails to present it; otherwise the downstream response.
         """
+        campaign_value = request.headers.get(MCP_CAMPAIGN_HEADER)
+        campaign = campaign_value == "1"
+        if campaign_value is not None and not campaign:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        # Plain health checks stay open. Asking that same route to attest a
+        # policy is privileged and therefore requires the configured secret.
+        if campaign and (
+            not self._secret
+            or request.headers.get(MCP_AUTH_HEADER) != self._secret
+        ):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
         requires_check = self._secret and request.url.path not in _EXEMPT_PATHS
         if (
             requires_check
             and request.headers.get(MCP_AUTH_HEADER) != self._secret
         ):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return await call_next(request)
+        with scoped_campaign_request(campaign):
+            return await call_next(request)
 
 
 def resolve_shared_secret() -> str | None:
