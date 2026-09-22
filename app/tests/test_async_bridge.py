@@ -70,14 +70,16 @@ def test_propagate_context_restores_a_reused_worker_thread() -> None:
     """A campaign job must not contaminate the pool's next standard job."""
     with ThreadPoolExecutor(max_workers=1) as pool:
         with scoped_campaign_mode(True):
-            assert pool.submit(
-                propagate_context(campaign_free_mode)
-            ).result() is True
+            assert (
+                pool.submit(propagate_context(campaign_free_mode)).result()
+                is True
+            )
         assert pool.submit(campaign_free_mode).result() is False
 
 
 def test_run_coroutine_sync_restores_the_shared_bridge_loop() -> None:
     """The persistent bridge loop is standard again after campaign work."""
+
     async def read_campaign_mode() -> bool:
         return bool(campaign_free_mode())
 

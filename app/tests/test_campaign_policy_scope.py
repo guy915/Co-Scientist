@@ -372,15 +372,11 @@ async def test_contribution_safety_uses_persisted_run_policy(
     monkeypatch.setattr(
         human_input, "admit_human_hypothesis_with_escalation", admit
     )
-    request = Request(
-        {"type": "http", "headers": [(b"x-client-id", b"owner")]}
-    )
+    request = Request({"type": "http", "headers": [(b"x-client-id", b"owner")]})
 
     response = await runs_contrib.add_human_hypothesis(
         campaign.id,
-        HumanHypothesisRequest(
-            statement="A benign hypothesis", author="owner"
-        ),
+        HumanHypothesisRequest(statement="A benign hypothesis", author="owner"),
         request,
     )
 

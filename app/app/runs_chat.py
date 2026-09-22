@@ -245,8 +245,6 @@ async def announce_start(
     byok = _resolve_qa_byok(run, request)
     prompt_msg = run_start_announcement.persist_prompt(run_id, req.prompt)
     return StreamingResponse(
-        run_start_announcement.stream_announcement(
-            run, prompt_msg.id, byok
-        ),
+        run_start_announcement.stream_announcement(run, prompt_msg.id, byok),
         media_type="text/event-stream",
     )

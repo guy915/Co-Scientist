@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import HTTPException
@@ -90,7 +90,7 @@ async def _advance_stream(
     byok: credentials.ByokCredential | None = None,
     *,
     execution_policy: str | None = None,
-) -> AsyncIterator[str]:
+) -> AsyncGenerator[str, None]:
     """Advance one turn as SSE: live reasoning and prose, then the interview.
 
     The Agent's turn runs as a task that pushes fragments onto a queue while

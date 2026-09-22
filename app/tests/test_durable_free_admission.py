@@ -49,9 +49,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
         "engine",
         {},
         store.RunCreateOptions(
-            execution_policy=(
-                "standard" if mode == "user_byok" else "campaign"
-            )
+            execution_policy=("standard" if mode == "user_byok" else "campaign")
         ),
     )
     credential = credentials.ByokCredential(
