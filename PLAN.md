@@ -4890,3 +4890,11 @@ The draft PR creation remains open: the repository's pre-tool review hook
 continues to report a stale review after both an in-place review and a clean
 exact-commit checkout review. This is a tooling gate, not permission to bypass
 the review. No PR or production change is claimed.
+
+To avoid a repeat of the prior turn-boundary service loss, a one-shot macOS
+process guardian now watches the original local API PID without provider calls.
+It is registered under `com.coscientist.local-live195.guardian`, observed running
+while the original API remained healthy, and will relaunch the same isolated
+database stack once only if the original process exits. Cleanup and recovery
+limits are recorded in `local-run-guardian196.json`. This does not satisfy the
+still-open local report or production acceptance checks.
