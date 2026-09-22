@@ -190,10 +190,10 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
-- [ ] M1-release-scope-a: Persist server-derived campaign policy on interviews/runs using backward-compatible defaults and verified bearer identities; test spoofing, linked-object downgrade prevention and restart readback.
-- [ ] M1-release-scope-b: Propagate monotone campaign context through request/stream/background and durable task boundaries; verify concurrent ordinary BYOK, recovery, caches, auxiliary calls and workspace restrictions without changing global environment at runtime.
-- [ ] M1-release-scope-c: Enforce authenticated request-scoped campaign policy on the existing MCP service and partition cached clients; verify actual SDK session/context propagation, concurrent ordinary tools, root authentication, forged headers and both tool invocation paths.
-- [ ] M1-release-scope-d: Verify integrated campaign/BYOK coexistence through public requests and durable recovery before selecting shared production configuration; all campaign cost controls and ordinary BYOK behavior must hold simultaneously.
+- [x] M1-release-scope-a: Persist server-derived campaign policy on interviews/runs using backward-compatible defaults and verified bearer identities; test spoofing, linked-object downgrade prevention and restart readback.
+- [x] M1-release-scope-b: Propagate monotone campaign context through request/stream/background and durable task boundaries; verify concurrent ordinary BYOK, recovery, caches, auxiliary calls and workspace restrictions without changing global environment at runtime.
+- [x] M1-release-scope-c: Enforce authenticated request-scoped campaign policy on the existing MCP service and partition cached clients; verify actual SDK session/context propagation, concurrent ordinary tools, root authentication, forged headers and both tool invocation paths.
+- [x] M1-release-scope-d: Verify integrated campaign/BYOK coexistence through public requests and durable recovery before selecting shared production configuration; all campaign cost controls and ordinary BYOK behavior must hold simultaneously.
 - [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
 - [ ] Freeze the post-switch baseline, evaluation inputs, model settings, cache-isolation procedure, and release/rollback procedure for subsequent comparisons.
 
@@ -4227,3 +4227,15 @@ _advance_stream at43 code lines against40. Luna owns a behavior-preserving
 helper extraction; no thresholds/skips will change. Frontend checks run
 independently; any browser result must identify whether its API loaded before
 or after that final stream refactor.
+
+Cycle177 scope acceptance: final implementationd8eaf38b retains outer-generator
+task cleanup and terminal missing-row SSE behavior. Explicit-close regression
+added; independent reviewer reports no remaining stream finding. Coordinator
+reran32 policy/persistence/recovery/safety/bridge/stream tests and the final9
+offline browser tests, all passing. Marked scope-a/b/c/d complete against their
+local behavioral boundaries; evidence and limitations are in
+baseline/scope-acceptance177.md. This does not complete the separate live-run,
+model-selection or production-release items. Final full test-all remains in
+progress at /private/tmp/coscientist-check177-test-all-final.log; no success is
+claimed before exit. Frontend build and718 tests passed with unchanged frontend
+sources. Original failed lint/parity/test invocations remain retained.
