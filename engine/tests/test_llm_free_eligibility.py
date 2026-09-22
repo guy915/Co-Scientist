@@ -159,46 +159,6 @@ async def test_qualified_route_sends_zero_caps_and_pinned_endpoint(
     assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
 
 
-async def test_exact_gemma_26b_route_keeps_free_caps_and_json_shim(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The Gemma route gets both the shim and the normal free admission."""
-    model = "openrouter/google/gemma-4-26b-a4b-it:free"
-    catalog = _catalog({"prompt": "0", "completion": "0"})
-    catalog["data"][0]["id"] = model.removeprefix("openrouter/")
-    _mock_catalog(monkeypatch, catalog)
-    requests: list[dict[str, Any]] = []
-    patch_acompletion(
-        monkeypatch,
-        [make_completion(make_message('{"answer": "ok"}'))],
-        requests,
-    )
-
-    await call_llm_json(
-        "probe",
-        CompletionSpec(
-            model_name=model,
-            json_schema={
-                "type": "object",
-                "properties": {"answer": {"type": "string"}},
-                "required": ["answer"],
-            },
-        ),
-        options=OPTIONS,
-        max_attempts=1,
-    )
-
-    assert requests[0]["response_format"] == {"type": "json_object"}
-    provider = requests[0]["extra_body"]["provider"]
-    assert provider["max_price"] == {
-        "prompt": 0,
-        "completion": 0,
-        "request": 0,
-    }
-    assert provider["require_parameters"] is True
-    assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
-
-
 @pytest.mark.parametrize("campaign", [False, True])
 @pytest.mark.parametrize("scoped", [False, True])
 async def test_byok_separation_and_campaign_override(

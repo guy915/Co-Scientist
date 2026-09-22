@@ -227,52 +227,6 @@ async def test_call_llm_downgrades_request_for_unsupported_model(
     ]
 
 
-async def test_exact_gemma_26b_route_injects_schema_at_request_boundary(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The exact route reuses the existing json_object request shim."""
-    _disable_cache(monkeypatch)
-    _patch_registry(monkeypatch, supported=True)
-    captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-    await call_llm(
-        "a prompt",
-        CompletionSpec(
-            model_name="openrouter/google/gemma-4-26b-a4b-it:free",
-            api_key="test-byok-key",
-            json_schema=_NESTED_SCHEMA,
-        ),
-    )
-
-    assert captured[0]["response_format"] == {"type": "json_object"}
-    content = captured[0]["messages"][0]["content"]
-    assert json.dumps(_NESTED_SCHEMA["schema"], indent=2) in content
-
-
-async def test_unqualified_gemma_route_keeps_native_schema(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The route exception does not broaden to unqualified Gemma models."""
-    _disable_cache(monkeypatch)
-    _patch_registry(monkeypatch, supported=True)
-    captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-    await call_llm(
-        "a prompt",
-        CompletionSpec(
-            model_name="google/gemma-4-26b-a4b-it",
-            api_key="test-byok-key",
-            json_schema=_NESTED_SCHEMA,
-        ),
-    )
-
-    assert captured[0]["response_format"] == {
-        "type": "json_schema",
-        "json_schema": _NESTED_SCHEMA,
-    }
-    assert captured[0]["messages"] == [{"role": "user", "content": "a prompt"}]
-
-
 async def test_downgraded_prompt_forbids_echoing_the_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -424,75 +378,6 @@ async def test_call_llm_json_backfills_before_validation_on_downgrade(
         "assessment": {"verdict": "holds", "notes": []},
     }
     assert len(captured) == 1  # validated on the first attempt, no retry
-
-
-async def test_exact_gemma_26b_route_keeps_local_schema_validation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The shimmed route still backfills and validates locally."""
-    _disable_cache(monkeypatch)
-    _patch_registry(monkeypatch, supported=True)
-    captured = _capture_acompletion(
-        monkeypatch, [_completion('{"summary": "ok", "assessment": {}}')]
-    )
-
-    result = await call_llm_json(
-        "a prompt",
-        CompletionSpec(
-            model_name="openrouter/google/gemma-4-26b-a4b-it:free",
-            api_key="test-byok-key",
-            json_schema=_NESTED_SCHEMA,
-        ),
-        max_attempts=2,
-    )
-
-    assert result == {
-        "summary": "ok",
-        "assessment": {"verdict": "holds", "notes": []},
-    }
-    assert captured[0]["response_format"] == {"type": "json_object"}
-    assert len(captured) == 1
-
-
-async def test_exact_gemma_26b_route_rejects_invalid_enum_then_retries(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Local validation rejects an invalid enum before accepting a retry."""
-    _disable_cache(monkeypatch)
-    _patch_registry(monkeypatch, supported=True)
-    captured = _capture_acompletion(
-        monkeypatch,
-        [
-            _completion(
-                '{"summary": "ok", "assessment": '
-                '{"verdict": "invalid", "notes": []}}'
-            ),
-            _completion(
-                '{"summary": "ok", "assessment": '
-                '{"verdict": "holds", "notes": []}}'
-            ),
-        ],
-    )
-
-    result = await call_llm_json(
-        "a prompt",
-        CompletionSpec(
-            model_name="openrouter/google/gemma-4-26b-a4b-it:free",
-            api_key="test-byok-key",
-            json_schema=_NESTED_SCHEMA,
-        ),
-        max_attempts=2,
-    )
-
-    assert result == {
-        "summary": "ok",
-        "assessment": {"verdict": "holds", "notes": []},
-    }
-    assert len(captured) == 2
-    assert all(
-        request["response_format"] == {"type": "json_object"}
-        for request in captured
-    )
 
 
 async def test_call_llm_json_no_backfill_for_supported_model(

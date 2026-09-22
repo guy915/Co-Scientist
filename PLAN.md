@@ -190,6 +190,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
 - [x] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
 - [x] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
+- [x] M1-04b-G1-tests: Restore the existing 500-line source-file gate after the Gemma regression additions by organizing the exact-route tests into focused sibling modules, reusing test helpers and preserving every assertion; verify affected suites and parity without raising the limit.
 - [ ] M1-04b-G1: Resolve the exact Gemma26 free-route native-schema mismatch documented in gemma26-routing186.md: reproduce at the LLM request boundary, reuse the existing JSON-object path with a justified bounded capability exception, preserve local schema validation and zero-price routing, then verify a real response after provider backoff. Do not infer capability for all Gemma models or claim scientific qualification from this interface check.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
@@ -4689,3 +4690,35 @@ engine verification · coordinator · passed · release-verification188 · retai
 M1 remains43done/6open; campaign58open. G1 waits for Gemma backoff/live verification;
 local public-goal execution additionally requires the requested approval. No
 production update/check or new fallback qualification is claimed.
+
+
+### Cycle 189 — App/browser checks and test-file gate restored
+
+Previous cycle made progress through current engine/lint/type checks and retained
+the launch rejection. The same live-launch approval is still pending (second
+consecutive goal cycle observing that blocker); no inference or workaround was
+attempted. Gemma backoff remains unchanged. Other authorized offline work was
+available and completed, so this is not a native-goal blocked declaration.
+
+Coordinator ran make eval-smoke (passed safety/citation offline), make e2e
+(9passed in34.8s) and make test-app (1873passed in302.40s). Receipt
+release-verification189.json records log hashes. make parity exposed a concrete
+release defect: the new Gemma regressions grew two test files beyond the existing
+500-line limit. Added G1-tests before fixing it. Luna/xhigh moved all five Gemma
+regressions into a focused sibling module; coordinator removed a duplicate
+transport fake by reusing the existing helper. No production code changed.
+
+G1-tests · Luna/xhigh · verified · 83affected tests pass plus full make parity ·
+complete. Fresh independent Luna/xhigh review used AST comparison to confirm
+all37 test functions remain across the three files, with the five Gemma tests'
+assertions, campaign catalog and capability-cache fixtures preserved. Ruff,
+formatting and diff checks pass. File lengths are below500; no limits raised,
+tests skipped or thresholds loosened. Scoped cleanup retained intentional
+verification evidence only; no UI change. User AGENTS.md remains untouched.
+
+M1 now44done/6open; campaign58open. Runtime remains the exact-route change from
+0e691367; this commit changes only test organization and campaign records.
+Production is still unverified for the campaign and no service was launched.
+Next required live actions remain G1 after backoff and the local public-goal run
+after explicit approval of the launcher rejected by automatic review. Do not
+repeat passed suites merely to occupy a turn while approval is pending.
