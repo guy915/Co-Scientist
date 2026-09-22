@@ -4281,3 +4281,46 @@ is retaining separate final lint/typecheck logs, preserving the failed earlier
 logs. Reuse previous complete backend/browser/frontend results because final
 changes are formatting/type annotation only; receipt release-verification178.json
 distinguishes failed attempts from final results. No product deployment occurred.
+
+**2026-09-22 — Cycle 179, final bounded fallback retry and handoff refresh.**
+Previous turn made progress: all required local verification gates passed and
+Nemotron's fresh zero-cost capability result was retained as inconclusive.
+Reused Luna owns one Qwen capability batch after fresh price/admission checks,
+no scientific trials or scheduled retries. Last Qwen attempt168 was upstream
+shared-pool429; record current result rather than treating that old limit as
+permanent. Main runtime sources remain frozen during the batch. Separate Luna
+owns read-only GitHub/Railway/Vercel release-state179 evidence, without provider
+inference, config changes or deployment. Scoped cleanup/deslop review of the
+recent policy diff found no high-confidence removals or duplicate runtime
+implementation to merge: engine and independently packaged MCP policy modules
+must stay separate. Ruff F401/F841 passed; no UI source changed in this stretch.
+Qualification artifacts and user's AGENTS.md edit are intentionally retained.
+Original180turn stop remains in force; do not silently extend it.
+
+Cycle179 Qwen batch completed after one capped request: upstream shared-pool429
+on json_off, no observed model/usage and no retries, paid substitution or timer.
+Fresh catalog and runtime eligibility passed; capability/scientific qualification
+does not. Retained eligibility179, capabilities179 and summary179 artifacts.
+Source freeze lifted; no inference remains owned by this batch. Removed only
+the clean integrated policy worktree /private/tmp/coscientist-scope174 and its
+temporary isolated verification venv /private/tmp/coscientist-scope176-venv.
+All commits were integrated; final stream fixes and tests live on the campaign
+branch. Other worktrees, raw evidence/logs and user changes were left alone.
+
+Cycle179 release-state refresh confirms production still serves7dce086d;
+API/MCP deployment statuses success/running, API health200, frontend200 and
+Vercel ready. Branch has no remote branch/upstream/open PR. API invariants
+remain one replica, UID0, DBvolume and cacheoffvolume; selected model remains
+Minimax and global free flag absent. See baseline/release-state179.json for
+deployment IDs and precise observation limits; no production inference ran.
+
+Incident179: a malformed filter in the worker's API-service variable read
+printed the unfiltered map into its tool result. Credential names exposed:
+DEEPSEEK_API_KEY, OPENROUTER_API_KEY, LOGS_ADMIN_TOKEN, SMTP_PASSWORD; SMTP_USERNAME
+also appeared. No secret values were retained in repository artifacts or sent
+externally. User was notified and explicit coordinated-rotation approval was
+requested asynchronously; no answer received and no credential/config change
+performed. Treat those values as exposed within session history. Before any
+authorized rotation, map consumers, issue/update credentials in safe order,
+verify without paid inference or email transmission, then revoke predecessors.
+Do not print/re-read unfiltered variables or silently rotate production access.
