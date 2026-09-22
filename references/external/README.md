@@ -10,7 +10,7 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
-| 1 | [Kaimen-Inc/Co-Scientist](https://github.com/Kaimen-Inc/Co-Scientist) | Not acquired | Pending |
+| 1 | [Kaimen-Inc/Co-Scientist](https://github.com/Kaimen-Inc/Co-Scientist) | [`cef5bcfec8820865855593b437a941005a9f961a`](https://github.com/Kaimen-Inc/Co-Scientist/commit/cef5bcfec8820865855593b437a941005a9f961a) | [Source mapped; comparison pending](kaimen-inc-co-scientist.md) |
 | 2 | [conradry/open-coscientist-agents](https://github.com/conradry/open-coscientist-agents) | Not acquired | Pending |
 | 3 | [llnl/open-ai-co-scientist](https://github.com/llnl/open-ai-co-scientist) | Not acquired | Pending |
 | 4 | [raktim-mondol/co-scientist](https://github.com/raktim-mondol/co-scientist) | Not acquired | Pending |
