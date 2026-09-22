@@ -4457,3 +4457,39 @@ launcher for literal OpenRouter credential patterns without printing contents.
 Commit only the frozen manifest and this handoff while trials run; keep live
 outputs uncommitted until terminal verification. Next consume this same batch's
 terminal results, preserving incomplete/failed evidence and reset times.
+
+### Cycle 183 — source-guard failures retained; launcher stop rule corrected
+
+Previous cycle made progress by freezing current sources and launching the
+batch. The original nemotron-challenge182-{1,2,3}.json files are terminal
+launcher failures, not scientific results: each records RuntimeError, "Project
+import escaped snapshot: co_scientist.cache_storage", with zero physical
+requests and no metrics. Retain all three unchanged. The source guard prevented
+inference under the wrong import/root configuration.
+
+The existing recovery1 invocation is distinct from those originals. Parent
+confirmed PID3065 and child3066 alive, most recently at elapsed 6m27s/6m20s;
+no completed recovery1 trial artifact was present at that observation. Do not
+restart or infer a result from missing output. The worker owns terminal waits.
+Independent Luna review and parent inspection verified current explicit
+QUALIFICATION_ROOT/PYTHONPATH and all 586 current manifest paths/hashes.
+
+The ephemeral launcher also ignored generic record.error_type values because
+its predicate recognized only named provider failures. The probe records caught
+errors while exiting zero, so the parent advanced through all three initial
+source-guard failures. An offline check reproduced this error before correction.
+The coordinator changed only /private/tmp/nemotron-challenge182-launcher.py:
+operational_error now returns bool(record.get("error_type")). Offline checks
+confirm source-escape, post-run source drift and rate-limit errors park, while
+a scientific gate failure with no operational error does not. Existing nonzero
+exit handling remains. This on-disk correction applies to future invocations;
+PID3065 already loaded the earlier function. Preserve and audit its actual
+outputs rather than claim the active process was patched. No runtime source,
+frozen input, threshold or manifest was modified. Before any further launch,
+use the corrected predicate and retain failed attempts instead of overwriting.
+
+This is a recovery correction, not model qualification. M1 remains 42 done/5
+open; campaign 57 open. Next consume the same recovery1 process's terminal
+evidence, stop on recorded operational failures, and evaluate valid trials
+against the unchanged scientific/control gates. User AGENTS.md edits remain
+untouched; no credential, production or approval state changed.
