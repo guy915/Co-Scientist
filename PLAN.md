@@ -4077,3 +4077,30 @@ four verifiable implementation items before coding. MCP SDK session context
 propagation must be demonstrated in running tests, not assumed from middleware.
 Frozen application sources remain unchanged while Liquid qualification runs.
 No implementation or deployment acceptance claimed; 61 campaign items remain.
+
+**2026-09-22 — Cycle 174, isolated implementation begun.**
+Previous cycle committed concrete implementation boundaries. Created detached
+worktree /private/tmp/coscientist-scope174 at 8bdd4cc9 so live qualification
+continues against unchanged main-checkout source. Sol/medium owns scope-a app
+persistence/identity tests and implementation. Luna/xhigh owns only the engine
+monotone context helper and new test_campaign_context.py, a bounded portion of
+scope-b. Integrate neither until reviewed and tested; do not tick the broader
+items from partial helpers. Probe PID97622/parent97621 confirmed live at elapsed
+13:17; no duplicate inference. Existing async_bridge.propagate_context replays
+variables without restoring prior pool-thread values, so scope-b must test a
+standard task after a campaign task on a reused thread before claiming isolation.
+
+Cycle174 implementation receipt: isolated worktree commits79d4a73a (persisted
+server-derived interview/run policy) and465000c7 (monotone engine context helper)
+are retained, not integrated. Coordinator independently reran the app persistence,
+auth, interview, run and migration tests:47passed; engine context/eligibility:
+70passed. Both commands used PYTHONPATH pointing to the isolated checkout and
+the existing main-venv interpreter. A first boundary test incorrectly used a free
+route and passed on missing catalog evidence; review rejected that proof. Its
+replacement uses an explicitly paid route, nonzero prices and exact rejection,
+and verifies ordinary sibling transport model/key. Worker red state for new
+context API was missing import; persistence red state was missing setting.
+No main source changed or milestone item ticked. Scope-a still awaits integration
+review; scope-b request/task propagation and thread-pool cleanup remain unbuilt.
+No inference was used by these tests. Next retain trial results and complete
+context propagation/MCP enforcement in the isolated checkout before integration.
