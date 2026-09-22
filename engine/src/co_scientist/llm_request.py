@@ -296,6 +296,7 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
 
     Returns:
         False when the model belongs to a known json_object-only family,
+        when it is an exact route with a known provider capability mismatch,
         when it is one of the declared OpenRouter gateway models, or when
         litellm's capability registry reports no json_schema support. True
         otherwise, including when the registry lookup itself raises, so the
@@ -303,6 +304,12 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
     """
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return False
+    if lowered == "openrouter/google/gemma-4-26b-a4b-it:free":
+        # The endpoint advertises ``response_format`` but not the
+        # ``structured_outputs`` capability required by native JSON Schema.
+        # The exact route returned HTTP 404 for a native schema request, so
+        # reuse the json_object shim without broadening this to Gemma models.
         return False
     if lowered in _GATEWAY_MODELS:
         # Declared rather than left to the registry lookup below: every

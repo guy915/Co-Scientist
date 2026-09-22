@@ -1,0 +1,24 @@
+{
+  "purpose": "Offline verification of exact Gemma26 route compatibility correction; not live qualification",
+  "cycle": 187,
+  "starting_commit": "518d30e9",
+  "route": "openrouter/google/gemma-4-26b-a4b-it:free",
+  "classification": "local design choice",
+  "implementation": "Reuse existing json_object shim for exact route only",
+  "worker_red": "3 expected failures before production edit",
+  "verification": {
+    "command": "PYTHON_DOTENV_DISABLED=1 PYTHONPATH=engine/src .venv/bin/python -m pytest -q engine/tests/test_llm_capability_shim.py engine/tests/test_llm_free_eligibility.py engine/tests/test_llm_gateway_fallback.py engine/tests/test_llm_capability_backfill.py engine/tests/test_llm_capability_truncate.py engine/tests/test_llm_capability_truncate_strings.py",
+    "result": "128 passed in 1.49s",
+    "ruff": "passed",
+    "diff_check": "passed",
+    "independent_review": "Luna/xhigh approved bounded production change"
+  },
+  "files_sha256": {
+    "engine/src/co_scientist/llm_request.py": "419b724938007141a607aa91b32ac94dbb1c48b1b972fa8f940cc0ba3afe595e",
+    "engine/tests/test_llm_capability_shim.py": "1a7177597a759dfe890a88a3b52e7f96a415d7a7e1ea7c21a03f72923eb52701",
+    "engine/tests/test_llm_free_eligibility.py": "f002fa48fd525234d4930e07c87d50e3432c6f3ecbd4756b4e94fc3f423a5f91"
+  },
+  "provider_requests": 0,
+  "live_acceptance": "pending after backoff; refresh catalog, endpoints and manifest before inference",
+  "production_deployed": false
+}

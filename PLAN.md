@@ -4619,3 +4619,36 @@ Independent fresh-context Luna/xhigh review approved the final diff and verified
 all seven CLI-contract cases. No release item is checked by these offline tests.
 User AGENTS.md edits remain
 untouched. M1 has43done/6open, campaign58open. Next: M1-04b-G1.
+
+
+### Cycle 187 — Exact Gemma schema route corrected offline
+
+Previous cycle was progress: committed R1 and the routing diagnosis in518d30e9.
+G1 · Luna/xhigh · offline correction verified, live acceptance open ·
+gemma26-offline187.json · next bounded free response after backoff.
+The public request boundary now uses the existing JSON-object shim only for
+openrouter/google/gemma-4-26b-a4b-it:free. Other Gemma routes retain registry
+selection. Alternatives were a blanket family exception or loosening provider
+parameter requirements; rejected both because evidence supports only this exact
+route and neither safeguard needs weakening. No model was added to the deployed
+chain, no scientific threshold changed, and schema validation/retries remain.
+
+Worker reproduced three failures before the seven-line production correction.
+Coordinator required and inspected exact-route free-admission and invalid-enum
+retry coverage in addition to schema injection and unaffected-route coverage.
+Independent fresh-context Luna/xhigh review approved the production change.
+Coordinator ran six affected suites:128pass; Ruff and git diff --check pass.
+Scoped cleanup replaced a verbose private-predicate test with public-boundary
+coverage; retained only the bounded runtime change, regression tests and evidence.
+No UI files changed. The current request-builder hash is in the receipt; future
+live manifests must be freshly pinned. Existing release checks predate this
+runtime change and affected checks must run again before release.
+
+No inference occurred. Gemma's most recent429 was today at10:17UTC; honor the
+cycle185 decision against another Gemma request today. G1 remains unchecked until
+a real free response is observed, and model qualification remains separate from
+this request-format correction. No deployment, credential/config mutation or
+production check occurred; cycle179 remains the latest release snapshot.
+M1 remains43done/6open; campaign58open. Continue independent M1 acceptance
+preparation or another candidate's justified bounded availability check during
+Gemma backoff, without repeating already-completed checks or polling trials.

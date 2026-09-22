@@ -33,3 +33,21 @@ versions. Keep `require_parameters=true`, all zero-price ceilings, schema
 validation and retry budgets. A later free live response after provider backoff
 is required before compatibility acceptance. No production setting or runtime
 code was changed by this diagnosis; no inference was performed.
+
+
+## Offline correction — cycle 187
+
+The request builder now selects the existing JSON-object shim only for
+`openrouter/google/gemma-4-26b-a4b-it:free` (case-insensitive). Other Gemma routes
+continue to use their existing registry decision. This is a provider capability
+exception, not adding Gemma to the deployed fallback chain.
+
+Before the next live compatibility attempt, refresh catalog and endpoint
+eligibility, use the current committed source and probe hash, and run the
+existing capability probe with `QUALIFICATION_CASES=json_off` in the established
+isolated environment. Stop on any nonzero exit or recorded error. Only expand
+to reasoning-on, tool, streaming and long-input cases after the bounded request
+succeeds. Retain the served model, request caps, usage and response artifact.
+The September 22 backoff decision remains in force; no live test occurred in
+cycle187. This change requires fresh affected release checks and source
+manifests before eventual deployment; cycle178 results predate this change.
