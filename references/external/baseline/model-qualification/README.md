@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 169): Nex Pro is accepted as the primary candidate; no
+Current status (cycle 177): Nex Pro is accepted as the primary candidate; no
 production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
@@ -37,9 +37,13 @@ production model chain or fallback is selected.
   [series closure](dots-challenge128-summary.json).
 - **Liquid LFM 2.5 2.6B:** all five interface checks pass across the original
   and post-reset artifacts; see [combined evidence](liquid-capabilities169-summary.json).
-  Scientific trial 1 then hit a daily platform cap after seven requests and
-  produced no report. It remains pending until the recorded reset; see the
-  [interruption receipt](liquid-challenge169-interruption.json).
+  The original scientific attempt hit a daily cap; its
+  [interruption receipt](liquid-challenge169-interruption.json) remains retained.
+  After reset, all three completed trials failed scientific gates: accuracy
+  .533/.500/.600 and contradiction recall .100/.000/.200. Scope controls also
+  failed in each trial. Liquid is unqualified under this configuration; see
+  [series 172 evidence](liquid-resume172.md). All recorded requests retained
+  zero-price caps; rate-limit and deterministic-fallback evidence is preserved.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 

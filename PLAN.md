@@ -4202,3 +4202,28 @@ the shared interpreter's editable engine from the frozen main checkout. Luna
 is checking that cause and, if confirmed, using a separate temporary venv with
 isolated editable imports before app verification. Do not alter the fixture
 to hide the environment mismatch or reinstall into the shared trial venv.
+
+**2026-09-22 — Cycle 177, policy integration and release checks.**
+Previous turn made progress with review closure, broad verification, typing
+fixes and retained Liquid trial2 evidence. Liquid runner is now terminal; a
+fresh process inventory finds no probe. Trial3 accuracy .60/recall .20 fails
+both gates, with75 zero-price-capped requests; all three artifacts and the
+series receipt are retained. Liquid remains scientifically unqualified.
+The CLI startup issue was confirmed as an ImportError from the old shared
+editable engine. A separate temporary venv fixed imports without fixture or
+shared-environment changes; full app suite1872passed. Reviewed isolated commits
+were cherry-picked onto the campaign branch through865adcf9, preserving user
+AGENTS.md. Luna owns the remaining engine-test mypy correction plus full
+typecheck/MCP/parity; another Luna owns lint/build/frontend/e2e. No inference
+or deployment is part of these checks. Release docs now reflect persisted
+policy and all three additive columns. Security config conflict remains
+unchanged (multi_agent_v2=true with agents.max_threads=6); no approval to edit
+user config has arrived, so the documented security preflight remains open.
+
+Cycle177 backend receipt: engine test typing correction committed8951b3ff.
+Full typecheck passes app496/engine560/evaluations60 files; test-mcp passes279
+tests and72-file mypy. Parity ledger passes but function-length test rejects
+_advance_stream at43 code lines against40. Luna owns a behavior-preserving
+helper extraction; no thresholds/skips will change. Frontend checks run
+independently; any browser result must identify whether its API loaded before
+or after that final stream refactor.

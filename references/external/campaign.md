@@ -350,10 +350,10 @@ default. Existing public-store migration coverage is in
 `app/tests/test_claim_verification_provenance.py`. The synthetic local WAL drill
 in `baseline/backup-readiness-cycle58.json` is preparation, not production proof.
 
-The reviewed isolated policy work at `afc6ac4b` additionally adds non-null text
+The reviewed policy work integrated through `865adcf9` additionally adds non-null text
 `execution_policy` columns on `runs` and `interviews`, defaulting existing rows
-to `standard`. These changes are not yet integrated. Include all three columns
-in the intended release's schema inventory once integrated; policy persistence
+to `standard`. Include all three columns in the intended release's schema
+inventory; policy persistence
 and recovery coverage lives in `app/tests/test_campaign_policy_persistence.py`
 and `app/tests/test_campaign_policy_integration.py`. Existing rows must retain
 standard behavior, while newly authorized campaign markers survive recovery.

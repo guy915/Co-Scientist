@@ -4,21 +4,21 @@ No PR exists for `feat/external-m01-free-baseline` as checked in cycle 171.
 Do not merge until model selection, local live acceptance and security coverage
 are complete. No configuration below has been applied to production.
 
-Cycle 175 update: isolated checkout `/private/tmp/coscientist-scope174` contains
-unintegrated policy commits `79d4a73a` and `465000c7`. The first adds `execution_policy`
-columns to runs and interviews, defaulting legacy rows to `standard`. Once
-integrated, include both columns in backup/schema and rollback verification;
-the earlier single-column migration inventory will no longer be complete.
-Context propagation and MCP coexistence are still under implementation.
+Cycle 177 update: reviewed policy changes are integrated through `865adcf9`.
+They add `execution_policy` columns to runs and interviews, defaulting legacy
+rows to `standard`; include both in backup/schema and rollback verification.
+Persisted policy now reaches request, deferred, durable and authenticated MCP
+boundaries. Production configuration and live acceptance remain pending.
 
 ## Prepared PR description
 
 System-default free routes previously relied on static pricing and several app,
 tool and evaluation paths could bypass cost admission. This change validates
 current OpenRouter eligibility and attaches zero-price ceilings at request
-boundaries, isolates credentials and caches in campaign-mode processes, and
-restricts retrieval and workspace execution in those processes. Coexistence
-with ordinary BYOK in shared production remains an open gate. Scientific assessment changes preserve
+boundaries, isolates credentials and caches for campaign requests/tasks, and
+restricts their retrieval and workspace execution. Persisted server-derived
+policy preserves ordinary BYOK in shared services; deployed coexistence remains
+an open gate. Scientific assessment changes preserve
 located evidence and record how contradictions were verified.
 
 Offline component results are retained in `release-verification140.json`.
@@ -35,7 +35,8 @@ passing. Final model configuration and live workflow evidence remain pending.
 | CHAT_MODEL_NAME | Explicit qualified model, never inherited Minimax |
 | SEMANTIC_SAFETY_MODEL | Explicit qualified model, never inherited Minimax |
 | CLAIM_VERIFIER_MODEL | Explicit qualified model or documented primary inheritance |
-| COSCIENTIST_REQUIRE_FREE_MODELS | Enable for campaign API/MCP execution; verify BYOK separation before choosing shared production scope |
+| COSCIENTIST_REQUIRE_FREE_MODELS | Keep global flag off in shared API/MCP; persisted policy enables campaign scope per request/task |
+| CAMPAIGN_RESEARCHER_IDS | JSON array of verified bearer subjects for campaign-owned runs; unsigned compatibility IDs cannot originate campaign policy |
 | COSCIENTIST_CAMPAIGN_MCP_URL | Exact existing deployed MCP /mcp URL after server policy verification |
 | RAILWAY_RUN_UID | Preserve 0 on API |
 | API replicas | Preserve exactly 1 |
@@ -55,7 +56,7 @@ before applying settings; system-default free admission exists independently.
 3. Complete security coverage for the actual release revision, including changes
    after the older fixed scan target. Prepare the PR with exact test evidence.
 4. Immediately before merge, verify the consistent SQLite backup described in
-   campaign.md. Preserve the additive verification_method column on rollback.
+   campaign.md. Preserve all three additive columns on rollback.
 5. Deploy/verify MCP policy before enabling API campaign admission. Preserve
    service invariants; verify the API and frontend revisions and actual settings.
 6. Run production smoke and the campaign-owned public goal with notifications
