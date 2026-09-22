@@ -4239,3 +4239,28 @@ model-selection or production-release items. Final full test-all remains in
 progress at /private/tmp/coscientist-check177-test-all-final.log; no success is
 claimed before exit. Frontend build and718 tests passed with unchanged frontend
 sources. Original failed lint/parity/test invocations remain retained.
+
+**2026-09-22 — Cycle 178, remaining fallback qualification.**
+Previous turn made concrete progress: four policy implementation items accepted
+with reviewed code and public-boundary evidence, scientific series172 closed,
+release checks advanced. Final full test-all is still owned by its existing
+Luna worker; no restart. Reused Luna owns a fresh public catalog comparison and
+at most one bounded capability batch for the strongest still-inconclusive or
+new zero-price candidate. No new scientific three-trial batch is authorized by
+this dispatch; retain current source unchanged until its batch ends. Honor
+rate limits, verify current complete zero pricing, isolate credentials, preserve
+wire caps and served-model evidence. Candidate result does not by itself
+complete scientific fallback qualification. Original180turn limit remains;
+unresolved work will remain explicitly incomplete at that limit.
+
+Cycle178 final backend result: make test-all passed on integrated code:
+engine3134passed/2skipped, app1873passed, MCP279passed plus72-file mypy and
+parity evaluation tests. Final9-browser suite passed on the same runtime
+source; build718frontend tests passed with unchanged frontend. Eval-smoke
+rerun passed. Full lint still flags four campaign-touched files (runs_chat,
+test_async_bridge, test_campaign_policy_scope, test_durable_free_admission),
+so these are unfinished formatting work, not unrelated failures. A fresh full
+typecheck found the new explicit-close test calls aclose on a value annotated
+AsyncIterator; targeted source-only mypy had missed that test. Fix accurate
+typing and formatting after the live capability batch ends, then rerun lint,
+typecheck and affected tests. No skips, ignores or assertion relaxation.

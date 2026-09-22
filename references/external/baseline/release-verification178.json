@@ -1,0 +1,69 @@
+{
+  "purpose": "Cycle178 verification receipt; not release or live workflow acceptance",
+  "runtime_commit": "d8eaf38ba03e47c5ae7ab3419c769ec6e3a36961",
+  "frontend_checks_commit": "865adcf9",
+  "frontend_reuse": "frontend sources unchanged through runtime_commit",
+  "checks": [
+    {
+      "command": "make test-all",
+      "status": "passed",
+      "details": {
+        "engine_passed": 3134,
+        "engine_skipped": 2,
+        "app_passed": 1873,
+        "mcp_passed": 279,
+        "parity": "passed"
+      },
+      "log": "/private/tmp/coscientist-check177-test-all-final.log",
+      "log_sha256": "17f3b1cd891e42d222918eeb06cb908538f71cb55d06a9ef4ce595f54577501b"
+    },
+    {
+      "command": "make e2e",
+      "status": "passed",
+      "details": {
+        "passed": 9
+      },
+      "log": "/private/tmp/coscientist-check177-e2e-final.log",
+      "log_sha256": "1aaff561b376b4f7169b68f864dd1da562ec8e10711a24b9e689d88111e67945"
+    },
+    {
+      "command": "make build",
+      "status": "passed",
+      "details": {},
+      "log": "/private/tmp/coscientist-check177-build.log",
+      "log_sha256": "009a2963d8ec3a921ec1c4b503a02851da40866f025d85a2ca047dd083320332"
+    },
+    {
+      "command": "bun run test (frontend)",
+      "status": "passed",
+      "details": {
+        "passed": 718
+      },
+      "log": "/private/tmp/coscientist-check177-frontend.log",
+      "log_sha256": "347f88f590714627ccaaad121b3880455db18db49ca623b6751fe40816d71c30"
+    },
+    {
+      "command": "make eval-smoke",
+      "status": "passed",
+      "details": {},
+      "log": "/private/tmp/coscientist-check178-eval-smoke.log",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6"
+    },
+    {
+      "command": "make typecheck",
+      "status": "failed",
+      "details": {
+        "reason": "new test calls aclose on AsyncIterator annotation"
+      },
+      "log": "/private/tmp/coscientist-check178-typecheck.log",
+      "log_sha256": "19d848878c2020a900dececfb42c47e6be321bd92ec9b4e9293abda3b7bf3253"
+    }
+  ],
+  "lint": "pending fixes to four campaign-touched files",
+  "limitations": [
+    "No production deployment or live scientific workflow verified",
+    "No new skips or relaxed assertions",
+    "Full backend command passed; typecheck and lint remain independent failures",
+    "Raw logs reside in local temporary storage; hashes preserve identity"
+  ]
+}
