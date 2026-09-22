@@ -20,7 +20,8 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import credentials
+from app import credentials, store
+from app.execution_policy import STANDARD, scoped_execution_policy
 from app.interviews_model import ProseSink, ReasoningSink
 from app.sse import sse_frame
 
@@ -92,7 +93,16 @@ async def _advance_stream(
         ``reasoning`` and ``chunk`` frames, then one terminal ``interview``
         or ``error`` frame.
     """
-    with credentials.scoped_byok(byok):
+    interview = store.get_interview(interview_id)
+    execution_policy = (
+        str(interview["execution_policy"])
+        if interview is not None
+        else STANDARD
+    )
+    with (
+        scoped_execution_policy(execution_policy),
+        credentials.scoped_byok(byok),
+    ):
         queue: asyncio.Queue[_Fragment | None] = asyncio.Queue()
 
         async def _on_reasoning(fragment: str) -> None:

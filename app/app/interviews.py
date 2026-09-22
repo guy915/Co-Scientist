@@ -27,7 +27,7 @@ from app import (
     store,
 )
 from app.auth import client_id, require_client_scope
-from app.execution_policy import CAMPAIGN, resolve_execution_policy
+from app.execution_policy import CAMPAIGN, STANDARD, resolve_execution_policy
 from app.interviews_documents import (
     _attach_documents as _attach_documents,
 )
@@ -342,7 +342,7 @@ def _interview_turn_completed(
 
 
 def _request_byok(
-    request: Request,
+    request: Request, execution_policy: str = STANDARD
 ) -> credentials.ByokCredential | None:
     """Parse optional BYOK headers for an interview turn, 400 if malformed.
 
@@ -350,9 +350,17 @@ def _request_byok(
     per-request header credential (nothing is stored server-side).
     """
     try:
-        return credentials.credential_from_headers(request.headers)
+        credential = credentials.credential_from_headers(request.headers)
     except credentials.ByokRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if execution_policy == CAMPAIGN and credential is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "campaign interviews cannot use bring-your-own-key credentials"
+            ),
+        )
+    return credential
 
 
 @router.post("")
@@ -372,14 +380,7 @@ async def create_interview(
     """
     owner = require_client_scope(request)
     execution_policy = resolve_execution_policy(request)
-    byok = _request_byok(request)
-    if execution_policy == CAMPAIGN and byok is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "campaign interviews cannot use bring-your-own-key credentials"
-            ),
-        )
+    byok = _request_byok(request, execution_policy)
     # Refused before the interview row exists, so a bad id leaves nothing.
     documents.resolve_owned_documents(body.document_ids, owner)
     interview = store.create_interview(
@@ -452,8 +453,8 @@ async def add_interview_turn(
     interview_id: str, body: InterviewTurnRequest, request: Request
 ) -> StreamingResponse:
     """Append a scientist answer and stream the Agent's next turn."""
-    byok = _request_byok(request)
     interview = _owned_interview(interview_id, request)
+    byok = _request_byok(request, str(interview["execution_policy"]))
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
     _attach_documents(interview_id, body.document_ids, request)

@@ -32,7 +32,11 @@ from app import (
     store,
 )
 from app.auth import client_id, require_client_scope
-from app.execution_policy import resolve_execution_policy
+from app.execution_policy import (
+    STANDARD,
+    resolve_execution_policy,
+    scoped_execution_policy,
+)
 from app.goal_restatement import generate_goal_restatement
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
@@ -78,7 +82,12 @@ async def _populate_run_title(
         goal: The run's research goal.
         byok: The run's credential, when it was created with one.
     """
-    with credentials.scoped_byok(byok):
+    run = store.get_run(run_id)
+    execution_policy = run.execution_policy if run is not None else STANDARD
+    with (
+        scoped_execution_policy(execution_policy),
+        credentials.scoped_byok(byok),
+    ):
         title = await generate_run_title(goal)
     if title:
         store.set_run_title(run_id, title)
@@ -105,7 +114,12 @@ async def _populate_goal_restatement(
         goal: The run's research goal.
         byok: The run's credential, when it was created with one.
     """
-    with credentials.scoped_byok(byok):
+    run = store.get_run(run_id)
+    execution_policy = run.execution_policy if run is not None else STANDARD
+    with (
+        scoped_execution_policy(execution_policy),
+        credentials.scoped_byok(byok),
+    ):
         restatement = await generate_goal_restatement(goal)
     if restatement:
         store.set_run_goal_restatement(run_id, restatement)
@@ -284,7 +298,8 @@ async def create_run(
     execution_policy = resolve_execution_policy(request, interview)
     # Validated BEFORE any database write: a rejected key must surface as
     # a clean 4xx here, never as a stored run that fails mid-execution.
-    byok = await _resolve_byok(request, execution_policy)
+    with scoped_execution_policy(execution_policy):
+        byok = await _resolve_byok(request, execution_policy)
     staged = _run_setup_documents(req, interview, client_id(request))
     run = _persist_new_run(
         req,

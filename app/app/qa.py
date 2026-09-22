@@ -20,6 +20,7 @@ from typing import Any
 
 from app import credentials, store
 from app.config import settings
+from app.execution_policy import STANDARD, scoped_execution_policy
 from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
@@ -392,7 +393,12 @@ async def stream_answer(
         SSE ``data:`` frames.
     """
     try:
-        with credentials.scoped_byok(byok):
+        run = store.get_run(run_id)
+        execution_policy = run.execution_policy if run is not None else STANDARD
+        with (
+            scoped_execution_policy(execution_policy),
+            credentials.scoped_byok(byok),
+        ):
             deltas = stream_llm_deltas(
                 settings.effective_chat_model,
                 inputs.system_prompt,

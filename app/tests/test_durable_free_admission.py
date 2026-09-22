@@ -28,9 +28,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     from app import claim_verifier, claim_verifier_batch, safety_semantic
 
     monkeypatch.setattr(settings, "byok_encryption_key", "campaign-test-secret")
-    monkeypatch.setenv(
-        "COSCIENTIST_REQUIRE_FREE_MODELS", "0" if mode == "user_byok" else "1"
-    )
+    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
     monkeypatch.setattr(
         llm_free_catalog,
@@ -45,7 +43,17 @@ async def test_durable_auxiliary_admission_with_stored_credential(
             }
         },
     )
-    run = store.create_run("public research", "standard", "engine", {})
+    run = store.create_run(
+        "public research",
+        "standard",
+        "engine",
+        {},
+        store.RunCreateOptions(
+            execution_policy=(
+                "standard" if mode == "user_byok" else "campaign"
+            )
+        ),
+    )
     credential = credentials.ByokCredential(
         "openrouter",
         "stored-test-key",

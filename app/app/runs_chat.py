@@ -25,6 +25,7 @@ from app import (
     run_start_announcement,
     store,
 )
+from app.execution_policy import CAMPAIGN
 from app.runs_models import (
     AskRequest,
     SendMessageRequest,
@@ -155,7 +156,7 @@ def _request_byok(
 
 
 def _resolve_qa_byok(
-    run_id: str, request: Request
+    run: store.RunRow, request: Request
 ) -> credentials.ByokCredential | None:
     """Resolve the credential a Q&A answer runs under, if any.
 
@@ -163,8 +164,14 @@ def _resolve_qa_byok(
     run's key across sessions; a header key only covers a run that has
     none stored.
     """
-    byok = credentials.get_run_credential(run_id)
-    return byok if byok is not None else _request_byok(request)
+    byok = credentials.get_run_credential(run.id)
+    credential = byok if byok is not None else _request_byok(request)
+    if run.execution_policy == CAMPAIGN and credential is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="campaign runs cannot use bring-your-own-key credentials",
+        )
+    return credential
 
 
 def _persist_question(run_id: str, content: str) -> store.MessageRow:
@@ -208,13 +215,12 @@ async def ask_question(
     The response is streamed back to the caller.
     """
     run = _run_or_404(run_id)
+    byok = _resolve_qa_byok(run, request)
     question_msg = _persist_question(run_id, req.question)
 
     # Prompt assembly and streaming are delegated to qa.py; the endpoint
     # only gathers state and wires the SSE response.
     context = _gather_qa_context(run)
-    byok = _resolve_qa_byok(run_id, request)
-
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
     return _live_qa_response(req, run_id, question_msg, context, byok)
@@ -235,10 +241,11 @@ async def announce_start(
     here can change that.
     """
     run = _run_or_404(run_id)
+    byok = _resolve_qa_byok(run, request)
     prompt_msg = run_start_announcement.persist_prompt(run_id, req.prompt)
     return StreamingResponse(
         run_start_announcement.stream_announcement(
-            run, prompt_msg.id, _resolve_qa_byok(run_id, request)
+            run, prompt_msg.id, byok
         ),
         media_type="text/event-stream",
     )

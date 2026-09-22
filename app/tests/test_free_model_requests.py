@@ -1,5 +1,7 @@
 """App completion boundaries enforce the engine's zero-cost policy."""
 
+import asyncio
+import os
 from types import SimpleNamespace
 from typing import Any
 
@@ -15,6 +17,7 @@ from app import (
     title_gen,
 )
 from app.config import settings
+from app.execution_policy import scoped_execution_policy
 
 MODEL = "openrouter/campaign/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]
@@ -165,6 +168,39 @@ async def test_user_byok_stays_separate_outside_campaign(
     ):
         await _invoke(kind, credential.model)
     assert captured == []
+
+
+async def test_concurrent_campaign_and_standard_byok_stay_isolated(
+    monkeypatch: pytest.MonkeyPatch,
+    captured: list[dict[str, Any]],
+) -> None:
+    """A campaign refusal cannot spill into a concurrent paid BYOK task."""
+    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    credential = credentials.ByokCredential(
+        "openrouter", "test-user-key", "openrouter/campaign/paid"
+    )
+
+    async def campaign_call() -> None:
+        with (
+            scoped_execution_policy("campaign"),
+            credentials.scoped_byok(credential),
+            pytest.raises(Exception, match="zero-cost"),
+        ):
+            await _invoke("title", credential.model)
+
+    async def standard_call() -> None:
+        with (
+            scoped_execution_policy("standard"),
+            credentials.scoped_byok(credential),
+        ):
+            await _invoke("title", credential.model)
+
+    await asyncio.gather(campaign_call(), standard_call())
+
+    assert len(captured) == 1
+    assert captured[0]["api_key"] == credential.api_key
+    assert captured[0]["model"] == credential.model
+    assert os.getenv("COSCIENTIST_REQUIRE_FREE_MODELS") is None
 
 
 async def test_free_qa_tool_continuation_keeps_admission(
