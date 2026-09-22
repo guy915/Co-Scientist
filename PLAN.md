@@ -4136,3 +4136,24 @@ policy when a persisted row disappears. App owner is reproducing/fixing both;
 scope-d owner is checking public-request/durable-recovery coexistence through
 actual admission with paid-route transport spies. No live inference or main
 source changes for this work, no acceptance item checked yet.
+
+Cycle175 integrated boundary receipt: isolated commit9f187557 adds an offline
+public-create/durable-recovery test. Real HTTP identity resolution, persisted
+markers, expired leases and execute_engine_task scopes feed real paid-price
+admission, with a substituted node dispatch and provider transport spy. The
+campaign rejects paid pricing before transport; ordinary BYOK reaches its
+exact model/key. Coordinator reran46 integration/persistence/durable/free-request
+tests successfully. This proves the boundary contract, not a live scientific
+workflow or deployed acceptance. App review corrections are still under final
+test/review; no integration or milestone completion claimed.
+
+Cycle175 correction receipt: isolated commitafc6ac4b fixes both app findings.
+Trusted policy is captured before deferred work; missing-row compatibility and
+durable paths abort before provider dispatch. Held-hypothesis safety submissions
+each propagate the caller context. Worker records96 affected tests passing;
+coordinator reran25 scope/escalation/bridge/integration tests, all passed.
+Independent final semantic review remains pending. Main source remains frozen;
+all isolated commits must be integrated and release-checked after qualification
+finishes. No full-suite, live workflow, deployment or milestone acceptance is
+inferred from these targeted tests. Next: retain reviewer outcome, finish live
+qualification via its existing runner, then integrate and verify scope-a/d.

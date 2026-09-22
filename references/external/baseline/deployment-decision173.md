@@ -35,9 +35,11 @@ turns, retry/edit streams (`interviews.py`, `interviews_stream.py`,
 background work (`runs_crud.py`, `runs_crud_resolve.py`); run-bound Q&A,
 announcement and direct safety/contribution calls (`runs_chat.py`, `qa.py`,
 `run_start_announcement.py`, `runs_contrib.py`); and the whole durable dispatch
-in `engine_tasks.execute_engine_task`. Each detached/background generator loads
-the persisted marker itself. Existing `async_bridge.py` context replay then
-covers claim/safety off-loop work. Startup resume, manual resume, and expired
+in `engine_tasks.execute_engine_task`. Deferred work captures the authorized
+persisted marker before scheduling; direct compatibility calls reload it and
+abort if the row disappeared. Missing rows never imply standard policy.
+`async_bridge.py` context replay resets every value afterward, including inside
+the nested safety escalation pool. Startup resume, manual resume, and expired
 lease reclaim need no special flag: every claimed task reloads its run row.
 
 ## MCP coexistence
@@ -55,7 +57,8 @@ tool surface; request policy performs the filtering and enforcement.
 `engine/src/co_scientist/mcp_campaign.py` sends both headers for its root policy
 probe and transport through `mcp_client_helpers.py`. Replace `mcp_client.py`'s
 single `_global_client` with separate clients keyed by resolved server
-configuration and campaign boolean.
+configuration and campaign boolean, partitioned by event loop because clients
+own asyncio locks and sessions. Closed-loop entries are purged.
 Never mutate headers on an initialized client: its cached tool objects own the
 session. Campaign discovery stays public-tool filtered; ordinary discovery and
 tools stay unchanged. This prevents a standard cached session/tool from leaking
