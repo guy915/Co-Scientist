@@ -4157,3 +4157,21 @@ all isolated commits must be integrated and release-checked after qualification
 finishes. No full-suite, live workflow, deployment or milestone acceptance is
 inferred from these targeted tests. Next: retain reviewer outcome, finish live
 qualification via its existing runner, then integrate and verify scope-a/d.
+
+**2026-09-22 — Cycle 176, isolated release verification.**
+Previous turn made progress: committed app/MCP policy enforcement, regression
+corrections, integrated recovery evidence and durable records. Existing live
+qualification child7483/parent97621 confirmed running at40:14 elapsed; do not
+restart it. Final semantic reviewer was idle because a message does not start
+a completed agent; explicitly resumed the same reviewer with followup_task.
+Luna/xhigh now owns full test-all verification of isolated HEADafc6ac4b using
+the existing interpreters and explicit isolated-source PYTHONPATH, followed by
+typecheck/eval-smoke where feasible. No source edits, shared dependency changes,
+inference or deployment authorized by that verification dispatch. Main source
+remains frozen; user AGENTS.md edit remains untouched.
+
+Cycle176 semantic review closed both findings atafc6ac4b with no unresolved
+material findings. Updated campaign migration preparation to include the two
+isolated execution_policy columns alongside claim verification provenance;
+production backup and migration verification remain release gates. This is
+preparation only, not evidence of a production backup or completed release.

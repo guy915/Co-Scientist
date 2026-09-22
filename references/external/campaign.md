@@ -343,12 +343,20 @@ they do not establish improved live scientific quality.
 
 ### M1 database release preparation
 
-The campaign adds only `claim_evidence.verification_method`, a non-null text
+The main campaign branch adds `claim_evidence.verification_method`, a non-null text
 column defaulting to `legacy_unknown`. Existing rows are not scientifically
 reclassified. The migration is idempotent; old named-column inserts receive the
 default. Existing public-store migration coverage is in
 `app/tests/test_claim_verification_provenance.py`. The synthetic local WAL drill
 in `baseline/backup-readiness-cycle58.json` is preparation, not production proof.
+
+The reviewed isolated policy work at `afc6ac4b` additionally adds non-null text
+`execution_policy` columns on `runs` and `interviews`, defaulting existing rows
+to `standard`. These changes are not yet integrated. Include all three columns
+in the intended release's schema inventory once integrated; policy persistence
+and recovery coverage lives in `app/tests/test_campaign_policy_persistence.py`
+and `app/tests/test_campaign_policy_integration.py`. Existing rows must retain
+standard behavior, while newly authorized campaign markers survive recovery.
 
 Before merging to the auto-deployed production branch, create a consistent
 backup using SQLite's online backup API from a separate read-only connection;
@@ -359,7 +367,7 @@ rows into logs or campaign artifacts. Verify the completed backup with
 retain the pre-migration schema identity. Do not run VACUUM or a forced checkpoint
 in the serving process. If consistent backup verification fails, keep release open.
 
-The additive column normally remains during application rollback; do not drop it
+The additive columns normally remain during application rollback; do not drop them
 or restore an older data snapshot merely to roll back code. Restoring data would
 lose writes made after the backup and requires a separately justified recovery.
 Before release, identify an audited zero-cost recovery code/configuration target;
