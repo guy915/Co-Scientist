@@ -4040,3 +4040,23 @@ availability probe succeeded. No inference occurred. Preparation used offline
 settings and a temporary demo-seeding override; neither is live acceptance.
 All three services stopped and ports are clear. Security config approval remains
 pending; release scope implementation is independent of the provider reset.
+
+**2026-09-22 — Cycle 172, post-reset qualification recovery.**
+Previous work made progress through committed local startup evidence and a
+concrete production-scope gap. At 06:38 UTC the recorded provider reset has
+elapsed; no completion inferred from elapsed time. Source remains identical to
+ee775074 under app/engine/evaluations. Dispatched bounded Luna/xhigh recovery of
+Liquid trials to fresh series172 artifacts, requiring process de-duplication,
+source hashes and fresh zero-price admission before transport. A separate
+read-only Luna investigation evaluates the minimum campaign/BYOK deployment
+boundary without changing the frozen trial implementation. Security config
+approval remains unanswered; agents.max_threads=6 is still present alongside
+native V2. No security coverage or runtime-status change claimed.
+
+Cycle172 continuation: actual probe process PID97622 (parent97621) confirmed
+live by process inventory, elapsed 05:23, running probe_citation_panel.py.
+Current log /private/tmp/coscientist-liquid-challenge172-1.log; no terminal
+artifact yet. Retain the existing runner; do not launch duplicates. Source
+remains frozen. The deployment-scope172.md investigation proposes run-scoped
+context reusing credential/recovery boundaries, but MCP policy and trusted
+entry-point design remain unresolved; proposal is not implementation acceptance.
