@@ -4324,3 +4324,41 @@ performed. Treat those values as exposed within session history. Before any
 authorized rotation, map consumers, issue/update credentials in safe order,
 verify without paid inference or email transmission, then revoke predecessors.
 Do not print/re-read unfiltered variables or silently rotate production access.
+
+### Cycle 180 — requested stopping point; campaign incomplete
+
+The authorized 180-cycle limit is reached. Stop campaign execution without
+checking off unfinished work or extending the limit. Starting commit: 97d0ec68;
+this cycle changes only this handoff. M1 has 42 completed and 5 open items;
+the campaign has 57 open items. No milestone is fully verified. The nine
+external repositories remain uninvestigated.
+
+Restart from `references/external/baseline/release-handoff171.md`,
+`scope-acceptance177.md`, `release-verification178.json`, and
+`release-state179.json` in the same baseline directory. Runtime implementation
+ends at f9c3b7fb; local required checks passed with reuse limits recorded in
+the verification receipt. Production still serves 7dce086d as observed in
+cycle 179; no PR, merge, deployment, migration, or production live acceptance
+was performed. Preserve the unrelated user edit to AGENTS.md.
+
+Remaining M1 work: finish interface/model qualification and choose a verified
+free primary/fallback configuration; complete the local public live lifecycle;
+clear release gates, merge and deploy, and observe production acceptance;
+freeze the resulting baseline. Nex Pro has retained scientific qualification;
+Liquid failed the declared criteria. Nemotron overload and Qwen shared-pool
+429 results remain inconclusive, not rejected. Recheck current free eligibility
+before any further inference; never use paid fallbacks or lower thresholds.
+
+Release prerequisites still include the security-plugin preflight/config
+approval, the actual final-range scan, a consistent production backup before
+the additive migrations, authenticated MCP secret provisioning, and a verified
+zero-cost rollback configuration. The separate cycle-179 credential exposure
+requires the pending coordinated-rotation decision; no rotation occurred.
+
+A single process-name check found no matching campaign model-probe processes.
+All recorded model batches are terminal. The automation view rendered a card
+but returned no machine-readable status; the expected local TOML was absent,
+so this cycle does not claim that the old reminder's status was verified.
+No new timer, automation, model batch, or worker was started. Resume only with
+renewed execution authorization; preserve the Luna/xhigh default worker and
+Sol/medium heavy-worker preference, and switch to orchestration after M1.
