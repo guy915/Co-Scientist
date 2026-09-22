@@ -4113,3 +4113,26 @@ All74 physical request records retain zero prompt/completion/request caps.
 Raw SHA25662df039fd37a2536d2bf4fe73cd48dfb709e74bf19526415bd59691f226dfe83.
 Retain failed trial unchanged; remaining trials characterize consistency, not
 permission to average away failure. Liquid remains unqualified.
+
+**2026-09-22 — Cycle 175, policy propagation implementation.**
+Previous cycle made progress with two isolated implementation commits and the
+retained failed Liquid trial. Same trial parent97621 now owns live child7483
+(07:51 elapsed when inspected), so the batch advanced without duplicate launch.
+Continue observing its existing worker. In isolated checkout scope174, Sol/medium
+owns app-only request/stream/background/task propagation and reused-thread reset
+tests. A separate Sol/medium heavy worker owns MCP policy/auth and engine MCP
+client partitioning with real SDK session tests. No overlapping file ownership;
+llm_free_policy helper is already committed. Main source remains frozen. No
+item checked before integration and public-boundary verification.
+
+Cycle175 review receipt: isolated commits59feacd4 (authenticated request-scoped
+MCP and per-event-loop/config/policy clients) andd3176477 (app propagation and
+context reset) are implemented, not integrated. Coordinator reran32 engine
+context/client/admission tests and11 MCP auth/real-SDK tests; all passed. The
+real SDK test observes concurrent campaign/ordinary policies and an ordinary
+request afterward. Independent app review found two defects: nested safety
+pool workers lose context, and deferred work incorrectly assumes standard
+policy when a persisted row disappears. App owner is reproducing/fixing both;
+scope-d owner is checking public-request/durable-recovery coexistence through
+actual admission with paid-route transport spies. No live inference or main
+source changes for this work, no acceptance item checked yet.

@@ -4,6 +4,13 @@ No PR exists for `feat/external-m01-free-baseline` as checked in cycle 171.
 Do not merge until model selection, local live acceptance and security coverage
 are complete. No configuration below has been applied to production.
 
+Cycle 175 update: isolated checkout `/private/tmp/coscientist-scope174` contains
+unintegrated policy commits `79d4a73a` and `465000c7`. The first adds `execution_policy`
+columns to runs and interviews, defaulting legacy rows to `standard`. Once
+integrated, include both columns in backup/schema and rollback verification;
+the earlier single-column migration inventory will no longer be complete.
+Context propagation and MCP coexistence are still under implementation.
+
 ## Prepared PR description
 
 System-default free routes previously relied on static pricing and several app,
