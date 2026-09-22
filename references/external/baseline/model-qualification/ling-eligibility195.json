@@ -1,0 +1,184 @@
+{
+  "purpose": "Fresh credential-free zero-price eligibility before bounded Ling Sante qualification decision.",
+  "checked_at": "2026-09-22T12:28:26.892174+00:00",
+  "source_commit": "49111a15ba372842a3316ae8edcbd59c8807e55e",
+  "catalog_source": "https://openrouter.ai/api/v1/models",
+  "catalog_raw_sha256": "37b63e5670f95b3526ba65b6d316fd0d184c03460207fb476097a95e7d3b0945",
+  "catalog_entries": 444,
+  "requested_model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+  "raw_catalog_row": {
+    "id": "inclusionai/ling-3.0-flash-sante:free",
+    "canonical_slug": "inclusionai/ling-3.0-flash-sante-20260904",
+    "hugging_face_id": null,
+    "name": "inclusionAI: Ling 3.0 Flash Sante (free)",
+    "created": 1788545946,
+    "description": "Ling 3.0 Flash Sante is a health and medicine-focused mixture-of-experts model from InclusionAI, built on Ling 3.0 Flash with 5.1B active parameters out of 124B total. It is designed for...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "repetition_penalty",
+      "seed",
+      "stop",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/inclusionai/ling-3.0-flash-sante-20260904/endpoints"
+    },
+    "reasoning": {
+      "mandatory": false,
+      "default_enabled": true
+    }
+  },
+  "endpoint_source": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-sante:free/endpoints",
+  "endpoint_http_status": 200,
+  "endpoint_payload": {
+    "data": {
+      "id": "inclusionai/ling-3.0-flash-sante:free",
+      "name": "inclusionAI: Ling 3.0 Flash Sante (free)",
+      "created": 1788545946,
+      "description": "Ling 3.0 Flash Sante is a health and medicine-focused mixture-of-experts model from InclusionAI, built on Ling 3.0 Flash with 5.1B active parameters out of 124B total. It is designed for...",
+      "architecture": {
+        "tokenizer": "Other",
+        "instruct_type": null,
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "endpoints": [
+        {
+          "name": "Novita | inclusionai/ling-3.0-flash-sante-20260904:free",
+          "model_id": "inclusionai/ling-3.0-flash-sante:free",
+          "model_name": "inclusionAI: Ling 3.0 Flash Sante",
+          "context_length": 262144,
+          "pricing": {
+            "prompt": "0",
+            "completion": "0",
+            "discount": 0
+          },
+          "provider_name": "Novita",
+          "tag": "novita",
+          "quantization": "unknown",
+          "max_completion_tokens": 32768,
+          "max_prompt_tokens": null,
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "stop",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "top_k",
+            "repetition_penalty",
+            "tools",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs"
+          ],
+          "supports_tool_choice": {
+            "none": true,
+            "auto": true,
+            "required": true,
+            "function": true
+          },
+          "status": 0,
+          "uptime_last_30m": 100,
+          "uptime_last_5m": 100,
+          "uptime_last_1d": 99.97926315061865,
+          "supports_implicit_caching": false,
+          "supports_voice_cloning": false,
+          "latency_last_30m": null,
+          "throughput_last_30m": null
+        }
+      ]
+    }
+  },
+  "runtime_verify_model": {
+    "accepted": true,
+    "catalog_row_pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "catalog_row_architecture": {
+      "modality": "text->text",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "repetition_penalty",
+      "seed",
+      "stop",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ]
+  },
+  "schema_selection": {
+    "offline_registry_model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+    "supports_json_schema_response_format": false,
+    "catalog_advertises_response_format": false,
+    "catalog_advertises_structured_outputs": false,
+    "endpoint_advertises_response_format": false,
+    "endpoint_advertises_structured_outputs": false,
+    "endpoint_advertises_tools": true
+  },
+  "credential_used": false,
+  "live_calls_made": 0,
+  "decision": "incompatible_for_scientific_probe"
+}

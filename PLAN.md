@@ -4802,3 +4802,40 @@ zero-price eligibility, isolated services/state and no paid fallback. Do not
 ask again for this same action. Other unrelated approvals are not inferred.
 Luna/xhigh owns local service preparation; coordinator owns browser acceptance
 and release integration. Full M1 gates and2,000total-cycle authorization remain.
+
+
+Cycle195 update: user separately approved removing only agents.max_threads=6
+from ~/.codex/config.toml. Coordinator verified parsed config equality except
+that key, retained restricted /private/tmp/coscientist-config-before195.toml,
+and preserved V2. Existing security scan37397870-2c59-4fa1-b638-30445fd598f6 now
+passes preflight; Sol/medium continues its immutable7dce086d..c3cdef26 range.
+Later changes require supplementary coverage, not mislabeling old scan coverage.
+
+Backoff decision: cycle185's 'no rerun plannedtoday' was our conservative plan,
+not a provider reset deadline. With nearly2hours elapsed, explicit new approval
+and a corrected JSON-object request, one bounded Gemma retry was justified.
+Freshzero catalog+endpoint passed; one capped call still got shared-pool429.
+No retries or later cases were sent, and launcher exited1 as fixed. Retain
+Gemma195 artifacts; G1 staysopen for actualresponse, no scientific rejection.
+Qwen's last observation was yesterday; one bounded current-eligibility probe
+is running independently while the local Nex stack is prepared.
+
+Cycle195 live progress: completed the authenticated browser interview
+5d87893e-a950-4a70-acdb-a9fe203c90ff for the frozen public EGFR-resistance
+goal and started Express run6b095448-e567-4be2-8061-037ec46da803. API
+confirmed real backend and persisted campaign policy. Browser refresh restored
+the same session; Results showed literature review executing after semantic
+safety passed. No duplicate run was created; notifications remain disabled.
+Retain local-interview195.json and local-live195-preflight.json. Authenticated
+SSE observer session5001 records events under the isolated private state root;
+wait for retrieval completion before controlled recovery. Full local acceptance
+remains open until recovery, evidence and report behavior are observed.
+
+Qualification195: Qwen and corrected Gemma each stopped after one429; no
+retries or paid fallback. Inkling was freshly zero-priced but one tool request
+returned403 requiring an approved harness; remaining cases were not run. Ling
+Sante metadata lacked advertised structured-output support, so no credential
+was loaded. These results establish availability limits, not scientific
+rejections. Review existing compatible candidates before further inference.
+Production Railway readback still shows the same successful API/MCP deployment
+IDs recorded in release-state179.json, with no staged changes.
