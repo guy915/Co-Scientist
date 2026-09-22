@@ -190,7 +190,10 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
 - [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
-- [ ] M1-release-scope: Resolve production campaign-mode scope before deployment: global campaign mode overrides BYOK, while ordinary users' explicit BYOK behavior must remain available. Verify the chosen boundary through public request and durable-run interfaces without loosening campaign cost controls.
+- [ ] M1-release-scope-a: Persist server-derived campaign policy on interviews/runs using backward-compatible defaults and verified bearer identities; test spoofing, linked-object downgrade prevention and restart readback.
+- [ ] M1-release-scope-b: Propagate monotone campaign context through request/stream/background and durable task boundaries; verify concurrent ordinary BYOK, recovery, caches, auxiliary calls and workspace restrictions without changing global environment at runtime.
+- [ ] M1-release-scope-c: Enforce authenticated request-scoped campaign policy on the existing MCP service and partition cached clients; verify actual SDK session/context propagation, concurrent ordinary tools, root authentication, forged headers and both tool invocation paths.
+- [ ] M1-release-scope-d: Verify integrated campaign/BYOK coexistence through public requests and durable recovery before selecting shared production configuration; all campaign cost controls and ordinary BYOK behavior must hold simultaneously.
 - [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
 - [ ] Freeze the post-switch baseline, evaluation inputs, model settings, cache-isolation procedure, and release/rollback procedure for subsequent comparisons.
 
@@ -4060,3 +4063,17 @@ artifact yet. Retain the existing runner; do not launch duplicates. Source
 remains frozen. The deployment-scope172.md investigation proposes run-scoped
 context reusing credential/recovery boundaries, but MCP policy and trusted
 entry-point design remain unresolved; proposal is not implementation acceptance.
+
+**2026-09-22 — Cycle 173, deployment boundary resolved for implementation.**
+Previous cycle made progress by launching the new frozen-source trial and
+retaining the deployment proposal. Confirmed existing probe PID97622 and parent
+97621 live; no restart. Independent Sol/medium investigation resolved the proposal
+in baseline/deployment-decision173.md: persist campaign policy on interviews and
+runs, derive it only from configured verified bearer subjects, enter monotone
+context at request/background/task boundaries, and authenticate scoped MCP policy
+with the existing shared secret while partitioning clients. Compatibility client
+IDs cannot select campaign identity. Split the oversized release-scope item into
+four verifiable implementation items before coding. MCP SDK session context
+propagation must be demonstrated in running tests, not assumed from middleware.
+Frozen application sources remain unchanged while Liquid qualification runs.
+No implementation or deployment acceptance claimed; 61 campaign items remain.
