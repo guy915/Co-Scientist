@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 181): Nex Pro is accepted as the primary candidate; no
+Current status (cycle 184): Nex Pro is accepted as the primary candidate; no
 production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
@@ -54,6 +54,11 @@ production model chain or fallback is selected.
   gap: one live request passes with observed model/usage and zero-price caps.
   Prior short JSON, tool-loop and streaming successes remain in cycle 164;
   scientific panels are still required before selecting it as a fallback.
+  The [scientific attempt](nemotron-scientific-summary182.md) is inconclusive:
+  upstream overloads caused a deterministic fallback, and a missing manifest
+  field prevented scope controls. Trial 2 was interrupted; trial 3 never ran.
+  The corrected [manifest](nemotron-current-sources184.json) preserves all
+  source/input hashes. No retry has been launched.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 

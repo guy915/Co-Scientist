@@ -4493,3 +4493,53 @@ open; campaign 57 open. Next consume the same recovery1 process's terminal
 evidence, stop on recorded operational failures, and evaluate valid trials
 against the unchanged scientific/control gates. User AGENTS.md edits remain
 untouched; no credential, production or approval state changed.
+
+### Cycle 184 — stop overloaded batch; repair manifest contract offline
+
+Previous cycle made progress by retaining failed launches and fixing the
+future launcher's error predicate. This cycle attached macOS process-exit
+watchers rather than polling provider requests. After repeated upstream
+overloads, the coordinator identity-checked and stopped launcher3065 and its
+then-active trial2 child4872. Both watcher sessions confirmed terminal exits;
+the worker confirmed parent session28940 ended with exit1. No batch remains
+running and no retry or schedule was created.
+
+Recovery1 trial1 finished immediately before termination: 65 physical requests,
+41 observed responses with usage, 24 requests without response records; every
+recorded request has zero prompt/completion/request price caps. Its challenge
+scores were .733 accuracy/.400 contradiction recall, below both declared gates.
+Historical controls passed, but one deterministic fallback and 25 logged Nvidia
+overload messages prevent treating these as pure-model scientific results.
+Scope controls never ran: the probe raised KeyError 'scope_controls_sha256'.
+Trial2 has only a partial log (two overload errors), no result artifact;
+trial3 was not launched. Keep Nemotron inconclusive, not scientifically rejected
+or selected. Retain raw trial1 and eligibility receipts plus
+model-qualification/nemotron-scientific-summary182.md. No billing receipt is
+claimed; zero-price eligibility and binding caps are the cost-control evidence.
+
+Root cause: the new manifest stored descriptive nested scope hashes but lacked
+the top-level names the existing probe consumes. Parent reproduced the exact
+KeyError offline, then wrote a separate nemotron-current-sources184.json with
+both required top-level hashes and a link/hash to the unchanged original.
+The same field accesses now pass; all 586 source hashes and challenge,
+historical-control, scope-input/helper and probe hashes match. No scientific
+source, input, threshold, provider configuration or old artifact was changed.
+The initial case-sensitive editable-import failures are separate: explicit
+canonical root/PYTHONPATH fixed those before the recovery's live requests.
+
+M1 remains42done/5open; campaign57open. Next require a successful bounded
+availability observation before another Nemotron scientific batch, or qualify
+the already-recorded alternative free candidate while Nvidia is overloaded.
+Do not immediately repeat the full batch; promising operationally blocked
+candidates remain open. All live/production acceptance and release gates remain.
+
+Fresh-context Sol/medium contract review confirmed the two added keys are the
+smallest complete correction: the existing transport observer now checks both
+scope hashes before inference. Existing historical snapshot-preparation tools
+require a different manifest shape and would not validate this current-arm
+contract; no new harness was added. Offline input/probe/guard/source-hash and
+revision checks passed, as did artifact parsing, known credential-pattern
+checks and git diff --check. Reapply these launcher-side checks before every
+future spawn, since descriptive model/gate/input metadata are not enforced by
+the probe itself. Scoped cleanup retains intentional failure evidence and
+logs; no runtime/UI edits or full-suite rerun were needed this cycle.

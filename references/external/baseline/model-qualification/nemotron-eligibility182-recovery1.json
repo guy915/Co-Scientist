@@ -1,0 +1,214 @@
+{
+  "purpose": "Fresh credential-free zero-price eligibility before each Nemotron scientific trial.",
+  "source_commit": "7ebd9ebc3f5c595bc2ff5cfdff91fafaf5b11c39",
+  "manifest_sha256": "c8bc3b99139ae765cb8d7ba2031404291a7bb2382d039a7a65753a044615aa7c",
+  "requested_model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+  "checks": [
+    {
+      "trial": 1,
+      "checked_at": "2026-09-22T09:51:18.093133+00:00",
+      "catalog_source": "https://openrouter.ai/api/v1/models",
+      "catalog_raw_sha256": "d8ba143c28bb357057b804677f5681c158320e9a752dfd1f75462abb7381733c",
+      "catalog_entries": 444,
+      "requested_model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "raw_catalog_row": {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "canonical_slug": "nvidia/nemotron-3-super-120b-a12b-20230311",
+        "hugging_face_id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
+        "name": "NVIDIA: Nemotron 3 Super (free)",
+        "created": 1773245239,
+        "description": "NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...",
+        "context_length": 262144,
+        "architecture": {
+          "modality": "text->text",
+          "input_modalities": [
+            "text"
+          ],
+          "output_modalities": [
+            "text"
+          ],
+          "tokenizer": "Other",
+          "instruct_type": null
+        },
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "top_provider": {
+          "context_length": 262144,
+          "max_completion_tokens": 235929,
+          "is_moderated": false
+        },
+        "per_request_limits": null,
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ],
+        "default_parameters": {
+          "temperature": 1,
+          "top_p": 0.95,
+          "top_k": null,
+          "frequency_penalty": null,
+          "presence_penalty": null,
+          "repetition_penalty": null
+        },
+        "supported_voices": null,
+        "knowledge_cutoff": null,
+        "expiration_date": null,
+        "links": {
+          "details": "/api/v1/models/nvidia/nemotron-3-super-120b-a12b-20230311/endpoints"
+        },
+        "benchmarks": {
+          "design_arena": [],
+          "artificial_analysis": {
+            "intelligence_index": 12.8,
+            "coding_index": 37.7,
+            "agentic_index": 1.7
+          }
+        },
+        "reasoning": {
+          "mandatory": false,
+          "default_enabled": true,
+          "supports_max_tokens": true,
+          "supported_efforts": [
+            "medium",
+            "low"
+          ],
+          "default_effort": "medium"
+        }
+      },
+      "runtime_verify_model": {
+        "accepted": true,
+        "catalog_row_pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "catalog_row_architecture": {
+          "modality": "text->text",
+          "input_modalities": [
+            "text"
+          ],
+          "output_modalities": [
+            "text"
+          ],
+          "tokenizer": "Other",
+          "instruct_type": null
+        }
+      },
+      "credential_used": false,
+      "live_calls_made": 0
+    },
+    {
+      "trial": 2,
+      "checked_at": "2026-09-22T10:06:33.454920+00:00",
+      "catalog_source": "https://openrouter.ai/api/v1/models",
+      "catalog_raw_sha256": "817012b6ae70c5c3d1d0dc886d5d1b153a13f2ba3dc41014022b8376f382cf81",
+      "catalog_entries": 444,
+      "requested_model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "raw_catalog_row": {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "canonical_slug": "nvidia/nemotron-3-super-120b-a12b-20230311",
+        "hugging_face_id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
+        "name": "NVIDIA: Nemotron 3 Super (free)",
+        "created": 1773245239,
+        "description": "NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...",
+        "context_length": 262144,
+        "architecture": {
+          "modality": "text->text",
+          "input_modalities": [
+            "text"
+          ],
+          "output_modalities": [
+            "text"
+          ],
+          "tokenizer": "Other",
+          "instruct_type": null
+        },
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "top_provider": {
+          "context_length": 262144,
+          "max_completion_tokens": 235929,
+          "is_moderated": false
+        },
+        "per_request_limits": null,
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "seed",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ],
+        "default_parameters": {
+          "temperature": 1,
+          "top_p": 0.95,
+          "top_k": null,
+          "frequency_penalty": null,
+          "presence_penalty": null,
+          "repetition_penalty": null
+        },
+        "supported_voices": null,
+        "knowledge_cutoff": null,
+        "expiration_date": null,
+        "links": {
+          "details": "/api/v1/models/nvidia/nemotron-3-super-120b-a12b-20230311/endpoints"
+        },
+        "benchmarks": {
+          "design_arena": [],
+          "artificial_analysis": {
+            "intelligence_index": 12.8,
+            "coding_index": 37.7,
+            "agentic_index": 1.7
+          }
+        },
+        "reasoning": {
+          "mandatory": false,
+          "default_enabled": true,
+          "supports_max_tokens": true,
+          "supported_efforts": [
+            "medium",
+            "low"
+          ],
+          "default_effort": "medium"
+        }
+      },
+      "runtime_verify_model": {
+        "accepted": true,
+        "catalog_row_pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "catalog_row_architecture": {
+          "modality": "text->text",
+          "input_modalities": [
+            "text"
+          ],
+          "output_modalities": [
+            "text"
+          ],
+          "tokenizer": "Other",
+          "instruct_type": null
+        }
+      },
+      "credential_used": false,
+      "live_calls_made": 0
+    }
+  ]
+}
