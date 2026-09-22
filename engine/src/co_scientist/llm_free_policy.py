@@ -1,7 +1,10 @@
 """Admission policy for campaign requests and system-default free routes."""
 
 import asyncio
+import contextlib
 import os
+from collections.abc import Iterator
+from contextvars import ContextVar
 from typing import Any
 
 import litellm
@@ -29,6 +32,7 @@ _REQUEST_FIELDS = {
     "stream_options",
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
+_campaign_mode: ContextVar[bool] = ContextVar("campaign_mode", default=False)
 
 
 def campaign_free_mode() -> bool:
@@ -36,7 +40,21 @@ def campaign_free_mode() -> bool:
     configured = os.getenv(FREE_MODE_ENV, "0").strip().lower()
     if configured not in {"0", "false", "", "1", "true"}:
         raise FreeModelEligibilityError("zero-cost mode setting is invalid")
-    return configured in {"1", "true"}
+    return _campaign_mode.get() or configured in {"1", "true"}
+
+
+@contextlib.contextmanager
+def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
+    """Scope campaign free-model admission to the current task.
+
+    The scope is monotone: nested callers can enable campaign mode but cannot
+    weaken an already-active campaign scope.
+    """
+    token = _campaign_mode.set(_campaign_mode.get() or enabled)
+    try:
+        yield
+    finally:
+        _campaign_mode.reset(token)
 
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
