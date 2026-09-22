@@ -107,9 +107,13 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 
 ## Cycle protocol
 
-**Session orchestration decision (2026-09-20):** After M1 is complete and verified, the primary agent switches from implementer to orchestrator using `/Users/guy/.codex/skills/orchestrate/SKILL.md`. Delegate implementation to `gpt-5.6-luna` at `max` effort by default for light work, or `gpt-5.6-sol` at `medium` effort for heavy work. Specify model and effort explicitly on fresh-context dispatches. The coordinator owns scope, acceptance criteria, integration, verification, and the persistent `slice · owner · status · evidence · next` ledger; inspect worker diffs and independently verify results before accepting them. Preserve sequential repository investigation and the concurrency ceiling. This user instruction overrides earlier worker-model defaults; M1 remains under the current implementation approach until verified.
+### Subagent dispatch policy (updated 2026-09-22)
 
-**Worker preference clarified (2026-09-21):** Effective immediately, use Luna/max for routine day-to-day work and reviews; reserve Sol/medium for heavy work. The requested Luna xhigh tier is unavailable on this launcher, so use its supported max tier. This overrides the broad Sol second-opinion default. Do not interrupt active work merely to switch models.
+Use `gpt-6-luna` at `xhigh` effort for every new campaign subagent, including heavy work. This replaces earlier Luna 5.6 and Sol worker assignments; historical log entries remain evidence of past dispatches. Specify the model and effort on each dispatch. After M1 is fully verified, the primary agent becomes the coordinator and uses the `orchestrate` skill's bounded input/output gates and verification ledger. Do not interrupt work already in progress solely to change its model.
+
+**Session orchestration decision (2026-09-20; worker models superseded above):** After M1 is complete and verified, the primary agent switches from implementer to orchestrator using `/Users/guy/.codex/skills/orchestrate/SKILL.md`. The coordinator owns scope, acceptance criteria, integration, verification, and the persistent `slice · owner · status · evidence · next` ledger; inspect worker diffs and independently verify results before accepting them. Preserve sequential repository investigation and the concurrency ceiling. M1 remains under the current implementation approach until verified.
+
+**Worker preference clarified (2026-09-21; superseded above):** The former Luna/max routine and Sol/medium heavy split applied before GPT-6 Luna xhigh became available. Do not interrupt active work merely to switch models.
 
 **Launcher update (cycle 181):** Luna/xhigh is now supported and is the default
 for routine work as the user requested. The max fallback above applies only
@@ -4904,3 +4908,7 @@ all returned HTTP 200. The first event observer ended at sequence14 without a
 terminal marker, and the replacement observer resumed from `?after=14` with
 the new local token. The ranking match remains persisted for normal lease
 recovery; no second research run was created or claimed complete.
+
+### Cycle 197 — Worker model policy update
+
+The user changed the future subagent default to GPT-6 Luna at xhigh effort for all campaign slices, including heavy work. This supersedes the prior Luna 5.6 and Sol split. The primary agent remains responsible for finishing M1; after M1 verification it coordinates through `orchestrate` with bounded dispatches, independent output checks, and a retained ledger. No worker was dispatched to record this change. The checklist and scientific acceptance criteria are unchanged.
