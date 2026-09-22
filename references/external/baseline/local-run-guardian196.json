@@ -3,8 +3,9 @@
   "run_id": "6b095448-e567-4be2-8061-037ec46da803",
   "label": "com.coscientist.local-live195.guardian",
   "registration": "launchctl bootstrap gui/<current-user-id> /private/tmp/coscientist-local-live195.UUIRSr/guardian.plist",
-  "observed_state": "running and waiting for the original API process to exit; original API health returned 200",
+  "observed_state": "registered, then took over after controlled termination of the original local stack; replacement API, MCP, and UI returned HTTP 200 on their local probes",
   "behavior": "Watches the original API PID without provider calls. If it exits, launches the same isolated stack and SQLite store once. Does not create a new research run.",
+  "handoff": "The original SSE observer ended at sequence 14 without a terminal event. A successor observer reconnected with ?after=14 under the replacement API token. The persisted run remains at a ranking match pending ordinary lease recovery; no second run was created.",
   "cleanup": "After the run is terminal and evidence is saved, use launchctl bootout gui/<current-user-id>/com.coscientist.local-live195.guardian, then stop the isolated stack and remove its temporary files after confirming no work remains.",
   "limitations": [
     "A restart may retry the currently leased task under the existing durable recovery policy.",

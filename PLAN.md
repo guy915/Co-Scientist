@@ -4898,3 +4898,9 @@ while the original API remained healthy, and will relaunch the same isolated
 database stack once only if the original process exits. Cleanup and recovery
 limits are recorded in `local-run-guardian196.json`. This does not satisfy the
 still-open local report or production acceptance checks.
+The original local stack was then stopped in a controlled handoff. Launchd
+started the replacement stack against the same SQLite store; API, MCP and UI
+all returned HTTP 200. The first event observer ended at sequence14 without a
+terminal marker, and the replacement observer resumed from `?after=14` with
+the new local token. The ranking match remains persisted for normal lease
+recovery; no second research run was created or claimed complete.
