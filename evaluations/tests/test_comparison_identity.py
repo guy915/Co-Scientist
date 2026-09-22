@@ -1,5 +1,6 @@
 """Controlled run inputs survive persistence and artifact collection."""
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,14 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
     assert identities[0]["backend"] == "offline"
     assert identities[0]["configured_models"]["worker"]
     assert identities[0]["request_policy_sha256"]
+    engine = (
+        Path(__file__).resolve().parents[2] / "engine" / "src" / "co_scientist"
+    )
+    for name in ("llm_free_policy.py", "llm_free_catalog.py"):
+        assert (
+            identities[0]["request_policy_files"][name]
+            == hashlib.sha256((engine / name).read_bytes()).hexdigest()
+        )
     assert "API_KEY" not in str(identities)
 
 

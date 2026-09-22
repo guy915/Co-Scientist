@@ -12,6 +12,8 @@ _POLICY_FILES = (
     "constants_tokens.py",
     "llm_types.py",
     "llm_request.py",
+    "llm_free_policy.py",
+    "llm_free_catalog.py",
     "llm_gateway_routing.py",
     "llm_gateway_body.py",
     "llm_thinking.py",

@@ -193,6 +193,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-04b-G1-tests: Restore the existing 500-line source-file gate after the Gemma regression additions by organizing the exact-route tests into focused sibling modules, reusing test helpers and preserving every assertion; verify affected suites and parity without raising the limit.
 - [ ] M1-04b-G1: Resolve the exact Gemma26 free-route native-schema mismatch documented in gemma26-routing186.md: reproduce at the LLM request boundary, reuse the existing JSON-object path with a justified bounded capability exception, preserve local schema validation and zero-price routing, then verify a real response after provider backoff. Do not infer capability for all Gemma models or claim scientific qualification from this interface check.
 - [x] M1-security-Entrez: Keep campaign PubMed calls free of the shared Entrez key, use anonymous request pacing, and preserve TLS verification by default; reproduce the defects, verify the corrected Biopython request and full MCP suite, and retain the security assessment. Deployed behavior remains part of the open release item.
+- [x] M1-eval-policy-fingerprint: Include the new free-route admission and catalog modules in frozen comparison policy identity; reproduce their omission in a behavioral test and verify matched comparison consumers, so policy changes cannot silently reuse baseline evidence.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -4869,3 +4870,11 @@ passed, as did Ruff and diff checks. Evidence is in security-entrez195.md.
 Deployment and complete security coverage of later revisions remain open.
 The independent Nemotron scientific-trial worker ended on a Codex usage limit
 before launching the new batch; no live scientific result is claimed.
+
+The pre-PR code-quality review found that comparison identity omitted the new
+`llm_free_policy.py` and `llm_free_catalog.py` sources. A behavioral assertion
+failed on the absent hashes, then passed after both were added to the canonical
+policy-file list; 21 comparison-identity/drift/group tests passed. This change
+does not alter a model request or runtime policy, but makes frozen comparisons
+invalidate when the free-route admission policy changes. The local run and
+release gates remain open.
