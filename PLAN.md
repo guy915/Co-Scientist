@@ -4104,3 +4104,12 @@ No main source changed or milestone item ticked. Scope-a still awaits integratio
 review; scope-b request/task propagation and thread-pool cleanup remain unbuilt.
 No inference was used by these tests. Next retain trial results and complete
 context propagation/MCP enforcement in the isolated checkout before integration.
+
+Cycle174 live result: Liquid series172 trial1 completed without a terminal
+operational error, accuracy .533 and contradiction recall .10, failing both
+.75/.80 gates. Both single and batch-single-claim scope controls fail; batch
+includes deterministic_lexical provenance, not fully live assessor evidence.
+All74 physical request records retain zero prompt/completion/request caps.
+Raw SHA25662df039fd37a2536d2bf4fe73cd48dfb709e74bf19526415bd59691f226dfe83.
+Retain failed trial unchanged; remaining trials characterize consistency, not
+permission to average away failure. Liquid remains unqualified.
