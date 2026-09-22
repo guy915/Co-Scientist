@@ -4425,3 +4425,35 @@ zero-capped request and observed model/usage assertions. Scoped cleanup retained
 the three intentional evidence files; no scratch, runtime or UI changes. Prior
 local release checks remain reusable within their recorded limits. Next: freeze
 and execute Nemotron scientific qualification under existing acceptance gates.
+
+### Cycle 182 — freeze Nemotron scientific qualification
+
+Previous cycle made progress by closing the long-input compatibility gap with
+retained live evidence. Current work starts from 7ebd9ebc. The coordinator
+verified all 586 source hashes in model-qualification/nemotron-current-sources182.json
+(SHA256 c8bc3b99139ae765cb8d7ba2031404291a7bb2382d039a7a65753a044615aa7c),
+including completeness against current tracked non-test runtime Python files.
+The manifest identifies the actual current revision, rather than assigning old
+source hashes to the post-scope implementation. Source, inputs, observer and
+configuration must remain frozen across the three trials.
+
+Luna/xhigh owns three sequential fresh-process Nemotron Super challenge trials;
+the coordinator verified the input gate before authorizing inference. Use the
+existing probe_citation_panel.py, 30-item challenge, five historical controls
+and ten scope inputs through both assessor modes. Preserve .75 accuracy/.80
+contradiction recall and all control gates for every trial. Each child must
+verify current zero-cost eligibility; no paid routes, caches or other provider
+credentials. A terminal operational error parks the batch with evidence.
+No scientific result or completed acceptance is claimed by this preparation.
+No runtime, deployment, credential or threshold changes. All 57 items remain
+open as before (M1 42 done/5 open); the campaign limit is 2,000 total cycles.
+
+Cycle182 launch observation: a single authoritative process check confirmed
+/private/tmp/nemotron-challenge182-launcher.py running as PID 3065 and the
+existing citation-panel child as PID 3066. Do not start a duplicate because no
+trial artifact exists yet; the probe writes its report on completion. The
+worker owns completion waits and terminal reporting. Parent checked the
+launcher for literal OpenRouter credential patterns without printing contents.
+Commit only the frozen manifest and this handoff while trials run; keep live
+outputs uncommitted until terminal verification. Next consume this same batch's
+terminal results, preserving incomplete/failed evidence and reset times.
