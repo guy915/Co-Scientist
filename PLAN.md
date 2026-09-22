@@ -189,6 +189,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
 - [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
 - [x] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
+- [ ] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -4543,3 +4544,41 @@ checks and git diff --check. Reapply these launcher-side checks before every
 future spawn, since descriptive model/gate/input metadata are not enforced by
 the probe itself. Scoped cleanup retains intentional failure evidence and
 logs; no runtime/UI edits or full-suite rerun were needed this cycle.
+
+### Cycle 185 — Gemma capability evidence and local environment readiness
+
+Previous cycle made progress by retaining interrupted Nemotron evidence and
+repairing the manifest contract. From b3f2e316, Luna/xhigh tested the previously
+untried Gemma4 26B free route after fresh zero-price eligibility. Native-schema
+JSON off/on each made one capped request and returned provider parameter-routing
+404; the tool case made one capped request and hit a shared-pool429. No observed
+served model/usage, retries, scientific results or paid fallback. Streaming and
+long-input cases remain untested. Parent inspected the raw JSON envelope and
+zero caps; retain the five model-qualification/*185 artifacts. Parent session
+87144 is terminal. Do not retry this route today; parameter compatibility must
+be diagnosed before another identical JSON request, and rate limits honored.
+
+The launcher continued after the two404s because its per-error-name predicate
+again missed a terminal error. Discovered M1-04b-R1 explicitly tracks the shared
+probe CLI correction before more batches; make error artifacts produce nonzero
+exit and stop capability cases, rather than inventing another launcher filter.
+Completed scientific gate failure is not the same as operational failure.
+Existing source/import preflight mistakes and all observed failures stay in
+the record. This adds one open item: M1 42done/6open; campaign58open.
+
+In parallel, the coordinator booted the existing API/frontend in an isolated
+credential-free environment: canonical PYTHONPATH, dotenv disabled, explicit
+offline and campaign-free modes, fresh /private/tmp/coscientist-acceptance185
+database/reports/cache, API8118 and UI5283. Both returned HTTP200; exact-origin
+CORS and runs/interviews.execution_policy plus claim_evidence.verification_method
+columns were verified. Curated demo seeds are offline fixtures, not live research.
+Receipt: references/external/baseline/local-bootstrap185.json. No provider/email
+credentials, MCP service or live research calls were supplied. This establishes
+startup/environment readiness only; it does not satisfy the live acceptance item
+or production migration/backup requirements. Both owned listeners were identity
+checked and stopped after verification (API session65592, UI97740, exits143;
+API shutdown complete). Retain isolated state for later acceptance preparation.
+
+No runtime source, scientific thresholds, production, credentials or unrelated
+user edits changed. Next fix and verify M1-04b-R1 offline, then investigate
+Gemma's native-schema/provider-parameter mismatch without weakening zero caps.

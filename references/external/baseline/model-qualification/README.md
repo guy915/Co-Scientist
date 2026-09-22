@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 184): Nex Pro is accepted as the primary candidate; no
+Current status (cycle 185): Nex Pro is accepted as the primary candidate; no
 production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
@@ -61,6 +61,11 @@ production model chain or fallback is selected.
   source/input hashes. No retry has been launched.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
+- **Gemma 4 26B:** [cycle 185](qualification-summary185.md) produced parameter
+  routing 404s for native-schema JSON and a tool-request shared-pool 429.
+  Streaming and long-input cases were not attempted. No served model or usage
+  was observed; the route remains unqualified. Fix runner terminal-error handling
+  before further batches; retain the native-schema incompatibility for diagnosis.
 
 M1-04b1b-s1 and M1-04b1b are verified. The maintained observer repair is verified
 as M1-04b1d; historical receipts retain their original observer. Failed scientific

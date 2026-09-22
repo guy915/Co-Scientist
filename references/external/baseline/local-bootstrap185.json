@@ -1,0 +1,76 @@
+{
+  "purpose": "Offline local acceptance-environment bootstrap, not live campaign acceptance",
+  "source_commit": "b3f2e31621d82a226fdabfa2def5637fbb6023f1",
+  "checked_at": "2026-09-22T10:18:20.723952+00:00",
+  "mode": "offline",
+  "provider_credentials_supplied": false,
+  "email_credentials_supplied": false,
+  "dotenv_disabled": true,
+  "campaign_free_enforcement": true,
+  "force_offline": true,
+  "db_path": "/private/tmp/coscientist-acceptance185/coscientist.db",
+  "api_session": 65592,
+  "ui_session": 97740,
+  "checks": {
+    "api": {
+      "http_status": 200,
+      "health": {
+        "status": "healthy",
+        "version": "0.1.0",
+        "model_name": "openrouter/nex-agi/nex-n2.5-pro:free",
+        "provider": "engine",
+        "checks": {
+          "store": {
+            "ok": true,
+            "detail": null
+          },
+          "engine": {
+            "ok": true,
+            "detail": null
+          },
+          "queue": {
+            "ok": true,
+            "detail": null
+          },
+          "disk": {
+            "ok": true,
+            "detail": null
+          }
+        }
+      }
+    },
+    "ui": {
+      "http_status": 200
+    },
+    "cors": {
+      "status": 200,
+      "allow_origin": "http://127.0.0.1:5283",
+      "allow_credentials": "true"
+    },
+    "schema": {
+      "runs": [
+        "execution_policy"
+      ],
+      "interviews": [
+        "execution_policy"
+      ],
+      "claim_evidence": [
+        "verification_method"
+      ]
+    }
+  },
+  "not_verified": [
+    "MCP connectivity",
+    "authenticated browser workflow",
+    "live inference",
+    "durable live recovery",
+    "production backup/migration/deployment"
+  ],
+  "cleanup": {
+    "api_exit_code": 143,
+    "api_shutdown_complete": true,
+    "ui_exit_code": 143,
+    "servers_running": false,
+    "state_retained_for_acceptance_preparation": true
+  }
+}
