@@ -1,0 +1,31 @@
+{
+  "purpose": "M1 pre-release checks on campaign commit 4f21d8d9; deployment and live-run acceptance remain open",
+  "commit": "4f21d8d9ce6f0e9cd96e4024b4fc46d9343bb752",
+  "checks": {
+    "make test-all": {
+      "status": "passed",
+      "exit_code": 0,
+      "engine": "3139 passed, 2 skipped",
+      "app": "1873 passed",
+      "mcp": "283 passed; strict mypy passed on 73 source files",
+      "parity": "115 requirement rows; every verified row cites existing evidence; evaluation tests passed",
+      "log": "/private/tmp/coscientist-test-all196.log"
+    },
+    "make lint": {"status": "passed", "exit_code": 0},
+    "make typecheck": {"status": "passed", "exit_code": 0},
+    "make build": {"status": "passed", "exit_code": 0},
+    "make eval-smoke": {"status": "passed", "exit_code": 0},
+    "frontend bun run test": {"status": "passed", "exit_code": 0, "tests": 718},
+    "make e2e": {"status": "passed", "exit_code": 0, "tests": 9},
+    "explicit source-size tests": {"status": "passed", "exit_code": 0, "tests": 4}
+  },
+  "environmental_failures_before_host_permission": [
+    "An engine test's local workspace command returned required_approval under the outer sandbox. The isolated test passed with host permission, then make test-all passed there.",
+    "Chromium could not register a macOS process port under the outer sandbox. The unmodified make e2e gate passed with host permission."
+  ],
+  "limitations": [
+    "The live campaign research run has not completed or published a report.",
+    "Final model fallback selection, PR, production migration backup, deployment, and production public-goal verification remain open.",
+    "The uncommitted root AGENTS.md edit is user-owned and excluded from this evidence commit."
+  ]
+}

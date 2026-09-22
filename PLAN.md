@@ -4878,3 +4878,15 @@ policy-file list; 21 comparison-identity/drift/group tests passed. This change
 does not alter a model request or runtime policy, but makes frozen comparisons
 invalidate when the free-route admission policy changes. The local run and
 release gates remain open.
+
+The full pre-release checks on commit4f21d8d9 passed with host permission:
+3,139 engine tests (two existing skips), 1,873 app tests, 283 MCP tests,
+parity/evaluation tests, lint, typecheck, build, evaluation smoke, 718 frontend
+tests, nine browser tests, and the explicit source-size tests. The first
+sandboxed engine and browser attempts failed because the outer host sandbox
+denied local subprocess/Chromium process ports; the unmodified gates passed
+on the permitted host. `release-verification196.json` retains exact results.
+The draft PR creation remains open: the repository's pre-tool review hook
+continues to report a stale review after both an in-place review and a clean
+exact-commit checkout review. This is a tooling gate, not permission to bypass
+the review. No PR or production change is claimed.
