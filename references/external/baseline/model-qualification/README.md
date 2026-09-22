@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 179): Nex Pro is accepted as the primary candidate; no
+Current status (cycle 181): Nex Pro is accepted as the primary candidate; no
 production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
@@ -50,6 +50,10 @@ production model chain or fallback is selected.
   Qwen and Gemma also remain open on their recorded shared-pool limits.
   The [Qwen cycle 179 retry](qualification-summary179.md) again stopped after
   one upstream shared-pool 429, with zero-price caps and no retries.
+  [Nemotron cycle 181](qualification-summary181.md) resolves the long-input
+  gap: one live request passes with observed model/usage and zero-price caps.
+  Prior short JSON, tool-loop and streaming successes remain in cycle 164;
+  scientific panels are still required before selecting it as a fallback.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 

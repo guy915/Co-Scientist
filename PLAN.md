@@ -111,6 +111,10 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 
 **Worker preference clarified (2026-09-21):** Effective immediately, use Luna/max for routine day-to-day work and reviews; reserve Sol/medium for heavy work. The requested Luna xhigh tier is unavailable on this launcher, so use its supported max tier. This overrides the broad Sol second-opinion default. Do not interrupt active work merely to switch models.
 
+**Launcher update (cycle 181):** Luna/xhigh is now supported and is the default
+for routine work as the user requested. The max fallback above applies only
+when xhigh is unavailable; Sol/medium remains reserved for heavy work.
+
 At the start of every turn, read `PLAN.md`, relevant project instructions, and the active dossier. Check the working tree and actual release state before acting.
 
 Take the first unchecked item. Search the current codebase before implementing. Replace oversized implementation items with concrete candidate-ID checkboxes before starting them, preserving scope and acceptance criteria on disk.
@@ -4376,3 +4380,48 @@ pending credential rotation or security-plugin configuration change.
 The native goal was observed paused with its old 180-turn objective. Available
 goal tools cannot edit that objective or resume its status; the revised launch
 prompt above records the exact continuation for the native goal control.
+
+### Cycle 181 — Nemotron long-input compatibility recovered
+
+Resumed under the user's explicit 2,000-total-turn authorization. The previous
+cycle preserved authoritative stopping state; the intervening authorization
+commit d65785ad extended the limit without changing scope or acceptance.
+Luna/xhigh owns the bounded probe; the coordinator owns evidence review and
+the ledger. No deployment or credential changes were attempted.
+
+Fresh public catalog and runtime admission accepted the exact Nemotron Super
+free route before inference. The existing long_json probe passed with its
+126,555-character input and exact supporting quote: one physical request,
+29,187 prompt/226 completion/222 reasoning tokens, no retries, observed model,
+and binding zero prompt/completion/request price caps. Billed receipt remains
+unknown; the estimate alone is not the zero-cost evidence. The invocation
+exited 0. Evidence: model-qualification/nemotron-super-eligibility181.json,
+nemotron-super-capabilities181.json, and qualification-summary181.md under
+references/external/baseline. No scientific batch or timer was launched.
+
+This resolves the previously overloaded long-input capability case. The same
+probe hash covers the earlier successful short JSON, tools and app-streaming
+cases in cycle 164. Relevant request/config diff review finds only the scoped
+campaign-context addition and server bearer allowlist; explicit campaign=1
+retains the probe's admission behavior. Failed overload attempts remain visible.
+Do not confuse requested thinking-off with effective disable: the retained
+request enabled the repository-declared reasoning profile with a 2,048-token
+reasoning budget; the catalog does not require reasoning on this endpoint.
+
+Independent inventory review found an untried Gemma 26B compatibility lead in
+the retained catalog, but no new inference was authorized for it this cycle.
+Prefer scientific qualification of Nemotron next over repeatedly retrying Qwen
+shared-pool failures. Freeze current scientific inputs/configuration and apply
+the existing three-trial gates, followed by remaining usefulness/ranking/batch
+screens if it passes. Recheck current free eligibility before each batch.
+M1 remains 42 done/5 open; total 57 open. Local live workflow, security scan,
+production backup/release and final baseline remain required. Pending separate
+credential-rotation/config-edit approvals are unchanged.
+
+Independent fresh-context Luna review found no substantive qualification error
+and supported reuse of the unchanged request-shaping evidence. Parent artifact
+checks passed JSON parsing, known credential-pattern detection, exact single
+zero-capped request and observed model/usage assertions. Scoped cleanup retained
+the three intentional evidence files; no scratch, runtime or UI changes. Prior
+local release checks remain reusable within their recorded limits. Next: freeze
+and execute Nemotron scientific qualification under existing acceptance gates.

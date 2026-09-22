@@ -1,0 +1,94 @@
+{
+  "requested_model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+  "started_at": "2026-09-22T09:36:24.807969+00:00",
+  "source_commit": "d65785ade0b8ecb41f8bbb4aa630e931840c4951",
+  "probe_sha256": "1a470cc7c7fb6cf7e35b0d116c65dc5e0ba4c88854ae0f73127a82ff78574abf",
+  "cases": [
+    {
+      "case": "long_json",
+      "passed": true,
+      "response": {
+        "label": "supports",
+        "quote": "Treatment X reduced cell viability by 30% relative to vehicle."
+      },
+      "prompt_characters": 126555,
+      "thinking_requested": false,
+      "max_tokens_requested": 6000,
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "long_json::openrouter/nvidia/nemotron-3-super-120b-a12b:free": {
+            "deterministic_fallbacks": {},
+            "calls": 1,
+            "observed_model_calls": 1,
+            "reported_usage_calls": 1,
+            "priced_usage_calls": 1,
+            "requested_models": {
+              "openrouter/nvidia/nemotron-3-super-120b-a12b:free": 1
+            },
+            "prompt_tokens": 29187,
+            "completion_tokens": 226,
+            "reasoning_tokens": 222,
+            "cached_prompt_tokens": 0,
+            "cost_usd": 0.0,
+            "latency_seconds": 4.7214527080068365,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {}
+          }
+        },
+        "physical_calls": 1,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/nvidia/nemotron-3-super-120b-a12b:free": 1
+        },
+        "observed_models": [
+          "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+        ],
+        "unobserved_model_calls": 0,
+        "unreported_usage_calls": 0,
+        "unpriced_calls": 0,
+        "has_usage_records": true,
+        "estimate_complete": true,
+        "estimated_total_usd": 0.0,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      },
+      "physical_request_controls": [
+        {
+          "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+          "max_tokens": 18000,
+          "extra_body": {
+            "provider": {
+              "require_parameters": true,
+              "allow_fallbacks": true,
+              "preferred_min_throughput": 25,
+              "order": [
+                "z-ai",
+                "deepinfra",
+                "novita",
+                "gmicloud"
+              ],
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              }
+            },
+            "reasoning": {
+              "enabled": true,
+              "max_tokens": 2048
+            }
+          },
+          "response_format": {
+            "type": "json_object"
+          },
+          "stream": null
+        }
+      ]
+    }
+  ]
+}
