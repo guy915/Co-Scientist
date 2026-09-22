@@ -4782,3 +4782,12 @@ live process exists to justify further turns. Mark the native goal blocked.
 Resume only after explicit approval of the rejected bounded OpenRouter launch;
 an automatic continuation is not approval. No inference, tests or production
 actions were repeated. M1 remains44done/6open;58items remain. No user edits touched.
+
+### Cycle 194 — Automatic reactivation does not supply approval
+
+Goal status was active again despite the confirmed cycle193 blocked result.
+Only an automatic continuation arrived, not a user-authored resume or approval.
+The already-satisfied blocked audit therefore still applies; restore blocked
+status without restarting its counter. No implementation progress, inference,
+new checks or independent action became possible.58items remain. Do not infer
+permission from scheduler reactivation or generate another three-turn wait loop.
