@@ -32,6 +32,14 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def sanitize_error(exc):
+    message = str(exc)
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if api_key:
+        message = message.replace(api_key, "[redacted]")
+    return re.sub(r"user_[A-Za-z0-9]+", "[redacted-account]", message)[:2000]
+
+
 async def observed_transport(**kwargs):
     global _LAST_START, _CONTROLLED_PRIMARY
     if _CONTROLLED_PRIMARY is not None:
@@ -271,11 +279,7 @@ if __name__ == "__main__":
             )
     except Exception as exc:
         record["error_type"] = type(exc).__name__
-        record["error"] = re.sub(
-            r"user_[A-Za-z0-9]+",
-            "[redacted-account]",
-            str(exc).replace(os.environ["OPENROUTER_API_KEY"], "[redacted]"),
-        )[:2000]
+        record["error"] = sanitize_error(exc)
     if _SOURCE_MANIFEST is not None:
         try:
             _VERIFIED_IMPORTS.update(
@@ -286,7 +290,7 @@ if __name__ == "__main__":
             record["verified_project_imports"] = _VERIFIED_IMPORTS
         except Exception as exc:
             record["error_type"] = type(exc).__name__
-            record["error"] = str(exc)[:2000]
+            record["error"] = sanitize_error(exc)
     record["physical_requests"] = _REQUESTS
     record["assessments"] = _ASSESSMENTS
     record["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -303,3 +307,4 @@ if __name__ == "__main__":
             }
         )
     )
+    sys.exit(1 if record.get("error_type") else 0)

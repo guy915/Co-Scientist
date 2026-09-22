@@ -473,3 +473,15 @@ scientific rejection. Nemotron Super passed both short JSON reasoning settings,
 tools and streaming; its long-prompt case hit provider overload. See
 [nemotron-super-capabilities164.json](nemotron-super-capabilities164.json).
 Both remain unqualified; retain failures and honor backoff before new attempts.
+
+
+## Probe terminal-error contract — cycle 186
+
+[Offline verification](probe-terminal-contract186.json) records the new probe
+hashes. Capability and citation CLIs now return nonzero on recorded execution
+errors; capabilities stop after the first error. Completed scientific failures
+remain distinct. Create a new manifest before future inference; retained older
+manifests and results describe their original probe revisions.
+
+[Gemma26 diagnosis](gemma26-routing186.md) records the native-schema routing gap;
+JSON-object compatibility and scientific suitability remain unverified.

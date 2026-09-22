@@ -189,7 +189,8 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-03d4c: Reject ablation summaries that reuse one arm label for different declared interventions across goals; reproduce through the comparison CLI and preserve valid matched-intervention summaries.
 - [x] M1-04b-Q1: Clarify batch evidence quotes to retain subject and necessary scope; preserve contradiction guards and verify three fresh four-claim trials with every original acceptance condition. Retain the failed series119 and exact-response replay; this is interface qualification, not general scientific-quality validation.
 - [x] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
-- [ ] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
+- [x] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
+- [ ] M1-04b-G1: Resolve the exact Gemma26 free-route native-schema mismatch documented in gemma26-routing186.md: reproduce at the LLM request boundary, reuse the existing JSON-object path with a justified bounded capability exception, preserve local schema validation and zero-price routing, then verify a real response after provider backoff. Do not infer capability for all Gemma models or claim scientific qualification from this interface check.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -4582,3 +4583,39 @@ API shutdown complete). Retain isolated state for later acceptance preparation.
 No runtime source, scientific thresholds, production, credentials or unrelated
 user edits changed. Next fix and verify M1-04b-R1 offline, then investigate
 Gemma's native-schema/provider-parameter mismatch without weakening zero caps.
+
+
+### Cycle 186 — Terminal probe failures now stop the batch
+
+The preceding limit-confirmation turn was a status-only turn, not implementation
+progress; the earlier cycle185 provided the concrete failure evidence. Continue
+under the authorized 2,000-total-cycle limit without resetting the counter.
+Starting commit b84bff59. R1 · Luna/xhigh · verified offline ·
+probe-terminal-contract186.json · complete. Coordinator reviewed the diff and
+independently ran terminal-error, batch-schema and scope-control tests: 32 pass.
+Worker reproduced five initial failures before implementation. The CLI now exits
+nonzero on recorded execution, eligibility or post-run source-guard errors;
+capability testing stops after the first error. A completed low scientific score
+still exits zero and remains a failed scientific result, not an execution error.
+Missing credentials no longer mask an eligibility error while sanitizing it.
+
+Architecture: the correction is at the existing qualification CLI boundaries,
+not in model judgments or runtime retry policy. Future launchers can use process
+status rather than error-name allowlists. Probe hashes changed and are retained
+in the receipt; create new manifests before future trials. Historical evidence
+and frozen manifests remain unchanged. Scoped cleanup removed the redundant
+nested exception handler, checked unused imports/locals and retained intentional
+failure evidence. No UI changes or full runtime-suite rerun was warranted.
+
+In parallel, a public credential-free endpoint lookup found Gemma26 advertises
+response_format but not structured_outputs. Its native-schema request is the
+likely cause of the recorded parameter-routing404. gemma26-routing186.md and
+Gemma endpoint evidence retain the distinction between metadata and proven
+compatibility. Added G1 as explicit discovered scope: bounded request-boundary
+correction and a real free response after backoff, preserving local validation
+and zero-price caps. No inference, deployments or credential mutations occurred.
+The last verified production snapshot remains cycle179, not a new observation.
+Independent fresh-context Luna/xhigh review approved the final diff and verified
+all seven CLI-contract cases. No release item is checked by these offline tests.
+User AGENTS.md edits remain
+untouched. M1 has43done/6open, campaign58open. Next: M1-04b-G1.

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 from evaluations._live_config import configure_live_environment
@@ -31,6 +32,13 @@ PASSAGE = 'Treatment X reduced cell viability by 30% relative to vehicle.'
 SCHEMA = {'type': 'object', 'properties': {'label': {'type': 'string',
     'enum': ['supports', 'contradicts', 'insufficient']}, 'quote': {'type': 'string'}},
     'required': ['label', 'quote'], 'additionalProperties': False}
+
+def sanitize_error(exc):
+    message = str(exc)
+    api_key = os.getenv('OPENROUTER_API_KEY')
+    if api_key:
+        message = message.replace(api_key, '[redacted]')
+    return re.sub(r'user_[A-Za-z0-9]+','[redacted-account]',message)[:2000]
 
 async def structured(thinking=False, long=False):
     context = '\n'.join(f'Record {i}: unrelated buffer control observation.' for i in range(2500)) if long else ''
@@ -100,20 +108,22 @@ async def main():
         cases.append(('long_json_on', lambda: structured(True, True)))
     for name, run in cases:
         if selected != [''] and name not in selected: continue
-        verify_model(MODEL.removeprefix('openrouter/'),current_catalog())
         result={'case':name}
         _REQUESTS.clear()
-        with capture_usage(name,live=True) as evidence:
-            try: result.update(await asyncio.wait_for(run(),timeout=100))
-            except Exception as exc:
-                result.update(passed=False,error_type=type(exc).__name__,
-                    error=re.sub(r'user_[A-Za-z0-9]+','[redacted-account]',
-                        str(exc).replace(os.environ['OPENROUTER_API_KEY'],'[redacted]'))[:2000])
+        evidence={}
+        try:
+            verify_model(MODEL.removeprefix('openrouter/'),current_catalog())
+            with capture_usage(name,live=True) as evidence:
+                result.update(await asyncio.wait_for(run(),timeout=100))
+        except Exception as exc:
+            result.update(passed=False,error_type=type(exc).__name__,
+                error=sanitize_error(exc))
         result.update(evidence)
         result['physical_request_controls'] = list(_REQUESTS)
         report['cases'].append(result)
         path.write_text(json.dumps(report,indent=2)+'\n')
         print(name,result['passed'],result.get('error_type'),flush=True)
-        if 'RateLimit' in result.get('error_type',''): break
+        if result.get('error_type'): break
+    return 1 if any(case.get('error_type') for case in report['cases']) else 0
 
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__': sys.exit(asyncio.run(main()))
