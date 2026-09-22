@@ -2,19 +2,17 @@
 
 ## Current execution state
 
-M1 is establishing the baseline. Guarded anonymous retrieval was verified
-locally; see [retained evidence](baseline/retrieval-2026-09-19/README.md).
-Live capability probes and an initial scientific challenge have run through
-verified zero-cost admission; [model qualification](baseline/model-qualification/README.md)
-retains all results, including failures. No model is selected for production and
-no full campaign research run has completed. The final Nex Pro magnitude candidate
-passed all three matched pairs with the documented provenance correction; earlier
-failed candidates remain retained. See the [accepted comparison](baseline/model-qualification/opposition-magnitude-pro-corrected-summary.json).
-Three fresh Nex Pro usefulness trials and all three ranking trials passed.
-The multi-claim schema series remains inconclusive after one guarded quote failure.
-Model selection and full workflow verification remain open. These bounded results do not establish production readiness.
-Per-assessment method provenance is now retained locally through assessment,
-recovery, storage and report output; it has not been deployed. Existing model names alone do not prove current eligibility.
+M1's model-testing loop ended at the user's direction on 2026-09-22. The
+[free-model decision](baseline/model-choice-2026-09-22.md) selects Nex Pro from
+current official pricing/capability metadata and retained local results, with no
+automatic unqualified fallback. The [qualification inventory](baseline/model-qualification/README.md)
+retains successes, failures and inconclusive alternatives without new trials.
+Guarded anonymous retrieval was verified [locally](baseline/retrieval-2026-09-19/README.md).
+One public-goal run reached interview, retrieval, verification and ranking; it
+was paused before report publication and is partial evidence only. The M1 code
+passed the retained [release checks](baseline/release-verification196.json),
+but is not merged or deployed. The M2 release item owns the selected default,
+production backup, deployment and serving verification.
 
 Starting branch: `feat/external-m01-free-baseline`; execution starts at
 `927d2bd3a0f8480833661ff3a83b8c3549a6e85f`. The plan was committed at `cd54b76c`.
@@ -35,14 +33,16 @@ make e2e
 ```
 
 Run `make test-sandbox-linux` for confinement/container changes. Release also
-requires the existing production smoke evaluator and a campaign-owned public
-research flow. Inspect diagnostic probes before calling them: a read endpoint
+requires the existing production smoke evaluator and a bounded public flow when
+the accepted change needs live workflow evidence. Inspect diagnostic probes
+before calling them: a read endpoint
 may itself use a metered retrieval provider.
 
 Scientific comparisons require a declared primary metric and non-regression
 criteria, three initial paired trials, identical model configuration and fixed
 evidence where appropriate. Freeze exact inputs, hashes, selected models, and
-isolated cache locations after M1 live qualification. None is frozen yet.
+isolated cache locations for scientific comparisons. Do not restart M1 model
+qualification or claim the paused run completed.
 Do not reuse an old result after relevant code/configuration/input changes.
 
 ## Inference and isolation
@@ -63,7 +63,8 @@ Use the existing three services only. Preserve one API replica, root UID on its
 volume, off-volume cache, and durable startup/recovery. Merge via PR after required
 checks; attach it to the task. Record exact commits, deployment IDs and health.
 The [initial deployment snapshot](baseline/releases-2026-09-19.json) is a starting
-reference, not a verified zero-cost rollback target. Establish that target in M1.
+reference, not a verified zero-cost rollback target. Establish that target with
+the carried-forward M1 code at the M2 release.
 Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
@@ -175,10 +176,11 @@ for the separate INDRA golden acceptance, which campaign mode rejects.
    retain raw artifacts alongside its score. A score alone does not establish
    scientific quality. Use the existing release gate and other applicable
    evaluators; resolve failures under M1 rather than lower thresholds.
-6. After merge/deployment, run the existing production smoke evaluator and
-   repeat the browser public-goal flow under a campaign-owned production identity.
-   Record deployment IDs, serving configuration and replay/report evidence.
-   Production smoke does not create a run and cannot replace this observation.
+6. After merge/deployment, run the existing production smoke evaluator and a
+   bounded campaign-owned public flow appropriate to the accepted change.
+   Record deployment IDs, serving configuration and actual observed behavior.
+   A smoke check alone does not prove a full research run published; preserve
+   that limitation explicitly when no completed run is observed.
 
 The frozen model configuration, exact interview output, run IDs and observed
 results will be added during M1 live execution. None is claimed verified here.

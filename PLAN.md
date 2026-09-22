@@ -44,7 +44,7 @@ Each candidate receives a stable ID and records:
 - Acceptance criteria, test boundary, evaluation results, and costs.
 - Final disposition: adopted, already covered, rejected with evidence, or outside the authorized scope.
 
-Promising but inconclusive candidates remain open. Rate limits, inconvenience, or the turn limit are not evidence for rejection.
+Promising but inconclusive external-repository candidates remain open. Rate limits, inconvenience, or the turn limit are not evidence for rejection. Unselected model alternatives may remain documented as unqualified without blocking the campaign's selected-model release.
 
 ### Zero additional spending
 
@@ -100,7 +100,7 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 - Deploy only to the existing services. Record the commit, deployment IDs, non-secret configuration changes, and observed deployment status.
 - Preserve the API’s single replica, required volume permissions, cache placement, and startup/recovery behavior.
 - Use backward-compatible migrations. Verify a consistent backup before any migration touching persistent production data.
-- Run the existing production smoke evaluator and exercise a campaign-owned public research goal through the deployed product.
+- Run the existing production smoke evaluator and a bounded campaign-owned public flow when an accepted change requires live workflow evidence. Do not restart the open-ended M1 model-qualification series or its paused research run merely to satisfy a release ritual.
 - Disable notifications on campaign test runs. Do not alter other users’ runs or use their private documents as evaluation inputs.
 - On failure, restore the last verified release and investigate. A rollback must retain the zero-cost configuration; never restore paid model settings as a recovery shortcut.
 - Keep the release item open until the intended deployment is healthy and its required behavior has been observed.
@@ -111,13 +111,17 @@ Do not weaken assertions, loosen evaluation thresholds, or add skips merely to o
 
 Use `gpt-6-luna` at `xhigh` effort for every new campaign subagent, including heavy work. This replaces earlier Luna 5.6 and Sol worker assignments; historical log entries remain evidence of past dispatches. Specify the model and effort on each dispatch. After M1 is fully verified, the primary agent becomes the coordinator and uses the `orchestrate` skill's bounded input/output gates and verification ledger. Do not interrupt work already in progress solely to change its model.
 
+### M1 model-selection scope correction (2026-09-22)
+
+The user ended further M1 model benchmarks and asked to move to the external repositories. Select one free model from current official pricing/capability information and the retained local evidence. Keep price admission and zero-cost request ceilings; configure no unqualified automatic fallback. The unfinished Gemma live check and broader alternative-model panels are documented as unqualified, not passed or rejected. The paused local live run is retained as partial evidence, not a completed workflow. M1's unmerged zero-cost changes, actual serving configuration, production backup and release verification are explicitly carried into the M2 release item. This changes M1's exit gate without claiming the original live-run or deployment checks passed.
+
 **Session orchestration decision (2026-09-20; worker models superseded above):** After M1 is complete and verified, the primary agent switches from implementer to orchestrator using `/Users/guy/.codex/skills/orchestrate/SKILL.md`. The coordinator owns scope, acceptance criteria, integration, verification, and the persistent `slice · owner · status · evidence · next` ledger; inspect worker diffs and independently verify results before accepting them. Preserve sequential repository investigation and the concurrency ceiling. M1 remains under the current implementation approach until verified.
 
 **Worker preference clarified (2026-09-21; superseded above):** The former Luna/max routine and Sol/medium heavy split applied before GPT-6 Luna xhigh became available. Do not interrupt active work merely to switch models.
 
-**Launcher update (cycle 181):** Luna/xhigh is now supported and is the default
-for routine work as the user requested. The max fallback above applies only
-when xhigh is unavailable; Sol/medium remains reserved for heavy work.
+**Launcher update (cycle 181; worker models superseded above):** Luna/xhigh became
+available after earlier max-tier dispatches. The current GPT-6 Luna rule above
+applies to all new subagents.
 
 At the start of every turn, read `PLAN.md`, relevant project instructions, and the active dossier. Check the working tree and actual release state before acting.
 
@@ -155,7 +159,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 
 ## M1 — Free-model walking skeleton and trustworthy baseline
 
-**Done when:** the existing research flow completes locally and in production using verified free models, required baseline checks pass, zero-cost enforcement covers campaign execution paths, and reproducible baseline artifacts are recorded.
+**Done when:** one currently free model is selected from official public information and retained local evidence, the zero-cost controls pass the required code checks, and the partial live-run result plus outstanding release work are recorded for M2 without further M1 inference. — verified
 
 - [x] M1-01: Establish campaign records, capture the starting commit and deployment state, and verify access to GitHub, Railway, Vercel, and OpenRouter without exposing credentials.
 - [x] M1-02: Reproduce and correct the known disagreement between the live publication gate and release evaluator for speculative contradictions; add a behavioral regression test.
@@ -195,20 +199,15 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-04b-Q2: Require one verifier verdict per supplied pair at the JSON retry boundary using a fresh per-call minimum array length; reproduce empty/short envelopes test-first, preserve two-attempt ceiling and all ambiguity/false-verdict guards, verify through public single/batch interfaces and applicable live trials. Do not add maxItems because the provider shim truncates excess arrays.
 - [x] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
 - [x] M1-04b-G1-tests: Restore the existing 500-line source-file gate after the Gemma regression additions by organizing the exact-route tests into focused sibling modules, reusing test helpers and preserving every assertion; verify affected suites and parity without raising the limit.
-- [ ] M1-04b-G1: Resolve the exact Gemma26 free-route native-schema mismatch documented in gemma26-routing186.md: reproduce at the LLM request boundary, reuse the existing JSON-object path with a justified bounded capability exception, preserve local schema validation and zero-price routing, then verify a real response after provider backoff. Do not infer capability for all Gemma models or claim scientific qualification from this interface check.
 - [x] M1-security-Entrez: Keep campaign PubMed calls free of the shared Entrez key, use anonymous request pacing, and preserve TLS verification by default; reproduce the defects, verify the corrected Biopython request and full MCP suite, and retain the security assessment. Deployed behavior remains part of the open release item.
 - [x] M1-eval-policy-fingerprint: Include the new free-route admission and catalog modules in frozen comparison policy identity; reproduce their omission in a behavioral test and verify matched comparison consumers, so policy changes cannot silently reuse baseline evidence.
-- [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
-- [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
+- [x] M1-04c: Select and document one currently free model from official public information and the retained local evidence; record the reliability limits and unqualified alternatives, with no automatic unqualified fallback. See `references/external/baseline/model-choice-2026-09-22.md` and the public catalog receipt.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
 - [x] Run the baseline verification suite and browser flow; resolve failures that prevent trustworthy campaign evaluation.
-- [ ] Complete a local live run with public evidence through interview, retrieval, durable execution, recovery/reopen, and report publication; retain sanitized artifacts.
 - [x] M1-release-scope-a: Persist server-derived campaign policy on interviews/runs using backward-compatible defaults and verified bearer identities; test spoofing, linked-object downgrade prevention and restart readback.
 - [x] M1-release-scope-b: Propagate monotone campaign context through request/stream/background and durable task boundaries; verify concurrent ordinary BYOK, recovery, caches, auxiliary calls and workspace restrictions without changing global environment at runtime.
 - [x] M1-release-scope-c: Enforce authenticated request-scoped campaign policy on the existing MCP service and partition cached clients; verify actual SDK session/context propagation, concurrent ordinary tools, root authentication, forged headers and both tool invocation paths.
 - [x] M1-release-scope-d: Verify integrated campaign/BYOK coexistence through public requests and durable recovery before selecting shared production configuration; all campaign cost controls and ordinary BYOK behavior must hold simultaneously.
-- [ ] Merge and deploy the free-model configuration and necessary support changes; verify actual serving configuration, production smoke checks, and a campaign-owned live run.
-- [ ] Freeze the post-switch baseline, evaluation inputs, model settings, cache-isolation procedure, and release/rollback procedure for subsequent comparisons.
 
 ## M2 — Kaimen-Inc/Co-Scientist
 
@@ -218,7 +217,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [ ] Compare citation provenance, structured output, proximity, scheduling, model routing, and budget handling with current local behavior; distinguish shipped mechanisms from advertised or unfinished ones.
 - [ ] Expand accepted candidates into concrete implementation items and complete them test-first, preserving the existing workflow and provider contracts.
 - [ ] Run candidate evaluations, milestone verification, and cleanup; retain evidence for adoption, coverage, and rejection decisions.
-- [ ] Merge, deploy, verify, complete the dossier and architecture log, and remove the temporary checkout.
+- [ ] Merge, deploy, verify, complete the dossier and architecture log, and remove the temporary checkout. Include the pending M1 zero-cost changes and selected free-model default in this release; first verify a consistent production backup and then confirm actual serving configuration, smoke results, and a zero-cost rollback target. Freeze the post-switch baseline and evaluation inputs without restarting M1 qualification.
 
 ## M3 — conradry/open-coscientist-agents
 
@@ -4912,3 +4911,11 @@ recovery; no second research run was created or claimed complete.
 ### Cycle 197 — Worker model policy update
 
 The user changed the future subagent default to GPT-6 Luna at xhigh effort for all campaign slices, including heavy work. This supersedes the prior Luna 5.6 and Sol split. The primary agent remains responsible for finishing M1; after M1 verification it coordinates through `orchestrate` with bounded dispatches, independent output checks, and a retained ledger. No worker was dispatched to record this change. The checklist and scientific acceptance criteria are unchanged.
+
+### Cycle 198 — M1 scope correction and close
+
+Starting commit `0c20fc7f`. The user ended further M1 model benchmarks, directed a choice from existing results plus online research, and approved moving the unfinished release into the first repository release. The former Gemma live check, broad alternative qualification, completed local run, M1 deployment and post-deployment freeze were removed from the M1 exit gate by that explicit scope change; none is recorded as having passed. Gemma, Qwen and Nemotron remain unqualified, not rejected. The paused local run is retained as partial evidence in `local-run-paused197.json` and was not resumed. No new inference was requested.
+
+The official OpenRouter public catalog snapshot `nex-pro-public-catalog197.json` lists exact `nex-agi/nex-n2.5-pro:free` at zero prompt/completion prices, 262,144 context and advertised structured-output/tool parameters. Existing three-trial scientific, usefulness, ranking and batch-schema receipts support selecting it; `model-choice-2026-09-22.md` records the reliability limit, no automatic fallback and preserved explicit BYOK. The selected default is **not yet deployed**. The M2 release item now owns the pending M1 code, configuration switch, consistent production backup, production smoke, serving readback and zero-cost rollback point.
+
+Revised M1 gate check: all retained release-verification196 checks pass; no production source changed after tested commit `4f21d8d9`; model receipt and linked evidence resolve; authenticated local status is `paused`, not complete; `git diff --check` passes. Cleanup was scoped to this documentation-only closure: no scratch or duplicate code was introduced, no UI changed, and the `deslop` pass found no code-level residue to remove. Architecture at this boundary: the app propagates server-derived campaign context through durable tasks to engine and MCP, while shared LLM admission and guarded retrieval enforce zero-cost requests locally. The deployed services still run the older release. M1 is verified only under the user's revised selection-and-code gate, and M2 begins with Kaimen's repository.

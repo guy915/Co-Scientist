@@ -1,7 +1,10 @@
 # Free-model qualification
 
-Current status (cycle 185): Nex Pro is accepted as the primary candidate; no
-production model chain or fallback is selected.
+Current status (22 September 2026): [Nex Pro is selected](../model-choice-2026-09-22.md)
+for the next campaign release from existing evidence and the current public
+catalog. No automatic fallback is selected. The production default has not been
+switched. The user ended further M1 model benchmarks; unqualified alternatives
+below retain that label without new trials.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
