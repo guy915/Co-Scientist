@@ -4722,3 +4722,34 @@ Production is still unverified for the campaign and no service was launched.
 Next required live actions remain G1 after backoff and the local public-goal run
 after explicit approval of the launcher rejected by automatic review. Do not
 repeat passed suites merely to occupy a turn while approval is pending.
+
+
+### Cycle 190 — Blocked audit and durable handoff
+
+Cycle189 made progress: offline app/browser/evaluation checks passed and the
+Gemma test-file limit defect was corrected in9e6b1ad3. At11:06UTC September22,
+working tree contains only the user's unrelated AGENTS.md edit. No live-launch
+approval has arrived; the same automatic-review rejection remains across
+cycles188,189,190. No provider process is awaiting observation: the launcher
+was rejected before creation. This is an authorization block, not a verified
+wait or evidence of model failure.
+
+Remaining M1 gates were rechecked: G1 needs a real free response after recorded
+Gemma backoff; capability/scientific fallback qualification requires live calls;
+the public-goal acceptance run requires the explicitly requested launch approval;
+merge/deployment and baseline freeze depend on those results plus existing
+release safeguards. M2 cannot begin under the agreed sequential milestone
+workflow. Meaningful independent offline fixes/checks discovered so far are
+complete; repeating passed suites, catalog reads or writing speculative code
+would not advance acceptance. No live inference workaround is authorized by
+an automatic goal continuation. Older pending security-plugin/credential
+approvals remain distinct and are not implicitly granted either.
+
+Third consecutive observation of this blocker now meets the blocked audit:
+mark the native goal blocked rather than consume automatic continuation turns.
+Resume after informed user approval of the bounded live local Nex workflow;
+refresh zero-price eligibility at that time, retain current source/probe hashes,
+and continue the recorded real browser/API/MCP acceptance procedure. Do not
+claim the goal complete, reset the cycle counter, or treat the2,000limit as
+exhausted. The current total is190cycles;58items remain, M1 has44done/6open.
+No code/test changes or cleanup needed in this documentation-only handoff.
