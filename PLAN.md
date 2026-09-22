@@ -4652,3 +4652,40 @@ production check occurred; cycle179 remains the latest release snapshot.
 M1 remains43done/6open; campaign58open. Continue independent M1 acceptance
 preparation or another candidate's justified bounded availability check during
 Gemma backoff, without repeating already-completed checks or polling trials.
+
+
+### Cycle 188 — Fresh engine checks; live launcher rejected before execution
+
+Previous cycle was progress: exact Gemma request-format correction committed
+in0e691367 with128targeted tests. During Gemma backoff, attempted to advance the
+independent local public-goal workflow using the scientifically qualified Nex
+primary, without claiming the still-missing fallback qualification. Luna/xhigh
+refreshed current public catalog eligibility: exact Nex Pro route remains free;
+preflight and qualification receipt hashes are in local-live188-preflight.json.
+No service, auth file or inference started. All intended ports were free.
+
+Automatic approval review rejected apply_patch creation of a temporary live
+launcher before execution. Stated reason: local OpenRouter credential plus
+external transmission of project-derived prompts/data was insufficiently
+authorized, citing usage concerns. The review explicitly prohibited workarounds
+and required materially safer execution or informed approval. The coordinator
+requested explicit approval for only the isolated public EGFR-resistance flow,
+existing OpenRouter key, verified free Nex route, zero-price caps and no paid
+fallback. Approval remains pending; no alternate launcher was attempted.
+This is a launch authorization blocker, not a provider failure or model rejection.
+
+Independent release work progressed: make test-engine first found22failures
+because the outer sandbox blocked macOS sandbox_apply. An approved escalation
+allowed the suite's own confinement policies and passed3139tests with2existing
+skips in114.63s. make lint caught one formatting-only assertion in the new test;
+Ruff fixed it, and lint plus typecheck then passed (app496/engine560/evaluations60
+files). Receipt release-verification188.json retains commands/logs and the new
+test hash. No runtime behavior or thresholds changed this cycle. Scoped cleanup
+retained only meaningful preflight/check evidence and the formatting correction;
+no UI change/browser flow occurred. User AGENTS.md changes remain untouched.
+
+Ledger: live stack · Luna/xhigh · stopped before launch · preflight188 · approval;
+engine verification · coordinator · passed · release-verification188 · retain.
+M1 remains43done/6open; campaign58open. G1 waits for Gemma backoff/live verification;
+local public-goal execution additionally requires the requested approval. No
+production update/check or new fallback qualification is claimed.

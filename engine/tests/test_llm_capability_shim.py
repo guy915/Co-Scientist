@@ -270,9 +270,7 @@ async def test_unqualified_gemma_route_keeps_native_schema(
         "type": "json_schema",
         "json_schema": _NESTED_SCHEMA,
     }
-    assert captured[0]["messages"] == [
-        {"role": "user", "content": "a prompt"}
-    ]
+    assert captured[0]["messages"] == [{"role": "user", "content": "a prompt"}]
 
 
 async def test_downgraded_prompt_forbids_echoing_the_schema(
