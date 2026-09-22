@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -136,9 +135,15 @@ async def test_detached_run_generators_reload_policy_and_stay_isolated(
     monkeypatch.setattr(runs_crud, "generate_run_title", title)
     monkeypatch.setattr(runs_crud, "generate_goal_restatement", restatement)
 
-    await runs_crud._populate_run_title(campaign.id, campaign.research_goal)
+    await runs_crud._populate_run_title(
+        campaign.id,
+        campaign.research_goal,
+        execution_policy=campaign.execution_policy,
+    )
     await runs_crud._populate_goal_restatement(
-        standard.id, standard.research_goal
+        standard.id,
+        standard.research_goal,
+        execution_policy=standard.execution_policy,
     )
 
     assert seen[campaign.research_goal] is True
@@ -146,7 +151,40 @@ async def test_detached_run_generators_reload_policy_and_stay_isolated(
     assert campaign_free_mode() is False
 
 
-async def test_run_streams_reload_policy_after_response_construction(
+async def test_detached_run_generators_keep_trusted_policy_after_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _run("campaign")
+    seen: list[tuple[str, bool]] = []
+
+    async def title(_goal: str) -> str:
+        seen.append(("title", campaign_free_mode()))
+        return "title"
+
+    async def restatement(_goal: str) -> str:
+        seen.append(("restatement", campaign_free_mode()))
+        return "restatement"
+
+    monkeypatch.setattr(runs_crud, "generate_run_title", title)
+    monkeypatch.setattr(runs_crud, "generate_goal_restatement", restatement)
+    store.delete_run(campaign.id)
+
+    await runs_crud._populate_run_title(
+        campaign.id,
+        campaign.research_goal,
+        execution_policy=campaign.execution_policy,
+    )
+    await runs_crud._populate_goal_restatement(
+        campaign.id,
+        campaign.research_goal,
+        execution_policy=campaign.execution_policy,
+    )
+
+    assert seen == [("title", True), ("restatement", True)]
+    assert campaign_free_mode() is False
+
+
+async def test_run_streams_use_policy_captured_at_response_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     campaign = _run("campaign")
@@ -163,8 +201,14 @@ async def test_run_streams_reload_policy_after_response_construction(
         yield ("chunk", "started")
 
     monkeypatch.setattr(qa, "stream_llm_deltas", deltas)
+    monkeypatch.setattr(qa, "_persist_qa_answer", lambda *_args: None)
     monkeypatch.setattr(
         run_start_announcement, "_stream_model_fragments", fragments
+    )
+    monkeypatch.setattr(
+        run_start_announcement,
+        "_persist_announcement",
+        lambda *_args: None,
     )
 
     answer = qa.stream_answer(
@@ -174,12 +218,97 @@ async def test_run_streams_reload_policy_after_response_construction(
     )
     async for _ in answer:
         pass
-    stale = dataclasses.replace(campaign, execution_policy="standard")
-    announcement = run_start_announcement.stream_announcement(stale, 1)
+    announcement = run_start_announcement.stream_announcement(campaign, 1)
     async for _ in announcement:
         pass
 
     assert seen == [("qa", True), ("announcement", True)]
+    assert campaign_free_mode() is False
+
+
+async def test_interview_stream_keeps_trusted_policy_after_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    interview = store.create_interview(
+        "owner", "Campaign interview", execution_policy="campaign"
+    )
+    seen: list[bool] = []
+
+    async def advance(
+        _interview_id: str, _reasoning: Any = None, _prose: Any = None
+    ) -> dict[str, Any]:
+        seen.append(campaign_free_mode())
+        return interview
+
+    monkeypatch.setattr(interviews_stream, "_advance", advance)
+    interview_stream = interviews_stream._advance_stream(
+        str(interview["id"]), execution_policy="campaign"
+    )
+    store.delete_interview(str(interview["id"]))
+
+    async for _ in interview_stream:
+        pass
+
+    assert seen == [True]
+    assert campaign_free_mode() is False
+
+
+async def test_qa_stream_keeps_trusted_policy_after_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _run("campaign")
+    seen: list[bool] = []
+
+    async def deltas(*_args: Any, **_kwargs: Any) -> AsyncIterator[Any]:
+        seen.append(campaign_free_mode())
+        yield ("chunk", "answer")
+
+    monkeypatch.setattr(qa, "stream_llm_deltas", deltas)
+    monkeypatch.setattr(qa, "_persist_qa_answer", lambda *_args: None)
+    answer_stream = qa.stream_answer(
+        campaign.id,
+        qa.QaQuestion(text="question", message_id=1),
+        qa.QaAnswerInputs("system", []),
+        execution_policy=campaign.execution_policy,
+    )
+    store.delete_run(campaign.id)
+
+    async for _ in answer_stream:
+        pass
+
+    assert seen == [True]
+    assert campaign_free_mode() is False
+
+
+async def test_announcement_keeps_trusted_policy_after_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _run("campaign")
+    seen: list[bool] = []
+
+    async def fragments(
+        _run_row: store.RunRow, *, thinking_enabled: bool = True
+    ) -> AsyncIterator[tuple[str, str]]:
+        seen.append(campaign_free_mode())
+        yield ("chunk", "started")
+
+    monkeypatch.setattr(
+        run_start_announcement, "_stream_model_fragments", fragments
+    )
+    monkeypatch.setattr(
+        run_start_announcement,
+        "_persist_announcement",
+        lambda *_args: None,
+    )
+    announcement_stream = run_start_announcement.stream_announcement(
+        campaign, 1
+    )
+    store.delete_run(campaign.id)
+
+    async for _ in announcement_stream:
+        pass
+
+    assert seen == [True]
     assert campaign_free_mode() is False
 
 
@@ -202,6 +331,28 @@ async def test_durable_dispatch_reloads_policy_for_recovery_and_resets(
 
     assert seen == {campaign.id: True, standard.id: False}
     assert campaign_free_mode() is False
+
+
+async def test_durable_dispatch_aborts_when_run_was_deleted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = _run("campaign")
+    dispatched = False
+
+    async def dispatch(
+        _task_row: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        nonlocal dispatched
+        dispatched = True
+        return {"ok": True}
+
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
+    store.delete_run(campaign.id)
+
+    with pytest.raises(LookupError, match="run not found for task dispatch"):
+        await engine_tasks.execute_engine_task(_task(campaign.id))
+
+    assert dispatched is False
 
 
 async def test_contribution_safety_uses_persisted_run_policy(

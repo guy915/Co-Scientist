@@ -389,7 +389,9 @@ async def create_interview(
         execution_policy=execution_policy,
     )
     _attach_documents(str(interview["id"]), body.document_ids, request)
-    return _interview_stream(str(interview["id"]), byok)
+    return _interview_stream(
+        str(interview["id"]), byok, execution_policy=execution_policy
+    )
 
 
 @router.get("")
@@ -461,7 +463,11 @@ async def add_interview_turn(
     store.append_interview_turn(
         interview_id, store.NewInterviewTurn("user", body.content)
     )
-    return _interview_stream(interview_id, byok)
+    return _interview_stream(
+        interview_id,
+        byok,
+        execution_policy=str(interview["execution_policy"]),
+    )
 
 
 # The rewind/retry revision endpoints (PUT .../turns/{turn_id} and POST

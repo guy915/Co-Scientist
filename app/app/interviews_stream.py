@@ -21,7 +21,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from app import credentials, store
-from app.execution_policy import STANDARD, scoped_execution_policy
+from app.execution_policy import scoped_execution_policy
 from app.interviews_model import ProseSink, ReasoningSink
 from app.sse import sse_frame
 
@@ -55,9 +55,23 @@ async def _advance(
     return await _advance_impl(interview_id, on_reasoning, on_prose)
 
 
+def _resolved_execution_policy(
+    interview_id: str, execution_policy: str | None
+) -> str:
+    """Use the trusted captured policy, or fail closed if the row vanished."""
+    if execution_policy is not None:
+        return execution_policy
+    interview = store.get_interview(interview_id)
+    if interview is None:
+        raise LookupError(f"interview not found for stream: {interview_id}")
+    return str(interview["execution_policy"])
+
+
 async def _advance_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> AsyncIterator[str]:
     """Advance one turn as SSE: live reasoning and prose, then the interview.
 
@@ -88,16 +102,14 @@ async def _advance_stream(
     Args:
         interview_id: The interview to advance.
         byok: The request's credential, when one was sent.
+        execution_policy: Policy captured when the interview was authorized.
 
     Yields:
         ``reasoning`` and ``chunk`` frames, then one terminal ``interview``
         or ``error`` frame.
     """
-    interview = store.get_interview(interview_id)
-    execution_policy = (
-        str(interview["execution_policy"])
-        if interview is not None
-        else STANDARD
+    execution_policy = _resolved_execution_policy(
+        interview_id, execution_policy
     )
     with (
         scoped_execution_policy(execution_policy),
@@ -178,18 +190,23 @@ async def _resolve_advance_task(
 def _interview_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> StreamingResponse:
     """Wrap ``_advance_stream`` in a no-buffer SSE response.
 
     Args:
         interview_id: The interview to advance.
         byok: The request's credential, when one was sent.
+        execution_policy: Policy captured when the interview was authorized.
 
     Returns:
         The SSE response streaming the turn.
     """
     return StreamingResponse(
-        _advance_stream(interview_id, byok),
+        _advance_stream(
+            interview_id, byok, execution_policy=execution_policy
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

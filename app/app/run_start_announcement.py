@@ -30,7 +30,7 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from app.execution_policy import STANDARD, scoped_execution_policy
+from app.execution_policy import scoped_execution_policy
 from app.llm_stream import stream_chunks
 from app.sse import sse_frame
 from app.store.models import RunRow
@@ -235,12 +235,8 @@ async def _announcement_attempts(
     ``interviews_model._stream_interview_content`` for the same shape on
     the interview's own stream.
     """
-    persisted = store.get_run(run.id)
-    execution_policy = (
-        persisted.execution_policy if persisted is not None else STANDARD
-    )
     with (
-        scoped_execution_policy(execution_policy),
+        scoped_execution_policy(run.execution_policy),
         credentials.scoped_byok(byok),
     ):
         async for frame in _relay_announcement(run, prose, reasoning):

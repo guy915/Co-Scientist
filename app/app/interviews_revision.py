@@ -115,7 +115,11 @@ def _rewind_and_restream(
             interview_id, store.NewInterviewTurn("user", replacement)
         )
     _reset_derivation(interview_id)
-    return _interview_stream(interview_id, byok)
+    return _interview_stream(
+        interview_id,
+        byok,
+        execution_policy=str(interview["execution_policy"]),
+    )
 
 
 @router.put("/{interview_id}/turns/{turn_id}")

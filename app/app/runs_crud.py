@@ -33,7 +33,6 @@ from app import (
 )
 from app.auth import client_id, require_client_scope
 from app.execution_policy import (
-    STANDARD,
     resolve_execution_policy,
     scoped_execution_policy,
 )
@@ -66,6 +65,8 @@ async def _populate_run_title(
     run_id: str,
     goal: str,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> None:
     """Generate a run's short session title and persist it (best-effort).
 
@@ -81,9 +82,13 @@ async def _populate_run_title(
         run_id: The run to title.
         goal: The run's research goal.
         byok: The run's credential, when it was created with one.
+        execution_policy: Policy captured when the run was created.
     """
-    run = store.get_run(run_id)
-    execution_policy = run.execution_policy if run is not None else STANDARD
+    if execution_policy is None:
+        run = store.get_run(run_id)
+        if run is None:
+            return
+        execution_policy = run.execution_policy
     with (
         scoped_execution_policy(execution_policy),
         credentials.scoped_byok(byok),
@@ -97,6 +102,8 @@ async def _populate_goal_restatement(
     run_id: str,
     goal: str,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> None:
     """Generate a run's narrative goal restatement and persist it.
 
@@ -113,9 +120,13 @@ async def _populate_goal_restatement(
         run_id: The run to restate the goal of.
         goal: The run's research goal.
         byok: The run's credential, when it was created with one.
+        execution_policy: Policy captured when the run was created.
     """
-    run = store.get_run(run_id)
-    execution_policy = run.execution_policy if run is not None else STANDARD
+    if execution_policy is None:
+        run = store.get_run(run_id)
+        if run is None:
+            return
+        execution_policy = run.execution_policy
     with (
         scoped_execution_policy(execution_policy),
         credentials.scoped_byok(byok),
@@ -251,14 +262,22 @@ def _apply_post_commit_effects(
     model_backed = byok is not None or not engine_adapter.offline_mode()
     if run.title is None and model_backed:
         background_tasks.add_task(
-            _populate_run_title, run.id, req.research_goal, byok
+            _populate_run_title,
+            run.id,
+            req.research_goal,
+            byok,
+            execution_policy=run.execution_policy,
         )
     # GOAL-RESTATEMENT-001: scheduled for every model-backed run (not gated on
     # the title, which the interview may already have supplied), off the
     # create critical path just like titling.
     if model_backed:
         background_tasks.add_task(
-            _populate_goal_restatement, run.id, req.research_goal, byok
+            _populate_goal_restatement,
+            run.id,
+            req.research_goal,
+            byok,
+            execution_policy=run.execution_policy,
         )
 
 

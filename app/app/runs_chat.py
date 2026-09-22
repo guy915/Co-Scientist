@@ -185,7 +185,7 @@ def _persist_question(run_id: str, content: str) -> store.MessageRow:
 
 def _live_qa_response(
     req: AskRequest,
-    run_id: str,
+    run: store.RunRow,
     question_msg: store.MessageRow,
     context: qa.QaRunContext,
     byok: credentials.ByokCredential | None,
@@ -193,7 +193,7 @@ def _live_qa_response(
     """Stream a live LLM Q&A answer, prompted with the run's evidence."""
     return StreamingResponse(
         qa.stream_answer(
-            run_id,
+            run.id,
             qa.QaQuestion(text=req.question, message_id=question_msg.id),
             qa.QaAnswerInputs(
                 system_prompt=qa.build_system_prompt(context),
@@ -201,6 +201,7 @@ def _live_qa_response(
                 ideas=context.hypotheses,
             ),
             byok=byok,
+            execution_policy=run.execution_policy,
         ),
         media_type="text/event-stream",
     )
@@ -223,7 +224,7 @@ async def ask_question(
     context = _gather_qa_context(run)
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
-    return _live_qa_response(req, run_id, question_msg, context, byok)
+    return _live_qa_response(req, run, question_msg, context, byok)
 
 
 @router.post("/{run_id}/messages/started")

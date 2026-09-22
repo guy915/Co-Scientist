@@ -22,6 +22,7 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
+from app.async_bridge import propagate_context
 from app.litellm_shutdown import run_in_scoped_loop
 
 # Compatibility names retained for existing API/store callers. They are aliases
@@ -215,7 +216,10 @@ def escalate_held_hypotheses(
     with ThreadPoolExecutor(
         max_workers=min(_ESCALATION_CONCURRENCY, len(held))
     ) as pool:
-        return list(pool.map(_escalate_one, held))
+        futures = [
+            pool.submit(propagate_context(_escalate_one), item) for item in held
+        ]
+        return [future.result() for future in futures]
 
 
 __all__ = [
