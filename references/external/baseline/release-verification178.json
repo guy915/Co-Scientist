@@ -57,13 +57,30 @@
       },
       "log": "/private/tmp/coscientist-check178-typecheck.log",
       "log_sha256": "19d848878c2020a900dececfb42c47e6be321bd92ec9b4e9293abda3b7bf3253"
+    },
+    {
+      "command": "make lint",
+      "status": "passed",
+      "exit_code": 0,
+      "source_commit": "f9c3b7fb974ba649dcfe95a0be062be467faabf9",
+      "log": "/private/tmp/coscientist-check178-lint-final.log",
+      "log_sha256": "2f0856c352f174bcbcab9e31e382f58c8baf7e5fbdafe0f092f2c6646a0352c3"
+    },
+    {
+      "command": "make typecheck",
+      "status": "passed",
+      "exit_code": 0,
+      "source_commit": "f9c3b7fb974ba649dcfe95a0be062be467faabf9",
+      "log": "/private/tmp/coscientist-check178-typecheck-final.log",
+      "log_sha256": "8b7020bc1cdd20581c2cd38a467a1587f3ccd0c86b57af907c80fa546958ad76"
     }
   ],
-  "lint": "pending fixes to four campaign-touched files",
+  "lint": "passed after formatting corrections",
   "limitations": [
     "No production deployment or live scientific workflow verified",
     "No new skips or relaxed assertions",
-    "Full backend command passed; typecheck and lint remain independent failures",
     "Raw logs reside in local temporary storage; hashes preserve identity"
-  ]
+  ],
+  "final_checked_commit": "f9c3b7fb974ba649dcfe95a0be062be467faabf9",
+  "reuse_basis": "Final commit changes formatting and accurate generator annotation only; 36 affected tests passed. Earlier full suite, browser, build and frontend results retained without another identical runtime run."
 }

@@ -4264,3 +4264,20 @@ typecheck found the new explicit-close test calls aclose on a value annotated
 AsyncIterator; targeted source-only mypy had missed that test. Fix accurate
 typing and formatting after the live capability batch ends, then rerun lint,
 typecheck and affected tests. No skips, ignores or assertion relaxation.
+
+Cycle178 capability result: Nemotron Super batch completed (session94738),
+using fresh catalog verification and zero-price-capped requests on source9ad8bac9.
+Short JSON off passed; reasoning-on, tool completion, streaming and long JSON
+were blocked by Nvidia overload. This is inconclusive, not scientific rejection
+or fallback acceptance. Catalog, raw capability result and qualification-summary178
+are retained; no scientific trials were started. Source freeze is lifted. Luna
+owns final accurate test typing plus four formatting fixes and will rerun full
+lint/typecheck and affected tests. Other candidates remain open as documented.
+
+Cycle178 closing correction: f9c3b7fb applies formatting and accurately annotates
+the concrete async generator; runtime logic and assertions are unchanged.
+Worker reports36 affected tests and full lint/typecheck passing. Coordinator
+is retaining separate final lint/typecheck logs, preserving the failed earlier
+logs. Reuse previous complete backend/browser/frontend results because final
+changes are formatting/type annotation only; receipt release-verification178.json
+distinguishes failed attempts from final results. No product deployment occurred.

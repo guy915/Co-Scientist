@@ -1,6 +1,6 @@
 # Free-model qualification
 
-Current status (cycle 177): Nex Pro is accepted as the primary candidate; no
+Current status (cycle 178): Nex Pro is accepted as the primary candidate; no
 production model chain or fallback is selected.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
@@ -44,6 +44,10 @@ production model chain or fallback is selected.
   failed in each trial. Liquid is unqualified under this configuration; see
   [series 172 evidence](liquid-resume172.md). All recorded requests retained
   zero-price caps; rate-limit and deterministic-fallback evidence is preserved.
+- **Nemotron Super:** the fresh [cycle 178 batch](qualification-summary178.md)
+  passed short JSON but encountered provider overload on reasoning, tool-loop,
+  streaming and long-input checks. It remains operationally inconclusive;
+  Qwen and Gemma also remain open on their recorded shared-pool limits.
 - **Remaining:** independently qualify fallbacks,
   select models, complete the local research workflow, and verify the release.
 
