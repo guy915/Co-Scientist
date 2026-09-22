@@ -31,6 +31,7 @@ from typing import Any
 
 from Bio import Entrez
 
+from mcp_server.campaign import campaign_free_mode
 from mcp_server.entrez import initialize_entrez
 
 # Minimum seconds between two requests leaving this process, just inside
@@ -53,7 +54,9 @@ def _request_interval() -> float:
     """Seconds to leave between requests, given the credentials in force."""
     initialize_entrez()
     return (
-        _INTERVAL_WITH_API_KEY if Entrez.api_key else _INTERVAL_WITHOUT_API_KEY
+        _INTERVAL_WITH_API_KEY
+        if Entrez.api_key and not campaign_free_mode()
+        else _INTERVAL_WITHOUT_API_KEY
     )
 
 
@@ -88,5 +91,9 @@ def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
     Returns:
         The open response handle the Entrez call returned.
     """
+    # Biopython's key is process-global. Passing None suppresses it for this
+    # request even when a standard user's key was loaded earlier in the process.
+    if campaign_free_mode():
+        kwargs["api_key"] = None
     _await_slot()
     return request(**kwargs)

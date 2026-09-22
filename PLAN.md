@@ -192,6 +192,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] M1-04b-R1: Correct the existing capability/scientific probe CLI terminal-error contract before another batch: reproduce recorded-error/zero-exit behavior offline, retain the error artifact and return nonzero on terminal error; stop capability cases at the first error, while distinguishing completed scientific gate failures from execution errors. Reuse existing runners and test their CLI boundary; preserve historical artifacts and refresh future probe hashes rather than changing frozen evidence. Remove reliance on per-launcher error-name allowlists.
 - [x] M1-04b-G1-tests: Restore the existing 500-line source-file gate after the Gemma regression additions by organizing the exact-route tests into focused sibling modules, reusing test helpers and preserving every assertion; verify affected suites and parity without raising the limit.
 - [ ] M1-04b-G1: Resolve the exact Gemma26 free-route native-schema mismatch documented in gemma26-routing186.md: reproduce at the LLM request boundary, reuse the existing JSON-object path with a justified bounded capability exception, preserve local schema validation and zero-price routing, then verify a real response after provider backoff. Do not infer capability for all Gemma models or claim scientific qualification from this interface check.
+- [x] M1-security-Entrez: Keep campaign PubMed calls free of the shared Entrez key, use anonymous request pacing, and preserve TLS verification by default; reproduce the defects, verify the corrected Biopython request and full MCP suite, and retain the security assessment. Deployed behavior remains part of the open release item.
 - [ ] M1-04b: Qualify shortlisted candidates through actual structured-output, tool-call, app streaming, long-prompt and reasoning-budget interfaces; retain served-model/usage/failure evidence and honor rate limits.
 - [ ] M1-04c: Compare representative scientific panel results and select/document a primary and compatible free fallbacks; update configuration only from verified results, preserving BYOK behavior.
 - [x] M1-09: Resolve the discovered release-evaluator safety gaps for absent/pending hypothesis statuses and final report screening: reproduce through publication interfaces, reuse live rules or enforce verified completed-artifact preconditions, and retain fail-closed safety behavior.
@@ -4839,3 +4840,32 @@ was loaded. These results establish availability limits, not scientific
 rejections. Review existing compatible candidates before further inference.
 Production Railway readback still shows the same successful API/MCP deployment
 IDs recorded in release-state179.json, with no staged changes.
+
+### Cycle 196 — Durable local recovery and PubMed security repair
+
+Previous cycle195 made progress: the first approved real interview and run
+started, bounded free-model availability evidence was committed as5f8d83ae,
+and the authenticated browser session survived refresh. This cycle found that
+the isolated service processes ended after cycle195 while its run remained
+persisted at verification. The same isolated SQLite store was retained. Fresh
+public OpenRouter catalog still listed exact Nex Pro free with zero prompt and
+completion prices at19:55:48UTC; runtime zero-price caps remain enforced.
+The service script was inspected, old logs preserved, and the same local stack
+restarted. The API recovered the existing run6b095448-e567-4be2-8061-037ec46da803
+from a leased verification item onto recovery attempt2; no second run was
+created. Authenticated event replay confirmed literature search completion.
+Local source logs recorded six unique retrieved papers across public sources;
+report/evidence rows are still pending final drain, so acceptance stays open.
+
+The previously launched security scan37397870-2c59-4fa1-b638-30445fd598f6
+has two validated reportable findings in its frozen original diff: campaign
+PubMed calls could use process-global shared Entrez credentials, and default
+Entrez initialization disabled TLS verification. Test-first fixes are in the
+MCP boundary: campaign calls pass an explicit omitted key and take anonymous
+pacing, while TLS can no longer be globally disabled. Ordinary non-campaign
+key behavior is retained. The three new behavioral tests failed before the
+corrections; afterward15 targeted tests, all283 MCP tests and mypy over73 files
+passed, as did Ruff and diff checks. Evidence is in security-entrez195.md.
+Deployment and complete security coverage of later revisions remain open.
+The independent Nemotron scientific-trial worker ended on a Codex usage limit
+before launching the new batch; no live scientific result is claimed.
