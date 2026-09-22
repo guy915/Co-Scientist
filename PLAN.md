@@ -4175,3 +4175,30 @@ material findings. Updated campaign migration preparation to include the two
 isolated execution_policy columns alongside claim verification provenance;
 production backup and migration verification remain release gates. This is
 preparation only, not evidence of a production backup or completed release.
+
+Cycle176 broad-check result atafc6ac4b: make test-all stopped in engine with
+3112passed/2skipped/22failed; all22 failures report macOS sandbox-exec sandbox_apply
+Operation not permitted under the enclosing sandbox. App/MCP/parity did not
+run in that invocation. Full typecheck found two test typing errors (Any return
+in test_async_bridge and optional RunRow dereference in policy persistence).
+Offline eval-smoke passed. Luna owns minimal test typing fixes and a full
+test-all rerun outside the enclosing sandbox, preserving actual confinement
+tests and all assertions. Logs are /private/tmp/coscientist-scope176-test-all.log
+and the forthcoming -test-all-host.log; no failed invocation is reported green.
+
+Cycle176 live result: Liquid series172 trial2 completed with accuracy .50 and
+contradiction recall0, below .75/.80; both single/batch scope controls fail,
+historical controls pass. Retained raw liquid-challenge172-2.json records84
+physical requests, all with zero prompt/completion/request price caps. Panel
+telemetry includes6 rate-limit errors and2 deterministic claim fallbacks; do
+not represent every verdict as successful live model evidence. Liquid remains
+unqualified. Existing sequential runner owns remaining trial3; no duplicate
+inference or changes to frozen sources.
+
+Cycle176 host-suite result: engine3134passed/2skipped. App1835passed/37 setup
+errors, all sharing CLI fixture server startup failure; MCP/parity not reached.
+The fixture replaces PYTHONPATH with only its app path, potentially resolving
+the shared interpreter's editable engine from the frozen main checkout. Luna
+is checking that cause and, if confirmed, using a separate temporary venv with
+isolated editable imports before app verification. Do not alter the fixture
+to hide the environment mismatch or reinstall into the shared trial venv.
