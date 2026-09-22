@@ -139,10 +139,10 @@ End each execution turn with only the required status as its final content:
 
 When implementation mode is enabled, save this plan as `PLAN.md`, commit it on the initial campaign branch, verify the fresh checkbox count, and return the goal prompt without starting the goal automatically.
 
-This initial plan contains **60 open items**, giving **180 turns**. Recalculate before launch if the checklist changes. Subsequent discoveries may increase work; they do not silently increase the authorized turn limit.
+The initial plan contained **60 open items** and authorized **180 turns**. After cycle 180, the user explicitly increased the limit to **2,000 total turns**, continuing the existing counter rather than restarting it. Subsequent discoveries may increase work; they do not silently increase this authorized limit.
 
 ```text
-/goal `grep -cE '^[[:space:]]*- \[ \]' PLAN.md` prints 0 — every item in PLAN.md is checked and each milestone's "Done when" holds. Each turn, run /milestone. Stop after 180 turns.
+/goal Continue the existing external-reference campaign in PLAN.md from cycle 181, with a revised limit of 2,000 total cycles (1,820 remaining after cycle 180). Each turn, run /milestone. Done only when every item in PLAN.md is checked and each milestone's "Done when" holds. Preserve the full scope, zero additional spending, and all safeguards. Stop at cycle 2,000 if unfinished and preserve the exact remaining work and blockers.
 ```
 
 ## M1 — Free-model walking skeleton and trustworthy baseline
@@ -317,7 +317,7 @@ This initial plan contains **60 open items**, giving **180 turns**. Recalculate 
 - Promising but inconclusive candidates stay open for further investigation.
 - Verified changes are merged and deployed after each repository.
 - A repository may legitimately produce no changes when the assessment supports that conclusion.
-- The initial limit is 180 turns. Reaching it with open work is an incomplete campaign, not successful completion.
+- The initial limit was 180 turns; the user extended it to 2,000 total turns after cycle 180. Reaching the current limit with open work is an incomplete campaign, not successful completion.
 
 **Cycle entry format**
 
@@ -4362,3 +4362,17 @@ so this cycle does not claim that the old reminder's status was verified.
 No new timer, automation, model batch, or worker was started. Resume only with
 renewed execution authorization; preserve the Luna/xhigh default worker and
 Sol/medium heavy-worker preference, and switch to orchestration after M1.
+
+### Authorization update after cycle 180 — 2,000 total turns
+
+The user explicitly increased the campaign limit from 180 to 2,000 turns.
+Continue with cycle 181, leaving 1,820 execution cycles under the new limit.
+This supersedes the cycle-180 stopping instruction and historical references
+to the old limit; those entries remain as historical evidence. Scope, existing
+acceptance criteria, zero additional spending, worker preferences, and the 57
+open items are unchanged. This authorization does not approve the separately
+pending credential rotation or security-plugin configuration change.
+
+The native goal was observed paused with its old 180-turn objective. Available
+goal tools cannot edit that objective or resume its status; the revised launch
+prompt above records the exact continuation for the native goal control.
