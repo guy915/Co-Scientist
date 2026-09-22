@@ -92,7 +92,11 @@ async def test_campaign_scope_isolated_between_concurrent_tasks(
     campaign_task = asyncio.create_task(observe(True))
     await ready.wait()
     ordinary_task = asyncio.create_task(observe(False))
-    assert await asyncio.gather(campaign_task, ordinary_task) == [True, False]
+    campaign_result, ordinary_result = await asyncio.gather(
+        campaign_task, ordinary_task
+    )
+    assert campaign_result is True
+    assert ordinary_result is False
     assert not campaign_free_mode()
 
 
