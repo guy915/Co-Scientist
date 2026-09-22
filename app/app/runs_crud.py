@@ -32,6 +32,7 @@ from app import (
     store,
 )
 from app.auth import client_id, require_client_scope
+from app.execution_policy import resolve_execution_policy
 from app.goal_restatement import generate_goal_restatement
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
@@ -115,6 +116,7 @@ def _persist_new_run(
     request: Request,
     interview: dict[str, Any] | None,
     resolved: _ResolvedRunSettings,
+    execution_policy: str = "standard",
 ) -> store.RunRow:
     """Create the DRAFT run row and log its creation event.
 
@@ -141,6 +143,7 @@ def _persist_new_run(
             client_id=client_id(request),
             title=interview_title,
             llm_backend=resolved.llm_backend,
+            execution_policy=execution_policy,
         ),
     )
     # First entry in the run's event log, so replays show creation metadata.
@@ -277,16 +280,18 @@ async def create_run(
             ``app.auth.require_client_scope``).
     """
     require_client_scope(request)
+    interview, req = _resolve_run_interview(req, request)
+    execution_policy = resolve_execution_policy(request, interview)
     # Validated BEFORE any database write: a rejected key must surface as
     # a clean 4xx here, never as a stored run that fails mid-execution.
-    byok = await _resolve_byok(request)
-    interview, req = _resolve_run_interview(req, request)
+    byok = await _resolve_byok(request, execution_policy)
     staged = _run_setup_documents(req, interview, client_id(request))
     run = _persist_new_run(
         req,
         request,
         interview,
         _resolve_run_settings(req, interview, byok),
+        execution_policy,
     )
     _index_setup_documents(run.id, staged)
     _apply_post_commit_effects(run, req, byok, background_tasks)

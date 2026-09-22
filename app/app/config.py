@@ -7,6 +7,7 @@ live in ``app.config_thinking`` and are re-exported below, so callers and
 
 import os
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config_thinking import (
@@ -220,6 +221,9 @@ class Settings(BaseSettings):
     auth_secret: str = ""
     # JSON object mapping researcher ids to invite/access codes.
     researcher_access_codes: str = "{}"
+    # Verified bearer subjects assigned to the server-funded campaign.
+    # Compatibility X-Client-ID values never qualify (see execution_policy).
+    campaign_researcher_ids: set[str] = Field(default_factory=set)
     auth_session_hours: int = 12
 
     # Bring-your-own-key (BYOK) support. A scientist may send a provider
@@ -263,6 +267,15 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("campaign_researcher_ids")
+    @classmethod
+    def _validate_campaign_researcher_ids(cls, value: set[str]) -> set[str]:
+        """Reject empty identities and normalize harmless whitespace."""
+        cleaned = {subject.strip() for subject in value}
+        if "" in cleaned:
+            raise ValueError("campaign researcher ids must be non-empty")
+        return cleaned
 
     @property
     def effective_chat_model(self) -> str:

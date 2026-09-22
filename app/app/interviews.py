@@ -27,6 +27,7 @@ from app import (
     store,
 )
 from app.auth import client_id, require_client_scope
+from app.execution_policy import CAMPAIGN, resolve_execution_policy
 from app.interviews_documents import (
     _attach_documents as _attach_documents,
 )
@@ -370,10 +371,22 @@ async def create_interview(
             own creator.
     """
     owner = require_client_scope(request)
+    execution_policy = resolve_execution_policy(request)
     byok = _request_byok(request)
+    if execution_policy == CAMPAIGN and byok is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "campaign interviews cannot use bring-your-own-key credentials"
+            ),
+        )
     # Refused before the interview row exists, so a bad id leaves nothing.
     documents.resolve_owned_documents(body.document_ids, owner)
-    interview = store.create_interview(owner, body.research_challenge)
+    interview = store.create_interview(
+        owner,
+        body.research_challenge,
+        execution_policy=execution_policy,
+    )
     _attach_documents(str(interview["id"]), body.document_ids, request)
     return _interview_stream(str(interview["id"]), byok)
 

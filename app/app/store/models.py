@@ -60,6 +60,7 @@ class RunRow:
     updated_at: float
     completed_at: float | None
     error: str | None
+    execution_policy: str = "standard"
     # Short model-generated session heading, distinct from research_goal.
     # None until a background generator fills it in (surfaces fall back to a
     # clause of the goal); also None for runs created before this existed.
@@ -111,6 +112,7 @@ class RunRow:
             "top_hypotheses": self.top_hypotheses,
             "latest_stage": self.latest_stage,
             "llm_backend": self.llm_backend,
+            "execution_policy": self.execution_policy,
         }
 
 
@@ -159,6 +161,11 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
         error=row["error"],
+        execution_policy=(
+            row["execution_policy"]
+            if "execution_policy" in keys
+            else "standard"
+        ),
         title=row["title"] if "title" in keys else None,
         top_elo=row["top_elo"] if "top_elo" in keys else None,
         llm_backend=row["llm_backend"] if "llm_backend" in keys else None,

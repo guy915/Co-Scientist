@@ -16,10 +16,24 @@ from fastapi import HTTPException, Request
 from app import credentials, engine_adapter, store
 from app.auth import client_id
 from app.config import byok_enabled
+from app.execution_policy import CAMPAIGN
 from app.runs_models import CreateRunRequest, _build_create_run_config
 
 
-async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
+def _reject_campaign_byok(
+    credential: credentials.ByokCredential | None, execution_policy: str
+) -> None:
+    """Refuse paid caller credentials for a server-funded campaign."""
+    if credential is not None and execution_policy == CAMPAIGN:
+        raise HTTPException(
+            status_code=400,
+            detail="campaign runs cannot use bring-your-own-key credentials",
+        )
+
+
+async def _resolve_byok(
+    request: Request, execution_policy: str = "standard"
+) -> credentials.ByokCredential | None:
     """Parse and validate the BYOK headers, refusing bad pairs up front.
 
     The cheap live validation call happens here, BEFORE any database
@@ -28,6 +42,7 @@ async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
 
     Args:
         request: The create-run request carrying the BYOK headers.
+        execution_policy: Trusted policy derived from the caller/interview.
 
     Returns:
         The validated credential, or None when no key was sent.
@@ -43,6 +58,7 @@ async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if credential is None:
         return None
+    _reject_campaign_byok(credential, execution_policy)
     if not byok_enabled():
         raise HTTPException(
             status_code=503,

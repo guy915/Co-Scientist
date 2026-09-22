@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS runs (
     -- JSON: initial_count, iterations, evolution_count, k_factor, ...
     config_json TEXT NOT NULL,
     client_id TEXT NOT NULL DEFAULT '',
+    execution_policy TEXT NOT NULL DEFAULT 'standard',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     completed_at REAL,
