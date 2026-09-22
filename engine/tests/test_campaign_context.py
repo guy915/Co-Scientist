@@ -60,8 +60,9 @@ def test_invalid_global_flag_fails_closed_even_inside_scope(
 
     with pytest.raises(FreeModelEligibilityError, match="setting is invalid"):
         campaign_free_mode()
-    with scoped_campaign_mode(True), pytest.raises(
-        FreeModelEligibilityError, match="setting is invalid"
+    with (
+        scoped_campaign_mode(True),
+        pytest.raises(FreeModelEligibilityError, match="setting is invalid"),
     ):
         campaign_free_mode()
 
@@ -147,9 +148,12 @@ async def test_campaign_scope_rejects_paid_byok_before_transport(
     spec = CompletionSpec(PAID_MODEL, api_key="byok-test-key")
 
     async def campaign_call() -> None:
-        with scoped_campaign_mode(True), pytest.raises(
-            FreeModelEligibilityError,
-            match="zero-cost route has paid or invalid pricing",
+        with (
+            scoped_campaign_mode(True),
+            pytest.raises(
+                FreeModelEligibilityError,
+                match="zero-cost route has paid or invalid pricing",
+            ),
         ):
             await call_llm("probe", spec, options=OPTIONS)
 

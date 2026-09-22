@@ -57,14 +57,32 @@ async def _advance(
 
 def _resolved_execution_policy(
     interview_id: str, execution_policy: str | None
-) -> str:
+) -> str | None:
     """Use the trusted captured policy, or fail closed if the row vanished."""
     if execution_policy is not None:
         return execution_policy
     interview = store.get_interview(interview_id)
     if interview is None:
-        raise LookupError(f"interview not found for stream: {interview_id}")
+        return None
     return str(interview["execution_policy"])
+
+
+async def _start_stream_advance(
+    interview_id: str,
+) -> tuple[asyncio.Queue[_Fragment | None], asyncio.Task[dict[str, Any]]]:
+    queue: asyncio.Queue[_Fragment | None] = asyncio.Queue()
+
+    async def _on_reasoning(fragment: str) -> None:
+        await queue.put(("reasoning", fragment))
+
+    async def _on_prose(fragment: str) -> None:
+        await queue.put(("chunk", fragment))
+
+    task = asyncio.create_task(_advance(interview_id, _on_reasoning, _on_prose))
+    # Sentinel closes the drain loop whether the turn succeeded or raised;
+    # it queues behind any fragment already emitted, so nothing is dropped.
+    task.add_done_callback(lambda _: queue.put_nowait(None))
+    return queue, task
 
 
 async def _advance_stream(
@@ -111,26 +129,14 @@ async def _advance_stream(
     execution_policy = _resolved_execution_policy(
         interview_id, execution_policy
     )
+    if execution_policy is None:
+        yield sse_frame({"type": "error", "detail": "interview not found"})
+        return
     with (
         scoped_execution_policy(execution_policy),
         credentials.scoped_byok(byok),
     ):
-        queue: asyncio.Queue[_Fragment | None] = asyncio.Queue()
-
-        async def _on_reasoning(fragment: str) -> None:
-            await queue.put(("reasoning", fragment))
-
-        async def _on_prose(fragment: str) -> None:
-            await queue.put(("chunk", fragment))
-
-        task = asyncio.create_task(
-            _advance(interview_id, _on_reasoning, _on_prose)
-        )
-        # Sentinel closes the drain loop whether the turn succeeded or
-        # raised; it queues behind any fragment already emitted, so
-        # nothing is dropped.
-        task.add_done_callback(lambda _: queue.put_nowait(None))
-
+        queue, task = await _start_stream_advance(interview_id)
         try:
             while (fragment := await queue.get()) is not None:
                 kind, content = fragment
@@ -204,9 +210,7 @@ def _interview_stream(
         The SSE response streaming the turn.
     """
     return StreamingResponse(
-        _advance_stream(
-            interview_id, byok, execution_policy=execution_policy
-        ),
+        _advance_stream(interview_id, byok, execution_policy=execution_policy),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
