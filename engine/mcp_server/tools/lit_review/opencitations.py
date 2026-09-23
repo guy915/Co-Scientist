@@ -140,7 +140,9 @@ def _edges(payload: Any) -> list[dict[str, Any]]:
         not isinstance(row, dict) for row in payload
     ):
         raise ValueError("invalid OpenCitations edge response")
-    return [_edge(row) for row in payload[:_MAX_EDGES]]
+    if len(payload) > _MAX_EDGES:
+        raise ValueError("OpenCitations edge count exceeds the 50-edge limit")
+    return [_edge(row) for row in payload]
 
 
 def _normalize_doi(doi: str) -> str:

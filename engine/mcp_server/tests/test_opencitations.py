@@ -64,7 +64,7 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
         return httpx.Response(200, json=responses.pop(0))
 
     monkeypatch.setattr(
-        opencitations.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: _REAL_ASYNC_CLIENT(
             transport=_MOCK_TRANSPORT(handler), **kwargs
@@ -119,7 +119,7 @@ def _install_responses(
         return httpx.Response(200, json=response)
 
     monkeypatch.setattr(
-        opencitations.httpx,
+        httpx,
         "AsyncClient",
         lambda **kwargs: _REAL_ASYNC_CLIENT(
             transport=_MOCK_TRANSPORT(handler), **kwargs
@@ -184,6 +184,24 @@ async def test_large_response_is_rejected(
         await opencitations.get_opencitations_citation_edges(_DOI)
 
     assert len(requests) == 1
+
+
+async def test_edge_count_growth_cannot_appear_complete_after_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = [
+        {"oci": f"{index}-2", "citing": f"doi:{_DOI}", "cited": "doi:10.1111/x"}
+        for index in range(1, 52)
+    ]
+    requests = _install_responses(
+        monkeypatch,
+        [[{"count": "50"}], [{"count": "0"}], rows],
+    )
+
+    with pytest.raises(RuntimeError, match="edge count exceeds"):
+        await opencitations.get_opencitations_citation_edges(_DOI)
+
+    assert len(requests) == 3
 
 
 async def test_upstream_error_is_not_reported_as_zero(
