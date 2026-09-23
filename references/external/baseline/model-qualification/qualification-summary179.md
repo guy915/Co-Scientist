@@ -29,4 +29,3 @@
 - Qwen remains capability-unqualified because the provider shared-pool limit prevented even the first structured-output observation. This is an operational interruption, not a scientific rejection.
 - The provider’s reset hint is retained for a later separately authorized run; this task created no scheduled retry and leaves no timers.
 - No source, frozen manifest, or PLAN file was modified.
-
