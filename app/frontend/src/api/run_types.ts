@@ -251,6 +251,43 @@ export interface Hypothesis {
   verification_verdict?: string | null;
 }
 
+/** One scientist-entered empirical observation attached to a hypothesis. */
+export interface HypothesisOutcome {
+  id: string;
+  run_id: string;
+  hypothesis_id: string;
+  author: string;
+  recorded_at: number;
+  method_protocol: string;
+  conditions: string;
+  measured_observation: string;
+  units?: string | null;
+  controls: string;
+  interpretation: string;
+  referenced_evidence_ids: string[];
+  hypothesis_snapshot?: {title: string; statement: string};
+  referenced_evidence?: {
+    id: string;
+    title: string;
+    source: string;
+    url: string | null;
+    doi?: string | null;
+    pmid?: string | null;
+    sha256?: string | null;
+  }[];
+}
+
+/** Values a scientist records for a new hypothesis outcome. */
+export interface HypothesisOutcomeInput {
+  method_protocol: string;
+  conditions: string;
+  measured_observation: string;
+  units?: string;
+  controls: string;
+  interpretation: string;
+  referenced_evidence_ids: string[];
+}
+
 /** A literature record cited as supporting or contextual evidence. */
 export interface Evidence {
   id: string;

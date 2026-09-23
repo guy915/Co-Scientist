@@ -1,6 +1,12 @@
 import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
-import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {
+  ClaimEvidenceRow,
+  Hypothesis,
+  HypothesisOutcome,
+  MatchRow,
+  Review,
+} from '@/api/runs';
 import {
   UNDERMINED_VERDICT,
   presentedHypotheses,
@@ -186,15 +192,27 @@ function emptyIdeasNote(exploredCount: number): string {
  * @param props The hypotheses, reviews, matches, and claim-evidence graph.
  */
 export function IdeasTab({
+  runId,
+  isDemo,
   hypotheses,
   reviews,
   matches = [],
   claimEvidence = [],
+  outcomes,
+  outcomesLoading,
+  outcomesError,
+  onRefreshOutcomes,
 }: {
+  runId?: string;
+  isDemo?: boolean;
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
+  outcomes?: HypothesisOutcome[];
+  outcomesLoading?: boolean;
+  outcomesError?: string | null;
+  onRefreshOutcomes?: () => Promise<void> | void;
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected} = useIdeaSelection(hypotheses, isMobile);
@@ -214,6 +232,12 @@ export function IdeasTab({
         reviews={reviews}
         matches={matches}
         claimEvidence={claimEvidence}
+        runId={runId}
+        isDemo={isDemo}
+        outcomes={outcomes}
+        outcomesLoading={outcomesLoading}
+        outcomesError={outcomesError}
+        onRefreshOutcomes={onRefreshOutcomes}
       />
     </div>
   );
@@ -227,6 +251,12 @@ interface IdeaViewProps {
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence: ClaimEvidenceRow[];
+  runId?: string;
+  isDemo?: boolean;
+  outcomes?: HypothesisOutcome[];
+  outcomesLoading?: boolean;
+  outcomesError?: string | null;
+  onRefreshOutcomes?: () => Promise<void> | void;
 }
 
 // Master-detail: the list swaps to a single idea on tap. This view renders no
@@ -243,6 +273,12 @@ function MobileIdeaView({
   reviews,
   matches,
   claimEvidence,
+  runId,
+  isDemo,
+  outcomes,
+  outcomesLoading,
+  outcomesError,
+  onRefreshOutcomes,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_MOBILE_VIEW_CLASSES}>
@@ -257,6 +293,12 @@ function MobileIdeaView({
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
+            runId={runId}
+            isDemo={isDemo}
+            outcomes={outcomes}
+            outcomesLoading={outcomesLoading}
+            outcomesError={outcomesError}
+            onRefreshOutcomes={onRefreshOutcomes}
           />
         </>
       ) : (
@@ -285,6 +327,12 @@ function DesktopIdeaSplit({
   reviews,
   matches,
   claimEvidence,
+  runId,
+  isDemo,
+  outcomes,
+  outcomesLoading,
+  outcomesError,
+  onRefreshOutcomes,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
@@ -307,6 +355,12 @@ function DesktopIdeaSplit({
           reviews={reviews}
           matches={matches}
           claimEvidence={claimEvidence}
+          runId={runId}
+          isDemo={isDemo}
+          outcomes={outcomes}
+          outcomesLoading={outcomesLoading}
+          outcomesError={outcomesError}
+          onRefreshOutcomes={onRefreshOutcomes}
         />
         <SectionsRail />
       </div>

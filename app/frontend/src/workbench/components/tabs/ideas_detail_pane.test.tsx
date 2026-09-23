@@ -462,3 +462,26 @@ describe('HypothesisDetail claim-evidence provenance', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+it('keeps public demo outcomes readable without exposing submission controls', () => {
+  render(
+    <HypothesisDetail
+      hypothesis={fullHypothesis()}
+      runId="demo-run"
+      isDemo
+      reviews={[]}
+      matches={[]}
+      onRefreshOutcomes={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByRole('heading', {name: 'Scientist-recorded observations'}),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', {name: 'Refresh observations'}),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('group', {name: 'Record an observation'}),
+  ).not.toBeInTheDocument();
+});
