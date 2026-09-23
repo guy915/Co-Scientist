@@ -9,16 +9,21 @@ from pathlib import Path
 
 from co_scientist.mcp_client import MCPToolClient
 
+FROZEN_INPUT_SHA256 = "e226b891f26f13870ad974726fa2b0d625ddcd4c91696c10bced794771e30bf7"
+
 
 async def run(input_path: Path, output_path: Path) -> bool:
     source = input_path.read_bytes()
+    input_sha256 = hashlib.sha256(source).hexdigest()
+    if input_sha256 != FROZEN_INPUT_SHA256:
+        raise ValueError("M7 novelty inputs differ from the frozen fixture")
     inputs = json.loads(source)
     client = MCPToolClient(server_url="http://127.0.0.1:8899/mcp")
     await client.initialize()
     report = {
         "kind": "live public MCP retrieval; no model inference",
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "input_sha256": hashlib.sha256(source).hexdigest(),
+        "input_sha256": input_sha256,
         "tool": "pubmed_search_with_fulltext",
         "max_papers": inputs["baseline"]["max_papers"],
         "calls": [],

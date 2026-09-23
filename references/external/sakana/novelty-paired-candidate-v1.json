@@ -1,0 +1,147 @@
+{
+  "kind": "live configured per-draft MCP retrieval; no model inference",
+  "mode": "candidate",
+  "started_at": "2026-09-23T21:48:57.262707+00:00",
+  "input_sha256": "e226b891f26f13870ad974726fa2b0d625ddcd4c91696c10bced794771e30bf7",
+  "max_papers_per_request": 3,
+  "calls": [
+    {
+      "id": "stmn2-tdp43",
+      "target_pmid": "30643298",
+      "returned_ids": [
+        "42619804",
+        "41952326",
+        "42234776"
+      ],
+      "hit": false,
+      "requests": [
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "In motor neurons, loss of nuclear TDP-43 may expose a cryptic polyadenylation site in STMN2 pre-mRNA, reducing functional stathmin-2 and impairing axonal regeneration.",
+            "max_papers": 3,
+            "slug": "m7_novelty_stmn2_tdp43"
+          },
+          "papers": []
+        },
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "TDP-43 STMN2 stathmin-2 motor neurons loss nuclear expose",
+            "max_papers": 3,
+            "slug": "m7_novelty_stmn2_tdp43"
+          },
+          "papers": [
+            {
+              "id": "42619804",
+              "pmid": null,
+              "doi": "10.64898/2026.07.26.740405"
+            },
+            {
+              "id": "41952326",
+              "pmid": null,
+              "doi": "10.1002/ana.78223"
+            },
+            {
+              "id": "42234776",
+              "pmid": null,
+              "doi": "10.1126/scitranslmed.aeb8517"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sarscov2-entry",
+      "target_pmid": "32142651",
+      "returned_ids": [
+        "42627230",
+        "42750109",
+        "42430953"
+      ],
+      "hit": false,
+      "requests": [
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "SARS-CoV-2 may require ACE2 engagement and TMPRSS2-mediated spike priming to enter susceptible human cells.",
+            "max_papers": 3,
+            "slug": "m7_novelty_sarscov2_entry"
+          },
+          "papers": []
+        },
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "SARS-CoV-2 ACE2 TMPRSS2-mediated require engagement spike priming enter",
+            "max_papers": 3,
+            "slug": "m7_novelty_sarscov2_entry"
+          },
+          "papers": [
+            {
+              "id": "42627230",
+              "pmid": null,
+              "doi": "10.1128/jvi.00540-26"
+            },
+            {
+              "id": "42750109",
+              "pmid": null,
+              "doi": "10.1002/advs.77592"
+            },
+            {
+              "id": "42430953",
+              "pmid": null,
+              "doi": "10.1016/j.ejmech.2026.119108"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "qa1b-immune-evasion",
+      "target_pmid": "36151395",
+      "returned_ids": [
+        "41885940",
+        "39561763",
+        "39121847"
+      ],
+      "hit": false,
+      "requests": [
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "In checkpoint-treated mouse tumors, interferon-gamma sensing may induce Qa-1b and restrain CD8 T cells through NKG2A/CD94.",
+            "max_papers": 3,
+            "slug": "m7_novelty_qa1b_immune_evasion"
+          },
+          "papers": []
+        },
+        {
+          "tool": "pubmed_search_with_fulltext",
+          "params": {
+            "query": "Qa-1b CD8 NKG2A CD94 checkpoint-treated mouse tumors interferon-gamma",
+            "max_papers": 3,
+            "slug": "m7_novelty_qa1b_immune_evasion"
+          },
+          "papers": [
+            {
+              "id": "41885940",
+              "pmid": null,
+              "doi": "10.1007/s00262-026-04321-2"
+            },
+            {
+              "id": "39561763",
+              "pmid": null,
+              "doi": "10.1016/j.immuni.2024.10.013"
+            },
+            {
+              "id": "39121847",
+              "pmid": null,
+              "doi": "10.1016/j.cell.2024.07.018"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
