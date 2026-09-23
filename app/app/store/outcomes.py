@@ -46,92 +46,98 @@ def _decode_outcome(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     return outcome
 
 
-def add_hypothesis_outcome(
+def _hypothesis_snapshot(
+    conn: sqlite3.Connection, outcome: NewHypothesisOutcome
+) -> dict[str, str]:
+    """Read the hypothesis display identity while it belongs to this run."""
+    row = conn.execute(
+        "SELECT title, statement FROM hypotheses WHERE id=? AND run_id=?",
+        (outcome.hypothesis_id, outcome.run_id),
+    ).fetchone()
+    if row is None:
+        raise InvalidOutcomeReferencesError
+    return {"title": row["title"], "statement": row["statement"]}
+
+
+def _evidence_snapshots(
+    conn: sqlite3.Connection, run_id: str, evidence_ids: list[str]
+) -> list[dict[str, Any]]:
+    """Validate evidence ownership and capture only stable source metadata."""
+    if not evidence_ids:
+        return []
+    placeholders = ",".join("?" for _ in evidence_ids)
+    rows = conn.execute(
+        "SELECT id, title, source, url, doi, pmid, sha256 FROM evidence "
+        f"WHERE run_id=? AND id IN ({placeholders})",
+        (run_id, *evidence_ids),
+    ).fetchall()
+    evidence_by_id = {row["id"]: row for row in rows}
+    if set(evidence_by_id) != set(evidence_ids):
+        raise InvalidOutcomeReferencesError
+    fields = ("id", "title", "source", "url", "doi", "pmid", "sha256")
+    return [
+        {key: evidence_by_id[evidence_id][key] for key in fields}
+        for evidence_id in evidence_ids
+    ]
+
+
+def _insert_outcome(
+    conn: sqlite3.Connection,
+    record: dict[str, Any],
+) -> None:
+    """Persist the outcome and its immutable identity snapshots."""
+    conn.execute(
+        "INSERT INTO hypothesis_outcomes (id, run_id, hypothesis_id, "
+        "method_protocol, conditions, measured_observation, units, "
+        "controls, interpretation, referenced_evidence_ids_json, "
+        "hypothesis_snapshot_json, referenced_evidence_snapshots_json, "
+        "author, recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            record["id"],
+            record["run_id"],
+            record["hypothesis_id"],
+            record["method_protocol"],
+            record["conditions"],
+            record["measured_observation"],
+            record["units"],
+            record["controls"],
+            record["interpretation"],
+            json.dumps(record["referenced_evidence_ids"]),
+            json.dumps(record["hypothesis_snapshot"]),
+            json.dumps(record["referenced_evidence"]),
+            record["author"],
+            record["recorded_at"],
+        ),
+    )
+
+
+def _append_outcome_event(
+    conn: sqlite3.Connection,
+    record: dict[str, Any],
+) -> None:
+    """Write only metadata to the replay log; the observation stays private."""
+    _append_event(
+        conn,
+        record["run_id"],
+        "scientist.outcome",
+        {
+            "outcome_id": record["id"],
+            "hypothesis_id": record["hypothesis_id"],
+            "author": record["author"],
+            "recorded_at": record["recorded_at"],
+        },
+        record["recorded_at"],
+    )
+
+
+def _outcome_response(
     outcome: NewHypothesisOutcome,
-    *,
-    db_path: str | None = None,
+    outcome_id: str,
+    recorded_at: float,
+    evidence_ids: list[str],
+    snapshots: dict[str, Any],
 ) -> dict[str, Any]:
-    """Append an outcome and its metadata-only replay event atomically."""
-    outcome_id = str(uuid.uuid4())
-    recorded_at = _now()
-    evidence_ids = list(outcome.referenced_evidence_ids)
-
-    with transaction(db_path) as conn:
-        hypothesis = conn.execute(
-            "SELECT title, statement FROM hypotheses WHERE id=? AND run_id=?",
-            (outcome.hypothesis_id, outcome.run_id),
-        ).fetchone()
-        if hypothesis is None:
-            raise InvalidOutcomeReferencesError
-        hypothesis_snapshot = {
-            "title": hypothesis["title"],
-            "statement": hypothesis["statement"],
-        }
-
-        referenced_evidence: list[dict[str, Any]] = []
-        if evidence_ids:
-            placeholders = ",".join("?" for _ in evidence_ids)
-            rows = conn.execute(
-                f"SELECT id, title, source, url, doi, pmid, sha256 "
-                f"FROM evidence WHERE run_id=? "
-                f"AND id IN ({placeholders})",
-                (outcome.run_id, *evidence_ids),
-            ).fetchall()
-            evidence_by_id = {row["id"]: row for row in rows}
-            if set(evidence_by_id) != set(evidence_ids):
-                raise InvalidOutcomeReferencesError
-            referenced_evidence = [
-                {
-                    key: evidence_by_id[evidence_id][key]
-                    for key in (
-                        "id",
-                        "title",
-                        "source",
-                        "url",
-                        "doi",
-                        "pmid",
-                        "sha256",
-                    )
-                }
-                for evidence_id in evidence_ids
-            ]
-
-        conn.execute(
-            "INSERT INTO hypothesis_outcomes (id, run_id, hypothesis_id, "
-            "method_protocol, conditions, measured_observation, units, "
-            "controls, interpretation, referenced_evidence_ids_json, "
-            "hypothesis_snapshot_json, referenced_evidence_snapshots_json, "
-            "author, recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                outcome_id,
-                outcome.run_id,
-                outcome.hypothesis_id,
-                outcome.method_protocol,
-                outcome.conditions,
-                outcome.measured_observation,
-                outcome.units,
-                outcome.controls,
-                outcome.interpretation,
-                json.dumps(evidence_ids),
-                json.dumps(hypothesis_snapshot),
-                json.dumps(referenced_evidence),
-                outcome.author,
-                recorded_at,
-            ),
-        )
-        _append_event(
-            conn,
-            outcome.run_id,
-            "scientist.outcome",
-            {
-                "outcome_id": outcome_id,
-                "hypothesis_id": outcome.hypothesis_id,
-                "author": outcome.author,
-                "recorded_at": recorded_at,
-            },
-            recorded_at,
-        )
-
+    """Shape the appended outcome for the POST response."""
     return {
         "id": outcome_id,
         "run_id": outcome.run_id,
@@ -143,11 +149,34 @@ def add_hypothesis_outcome(
         "controls": outcome.controls,
         "interpretation": outcome.interpretation,
         "referenced_evidence_ids": evidence_ids,
-        "hypothesis_snapshot": hypothesis_snapshot,
-        "referenced_evidence": referenced_evidence,
+        **snapshots,
         "author": outcome.author,
         "recorded_at": recorded_at,
     }
+
+
+def add_hypothesis_outcome(
+    outcome: NewHypothesisOutcome,
+    *,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Append an outcome and its metadata-only replay event atomically."""
+    outcome_id = str(uuid.uuid4())
+    recorded_at = _now()
+    evidence_ids = list(outcome.referenced_evidence_ids)
+    with transaction(db_path) as conn:
+        snapshots = {
+            "hypothesis_snapshot": _hypothesis_snapshot(conn, outcome),
+            "referenced_evidence": _evidence_snapshots(
+                conn, outcome.run_id, evidence_ids
+            ),
+        }
+        record = _outcome_response(
+            outcome, outcome_id, recorded_at, evidence_ids, snapshots
+        )
+        _insert_outcome(conn, record)
+        _append_outcome_event(conn, record)
+    return record
 
 
 def list_hypothesis_outcomes(
