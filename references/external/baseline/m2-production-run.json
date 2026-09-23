@@ -17,14 +17,6 @@
     "scientific_task": 1,
     "status": 1
   },
-  "execution_progress": {
-    "determinate": false,
-    "completed_tasks": 1,
-    "total_tasks": 4,
-    "fraction": null,
-    "active_task": "engine.node.supervisor",
-    "queued_tasks": 2
-  },
   "release_commit": "0d2fec9804d3d2179c7c492922ac31d71b514065",
   "api_deployment_id": "6ae20bc7-60d1-4276-8a9a-32276bf2c392",
   "mcp_deployment_id": "b180af58-dedd-46b3-9910-ba5b3d2ed81d",
@@ -37,7 +29,7 @@
     "completion": "0",
     "expiration_date": "2026-09-25"
   },
-  "observed_model": "not yet confirmed by response telemetry",
+  "observed_model": "none; run cancelled before a provider response",
   "publication_observed": false,
   "bounded_smoke_result": "cancelled after authenticated MCP setup and durable supervisor start; no provider response or report observed",
   "observed_llm_calls": 0,
@@ -47,5 +39,13 @@
     "last_event_seq": 5
   },
   "post_merge_prod_smoke": "passed",
-  "post_merge_frontend_http_status": 200
+  "post_merge_frontend_http_status": 200,
+  "execution_progress_at_running_observation": {
+    "determinate": false,
+    "completed_tasks": 1,
+    "total_tasks": 4,
+    "fraction": null,
+    "active_task": "engine.node.supervisor",
+    "queued_tasks": 2
+  }
 }

@@ -17,8 +17,9 @@ explicitly waived the GitHub CI gate, which failed before running because of an
 account hold. The full local release suite and independent review passed;
 GitHub CI did not pass. The [M2 staging record](baseline/m2-production-staging.md)
 and [production run record](baseline/m2-production-run.json) track the current
-deployment and bounded public-goal verification. The M2 release closeout remains
-open until those observations and cleanup are complete.
+deployment and bounded public-goal verification. The Kaimen milestone closed
+after these checks and removal of its temporary checkout. The bounded run did
+not return a provider response or publish a report, and claims neither result.
 
 Starting branch: `feat/external-m01-free-baseline`; execution starts at
 `927d2bd3a0f8480833661ff3a83b8c3549a6e85f`. The plan was committed at `cd54b76c`.
