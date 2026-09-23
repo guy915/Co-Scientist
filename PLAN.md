@@ -217,7 +217,11 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] Compare citation provenance, structured output, proximity, scheduling, model routing, and budget handling with current local behavior; distinguish shipped mechanisms from advertised or unfinished ones. Six candidate records and source/local evidence are in `references/external/kaimen-inc-co-scientist.md`.
 - [x] Resolve Kaimen candidate decisions and expand/implement any accepted mechanisms test-first. The pinned source has no accepted product change: M2-01/M2-04 are covered, M2-02/M2-03 are outside the authorized scope, and M2-05/M2-06 are rejected with evidence in the dossier. No implementation item is warranted.
 - [x] Run candidate evaluations, milestone verification, and cleanup; retain evidence for adoption, coverage, and rejection decisions.
-- [ ] Merge, deploy, verify, complete the dossier and architecture log, and remove the temporary checkout. Include the pending M1 zero-cost changes and selected free-model default in this release; first verify a consistent production backup and then confirm actual serving configuration, smoke results, and a zero-cost rollback target. Freeze the post-switch baseline and evaluation inputs without restarting M1 qualification.
+- [ ] M2-release-a: Switch the system default roles to the selected zero-priced Nex Pro model, with no unqualified automatic fallback, preserving explicit BYOK; verify affected request/configuration boundaries and record the exact release configuration.
+- [ ] M2-release-b: Run all required checks affected by the release configuration, complete independent code/security review of the final branch diff, and create and attach the reviewed pull request.
+- [ ] M2-release-c: Verify the intended production target and a consistent pre-migration production database backup, then record a zero-cost rollback code/configuration target before merging.
+- [ ] M2-release-d: Merge and deploy to the existing services, verify actual serving configuration and health, run production smoke and a bounded campaign-owned public flow where necessary, and freeze the post-switch baseline without restarting M1 qualification.
+- [ ] M2-release-e: Complete the Kaimen dossier and architecture/release log, remove its temporary checkout, run milestone cleanup and Done when checks, and mark M2 verified.
 
 ## M3 — conradry/open-coscientist-agents
 
