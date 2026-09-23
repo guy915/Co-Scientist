@@ -238,6 +238,30 @@ CREATE TABLE IF NOT EXISTS reviews (
 CREATE INDEX IF NOT EXISTS idx_rv_hyp ON reviews(hypothesis_id);
 CREATE INDEX IF NOT EXISTS idx_rv_run ON reviews(run_id);
 
+-- Scientist-recorded experimental observations, distinct from reviews and
+-- from engine-derived claim/evidence assessments. Each submission is a new
+-- immutable row; identity snapshots preserve its context if replay removes
+-- the agent hypothesis/evidence rows it originally referenced.
+CREATE TABLE IF NOT EXISTS hypothesis_outcomes (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    hypothesis_id TEXT NOT NULL,
+    method_protocol TEXT NOT NULL,
+    conditions TEXT NOT NULL,
+    measured_observation TEXT NOT NULL,
+    units TEXT,
+    controls TEXT NOT NULL,
+    interpretation TEXT NOT NULL,
+    referenced_evidence_ids_json TEXT NOT NULL,
+    hypothesis_snapshot_json TEXT NOT NULL DEFAULT '{}',
+    referenced_evidence_snapshots_json TEXT NOT NULL DEFAULT '[]',
+    author TEXT NOT NULL,
+    recorded_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_outcomes_run_recorded
+    ON hypothesis_outcomes(run_id, recorded_at, id);
+
 -- One row per pairwise tournament match. Elo before/after snapshots are
 -- denormalized here so match history stays reconstructable even though
 -- hypothesis_state.elo_rating keeps moving forward.

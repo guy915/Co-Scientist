@@ -300,7 +300,17 @@ def clear_run_derived_data(
     with _use_conn(conn, db_path) as conn:
         _delete_agent_derived_rows(conn, run_id)
         for table in run_scoped:
-            conn.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
+            if table == "run_events":
+                # A scientist.outcome event is the immutable audit for a
+                # scientist-owned record; preserve its original payload and
+                # sequence while replacing agent-generated timeline entries.
+                conn.execute(
+                    "DELETE FROM run_events WHERE run_id=? "
+                    "AND type != 'scientist.outcome'",
+                    (run_id,),
+                )
+            else:
+                conn.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
 
 
 def clear_publication_artifacts(

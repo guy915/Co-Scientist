@@ -111,6 +111,12 @@ from app.store.models import (
     RunRow,
     RunStatus,
 )
+from app.store.outcomes import (
+    InvalidOutcomeReferencesError,
+    NewHypothesisOutcome,
+    add_hypothesis_outcome,
+    list_hypothesis_outcomes,
+)
 from app.store.records import (
     NewCitation,
     NewClaimEvidence,
@@ -225,6 +231,7 @@ __all__ = [
     "INTERVIEW_EXCERPT_CHARS",
     "TERMINAL_STATUSES",
     "HypothesisStateChanges",
+    "InvalidOutcomeReferencesError",
     "LogFilters",
     "MessageRow",
     "NewCheckpoint",
@@ -232,6 +239,7 @@ __all__ = [
     "NewClaimEvidence",
     "NewEvidence",
     "NewHypothesis",
+    "NewHypothesisOutcome",
     "NewInterviewTurn",
     "NewLogRecord",
     "NewMatch",
@@ -253,6 +261,7 @@ __all__ = [
     "add_claim_evidence",
     "add_evidence",
     "add_hypothesis",
+    "add_hypothesis_outcome",
     "add_match",
     "add_proximity_edge",
     "add_retrieval_calls",
@@ -314,6 +323,7 @@ __all__ = [
     "list_evidence",
     "list_expired_terminal_runs",
     "list_hypotheses",
+    "list_hypothesis_outcomes",
     "list_interview_documents",
     "list_interviews",
     "list_knowledge_facts",

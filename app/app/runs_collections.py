@@ -85,6 +85,13 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     return {"safety": store.list_safety_decisions(run_id)}
 
 
+@router.get("/{run_id}/outcomes")
+async def get_hypothesis_outcomes(run_id: str) -> dict[str, Any]:
+    """Return the run's researcher-recorded hypothesis outcomes."""
+    _require_run(run_id)
+    return {"outcomes": store.list_hypothesis_outcomes(run_id)}
+
+
 def _task_payload(task: Any) -> dict[str, Any]:
     """Shape one durable task for the diagnostics surface.
 
