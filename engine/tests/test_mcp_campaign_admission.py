@@ -105,11 +105,21 @@ async def test_new_client_accepts_old_and_current_manifests_during_rollout(
         tools.add("get_opencitations_citation_edges")
     qualified["campaign_policy"]["tools"] = sorted(tools)
     _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
+    if include_new_tool:
+        _patch_mcp_seam.tools.append(
+            string_tool("get_opencitations_citation_edges", "citation edges")
+        )
 
     client = MCPToolClient(server_url=URL)
     await client.initialize()
     tools, _ = client.get_tools()
-    assert set(tools) == {"search_pubmed"}
+    expected_tools = {"search_pubmed"}
+    if include_new_tool:
+        expected_tools.add("get_opencitations_citation_edges")
+        assert "citation edges" in str(
+            await client.call_tool("get_opencitations_citation_edges")
+        )
+    assert set(tools) == expected_tools
 
     qualified["campaign_policy"]["tools"].append("unqualified_paid_tool")
     with pytest.raises(RuntimeError, match="campaign"):
