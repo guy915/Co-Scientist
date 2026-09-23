@@ -130,6 +130,7 @@ async def test_availability_check_follows_the_record(
     from mcp_server.tools.web.web_search import check_web_search_available
 
     monkeypatch.setenv("BRAVE_API_KEY", "k")
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
     assert await check_web_search_available() is True
 
