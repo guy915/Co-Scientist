@@ -15,7 +15,10 @@ PR [#22](https://github.com/guy915/Co-Scientist/pull/22) merged at
 `0d2fec9804d3d2179c7c492922ac31d71b514065` on 2026-09-23 after the user
 explicitly waived the GitHub CI gate, which failed before running because of an
 account hold. The full local release suite and independent review passed;
-GitHub CI did not pass. The [M2 staging record](baseline/m2-production-staging.md)
+GitHub CI did not pass. On 23 September, the user extended this exception to
+subsequent campaign merges while GitHub Actions jobs fail before execution on
+an account hold. Required local checks and review still run; each release must
+record that hosted CI did not pass. The [M2 staging record](baseline/m2-production-staging.md)
 and [production run record](baseline/m2-production-run.json) track the current
 deployment and bounded public-goal verification. The Kaimen milestone closed
 after these checks and removal of its temporary checkout. The bounded run did
@@ -68,9 +71,10 @@ Record rate-limit reset times and resume later; never substitute paid models.
 
 Use the existing three services only. Preserve one API replica, root UID on its
 volume, off-volume cache, and durable startup/recovery. Merge via PR after required
-checks; attach it to the task. For PR #22 only, the user explicitly waived
-GitHub CI after two runs failed before job execution; local gates and review
-remained required. Record exact commits, deployment IDs and health.
+local checks and review; attach it to the task. The user explicitly waived
+GitHub CI for campaign merges while its hosted jobs fail before execution on
+an account hold. This does not waive deployment verification. Record exact
+commits, deployment IDs and health.
 The [initial deployment snapshot](baseline/releases-2026-09-19.json) is a starting
 reference, not a verified zero-cost rollback target. The M2 release's verified
 backup and zero-cost rollback anchor are recorded below.

@@ -231,7 +231,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 
 **Done when:** the archived implementation has been assessed against current code, justified improvements are verified and deployed, and its temporary checkout is removed.
 
-- [ ] Acquire and pin [conradry’s repository](https://github.com/conradry/open-coscientist-agents); inspect the framework, supervisor, model pools, research integration, monitoring, and licensing.
+- [x] Acquire and pin [conradry’s repository](https://github.com/conradry/open-coscientist-agents); inspect the framework, supervisor, model pools, research integration, monitoring, and licensing.
 - [ ] Assess specialist-model assignment, action history, research synthesis, tournament inspection, and visualization; account for synchronous execution, in-memory state, and stated evaluation limitations.
 - [ ] Expand and implement accepted candidates without importing the prototype’s durability or concurrency limitations.
 - [ ] Verify each change against the current baseline, run release checks and cleanup, and document covered or rejected mechanisms.
@@ -5001,3 +5001,9 @@ Architecture now: the deployed React workbench on Vercel calls the FastAPI API o
 The end-of-work cleanup removed the temporary self-hosted CI runner/VM and its uncommitted workflow workaround, removed the Kaimen checkout, and found no copied upstream code, duplicate implementation, dead code, scratch artifact, or UI change to scan. Scoped Ruff F401/F841 and `git diff --check` passed; no product code, dependency, configuration, or evaluation input changed after the prior full green local release suite, so those checks were reused. The user-owned uncommitted `AGENTS.md` edit was left untouched. The live Done when check confirmed six closed candidates, absent checkout, merged PR #22, healthy API, matching successful API/MCP commits, and ready production frontend. The GitHub Actions exception remains explicit; no CI pass is claimed.
 
 The M2 product release was merged by PR #22. The final documentation-only closeout commits remain on the campaign branch and will be included in the next code-bearing repository PR, avoiding a redundant production redeploy from a documentation-only main commit. This does not change the verified M2 serving commit or leave a Kaimen candidate open.
+
+### Cycle 211 — M3 source acquisition and CI exception
+
+Starting commit `93d79aee` on `feat/external-m03-conradry`. Orchestration ledger: `M3-acquire · two GPT-6 Luna/xhigh read-only source mappers plus coordinator · checked · pinned clean upstream checkout, 59-file/17-prompt inventory, license/dependency inspection, and retained dossier · compare local behavior next`. The archived conradry source is pinned at `a20b018300da57a26578f8e7442b890193950afa`; no upstream code or workflow was executed. Its MIT root license, separate GPT Researcher dependency, paid provider defaults, supervisor state/action loop, research integration, tournament, and Streamlit process-marker viewer are mapped with source permalinks. This closes only the acquisition item, not any candidate or release claim.
+
+The GitHub Actions hold remains external to the code: jobs failed before executing. The user now explicitly authorizes campaign merges without waiting for hosted CI and will address that account problem later. Options were to wait for the hold, weaken checks, or keep local checks and review while documenting a hosted-CI exception. Chose the latter: local release gates and deployment health remain required; no CI pass will be claimed. The user-owned uncommitted `AGENTS.md` edit is untouched.
