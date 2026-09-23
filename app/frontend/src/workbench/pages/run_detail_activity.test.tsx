@@ -292,6 +292,62 @@ it('refreshes the allocation ledger when SSE reconnects without a new event', as
   expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
 });
 
+it('refreshes the ledger once when the initial SSE connection opens', async () => {
+  const makeLedger = (reason: string): SupervisorPlanResponse => ({
+    plan: null,
+    allocations: [
+      {
+        id: 1,
+        run_id: 'run-1',
+        seq: 0,
+        iteration: 1,
+        task_type: 'generate',
+        status: 'queued',
+        reason,
+        planner_reason: null,
+        priority: 80,
+        termination_reason: null,
+        created_at: 1_790_000_000,
+      },
+    ],
+  });
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'running',
+  });
+  vi.mocked(runsApi.getSupervisorPlan)
+    .mockResolvedValueOnce(makeLedger('Before first stream open'))
+    .mockResolvedValueOnce(
+      makeLedger('Checkpoint saved before completion event'),
+    );
+  setConnection('connecting');
+
+  function Probe({version}: {version: number}) {
+    const data = useRunDetailData('run-1');
+    return (
+      <p>
+        {version}: {data.supervisorPlan.response?.allocations[0]?.reason}
+      </p>
+    );
+  }
+
+  const view = render(<Probe version={0} />);
+  expect(
+    await screen.findByText(/Before first stream open/),
+  ).toBeInTheDocument();
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(1);
+
+  setConnection('open');
+  view.rerender(<Probe version={1} />);
+  expect(
+    await screen.findByText(/Checkpoint saved before completion event/),
+  ).toBeInTheDocument();
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
+
+  view.rerender(<Probe version={2} />);
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
+});
+
 it('hides the previous run ledger immediately when the route id changes', async () => {
   vi.mocked(runsApi.getSupervisorPlan)
     .mockResolvedValueOnce({

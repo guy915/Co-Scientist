@@ -35,7 +35,8 @@ test('completed research keeps its decisions and match history inspectable', asy
     page.getByRole('heading', {name: /run specifications/i}),
   ).toBeVisible();
   await page.unroute('**/api/runs/*/supervisor-plan');
-  await ledger.getByRole('button', {name: 'Retry loading allocations'}).click();
+  await page.reload();
+  await ledger.locator('summary').click();
   await expect(ledger.getByText(/Decision 1/)).toBeVisible();
 
   await page.getByRole('link', {name: 'All Ideas', exact: true}).click();

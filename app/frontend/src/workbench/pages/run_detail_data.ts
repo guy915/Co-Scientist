@@ -336,7 +336,7 @@ function useRunEventStream(
     previousConnection.current = {id, connection};
     if (
       previous.id === id &&
-      previous.connection === 'reconnecting' &&
+      previous.connection !== 'open' &&
       connection === 'open'
     ) {
       onSupervisorPlanEvent();
