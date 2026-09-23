@@ -6,6 +6,7 @@ import {
   type HypothesisOutcome,
   type RunWithSummary,
 } from '@/api/runs';
+import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {makeHypothesis} from '@/test_fixtures';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
@@ -67,6 +68,7 @@ vi.mock('@/api/runs', async importActual => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearAccessToken();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
   // Reset per-run collection mocks so overrides do not leak between tests.
@@ -78,6 +80,7 @@ beforeEach(() => {
 });
 
 it('shows recorded outcomes after SSE refresh and after reopening the report', async () => {
+  setAccessToken('researcher-session');
   const outcome: HypothesisOutcome = {
     id: 'out-1',
     run_id: 'run-1',
@@ -132,6 +135,7 @@ it('shows recorded outcomes after SSE refresh and after reopening the report', a
 });
 
 it('keeps the report available and exposes a failed outcomes read locally', async () => {
+  setAccessToken('researcher-session');
   vi.mocked(runsApi.getHypothesisOutcomes).mockRejectedValue(
     new Error('outcomes unavailable'),
   );
