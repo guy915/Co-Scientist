@@ -329,8 +329,8 @@ function useRunEventStream(
   const previousConnection = useRef({id, connection});
 
   // A durable checkpoint can persist the ledger before its completion event
-  // is appended. On reconnect the stream replays and dedupes old events, so
-  // refresh the optional ledger once when the transport opens again.
+  // is appended. Stream replay can miss that gap, so refresh the optional
+  // ledger once when the transport first opens or reconnects.
   useEffect(() => {
     const previous = previousConnection.current;
     previousConnection.current = {id, connection};
