@@ -5,8 +5,8 @@ record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
-The Kaimen, conradry, LLNL, and raktim-mondol sources are closed. K-Dense is
-under assessment; later sources remain unacquired.
+The Kaimen, conradry, LLNL, raktim-mondol, and K-Dense sources are closed;
+later sources remain unacquired.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 
 | Order | Repository | Pinned revision | Assessment |
@@ -15,7 +15,7 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 | 2 | [conradry/open-coscientist-agents](https://github.com/conradry/open-coscientist-agents) | [`a20b018300da57a26578f8e7442b890193950afa`](https://github.com/conradry/open-coscientist-agents/commit/a20b018300da57a26578f8e7442b890193950afa) | [Closed; two UI adoptions](conradry-open-coscientist-agents.md) |
 | 3 | [llnl/open-ai-co-scientist](https://github.com/llnl/open-ai-co-scientist) | [`c8342c0e28474d134f80caa6b9668470ebf55258`](https://github.com/llnl/open-ai-co-scientist/commit/c8342c0e28474d134f80caa6b9668470ebf55258) | [Closed; failure guidance and BYOK redaction adopted](llnl-open-ai-co-scientist.md) |
 | 4 | [raktim-mondol/co-scientist](https://github.com/raktim-mondol/co-scientist) | [`10aa84a3c5a774c6fe5de050000c3f5e0996eb45`](https://github.com/raktim-mondol/co-scientist/commit/10aa84a3c5a774c6fe5de050000c3f5e0996eb45) | [Closed; owned empirical outcomes adopted](raktim-mondol-co-scientist.md) |
-| 5 | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | [`49c6e97775eaa18ba791bebe23162a70ae601c18`](https://github.com/K-Dense-AI/scientific-agent-skills/commit/49c6e97775eaa18ba791bebe23162a70ae601c18) | [Under assessment](k-dense-scientific-agent-skills.md) |
+| 5 | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | [`49c6e97775eaa18ba791bebe23162a70ae601c18`](https://github.com/K-Dense-AI/scientific-agent-skills/commit/49c6e97775eaa18ba791bebe23162a70ae601c18) | [Closed; bounded citation-edge lookup adopted](k-dense-scientific-agent-skills.md) |
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | Not acquired | Pending |
 | 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | Not acquired | Pending |
 | 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | Not acquired | Pending |
