@@ -5,7 +5,7 @@ record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
-No source has been acquired or pinned yet; preliminary browsing is not an assessment.
+The Kaimen source is pinned and assessed below; later sources remain unacquired.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 
 | Order | Repository | Pinned revision | Assessment |
