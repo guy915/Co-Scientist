@@ -3,7 +3,7 @@ import {expect, test} from '../support/fixtures';
 
 const RECORDED_ERROR = 'engine task exhausted its provider-call budget';
 const BUDGET_GUIDANCE =
-  'The run reached its configured model-call limit before it completed. Start a new run with a narrower goal or fewer ideas.';
+  'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.';
 
 async function routeRunFailure(
   page: Page,

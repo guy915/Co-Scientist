@@ -54,7 +54,7 @@ it('shows exact call-budget guidance with an accessible label and keeps the reco
     name: 'Suggested next step',
   });
   expect(guidance).toHaveTextContent(
-    'The run reached its configured model-call limit before it completed. Start a new run with a narrower goal or fewer ideas.',
+    'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.',
   );
   expect(screen.getByText('Recorded error')).toBeInTheDocument();
   expect(
@@ -136,7 +136,7 @@ it('refreshes failure guidance and keeps its terminal toast aligned', async () =
   ).toBeInTheDocument();
   expect(runsApi.getRun).toHaveBeenCalledTimes(2);
   expect(
-    screen.getByText('Run failed. See the suggested next step below.'),
+    await screen.findByText('Run failed. See the suggested next step below.'),
   ).toBeInTheDocument();
   expect(
     screen.queryByText(/Run failed: LLM call budget exhausted/),

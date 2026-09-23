@@ -6,7 +6,7 @@ export function runFailureGuidance(
     case 'llm_call_budget_exceeded':
       return {
         message:
-          'The run reached its configured model-call limit before it completed. Start a new run with a narrower goal or fewer ideas.',
+          'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.',
         toast: 'Run failed. See the suggested next step below.',
       };
     case 'llm_timeout':
