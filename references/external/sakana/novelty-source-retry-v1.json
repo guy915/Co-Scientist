@@ -1,0 +1,43 @@
+{
+  "kind": "live public Europe PMC MCP retrieval; no model inference",
+  "started_at": "2026-09-23T22:06:38.280573+00:00",
+  "plan_sha256": "6da45ccd5d84c6cda50e00c1a5ef7665a0f621fc98de048ddcb8186b02f8ef12",
+  "input_sha256": "e226b891f26f13870ad974726fa2b0d625ddcd4c91696c10bced794771e30bf7",
+  "tool": "search_europepmc",
+  "max_results": 3,
+  "calls": [
+    {
+      "id": "qa1b-immune-evasion",
+      "query_type": "primary",
+      "query": "Qa-1b CD8 NKG2A",
+      "source": "Europe PMC",
+      "papers": [
+        {
+          "source_id": "MED/42080134",
+          "pmid": "42080134",
+          "doi": "10.1016/j.isci.2026.115669",
+          "title": "A fully human pan VL9 HLA-E TCRm antibody enables functional dissection of HLA-E biology and checkpoint signaling.",
+          "is_preprint": false,
+          "has_abstract": true
+        },
+        {
+          "source_id": "MED/42304006",
+          "pmid": "42304006",
+          "doi": "10.1038/s41467-026-74412-2",
+          "title": "The bacteroidal metabolite O-LysoPE facilitates hepatocyte-mediated immunosuppression in autoimmune hepatitis.",
+          "is_preprint": false,
+          "has_abstract": true
+        },
+        {
+          "source_id": "MED/41499220",
+          "pmid": "41499220",
+          "doi": "10.1158/1078-0432.ccr-25-0447",
+          "title": "The CD94/NKG2A-HLA-E Axis as a Target in Cancer Immunotherapy: A Critical Perspective.",
+          "is_preprint": false,
+          "has_abstract": true
+        }
+      ],
+      "hit": false
+    }
+  ]
+}
