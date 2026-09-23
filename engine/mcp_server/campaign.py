@@ -44,6 +44,7 @@ PUBLIC_TOOLS = frozenset(
         "search_pubmed",
         "pubmed_search_with_fulltext",
         "search_openalex",
+        "get_opencitations_citation_edges",
         "search_chembl",
         "search_uniprot",
         "search_string_interactions",

@@ -67,6 +67,9 @@ from mcp_server.tools.lit_review.europepmc_search import (
     search_preprints,
 )
 from mcp_server.tools.lit_review.openalex_search import search_openalex
+from mcp_server.tools.lit_review.opencitations import (
+    get_opencitations_citation_edges,
+)
 from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
     pubmed_search_with_fulltext,
 )
@@ -121,6 +124,7 @@ _MCP_TOOLS = (
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
+    (get_opencitations_citation_edges, "get_opencitations_citation_edges"),
     # Both gated on the same key: the check tool exists to say whether
     # that key still works, which is only a question worth asking when
     # one was configured at all.

@@ -20,7 +20,9 @@ packages and no import binds them.
 """
 
 import ast
+import logging
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -29,6 +31,9 @@ from co_scientist.agents.generation.literature_review.enrichment import (
 )
 from co_scientist.agents.generation.literature_review.search_query import (
     _build_query_tool_params,
+)
+from co_scientist.agents.generation.literature_tools.draft_tools import (
+    _setup_tool_provider,
 )
 from co_scientist.agents.generation.literature_tools.validate_search import (
     _build_search_canonical_params,
@@ -198,3 +203,54 @@ def test_indra_example_config_selects_its_knowledge_graph_tool(
     assert kg_tools, "the INDRA example must reach a knowledge-graph tool"
     for tool_name in kg_tools:
         assert accepted[tool_name] >= _KG_ENTITY_ARGUMENTS
+
+
+def test_opencitations_is_exposed_only_through_draft_read_tools(
+    registry: ToolRegistry,
+) -> None:
+    """The draft provider offers this lookup from its configured read list."""
+    tool_id = "opencitations_citation_edges"
+    tool_config = registry.get_tool(tool_id)
+    assert tool_config is not None
+    assert tool_config.mcp_tool_name == "get_opencitations_citation_edges"
+    assert tool_config.category == "read"
+
+    draft = registry.get_workflow("draft_generation")
+    assert draft is not None
+    assert tool_id in draft.read_tools
+    assert tool_id in registry.get_tools_for_workflow("draft_generation")
+    for workflow_name in ("literature_review", "validation", "reflection"):
+        assert tool_id not in registry.get_tools_for_workflow(workflow_name)
+
+    class DraftMCPClient:
+        """Return schemas only for the whitelist used by the draft setup."""
+
+        def get_tools(
+            self, whitelist: list[str] | None = None
+        ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+            names = registry.get_mcp_tool_names(
+                registry.get_tools_for_workflow("draft_generation")
+            )
+            selected = (
+                names
+                if whitelist is None
+                else [name for name in names if name in whitelist]
+            )
+            return (
+                {name: object() for name in selected},
+                [
+                    {"type": "function", "function": {"name": name}}
+                    for name in selected
+                ],
+            )
+
+    _, model_tools, _ = _setup_tool_provider(
+        DraftMCPClient(),
+        registry,
+        "draft_generation",
+        "draft-test",
+        logging.getLogger(__name__),
+    )
+    assert "get_opencitations_citation_edges" in {
+        tool["function"]["name"] for tool in model_tools
+    }

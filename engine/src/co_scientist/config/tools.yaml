@@ -574,6 +574,31 @@ tools:
           description: "Only include results from the last N days (0 = no filter)"
 
   read_tools:
+    # Directional citation links are useful for discovery but do not
+    # establish whether a cited work supports or contradicts a claim.
+    opencitations_citation_edges:
+      server: "default_pubmed"
+      mcp_tool_name: "get_opencitations_citation_edges"
+      display_name: "OpenCitations Citation Edges"
+      description: "Look up bounded incoming citations and outgoing references for a DOI"
+      category: "read"
+      enabled: true
+      effects: ["read", "network"]
+
+      prompt_snippet: |
+        Use `get_opencitations_citation_edges` to inspect who cites a DOI and
+        which works it references. It checks counts before fetching unpaginated
+        edge lists and may skip a direction above its 50-edge limit. These are
+        bibliographic links, not evidence that a work supports or contradicts
+        a scientific claim. OpenCitations rate-limits requests to 180 per
+        minute per IP; this lookup makes up to four requests and does not retry.
+
+      parameters:
+        doi:
+          type: "string"
+          required: true
+          description: "DOI such as 10.1234/example, optionally prefixed with doi:"
+
     # Fetch and read an arbitrary web page or PDF
     read_url:
       server: "default_pubmed"
@@ -702,6 +727,7 @@ workflows:
       - "web_search"
     read_tools:
       - "read_url"
+      - "opencitations_citation_edges"
 
   # Validation phase - fulltext searches for novelty checking. This is a
   # direct-call path that picks the first search-category tool in order, so

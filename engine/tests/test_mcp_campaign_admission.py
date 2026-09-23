@@ -92,6 +92,24 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
         await invoke("search_pubmed")
 
 
+async def test_new_client_accepts_previous_manifest_during_rollout(
+    qualified: dict[str, Any], _patch_mcp_seam: Any
+) -> None:
+    qualified["campaign_policy"]["tools"].remove(
+        "get_opencitations_citation_edges"
+    )
+    _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
+
+    client = MCPToolClient(server_url=URL)
+    await client.initialize()
+    tools, _ = client.get_tools()
+    assert set(tools) == {"search_pubmed"}
+
+    qualified["campaign_policy"]["tools"].append("unqualified_paid_tool")
+    with pytest.raises(RuntimeError, match="campaign"):
+        await client.call_tool("search_pubmed")
+
+
 @pytest.mark.parametrize(
     "change", ["url", "transport", "headers", "extra", "multi"]
 )
