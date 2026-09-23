@@ -11,14 +11,29 @@ import {useRunDetailData} from './run_detail_data';
 import {makeRun} from './run_detail_test_support';
 
 const streamMock = vi.hoisted(() => ({
-  state: {events: [] as {seq: number; type: string; payload: object}[]},
+  state: {
+    events: [] as {seq: number; type: string; payload: object}[],
+    connection: 'open' as
+      | 'connecting'
+      | 'open'
+      | 'reconnecting'
+      | 'disconnected',
+  },
 }));
 vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: streamMock.state.events, terminal: false}),
+  useRunStream: () => ({
+    events: streamMock.state.events,
+    terminal: false,
+    connection: streamMock.state.connection,
+  }),
 }));
 
 function setStream(events: {seq: number; type: string; payload: object}[]) {
-  streamMock.state = {events};
+  streamMock.state = {...streamMock.state, events};
+}
+
+function setConnection(connection: typeof streamMock.state.connection) {
+  streamMock.state = {...streamMock.state, connection};
 }
 
 vi.mock('@/workbench/hooks/use_debounced_callback', () => {
@@ -100,6 +115,7 @@ beforeEach(() => {
     allocations: [],
   });
   setStream([]);
+  setConnection('open');
 });
 
 it('drops the previous run’s content when the route id changes', async () => {
@@ -222,4 +238,100 @@ it('refreshes the allocation ledger after an orchestrator commit', async () => {
   expect(await screen.findByText('Recorded after')).toBeInTheDocument();
   expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
   expect(runsApi.getEvidence).toHaveBeenCalledTimes(1);
+});
+
+it('refreshes the allocation ledger when SSE reconnects without a new event', async () => {
+  const makeLedger = (reason: string): SupervisorPlanResponse => ({
+    plan: null,
+    allocations: [
+      {
+        id: 1,
+        run_id: 'run-1',
+        seq: 0,
+        iteration: 1,
+        task_type: 'generate',
+        status: 'queued',
+        reason,
+        planner_reason: null,
+        priority: 80,
+        termination_reason: null,
+        created_at: 1_790_000_000,
+      },
+    ],
+  });
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'running',
+  });
+  vi.mocked(runsApi.getSupervisorPlan)
+    .mockResolvedValueOnce(makeLedger('Saved before reconnect'))
+    .mockResolvedValueOnce(makeLedger('Saved during the event gap'));
+
+  function Probe({version}: {version: number}) {
+    const data = useRunDetailData('run-1');
+    return (
+      <p>
+        {version}: {data.supervisorPlan.response?.allocations[0]?.reason}
+      </p>
+    );
+  }
+
+  const view = render(<Probe version={0} />);
+  expect(await screen.findByText(/Saved before reconnect/)).toBeInTheDocument();
+
+  setConnection('reconnecting');
+  view.rerender(<Probe version={1} />);
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(1);
+
+  setConnection('open');
+  view.rerender(<Probe version={2} />);
+
+  expect(
+    await screen.findByText(/Saved during the event gap/),
+  ).toBeInTheDocument();
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
+});
+
+it('hides the previous run ledger immediately when the route id changes', async () => {
+  vi.mocked(runsApi.getSupervisorPlan)
+    .mockResolvedValueOnce({
+      plan: null,
+      allocations: [
+        {
+          id: 1,
+          run_id: 'run-1',
+          seq: 0,
+          iteration: 1,
+          task_type: 'generate',
+          status: 'queued',
+          reason: 'Saved on run one',
+          planner_reason: null,
+          priority: 80,
+          termination_reason: null,
+          created_at: 1_790_000_000,
+        },
+      ],
+    })
+    .mockReturnValue(pending<SupervisorPlanResponse>());
+
+  function Probe({id}: {id: string}) {
+    const data = useRunDetailData(id);
+    return (
+      <>
+        {data.supervisorPlan.loading && <p>Loading ledger for this run</p>}
+        {data.supervisorPlan.response?.allocations.map(row => (
+          <p key={row.id}>{row.reason}</p>
+        ))}
+      </>
+    );
+  }
+
+  const view = render(<Probe id="run-1" />);
+  expect(await screen.findByText('Saved on run one')).toBeInTheDocument();
+
+  view.rerender(<Probe id="run-2" />);
+
+  expect(screen.queryByText('Saved on run one')).toBeNull();
+  expect(screen.getByText('Loading ledger for this run')).toBeInTheDocument();
+  expect(runsApi.getSupervisorPlan).toHaveBeenLastCalledWith('run-2');
 });

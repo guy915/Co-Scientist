@@ -83,8 +83,7 @@ function dataKeysFromEvents(events: readonly StreamEvent[]): Set<RunDataKey> {
 function hasSupervisorPlanEvent(events: readonly StreamEvent[]): boolean {
   return events.some(
     event =>
-      event.type === 'scientific_task' &&
-      event.payload.task === 'orchestrator',
+      event.type === 'scientific_task' && event.payload.task === 'orchestrator',
   );
 }
 
@@ -327,6 +326,22 @@ function useRunEventStream(
   onTerminal: () => void,
 ) {
   const {events, terminal, connection} = useRunStream(id ?? null);
+  const previousConnection = useRef({id, connection});
+
+  // A durable checkpoint can persist the ledger before its completion event
+  // is appended. On reconnect the stream replays and dedupes old events, so
+  // refresh the optional ledger once when the transport opens again.
+  useEffect(() => {
+    const previous = previousConnection.current;
+    previousConnection.current = {id, connection};
+    if (
+      previous.id === id &&
+      previous.connection === 'reconnecting' &&
+      connection === 'open'
+    ) {
+      onSupervisorPlanEvent();
+    }
+  }, [connection, id, onSupervisorPlanEvent]);
 
   // The stream delivers events in coalesced batches, so scan the whole newly
   // appended slice for data events rather than only the batch tail: a batch

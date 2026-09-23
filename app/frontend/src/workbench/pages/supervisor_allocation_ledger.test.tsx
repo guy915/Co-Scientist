@@ -38,10 +38,7 @@ it('opens as an accessible disclosure and preserves allocation order and provena
             created_at: 1_790_000_000,
             updated_at: 1_790_000_000,
           },
-          allocations: [
-            allocation(1, 'generate', 1),
-            allocation(2, 'rank', 1),
-          ],
+          allocations: [allocation(1, 'generate', 1), allocation(2, 'rank', 1)],
         },
         loading: false,
         error: null,
@@ -93,7 +90,9 @@ it('distinguishes loading from a successfully empty ledger', () => {
     />,
   );
   expect(screen.queryByRole('status')).toBeNull();
-  expect(screen.getByText('No scheduling decisions recorded yet.')).toBeInTheDocument();
+  expect(
+    screen.getByText('No scheduling decisions recorded yet.'),
+  ).toBeInTheDocument();
 });
 
 it('offers a scoped retry when the allocation request fails', async () => {

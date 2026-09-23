@@ -94,6 +94,8 @@ describe('getSupervisorPlan', () => {
     const [url, opts] = firstCall();
     expect(url).toBe('/api/runs/r1/supervisor-plan');
     expect(opts?.method).toBeUndefined();
-    expect((opts?.headers as Record<string, string>)['X-Client-ID']).toBeTruthy();
+    expect(
+      (opts?.headers as Record<string, string>)['X-Client-ID'],
+    ).toBeTruthy();
   });
 });

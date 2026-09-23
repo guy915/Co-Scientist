@@ -241,9 +241,13 @@ it('shows the persisted allocation ledger after loading a completed run', async 
 
   const summary = await screen.findByText('Supervisor allocation ledger');
   await userEvent.click(summary);
-  expect(screen.getByText('The pool has no generated hypotheses.')).toBeInTheDocument();
+  expect(
+    screen.getByText('The pool has no generated hypotheses.'),
+  ).toBeInTheDocument();
   expect(screen.getByText('Model-stated rationale')).toBeInTheDocument();
-  expect(screen.getByText('Most recent decision source: model')).toBeInTheDocument();
+  expect(
+    screen.getByText('Most recent decision source: model'),
+  ).toBeInTheDocument();
   expect(runsApi.getSupervisorPlan).toHaveBeenCalledWith('run-1');
 });
 
@@ -275,7 +279,9 @@ it('keeps saved allocations available on a failed run', async () => {
   renderAt('/runs/run-1/details');
 
   expect(await screen.findByText('Run failed')).toBeInTheDocument();
-  await userEvent.click(await screen.findByText('Supervisor allocation ledger'));
+  await userEvent.click(
+    await screen.findByText('Supervisor allocation ledger'),
+  );
   expect(
     screen.getByText('The first allocation committed before the failure.'),
   ).toBeInTheDocument();
@@ -299,9 +305,7 @@ it('renders run details while the optional Supervisor ledger request is pending'
     ...makeRun('Study pathway X'),
     status: 'completed',
   });
-  vi.mocked(runsApi.getSupervisorPlan).mockReturnValue(
-    new Promise(() => {}),
-  );
+  vi.mocked(runsApi.getSupervisorPlan).mockReturnValue(new Promise(() => {}));
 
   renderAt('/runs/run-1/details');
 

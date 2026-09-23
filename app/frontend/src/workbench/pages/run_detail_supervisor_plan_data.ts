@@ -7,9 +7,27 @@ export interface SupervisorPlanLoadState {
   error: string | null;
 }
 
+type RunTaggedPlanState = SupervisorPlanLoadState & {
+  runId: string | undefined;
+};
+
+function isCurrentRequest(
+  shownId: string | undefined,
+  currentRequest: number,
+  id: string,
+  request: number,
+): boolean {
+  return shownId === id && currentRequest === request;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Fetches the optional allocation ledger outside the run-detail load path. */
 export function useRunSupervisorPlan(id: string | undefined) {
-  const [state, setState] = useState<SupervisorPlanLoadState>({
+  const [state, setState] = useState<RunTaggedPlanState>({
+    runId: id,
     response: null,
     loading: Boolean(id),
     error: null,
@@ -23,14 +41,16 @@ export function useRunSupervisorPlan(id: string | undefined) {
     setState(current => ({...current, loading: true, error: null}));
     try {
       const response = await getSupervisorPlan(id);
-      if (shownId.current !== id || requestId.current !== request) return;
-      setState({response, loading: false, error: null});
+      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
+        return;
+      setState({runId: id, response, loading: false, error: null});
     } catch (error) {
-      if (shownId.current !== id || requestId.current !== request) return;
+      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
+        return;
       setState(current => ({
         ...current,
         loading: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       }));
     }
   }, [id]);
@@ -38,9 +58,13 @@ export function useRunSupervisorPlan(id: string | undefined) {
   useEffect(() => {
     shownId.current = id;
     requestId.current += 1;
-    setState({response: null, loading: Boolean(id), error: null});
+    setState({runId: id, response: null, loading: Boolean(id), error: null});
     void refresh();
   }, [id, refresh]);
 
-  return {state, refresh};
+  const currentState: SupervisorPlanLoadState =
+    state.runId === id
+      ? state
+      : {response: null, loading: Boolean(id), error: null};
+  return {state: currentState, refresh};
 }

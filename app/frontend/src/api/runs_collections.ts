@@ -150,9 +150,7 @@ export function getProximity(id: string): Promise<ProximityEdge[]> {
 }
 
 /** Fetch the persisted Supervisor plan and ordered allocation ledger. */
-export function getSupervisorPlan(
-  id: string,
-): Promise<SupervisorPlanResponse> {
+export function getSupervisorPlan(id: string): Promise<SupervisorPlanResponse> {
   return fetchJson(`/api/runs/${id}/supervisor-plan`, {
     headers: clientHeaders(),
   });
