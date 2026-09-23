@@ -243,9 +243,10 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 **Done when:** claimed and implemented behavior are distinguished, accepted improvements are verified and deployed, and its temporary checkout is removed.
 
 - [x] Acquire and pin [LLNL’s repository](https://github.com/llnl/open-ai-co-scientist); inspect agent execution, UI lifecycle, artifacts, timeout handling, tests, and licensing. Evidence: `references/external/llnl-open-ai-co-scientist.md` at `c8342c0e`.
-- [x] Compare failure visibility, cycle artifacts, model selection, hypothesis interchange, and scientific agent behavior; identify simplified or placeholder mechanisms. Evidence: eight dispositions in `references/external/llnl-open-ai-co-scientist.md`.
+- [x] Compare failure visibility, cycle artifacts, model selection, hypothesis interchange, and scientific agent behavior; identify simplified or placeholder mechanisms. Evidence: candidate dispositions in `references/external/llnl-open-ai-co-scientist.md`.
 - [ ] M4-01a: preserve a typed failure kind for exact known terminal task failures and expose it through the owned run API; test the lifecycle and unknown/near-miss cases first, without changing retry behavior or requiring a paid call.
 - [ ] M4-01b: show concise, actionable failed-run guidance for known kinds while retaining technical detail; verify failed, blocked, cancelled, refresh and accessible browser flows.
+- [ ] M4-09: reproduce a synthetic BYOK-key echo at the durable failure boundary, redact it from persisted task/run errors and captured logs without changing retry or typed-failure behavior, and verify through owned API/reopen.
 - [ ] Run behavioral and applicable live checks, release verification, and cleanup; preserve the assessment evidence.
 - [ ] Merge, deploy, verify, finish the dossier and architecture log, and remove the temporary checkout.
 
