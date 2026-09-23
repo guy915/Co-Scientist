@@ -1,0 +1,3 @@
+Isolated MCP server log excerpt for the failed primary query; no credentials or article text.
+2026-09-24 00:03:45 - httpx - INFO - HTTP Request: GET https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=Qa-1b+CD8+NKG2A&format=json&pageSize=3&resultType=core&sort= "HTTP/1.1 503 "
+RuntimeError: Europe PMC search unavailable: HTTP 503; Retry-After=unspecified
