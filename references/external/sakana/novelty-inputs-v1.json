@@ -1,0 +1,45 @@
+{
+  "name": "M7-NOV-01 public prior-art retrieval inputs",
+  "frozen_at": "2026-09-23",
+  "selection_rule": "Three published papers from distinct scientific areas were selected from primary-source abstracts before observing any product retrieval for these drafts. Each draft states a mechanism already reported by its linked paper without naming its title, authors, DOI, or PMID.",
+  "baseline": {
+    "interface": "engine MCP pubmed_search_with_fulltext",
+    "query_rule": "draft_hypothesis[:200]",
+    "max_papers": 3,
+    "model_calls": 0,
+    "cache_rule": "fresh per-arm isolated COSCIENTIST_LIT_REVIEW_DIR"
+  },
+  "primary_metric": "Number of cases whose exact target PMID or DOI appears among the first three returned papers; inspect rank and source IDs, not a model novelty score.",
+  "cases": [
+    {
+      "id": "stmn2-tdp43",
+      "area": "neurodegeneration",
+      "draft_hypothesis": "In motor neurons, loss of nuclear TDP-43 may expose a cryptic polyadenylation site in STMN2 pre-mRNA, reducing functional stathmin-2 and impairing axonal regeneration.",
+      "target_pmid": "30643298",
+      "target_doi": "10.1038/s41593-018-0293-z",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6348009/",
+      "source_anchor": "Abstract: TDP-43 reduction exposes a cryptic stathmin-2 polyadenylation site, produces truncated nonfunctional mRNA, and stathmin-2 rescue restores axonal regenerative capacity.",
+      "scope_note": "Cell and patient-neuron evidence; no clinical treatment effect is asserted."
+    },
+    {
+      "id": "sarscov2-entry",
+      "area": "virology",
+      "draft_hypothesis": "SARS-CoV-2 may require ACE2 engagement and TMPRSS2-mediated spike priming to enter susceptible human cells.",
+      "target_pmid": "32142651",
+      "target_doi": "10.1016/j.cell.2020.02.052",
+      "source_url": "https://www.sciencedirect.com/science/article/pii/S0092867420302294",
+      "source_anchor": "Abstract: SARS-CoV-2 uses ACE2 for cell entry and TMPRSS2 for spike-protein priming.",
+      "scope_note": "Entry mechanism only; no clinical treatment efficacy is asserted."
+    },
+    {
+      "id": "qa1b-immune-evasion",
+      "area": "tumor immunology",
+      "draft_hypothesis": "In checkpoint-treated mouse tumors, interferon-gamma sensing may induce Qa-1b and restrain CD8 T cells through NKG2A/CD94.",
+      "target_pmid": "36151395",
+      "target_doi": "10.1038/s41590-022-01315-x",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/36151395/",
+      "source_anchor": "Abstract: IFN-induced Qa-1b inhibits CD8 T cells through the NKG2A/CD94 receptor in checkpoint-treated cancer models.",
+      "scope_note": "The causal Qa-1b mechanism is in mouse models; HLA-E translation is not claimed."
+    }
+  ]
+}
