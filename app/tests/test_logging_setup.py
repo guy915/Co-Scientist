@@ -6,6 +6,7 @@ import io
 import json
 import logging
 
+from app.credentials import ByokCredential, scoped_byok
 from app.litellm_logging import _LITELLM_LOGGER_NAMES
 from app.logging_setup import (
     TEXT_FORMAT,
@@ -147,6 +148,32 @@ def test_configured_handler_emits_run_tagged_json_lines() -> None:
         assert tagged and tagged[0]["message"] == "inside run scope"
     finally:
         _restore_default_logging()
+
+
+def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
+    key = "sk-synthetic-json-log-key-12345"
+    diagnostic = "provider diagnostic preserved"
+    credential = ByokCredential(
+        provider="deepseek", api_key=key, model="deepseek/test"
+    )
+    try:
+        handler = configure_logging("json")
+        stream = io.StringIO()
+        handler.stream = stream  # type: ignore[attr-defined]
+
+        with scoped_byok(credential):
+            try:
+                raise RuntimeError(f"provider echoed {key}; {diagnostic}")
+            except RuntimeError:
+                logging.getLogger("app.sample").exception("provider failed")
+
+        payload = json.loads(stream.getvalue().splitlines()[-1])
+    finally:
+        _restore_default_logging()
+
+    assert key not in payload["exc_info"]
+    assert "[REDACTED]" in payload["exc_info"]
+    assert diagnostic in payload["exc_info"]
 
 
 # --- workflow correlation ----------------------------------------------------

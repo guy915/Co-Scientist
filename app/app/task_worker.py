@@ -167,7 +167,17 @@ async def _execute_and_record(
         logger.info("Task %s stopped after lease revocation", task.id)
         return
     except Exception as exc:  # Worker boundary isolates one task failure.
-        _handle_task_failure(task, worker_id, exc, db_path)
+        from app.credentials import get_run_credential, scoped_byok
+
+        try:
+            credential = get_run_credential(task.run_id, db_path=db_path)
+        except Exception:
+            # Credential decryption failure must not prevent the task itself
+            # from recording its outcome; no plaintext key is available to
+            # redact in that case.
+            credential = None
+        with run_log_context(task.run_id), scoped_byok(credential):
+            _handle_task_failure(task, worker_id, exc, db_path)
         return
     _record_success(task, worker_id, result, db_path)
 

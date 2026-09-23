@@ -403,6 +403,10 @@ def fail_task(
     transaction, so a run can never be left running with no work that
     could ever advance it (the SSE stream closes on that event).
     """
+    failure = error if isinstance(error, TaskFailure) else TaskFailure(error)
+    from app.credentials import redact_byok_text
+
+    failure = TaskFailure(redact_byok_text(failure.error), failure.failure_kind)
     with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
@@ -412,9 +416,6 @@ def fail_task(
         if row is None:
             return False
         task = _decode(row)
-        failure = (
-            error if isinstance(error, TaskFailure) else TaskFailure(error)
-        )
         status = _persist_failed_attempt(
             conn, task, worker_id, failure.error, retryable
         )

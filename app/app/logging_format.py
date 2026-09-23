@@ -88,7 +88,9 @@ class JsonFormatter(logging.Formatter):
         if run_id:
             payload["run_id"] = run_id
         if record.exc_info:
-            payload["exc_info"] = self.formatException(record.exc_info)
+            payload["exc_info"] = record.exc_text or self.formatException(
+                record.exc_info
+            )
         return json.dumps(payload, default=str)
 
 
