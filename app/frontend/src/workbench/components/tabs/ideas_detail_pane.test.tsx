@@ -60,30 +60,50 @@ function orderedMatches(): MatchRow[] {
   return [
     {
       id: 1,
+      iteration: 1,
       winner_id: 'h1',
       loser_id: 'h2',
+      winner_elo_before: 1200,
+      winner_elo_after: 1210,
+      loser_elo_before: 1200,
+      loser_elo_after: 1190,
       created_at: 100,
       tier: 'strong',
+      debate_turns: 1,
       rationale: 'An earlier match rationale.',
-    } as unknown as MatchRow,
+      debate_transcript: null,
+    },
     {
       id: 2,
+      iteration: 2,
       winner_id: 'h3',
       loser_id: 'h1',
+      winner_elo_before: 1210,
+      winner_elo_after: 1220,
+      loser_elo_before: 1190,
+      loser_elo_after: 1180,
       created_at: 200,
       tier: 'close',
       debate_turns: 3,
       rationale: 'The latest match rationale.',
-    } as unknown as MatchRow,
+      debate_transcript: null,
+    },
     // A match not involving this hypothesis must be filtered out.
     {
       id: 3,
+      iteration: 2,
       winner_id: 'other-a',
       loser_id: 'other-b',
+      winner_elo_before: 1200,
+      winner_elo_after: 1210,
+      loser_elo_before: 1200,
+      loser_elo_after: 1190,
       created_at: 300,
       tier: 'strong',
+      debate_turns: 1,
       rationale: 'Unrelated match.',
-    } as unknown as MatchRow,
+      debate_transcript: null,
+    },
   ];
 }
 
@@ -300,7 +320,7 @@ it('labels each review row by its reviewer instead of one Full review', () => {
   ).toBeInTheDocument();
 });
 
-it('renders tournament stats and the most recent matching match', () => {
+it('renders tournament stats and match history newest first', () => {
   renderFullDetail();
 
   expect(
@@ -309,15 +329,17 @@ it('renders tournament stats and the most recent matching match', () => {
     ),
   ).toBeInTheDocument();
 
-  // The most recent of the two matching matches (by created_at) wins.
-  expect(screen.getByText('close')).toBeInTheDocument();
+  // Both matches are retained in descending creation order.
+  expect(screen.getByText('Iteration 2 · close')).toBeInTheDocument();
+  expect(screen.getByText('Iteration 1 · strong')).toBeInTheDocument();
   expect(
     screen.getByText('Multi-turn scientific debate (3 turns)'),
   ).toBeInTheDocument();
-  expect(screen.getByText('The latest match rationale.')).toBeInTheDocument();
-  expect(
-    screen.queryByText('An earlier match rationale.'),
-  ).not.toBeInTheDocument();
+  const latestRationale = screen.getByText('The latest match rationale.');
+  const olderRationale = screen.getByText('An earlier match rationale.');
+  expect(latestRationale.compareDocumentPosition(olderRationale)).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
 });
 
 it('falls back to placeholder copy when there is no data', () => {

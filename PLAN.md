@@ -234,7 +234,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] Acquire and pin [conradry’s repository](https://github.com/conradry/open-coscientist-agents); inspect the framework, supervisor, model pools, research integration, monitoring, and licensing.
 - [x] Assess specialist-model assignment, action history, research synthesis, tournament inspection, and visualization; account for synchronous execution, in-memory state, and stated evaluation limitations.
 - [x] M3-02: expose the durable supervisor allocation history in the existing run activity flow; verify ownership, refresh, empty/error states, and accessible interaction.
-- [ ] M3-04: expose each idea’s stored match history and available debate transcript in the existing Ideas detail; verify outcome, rating changes, older records, refresh, and accessible interaction.
+- [x] M3-04: expose each idea’s stored match history and available debate transcript in the existing Ideas detail; verify outcome, rating changes, older records, refresh, and accessible interaction.
 - [ ] Verify each change against the current baseline, run release checks and cleanup, and document covered or rejected mechanisms.
 - [ ] Merge, deploy, verify, complete retained documentation, and remove the temporary checkout.
 
@@ -5016,3 +5016,7 @@ Starting commit `3450cc28`. Orchestration ledger: `M3-compare · GPT-6 Luna/xhig
 ### Cycle 213 — M3-02 supervisor allocation viewer
 
 Starting commit `345b6eb0`. Orchestration ledger: `M3-02 · GPT-6 Luna/xhigh worker plus coordinator · checked · owned API read path, separate optional fetch, active and terminal UI, refresh/error/empty/accessibility tests · M3-04 next`. The existing authenticated `/api/runs/{id}/supervisor-plan` endpoint remains the authority; the React workbench now reads its append-only allocation history without blocking the main run view. It labels observable reasons separately from model-stated rationale and keeps decisions visible after terminal status. Targeted Vitest passed 41 tests, frontend typecheck and diff check passed, and the isolated offline browser flow exercised delayed loading, refresh, error/retry, and terminal visibility. No new inference or schema change occurred.
+
+### Cycle 214 — M3-04 match-history viewer
+
+Starting commit `fc4e5e4a`. Orchestration ledger: `M3-04 · GPT-6 Luna/xhigh worker plus coordinator · checked · all stored matches and debate documents in Ideas detail · release verification next`. The Ideas detail now lists every persisted match involving the selected hypothesis, newest first, with opponent/outcome, iteration, tier, Elo change, debate depth, rationale, and an accessible stored-transcript disclosure. The existing owned matches endpoint supplies the data; no new API, model call, or scoring logic was added. Targeted Vitest passed 14 tests, frontend typecheck and scoped lint passed, and the isolated offline browser flow confirmed the history after reload. Transcript side interpretation was independently reviewed against the stored document shape.

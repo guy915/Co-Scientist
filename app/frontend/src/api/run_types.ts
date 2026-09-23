@@ -286,6 +286,9 @@ export interface MatchRow {
   // Debate depth: 1 = single-turn comparison, >1 = multi-turn scientific
   // debate (top-ranked matchups). Older rows default to 1.
   debate_turns: number;
+  // Stored debate document: {verdict, turns: [{turn, favored, text, first}]}.
+  // Older match rows have no transcript.
+  debate_transcript?: string | null;
   created_at: number;
 }
 

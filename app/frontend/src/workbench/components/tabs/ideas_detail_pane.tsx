@@ -4,10 +4,11 @@ import {Icon} from '@/components/icon';
 import {
   claimEvidenceSummary,
   debateDepthLabel,
+  findHypothesisMatches,
   findHypothesisReview,
   findHypothesisReviews,
-  findLatestMatch,
   normalizeSpans,
+  parseDebateTranscript,
   type NormalizedSpan,
   originLabel,
   reviewSummaryText,
@@ -57,8 +58,8 @@ const IDEA_DETAIL_SECTION_CLASSES =
 
 /**
  * Detail pane for one hypothesis: overview/description, review summary and
- * full critique, tournament win/loss record, and the most recent match's
- * outcome and rationale. Renders an empty-state placeholder when nothing is
+ * full critique, tournament win/loss record, and the selected idea's full
+ * match history. Renders an empty-state placeholder when nothing is
  * selected (e.g. no hypotheses yet).
  */
 interface HypothesisDetailProps {
@@ -88,8 +89,8 @@ function useHypothesisRecords(
     () => (hypothesis ? findHypothesisReviews(hypothesis, reviews) : []),
     [hypothesis, reviews],
   );
-  const latestMatch = useMemo(
-    () => (hypothesis ? findLatestMatch(hypothesis, matches) : undefined),
+  const matchHistory = useMemo(
+    () => (hypothesis ? findHypothesisMatches(hypothesis, matches) : []),
     [hypothesis, matches],
   );
   const claims = useMemo(
@@ -99,7 +100,7 @@ function useHypothesisRecords(
         : [],
     [hypothesis, claimEvidence],
   );
-  return {review, allReviews, latestMatch, claims};
+  return {review, allReviews, matchHistory, claims};
 }
 
 export function HypothesisDetail({
@@ -108,7 +109,7 @@ export function HypothesisDetail({
   matches,
   claimEvidence = [],
 }: HypothesisDetailProps) {
-  const {review, allReviews, latestMatch, claims} = useHypothesisRecords(
+  const {review, allReviews, matchHistory, claims} = useHypothesisRecords(
     hypothesis,
     reviews,
     matches,
@@ -129,7 +130,7 @@ export function HypothesisDetail({
       hypothesis={hypothesis}
       review={review}
       allReviews={allReviews}
-      latestMatch={latestMatch}
+      matchHistory={matchHistory}
       claims={claims}
     />
   );
@@ -139,7 +140,7 @@ interface DetailSectionsProps {
   hypothesis: Hypothesis;
   review: Review | undefined;
   allReviews: Review[];
-  latestMatch: MatchRow | undefined;
+  matchHistory: MatchRow[];
   claims: ClaimEvidenceRow[];
 }
 
@@ -149,7 +150,7 @@ function HypothesisDetailSections({
   hypothesis,
   review,
   allReviews,
-  latestMatch,
+  matchHistory,
   claims,
 }: DetailSectionsProps) {
   return (
@@ -179,7 +180,10 @@ function HypothesisDetailSections({
         <p>{tournamentSummaryText(hypothesis)}</p>
       </DetailSection>
       <DetailSection title={SECTIONS.matchSummary}>
-        <MatchSummaryContent latestMatch={latestMatch} />
+        <MatchSummaryContent
+          hypothesisId={hypothesis.id}
+          matches={matchHistory}
+        />
       </DetailSection>
     </section>
   );
@@ -336,44 +340,124 @@ function HypothesisProvenanceContent({
   );
 }
 
-// "Outcome" line of the match summary: the match tier, when known.
-function MatchOutcomeLine({tier}: {tier: string | null | undefined}) {
-  if (!tier) return null;
-  return (
-    <p>
-      <strong>Outcome:</strong> <span className="capitalize">{tier}</span>
-    </p>
-  );
-}
-
-// "Debate depth" line of the match summary, shown only once a match exists.
-function MatchDebateDepthLine({
-  latestMatch,
-}: {
-  latestMatch: MatchRow | undefined;
-}) {
-  if (!latestMatch) return null;
-  return (
-    <p>
-      <strong>Debate depth:</strong>{' '}
-      {debateDepthLabel(latestMatch.debate_turns)}
-    </p>
-  );
-}
-
-// "Match summary" section body: the optional outcome line, the debate depth,
-// plus the rationale (or its placeholder). Props-only (no hooks).
+// "Match summary" section body: each persisted result and its optional
+// turn-by-turn transcript, ordered newest first. Props-only (no hooks).
 function MatchSummaryContent({
-  latestMatch,
+  hypothesisId,
+  matches,
 }: {
-  latestMatch: MatchRow | undefined;
+  hypothesisId: string;
+  matches: MatchRow[];
 }) {
+  if (!matches.length) {
+    return <p>No match rationale is available yet.</p>;
+  }
   return (
     <>
-      <MatchOutcomeLine tier={latestMatch?.tier} />
-      <MatchDebateDepthLine latestMatch={latestMatch} />
-      <p>{latestMatch?.rationale || 'No match rationale is available yet.'}</p>
+      <h3>Match history</h3>
+      <ol className="mt-2 flex flex-col gap-4">
+        {matches.map(match => (
+          <MatchHistoryItem
+            key={match.id}
+            hypothesisId={hypothesisId}
+            match={match}
+          />
+        ))}
+      </ol>
     </>
+  );
+}
+
+function MatchHistoryItem({
+  hypothesisId,
+  match,
+}: {
+  hypothesisId: string;
+  match: MatchRow;
+}) {
+  const transcript = parseDebateTranscript(match.debate_transcript);
+
+  return (
+    <li className="grid gap-1 border-l-2 border-th-outline-variant pl-3">
+      <p>{matchResult(match, hypothesisId)}</p>
+      <p>{matchIteration(match)}</p>
+      <p>
+        <strong>Elo change:</strong>{' '}
+        {formatEloChange(matchEloChange(match, hypothesisId))}
+      </p>
+      <p>
+        <strong>Debate depth:</strong> {debateDepthLabel(match.debate_turns)}
+      </p>
+      <p>{match.rationale || 'No match rationale was recorded.'}</p>
+      {transcript && (
+        <MatchTranscriptDisclosure
+          transcript={transcript}
+          selectedSide={selectedTranscriptSide(
+            match,
+            hypothesisId,
+            transcript.verdict,
+          )}
+        />
+      )}
+    </li>
+  );
+}
+
+function matchResult(match: MatchRow, hypothesisId: string): string {
+  const won = match.winner_id === hypothesisId;
+  return `${won ? 'Win' : 'Loss'} against ${won ? match.loser_id : match.winner_id}`;
+}
+
+function matchIteration(match: MatchRow): string {
+  return `Iteration ${match.iteration}${match.tier ? ` · ${match.tier}` : ''}`;
+}
+
+function matchEloChange(match: MatchRow, hypothesisId: string): number {
+  return match.winner_id === hypothesisId
+    ? match.winner_elo_after - match.winner_elo_before
+    : match.loser_elo_after - match.loser_elo_before;
+}
+
+function formatEloChange(change: number): string {
+  return `${change > 0 ? '+' : ''}${change}`;
+}
+
+function selectedTranscriptSide(
+  match: MatchRow,
+  hypothesisId: string,
+  verdict: '1' | '2',
+): '1' | '2' {
+  return (verdict === '1') === (match.winner_id === hypothesisId) ? '1' : '2';
+}
+
+function MatchTranscriptDisclosure({
+  transcript,
+  selectedSide,
+}: {
+  transcript: NonNullable<ReturnType<typeof parseDebateTranscript>>;
+  selectedSide: '1' | '2';
+}) {
+  if (!transcript.turns.length) return null;
+  return (
+    <details>
+      <summary>Debate transcript ({transcript.turns.length} turns)</summary>
+      <ol className="mt-2 flex flex-col gap-2">
+        {transcript.turns.map(turn => {
+          const selectedWasPresentedFirst = turn.first === selectedSide;
+          const selectedWasFavored = turn.favored === selectedSide;
+          return (
+            <li key={turn.turn}>
+              <p>
+                <strong>Turn {turn.turn}:</strong> selected hypothesis was
+                presented as Hypothesis {selectedWasPresentedFirst ? '1' : '2'};
+                this turn favored {selectedWasFavored ? 'it' : 'the opponent'}.
+              </p>
+              <p>{turn.text}</p>
+            </li>
+          );
+        })}
+      </ol>
+    </details>
   );
 }
 
