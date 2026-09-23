@@ -130,6 +130,39 @@ def _successor_task_type(successor: str | None) -> str:
     return f"{NODE_TASK_PREFIX}{successor}"
 
 
+def _assert_task_commit_allowed(
+    task: ScientificTask, conn: sqlite3.Connection
+) -> None:
+    """Require the task's lease and run to remain live inside its commit."""
+    row = conn.execute(
+        "SELECT task.status AS task_status, task.lease_owner AS lease_owner, "
+        "task.attempt AS attempt, "
+        "run.status AS run_status FROM scientific_tasks AS task "
+        "JOIN runs AS run ON run.id=task.run_id "
+        "WHERE task.id=? AND task.run_id=?",
+        (task.id, task.run_id),
+    ).fetchone()
+    terminal = {status.value for status in store.TERMINAL_STATUSES}
+    if (
+        task.status != "leased"
+        or task.lease_owner is None
+        or row is None
+        or row["task_status"] != "leased"
+        or row["lease_owner"] != task.lease_owner
+        or row["attempt"] != task.attempt
+        or row["run_status"] in terminal
+    ):
+        # Import lazily to keep the shared support module below the worker
+        # outcome module in the import graph. BEGIN IMMEDIATE makes this
+        # read indivisible with the checkpoint and successor writes below.
+        from app.task_worker_outcomes import _LeaseLostError
+
+        raise _LeaseLostError(
+            f"task {task.id} cannot commit after lease revocation "
+            "or run termination"
+        )
+
+
 def _generator_and_opts(
     task: ScientificTask, db_path: str | None
 ) -> tuple[Any, dict[str, Any]]:
@@ -233,6 +266,7 @@ def _save_state_and_enqueue(
     )
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_node_checkpoint(
             task, envelope, successor_type, commit.current_seq, conn
         )
@@ -318,6 +352,7 @@ def _save_state_and_enqueue_exact(
         ),
     )
     with store.transaction(commit.db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_exact_checkpoint(
             task, envelope, commit.current_seq, conn
         )
@@ -348,6 +383,7 @@ def _save_paused_state(
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
     )
     with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
         latest = store.get_latest_checkpoint(task.run_id, conn=conn)
         latest_seq = int(latest["seq"]) if latest else 0
         if latest_seq != commit.current_seq:
