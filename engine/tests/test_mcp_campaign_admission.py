@@ -92,6 +92,30 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
         await invoke("search_pubmed")
 
 
+@pytest.mark.parametrize("include_new_tool", [False, True])
+async def test_new_client_accepts_old_and_current_manifests_during_rollout(
+    qualified: dict[str, Any], _patch_mcp_seam: Any, include_new_tool: bool
+) -> None:
+    tools = {
+        tool
+        for tool in qualified["campaign_policy"]["tools"]
+        if tool != "get_opencitations_citation_edges"
+    }
+    if include_new_tool:
+        tools.add("get_opencitations_citation_edges")
+    qualified["campaign_policy"]["tools"] = sorted(tools)
+    _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
+
+    client = MCPToolClient(server_url=URL)
+    await client.initialize()
+    tools, _ = client.get_tools()
+    assert set(tools) == {"search_pubmed"}
+
+    qualified["campaign_policy"]["tools"].append("unqualified_paid_tool")
+    with pytest.raises(RuntimeError, match="campaign"):
+        await client.call_tool("search_pubmed")
+
+
 @pytest.mark.parametrize(
     "change", ["url", "transport", "headers", "extra", "multi"]
 )

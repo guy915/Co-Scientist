@@ -22,6 +22,7 @@ PUBLIC_TOOLS = frozenset(
         "search_pubmed",
         "pubmed_search_with_fulltext",
         "search_openalex",
+        "get_opencitations_citation_edges",
         "search_chembl",
         "search_uniprot",
         "search_string_interactions",
@@ -36,6 +37,7 @@ PUBLIC_TOOLS = frozenset(
         "search_clinical_trials",
     }
 )
+_PREVIOUS_PUBLIC_TOOLS = PUBLIC_TOOLS - {"get_opencitations_citation_edges"}
 
 
 def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
@@ -112,15 +114,20 @@ class CampaignAdmission:
             response = await client.get(root)
             response.raise_for_status()
             data = response.json()
+        expected_policy = {
+            "version": POLICY,
+            "enabled": True,
+            "anonymous_openalex": True,
+        }
+        # Permit only the previous safe manifest while the MCP deploy follows
+        # the API deploy; reject every other policy change.
+        accepted_policies = [
+            {**expected_policy, "tools": sorted(tools)}
+            for tools in (PUBLIC_TOOLS, _PREVIOUS_PUBLIC_TOOLS)
+        ]
         if (
             not isinstance(data, dict)
-            or data.get("campaign_policy")
-            != {
-                "version": POLICY,
-                "enabled": True,
-                "anonymous_openalex": True,
-                "tools": sorted(PUBLIC_TOOLS),
-            }
+            or data.get("campaign_policy") not in accepted_policies
             or data.get("service") != "coscientist-lit-review"
         ):
             raise RuntimeError(
