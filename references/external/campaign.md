@@ -8,11 +8,17 @@ current official pricing/capability metadata and retained local results, with no
 automatic unqualified fallback. The [qualification inventory](baseline/model-qualification/README.md)
 retains successes, failures and inconclusive alternatives without new trials.
 Guarded anonymous retrieval was verified [locally](baseline/retrieval-2026-09-19/README.md).
-One public-goal run reached interview, retrieval, verification and ranking; it
-was paused before report publication and is partial evidence only. The M1 code
-passed the retained [release checks](baseline/release-verification196.json),
-but is not merged or deployed. The M2 release item owns the selected default,
-production backup, deployment and serving verification.
+One M1 public-goal run reached interview, retrieval, verification and ranking;
+it was paused before report publication and is partial evidence only. The M1 code
+passed the retained [release checks](baseline/release-verification196.json).
+PR [#22](https://github.com/guy915/Co-Scientist/pull/22) merged at
+`0d2fec9804d3d2179c7c492922ac31d71b514065` on 2026-09-23 after the user
+explicitly waived the GitHub CI gate, which failed before running because of an
+account hold. The full local release suite and independent review passed;
+GitHub CI did not pass. The [M2 staging record](baseline/m2-production-staging.md)
+and [production run record](baseline/m2-production-run.json) track the current
+deployment and bounded public-goal verification. The M2 release closeout remains
+open until those observations and cleanup are complete.
 
 Starting branch: `feat/external-m01-free-baseline`; execution starts at
 `927d2bd3a0f8480833661ff3a83b8c3549a6e85f`. The plan was committed at `cd54b76c`.
@@ -61,20 +67,22 @@ Record rate-limit reset times and resume later; never substitute paid models.
 
 Use the existing three services only. Preserve one API replica, root UID on its
 volume, off-volume cache, and durable startup/recovery. Merge via PR after required
-checks; attach it to the task. Record exact commits, deployment IDs and health.
+checks; attach it to the task. For PR #22 only, the user explicitly waived
+GitHub CI after two runs failed before job execution; local gates and review
+remained required. Record exact commits, deployment IDs and health.
 The [initial deployment snapshot](baseline/releases-2026-09-19.json) is a starting
-reference, not a verified zero-cost rollback target. Establish that target with
-the carried-forward M1 code at the M2 release.
+reference, not a verified zero-cost rollback target. The M2 release's verified
+backup and zero-cost rollback anchor are recorded below.
 Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
 
-The M2 release's planned system-default configuration is
+The M2 release's deployed system-default configuration is
 `MODEL_NAME=SUPERVISOR_MODEL_NAME=CHAT_MODEL_NAME=SEMANTIC_SAFETY_MODEL=openrouter/nex-agi/nex-n2.5-pro:free`;
 `CLAIM_VERIFIER_MODEL` remains unset and inherits `MODEL_NAME`. This route has
 no model-level fallback, and its requests retain zero-price ceilings. The
-production readback on 23 September still showed the four explicit old
-MiniMax values; these target values are not yet deployed. The official catalog
+pre-switch production readback on 23 September showed four explicit old
+MiniMax values; all four now serve the selected Nex Pro route. The official catalog
 currently marks this free route as expiring 25 September 2026 (see the
 [dated receipt](baseline/nex-pro-catalog-2026-09-23.json)). Recheck current
 eligibility before each live batch; if the route retires, stop live calls and
@@ -104,10 +112,10 @@ configuration or wait for metadata availability, never substitute a paid model.
 The [retrieval cost audit](baseline/retrieval-cost-audit.md) maps outbound routes
 and retained cost evidence. M1-03c2/c3 now cover local provider restrictions,
 MCP identity admission, workspace confinement and real anonymous public retrieval.
-Production qualification remains open: caller and server controls must both be
-deployed and observed before a live production campaign run. Evaluation-runner
-isolation and model qualification must also pass before campaign inference.
-No production retrieval billing settings have been altered.
+The caller and server controls are deployed on the merged commit, and the
+campaign-owned production run recorded an authenticated MCP connection and tool
+registry. Evaluation-runner isolation and model qualification were verified
+locally before campaign inference. No paid retrieval route was enabled.
 
 ### MCP qualification
 
@@ -115,7 +123,8 @@ Before campaign tool use, verify the endpoint is our reference MCP deployment
 at the intended campaign commit, then set `COSCIENTIST_CAMPAIGN_MCP_URL` to its
 exact `/mcp` URL in the caller. The resolved MCP configuration must contain only
 that one streamable-HTTP server and its existing shared-secret header, if used.
-Set `COSCIENTIST_REQUIRE_FREE_MODELS=1` on the MCP service as well as the caller.
+The authenticated campaign marker enforces the free policy on MCP requests;
+leave the global flag unset in these shared services to preserve explicit BYOK.
 Deploy/verify the MCP policy before enabling caller admission. An old production
 server lacking the policy must fail admission; do not qualify it by tool names.
 
@@ -194,8 +203,11 @@ for the separate INDRA golden acceptance, which campaign mode rejects.
    A smoke check alone does not prove a full research run published; preserve
    that limitation explicitly when no completed run is observed.
 
-The frozen model configuration, exact interview output, run IDs and observed
-results will be added during M1 live execution. None is claimed verified here.
+The M1 interview and partial local run are retained separately. The merged
+production run uses the frozen four-role Nex Pro route and a distinct public
+PETase goal; its observed stages are recorded in
+`baseline/m2-production-run.json`. This is release-path evidence, not a paired
+scientific-quality result or proof of report publication.
 
 Direct citation and Elo panels now share the same isolated configuration. Elo
 loads production rating math lazily so importing its evaluator does not load
@@ -384,6 +396,8 @@ in the serving process. If consistent backup verification fails, keep release op
 The additive columns normally remain during application rollback; do not drop them
 or restore an older data snapshot merely to roll back code. Restoring data would
 lose writes made after the backup and requires a separately justified recovery.
-Before release, identify an audited zero-cost recovery code/configuration target;
-the pre-campaign production commit is not automatically such a target. Actual
-backup, deployed migration, recovery configuration and smoke evidence remain pending.
+The verified [M2 production backup](baseline/m2-production-backup.json) and
+zero-cost code rollback anchor `11285e63ca619bfdfb76d8d2a2c6111c9379738b`
+were recorded before merge. The merged API's three additive columns are present,
+and post-merge production smoke passed. Continue using the exact free route only
+while its current catalog price and availability are verified.
