@@ -6,6 +6,10 @@ import {RunExecutionProgress} from './home_recents_run_steps';
 import {windowedActivityGroups} from './run_detail_activity';
 import {ActivityLog} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
+import {
+  SupervisorAllocationLedger,
+  type AllocationLedgerState,
+} from './run_detail_supervisor_plan';
 
 // Cards shown in the activity log, not raw events -- see the comment on
 // the useMemo below for why the window moved to that unit.
@@ -20,6 +24,7 @@ interface ActiveRunViewProps {
   events: StreamEvent[];
   evidenceCount: number;
   ideaCount: number;
+  allocationLedger: AllocationLedgerState;
 }
 
 // How long the run has been going, floored at zero to guard against clock
@@ -95,6 +100,7 @@ export function ActiveRunView(props: ActiveRunViewProps) {
           <RunExecutionProgress run={run} />
         </div>
         <RunMetrics elapsed={elapsed} metrics={headlineMetrics(props)} />
+        <SupervisorAllocationLedger {...props.allocationLedger} />
         <ActivityLog
           groups={activityGroups}
           connection={run.stream_connection}

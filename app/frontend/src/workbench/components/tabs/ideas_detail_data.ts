@@ -44,15 +44,69 @@ export function reviewerLabel(reviewerAgent: string): string {
   return REVIEWER_LABELS[reviewerAgent] || reviewerAgent || 'Unknown reviewer';
 }
 
-// Most recent match involving a hypothesis on either side, used for the
-// "Match summary" section's outcome/rationale.
-export function findLatestMatch(
+// Every match involving a hypothesis, newest first.
+export function findHypothesisMatches(
   hypothesis: Hypothesis,
   matches: MatchRow[],
-): MatchRow | undefined {
+): MatchRow[] {
   return matches
     .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
-    .sort((a, b) => b.created_at - a.created_at)[0];
+    .sort((a, b) => b.created_at - a.created_at || b.id - a.id);
+}
+
+export interface DebateTranscriptTurn {
+  turn: number;
+  favored: '1' | '2';
+  text: string;
+  first: '1' | '2';
+}
+
+export interface DebateTranscript {
+  verdict: '1' | '2';
+  turns: DebateTranscriptTurn[];
+}
+
+function isTranscriptSide(value: unknown): value is '1' | '2' {
+  return value === '1' || value === '2';
+}
+
+function isDebateTranscriptTurn(value: unknown): value is DebateTranscriptTurn {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.turn === 'number' &&
+    isTranscriptSide(value.favored) &&
+    typeof value.text === 'string' &&
+    isTranscriptSide(value.first)
+  );
+}
+
+// Match rows store the published transcript document emitted by the engine:
+// each turn's argument, canonical side favored, and which side was presented
+// as Hypothesis 1. Older rows have no transcript; malformed stored JSON is
+// omitted the same way the report renderer omits it.
+export function parseDebateTranscript(
+  raw: string | null | undefined,
+): DebateTranscript | null {
+  if (!raw) return null;
+  return asDebateTranscript(parseTranscriptJson(raw));
+}
+
+function parseTranscriptJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function asDebateTranscript(value: unknown): DebateTranscript | null {
+  if (!isRecord(value)) return null;
+  if (!isTranscriptSide(value.verdict)) return null;
+  if (!Array.isArray(value.turns)) return null;
+  return {
+    verdict: value.verdict,
+    turns: value.turns.filter(isDebateTranscriptTurn),
+  };
 }
 
 // Human-readable origin label for the agent/source that produced a hypothesis.

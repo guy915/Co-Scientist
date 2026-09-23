@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import {fetchReportMarkdown} from './runs';
+import {fetchReportMarkdown, getSupervisorPlan} from './runs';
 import {setAccessToken, clearAccessToken} from '@/lib/client_id';
 
 // Tests for the runs_collections.ts clients that outgrew runs.test.ts's
@@ -78,5 +78,24 @@ describe('fetchReportMarkdown', () => {
   it('throws on a non-404 error response', async () => {
     fetchMock().mockResolvedValue(textResponse(500, 'boom'));
     await expect(fetchReportMarkdown('r1')).rejects.toThrow('500 boom');
+  });
+});
+
+describe('getSupervisorPlan', () => {
+  it('fetches the owned allocation ledger using the standard client header', async () => {
+    const response = {plan: null, allocations: []};
+    fetchMock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => response,
+    } as Response);
+
+    expect(await getSupervisorPlan('r1')).toEqual(response);
+    const [url, opts] = firstCall();
+    expect(url).toBe('/api/runs/r1/supervisor-plan');
+    expect(opts?.method).toBeUndefined();
+    expect(
+      (opts?.headers as Record<string, string>)['X-Client-ID'],
+    ).toBeTruthy();
   });
 });

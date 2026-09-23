@@ -1,0 +1,51 @@
+{
+  "purpose": "M2 merged production campaign-owned public-goal release verification",
+  "run_id": "1c33deee-e0c0-4a9b-b9a0-48e88076fe03",
+  "research_goal": "Investigate evidence-backed mechanisms for PETase variants that improve polyethylene terephthalate depolymerization near room temperature, using only public biochemical literature.",
+  "tier": "express",
+  "notifications_enabled": false,
+  "documents_attached": false,
+  "creation_status": "draft",
+  "execution_policy": "campaign",
+  "start_status": "queued",
+  "task_id": "2231a666-7ac8-43a8-bd49-469ae016b772",
+  "observed_status": "cancelled",
+  "observed_event_count": 5,
+  "observed_event_types": {
+    "lifecycle": 2,
+    "safety.intake": 1,
+    "scientific_task": 1,
+    "status": 1
+  },
+  "release_commit": "0d2fec9804d3d2179c7c492922ac31d71b514065",
+  "api_deployment_id": "6ae20bc7-60d1-4276-8a9a-32276bf2c392",
+  "mcp_deployment_id": "b180af58-dedd-46b3-9910-ba5b3d2ed81d",
+  "frontend_deployment_id": "dpl_9vrsaVGcWiKdUHQE7soeihvZ913X",
+  "requested_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "pricing_check": {
+    "source": "https://openrouter.ai/api/v1/models",
+    "date_utc": "2026-09-23",
+    "prompt": "0",
+    "completion": "0",
+    "expiration_date": "2026-09-25"
+  },
+  "observed_model": "none; run cancelled before a provider response",
+  "publication_observed": false,
+  "bounded_smoke_result": "cancelled after authenticated MCP setup and durable supervisor start; no provider response or report observed",
+  "observed_llm_calls": 0,
+  "observed_model_usage": {},
+  "terminal_observation": {
+    "status": "cancelled",
+    "last_event_seq": 5
+  },
+  "post_merge_prod_smoke": "passed",
+  "post_merge_frontend_http_status": 200,
+  "execution_progress_at_running_observation": {
+    "determinate": false,
+    "completed_tasks": 1,
+    "total_tasks": 4,
+    "fraction": null,
+    "active_task": "engine.node.supervisor",
+    "queued_tasks": 2
+  }
+}

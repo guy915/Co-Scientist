@@ -25,6 +25,7 @@ import {
   useRunStream,
 } from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
+import {useRunSupervisorPlan} from './run_detail_supervisor_plan_data';
 
 /**
  * The fetched run row plus the live transport state of its event stream.
@@ -77,6 +78,13 @@ function dataKeysFromEvents(events: readonly StreamEvent[]): Set<RunDataKey> {
     for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
   }
   return keys;
+}
+
+function hasSupervisorPlanEvent(events: readonly StreamEvent[]): boolean {
+  return events.some(
+    event =>
+      event.type === 'scientific_task' && event.payload.task === 'orchestrator',
+  );
 }
 
 // Fetches the run row plus whichever collections `keys` selects (every
@@ -297,7 +305,13 @@ function useRunFetch(id: string | undefined) {
     void refresh();
   }, [id, refresh, resetPending, reset]);
 
-  return {...collections, error, loaded, scheduleRefresh, refreshNow};
+  return {
+    ...collections,
+    error,
+    loaded,
+    scheduleRefresh,
+    refreshNow,
+  };
 }
 
 // Wires the live SSE event stream for a run (replayed from seq=0 on mount):
@@ -308,9 +322,26 @@ function useRunFetch(id: string | undefined) {
 function useRunEventStream(
   id: string | undefined,
   onDataEvents: (keys: Iterable<RunDataKey>) => void,
+  onSupervisorPlanEvent: () => void,
   onTerminal: () => void,
 ) {
   const {events, terminal, connection} = useRunStream(id ?? null);
+  const previousConnection = useRef({id, connection});
+
+  // A durable checkpoint can persist the ledger before its completion event
+  // is appended. Stream replay can miss that gap, so refresh the optional
+  // ledger once when the transport first opens or reconnects.
+  useEffect(() => {
+    const previous = previousConnection.current;
+    previousConnection.current = {id, connection};
+    if (
+      previous.id === id &&
+      previous.connection !== 'open' &&
+      connection === 'open'
+    ) {
+      onSupervisorPlanEvent();
+    }
+  }, [connection, id, onSupervisorPlanEvent]);
 
   // The stream delivers events in coalesced batches, so scan the whole newly
   // appended slice for data events rather than only the batch tail: a batch
@@ -326,8 +357,10 @@ function useRunEventStream(
     processedEventCount.current = events.length;
     const data = fresh.filter(event => event.type !== 'status');
     if (data.length === 0) return;
-    onDataEvents(dataKeysFromEvents(data));
-  }, [events, onDataEvents]);
+    const keys = dataKeysFromEvents(data);
+    if (keys.size > 0) onDataEvents(keys);
+    if (hasSupervisorPlanEvent(data)) onSupervisorPlanEvent();
+  }, [events, onDataEvents, onSupervisorPlanEvent]);
 
   // On stream end, refetch immediately so a pending debounce cannot leave the
   // completed state stale.
@@ -388,10 +421,16 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
  */
 export function useRunDetailData(id: string | undefined) {
   const data = useRunFetch(id);
+  const supervisorPlan = useRunSupervisorPlan(id);
+  const onTerminal = useCallback(() => {
+    data.refreshNow();
+    void supervisorPlan.refresh();
+  }, [data.refreshNow, supervisorPlan.refresh]);
   const {events, terminal, connection} = useRunEventStream(
     id,
     data.scheduleRefresh,
-    data.refreshNow,
+    supervisorPlan.refresh,
+    onTerminal,
   );
   const {toast, title} = useRunDerivedState(data.run, terminal);
 
@@ -411,12 +450,14 @@ export function useRunDetailData(id: string | undefined) {
     reviews: data.reviews,
     claimEvidence: data.claimEvidence,
     safety: data.safety,
+    supervisorPlan: supervisorPlan.state,
     report: data.report,
     error: data.error,
     loaded: data.loaded,
     toast,
     title,
     refreshNow: data.refreshNow,
+    refreshSupervisorPlan: supervisorPlan.refresh,
     events,
   };
 }

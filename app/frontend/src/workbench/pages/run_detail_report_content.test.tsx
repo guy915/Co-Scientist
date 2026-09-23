@@ -47,6 +47,7 @@ vi.mock('@/api/runs', async importActual => {
     getReviews: vi.fn().mockResolvedValue([]),
     getClaimEvidence: vi.fn().mockResolvedValue([]),
     getSafety: vi.fn().mockResolvedValue([]),
+    getSupervisorPlan: vi.fn().mockResolvedValue({plan: null, allocations: []}),
     adjudicateSafety: vi.fn().mockResolvedValue({
       decision_id: 1,
       resolution: 'approved',
@@ -68,6 +69,10 @@ beforeEach(() => {
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
+    plan: null,
+    allocations: [],
+  });
 });
 
 it('shows the run goal as the report heading', async () => {

@@ -24,6 +24,38 @@ import {
   parseJson,
 } from './runs_http';
 
+/** One saved Supervisor decision in the durable allocation ledger. */
+export interface SupervisorAllocation {
+  id: number;
+  run_id: string;
+  seq: number;
+  iteration: number;
+  task_type: string;
+  status: string;
+  reason: string;
+  planner_reason: string | null;
+  priority: number | null;
+  termination_reason: string | null;
+  created_at: number;
+}
+
+/** The Supervisor plan snapshot, absent until the first checkpoint commits. */
+export interface SupervisorPlanRecord {
+  run_id: string;
+  plan: Record<string, unknown>;
+  orchestrator_state: Record<string, unknown>;
+  decision_provenance: string | null;
+  termination_reason: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** The persisted plan and append-ordered allocation rows for one run. */
+export interface SupervisorPlanResponse {
+  plan: SupervisorPlanRecord | null;
+  allocations: SupervisorAllocation[];
+}
+
 /**
  * Fetches a run sub-resource `/api/runs/{id}/{key}` that the API returns
  * wrapped as `{[key]: T[]}`.
@@ -115,6 +147,13 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
 /** Return the persisted weighted hypothesis proximity graph. */
 export function getProximity(id: string): Promise<ProximityEdge[]> {
   return getRunList<ProximityEdge>(id, 'proximity');
+}
+
+/** Fetch the persisted Supervisor plan and ordered allocation ledger. */
+export function getSupervisorPlan(id: string): Promise<SupervisorPlanResponse> {
+  return fetchJson(`/api/runs/${id}/supervisor-plan`, {
+    headers: clientHeaders(),
+  });
 }
 
 /** Submit a scientist-authored hypothesis through the shared safety gate. */

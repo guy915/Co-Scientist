@@ -6,7 +6,7 @@
 
 - Upstream: [Kaimen-Inc/Co-Scientist](https://github.com/Kaimen-Inc/Co-Scientist)
 - Pinned commit: [`cef5bcfec8820865855593b437a941005a9f961a`](https://github.com/Kaimen-Inc/Co-Scientist/commit/cef5bcfec8820865855593b437a941005a9f961a), dated 2026-08-03.
-- Ignored local checkout: `references/work/kaimen-inc-co-scientist/`.
+- Ignored local checkout during assessment: `references/work/kaimen-inc-co-scientist/` (removed after release verification).
 - The root [`LICENSE`](https://github.com/Kaimen-Inc/Co-Scientist/blob/cef5bcfec8820865855593b437a941005a9f961a/LICENSE) is Apache License 2.0; `pyproject.toml` also declares `Apache-2.0`. The pinned tree has no nested license files, `NOTICE`, or submodules. Any copied/adapted code must retain the Apache license and applicable notices.
 
 ## Architecture map
@@ -42,6 +42,6 @@
 ## Candidate evaluation and verification
 
 - All six candidate IDs are unique and closed: two already covered, two outside this campaign's scope, and two rejected with evidence. No Kaimen implementation or scientific-quality candidate was accepted, so there is no candidate-versus-baseline live evaluation to run. The previously verified code checks in `baseline/release-verification196.json` remain applicable because no production code, dependencies, configuration, or evaluation inputs changed during M2 assessment.
-- The pinned checkout remains clean at `cef5bcfec8820865855593b437a941005a9f961a`; its Apache-2.0 root license is retained as source evidence. The named local test files exist. Static source inspection found no caller of `CitationVerifier`, no shipped `reference/` tree or historical bench artifacts, and no zero-cost semantic embedding route in this pinned source. This supports the dispositions above; it is not a live scientific result.
-- A scoped cleanup found no scratch files, copied code, duplicate implementation, dead code, or UI change from this assessment. The temporary checkout remains until the M2 release item is verified, then will be removed before acquiring the next source.
-- Product deployment and baseline freeze are pending in the M2 release item. Until its release evidence is recorded here, this dossier is assessed but not released.
+- The pinned checkout was clean at `cef5bcfec8820865855593b437a941005a9f961a`; its Apache-2.0 root license is retained as source evidence. The named local test files exist. Static source inspection found no caller of `CitationVerifier`, no shipped `reference/` tree or historical bench artifacts, and no zero-cost semantic embedding route in this pinned source. This supports the dispositions above; it is not a live scientific result.
+- A scoped cleanup found no scratch files, copied code, duplicate implementation, dead code, or UI change from this assessment. The temporary checkout was removed after M2 release verification, before acquiring the next source.
+- Kaimen assessment produced no accepted product change. PR [#22](https://github.com/guy915/Co-Scientist/pull/22) merged the carried-forward free-model release at `0d2fec9804d3d2179c7c492922ac31d71b514065` with an explicit user-authorized GitHub CI exception after two jobs failed to start on an account hold. The local release suite and independent review passed; GitHub CI did not. The API and MCP deployments (`6ae20bc7-60d1-4276-8a9a-32276bf2c392`, `b180af58-dedd-46b3-9910-ba5b3d2ed81d`) are healthy on that commit, and the Vercel production deployment `dpl_9vrsaVGcWiKdUHQE7soeihvZ913X` is ready. Production smoke passes. The bounded campaign-owned public run and final checkout cleanup are recorded in the M2 release item and [run artifact](baseline/m2-production-run.json); do not infer a completed scientific report from these release checks.

@@ -15,6 +15,10 @@ import {
   ReportList,
 } from './run_detail_document';
 import {errorMessage, SafetyReviewSection} from './run_detail_safety_review';
+import {
+  SupervisorAllocationLedger,
+  type AllocationLedgerState,
+} from './run_detail_supervisor_plan';
 
 const UPLOAD_LABEL_CLASSES =
   'mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border ' +
@@ -135,10 +139,12 @@ function SpecFields({run}: {run: RunWithSummary | null}) {
 export function RunSpecificationsView({
   run,
   safety,
+  allocationLedger,
   onSafetyChanged,
 }: {
   run: RunWithSummary | null;
   safety: SafetyDecision[];
+  allocationLedger: AllocationLedgerState;
   onSafetyChanged: () => void;
 }) {
   return (
@@ -147,6 +153,9 @@ export function RunSpecificationsView({
       className="cosci-run-specifications"
     >
       <SpecFields run={run} />
+      <div className="mt-6">
+        <SupervisorAllocationLedger {...allocationLedger} />
+      </div>
       <SafetyReviewSection decisions={safety} />
       {run && !isTerminalStatus(run.status) && (
         <PrivateCorpusUpload runId={run.id} onChanged={onSafetyChanged} />
