@@ -206,6 +206,8 @@ export interface RunSummary {
 /** A run enriched with its aggregate artifact counts. */
 export interface RunWithSummary extends Run {
   summary: RunSummary;
+  /** Machine-readable cause of a terminal failure, when the backend knows it. */
+  failure_kind?: string | null;
 }
 
 /** A generated hypothesis with its scores, lineage, and tournament record. */

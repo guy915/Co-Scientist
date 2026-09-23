@@ -341,6 +341,14 @@ def current_byok() -> ByokCredential | None:
     return _current_byok.get()
 
 
+def redact_byok_text(text: str) -> str:
+    """Replace the current run's exact key in diagnostic text."""
+    credential = current_byok()
+    if credential is None or not credential.api_key:
+        return text
+    return text.replace(credential.api_key, "[REDACTED]")
+
+
 @contextlib.contextmanager
 def scoped_byok(
     credential: ByokCredential | None,
@@ -390,6 +398,16 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
 # ---------------------------------------------------------------------------
 
 
+def _redact_log_details(record: logging.LogRecord) -> None:
+    """Redact formatted traceback and stack text on a log record."""
+    if record.exc_info:
+        record.exc_text = logging.Formatter().formatException(record.exc_info)
+    for field in ("exc_text", "stack_info"):
+        value = getattr(record, field)
+        if value:
+            setattr(record, field, redact_byok_text(value))
+
+
 class ByokRedactionFilter(logging.Filter):
     """Scrubs a scoped BYOK key out of any record that carries it.
 
@@ -402,15 +420,15 @@ class ByokRedactionFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Redact the scoped key from the record, keeping the record."""
-        credential = current_byok()
-        if credential is None:
+        if current_byok() is None:
             return True
-        key = credential.api_key
         try:
             message = record.getMessage()
-            if key in message:
-                record.msg = message.replace(key, "[REDACTED]")
+            redacted = redact_byok_text(message)
+            if redacted != message:
+                record.msg = redacted
                 record.args = None
+            _redact_log_details(record)
         except Exception:
             # Redaction must never break logging itself.
             return True

@@ -17,6 +17,14 @@ from typing import Any
 
 
 @dataclasses.dataclass(frozen=True)
+class TaskFailure:
+    """Raw task failure plus an optional exact provider failure kind."""
+
+    error: str
+    failure_kind: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
 class ScientificTask:
     """One durable unit of specialist work."""
 

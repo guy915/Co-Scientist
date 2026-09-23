@@ -64,6 +64,7 @@ from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
 from app.store.tasks_model import ScientificTask as ScientificTask
+from app.store.tasks_model import TaskFailure as TaskFailure
 from app.store.tasks_model import _decode as _decode
 from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
@@ -389,7 +390,7 @@ def claim_task(
 def fail_task(
     task_id: str,
     worker_id: str,
-    error: str,
+    error: str | TaskFailure,
     *,
     retryable: bool = True,
     db_path: str | None = None,
@@ -402,6 +403,10 @@ def fail_task(
     transaction, so a run can never be left running with no work that
     could ever advance it (the SSE stream closes on that event).
     """
+    failure = error if isinstance(error, TaskFailure) else TaskFailure(error)
+    from app.credentials import redact_byok_text
+
+    failure = TaskFailure(redact_byok_text(failure.error), failure.failure_kind)
     with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
@@ -412,14 +417,14 @@ def fail_task(
             return False
         task = _decode(row)
         status = _persist_failed_attempt(
-            conn, task, worker_id, error, retryable
+            conn, task, worker_id, failure.error, retryable
         )
         if status == "failed":
             _settle_run_for_failed_task(
                 conn,
                 task.run_id,
                 task.task_type,
-                error,
+                failure,
                 retryable=retryable,
             )
     return True

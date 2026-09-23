@@ -169,6 +169,21 @@ def latest_event_seq(
     return int(row[0])
 
 
+def latest_status_event(
+    run_id: str,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any] | None:
+    """Return the newest persisted status payload for a run, if any."""
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT payload_json FROM run_events "
+            "WHERE run_id=? AND type='status' ORDER BY seq DESC LIMIT 1",
+            (run_id,),
+        ).fetchone()
+    return json.loads(row["payload_json"]) if row is not None else None
+
+
 def list_events(
     run_id: str,
     after_seq: int = 0,
