@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from app import store
-from app.auth import client_id
+from app.auth import client_id, require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
 from app.runs_models import SafetyAdjudicationRequest
 from app.runs_support import _require_run, _run_or_404
@@ -86,9 +86,15 @@ async def get_safety(run_id: str) -> dict[str, Any]:
 
 
 @router.get("/{run_id}/outcomes")
-async def get_hypothesis_outcomes(run_id: str) -> dict[str, Any]:
+async def get_hypothesis_outcomes(
+    run_id: str, request: Request
+) -> dict[str, Any]:
     """Return the run's researcher-recorded hypothesis outcomes."""
-    _require_run(run_id)
+    run = _run_or_404(run_id)
+    if run.client_id != store.DEMO_CLIENT_ID:
+        researcher = require_bearer_principal(request)
+        if run.client_id != researcher.subject:
+            raise HTTPException(status_code=404, detail="run not found")
     return {"outcomes": store.list_hypothesis_outcomes(run_id)}
 
 

@@ -197,6 +197,7 @@ export function ResearchOverviewView({
         loading={outcomesLoading}
         error={outcomesError}
         onRefresh={onRefreshOutcomes}
+        readOnly={run?.is_demo}
       />
     </>
   );

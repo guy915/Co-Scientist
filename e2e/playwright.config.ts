@@ -3,6 +3,9 @@ import {
   API_PORT,
   API_URL,
   APP_DIR,
+  E2E_AUTH_SECRET,
+  E2E_RESEARCHER_ACCESS_CODE,
+  E2E_RESEARCHER_ID,
   FRONTEND_DIR,
   runStateDir,
   UI_PORT,
@@ -39,6 +42,10 @@ const backendServer = {
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,
     COSCIENTIST_REPORTS_DIR: `${STATE_DIR}/reports`,
     COSCIENTIST_CACHE_DIR: `${STATE_DIR}/cache`,
+    AUTH_SECRET: E2E_AUTH_SECRET,
+    RESEARCHER_ACCESS_CODES: JSON.stringify({
+      [E2E_RESEARCHER_ID]: E2E_RESEARCHER_ACCESS_CODE,
+    }),
     // The frontend talks to this backend cross-origin (different port), so the
     // exact UI origin must be on the CORS allowlist — Starlette's wildcard
     // default withholds the Allow-Origin header once credentials are enabled.

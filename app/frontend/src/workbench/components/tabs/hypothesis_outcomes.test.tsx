@@ -2,6 +2,7 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {HypothesisOutcome} from '@/api/runs';
+import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {makeHypothesis} from '@/test_fixtures';
 import {
   HypothesisOutcomeSection,
@@ -45,9 +46,11 @@ const savedOutcome: HypothesisOutcome = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearAccessToken();
 });
 
 it('shows this hypothesis outcomes with provenance and readable evidence IDs', () => {
+  setAccessToken('researcher-session');
   render(
     <HypothesisOutcomeSection
       runId="run-1"
@@ -82,6 +85,7 @@ it('shows this hypothesis outcomes with provenance and readable evidence IDs', (
 });
 
 it('uses the stored hypothesis title and evidence metadata in the report view', () => {
+  setAccessToken('researcher-session');
   render(
     <RunOutcomesReport
       outcomes={[savedOutcome]}
@@ -102,6 +106,7 @@ it('uses the stored hypothesis title and evidence metadata in the report view', 
 });
 
 it('keeps collection loading and error recovery accessible', async () => {
+  setAccessToken('researcher-session');
   const onRefresh = vi.fn();
   const {rerender} = render(
     <HypothesisOutcomeSection
@@ -131,6 +136,7 @@ it('keeps collection loading and error recovery accessible', async () => {
 });
 
 it('submits a labeled observation and announces success', async () => {
+  setAccessToken('researcher-session');
   vi.mocked(runsApi.addHypothesisOutcome).mockResolvedValue(savedOutcome);
   const onRefresh = vi.fn().mockResolvedValue(undefined);
   render(
@@ -187,6 +193,7 @@ it('submits a labeled observation and announces success', async () => {
 });
 
 it('announces a server rejection and keeps the entered observation', async () => {
+  setAccessToken('researcher-session');
   vi.mocked(runsApi.addHypothesisOutcome).mockRejectedValue(
     new Error('409 outcome rejected'),
   );
@@ -222,4 +229,69 @@ it('announces a server rejection and keeps the entered observation', async () =>
     '409 outcome rejected',
   );
   expect(observation).toHaveValue('A recorded result');
+});
+
+it('offers researcher access instead of private outcome loading errors or a form', () => {
+  render(
+    <HypothesisOutcomeSection
+      runId="run-1"
+      hypothesis={makeHypothesis({id: 'h1'})}
+      outcomes={[]}
+      loading
+      error="401 researcher access required"
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('link', {name: 'Researcher access'})).toHaveAttribute(
+    'href',
+    '/access',
+  );
+  expect(screen.queryByText('Loading observations…')).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('group', {name: 'Record an observation'}),
+  ).toBeNull();
+});
+
+it('keeps public demo outcomes readable without a signed session', () => {
+  render(
+    <HypothesisOutcomeSection
+      runId="run-1"
+      hypothesis={makeHypothesis({id: 'h1'})}
+      outcomes={[savedOutcome]}
+      loading={false}
+      error={null}
+      readOnly
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText('Signal rose by two fold')).toBeInTheDocument();
+  expect(
+    screen.getByText('Public demo observations are read-only.'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('link', {name: 'Researcher access'})).toBeNull();
+  expect(
+    screen.queryByRole('group', {name: 'Record an observation'}),
+  ).toBeNull();
+});
+
+it('offers researcher access in the report view when private outcomes are unavailable', () => {
+  render(
+    <RunOutcomesReport
+      outcomes={[]}
+      hypotheses={[]}
+      loading
+      error="401 researcher access required"
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByRole('link', {name: 'Researcher access'})).toHaveAttribute(
+    'href',
+    '/access',
+  );
+  expect(screen.queryByText('Loading observations…')).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });

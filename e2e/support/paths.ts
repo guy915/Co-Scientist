@@ -28,6 +28,11 @@ export const UI_PORT = 5273;
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
 export const UI_URL = `http://127.0.0.1:${UI_PORT}`;
 
+// Deterministic credentials for the isolated browser-test API only.
+export const E2E_RESEARCHER_ID = 'e2e-client';
+export const E2E_RESEARCHER_ACCESS_CODE = 'e2e-researcher-access-code';
+export const E2E_AUTH_SECRET = 'e2e-only-signing-secret';
+
 /**
  * Resolves the per-invocation temp directory holding this run's SQLite DB,
  * reports, and cache. Created fresh on first call and stashed in the

@@ -1,6 +1,7 @@
 import {useState, type FormEvent} from 'react';
 import {addHypothesisOutcome} from '@/api/runs';
 import type {Hypothesis, HypothesisOutcome} from '@/api/runs';
+import {getAccessToken} from '@/lib/client_id';
 import {
   ReportDocument,
   REPORT_H4_CLASSES,
@@ -57,12 +58,16 @@ export function HypothesisOutcomeSection({
   onRefresh: () => Promise<void> | void;
 }) {
   const state = resolvedCollectionState({outcomes, loading, error, onRefresh});
+  const hasResearcherSession = Boolean(getAccessToken());
   const matching = state.outcomes.filter(
     outcome => outcome.hypothesis_id === hypothesis.id,
   );
 
   return (
-    <section className="grid gap-3" aria-busy={state.loading}>
+    <section
+      className="grid gap-3"
+      aria-busy={state.loading && (readOnly || hasResearcherSession)}
+    >
       <h2 className="font-gsans text-[1.5rem] leading-8 font-normal">
         Scientist-recorded observations
       </h2>
@@ -70,8 +75,42 @@ export function HypothesisOutcomeSection({
         These observations are entered by a scientist and are not independently
         validated.
       </p>
-      <OutcomeCollectionState
+      <OutcomeAccessState
+        state={state}
         outcomes={matching}
+        readOnly={Boolean(readOnly)}
+        hasResearcherSession={hasResearcherSession}
+        runId={runId}
+        hypothesisId={hypothesis.id}
+        onRefresh={onRefresh}
+      />
+    </section>
+  );
+}
+
+function OutcomeAccessState({
+  state,
+  outcomes,
+  readOnly,
+  hasResearcherSession,
+  runId,
+  hypothesisId,
+  onRefresh,
+}: {
+  state: ReturnType<typeof resolvedCollectionState>;
+  outcomes: HypothesisOutcome[];
+  readOnly: boolean;
+  hasResearcherSession: boolean;
+  runId: string;
+  hypothesisId: string;
+  onRefresh: () => Promise<void> | void;
+}) {
+  if (!readOnly && !hasResearcherSession) return <ResearcherAccessPrompt />;
+
+  return (
+    <>
+      <OutcomeCollectionState
+        outcomes={outcomes}
         loading={state.loading}
         error={state.error}
         onRefresh={onRefresh}
@@ -84,11 +123,11 @@ export function HypothesisOutcomeSection({
       ) : (
         <OutcomeSubmissionForm
           runId={runId}
-          hypothesisId={hypothesis.id}
+          hypothesisId={hypothesisId}
           onRefresh={onRefresh}
         />
       )}
-    </section>
+    </>
   );
 }
 
@@ -178,8 +217,10 @@ export function RunOutcomesReport({
   loading,
   error,
   onRefresh,
-}: OutcomeCollectionProps & {hypotheses: Hypothesis[]}) {
+  readOnly,
+}: OutcomeCollectionProps & {hypotheses: Hypothesis[]; readOnly?: boolean}) {
   const state = resolvedCollectionState({outcomes, loading, error, onRefresh});
+  const hasResearcherSession = Boolean(getAccessToken());
   const titleById = new Map(hypotheses.map(item => [item.id, item.title]));
   return (
     <ReportDocument title="Scientist-recorded empirical outcomes">
@@ -188,15 +229,30 @@ export function RunOutcomesReport({
         independently validated and do not change the generated report,
         hypothesis scores, or reviews.
       </p>
-      <OutcomeCollectionState
-        outcomes={state.outcomes}
-        loading={state.loading}
-        error={state.error}
-        onRefresh={onRefresh}
-        emptyText="No scientist-recorded observations have been added to this run."
-        titleById={titleById}
-      />
+      {readOnly || hasResearcherSession ? (
+        <OutcomeCollectionState
+          outcomes={state.outcomes}
+          loading={state.loading}
+          error={state.error}
+          onRefresh={onRefresh}
+          emptyText="No scientist-recorded observations have been added to this run."
+          titleById={titleById}
+        />
+      ) : (
+        <ResearcherAccessPrompt />
+      )}
     </ReportDocument>
+  );
+}
+
+function ResearcherAccessPrompt() {
+  return (
+    <p role="note" className="text-sm text-cosci-muted">
+      Sign in with researcher access to view or record observations.{' '}
+      <a className="underline" href="/access">
+        Researcher access
+      </a>
+    </p>
   );
 }
 

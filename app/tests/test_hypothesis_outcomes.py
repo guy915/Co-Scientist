@@ -6,9 +6,21 @@ from typing import Any
 
 import pytest
 
-from app import store
+from app import auth, store
+from app.config import settings
 from app.store import RunStatus
 from tests._client import make_client
+
+
+@pytest.fixture(autouse=True)
+def _configure_outcome_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "auth_mode", "compatibility")
+    monkeypatch.setattr(settings, "auth_secret", "outcome-test-secret")
+
+
+def _signed_headers(owner: str) -> dict[str, str]:
+    token = auth.create_session_token(owner)
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _outcome_body(evidence_id: str | None = None) -> dict[str, Any]:
@@ -37,7 +49,7 @@ def _add_hypothesis(run_id: str, db_path: str, title: str) -> str:
 def _new_run(client: Any, owner: str) -> str:
     response = client.post(
         "/api/runs",
-        headers={"X-Client-ID": owner},
+        headers=_signed_headers(owner),
         json={"research_goal": "Measure the proposed effect"},
     )
     assert response.status_code == 200
@@ -48,7 +60,7 @@ def test_researcher_records_outcome_and_reads_it_after_restart(
     isolated_db: str,
 ) -> None:
     owner = "outcome-researcher"
-    headers = {"X-Client-ID": owner}
+    headers = _signed_headers(owner)
     client = make_client()
     run_id = _new_run(client, owner)
     hypothesis_id = _add_hypothesis(
@@ -223,32 +235,92 @@ def test_outcomes_hide_unowned_runs_and_hypotheses(isolated_db: str) -> None:
     assert (
         client.get(
             f"/api/runs/{owned_run}/outcomes",
-            headers={"X-Client-ID": other_owner},
+            headers=_signed_headers(other_owner),
         ).status_code
         == 404
     )
     denied_run_post = client.post(
         f"/api/runs/{owned_run}/hypotheses/{owned_hypothesis}/outcomes",
-        headers={"X-Client-ID": other_owner},
+        headers=_signed_headers(other_owner),
         json=_outcome_body(),
     )
     assert denied_run_post.status_code == 404
 
     denied_hypothesis_post = client.post(
         f"/api/runs/{owned_run}/hypotheses/{foreign_hypothesis}/outcomes",
-        headers={"X-Client-ID": owner},
+        headers=_signed_headers(owner),
         json=_outcome_body(),
     )
     assert denied_hypothesis_post.status_code == 404
     assert client.get(
-        f"/api/runs/{owned_run}/outcomes", headers={"X-Client-ID": owner}
+        f"/api/runs/{owned_run}/outcomes", headers=_signed_headers(owner)
     ).json() == {"outcomes": []}
+    client.close()
+
+
+def test_compatibility_identity_cannot_read_or_write_private_outcomes(
+    isolated_db: str,
+) -> None:
+    owner = "known-private-owner"
+    client = make_client()
+    run_id = _new_run(client, owner)
+    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Private hypothesis")
+    signed = _signed_headers(owner)
+    created = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=signed,
+        json=_outcome_body(),
+    )
+    assert created.status_code == 201
+
+    spoofed = {"X-Client-ID": owner}
+    read = client.get(f"/api/runs/{run_id}/outcomes", headers=spoofed)
+    write = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=spoofed,
+        json=_outcome_body(),
+    )
+    invalid_bearer = client.get(
+        f"/api/runs/{run_id}/outcomes",
+        headers={**spoofed, "Authorization": "Bearer invalid"},
+    )
+    assert (
+        read.status_code,
+        write.status_code,
+        invalid_bearer.status_code,
+    ) == (401, 401, 401)
+    client.close()
+
+
+def test_demo_outcomes_are_publicly_readable_and_not_writable(
+    isolated_db: str,
+) -> None:
+    demo = store.create_run(
+        "Public demo outcome",
+        "standard",
+        "engine",
+        {},
+        options=store.RunCreateOptions(
+            client_id=store.DEMO_CLIENT_ID, db_path=isolated_db
+        ),
+    )
+    hypothesis_id = _add_hypothesis(demo.id, isolated_db, "Demo hypothesis")
+    client = make_client()
+    read = client.get(f"/api/runs/{demo.id}/outcomes")
+    write = client.post(
+        f"/api/runs/{demo.id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=_signed_headers("researcher"),
+        json=_outcome_body(),
+    )
+    assert read.status_code == 200
+    assert read.json() == {"outcomes": []}
+    assert write.status_code == 404
     client.close()
 
 
 def test_outcome_rejects_evidence_from_another_run(isolated_db: str) -> None:
     owner = "same-researcher"
-    headers = {"X-Client-ID": owner}
+    headers = _signed_headers(owner)
     client = make_client()
     run_id = _new_run(client, owner)
     other_run = _new_run(client, owner)
@@ -273,7 +345,7 @@ def test_outcome_rejects_evidence_from_another_run(isolated_db: str) -> None:
 
 def test_outcome_text_is_bounded(isolated_db: str) -> None:
     owner = "bounded-researcher"
-    headers = {"X-Client-ID": owner}
+    headers = _signed_headers(owner)
     client = make_client()
     run_id = _new_run(client, owner)
     hypothesis_id = _add_hypothesis(run_id, isolated_db, "Bounded hypothesis")
@@ -306,7 +378,7 @@ def test_outcomes_and_audit_events_survive_agent_cleanup(
     clears_events: bool,
 ) -> None:
     owner = "durable-outcome-researcher"
-    headers = {"X-Client-ID": owner}
+    headers = _signed_headers(owner)
     client = make_client()
     run_id = _new_run(client, owner)
     hypothesis_id = _add_hypothesis(

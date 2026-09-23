@@ -128,6 +128,16 @@ def require_principal(request: Request) -> Principal:
     return principal
 
 
+def require_bearer_principal(request: Request) -> Principal:
+    """Require a verified bearer session even in compatibility mode."""
+    principal = require_principal(request)
+    if principal.method != "bearer":
+        raise HTTPException(
+            status_code=401, detail="verified researcher session required"
+        )
+    return principal
+
+
 def client_id(request: Request) -> str:
     """Return the verified researcher subject or compatibility scope."""
     return require_principal(request).subject

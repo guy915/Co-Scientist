@@ -82,6 +82,25 @@ def test_invalid_invite_is_rejected(
     assert response.status_code == 401
 
 
+@pytest.mark.parametrize("auth_mode", ["compatibility", "required"])
+def test_invalid_bearer_returns_401_json(
+    monkeypatch: pytest.MonkeyPatch, auth_mode: str
+) -> None:
+    _configure_auth(monkeypatch)
+    monkeypatch.setattr(settings, "auth_mode", auth_mode)
+    expired = auth.create_session_token("researcher-a", now=100)
+    from app.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    for token in ("invalid", expired):
+        response = client.get(
+            "/api/runs", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 401
+        assert response.json() == {"detail": "invalid session"}
+    client.close()
+
+
 def test_run_ownership_allows_cors_preflight(isolated_db: str) -> None:
     """A browser can preflight an owner-authenticated lifecycle mutation."""
     client = make_client()

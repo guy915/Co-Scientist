@@ -33,6 +33,8 @@ export interface BackendApi {
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
   listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
+  exchangeAccessCode(accessCode: string): Promise<string>;
+  asResearcher(accessToken: string): BackendApi;
 }
 
 // Runs one backend call, throwing a labelled error on any non-2xx so a
@@ -49,26 +51,34 @@ async function send(
   return res;
 }
 
-function makeBackendApi(ctx: APIRequestContext): BackendApi {
+function makeBackendApi(
+  ctx: APIRequestContext,
+  accessToken?: string,
+): BackendApi {
+  const authHeaders = accessToken
+    ? {headers: {Authorization: `Bearer ${accessToken}`}}
+    : {};
   return {
     async createRun(body) {
       const res = await send('createRun', () =>
-        ctx.post('/api/runs', {data: body}),
+        ctx.post('/api/runs', {data: body, ...authHeaders}),
       );
       return (await res.json()) as {id: string};
     },
     async startRun(id) {
       await send('startRun', () =>
-        ctx.post(`/api/runs/${id}/start`, {data: {}}),
+        ctx.post(`/api/runs/${id}/start`, {data: {}, ...authHeaders}),
       );
     },
     async cancelRun(id) {
       await send('cancelRun', () =>
-        ctx.post(`/api/runs/${id}/cancel`, {data: {}}),
+        ctx.post(`/api/runs/${id}/cancel`, {data: {}, ...authHeaders}),
       );
     },
     async getRun(id) {
-      const res = await send('getRun', () => ctx.get(`/api/runs/${id}`));
+      const res = await send('getRun', () =>
+        ctx.get(`/api/runs/${id}`, authHeaders),
+      );
       return (await res.json()) as {status: string};
     },
     async listDemoRuns() {
@@ -77,6 +87,16 @@ function makeBackendApi(ctx: APIRequestContext): BackendApi {
         runs: {id: string; research_goal: string}[];
       };
       return payload.runs;
+    },
+    async exchangeAccessCode(accessCode) {
+      const res = await send('exchangeAccessCode', () =>
+        ctx.post('/api/auth/exchange', {data: {access_code: accessCode}}),
+      );
+      const payload = (await res.json()) as {access_token: string};
+      return payload.access_token;
+    },
+    asResearcher(accessToken) {
+      return makeBackendApi(ctx, accessToken);
     },
   };
 }

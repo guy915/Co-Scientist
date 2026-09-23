@@ -27,7 +27,7 @@ from app import (
     run_corpus,
     store,
 )
-from app.auth import client_id
+from app.auth import client_id, require_bearer_principal
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from app.runs_models import (
@@ -174,7 +174,7 @@ async def record_hypothesis_outcome(
 ) -> dict[str, Any]:
     """Append a researcher-measured outcome for an existing run hypothesis."""
     run = _run_or_404(run_id)
-    author = client_id(request)
+    author = require_bearer_principal(request).subject
     if run.client_id != author:
         raise HTTPException(status_code=404, detail="run not found")
     _require_run_hypothesis(run_id, hypothesis_id)

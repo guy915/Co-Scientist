@@ -15,7 +15,7 @@ from typing import Any, cast
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
@@ -340,7 +340,14 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     public_api = path.startswith("/api/auth/") or path.startswith(
         "/api/shared/"
     )
-    principal = principal_for_request(request)
+    try:
+        principal = principal_for_request(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            {"detail": exc.detail},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
     auth_response = _auth_gate_response(request, principal, public_api)
     if auth_response is not None:
         return auth_response

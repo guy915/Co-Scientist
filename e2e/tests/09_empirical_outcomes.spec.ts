@@ -1,24 +1,27 @@
 import { createCompletedRun, expect, test } from "../support/fixtures";
+import { E2E_RESEARCHER_ACCESS_CODE } from "../support/paths";
 
 test("records an outcome on an owned run and keeps it beside the report", async ({
   page,
   api,
 }) => {
-  const runId = await createCompletedRun(api, {
+  const accessToken = await api.exchangeAccessCode(E2E_RESEARCHER_ACCESS_CODE);
+  const researcherApi = api.asResearcher(accessToken);
+  const runId = await createCompletedRun(researcherApi, {
     research_goal: "Owned empirical outcome submission test",
     tier: "standard",
   });
-  const requests: { method: string; clientId?: string }[] = [];
-  let releaseInitialGet = () => {};
-  const initialGetGate = new Promise<void>((resolve) => {
-    releaseInitialGet = resolve;
-  });
+  const requests: {
+    method: string;
+    clientId?: string;
+    authorization?: string;
+  }[] = [];
   await page.route(`**/api/runs/${runId}/outcomes`, async (route) => {
     requests.push({
       method: route.request().method(),
       clientId: route.request().headers()["x-client-id"],
+      authorization: route.request().headers().authorization,
     });
-    if (route.request().method() === "GET") await initialGetGate;
     await route.continue();
   });
   await page.route(
@@ -28,17 +31,53 @@ test("records an outcome on an owned run and keeps it beside the report", async 
       requests.push({
         method: request.method(),
         clientId: request.headers()["x-client-id"],
+        authorization: request.headers().authorization,
       });
       await route.continue();
     },
   );
 
+  const unsignedGet = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      response.url().endsWith(`/api/runs/${runId}/outcomes`),
+  );
   await page.goto(`/runs/${runId}/ideas`);
   await expect(
     page.getByRole("heading", { name: "Scientist-recorded observations" }),
   ).toBeVisible();
-  await expect(page.getByText("Loading observations…")).toBeVisible();
-  releaseInitialGet();
+  const denied = await unsignedGet;
+  expect(denied.status()).toBe(401);
+  await expect(
+    page.getByText("Sign in with researcher access to view or record observations."),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Researcher access" })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Record an observation" }),
+  ).toHaveCount(0);
+  expect(requests[0]).toMatchObject({
+    method: "GET",
+    clientId: "e2e-client",
+  });
+  expect(requests[0].authorization).toBeUndefined();
+
+  await page.getByRole("link", { name: "Researcher access" }).click();
+  await expect(page.getByRole("heading", { name: "Researcher access" })).toBeVisible();
+  await page.getByLabel("Access code").fill(E2E_RESEARCHER_ACCESS_CODE);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => sessionStorage.getItem("co_scientist_access_token"))).toBeTruthy();
+
+  const signedGet = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      response.url().endsWith(`/api/runs/${runId}/outcomes`),
+  );
+  await page.goto(`/runs/${runId}/ideas`);
+  expect((await signedGet).status()).toBe(200);
+  await expect(
+    page.getByRole("group", { name: "Record an observation" }),
+  ).toBeVisible();
 
   const method = page.getByRole("textbox", { name: "Method or protocol" });
   await method.focus();
@@ -110,10 +149,15 @@ test("records an outcome on an owned run and keeps it beside the report", async 
     }),
   ).toBeVisible();
   await expect(page.getByText("Signal rose by two fold")).toBeVisible();
-  expect(requests.length).toBeGreaterThanOrEqual(4);
-  expect(requests.every((request) => request.clientId === "e2e-client")).toBe(
-    true,
-  );
+  const signedRequests = requests.filter((request) => request.authorization);
+  expect(signedRequests.length).toBeGreaterThanOrEqual(4);
+  expect(
+    signedRequests.every(
+      (request) =>
+        request.authorization?.startsWith("Bearer ") &&
+        request.clientId === undefined,
+    ),
+  ).toBe(true);
 });
 
 test("public demo observations stay visible without a submission form", async ({
@@ -125,7 +169,13 @@ test("public demo observations stay visible without a submission form", async ({
   );
   expect(demo).toBeTruthy();
 
+  const demoOutcomes = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      response.url().endsWith(`/api/runs/${demo!.id}/outcomes`),
+  );
   await page.goto(`/runs/${demo!.id}/ideas`);
+  expect((await demoOutcomes).status()).toBe(200);
   await expect(
     page.getByRole("heading", { name: "Scientist-recorded observations" }),
   ).toBeVisible();
@@ -134,5 +184,19 @@ test("public demo observations stay visible without a submission form", async ({
   ).toBeVisible();
   expect(
     page.getByRole("group", { name: "Record an observation" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Researcher access" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("link", { name: "Research Overview", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Scientist-recorded empirical outcomes",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Researcher access" }),
   ).toHaveCount(0);
 });
