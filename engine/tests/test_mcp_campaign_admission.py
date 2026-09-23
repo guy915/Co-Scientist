@@ -96,14 +96,14 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
 async def test_new_client_accepts_old_and_current_manifests_during_rollout(
     qualified: dict[str, Any], _patch_mcp_seam: Any, include_new_tool: bool
 ) -> None:
-    tools = {
+    manifest_tools = {
         tool
         for tool in qualified["campaign_policy"]["tools"]
         if tool != "get_opencitations_citation_edges"
     }
     if include_new_tool:
-        tools.add("get_opencitations_citation_edges")
-    qualified["campaign_policy"]["tools"] = sorted(tools)
+        manifest_tools.add("get_opencitations_citation_edges")
+    qualified["campaign_policy"]["tools"] = sorted(manifest_tools)
     _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
     if include_new_tool:
         _patch_mcp_seam.tools.append(
@@ -112,14 +112,24 @@ async def test_new_client_accepts_old_and_current_manifests_during_rollout(
 
     client = MCPToolClient(server_url=URL)
     await client.initialize()
-    tools, _ = client.get_tools()
+    tool_map, _ = client.get_tools()
     expected_tools = {"search_pubmed"}
     if include_new_tool:
         expected_tools.add("get_opencitations_citation_edges")
         assert "citation edges" in str(
             await client.call_tool("get_opencitations_citation_edges")
         )
-    assert set(tools) == expected_tools
+    assert set(tool_map) == expected_tools
+
+    if not include_new_tool:
+        # The MCP deployment can advance while this client remains active.
+        qualified["campaign_policy"]["tools"] = sorted(
+            [
+                *qualified["campaign_policy"]["tools"],
+                "get_opencitations_citation_edges",
+            ]
+        )
+        assert "public evidence" in str(await client.call_tool("search_pubmed"))
 
     qualified["campaign_policy"]["tools"].append("unqualified_paid_tool")
     with pytest.raises(RuntimeError, match="campaign"):
