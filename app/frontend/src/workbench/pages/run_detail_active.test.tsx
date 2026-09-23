@@ -21,6 +21,12 @@ function renderView(connection?: StreamConnectionState) {
       events={[]}
       evidenceCount={0}
       ideaCount={0}
+      allocationLedger={{
+        response: null,
+        loading: false,
+        error: null,
+        onRetry: () => {},
+      }}
     />,
   );
 }

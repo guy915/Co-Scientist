@@ -71,6 +71,11 @@ export type {
   SharedRun,
   SupportSpan,
 } from './run_types';
+export type {
+  SupervisorAllocation,
+  SupervisorPlanRecord,
+  SupervisorPlanResponse,
+} from './runs_collections';
 export {
   byokHeaders,
   clientHeaders,
@@ -110,6 +115,7 @@ export {
   getReport,
   getReviews,
   getSafety,
+  getSupervisorPlan,
   getSharedGoalReport,
   listReportShares,
   revokeReportShare,

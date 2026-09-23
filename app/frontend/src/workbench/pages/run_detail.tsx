@@ -26,6 +26,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
+import {SupervisorAllocationLedger} from './run_detail_supervisor_plan';
 import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 // max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
@@ -199,6 +200,19 @@ function RunDetailBody({
     return (
       <main className={REPORT_SCROLL_CLASSES}>
         <RunEndState status={endState.status} error={endState.error} />
+        <section
+          className={
+            'mx-auto mt-6 w-[min(100%_-_3rem,58rem)] ' +
+            'max-[700px]:w-[min(100%_-_1.2rem,100%)]'
+          }
+        >
+          <SupervisorAllocationLedger
+            response={data.supervisorPlan.response}
+            loading={data.supervisorPlan.loading}
+            error={data.supervisorPlan.error}
+            onRetry={data.refreshSupervisorPlan}
+          />
+        </section>
       </main>
     );
   }
@@ -221,6 +235,12 @@ function LiveRunSection({data}: {data: RunDetailData}) {
       events={data.events}
       evidenceCount={Math.max(data.evidence.length, data.run.summary.evidence)}
       ideaCount={Math.max(data.hypotheses.length, data.run.summary.hypotheses)}
+      allocationLedger={{
+        response: data.supervisorPlan.response,
+        loading: data.supervisorPlan.loading,
+        error: data.supervisorPlan.error,
+        onRetry: data.refreshSupervisorPlan,
+      }}
     />
   );
 }
@@ -269,6 +289,12 @@ const TAB_SECTIONS: Record<
     <RunSpecificationsView
       run={data.run}
       safety={data.safety}
+      allocationLedger={{
+        response: data.supervisorPlan.response,
+        loading: data.supervisorPlan.loading,
+        error: data.supervisorPlan.error,
+        onRetry: data.refreshSupervisorPlan,
+      }}
       onSafetyChanged={data.refreshNow}
     />
   ),

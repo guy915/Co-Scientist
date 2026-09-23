@@ -3,16 +3,37 @@ import userEvent from '@testing-library/user-event';
 import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import type {Run} from '@/api/runs';
+import type {Run, SupervisorPlanResponse} from '@/api/runs';
 import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
 import {useRunDetailData} from './run_detail_data';
 import {makeRun} from './run_detail_test_support';
 
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: [], terminal: false}),
+const streamMock = vi.hoisted(() => ({
+  state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
+vi.mock('@/hooks/use_run_stream', () => ({
+  useRunStream: () => ({events: streamMock.state.events, terminal: false}),
+}));
+
+function setStream(events: {seq: number; type: string; payload: object}[]) {
+  streamMock.state = {events};
+}
+
+vi.mock('@/workbench/hooks/use_debounced_callback', () => {
+  const latest: {fn: (...args: never[]) => void} = {fn: () => {}};
+  const wrapper = Object.assign((...args: never[]) => latest.fn(...args), {
+    cancel: () => {},
+    flush: () => {},
+  });
+  return {
+    useDebouncedCallback: (fn: (...args: never[]) => void) => {
+      latest.fn = fn;
+      return wrapper;
+    },
+  };
+});
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();
@@ -26,6 +47,7 @@ vi.mock('@/api/runs', async importActual => {
     getReviews: vi.fn().mockResolvedValue([]),
     getClaimEvidence: vi.fn().mockResolvedValue([]),
     getSafety: vi.fn().mockResolvedValue([]),
+    getSupervisorPlan: vi.fn().mockResolvedValue({plan: null, allocations: []}),
     getReport: vi.fn().mockResolvedValue(null),
   };
 });
@@ -73,6 +95,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(runsApi.loadRunHistory).mockResolvedValue([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
+    plan: null,
+    allocations: [],
+  });
+  setStream([]);
 });
 
 it('drops the previous run’s content when the route id changes', async () => {
@@ -144,4 +171,55 @@ it('shows the report tabs while a settled run loads', async () => {
   expect(
     await screen.findByRole('navigation', {name: TAB_NAV}),
   ).toBeInTheDocument();
+});
+
+it('refreshes the allocation ledger after an orchestrator commit', async () => {
+  const makeLedger = (reason: string): SupervisorPlanResponse => ({
+    plan: null,
+    allocations: [
+      {
+        id: 1,
+        run_id: 'run-1',
+        seq: 0,
+        iteration: 1,
+        task_type: 'generate',
+        status: 'queued',
+        reason,
+        planner_reason: null,
+        priority: 80,
+        termination_reason: null,
+        created_at: 1_790_000_000,
+      },
+    ],
+  });
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'running',
+  });
+  vi.mocked(runsApi.getSupervisorPlan)
+    .mockResolvedValueOnce(makeLedger('Recorded before'))
+    .mockResolvedValue(makeLedger('Recorded after'));
+
+  function Probe({version}: {version: number}) {
+    const data = useRunDetailData('run-1');
+    return (
+      <div>
+        <span>{version}</span>
+        {data.supervisorPlan.response?.allocations.map(row => (
+          <p key={row.id}>{row.reason}</p>
+        ))}
+      </div>
+    );
+  }
+
+  const view = render(<Probe version={0} />);
+  expect(await screen.findByText('Recorded before')).toBeInTheDocument();
+  setStream([
+    {seq: 3, type: 'scientific_task', payload: {task: 'orchestrator'}},
+  ]);
+  view.rerender(<Probe version={1} />);
+
+  expect(await screen.findByText('Recorded after')).toBeInTheDocument();
+  expect(runsApi.getSupervisorPlan).toHaveBeenCalledTimes(2);
+  expect(runsApi.getEvidence).toHaveBeenCalledTimes(1);
 });
