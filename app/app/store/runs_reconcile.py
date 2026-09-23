@@ -20,6 +20,7 @@ from app.store.checkpoints import has_checkpoint
 from app.store.db import _now, connect
 from app.store.events import _append_event
 from app.store.models import RunStatus
+from app.store.tasks_model import TaskFailure
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ def _settle_run_out_of_work(
     run_id: str,
     error: str,
     now: float,
+    failure_kind: str | None = None,
 ) -> bool:
     """Fail an active run durably because no claimable work remains.
 
@@ -80,6 +82,7 @@ def _settle_run_out_of_work(
         run_id: Identifier of the run the failed task belongs to.
         error: Failure reason to persist on the run and its status event.
         now: Timestamp recorded for the transition and the event.
+        failure_kind: Optional exact provider failure type to persist.
 
     Returns:
         True when this call transitioned the run to failed.
@@ -106,9 +109,10 @@ def _settle_run_out_of_work(
     ).rowcount
     if not changed:
         return False
-    _append_event(
-        conn, run_id, "status", {"status": "failed", "error": error}, now
-    )
+    payload = {"status": "failed", "error": error}
+    if failure_kind is not None:
+        payload["failure_kind"] = failure_kind
+    _append_event(conn, run_id, "status", payload, now)
     return True
 
 
@@ -116,7 +120,7 @@ def _settle_run_for_failed_task(
     conn: sqlite3.Connection,
     run_id: str,
     task_type: str,
-    error: str,
+    error: str | TaskFailure,
     *,
     retryable: bool,
 ) -> None:
@@ -130,16 +134,23 @@ def _settle_run_for_failed_task(
         conn: Connection carrying the failing task's transaction.
         run_id: Identifier of the run the failed task belongs to.
         task_type: Task type name used in the persisted failure reason.
-        error: The task's failure error text.
+        error: The task's raw failure, optionally with its exact kind.
         retryable: False for a permanent failure, True when the retry
             budget was just exhausted.
     """
+    failure = error if isinstance(error, TaskFailure) else TaskFailure(error)
     reason = (
-        f"Task {task_type} failed permanently: {error}"
+        f"Task {task_type} failed permanently: {failure.error}"
         if not retryable
-        else f"Task {task_type} exhausted its retry budget: {error}"
+        else f"Task {task_type} exhausted its retry budget: {failure.error}"
     )
-    if _settle_run_out_of_work(conn, run_id, reason, _now()):
+    if _settle_run_out_of_work(
+        conn,
+        run_id,
+        reason,
+        _now(),
+        failure_kind=failure.failure_kind,
+    ):
         logger.info(
             "Run %s failed: no claimable work remains (%s)", run_id, reason
         )

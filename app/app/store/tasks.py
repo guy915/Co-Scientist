@@ -64,6 +64,7 @@ from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
 from app.store.tasks_model import ScientificTask as ScientificTask
+from app.store.tasks_model import TaskFailure as TaskFailure
 from app.store.tasks_model import _decode as _decode
 from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
@@ -389,7 +390,7 @@ def claim_task(
 def fail_task(
     task_id: str,
     worker_id: str,
-    error: str,
+    error: str | TaskFailure,
     *,
     retryable: bool = True,
     db_path: str | None = None,
@@ -411,15 +412,18 @@ def fail_task(
         if row is None:
             return False
         task = _decode(row)
+        failure = (
+            error if isinstance(error, TaskFailure) else TaskFailure(error)
+        )
         status = _persist_failed_attempt(
-            conn, task, worker_id, error, retryable
+            conn, task, worker_id, failure.error, retryable
         )
         if status == "failed":
             _settle_run_for_failed_task(
                 conn,
                 task.run_id,
                 task.task_type,
-                error,
+                failure,
                 retryable=retryable,
             )
     return True

@@ -398,8 +398,14 @@ async def get_run(run_id: str) -> dict[str, Any]:
             )
         progress = store.task_progress(run_id, conn=conn)
         awaiting = _awaiting_decision_count(run, conn=conn)
+        failure_kind = None
+        if run.status == RunStatus.FAILED.value:
+            status_event = store.latest_status_event(run_id, conn=conn)
+            if status_event and status_event.get("status") == run.status:
+                failure_kind = status_event.get("failure_kind")
     return {
         **run.to_dict(),
+        "failure_kind": failure_kind,
         "summary": summary,
         "execution_progress": progress,
         "awaiting_decision_count": awaiting,

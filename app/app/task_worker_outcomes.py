@@ -20,6 +20,7 @@ from typing import Any
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
+    LLMTimeoutError,
 )
 
 from app import engine_tasks, store
@@ -39,6 +40,22 @@ _stage_logger = logging.getLogger("app.run_stage")
 # across a few seconds of claim polling instead of all becoming due, and
 # racing to claim, in the same tick.
 _RATE_LIMIT_PARK_JITTER_SECONDS = 15.0
+
+_FAILURE_KINDS = {
+    LLMCallBudgetExceededError: "llm_call_budget_exceeded",
+    LLMTimeoutError: "llm_timeout",
+}
+
+
+def _failure_kind(exc: Exception) -> str | None:
+    """Classify only the exact provider failure types with user guidance."""
+    return _FAILURE_KINDS.get(type(exc))
+
+
+def _failure_error(exc: Exception) -> str | store.TaskFailure:
+    """Carry a typed kind with the unchanged raw message to task storage."""
+    kind = _failure_kind(exc)
+    return store.TaskFailure(str(exc), kind) if kind is not None else str(exc)
 
 
 class _LeaseLostError(RuntimeError):
@@ -194,7 +211,11 @@ def _fail_unsupported_task(
         task, retryable=False, db_path=db_path
     )
     store.fail_task(
-        task.id, worker_id, str(exc), retryable=False, db_path=db_path
+        task.id,
+        worker_id,
+        _failure_error(exc),
+        retryable=False,
+        db_path=db_path,
     )
     logger.error("Task %s rejected: %s", task.id, exc)
 
@@ -220,7 +241,11 @@ def _fail_llm_budget_exceeded_task(
         task, retryable=False, db_path=db_path
     )
     store.fail_task(
-        task.id, worker_id, str(exc), retryable=False, db_path=db_path
+        task.id,
+        worker_id,
+        _failure_error(exc),
+        retryable=False,
+        db_path=db_path,
     )
     release_run_call_budget(task.run_id)
     logger.error("Task %s aborted: %s", task.id, exc)
@@ -237,7 +262,11 @@ def _fail_retryable_task(
         task, retryable=True, db_path=db_path
     )
     store.fail_task(
-        task.id, worker_id, str(exc), retryable=True, db_path=db_path
+        task.id,
+        worker_id,
+        _failure_error(exc),
+        retryable=True,
+        db_path=db_path,
     )
     logger.exception("Task %s failed", task.id)
 

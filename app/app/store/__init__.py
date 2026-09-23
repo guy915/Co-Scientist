@@ -52,6 +52,7 @@ from app.store.documents import (
 from app.store.events import (
     append_event,
     latest_event_seq,
+    latest_status_event,
     list_events,
     recent_events,
     run_execution_started_at,
@@ -194,6 +195,7 @@ from app.store.supervisor_plan import (
 from app.store.tasks import (
     NewTask,
     ScientificTask,
+    TaskFailure,
     abandon_dead_leases,
     cancel_run_tasks,
     cancel_task,
@@ -245,6 +247,7 @@ __all__ = [
     "RunRow",
     "RunStatus",
     "ScientificTask",
+    "TaskFailure",
     "abandon_dead_leases",
     "add_citation",
     "add_claim_evidence",
@@ -303,6 +306,7 @@ __all__ = [
     "interview_document_excerpts",
     "latest_event_seq",
     "latest_log_id",
+    "latest_status_event",
     "list_active_engine_task_run_ids",
     "list_citations",
     "list_claim_evidence",
