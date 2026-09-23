@@ -235,7 +235,7 @@ The initial plan contained **60 open items** and authorized **180 turns**. After
 - [x] Assess specialist-model assignment, action history, research synthesis, tournament inspection, and visualization; account for synchronous execution, in-memory state, and stated evaluation limitations.
 - [x] M3-02: expose the durable supervisor allocation history in the existing run activity flow; verify ownership, refresh, empty/error states, and accessible interaction.
 - [x] M3-04: expose each idea’s stored match history and available debate transcript in the existing Ideas detail; verify outcome, rating changes, older records, refresh, and accessible interaction.
-- [ ] Verify each change against the current baseline, run release checks and cleanup, and document covered or rejected mechanisms.
+- [x] Verify each change against the current baseline, run release checks and cleanup, and document covered or rejected mechanisms.
 - [ ] Merge, deploy, verify, complete retained documentation, and remove the temporary checkout.
 
 ## M4 — LLNL/open-ai-co-scientist
@@ -5020,3 +5020,7 @@ Starting commit `345b6eb0`. Orchestration ledger: `M3-02 · GPT-6 Luna/xhigh wor
 ### Cycle 214 — M3-04 match-history viewer
 
 Starting commit `fc4e5e4a`. Orchestration ledger: `M3-04 · GPT-6 Luna/xhigh worker plus coordinator · checked · all stored matches and debate documents in Ideas detail · release verification next`. The Ideas detail now lists every persisted match involving the selected hypothesis, newest first, with opponent/outcome, iteration, tier, Elo change, debate depth, rationale, and an accessible stored-transcript disclosure. The existing owned matches endpoint supplies the data; no new API, model call, or scoring logic was added. Targeted Vitest passed 14 tests, frontend typecheck and scoped lint passed, and the isolated offline browser flow confirmed the history after reload. Transcript side interpretation was independently reviewed against the stored document shape.
+
+### Cycle 215 — M3 verification and cleanup
+
+Starting commit `b491f93a`. Orchestration ledger: `M3-verify · coordinator with GPT-6 Luna/xhigh independent review and worker repairs · checked · seven local release gates plus scoped cleanup · PR/release next`. Independent review found and resolved a checkpoint-before-event freshness gap on both initial SSE opening and reconnect; the ledger also now suppresses stale prior-run content on route changes. The full local release suite passed: `make test-all` (3,144 engine passes with two pre-existing skips, 1,874 app passes, 283 MCP passes, parity), `make lint`, `make typecheck`, `make build`, `make eval-smoke`, `bun run test --maxWorkers=1` (121 files/731 tests), and `make e2e` (10 browser tests). The single-worker frontend variant ran every test after default-concurrency runs showed timing failures in unrelated tests during concurrent machine load; no assertion or threshold was relaxed. Browser evidence used an isolated offline backend, with no campaign model inference or added spend. Cleanup found no scratch source, duplicate path, copied upstream code, dead export, or changed-UI scanner hit; the ignored conradry checkout remains clean until the release item removes it. Hosted GitHub CI remains waived by the user's explicit instruction and is not represented as passing.
