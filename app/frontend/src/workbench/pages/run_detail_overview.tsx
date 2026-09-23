@@ -1,6 +1,7 @@
 import {useMemo} from 'react';
 import {
   type Hypothesis,
+  type HypothesisOutcome,
   type MatchRow,
   type Report,
   type ReportPayload,
@@ -28,6 +29,7 @@ import {
   ReportDocument,
 } from './run_detail_document';
 import {SpecificAimsSection} from './run_detail_overview_aims';
+import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
 import {ResearchDirectionsSection} from './run_detail_overview_directions';
 
 const STAT_GRID_CLASSES =
@@ -140,11 +142,19 @@ export function ResearchOverviewView({
   report,
   hypotheses,
   matches,
+  outcomes,
+  outcomesLoading,
+  outcomesError,
+  onRefreshOutcomes,
 }: {
   run: RunWithSummary | null;
   report: Report | null;
   hypotheses: Hypothesis[];
   matches: MatchRow[];
+  outcomes?: HypothesisOutcome[];
+  outcomesLoading?: boolean;
+  outcomesError?: string | null;
+  onRefreshOutcomes?: () => Promise<void> | void;
 }) {
   const {overview, leaderboard, ideaCount, matchCount} = overviewReportStats(
     report,
@@ -160,24 +170,36 @@ export function ResearchOverviewView({
   });
 
   return (
-    <ReportDocument title="Summary">
-      {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
-      <RetrievalDegradationNotice report={report} />
-      <SummaryStats payload={report?.payload} />
-      <AgentInsightsSection
-        insights={report?.payload.agent_insights}
-        degraded={sectionDegraded(report, META_REVIEW_SCHEMA)}
+    <>
+      <ReportDocument title="Summary">
+        {leadStat ? (
+          <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p>
+        ) : null}
+        <RetrievalDegradationNotice report={report} />
+        <SummaryStats payload={report?.payload} />
+        <AgentInsightsSection
+          insights={report?.payload.agent_insights}
+          degraded={sectionDegraded(report, META_REVIEW_SCHEMA)}
+        />
+        <OverviewSummary
+          overview={overview}
+          degraded={sectionDegraded(report, RESEARCH_OVERVIEW_SCHEMA)}
+        />
+        <ResearchDirectionsSection overview={overview} />
+        <SpecificAimsSection overview={overview} />
+        <ResearchContactsSection overview={overview} />
+        <WinningIdeasSection items={winningIdeas} />
+        <TournamentSummarySection matches={matches} />
+      </ReportDocument>
+      <RunOutcomesReport
+        outcomes={outcomes}
+        hypotheses={hypotheses}
+        loading={outcomesLoading}
+        error={outcomesError}
+        onRefresh={onRefreshOutcomes}
+        readOnly={run?.is_demo}
       />
-      <OverviewSummary
-        overview={overview}
-        degraded={sectionDegraded(report, RESEARCH_OVERVIEW_SCHEMA)}
-      />
-      <ResearchDirectionsSection overview={overview} />
-      <SpecificAimsSection overview={overview} />
-      <ResearchContactsSection overview={overview} />
-      <WinningIdeasSection items={winningIdeas} />
-      <TournamentSummarySection matches={matches} />
-    </ReportDocument>
+    </>
   );
 }
 

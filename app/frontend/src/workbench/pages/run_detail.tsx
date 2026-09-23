@@ -262,6 +262,10 @@ function OverviewSection({data}: {data: RunDetailData}) {
       report={data.report}
       hypotheses={data.hypotheses}
       matches={data.matches}
+      outcomes={data.outcomes}
+      outcomesLoading={data.outcomesLoading}
+      outcomesError={data.outcomesError}
+      onRefreshOutcomes={data.refreshOutcomes}
     />
   );
 }
@@ -278,10 +282,16 @@ function IdeasSection({
     <section className={ALL_IDEAS_CLASSES}>
       <IdeasTab
         key={ideasViewKey}
+        runId={data.run?.id ?? ''}
         hypotheses={data.hypotheses}
         reviews={data.reviews}
         matches={data.matches}
         claimEvidence={data.claimEvidence}
+        outcomes={data.outcomes}
+        outcomesLoading={data.outcomesLoading}
+        outcomesError={data.outcomesError}
+        isDemo={data.run?.is_demo ?? false}
+        onRefreshOutcomes={data.refreshOutcomes}
       />
     </section>
   );

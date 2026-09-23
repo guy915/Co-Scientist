@@ -112,6 +112,9 @@ from app.runs_collections import (
     get_hypotheses as get_hypotheses,
 )
 from app.runs_collections import (
+    get_hypothesis_outcomes as get_hypothesis_outcomes,
+)
+from app.runs_collections import (
     get_matches as get_matches,
 )
 from app.runs_collections import (
@@ -146,6 +149,9 @@ from app.runs_contrib import (
 )
 from app.runs_contrib import (
     add_human_review as add_human_review,
+)
+from app.runs_contrib import (
+    record_hypothesis_outcome as record_hypothesis_outcome,
 )
 from app.runs_contrib import (
     search_attachments as search_attachments,

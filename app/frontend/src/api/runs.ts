@@ -40,6 +40,8 @@ export type {
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
+  HypothesisOutcome,
+  HypothesisOutcomeInput,
   Interview,
   InterviewDocument,
   InterviewFields,
@@ -103,6 +105,7 @@ export {announceRunStart} from './runs_start';
 export type {StartAnnouncement, StartAnnouncementSinks} from './runs_start';
 export {
   addScientistHypothesis,
+  addHypothesisOutcome,
   addScientistReview,
   adjudicateSafety,
   createReportShare,
@@ -110,6 +113,7 @@ export {
   getClaimEvidence,
   getEvidence,
   getHypotheses,
+  getHypothesisOutcomes,
   getMatches,
   getProximity,
   getReport,

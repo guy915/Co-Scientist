@@ -6,6 +6,8 @@ import type {
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
+  HypothesisOutcome,
+  HypothesisOutcomeInput,
   MatchRow,
   ProximityEdge,
   ReportShare,
@@ -175,6 +177,25 @@ export function addScientistReview(
   },
 ): Promise<{recorded: boolean}> {
   return fetchJson(`/api/runs/${runId}/reviews`, jsonRequest(input, true));
+}
+
+/** Fetch scientist-recorded empirical outcomes for a run. */
+export function getHypothesisOutcomes(
+  id: string,
+): Promise<HypothesisOutcome[]> {
+  return getRunList<HypothesisOutcome>(id, 'outcomes');
+}
+
+/** Append a scientist-recorded observation to one hypothesis. */
+export function addHypothesisOutcome(
+  runId: string,
+  hypothesisId: string,
+  input: HypothesisOutcomeInput,
+): Promise<HypothesisOutcome> {
+  return fetchJson(
+    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes`,
+    jsonRequest(input, true),
+  );
 }
 
 /** Upload and index a private scientific document for subsequent tasks. */

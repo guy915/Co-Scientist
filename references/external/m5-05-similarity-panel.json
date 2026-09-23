@@ -1,0 +1,49 @@
+{
+  "purpose": "Frozen, synthetic boundary probes for M5-05's proposed destructive early duplicate screen; labels are mechanism distinctions, not scientific validity judgments.",
+  "source_model": "Xenova/all-MiniLM-L6-v2",
+  "model_revision": "751bff37182d3f1213fa05d7196b954e230abad9",
+  "initial_runtime": "@huggingface/transformers@4.3.0",
+  "source_lock_runtime": "@huggingface/transformers@3.8.1",
+  "source_threshold": 0.92,
+  "primary_metric": "additional non-exact duplicate reviews avoided",
+  "non_regression": "zero distinct-mechanism pairs discarded; exact-text duplicates are already removed locally",
+  "scope_limit": "Synthetic probe only; this panel cannot establish real-run scientific quality or validate a production threshold.",
+  "pairs": [
+    {
+      "id": "exact-repetition",
+      "duplicate": true,
+      "a": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells increases ER stress and sensitizes resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models.",
+      "b": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells increases ER stress and sensitizes resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models."
+    },
+    {
+      "id": "same-mechanism-paraphrase",
+      "duplicate": true,
+      "a": "Blocking IRE1 alpha activity in FLT3 ITD leukemia may heighten ER stress and make cytarabine resistant cells more responsive; test apoptosis and colony formation in matched patient models.",
+      "b": "Inhibiting IRE1 alpha in FLT3 ITD leukemia may increase ER stress and restore cytarabine sensitivity in resistant cells; assess cell death and clonogenic growth in paired patient models."
+    },
+    {
+      "id": "opposite-intervention",
+      "duplicate": false,
+      "a": "Selective activation of IRE1 alpha in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models.",
+      "b": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models."
+    },
+    {
+      "id": "opposite-outcome",
+      "duplicate": false,
+      "a": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models.",
+      "b": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells will decrease ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models."
+    },
+    {
+      "id": "different-target",
+      "duplicate": false,
+      "a": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models.",
+      "b": "Selective inhibition of PERK in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models."
+    },
+    {
+      "id": "different-disease",
+      "duplicate": false,
+      "a": "Selective inhibition of IRE1 alpha in FLT3 ITD leukemia cells will increase ER stress and sensitize resistant clones to cytarabine, measured by apoptosis and clonogenic survival across matched patient derived models.",
+      "b": "Selective inhibition of IRE1 alpha in EGFR mutant glioblastoma cells will increase ER stress and sensitize resistant clones to temozolomide, measured by apoptosis and clonogenic survival across matched patient derived models."
+    }
+  ]
+}

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
@@ -123,6 +123,44 @@ class HumanReviewRequest(BaseModel):
     author: str = Field(..., min_length=1)
     verdict: str = Field(..., min_length=1)  # support | oppose | revise
     critique: str = ""
+
+
+class HypothesisOutcomeRequest(BaseModel):
+    """Body for a researcher-measured outcome linked to a hypothesis."""
+
+    method_protocol: str = Field(..., min_length=1, max_length=10_000)
+    conditions: str = Field(..., min_length=1, max_length=10_000)
+    measured_observation: str = Field(..., min_length=1, max_length=10_000)
+    units: str | None = Field(None, max_length=120)
+    controls: str = Field(..., min_length=1, max_length=10_000)
+    interpretation: str = Field(..., min_length=1, max_length=10_000)
+    referenced_evidence_ids: list[str] = Field(
+        default_factory=list, max_length=50
+    )
+
+    @field_validator(
+        "method_protocol",
+        "conditions",
+        "measured_observation",
+        "controls",
+        "interpretation",
+    )
+    @classmethod
+    def require_nonblank_text(cls, value: str) -> str:
+        """Reject required text fields that contain only whitespace."""
+        if not value.strip():
+            raise ValueError("must contain non-whitespace text")
+        return value
+
+    @field_validator("referenced_evidence_ids")
+    @classmethod
+    def validate_evidence_ids(cls, value: list[str]) -> list[str]:
+        """Bound each evidence id and reject duplicate references."""
+        if any(not item.strip() or len(item) > 128 for item in value):
+            raise ValueError("evidence ids must contain 1 to 128 characters")
+        if len(set(value)) != len(value):
+            raise ValueError("evidence ids must be unique")
+        return value
 
 
 # Cap on attachment text size (characters). Attachments are inert text stored

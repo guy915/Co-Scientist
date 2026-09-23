@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import type {Run, SupervisorPlanResponse} from '@/api/runs';
+import type {HypothesisOutcome, Run, SupervisorPlanResponse} from '@/api/runs';
 import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
 import {RunDetail} from './run_detail';
@@ -57,6 +57,7 @@ vi.mock('@/api/runs', async importActual => {
     loadRunHistory: vi.fn().mockResolvedValue([]),
     getRun: vi.fn(),
     getHypotheses: vi.fn().mockResolvedValue([]),
+    getHypothesisOutcomes: vi.fn().mockResolvedValue([]),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
@@ -110,12 +111,58 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(runsApi.loadRunHistory).mockResolvedValue([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
+  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
   vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
     plan: null,
     allocations: [],
   });
   setStream([]);
   setConnection('open');
+});
+
+it('loads outcomes on reopen and refreshes them for scientist.outcome events', async () => {
+  const outcome: HypothesisOutcome = {
+    id: 'out-1',
+    run_id: 'run-1',
+    hypothesis_id: 'h1',
+    author: 'Scientist',
+    recorded_at: 1_700_000_000,
+    method_protocol: 'Protocol',
+    conditions: 'Condition',
+    measured_observation: 'Observed after event',
+    controls: 'Control',
+    interpretation: 'Interpretation',
+    referenced_evidence_ids: [],
+  };
+  vi.mocked(runsApi.getHypothesisOutcomes)
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([outcome])
+    .mockResolvedValue([outcome]);
+
+  function Probe() {
+    const data = useRunDetailData('run-1');
+    return (
+      <p>{data.outcomes[0]?.measured_observation ?? 'No outcomes recorded'}</p>
+    );
+  }
+
+  const firstView = render(<Probe />);
+  expect(await screen.findByText('No outcomes recorded')).toBeInTheDocument();
+  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(1);
+
+  setStream([
+    {seq: 4, type: 'scientist.outcome', payload: {hypothesis_id: 'h1'}},
+  ]);
+  firstView.rerender(<Probe />);
+  expect(await screen.findByText('Observed after event')).toBeInTheDocument();
+  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(2);
+
+  firstView.unmount();
+  setStream([]);
+  render(<Probe />);
+  expect(await screen.findByText('Observed after event')).toBeInTheDocument();
+  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(3);
 });
 
 it('drops the previous run’s content when the route id changes', async () => {

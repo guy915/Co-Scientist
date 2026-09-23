@@ -27,15 +27,16 @@ from app import (
     run_corpus,
     store,
 )
-from app.auth import client_id
+from app.auth import client_id, require_bearer_principal
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from app.runs_models import (
     HumanAttachmentRequest,
     HumanHypothesisRequest,
     HumanReviewRequest,
+    HypothesisOutcomeRequest,
 )
-from app.runs_support import _require_run
+from app.runs_support import _require_run, _run_or_404
 from app.store import ScientificTask
 
 router = APIRouter()
@@ -162,6 +163,41 @@ def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
         raise HTTPException(
             status_code=404, detail="hypothesis not found in this run"
         )
+
+
+@router.post("/{run_id}/hypotheses/{hypothesis_id}/outcomes", status_code=201)
+async def record_hypothesis_outcome(
+    run_id: str,
+    hypothesis_id: str,
+    req: HypothesisOutcomeRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Append a researcher-measured outcome for an existing run hypothesis."""
+    run = _run_or_404(run_id)
+    author = require_bearer_principal(request).subject
+    if run.client_id != author:
+        raise HTTPException(status_code=404, detail="run not found")
+    _require_run_hypothesis(run_id, hypothesis_id)
+    try:
+        return store.add_hypothesis_outcome(
+            store.NewHypothesisOutcome(
+                run_id=run_id,
+                hypothesis_id=hypothesis_id,
+                method_protocol=req.method_protocol,
+                conditions=req.conditions,
+                measured_observation=req.measured_observation,
+                units=req.units,
+                controls=req.controls,
+                interpretation=req.interpretation,
+                referenced_evidence_ids=req.referenced_evidence_ids,
+                author=author,
+            )
+        )
+    except store.InvalidOutcomeReferencesError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="hypothesis or evidence not found in this run",
+        ) from exc
 
 
 def _build_human_review_or_422(

@@ -1,7 +1,13 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import {type Evidence, type RunWithSummary} from '@/api/runs';
+import {
+  type Evidence,
+  type HypothesisOutcome,
+  type RunWithSummary,
+} from '@/api/runs';
+import {clearAccessToken, setAccessToken} from '@/lib/client_id';
+import {makeHypothesis} from '@/test_fixtures';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
@@ -42,6 +48,7 @@ vi.mock('@/api/runs', async importActual => {
     ...actual,
     getRun: vi.fn(),
     getHypotheses: vi.fn().mockResolvedValue([]),
+    getHypothesisOutcomes: vi.fn().mockResolvedValue([]),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
@@ -61,13 +68,87 @@ vi.mock('@/api/runs', async importActual => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearAccessToken();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
   // Reset per-run collection mocks so overrides do not leak between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+});
+
+it('shows recorded outcomes after SSE refresh and after reopening the report', async () => {
+  setAccessToken('researcher-session');
+  const outcome: HypothesisOutcome = {
+    id: 'out-1',
+    run_id: 'run-1',
+    hypothesis_id: 'h1',
+    author: 'Dr. Ada',
+    recorded_at: 1_700_000_000,
+    method_protocol: 'Western blot',
+    conditions: 'Cells treated for 24 hours',
+    measured_observation: 'Signal rose by two fold',
+    units: 'fold change',
+    controls: 'Vehicle control',
+    interpretation: 'Consistent with the hypothesis',
+    referenced_evidence_ids: ['ev-17'],
+  };
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
+  ]);
+  vi.mocked(runsApi.getHypothesisOutcomes)
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([outcome])
+    .mockResolvedValue([outcome]);
+
+  const firstView = renderAt('/runs/run-1/overview');
+  expect(
+    await screen.findByText(
+      'No scientist-recorded observations have been added to this run.',
+    ),
+  ).toBeInTheDocument();
+
+  setStream([
+    {seq: 5, type: 'scientist.outcome', payload: {hypothesis_id: 'h1'}},
+  ]);
+  fireEvent.click(tab(/All Ideas/));
+  expect(
+    await screen.findByText('Signal rose by two fold'),
+  ).toBeInTheDocument();
+  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(2);
+  expect(
+    screen.getByRole('group', {name: 'Record an observation'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('textbox', {name: 'Method or protocol'}),
+  ).toBeInTheDocument();
+
+  firstView.unmount();
+  setStream([]);
+  renderAt('/runs/run-1/overview');
+  expect(
+    await screen.findByText('Signal rose by two fold'),
+  ).toBeInTheDocument();
+  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(3);
+});
+
+it('keeps the report available and exposes a failed outcomes read locally', async () => {
+  setAccessToken('researcher-session');
+  vi.mocked(runsApi.getHypothesisOutcomes).mockRejectedValue(
+    new Error('outcomes unavailable'),
+  );
+
+  renderAt('/runs/run-1/overview');
+  expect(await screen.findByRole('heading', {name: 'Summary'})).toBeVisible();
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Could not load observations: outcomes unavailable',
+  );
+  expect(screen.queryByRole('alert')).not.toHaveTextContent('API unavailable');
+  expect(
+    screen.getByRole('button', {name: 'Refresh observations'}),
+  ).toBeEnabled();
 });
 
 it('renders all four report tabs', async () => {

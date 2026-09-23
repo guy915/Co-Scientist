@@ -27,6 +27,7 @@ import {
 } from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
 import {useRunSupervisorPlan} from './run_detail_supervisor_plan_data';
+import {useRunOutcomeCollection} from './run_detail_outcomes_data';
 
 /**
  * The fetched run row plus the live transport state of its event stream.
@@ -46,6 +47,7 @@ type RunDataKey =
   | 'matches'
   | 'reviews'
   | 'claimEvidence'
+  | 'outcomes'
   | 'safety'
   | 'report';
 
@@ -65,6 +67,7 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   'safety.final': ['safety'],
   'scientist.hypothesis': ['hypotheses', 'safety'],
   'scientist.review': ['reviews'],
+  'scientist.outcome': ['outcomes'],
   proximity: ['hypotheses'],
   ranking: ['hypotheses', 'matches'],
   evolve: ['hypotheses', 'claimEvidence'],
@@ -86,6 +89,10 @@ function hasSupervisorPlanEvent(events: readonly StreamEvent[]): boolean {
     event =>
       event.type === 'scientific_task' && event.payload.task === 'orchestrator',
   );
+}
+
+function shouldRefreshOutcomes(keys?: ReadonlySet<RunDataKey>): boolean {
+  return keys === undefined || keys.has('outcomes');
 }
 
 // Fetches the run row plus whichever collections `keys` selects (every
@@ -253,6 +260,7 @@ function useRunCollections() {
 
 function useRunFetch(id: string | undefined) {
   const {applyFetched, reset, ...collections} = useRunCollections();
+  const outcomeCollection = useRunOutcomeCollection();
   // Which run the settled state describes, rather than a bare loaded flag and
   // a bare error. The reset below runs in an effect, i.e. after the render
   // that follows an id change -- so on that render bare values still describe
@@ -277,6 +285,7 @@ function useRunFetch(id: string | undefined) {
   const refresh = useCallback(
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!id) return;
+      if (shouldRefreshOutcomes(keys)) void outcomeCollection.refresh(id);
       const outcome = await fetchRunOutcome(id, keys);
       // Drop a response for a run the page has since navigated away from: the
       // previous run's in-flight fetch can land after the switch, and applying
@@ -285,7 +294,7 @@ function useRunFetch(id: string | undefined) {
       if (outcome.data) applyFetched(outcome.data);
       setSettled({id, error: outcome.error});
     },
-    [id, applyFetched],
+    [id, applyFetched, outcomeCollection.refresh],
   );
 
   const {scheduleRefresh, cancelPending, resetPending} =
@@ -296,6 +305,11 @@ function useRunFetch(id: string | undefined) {
     void refresh();
   }, [refresh, cancelPending]);
 
+  const refreshOutcomesNow = useCallback(
+    () => outcomeCollection.refresh(id),
+    [id, outcomeCollection.refresh],
+  );
+
   // Initial load (and reload when the run id changes) stays immediate. Only
   // an id change resets: `refresh` is stable for a given id, so the SSE-driven
   // partial refetches below never clear what is on screen -- they update it.
@@ -303,15 +317,20 @@ function useRunFetch(id: string | undefined) {
     shownId.current = id;
     resetPending();
     reset();
+    outcomeCollection.reset(id);
     void refresh();
-  }, [id, refresh, resetPending, reset]);
+  }, [id, refresh, resetPending, reset, outcomeCollection.reset]);
 
   return {
     ...collections,
+    outcomes: outcomeCollection.outcomes,
+    outcomesLoading: outcomeCollection.loading,
+    outcomesError: outcomeCollection.error,
     error,
     loaded,
     scheduleRefresh,
     refreshNow,
+    refreshOutcomes: refreshOutcomesNow,
   };
 }
 
@@ -462,11 +481,15 @@ export function useRunDetailData(id: string | undefined) {
     safety: data.safety,
     supervisorPlan: supervisorPlan.state,
     report: data.report,
+    outcomes: data.outcomes,
+    outcomesLoading: data.outcomesLoading,
+    outcomesError: data.outcomesError,
     error: data.error,
     loaded: data.loaded,
     toast,
     title,
     refreshNow: data.refreshNow,
+    refreshOutcomes: data.refreshOutcomes,
     refreshSupervisorPlan: supervisorPlan.refresh,
     events,
   };
