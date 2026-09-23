@@ -18,17 +18,15 @@ Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfil
 
 **Decided: production runs the worker embedded in the API process, not a separate worker service.** `COSCIENTIST_EMBEDDED_WORKER=1` is what the api service actually runs on today (see the env list below), and the three-service table above is the complete deployed shape — there is no fourth "worker" service. `python -m app.task_worker` with `COSCIENTIST_EMBEDDED_WORKER=0` on the api remains a supported code path (see `runs_lifecycle.py` / `task_worker.py`) for the day the single-writer SQLite ceiling (`worker_pool_size`, see the root AGENTS.md Gotchas and the Notable settings section of `app/AGENTS.md`) actually requires scaling workers independently of the api — it is not a recommendation to run that way today, and nothing in this deployment does.
 
-Env var *names* set on the Railway **api** service (values are secrets — read them from Railway, never commit them):
+The Railway **api** service's non-secret routing and storage settings, read back
+on 23 September 2026 **before** the M2 release, are:
 
 ```
-MODEL_NAME=deepseek/deepseek-v4-flash     # worker tier
-SUPERVISOR_MODEL_NAME=deepseek/deepseek-v4-pro
-CHAT_MODEL_NAME=deepseek/deepseek-v4-pro
-SEMANTIC_SAFETY_MODEL=deepseek/deepseek-v4-flash
-DEEPSEEK_API_KEY=<secret>
-LOGS_ADMIN_TOKEN=<secret>
+MODEL_NAME=openrouter/minimax/minimax-m3:free
+SUPERVISOR_MODEL_NAME=openrouter/minimax/minimax-m3:free
+CHAT_MODEL_NAME=openrouter/minimax/minimax-m3:free
+SEMANTIC_SAFETY_MODEL=openrouter/minimax/minimax-m3:free
 MCP_SERVER_URL=http://mcp.railway.internal:8888/mcp
-COSCIENTIST_MCP_SHARED_SECRET=<secret>            # inner control alongside the private network; same value on api and mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 COSCIENTIST_CACHE_DIR=/tmp/coscientist-cache   # deliberately OFF the volume
 COSCIENTIST_EMBEDDED_WORKER=1
@@ -37,9 +35,29 @@ ALLOWED_ORIGINS=https://ai-co-scientist.com,https://www.ai-co-scientist.com
 PORT=8008
 ```
 
-The **mcp** service carries `BRAVE_API_KEY` (which is what registers `search_web` at all), `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_MCP_PORT=8888`, and the same `COSCIENTIST_MCP_SHARED_SECRET` set on the api. The server has no auth of its own beyond network placement, and dev Compose still publishes its port to the host — this variable is the inner control: when set, every MCP call but the plain `/` status route must carry it in an `X-MCP-Shared-Secret` header or the server refuses it with 401 (`engine/mcp_server/auth_middleware.py`); the engine's MCP client sends it automatically once the same variable is set in its own environment (`mcp_client_helpers.py::_resolve_server_configs`). Left unset on either side (the default — this is a reference server the user deploys by hand), the check is a no-op and every call passes exactly as it always has, so rolling this out cannot itself take a running deployment down. The CORS wildcard is gone unconditionally regardless of this variable: the server is server-to-server only and never a browser caller.
+The API has `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, and operational/SMTP
+credentials configured; their values must never enter this document. The **mcp**
+service has `BRAVE_API_KEY`, `TAVILY_API_KEY`, `OPENALEX_API_KEY`,
+`ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `WEB_SEARCH_PROVIDER=tavily`, and
+`COSCIENTIST_MCP_PORT=8888`. Pre-release, neither service has
+`COSCIENTIST_MCP_SHARED_SECRET`, and the API has no `CAMPAIGN_RESEARCHER_IDS`.
+The M2 release must set the **same new secret on both services** before enabling
+request-scoped campaign policy, then read back its presence without exposing it.
+When set, every MCP call but the plain `/` status route must carry the secret in
+an `X-MCP-Shared-Secret` header or the server returns 401
+(`engine/mcp_server/auth_middleware.py`); the engine client supplies that header
+(`mcp_client_helpers.py::_resolve_server_configs`). Left unset, the check is a
+no-op. The CORS wildcard is gone regardless; MCP is server-to-server only.
 
-Production calls DeepSeek directly (`deepseek/` prefix), the same tiers the local defaults use, so there is one thinking contract everywhere: DeepSeek's native `thinking` object plus `reasoning_effort`. The DashScope route this deployment previously used is gone from config, env templates, and tests.
+The planned M2 default is exact `openrouter/nex-agi/nex-n2.5-pro:free` on all
+four roles, with no automatic model fallback and current zero-price admission.
+It is **not yet the production setting**. The official listing marks that free
+route as expiring 25 September 2026; check its availability before live work
+and do not silently select a paid or unqualified replacement. In the shared
+API, keep the process-global `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so
+ordinary explicit BYOK remains available; a verified bearer-subject allowlist
+and persisted request policy activate the campaign restrictions. Record the
+post-release readback and deployment IDs in the campaign dossier.
 
 Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
 

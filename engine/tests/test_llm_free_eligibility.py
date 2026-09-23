@@ -30,21 +30,26 @@ OPTIONS = LLMCallOptions(use_cache=False)
 
 @pytest.mark.parametrize("entry_point", [call_llm, call_llm_json])
 @pytest.mark.parametrize(
-    "pricing", [None, {}, {"prompt": "0", "completion": "0.01"}]
+    "pricing,expiration",
+    [
+        (None, None),
+        ({}, None),
+        ({"prompt": "0", "completion": "0.01"}, None),
+        ({"prompt": "0", "completion": "0"}, "not-a-date"),
+        ({"prompt": "0", "completion": "0"}, "2000-01-01"),
+    ],
 )
-async def test_unverified_price_never_reaches_provider_or_consumes_budget(
+async def test_unverified_route_never_reaches_provider_or_consumes_budget(
     monkeypatch: pytest.MonkeyPatch,
     entry_point: Any,
     pricing: Any,
+    expiration: str | None,
 ) -> None:
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-    monkeypatch.setattr(
-        httpx,
-        "get",
-        lambda *a, **kw: httpx.Response(
-            200, json=_catalog(pricing), request=httpx.Request("GET", a[0])
-        ),
-    )
+    catalog = _catalog(pricing)
+    if expiration is not None:
+        catalog["data"][0]["expiration_date"] = expiration
+    _mock_catalog(monkeypatch, catalog)
     requests: list[dict[str, Any]] = []
     patch_acompletion(
         monkeypatch, [make_completion(make_message('{"ok": true}'))], requests
@@ -138,9 +143,9 @@ async def test_qualified_route_sends_zero_caps_and_pinned_endpoint(
     monkeypatch: pytest.MonkeyPatch,
     entry_point: Any,
 ) -> None:
-    calls = _mock_catalog(
-        monkeypatch, _catalog({"prompt": "0", "completion": "0"})
-    )
+    catalog = _catalog({"prompt": "0", "completion": "0"})
+    catalog["data"][0]["expiration_date"] = "9999-12-31"
+    calls = _mock_catalog(monkeypatch, catalog)
     requests: list[dict[str, Any]] = []
     patch_acompletion(
         monkeypatch,
@@ -169,7 +174,9 @@ async def test_byok_separation_and_campaign_override(
     from co_scientist.llm_credentials import scoped_api_key
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign)))
-    _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "1"}))
+    catalog = _catalog({"prompt": "0", "completion": "1"})
+    catalog["data"][0]["expiration_date"] = "not-a-date"
+    _mock_catalog(monkeypatch, catalog)
     requests: list[dict[str, Any]] = []
     patch_acompletion(
         monkeypatch, [make_completion(make_message("ok"))], requests
@@ -325,9 +332,9 @@ def test_catalog_cache_is_shared_across_worker_event_loops(
 
     from co_scientist.llm_free_policy import enforce_free_request
 
-    reads = _mock_catalog(
-        monkeypatch, _catalog({"prompt": "0", "completion": "0"})
-    )
+    catalog = _catalog({"prompt": "0", "completion": "0"})
+    catalog["data"][0]["expiration_date"] = None
+    reads = _mock_catalog(monkeypatch, catalog)
 
     def verify(_: int) -> None:
         asyncio.run(enforce_free_request({"model": MODEL, "messages": []}))

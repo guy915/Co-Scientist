@@ -2,6 +2,7 @@
 
 import threading
 import time
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -59,6 +60,7 @@ def verify_model(model: str, catalog: dict[str, Any]) -> None:
         raise FreeModelEligibilityError(
             "zero-cost model is not an explicit catalog route"
         )
+    _verify_expiration(row)
     architecture = row.get("architecture", {})
     if not isinstance(architecture, dict):
         raise FreeModelEligibilityError(
@@ -72,6 +74,34 @@ def verify_model(model: str, catalog: dict[str, Any]) -> None:
             "zero-cost route must produce only text"
         )
     _verify_pricing(model, row.get("pricing"))
+
+
+def _utc_today() -> date:
+    """Return the current UTC calendar date for catalog expiration checks."""
+    return datetime.now(timezone.utc).date()
+
+
+def _verify_expiration(row: dict[str, Any]) -> None:
+    """Reject malformed or elapsed catalog expiry dates, when supplied."""
+    if "expiration_date" not in row or row["expiration_date"] is None:
+        return
+    value = row["expiration_date"]
+    try:
+        expiration = (
+            date.fromisoformat(value) if isinstance(value, str) else None
+        )
+    except ValueError:
+        expiration = None
+    if expiration is None or expiration.isoformat() != value:
+        raise FreeModelEligibilityError(
+            "zero-cost route expiration date is invalid"
+        )
+    # OpenRouter publishes dates without times; treat the named UTC date as
+    # the last valid day, expiring the route once the next UTC day begins.
+    if expiration < _utc_today():
+        raise FreeModelEligibilityError(
+            "zero-cost route expiration date has elapsed"
+        )
 
 
 def _verify_pricing(model: str, pricing: Any) -> None:
