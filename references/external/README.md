@@ -5,7 +5,8 @@ record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
-The Kaimen, conradry, and LLNL sources are closed; later sources remain unacquired.
+The Kaimen, conradry, and LLNL sources are closed. The raktim-mondol source is
+under assessment; later sources remain unacquired.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 
 | Order | Repository | Pinned revision | Assessment |
@@ -13,7 +14,7 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 | 1 | [Kaimen-Inc/Co-Scientist](https://github.com/Kaimen-Inc/Co-Scientist) | [`cef5bcfec8820865855593b437a941005a9f961a`](https://github.com/Kaimen-Inc/Co-Scientist/commit/cef5bcfec8820865855593b437a941005a9f961a) | [Closed; no adoption from pinned source](kaimen-inc-co-scientist.md) |
 | 2 | [conradry/open-coscientist-agents](https://github.com/conradry/open-coscientist-agents) | [`a20b018300da57a26578f8e7442b890193950afa`](https://github.com/conradry/open-coscientist-agents/commit/a20b018300da57a26578f8e7442b890193950afa) | [Closed; two UI adoptions](conradry-open-coscientist-agents.md) |
 | 3 | [llnl/open-ai-co-scientist](https://github.com/llnl/open-ai-co-scientist) | [`c8342c0e28474d134f80caa6b9668470ebf55258`](https://github.com/llnl/open-ai-co-scientist/commit/c8342c0e28474d134f80caa6b9668470ebf55258) | [Closed; failure guidance and BYOK redaction adopted](llnl-open-ai-co-scientist.md) |
-| 4 | [raktim-mondol/co-scientist](https://github.com/raktim-mondol/co-scientist) | Not acquired | Pending |
+| 4 | [raktim-mondol/co-scientist](https://github.com/raktim-mondol/co-scientist) | [`10aa84a3c5a774c6fe5de050000c3f5e0996eb45`](https://github.com/raktim-mondol/co-scientist/commit/10aa84a3c5a774c6fe5de050000c3f5e0996eb45) | [Under assessment](raktim-mondol-co-scientist.md) |
 | 5 | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | Not acquired | Pending |
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | Not acquired | Pending |
 | 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | Not acquired | Pending |
