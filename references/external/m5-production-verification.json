@@ -1,0 +1,16 @@
+{
+  "purpose": "M5 production signed-outcome read and compatibility-denial verification; no inference or outcome write",
+  "checked_at_utc": "2026-09-23T17:56:51.811170+00:00",
+  "release_commit": "d86b16f37cf881956f0379979124c68bf2806846",
+  "run_id": "1c33deee-e0c0-4a9b-b9a0-48e88076fe03",
+  "campaign_owner_confirmed": true,
+  "run_http_status": 200,
+  "run_status": "cancelled",
+  "hypotheses_http_status": 200,
+  "hypothesis_count": 0,
+  "signed_outcomes_http_status": 200,
+  "outcome_count": 0,
+  "spoofed_owner_header_http_status": 401,
+  "unauthenticated_http_status": 404,
+  "model_calls_made_by_probe": 0
+}
