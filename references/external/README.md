@@ -7,7 +7,7 @@ records the starting system and baseline work.
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
 The Kaimen, conradry, LLNL, raktim-mondol, K-Dense, and Sakana sources are
 closed. Sakana's result-conditioned search follow-up remains open in M11;
-later sources remain unacquired.
+OpenScience is under assessment, and later sources remain unacquired.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 
 | Order | Repository | Pinned revision | Assessment |
@@ -18,7 +18,7 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 | 4 | [raktim-mondol/co-scientist](https://github.com/raktim-mondol/co-scientist) | [`10aa84a3c5a774c6fe5de050000c3f5e0996eb45`](https://github.com/raktim-mondol/co-scientist/commit/10aa84a3c5a774c6fe5de050000c3f5e0996eb45) | [Closed; owned empirical outcomes adopted](raktim-mondol-co-scientist.md) |
 | 5 | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | [`49c6e97775eaa18ba791bebe23162a70ae601c18`](https://github.com/K-Dense-AI/scientific-agent-skills/commit/49c6e97775eaa18ba791bebe23162a70ae601c18) | [Closed; bounded citation-edge lookup adopted](k-dense-scientific-agent-skills.md) |
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) | [Closed; no product adoption, M11 follow-up open](sakana-ai-scientist.md) |
-| 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | Not acquired | Pending |
+| 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | [`4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5`](https://github.com/synthetic-sciences/openscience/commit/4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5) | [Under assessment](synthetic-sciences-openscience.md) |
 | 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | Not acquired | Pending |
 | 9 | [Future-House/robin](https://github.com/Future-House/robin) | Not acquired | Pending |
 
