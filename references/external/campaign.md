@@ -69,6 +69,18 @@ Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
 
+The M2 release's planned system-default configuration is
+`MODEL_NAME=SUPERVISOR_MODEL_NAME=CHAT_MODEL_NAME=SEMANTIC_SAFETY_MODEL=openrouter/nex-agi/nex-n2.5-pro:free`;
+`CLAIM_VERIFIER_MODEL` remains unset and inherits `MODEL_NAME`. This route has
+no model-level fallback, and its requests retain zero-price ceilings. The
+production readback on 23 September still showed the four explicit old
+MiniMax values; these target values are not yet deployed. The official catalog
+currently marks this free route as expiring 25 September 2026 (see the
+[dated receipt](baseline/nex-pro-catalog-2026-09-23.json)). Recheck current
+eligibility before each live batch; if the route retires, stop live calls and
+select an exact zero-priced replacement from current public information and
+retained compatibility evidence. No unqualified automatic or paid substitution.
+
 ### Engine zero-cost admission
 
 Set `COSCIENTIST_REQUIRE_FREE_MODELS=1` for campaign inference processes. This

@@ -41,30 +41,12 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     #
-    # One model on every tier, reached through OpenRouter: Minimax M3's free
-    # pool, heading an all-free fallback chain. Cost is the binding
-    # constraint on this deployment, so the tier split buys nothing -- there
-    # is no cheaper rung than free for a worker tier to drop to, and no
-    # budget freed by giving the strategic tier something dearer.
-    #
-    # This replaces the 2026-09-06 single-model switch, hours later: every
-    # OpenRouter ``:free`` variant caps at roughly 100 requests/day *per
-    # model*, not "one saturated shared pool" that a single healthy model
-    # could stand in for -- so a lone primary stops a run dead the moment
-    # its own ~100/day is spent, however healthy every other free model is.
-    # The chain is back, now covering every free model a live probe found
-    # actually answering. ``llm_gateway_routing._GATEWAY_MODELS`` holds this
-    # model's own declaration (its chain, in the order that probe measured)
-    # and what each rung needs.
-    #
-    # Two properties of this model are load-bearing and neither is
-    # guessable from its name, which is why both are declared rather than
-    # inferred. It serves no host that accepts ``json_schema``, so every
-    # schema'd call is downgraded to ``json_object`` with the schema
-    # restated in the prompt (paired with ``require_parameters``, sending
-    # the schema is a 404 rather than a soft degradation). And it spends
-    # reasoning tokens, so it gets the thinking token floor rather than
-    # keeping the budget its call site chose.
+    # The system default for worker, supervisor, chat, and semantic safety
+    # is the selected zero-priced Nex Pro route. Its gateway declaration in
+    # ``llm_gateway_routing._GATEWAY_MODELS`` has no model-level fallback:
+    # no alternative model is qualified for this default. The request keeps
+    # the existing zero-price ceiling, and explicit environment/BYOK model
+    # choices remain supported.
     #
     # Production overrides all four settings below via explicit Railway
     # env vars (see ``docs/DEPLOYMENT.md``); changing prod is an env
@@ -73,16 +55,16 @@ class Settings(BaseSettings):
     # model_name: worker model -- generate, review, ranking, reflection,
     # evolve, proximity, literature_review, claim verification. High-volume,
     # runs many times per iteration.
-    model_name: str = "openrouter/minimax/minimax-m3:free"
+    model_name: str = "openrouter/nex-agi/nex-n2.5-pro:free"
     # supervisor_model_name: strategic model -- supervisor (research
     # planning), meta_review and research_overview (final report synthesis).
     # Runs once or twice per iteration. The same model as the worker tier.
     # Falls back to model_name only if explicitly cleared.
-    supervisor_model_name: str | None = "openrouter/minimax/minimax-m3:free"
+    supervisor_model_name: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
     # chat_model_name: model for all user-facing communication -- the
     # research interview, Chat-tab Q&A, and session titling. Falls back to
     # model_name only if explicitly cleared.
-    chat_model_name: str | None = "openrouter/minimax/minimax-m3:free"
+    chat_model_name: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -121,7 +103,7 @@ class Settings(BaseSettings):
     semantic_safety_enabled: bool = True
     # Kept on the worker tier rather than falling back to the supervisor
     # model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = "openrouter/minimax/minimax-m3:free"
+    semantic_safety_model: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see

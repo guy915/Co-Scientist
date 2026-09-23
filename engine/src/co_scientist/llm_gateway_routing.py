@@ -234,23 +234,23 @@ _GATEWAY_MAX_FALLBACKS: Final[int] = 3
 # Zero is now an explicit ceiling for free routes, including per-request
 # fees. Current model eligibility still needs verification before live use.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    # Campaign probes observed reasoning on both Nex variants. Until disabling
-    # is qualified, use the shared bounded-minimal mode and fund its answer.
+    # Selected system default. Campaign probes observed reasoning on both Nex
+    # variants; until disabling is qualified, use bounded-minimal reasoning
+    # and fund its answer. No alternative model is qualified as a fallback.
     "openrouter/nex-agi/nex-n2.5-pro:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
     "openrouter/nex-agi/nex-n2.5-mini:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
-    # A non-default chain head kept for a deployment that opts back into
-    # it. It was the deployed primary from 2026-09-05 until a real express
+    # A non-default chain head kept for a deployment that opts into it. It
+    # was the deployed primary from 2026-09-05 until a real express
     # run measured its single host (Decart) answering only 7 of 85 calls --
     # a shared free pool saturated most of the day (1 of 11 live probes
     # answered, matching the same shape noted 2026-08-26) -- against its
     # own first fallback rung, Minimax M3, serving 74 of those calls at $0.
-    # ``app.config`` now defaults every tier straight to that rung instead,
-    # with no chain behind it. This entry's own chain is unchanged, for
-    # whoever opts back in.
+    # The 2026-09-06 default switch went straight to that rung; this entry's
+    # chain remains for deployments that explicitly select it.
     "openrouter/z-ai/glm-5.2:free": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
@@ -260,9 +260,9 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
             "nvidia/nemotron-3.5-lightning:free",
         ),
     ),
-    # The deployed primary (also ``app.config``'s default on every tier),
-    # now heading its own all-free chain again -- a second reversal in one
-    # day. Measured 2026-09-05/06 through this account's OpenRouter key:
+    # The previously deployed primary, retained with its all-free chain for
+    # deployments that explicitly select it. Measured 2026-09-05/06 through
+    # this account's OpenRouter key:
     # every ``:free`` variant carries its own per-model daily cap (~100
     # requests/day, plus a shared 20 req/min across all free variants), not
     # the "one saturated pool" shape the 2026-09-06 single-model switch

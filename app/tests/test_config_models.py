@@ -19,6 +19,7 @@ _MODEL_FIELDS = (
     "chat_model_name",
     "semantic_safety_model",
 )
+_SYSTEM_DEFAULT_MODEL = "openrouter/nex-agi/nex-n2.5-pro:free"
 
 
 def _default_models() -> set[str]:
@@ -34,6 +35,15 @@ def _default_models() -> set[str]:
         for field in _MODEL_FIELDS
         if isinstance(default := Settings.model_fields[field].default, str)
     }
+
+
+def test_all_system_default_roles_select_nex_pro() -> None:
+    """Worker, supervisor, chat and semantic safety share the selected model."""
+    actual = {
+        field: Settings.model_fields[field].default for field in _MODEL_FIELDS
+    }
+
+    assert actual == dict.fromkeys(_MODEL_FIELDS, _SYSTEM_DEFAULT_MODEL)
 
 
 def test_every_default_model_is_priced() -> None:

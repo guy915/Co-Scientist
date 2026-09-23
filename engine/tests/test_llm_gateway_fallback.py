@@ -26,7 +26,8 @@ from co_scientist.llm_request import (
 _PRIMARY = "openrouter/z-ai/glm-5.3-flash"
 _FREE_PRIMARY = "openrouter/z-ai/glm-5.2:free"
 _GLM = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
-_NEMO = "openrouter/minimax/minimax-m3:free"
+_MINIMAX = "openrouter/minimax/minimax-m3:free"
+_NEX_PRO = "openrouter/nex-agi/nex-n2.5-pro:free"
 
 
 def test_the_primary_model_carries_its_fallback_chain() -> None:
@@ -63,9 +64,10 @@ def test_the_non_default_free_chain_head_still_carries_its_chain() -> None:
     ]
 
 
-def test_the_deployed_default_carries_the_all_free_chain() -> None:
-    """``minimax-m3:free`` heads three live free models measured 2026-09-06.
+def test_the_legacy_minimax_default_carries_the_all_free_chain() -> None:
+    """The former Minimax default retains its chain for explicit selection.
 
+    The chain was measured 2026-09-06, when Minimax was the system default.
     Each ``:free`` variant caps at roughly 100 requests/day per model, not
     "one saturated shared pool" -- the shape the 2026-09-06 single-model
     switch had assumed. A chain lets a run keep going once the primary's
@@ -74,7 +76,7 @@ def test_the_deployed_default_carries_the_all_free_chain() -> None:
     chain 400'd every gateway call in production (run b82f9162, 2026-09-06
     00:19 UTC), since OpenRouter caps the ``models`` array at 3 items.
     """
-    body = deepseek_thinking_extra_body(_NEMO)
+    body = deepseek_thinking_extra_body(_MINIMAX)
     chain = [
         "nvidia/nemotron-3-super-120b-a12b:free",
         "google/gemma-4-31b-it:free",
@@ -84,7 +86,7 @@ def test_the_deployed_default_carries_the_all_free_chain() -> None:
 
     from co_scientist.constants_pricing import MODEL_PRICING
 
-    for gateway_relative in (_NEMO.removeprefix("openrouter/"), *chain):
+    for gateway_relative in (_MINIMAX.removeprefix("openrouter/"), *chain):
         price = MODEL_PRICING[f"openrouter/{gateway_relative}"]
         assert (
             price.prompt_usd_per_million,
@@ -117,6 +119,20 @@ def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
         assert not _GATEWAY_MODELS[model_name].fallbacks
 
 
+def test_selected_nex_pro_default_has_no_model_fallback() -> None:
+    """The selected default stays on Nex Pro when its route is unavailable."""
+    from co_scientist.llm_thinking import _GATEWAY_MODELS
+
+    assert not _GATEWAY_MODELS[_NEX_PRO].fallbacks
+    body = deepseek_thinking_extra_body(_NEX_PRO)
+    assert "models" not in body
+    assert body["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+
+
 def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
     """Not reasoning is a property of the model, never of the route."""
     body = deepseek_thinking_extra_body(_GLM)
@@ -137,7 +153,7 @@ def test_a_disable_request_gets_capped_reasoning_when_mandatory() -> None:
     then measured 24547 reasoning tokens against a 24000-token budget on
     the minimal tier, i.e. the tier alone bounds nothing.
     """
-    body = deepseek_thinking_extra_body(_NEMO, enabled=False)
+    body = deepseek_thinking_extra_body(_MINIMAX, enabled=False)
 
     assert body["reasoning"] == {
         "enabled": True,
@@ -175,7 +191,7 @@ def test_the_minimal_reasoning_redirect_keeps_the_ordinary_floor() -> None:
     from co_scientist.llm_thinking import effective_max_tokens
 
     assert (
-        effective_max_tokens(_NEMO, 12000, enable_thinking=False)
+        effective_max_tokens(_MINIMAX, 12000, enable_thinking=False)
         == THINKING_FLOOR_MAX_TOKENS
     )
 
@@ -191,7 +207,7 @@ def test_a_call_that_actually_asked_for_thinking_keeps_the_ordinary_floor() -> (
     from co_scientist.llm_thinking import effective_max_tokens
 
     assert (
-        effective_max_tokens(_NEMO, 12000, enable_thinking=True)
+        effective_max_tokens(_MINIMAX, 12000, enable_thinking=True)
         == THINKING_FLOOR_MAX_TOKENS
     )
 
@@ -222,7 +238,7 @@ def test_every_gateway_call_is_pinned_to_hosts_that_honour_it(
     ``sort: throughput`` -- is route-wide too, not just the primary's.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
-    for model in (_PRIMARY, _GLM, _NEMO):
+    for model in (_PRIMARY, _GLM, _MINIMAX):
         provider = deepseek_thinking_extra_body(model)["provider"]
         assert provider["require_parameters"] is True
         assert provider["allow_fallbacks"] is True
@@ -253,7 +269,7 @@ def test_every_gateway_call_prefers_the_default_upstream_order(
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     from co_scientist.llm_thinking import _DEFAULT_UPSTREAM_ORDER
 
-    for model in (_PRIMARY, _GLM, _NEMO):
+    for model in (_PRIMARY, _GLM, _MINIMAX):
         provider = deepseek_thinking_extra_body(model)["provider"]
         assert provider["order"] == list(_DEFAULT_UPSTREAM_ORDER)
         assert "sort" not in provider
