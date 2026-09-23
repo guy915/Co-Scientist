@@ -278,9 +278,9 @@ async def _acompletion(**kwargs: Any) -> object:
     verbatim to a signature of ~40 specifically-typed parameters, which a
     checker resolving that signature reads as one type error per parameter.
     """
-    import litellm
+    from app import llm_request
 
-    return await litellm.acompletion(**kwargs)
+    return await llm_request.acompletion(**kwargs)
 
 
 def _sanitized_detail(credential: ByokCredential, exc: Exception) -> str:
@@ -304,15 +304,16 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
     from litellm.exceptions import AuthenticationError
 
     try:
-        await _acompletion(
-            model=credential.model,
-            api_key=credential.api_key,
-            messages=[{"role": "user", "content": "ping"}],
-            max_tokens=1,
-            temperature=0,
-            timeout=_VALIDATION_TIMEOUT_SECONDS,
-            drop_params=True,
-        )
+        with scoped_byok(credential):
+            await _acompletion(
+                model=credential.model,
+                api_key=credential.api_key,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
+                temperature=0,
+                timeout=_VALIDATION_TIMEOUT_SECONDS,
+                drop_params=True,
+            )
     except AuthenticationError as exc:
         raise ByokValidationError(
             "the provider rejected the API key (invalid or expired)"

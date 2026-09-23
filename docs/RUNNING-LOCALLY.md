@@ -39,9 +39,11 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
   flag (`--api-url`/`--client-id`/`--logs-token`/`--timeout`).
 - **MCP / PubMed:** the server lives at `engine/mcp_server/` (a flat package,
   run from `engine/` so `mcp_server.server:app` resolves). `make dev-mcp`
-  creates a 3.12 venv and starts it. PubMed needs a contact email —
-  `ENTREZ_EMAIL` in `engine/mcp_server/.env` (NCBI courtesy identifier, not
-  auth). Without it: `pubmed_available: false`, literature falls back to LLM-only (no PubMed retrieval).
+  creates a 3.12 venv and starts it. `ENTREZ_EMAIL` in
+  `engine/mcp_server/.env` is an optional NCBI courtesy identifier, not
+  authentication. Anonymous PubMed retrieval is supported, with potentially
+  stricter rate limits. Availability is determined by a real reachability probe,
+  not by whether an email is configured.
   Check status: `curl -s localhost:8008/status` → `mcp_available`,
   `pubmed_available`, `literature_review_available`.
 

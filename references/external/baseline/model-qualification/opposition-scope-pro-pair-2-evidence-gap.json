@@ -1,0 +1,116 @@
+{
+  "series": "opposition-scope-pro",
+  "trial": 2,
+  "status": "inconclusive_missing_transport_evidence",
+  "baseline_artifact": "opposition-scope-pro-baseline-2.json",
+  "baseline_sha256": "d8ef2eeaeb922bdde9e9e5dcb8149399bc0d1709af21d279978dfa085ba07663",
+  "physical_requests": 55,
+  "missing_usage_and_served_model_request_indices_zero_based": [
+    11,
+    12
+  ],
+  "all_requests_have_zero_price_caps": true,
+  "comparator_exit_code": 1,
+  "comparator_error": "RuntimeError: Missing physical request usage evidence",
+  "interpretation": "Scientific scores are observations, not accepted paired evidence. Failed requests are retained; neither usage nor served model is invented. Candidate remains open. Complete existing batch before deciding a matched rerun.",
+  "baseline_metrics": {
+    "accuracy": 0.4,
+    "contradiction_recall": 0.0,
+    "abstention_rate": 0.667,
+    "per_label": {
+      "insufficient": {
+        "precision": 0.4,
+        "recall": 0.571
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 0.667
+      },
+      "contradicts": {
+        "precision": 0.0,
+        "recall": 0.0
+      }
+    },
+    "n": 30,
+    "by_kind": {
+      "numeric_conflict": {
+        "accuracy": 0.0,
+        "n": 7
+      },
+      "paraphrase_contradiction": {
+        "accuracy": 0.0,
+        "n": 3
+      },
+      "paraphrase_support": {
+        "accuracy": 0.667,
+        "n": 6
+      },
+      "retracted": {
+        "accuracy": 1.0,
+        "n": 2
+      },
+      "species_mismatch": {
+        "accuracy": 0.0,
+        "n": 4
+      },
+      "temporal_mismatch": {
+        "accuracy": 0.667,
+        "n": 3
+      },
+      "topic_mention_only": {
+        "accuracy": 0.8,
+        "n": 5
+      }
+    }
+  },
+  "candidate_metrics": {
+    "accuracy": 0.933,
+    "contradiction_recall": 0.8,
+    "abstention_rate": 0.533,
+    "per_label": {
+      "supports": {
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "insufficient": {
+        "precision": 0.875,
+        "recall": 1.0
+      },
+      "contradicts": {
+        "precision": 1.0,
+        "recall": 0.8
+      }
+    },
+    "n": 30,
+    "by_kind": {
+      "numeric_conflict": {
+        "accuracy": 0.857,
+        "n": 7
+      },
+      "paraphrase_contradiction": {
+        "accuracy": 0.667,
+        "n": 3
+      },
+      "paraphrase_support": {
+        "accuracy": 1.0,
+        "n": 6
+      },
+      "retracted": {
+        "accuracy": 1.0,
+        "n": 2
+      },
+      "species_mismatch": {
+        "accuracy": 1.0,
+        "n": 4
+      },
+      "temporal_mismatch": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "topic_mention_only": {
+        "accuracy": 1.0,
+        "n": 5
+      }
+    }
+  }
+}

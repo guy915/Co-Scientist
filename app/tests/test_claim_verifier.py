@@ -95,6 +95,7 @@ def test_valid_supports_verdict_locates_span(
         assessor_id=assessor_id,
     )
     assert result.label is EntailmentLabel.SUPPORTS
+    assert result.verification_method == "model_primary"
     span = result.supporting_passages[0]
     assert span.evidence_id == "ev-1"
     assert (
@@ -200,6 +201,7 @@ def test_provider_error_falls_back_to_deterministic(
         assessor_id=assessor_id,
     )
     assert result.label is EntailmentLabel.SUPPORTS
+    assert result.verification_method == "deterministic_lexical"
     assert result.supporting_passages  # deterministic located a span
 
 
@@ -231,6 +233,7 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
     draft = assessor("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
+    assert draft.verification_method == "no_evidence"
 
 
 def test_prompt_renders_evidence_before_the_claim() -> None:
@@ -390,6 +393,25 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         )
 
     _install(monkeypatch, _capturing_completion)
+    from co_scientist import llm_free_catalog
+    from co_scientist.constants_pricing import MODEL_PRICING
+
+    catalog = {
+        model.removeprefix("openrouter/"): {
+            "pricing": {
+                "prompt": str(price.prompt_usd_per_million),
+                "completion": str(price.completion_usd_per_million),
+            },
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        for model, price in MODEL_PRICING.items()
+        if model.startswith("openrouter/")
+    }
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: catalog)
     assessor, _ = make_llm_assessor("openrouter/minimax/minimax-m3:free")
     assessor("some claim", [_PASSAGE])
 

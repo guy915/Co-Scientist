@@ -265,6 +265,7 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         "**Claim evidence:**",
         "",
         "- **Supported · fundamental** — The product inhibits the enzyme.",
+        "  Assessment method: not recorded.",
         "  - Supporting span — [Smith 2020](https://example.com/smith):"
         " “Product X inhibits enzyme Y.”",
         "  - Supporting span: “A bare string span with extra whitespace.”",

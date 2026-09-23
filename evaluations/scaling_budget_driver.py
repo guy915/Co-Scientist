@@ -32,7 +32,7 @@ resolution caveat, and note an express/standard arm only ever reaches
 authoring cycle 0 and 1 (one evolution round).
 
 **Live (``--live``, opt-in only, never run automatically):** needs a real
-provider key (``DEEPSEEK_API_KEY``) and, for literature grounding, a
+provider key (``OPENROUTER_API_KEY``) and, for literature grounding, a
 reachable MCP server (``MCP_SERVER_URL``, default localhost:8888). A full
 four-tier live sweep is real provider spend and real wall-clock time (the
 ``ultra`` tier alone runs 16 hypotheses and 32 tournament pairs); it is the
@@ -41,7 +41,8 @@ operator's explicit decision, made by passing ``--live``, never a default.
 Run:
     python -m evaluations.scaling_budget_driver                  # offline
     python -m evaluations.scaling_budget_driver --tiers express,ultra
-    DEEPSEEK_API_KEY=... python -m evaluations.scaling_budget_driver --live
+    # Export explicit MODEL_NAME and OPENROUTER_API_KEY before live use.
+    python -m evaluations.scaling_budget_driver --live
 """
 
 from __future__ import annotations
@@ -91,6 +92,10 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         "run_id": arm["run_id"],
+        "goal": arm.get("goal"),
+        "tier": arm.get("tier"),
+        "overrides": arm.get("overrides"),
+        "evaluation_identity": arm.get("evaluation_identity"),
         "goal_id": _GOAL_ID,
         "metrics": arm["metrics"],
         "hypotheses": arm["hypotheses"],
@@ -131,8 +136,12 @@ def run_budget_curve(
         )
         for tier in tiers
     ]
+    from evaluations._comparison_groups import validate_comparison
+
+    validation = validate_comparison(arms, kind="scaling")
     snapshots = [_arm_to_snapshot(arm) for arm in arms]
     return {
+        "comparison_validation": validation,
         "goal": goal,
         "goal_id": _GOAL_ID,
         "mode": "live" if live else "offline",
@@ -155,7 +164,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run on the real provider backend (costs money and time).",
+        help="Run live with explicit verified free MODEL_NAME.",
     )
     return parser.parse_args()
 
@@ -177,8 +186,6 @@ def main() -> int:
     """Run the CLI: drive the curve, write the artifact, print a summary."""
     args = _parse_args()
     tiers = [t.strip() for t in args.tiers.split(",") if t.strip()]
-    if args.live and not _run_driver.load_provider_key():
-        raise SystemExit("no DEEPSEEK_API_KEY available; cannot run --live")
     report = run_budget_curve(args.goal, tiers, live=args.live)
     out = write_dated_artifact(report, "scaling-budget-curve")
 

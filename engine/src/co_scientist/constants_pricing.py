@@ -94,36 +94,21 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # charging up to 3.4x this on input and 4.7x on output -- DeepSeek's
     # own first-party endpoint among them, at 0.22/0.66 -- is excluded.
     "openrouter/deepseek/deepseek-v4-flash-0731": ModelPrice(0.13, 0.28, 0.028),
-    # The deployed default (``app.config`` names the primary,
-    # ``minimax/minimax-m3:free``, with no fallback chain;
-    # ``llm_gateway_routing._GATEWAY_MODELS`` holds the non-default
-    # ``glm-5.2:free`` chain a deployment can opt back into). All four
-    # entries below are priced at zero because they are free, which is a
-    # real rate and not a missing entry: a run on them reports $0.00
-    # because it cost that. Note the one thing zero costs us:
-    # ``_gateway_provider`` derives its routing ceiling as a multiple of
-    # the listed rate, and zero has no meaningful multiple, so a free
-    # model's call goes out uncapped. That is correct here -- every rung
-    # is free, so there is nothing an uncapped route could overspend on --
-    # but it means the chain itself, not a price ceiling, is what bounds
-    # the spend, and it is why the repo rule is that no paid rung may ever
-    # be appended below a free primary (see the incident this pricing
-    # table cites next to ``deepseek-v4-pro`` below).
+    # Static zero-token-price entries arm zero prompt/completion/request
+    # ceilings in the shared gateway builder. This table is an estimate,
+    # not proof of current availability or of every applicable charge.
     "openrouter/z-ai/glm-5.2:free": ModelPrice(0.0, 0.0),
     "openrouter/minimax/minimax-m3:free": ModelPrice(0.0, 0.0),
     "openrouter/nvidia/nemotron-3-super-120b-a12b:free": ModelPrice(0.0, 0.0),
     "openrouter/google/gemma-4-31b-it:free": ModelPrice(0.0, 0.0),
     "openrouter/minimax/minimax-m2.7:free": ModelPrice(0.0, 0.0),
     "openrouter/dots-studio/dots-3-note-preview:free": ModelPrice(0.0, 0.0),
+    "openrouter/nex-agi/nex-n2.5-pro:free": ModelPrice(0.0, 0.0),
+    "openrouter/nex-agi/nex-n2.5-mini:free": ModelPrice(0.0, 0.0),
     "openrouter/nvidia/nemotron-3.5-lightning:free": ModelPrice(0.0, 0.0),
-    # The paid alternative chain head (``app.config`` no longer defaults
-    # here). Listing it at a real rate is what arms the routing price
-    # ceiling (2x -> $0.15/$0.50): a primary priced at zero disables the
-    # cap, which is how a $4.25 fallback once served a run that reported
-    # $0.00. The $0.075/$0.25 here is ZAI's 50%-off rate, which expires
-    # 2026-09-09 and reverts to $0.15/$0.50 -- at which point this entry
-    # needs updating or the cap starts refusing the very model it is meant
-    # to admit.
+    # Historical promotional rate for the paid alternative chain head;
+    # its routing ceiling uses the same configured price multiple as other
+    # paid entries. Revalidate current pricing before choosing this route.
     "openrouter/z-ai/glm-5.3-flash": ModelPrice(0.075, 0.25, 0.015),
     # The paid last resort, and the only rung that can spend anything. At
     # twenty times the rate of the DeepSeek route this replaced, a run that

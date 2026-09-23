@@ -15,6 +15,7 @@ tests patch them.
 import logging
 from typing import Any
 
+from co_scientist.llm_free_policy import campaign_free_mode
 from co_scientist.sandbox import is_known_safe
 from co_scientist.skills import (
     invoked_skill,
@@ -125,7 +126,11 @@ async def _handle_run_command(
     # same workspace runs model-written programs against a network that
     # is open precisely so skills can use it, so a key in the shared
     # environment is a key any generated program could read and send on.
-    skill = invoked_skill(argv) if context.session.skills_enabled else None
+    skill = (
+        invoked_skill(argv)
+        if context.session.skills_enabled and not campaign_free_mode()
+        else None
+    )
     if skill is not None:
         # Recorded by name rather than counted from the tool name: the
         # notice a run owes is per data source and run_command is one

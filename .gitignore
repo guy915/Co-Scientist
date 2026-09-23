@@ -71,3 +71,4 @@ cache/
 # SHAs recorded in references/deep-research/MANIFEST.md, which IS committed.
 references/deep-research/*/
 !references/deep-research/_analysis/
+references/work/

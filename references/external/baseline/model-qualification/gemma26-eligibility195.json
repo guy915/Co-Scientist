@@ -1,0 +1,175 @@
+{
+  "purpose": "Fresh credential-free zero-price catalog and endpoint eligibility before bounded Gemma 4 26B capability qualification.",
+  "checked_at": "2026-09-22T12:07:25.413638+00:00",
+  "source_commit": "49111a15ba372842a3316ae8edcbd59c8807e55e",
+  "catalog_source": "https://openrouter.ai/api/v1/models",
+  "catalog_raw_sha256": "37b63e5670f95b3526ba65b6d316fd0d184c03460207fb476097a95e7d3b0945",
+  "catalog_entries": 444,
+  "requested_model": "openrouter/google/gemma-4-26b-a4b-it:free",
+  "raw_catalog_row": {
+    "id": "google/gemma-4-26b-a4b-it:free",
+    "canonical_slug": "google/gemma-4-26b-a4b-it-20260403",
+    "hugging_face_id": "google/gemma-4-26B-A4B-it",
+    "name": "Google: Gemma 4 26B A4B  (free)",
+    "created": 1775227989,
+    "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind. Despite 25.2B total parameters, only 3.8B activate per token during inference \u2014 delivering near-31B quality at...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": [
+        "image",
+        "text",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Gemma",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "seed",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": 1,
+      "top_p": 0.95,
+      "top_k": 64
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/google/gemma-4-26b-a4b-it-20260403/endpoints"
+    },
+    "benchmarks": {
+      "design_arena": [],
+      "artificial_analysis": {
+        "intelligence_index": null,
+        "coding_index": 39.3,
+        "agentic_index": null
+      }
+    },
+    "reasoning": {
+      "mandatory": false,
+      "default_enabled": false
+    }
+  },
+  "endpoint_source": "https://openrouter.ai/api/v1/models/google/gemma-4-26b-a4b-it:free/endpoints",
+  "endpoint_http_status": 200,
+  "endpoint_payload": {
+    "data": {
+      "id": "google/gemma-4-26b-a4b-it:free",
+      "name": "Google: Gemma 4 26B A4B  (free)",
+      "created": 1775227989,
+      "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind. Despite 25.2B total parameters, only 3.8B activate per token during inference \u2014 delivering near-31B quality at...",
+      "architecture": {
+        "tokenizer": "Gemma",
+        "instruct_type": null,
+        "modality": "text+image+video->text",
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "endpoints": [
+        {
+          "name": "Google AI Studio | google/gemma-4-26b-a4b-it-20260403:free",
+          "model_id": "google/gemma-4-26b-a4b-it:free",
+          "model_name": "Google: Gemma 4 26B A4B ",
+          "context_length": 262144,
+          "pricing": {
+            "prompt": "0",
+            "completion": "0",
+            "discount": 0
+          },
+          "provider_name": "Google AI Studio",
+          "tag": "google-ai-studio",
+          "quantization": "unknown",
+          "max_completion_tokens": 32768,
+          "max_prompt_tokens": null,
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "seed",
+            "response_format",
+            "tools",
+            "tool_choice"
+          ],
+          "supports_tool_choice": {
+            "none": true,
+            "auto": true,
+            "required": true,
+            "function": true
+          },
+          "status": 0,
+          "uptime_last_30m": 100,
+          "uptime_last_5m": 100,
+          "uptime_last_1d": 99.55603953761099,
+          "supports_implicit_caching": false,
+          "supports_voice_cloning": false,
+          "latency_last_30m": null,
+          "throughput_last_30m": null
+        }
+      ]
+    }
+  },
+  "endpoint_error": null,
+  "runtime_verify_model": {
+    "accepted": true,
+    "catalog_row_pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "catalog_row_architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": [
+        "image",
+        "text",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Gemma",
+      "instruct_type": null
+    },
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "seed",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ]
+  },
+  "credential_used": false,
+  "live_calls_made": 0
+}

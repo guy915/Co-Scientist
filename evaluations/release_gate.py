@@ -1,20 +1,17 @@
 """Scientific release gate over a completed run artifact.
 
-**This gate applies the rules the app actually publishes by.** It used to
-apply its own, which is the defect recorded as ``L1``: an evaluator that
-invents thresholds proves only that the evaluator is self-consistent, and
-a green run of it said nothing about whether live finalization withholds
-anything. Every predicate below is imported from the modules the live
-finalize path calls (``app.report_content_gates``,
-``app.hypothesis_safety``), so a change to publication behavior either
-shows up here or is not a change to publication behavior.
+Publication decisions reuse the live predicates in ``app.report_content_gates``
+and ``app.hypothesis_safety``. Artifact admission is deliberately stricter:
+missing final-screen evidence or a statement needed to reconstruct a legacy
+hypothesis decision prevents this evaluator from proving publication readiness.
+Those completeness prerequisites are not additional live publication rules.
 
-The live rules, in the order finalization applies them
+The publication checks and artifact prerequisites, in finalization order
 (``app.report_render._finalize_report_pipeline``):
 
 1. The final report-level safety screen withholds the whole report on a
-   ``block`` or a ``hold``. An unresolved safety review is the artifact
-   form of that.
+   ``block`` or a ``hold``. The latest final-stage audit record is required;
+   absence of an unresolved review is not evidence that screening occurred.
 2. Each hypothesis is dropped if it was rejected or deduplicated, if the
    evidence *contradicts* it, or if its safety status blocks.
 3. If nothing survives, the report is withheld for an empty leaderboard.
@@ -41,26 +38,13 @@ from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
 
-from app.hypothesis_safety import is_blocking_status
+from app.hypothesis_safety import is_blocking_status, review_hypothesis_safety
 from app.report_content_gates import (
     EXCLUDED_HYPOTHESIS_STATUSES,
+    _contradicted_hypothesis_ids,
 )
 
 _REQUIRED_PROVENANCE = ("model", "policy_version", "retrieval_sources")
-
-
-def _contradicted_ids(claims: list[dict[str, Any]]) -> set[str]:
-    """Ids the evidence contradicts, by the live rule.
-
-    Mirrors ``report_content_gates._contradicted_hypothesis_ids`` over an
-    already-fetched edge list, which is the same shape that function
-    accepts via its ``claim_edges`` argument.
-    """
-    return {
-        str(claim.get("hypothesis_id"))
-        for claim in claims
-        if claim.get("label") == "contradicts"
-    }
 
 
 def _releasable(
@@ -72,23 +56,45 @@ def _releasable(
         for hyp in hypotheses
         if hyp.get("status") not in EXCLUDED_HYPOTHESIS_STATUSES
         and str(hyp.get("id")) not in contradicted
-        and not is_blocking_status(str(hyp.get("safety_status") or ""))
+        and _passes_hypothesis_safety(hyp)
     ]
 
 
-def _safety_reasons(safety: list[dict[str, Any]]) -> list[str]:
-    """Flags an unresolved safety review, if any.
+def _passes_hypothesis_safety(hyp: dict[str, Any]) -> bool:
+    """Reuse the live legacy classifier without its database audit writes."""
+    status = hyp.get("safety_status")
+    if status and status != "pending":
+        return not is_blocking_status(str(status))
+    statement = hyp.get("statement")
+    if not isinstance(statement, str) or not statement.strip():
+        return False
+    return not review_hypothesis_safety(statement).blocks_tournament
 
-    The artifact form of the live report-level gate, which withholds on a
-    ``block`` or a ``hold`` -- a review still requiring adjudication is a
-    hold that nobody has cleared.
+
+def _safety_reasons(safety: list[dict[str, Any]]) -> list[str]:
+    """Require the latest final screen, using public safety-record IDs.
+
+    Approval of an old hold schedules another finalization; it does not
+    change that hold into proof of a successful final screen. Hypothesis
+    holds exclude individual ideas rather than the entire report.
     """
-    if any(
-        item.get("requires_review") and not item.get("resolution")
-        for item in safety
-    ):
-        return ["unresolved safety review"]
-    return []
+    finals = [item for item in safety if item.get("stage") == "final"]
+    if not finals:
+        return ["missing final safety screen"]
+    if any(type(item.get("id")) is not int for item in finals):
+        return ["invalid final safety record identity"]
+    final = max(finals, key=lambda item: item["id"])
+    return _final_safety_reasons(final)
+
+
+def _final_safety_reasons(final: dict[str, Any]) -> list[str]:
+    """Match the terminal decision used by live report finalization."""
+    decision = final.get("decision")
+    if decision == "allow":
+        return []
+    if decision == "redact" and final.get("matches"):
+        return []
+    return ["final safety screen withheld publication"]
 
 
 def _verified_claim_ratio(claims: list[dict[str, Any]]) -> float:
@@ -111,14 +117,17 @@ def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         artifact: A completed run's hypotheses, safety decisions, claim
-            edges, and provenance.
+            edges, and provenance. Safety records use the public API shape
+            with integer IDs; hypotheses need a persisted safety status or
+            their statement for the same deterministic legacy re-screen.
+            This validates supplied evidence, not the authenticity of exports.
 
     Returns:
         The decision, the reasons behind it, and the observations that are
         reported rather than enforced.
     """
     claims = artifact.get("claims") or []
-    contradicted = _contradicted_ids(claims)
+    contradicted = _contradicted_hypothesis_ids("", None, claim_edges=claims)
     releasable = _releasable(artifact.get("hypotheses") or [], contradicted)
 
     reasons = _safety_reasons(artifact.get("safety") or [])

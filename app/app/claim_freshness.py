@@ -147,6 +147,9 @@ def _restore_one(
         supporting_passages=_spans_from(record, "supporting_passages"),
         contradicting_passages=_spans_from(record, "contradicting_passages"),
         assessor=assessor_id,
+        verification_method=str(
+            record.get("verification_method") or "legacy_unknown"
+        ),
     )
 
 

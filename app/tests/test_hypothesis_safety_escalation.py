@@ -9,17 +9,19 @@ match cleared by a benign marker plus an unlisted operational verb must
 never reach ALLOW). These tests cover: only a held UNCERTAIN review is ever
 escalated (a certain block or an already-blocking-but-uncorroborated Tier B
 match never even attempts a network call), fails closed on anything that
-stops the model from running, and the model may raise a held verdict to a
-certain block but the caller never sees it cleared.
+stops the model from running, and the model may either raise a held verdict
+to a certain block or clear it after contextual review.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from app import human_input, safety
+from app.config import settings
 from app.hypothesis_safety import (
     HypothesisSafetyOutcome as SafetyOutcome,
 )
@@ -28,6 +30,39 @@ from app.hypothesis_safety import (
     escalate_review,
     review_hypothesis_safety,
 )
+
+_MODEL = "openrouter/test/safety:free"
+
+
+@pytest.fixture(autouse=True)
+def _qualified_model_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    from co_scientist import llm_free_catalog
+
+    monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(
+        llm_free_catalog,
+        "_fetch_catalog",
+        lambda: {
+            "test/safety:free": {
+                "pricing": {"prompt": "0", "completion": "0"},
+                "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text"],
+                },
+            }
+        },
+    )
+
+
+def _assert_free_request(kwargs: dict[str, Any]) -> None:
+    assert kwargs["model"] == _MODEL
+    assert kwargs["extra_body"]["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+
 
 # A control-arm hard-split item the deterministic layer holds as UNCERTAIN
 # via the benign-context marker check ("triage"/"disaster"), carrying
@@ -129,7 +164,10 @@ async def test_provider_error_holds_rather_than_allows(
     """A provider failure mid-call must not clear the hold either."""
     import litellm
 
-    async def raise_completion(**_: object) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def raise_completion(**kwargs: Any) -> None:
+        calls.append(kwargs)
         raise RuntimeError("provider unavailable")
 
     monkeypatch.setattr(
@@ -144,6 +182,9 @@ async def test_provider_error_holds_rather_than_allows(
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
 
+    assert calls
+    for request in calls:
+        _assert_free_request(request)
     assert result.outcome == SafetyOutcome.UNCERTAIN
     assert result.blocks_tournament
 
@@ -165,7 +206,8 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
     """
     import litellm
 
-    async def allow_completion(**_: object) -> SimpleNamespace:
+    async def allow_completion(**kwargs: Any) -> SimpleNamespace:
+        _assert_free_request(kwargs)
         return _fake_semantic_response("allowed")
 
     monkeypatch.setattr(
@@ -190,7 +232,8 @@ async def test_model_raises_a_held_verdict(
     """When the model disagrees with the hold, it may raise it to block."""
     import litellm
 
-    async def block_completion(**_: object) -> SimpleNamespace:
+    async def block_completion(**kwargs: Any) -> SimpleNamespace:
+        _assert_free_request(kwargs)
         return _fake_semantic_response("prohibited")
 
     monkeypatch.setattr(
@@ -216,7 +259,8 @@ async def test_admission_endpoint_path_blocks_on_model_raise(
     """The scientist-admission wrapper reflects an escalated block too."""
     import litellm
 
-    async def block_completion(**_: object) -> SimpleNamespace:
+    async def block_completion(**kwargs: Any) -> SimpleNamespace:
+        _assert_free_request(kwargs)
         return _fake_semantic_response("prohibited")
 
     monkeypatch.setattr(

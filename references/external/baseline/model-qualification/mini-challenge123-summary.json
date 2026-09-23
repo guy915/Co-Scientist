@@ -1,0 +1,63 @@
+{
+  "scope": "Mini scientific qualification under frozen current profile",
+  "complete": true,
+  "accepted": false,
+  "trials": [
+    {
+      "trial": 1,
+      "artifact": "nex-mini-challenge123-1.json",
+      "sha256": "274424f7e0c5fd41927a83f2717e6ce4b5c93c4570cfe8ba6ac711790b9765cf",
+      "accuracy": 0.9,
+      "contradiction_recall": 0.7,
+      "gates_passed": false,
+      "scope_passed": {
+        "single": true,
+        "batch_single_claim": true
+      },
+      "historical_passed": true,
+      "physical_requests": 69,
+      "zero_caps": true,
+      "response_model_usage": true,
+      "reported_zero_cost": true,
+      "terminal_error": null
+    },
+    {
+      "trial": 2,
+      "artifact": "nex-mini-challenge123-2.json",
+      "sha256": "9d3b5946708124fe8a44fc445b4e36ada0e34776c4b946ced1358d7c0a04e251",
+      "accuracy": 0.833,
+      "contradiction_recall": 0.6,
+      "gates_passed": false,
+      "scope_passed": {
+        "single": false,
+        "batch_single_claim": true
+      },
+      "historical_passed": true,
+      "physical_requests": 66,
+      "zero_caps": true,
+      "response_model_usage": true,
+      "reported_zero_cost": true,
+      "terminal_error": null
+    },
+    {
+      "trial": 3,
+      "artifact": "nex-mini-challenge123-3.json",
+      "sha256": "762be50c8025b5e588e3d019fff81ce915f48672f12c90ed5e13f08492d6fdcf",
+      "accuracy": 0.9,
+      "contradiction_recall": 0.7,
+      "gates_passed": false,
+      "scope_passed": {
+        "single": false,
+        "batch_single_claim": true
+      },
+      "historical_passed": true,
+      "physical_requests": 69,
+      "zero_caps": true,
+      "response_model_usage": true,
+      "reported_zero_cost": true,
+      "terminal_error": null
+    }
+  ],
+  "decision": "Current configuration does not meet per-trial gates. Retain all results; no averaging or replacement. Separate demonstrated empty-envelope retry defect from semantic judgment failures.",
+  "incomplete_prior_attempt": "nex-mini-challenge122-1.json excluded, missing-manifest invocation failure"
+}

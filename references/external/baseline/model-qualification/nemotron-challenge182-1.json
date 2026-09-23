@@ -1,0 +1,56 @@
+{
+  "source_commit": "7ebd9ebc3f5c595bc2ff5cfdff91fafaf5b11c39",
+  "runtime": {
+    "executable": "/Users/guy/Code/co-scientist/.venv/bin/python",
+    "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [Clang 17.0.0 (clang-1700.3.19.1)]"
+  },
+  "probe_sha256": "6f180906b01e384722747abf251b83d7f161b01f38998a03559630f3db4e69d1",
+  "started_at": "2026-09-22T09:49:07.654975+00:00",
+  "requested_model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+  "trial": 1,
+  "minimum_physical_start_spacing_seconds": 4,
+  "source_manifest_sha256": "c8bc3b99139ae765cb8d7ba2031404291a7bb2382d039a7a65753a044615aa7c",
+  "source_revisions": {
+    "app": "7ebd9ebc3f5c595bc2ff5cfdff91fafaf5b11c39",
+    "engine": "7ebd9ebc3f5c595bc2ff5cfdff91fafaf5b11c39",
+    "evaluations": "7ebd9ebc3f5c595bc2ff5cfdff91fafaf5b11c39"
+  },
+  "source_guard_sha256": "64edc5d5f57f6594ea0cdf9836c9a9a302a21b51e18faa0ccc1c76c04541238c",
+  "challenge_sha256": "1636ddcfb94084ccabe5f155fd5701c3270c7ffc751e1c16a6450cece61c39f2",
+  "eligibility": {
+    "id": "nvidia/nemotron-3-super-120b-a12b:free",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "seed",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ]
+  },
+  "error_type": "RuntimeError",
+  "error": "Project import escaped snapshot: co_scientist.cache_storage",
+  "physical_requests": [],
+  "assessments": [],
+  "finished_at": "2026-09-22T09:49:09.027810+00:00"
+}

@@ -100,6 +100,7 @@ def test_batch_verdicts_map_back_to_claims_by_index(
     )
     assert results[0].label is EntailmentLabel.INSUFFICIENT
     assert results[1].label is EntailmentLabel.SUPPORTS
+    assert results[1].verification_method == "model_primary"
     span = results[1].supporting_passages[0]
     assert span.evidence_id == "ev-1"
     assert span.quote == "reduces tumor growth"
@@ -138,10 +139,10 @@ def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
     assert results[0].label is EntailmentLabel.SUPPORTS
     # The deterministic fallback still finds strong topical support here,
     # and the fallback verdict is stamped with the caller's own assessor
-    # id -- the fallback is an implementation detail of this assessor's
-    # best-effort contract, not a different provenance.
+    # id; its method separately identifies the deterministic fallback.
     assert results[1].label is EntailmentLabel.SUPPORTS
     assert results[1].assessor == assessor_id
+    assert results[1].verification_method == "deterministic_lexical"
 
 
 def test_batch_provider_error_falls_back_every_claim_in_the_group(
@@ -407,7 +408,7 @@ def test_batch_citation_by_passage_number_resolves_to_that_passage(
     # passage lands first, _PASSAGE second, matching the "2" cited below.
     other = EvidencePassage(
         evidence_id="ev-0",
-        text="Kinase inhibition reduces tumor growth in a different model.",
+        text="Kinase X inhibition reduces tumor growth in a different model.",
     )
     _install(
         monkeypatch,

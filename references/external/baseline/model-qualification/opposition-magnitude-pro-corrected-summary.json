@@ -1,0 +1,1818 @@
+{
+  "series": "opposition-magnitude-pro",
+  "purpose": "Correct the lexical_founded provenance false rejection only; no inference or changed scientific observations",
+  "semantic_delta": "A primary model contradiction retained by a located-quote/subject/negation guard is not deterministic fallback",
+  "correction_sha256": "f7357966cf39eb4c090e9c58d5e571ae545d0215b7472dda4a2755525f8492a2",
+  "frozen_helper_sha256": "5b1f562f3738d48116f5b9427e057cb98789968b08243ee5360a8925b32733d0",
+  "dataset_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+  "original_summary_sha256": "8048b2817b1904eb80669be551e26cf83319f32ae74f997d14f350a673e03fc8",
+  "original_summary": {
+    "baseline_commit": "14e8c59950204c96cdfa2195594885383d1d5720",
+    "candidate_commit": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+    "pairs": [
+      {
+        "trial": 1,
+        "item_label_flips": [
+          {
+            "index": 0,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 1,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 2,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 3,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 4,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 5,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 6,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 7,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 11,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 19,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 20,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 22,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 24,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 27,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 28,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 29,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "opposition-magnitude-pro-baseline-1.json",
+            "sha256": "2462007f8828fa9f723d8de86f1be2776fc456c3f08bab5d410fa0ce82313d45"
+          },
+          {
+            "path": "opposition-magnitude-pro-candidate-1.json",
+            "sha256": "2a31d4cf848bc5dd0492fa8525c210a4d2b6de78eedc5e55fa82448d3741c9ff"
+          }
+        ],
+        "controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+          "scientific_acceptance": "not_assessed"
+        },
+        "source_delta": {
+          "scope": "Composite app/engine candidate; no individual-change causal attribution",
+          "subtree_revisions": {
+            "baseline": {
+              "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            },
+            "candidate": {
+              "app": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "engine": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            }
+          },
+          "verified_project_import_counts": [
+            308,
+            310
+          ]
+        },
+        "historical_controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+          "scientific_acceptance": "not_assessed"
+        },
+        "baseline_metrics": {
+          "accuracy": 0.433,
+          "contradiction_recall": 0.0,
+          "abstention_rate": 0.7,
+          "per_label": {
+            "contradicts": {
+              "precision": 0.0,
+              "recall": 0.0
+            },
+            "supports": {
+              "precision": 1.0,
+              "recall": 0.667
+            },
+            "insufficient": {
+              "precision": 0.429,
+              "recall": 0.643
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 0.0,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.0,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 0.667,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 0.25,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 0.667,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 0.8,
+              "n": 5
+            }
+          }
+        },
+        "candidate_metrics": {
+          "accuracy": 0.967,
+          "contradiction_recall": 0.9,
+          "abstention_rate": 0.5,
+          "per_label": {
+            "contradicts": {
+              "precision": 1.0,
+              "recall": 0.9
+            },
+            "supports": {
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "insufficient": {
+              "precision": 0.933,
+              "recall": 1.0
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 1.0,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.667,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 1.0,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 1.0,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 1.0,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 1.0,
+              "n": 5
+            }
+          }
+        },
+        "false_contradictions": [
+          0,
+          0
+        ],
+        "criteria": {
+          "improved_accuracy": true,
+          "improved_contradiction_recall": true,
+          "candidate_gates": true,
+          "historical_noncontradiction": true,
+          "controlled_live_verifier": true,
+          "no_new_challenge_false_contradictions": true,
+          "no_recorded_deterministic_fallback": true,
+          "candidate_scope_controls": false
+        },
+        "passed": false,
+        "physical_requests": [
+          53,
+          65
+        ]
+      },
+      {
+        "trial": 2,
+        "item_label_flips": [
+          {
+            "index": 1,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 2,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 3,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 4,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 6,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 7,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 8,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 9,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 11,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 19,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 20,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 22,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 24,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 26,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 27,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 28,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 29,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "opposition-magnitude-pro-baseline-2.json",
+            "sha256": "60c55dfb1e0994400ab3d3877bc4f6769b51ede38e7c8a15ce26eb88128598b4"
+          },
+          {
+            "path": "opposition-magnitude-pro-candidate-2.json",
+            "sha256": "440e8d2bdbcac83da40bb523ff9c41f1bd62ab4b86ba39879d1c5df02e3cc96e"
+          }
+        ],
+        "controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+          "scientific_acceptance": "not_assessed"
+        },
+        "source_delta": {
+          "scope": "Composite app/engine candidate; no individual-change causal attribution",
+          "subtree_revisions": {
+            "baseline": {
+              "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            },
+            "candidate": {
+              "app": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "engine": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            }
+          },
+          "verified_project_import_counts": [
+            308,
+            310
+          ]
+        },
+        "historical_controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+          "scientific_acceptance": "not_assessed"
+        },
+        "baseline_metrics": {
+          "accuracy": 0.367,
+          "contradiction_recall": 0.0,
+          "abstention_rate": 0.633,
+          "per_label": {
+            "contradicts": {
+              "precision": 0.0,
+              "recall": 0.0
+            },
+            "insufficient": {
+              "precision": 0.368,
+              "recall": 0.5
+            },
+            "supports": {
+              "precision": 1.0,
+              "recall": 0.667
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 0.0,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.0,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 0.667,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 0.25,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 0.0,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 0.8,
+              "n": 5
+            }
+          }
+        },
+        "candidate_metrics": {
+          "accuracy": 0.933,
+          "contradiction_recall": 0.8,
+          "abstention_rate": 0.533,
+          "per_label": {
+            "supports": {
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "insufficient": {
+              "precision": 0.875,
+              "recall": 1.0
+            },
+            "contradicts": {
+              "precision": 1.0,
+              "recall": 0.8
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 0.857,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.667,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 1.0,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 1.0,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 1.0,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 1.0,
+              "n": 5
+            }
+          }
+        },
+        "false_contradictions": [
+          0,
+          0
+        ],
+        "criteria": {
+          "improved_accuracy": true,
+          "improved_contradiction_recall": true,
+          "candidate_gates": true,
+          "historical_noncontradiction": true,
+          "controlled_live_verifier": true,
+          "no_new_challenge_false_contradictions": true,
+          "no_recorded_deterministic_fallback": true,
+          "candidate_scope_controls": false
+        },
+        "passed": false,
+        "physical_requests": [
+          53,
+          64
+        ]
+      },
+      {
+        "trial": 3,
+        "item_label_flips": [
+          {
+            "index": 1,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 2,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 3,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 4,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 5,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 6,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 7,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 19,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 20,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 22,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 24,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 26,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          },
+          {
+            "index": 27,
+            "baseline": "insufficient",
+            "candidate": "supports"
+          },
+          {
+            "index": 28,
+            "baseline": "insufficient",
+            "candidate": "contradicts"
+          },
+          {
+            "index": 29,
+            "baseline": "partial",
+            "candidate": "insufficient"
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "opposition-magnitude-pro-baseline-3.json",
+            "sha256": "7441f7472b3f750a3aaf01d7edd0cc04d801d411074d08899198b1fec92af9ce"
+          },
+          {
+            "path": "opposition-magnitude-pro-candidate-3.json",
+            "sha256": "651ff61168c8f5570e2e3a1523c902389c0f13f29cc5f6908a40e88c872f18f9"
+          }
+        ],
+        "controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "3ec94804cb04cf5e08a1055955855e571353b4ddecc070d131cddba4a610b4df",
+          "scientific_acceptance": "not_assessed"
+        },
+        "source_delta": {
+          "scope": "Composite app/engine candidate; no individual-change causal attribution",
+          "subtree_revisions": {
+            "baseline": {
+              "app": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "engine": "14e8c59950204c96cdfa2195594885383d1d5720",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            },
+            "candidate": {
+              "app": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "engine": "e57ad3cf11ebba2e90a753fe7538a6c64953cbc2",
+              "evaluations": "14e8c59950204c96cdfa2195594885383d1d5720"
+            }
+          },
+          "verified_project_import_counts": [
+            308,
+            310
+          ]
+        },
+        "historical_controls": {
+          "status": "matched_declared_inputs",
+          "panel": "citation_entailment",
+          "execution_mode": "live_requested",
+          "identity_digest": "eac93e26a0801c19f4543ee1db80127819ccb592586630d24aaf20e4f7f108ff",
+          "scientific_acceptance": "not_assessed"
+        },
+        "baseline_metrics": {
+          "accuracy": 0.433,
+          "contradiction_recall": 0.0,
+          "abstention_rate": 0.7,
+          "per_label": {
+            "contradicts": {
+              "precision": 0.0,
+              "recall": 0.0
+            },
+            "insufficient": {
+              "precision": 0.429,
+              "recall": 0.643
+            },
+            "supports": {
+              "precision": 1.0,
+              "recall": 0.667
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 0.0,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.0,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 0.667,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 0.0,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 0.667,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 1.0,
+              "n": 5
+            }
+          }
+        },
+        "candidate_metrics": {
+          "accuracy": 0.933,
+          "contradiction_recall": 0.8,
+          "abstention_rate": 0.533,
+          "per_label": {
+            "contradicts": {
+              "precision": 1.0,
+              "recall": 0.8
+            },
+            "supports": {
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "insufficient": {
+              "precision": 0.875,
+              "recall": 1.0
+            }
+          },
+          "n": 30,
+          "by_kind": {
+            "numeric_conflict": {
+              "accuracy": 0.857,
+              "n": 7
+            },
+            "paraphrase_contradiction": {
+              "accuracy": 0.667,
+              "n": 3
+            },
+            "paraphrase_support": {
+              "accuracy": 1.0,
+              "n": 6
+            },
+            "retracted": {
+              "accuracy": 1.0,
+              "n": 2
+            },
+            "species_mismatch": {
+              "accuracy": 1.0,
+              "n": 4
+            },
+            "temporal_mismatch": {
+              "accuracy": 1.0,
+              "n": 3
+            },
+            "topic_mention_only": {
+              "accuracy": 1.0,
+              "n": 5
+            }
+          }
+        },
+        "false_contradictions": [
+          0,
+          0
+        ],
+        "criteria": {
+          "improved_accuracy": true,
+          "improved_contradiction_recall": true,
+          "candidate_gates": true,
+          "historical_noncontradiction": true,
+          "controlled_live_verifier": true,
+          "no_new_challenge_false_contradictions": true,
+          "no_recorded_deterministic_fallback": true,
+          "candidate_scope_controls": false
+        },
+        "passed": false,
+        "physical_requests": [
+          53,
+          64
+        ]
+      }
+    ],
+    "complete": true,
+    "accepted": false
+  },
+  "pairs": [
+    {
+      "trial": 1,
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": true
+      },
+      "passed": true,
+      "original_scope_checks": {
+        "single": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured.",
+                "start": 0,
+                "end": 121
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay; the magnitude of reduction was not reported.",
+                "start": 0,
+                "end": 119
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+                "start": 0,
+                "end": 68
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+                "start": 0,
+                "end": 105
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ],
+        "batch_single_claim": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "compound R reduced lipid accumulation after seven days",
+                "start": 28,
+                "end": 82
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay",
+                "start": 0,
+                "end": 73
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+                "start": 0,
+                "end": 68
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+                "start": 0,
+                "end": 105
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ]
+      }
+    },
+    {
+      "trial": 2,
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": true
+      },
+      "passed": true,
+      "original_scope_checks": {
+        "single": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured.",
+                "start": 0,
+                "end": 121
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay; the magnitude of reduction was not reported.",
+                "start": 0,
+                "end": 119
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+                "start": 0,
+                "end": 68
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+                "start": 0,
+                "end": 105
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ],
+        "batch_single_claim": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "compound R reduced lipid accumulation after seven days",
+                "start": 28,
+                "end": 82
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay",
+                "start": 0,
+                "end": 73
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+                "start": 0,
+                "end": 68
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours",
+                "start": 0,
+                "end": 80
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ]
+      }
+    },
+    {
+      "trial": 3,
+      "criteria": {
+        "improved_accuracy": true,
+        "improved_contradiction_recall": true,
+        "candidate_gates": true,
+        "historical_noncontradiction": true,
+        "controlled_live_verifier": true,
+        "no_new_challenge_false_contradictions": true,
+        "no_recorded_deterministic_fallback": true,
+        "candidate_scope_controls": true
+      },
+      "passed": true,
+      "original_scope_checks": {
+        "single": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured.",
+                "start": 0,
+                "end": 121
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay; the magnitude of reduction was not reported.",
+                "start": 0,
+                "end": 119
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+                "start": 0,
+                "end": 68
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+                "start": 0,
+                "end": 105
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ],
+        "batch_single_claim": [
+          {
+            "id": "same_scope_part_of_result",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "compound R reduced lipid accumulation after seven days",
+                "start": 28,
+                "end": 82
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "same_scope_unspecified_magnitude",
+            "label": "partial",
+            "allowed_labels": [
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S reduced migration of human fibroblasts during a 24-hour assay",
+                "start": 0,
+                "end": 73
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "broad_claim_no_invented_species",
+            "label": "supports",
+            "allowed_labels": [
+              "supports",
+              "partial"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Compound R reduced lipid accumulation in cultured rat hepatocytes.",
+                "start": 0,
+                "end": 66
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_full_support",
+            "label": "supports",
+            "allowed_labels": [
+              "supports"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S",
+                "start": 0,
+                "end": 67
+              }
+            ],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_population",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_model",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_endpoint",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_followup",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "changed_dose",
+            "label": "insufficient",
+            "allowed_labels": [
+              "insufficient"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "model_primary",
+            "quotes": [],
+            "quotes_valid": true,
+            "passed": true
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "label": "contradicts",
+            "allowed_labels": [
+              "contradicts"
+            ],
+            "assessor_invocations": 1,
+            "nonempty_assessor_invocations": 1,
+            "verification_method": "lexical_founded",
+            "quotes": [
+              {
+                "evidence_id": "passage-0",
+                "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+                "start": 0,
+                "end": 105
+              }
+            ],
+            "quotes_valid": true,
+            "passed": false
+          }
+        ]
+      }
+    }
+  ],
+  "complete": true,
+  "corrected_acceptance": true
+}

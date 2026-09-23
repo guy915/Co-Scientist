@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import traceback
 from urllib.error import HTTPError, URLError
 
@@ -62,15 +61,6 @@ def check_pubmed_available() -> str:
         "true" if PubMed can be accessed successfully, "false" otherwise.
     """
     initialize_entrez()
-
-    entrez_email = os.environ.get("ENTREZ_EMAIL")
-    if not entrez_email:
-        # NCBI requires (or strongly recommends) an identifying email for
-        # Entrez API use; treat it as a hard prerequisite here.
-        logger.warning(
-            "PubMed unavailable: ENTREZ_EMAIL not set (recommended by NCBI)"
-        )
-        return "false"
 
     return "true" if _pubmed_canary_query_succeeds() else "false"
 

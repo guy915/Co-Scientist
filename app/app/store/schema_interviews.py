@@ -14,6 +14,7 @@ INTERVIEWS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS interviews (
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,
+    execution_policy TEXT NOT NULL DEFAULT 'standard',
     status TEXT NOT NULL,             -- active | completed | cancelled
     fields_json TEXT NOT NULL,
     current_question TEXT,

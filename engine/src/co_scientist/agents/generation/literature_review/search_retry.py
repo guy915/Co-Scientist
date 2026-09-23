@@ -9,6 +9,8 @@ import logging
 import re
 from typing import Any
 
+from langchain_core.tools import ToolException
+
 from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc,
 )
@@ -60,6 +62,13 @@ def _is_tool_reported_error(payload: Any) -> bool:
     )
 
 
+def _decode_search_result(result: Any) -> Any:
+    """Preserve reported source errors instead of manufacturing zero hits."""
+    if _is_tool_reported_error(result):
+        raise ToolException(result)
+    return parse_mcp_result(result)
+
+
 def _search_retry_delay(attempt: int) -> float:
     """Jittered exponential backoff before search attempt ``attempt`` + 1.
 
@@ -101,15 +110,9 @@ async def _call_search_tool(
     for attempt in range(1, _SEARCH_ATTEMPTS + 1):
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
-            if _is_tool_reported_error(result):
-                logger.warning(
-                    "Search call to %s failed permanently (tool-reported "
-                    "error, not retrying): %s",
-                    tool_name,
-                    result,
-                )
-                return {}
-            return parse_mcp_result(result)
+            return _decode_search_result(result)
+        except ToolException:
+            raise
         except Exception as exc:
             if attempt == _SEARCH_ATTEMPTS:
                 raise

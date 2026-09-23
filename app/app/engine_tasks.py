@@ -257,6 +257,7 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _successor_task_type as _successor_task_type,
 )
+from app.execution_policy import scoped_execution_policy
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import (
@@ -475,11 +476,15 @@ async def execute_engine_task(
 
     from app.credentials import get_run_credential, scoped_byok
 
+    run = store.get_run(task.run_id, db_path=db_path)
+    if run is None:
+        raise LookupError(f"run not found for task dispatch: {task.run_id}")
     credential = get_run_credential(task.run_id, db_path=db_path)
     ceiling = _llm_call_ceiling_for_run(task.run_id, db_path)
     with (
         scoped_byok(credential),
         scoped_api_key(credential.api_key if credential else None),
         scoped_llm_call_budget(task.run_id, ceiling),
+        scoped_execution_policy(run.execution_policy),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

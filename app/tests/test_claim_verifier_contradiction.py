@@ -5,7 +5,7 @@ budget. Measured on production ultra run b82f9162 (2026-09-06): 105 of 183
 claim-evidence edges came back CONTRADICTS from the free-model LLM assessor,
 including a quote about a different molecule/target and a quote that merely
 confirmed the claim's own mechanism. Both real shapes are reproduced verbatim
-in miniature below, proving ``claim_verifier._reject_unfounded_contradiction``
+in miniature below, proving ``claim_verifier_opposition.guard_contradictions``
 downgrades them to INSUFFICIENT while a genuine, on-topic negation still
 blocks.
 """
@@ -159,4 +159,5 @@ def test_genuine_negation_still_yields_contradiction(
         claim, [passage], assessor=assessor, assessor_id=assessor_id
     )
     assert result.label is EntailmentLabel.CONTRADICTS
+    assert result.verification_method == "lexical_founded"
     assert result.contradicting_passages

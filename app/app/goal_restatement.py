@@ -108,9 +108,7 @@ async def _request_restatement_completion(
         thinking_enabled: False for the one retry a thinking-only response
             gets (see ``generate_goal_restatement``).
     """
-    import litellm
-
-    from app import credentials, offline_guard
+    from app import credentials, llm_request, offline_guard
 
     # The goal itself is the prompt, so this leaks exactly what forced offline
     # exists to keep in: refuse before the call. The caller treats any failure
@@ -125,7 +123,7 @@ async def _request_restatement_completion(
         else thinking_off_kwargs(model)
     )
     return await asyncio.wait_for(
-        litellm.acompletion(
+        llm_request.acompletion(
             model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},

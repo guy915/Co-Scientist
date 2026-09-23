@@ -20,6 +20,7 @@ from typing import Any
 
 from app import credentials, store
 from app.config import settings
+from app.execution_policy import scoped_execution_policy
 from app.qa_manifest import QaRunContext as QaRunContext
 from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa_manifest import build_system_prompt as build_system_prompt
@@ -371,6 +372,8 @@ async def stream_answer(
     question: QaQuestion,
     inputs: QaAnswerInputs,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the LLM answer as SSE frames and persist the exchange.
 
@@ -387,12 +390,22 @@ async def stream_answer(
         inputs: The prompt, evidence manifest and ideas the answer is
             grounded in.
         byok: Optional credential the answer is generated on.
+        execution_policy: Policy captured when the run was authorized.
 
     Yields:
         SSE ``data:`` frames.
     """
+    if execution_policy is None:
+        run = store.get_run(run_id)
+        if run is None:
+            yield sse_frame({"type": "error", "message": "run not found"})
+            return
+        execution_policy = run.execution_policy
     try:
-        with credentials.scoped_byok(byok):
+        with (
+            scoped_execution_policy(execution_policy),
+            credentials.scoped_byok(byok),
+        ):
             deltas = stream_llm_deltas(
                 settings.effective_chat_model,
                 inputs.system_prompt,

@@ -13,7 +13,7 @@ the kernel, not in the process that assembled them, so a Python host gets
 exactly the isolation a Rust one does.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 
@@ -133,6 +133,17 @@ class SandboxPolicy:
 def read_only() -> SandboxPolicy:
     """Builds the read-nothing-write-nothing-reach-nothing default."""
     return SandboxPolicy(kind=SandboxKind.READ_ONLY)
+
+
+def campaign_workspace_policy(policy: SandboxPolicy) -> SandboxPolicy:
+    """Keep campaign workspace commands offline under OS confinement."""
+    from co_scientist.llm_free_policy import campaign_free_mode
+
+    if not campaign_free_mode():
+        return policy
+    if not policy.confines_in_process:
+        raise RuntimeError("campaign workspace requires OS confinement")
+    return replace(policy, network_allowed=False)
 
 
 def workspace_write(

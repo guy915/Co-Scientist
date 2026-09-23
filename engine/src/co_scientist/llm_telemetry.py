@@ -21,20 +21,19 @@ node, not once per call.
 Attribution is by "phase": the durable task/node name a call happened
 under (e.g. "generate", "review", "safety_screen"), scoped for the
 duration of one node's execution via ``scoped_telemetry``. A call made
-outside any such scope -- a library caller driving a node function
-directly, as the ``dev/`` standalone scripts do -- is still recorded, under
-the ``UNSPECIFIED_PHASE`` bucket, so telemetry is never silently dropped;
-it just cannot be attributed to a node.
+outside any such scope is not captured. Evaluation runners must establish
+a scope explicitly; importing this module alone does not collect evidence.
 """
 
 import contextlib
 import dataclasses
+from collections import Counter
 from collections.abc import Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.constants_pricing import estimate_cost_usd
+from co_scientist.constants_pricing import MODEL_PRICING, estimate_cost_usd
 from co_scientist.llm_response import extract_token_usage
 
 UNSPECIFIED_PHASE = "unspecified"
@@ -49,7 +48,17 @@ class ModelCallStats:
     own.
 
     Attributes:
+        deterministic_fallbacks: Substituted judgments by reason, independent
+            of physical call counts and attributed to the requested model.
         calls: Physical completion attempts (successes and failures alike).
+        observed_model_calls: Responses with a nonempty provider model identity.
+        reported_usage_calls: Responses with explicit valid token counts.
+        priced_usage_calls: Calls with observed identity, token counts and a
+            static pricing entry. This supports an estimate, not a bill.
+            Calls minus this count have incomplete cost evidence, including
+            failures and old checkpoints without observation fields.
+        requested_models: Physical attempts by requested model, independent
+            of the response model used as the aggregate key.
         prompt_tokens: Prompt tokens billed across those calls.
         completion_tokens: Completion tokens billed across those calls.
         reasoning_tokens: Reasoning tokens billed separately, when reported.
@@ -72,7 +81,12 @@ class ModelCallStats:
             exception's class name).
     """
 
+    deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
     calls: int = 0
+    observed_model_calls: int = 0
+    reported_usage_calls: int = 0
+    priced_usage_calls: int = 0
+    requested_models: dict[str, int] = field(default_factory=dict)
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int = 0
@@ -95,7 +109,17 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
     for kind, count in b.errors.items():
         errors[kind] = errors.get(kind, 0) + count
     return ModelCallStats(
+        deterministic_fallbacks=dict(
+            Counter(a.deterministic_fallbacks)
+            + Counter(b.deterministic_fallbacks)
+        ),
         calls=a.calls + b.calls,
+        observed_model_calls=a.observed_model_calls + b.observed_model_calls,
+        reported_usage_calls=a.reported_usage_calls + b.reported_usage_calls,
+        priced_usage_calls=a.priced_usage_calls + b.priced_usage_calls,
+        requested_models=dict(
+            Counter(a.requested_models) + Counter(b.requested_models)
+        ),
         prompt_tokens=a.prompt_tokens + b.prompt_tokens,
         completion_tokens=a.completion_tokens + b.completion_tokens,
         reasoning_tokens=a.reasoning_tokens + b.reasoning_tokens,
@@ -246,12 +270,21 @@ def _served_model_name(requested: str, response: Any) -> str:
         the request; only the model half comes from the response.
     """
     served = getattr(response, "model", None)
-    if not isinstance(served, str) or not served:
+    if not isinstance(served, str) or not served.strip():
         return requested
+    served = served.strip()
     route, _, _ = requested.partition("/")
     if route and requested != served and not served.startswith(f"{route}/"):
         return f"{route}/{served}"
     return served
+
+
+def _has_token_counts(response: Any) -> bool:
+    usage = getattr(response, "usage", None)
+    return all(
+        type(value := getattr(usage, name, None)) is int and value >= 0
+        for name in ("prompt_tokens", "completion_tokens")
+    )
 
 
 def record_completion_response(
@@ -276,6 +309,9 @@ def record_completion_response(
         latency_seconds: Wall-clock time the physical call took.
     """
     usage = extract_token_usage(response)
+    reported = getattr(response, "model", None)
+    observed = isinstance(reported, str) and bool(reported.strip())
+    usage_reported = _has_token_counts(response)
     served = _served_model_name(model_name, response)
     cost = estimate_cost_usd(
         served,
@@ -287,6 +323,12 @@ def record_completion_response(
         served,
         ModelCallStats(
             calls=1,
+            observed_model_calls=int(observed),
+            reported_usage_calls=int(usage_reported),
+            priced_usage_calls=int(
+                observed and usage_reported and served in MODEL_PRICING
+            ),
+            requested_models={model_name: 1},
             prompt_tokens=usage.prompt_tokens,
             completion_tokens=usage.completion_tokens,
             reasoning_tokens=usage.reasoning_tokens,
@@ -311,6 +353,7 @@ def record_completion_failure(
         model_name,
         ModelCallStats(
             calls=1,
+            requested_models={model_name: 1},
             latency_seconds=latency_seconds,
             errors={type(error).__name__: 1},
         ),
@@ -337,3 +380,12 @@ def record_cache_result(model_name: str, hit: bool) -> None:
         ModelCallStats(cache_hits=1) if hit else ModelCallStats(cache_misses=1)
     )
     record_call(model_name, stats)
+
+
+def record_deterministic_fallback(model_name: str, reason: str) -> None:
+    """Record a substituted judgment against its requested model, not a call.
+
+    Counts describe recorded events only; absent events in old checkpoints
+    cannot establish that all judgments came from a model.
+    """
+    record_call(model_name, ModelCallStats(deterministic_fallbacks={reason: 1}))

@@ -119,7 +119,12 @@ def _apply_schema_response_format(
     if llm_request._supports_json_schema_response_format(model_name):
         completion_args["response_format"] = {
             "type": "json_schema",
-            "json_schema": json_schema,
+            # Callers use both bare schemas and provider envelopes.
+            "json_schema": (
+                {"name": "response", **json_schema}
+                if "schema" in json_schema
+                else {"name": "response", "schema": json_schema}
+            ),
         }
         return
 

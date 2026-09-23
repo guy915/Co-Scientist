@@ -1,8 +1,8 @@
 """Forced offline must reach no provider from the app's own chat calls.
 
 The engine's offline router only intercepts ``offline/``-prefixed models, so
-it never covers the three call sites that talk to litellm directly -- the
-goal interview, run Q&A, and run titling. Each of those carries the
+it does not cover app chat calls: interview, Q&A, announcements, titles
+and goal restatements. Each of those carries the
 scientist's research goal verbatim, so a deployment that sets
 ``COSCIENTIST_FORCE_OFFLINE=1`` while a provider key happens to be present
 in the environment must still send nothing: the point of the switch is that
@@ -26,7 +26,14 @@ from typing import Any
 
 import pytest
 
-from app import credentials, qa, store, title_gen
+from app import (
+    credentials,
+    goal_restatement,
+    qa,
+    run_start_announcement,
+    store,
+    title_gen,
+)
 from tests._client import make_client
 
 from ._interviews_helpers import _interview_payload
@@ -157,3 +164,25 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     # not re-export it, so reaching for the attribute directly is a private
     # access the typechecker is right to reject.
     assert sys.modules["app.runs_chat"].qa is qa
+
+
+@pytest.mark.asyncio
+async def test_restatement_makes_no_outbound_request(
+    attempts: list[dict[str, Any]],
+) -> None:
+    assert await goal_restatement.generate_goal_restatement(_GOAL) is None
+    assert attempts == []
+
+
+@pytest.mark.asyncio
+async def test_announcement_makes_no_outbound_request(
+    attempts: list[dict[str, Any]],
+) -> None:
+    from app.offline_guard import OfflineModeError
+
+    with pytest.raises(OfflineModeError):
+        async for _ in run_start_announcement._stream_model_fragments(
+            store.create_run(_GOAL, "express", "engine", {})
+        ):
+            pass
+    assert attempts == []

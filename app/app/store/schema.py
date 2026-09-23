@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS runs (
     -- JSON: initial_count, iterations, evolution_count, k_factor, ...
     config_json TEXT NOT NULL,
     client_id TEXT NOT NULL DEFAULT '',
+    execution_policy TEXT NOT NULL DEFAULT 'standard',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     completed_at REAL,
@@ -368,6 +369,7 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
     supporting_json TEXT,            -- JSON list of supporting passages
     contradicting_json TEXT,         -- JSON list of contradicting passages
     assessor TEXT NOT NULL,          -- provenance id of the entailment assessor
+    verification_method TEXT NOT NULL DEFAULT 'legacy_unknown',
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE

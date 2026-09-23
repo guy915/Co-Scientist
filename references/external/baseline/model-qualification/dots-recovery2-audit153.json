@@ -1,0 +1,53 @@
+{
+  "purpose": "Audit completed Dots recovery trial2; does not accept scientific qualification",
+  "artifact": "dots-challenge128-recovery144-2.json",
+  "artifact_sha256": "a6326c1917eeff8eb5d3add2295ea26c60f2b769e82c0cdacc75bba53f6ebcc7",
+  "physical_requests": 65,
+  "observed_models": {
+    "dots-studio/dots-3-note-preview:free": 65
+  },
+  "missing_model_or_token_usage_indices": [],
+  "nonzero_or_missing_price_cap_indices": [],
+  "unexpected_model_indices": [],
+  "phases": {
+    "challenge": 38,
+    "historical_full_live": 5,
+    "controlled_primary_live_verifier": 1,
+    "scope_single": 11,
+    "scope_batch_single_claim": 10
+  },
+  "scientific_gates_passed": false,
+  "scope_passed": {
+    "single": true,
+    "batch_single_claim": true
+  },
+  "historical_passed": true,
+  "controlled_primary_passed": true,
+  "billing_receipt_available": false,
+  "failure_analysis": {
+    "alignment": "dataset index, not duplicate claim text",
+    "reviewer": "pro147_preflight",
+    "misses": [
+      {
+        "index": 0,
+        "cause": "primary returned insufficient without quote",
+        "original_trial1": "opposition unconfirmed"
+      },
+      {
+        "index": 1,
+        "cause": "opposition false,false despite primary contradicting quote",
+        "original_trial1": "opposition verified"
+      },
+      {
+        "index": 21,
+        "cause": "subject coverage guard rejected quote before opposition",
+        "original_trial1": "same guard rejection"
+      },
+      {
+        "index": 24,
+        "cause": "opposition same_conditions false, mutually_exclusive true",
+        "original_trial1": "opposition verified"
+      }
+    ]
+  }
+}

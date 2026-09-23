@@ -3,8 +3,8 @@
 Split from ``test_llm_gateway_fallback.py`` on the same grounds as
 ``test_llm_reasoning_mandatory.py``: these pin the price cap that stops a
 free primary's fallback chain from ever routing to a rung more expensive
-than the primary above it (and, when the primary itself is priced, that
-the request actually carries ``max_price``) -- distinct concerns from that
+than the primary above it (including an explicit zero ceiling for free
+primaries) -- distinct concerns from that
 file's routing-shape and reasoning-knob tests.
 """
 
@@ -111,32 +111,25 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
         assert len(body.get("models", [])) <= _GATEWAY_MAX_FALLBACKS, model
 
 
-def test_a_priced_primary_arms_the_routing_ceiling() -> None:
-    """The cap exists only when the primary has a rate to be a multiple of.
-
-    A priced primary must send ``max_price``: that is the ceiling that
-    would have refused the $5.23 incident's fallback. A *free* primary
-    correctly sends none -- there is no meaningful multiple of nothing --
-    but that is safe only because every rung under it is also free
-    (asserted by ``test_no_fallback_costs_more_than_the_model_above_it``),
-    so an uncapped route still has nothing to overspend on.
-    """
+def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
+    """A zero-priced primary must keep the provider ceiling armed too."""
     from co_scientist.constants_pricing import MODEL_PRICING
     from co_scientist.llm_thinking import _GATEWAY_MODELS, _gateway_provider
 
-    for primary, declared in _GATEWAY_MODELS.items():
-        if not declared.fallbacks:
-            continue
+    for primary in _GATEWAY_MODELS:
         price = MODEL_PRICING[primary]
-        has_cap = "max_price" in _gateway_provider(primary)
-        if price.prompt_usd_per_million:
-            assert has_cap, (
-                f"{primary} heads a chain but sends no price ceiling"
-            )
-        else:
-            assert not has_cap, (
-                f"{primary} is free but sends a price ceiling anyway"
-            )
+        provider = _gateway_provider(primary)
+        assert "max_price" in provider, primary
+        if (
+            price.prompt_usd_per_million
+            == price.completion_usd_per_million
+            == 0
+        ):
+            assert provider["max_price"] == {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0,
+            }
 
 
 def test_the_price_cap_excludes_the_2x_tier() -> None:

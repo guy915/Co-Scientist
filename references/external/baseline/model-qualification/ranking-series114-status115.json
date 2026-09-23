@@ -1,0 +1,18 @@
+{
+  "runner_session": 45354,
+  "runner_status": "live; trial2 running after trial1 exit0",
+  "trial1": {
+    "artifact": "nex-pro-ranking-series114-1.json",
+    "sha256": "8f07e456689ea5ec3262f32d916208d6e1aac11bada1060584385a2653bab509",
+    "passed": true,
+    "top1_accuracy": 1.0,
+    "mean_tau_b": 0.7781,
+    "top_ties": 0,
+    "physical_calls": 48,
+    "reported_cost_usd": 0,
+    "zero_caps_verified": true,
+    "deterministic_fallbacks": 0
+  },
+  "series_complete": false,
+  "remaining": "Trials2 and3; inspect same runner, never restart based on observation timeout"
+}

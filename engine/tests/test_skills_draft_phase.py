@@ -171,3 +171,18 @@ def test_two_passes_of_one_run_do_not_share_a_directory(
     second = open_draft_workspace("run-1", "pass-2")
 
     assert first.root != second.root
+
+
+def test_campaign_uses_guarded_mcp_without_remote_skill_instructions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    _install_skill(tmp_path / "skills", "uniprot", "Queries UniProt.")
+    monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
+    monkeypatch.setenv("COSCIENTIST_WORKSPACE_DIR", str(tmp_path / "work"))
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    provider = _StubProvider()
+    attached = draft_skills.attach_skills(_state(), provider, _MCP_TOOLS)
+    assert attached.provider is provider
+    assert attached.tools == _MCP_TOOLS
+    assert attached.section == ""
+    assert not (tmp_path / "work").exists()

@@ -101,24 +101,14 @@ def _merge_phase_times(
     return merged_phase_times
 
 
-def _merge_error_counts(
-    existing_errors: dict[str, int], new_errors: dict[str, int]
-) -> dict[str, int]:
-    """Merge two error-kind -> count dicts, summing shared kinds."""
-    merged = dict(existing_errors)
-    for kind, count in new_errors.items():
-        merged[kind] = merged.get(kind, 0) + count
-    return merged
-
-
 def _merge_usage_entry(
     existing_entry: dict[str, Any], new_entry: dict[str, Any]
 ) -> dict[str, Any]:
-    """Sum one (phase, model) usage entry's numeric fields and errors.
+    """Sum one (phase, model) usage entry's numeric fields and count maps.
 
     Every field a ``ModelCallStats.as_dict()`` entry carries is additive
     (see that dataclass), so this is a plain field-by-field sum with the
-    "errors" sub-dict merged by ``_merge_error_counts``.
+    error, request and deterministic-fallback maps merged by ``_merge_counts``.
 
     The field list is read off ``ModelCallStats`` rather than restated
     here. A hand-written list is a second place to remember, and the one
@@ -127,15 +117,26 @@ def _merge_usage_entry(
     but silently zeroed for exactly the phase whose cost matters most.
     """
     numeric_fields = tuple(
-        f.name for f in dataclasses.fields(ModelCallStats) if f.name != "errors"
+        f.name
+        for f in dataclasses.fields(ModelCallStats)
+        if f.name
+        not in {"errors", "requested_models", "deterministic_fallbacks"}
     )
     merged = {
         field_name: existing_entry.get(field_name, 0)
         + new_entry.get(field_name, 0)
         for field_name in numeric_fields
     }
-    merged["errors"] = _merge_error_counts(
+    merged["errors"] = _merge_counts(
         existing_entry.get("errors", {}), new_entry.get("errors", {})
+    )
+    merged["requested_models"] = _merge_counts(
+        existing_entry.get("requested_models", {}),
+        new_entry.get("requested_models", {}),
+    )
+    merged["deterministic_fallbacks"] = _merge_counts(
+        existing_entry.get("deterministic_fallbacks", {}),
+        new_entry.get("deterministic_fallbacks", {}),
     )
     return merged
 

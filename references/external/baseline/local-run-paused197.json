@@ -1,0 +1,23 @@
+{
+  "execution_progress": {
+    "active_task": "engine.ranking.match",
+    "completed_tasks": 40,
+    "determinate": false,
+    "fraction": null,
+    "queued_tasks": 0,
+    "total_tasks": 41
+  },
+  "interpretation": "Partial live workflow evidence; no completed report or production verification",
+  "observed_at_utc": "2026-09-22T21:11:49.531009+00:00",
+  "run_id": "6b095448-e567-4be2-8061-037ec46da803",
+  "scope": "campaign-owned public-goal run; no private documents; notifications disabled",
+  "source": "authenticated local GET /api/runs/{run_id}",
+  "status": "paused",
+  "summary": {
+    "events": 20,
+    "evidence": 0,
+    "hypotheses": 0,
+    "matches": 0,
+    "reviews": 0
+  }
+}

@@ -67,6 +67,31 @@ def _offline_router() -> None:
     install_offline_router()
 
 
+@pytest.fixture(autouse=True)
+def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Synthetic metadata keeps mocked free-model requests hermetic."""
+    from co_scientist import llm_free_catalog
+    from co_scientist.constants_pricing import MODEL_PRICING
+
+    catalog = {
+        model.removeprefix("openrouter/"): {
+            "pricing": {
+                "prompt": str(price.prompt_usd_per_million),
+                "completion": str(price.completion_usd_per_million),
+            },
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        for model, price in MODEL_PRICING.items()
+        if model.startswith("openrouter/")
+    }
+    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: catalog)
+
+
 def _apply_offline_env(
     monkeypatch: pytest.MonkeyPatch, db_path: str, reports_dir: str
 ) -> None:
@@ -147,7 +172,7 @@ def reachable_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-placeholder-for-shape-tests")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-placeholder-for-shape-tests")
 
 
 @pytest.fixture(autouse=True)

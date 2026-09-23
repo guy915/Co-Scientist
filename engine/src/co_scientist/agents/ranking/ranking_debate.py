@@ -63,6 +63,7 @@ from co_scientist.llm import (
     call_llm_json,
     indexed_prompt_name,
 )
+from co_scientist.llm_telemetry import record_deterministic_fallback
 from co_scientist.models import Hypothesis
 
 logger = logging.getLogger(__name__)
@@ -203,6 +204,8 @@ async def _run_debate_turn(
     """
     response = await _call_matchup_judge(mp, ctx)
     winner, valid_output = _resolve_turn_winner(response, swapped, fallback)
+    if not valid_output:
+        record_deterministic_fallback(ctx.model_name, "ranking_invalid_turn")
     entry = {
         "turn": turn + 1,
         "winner": winner,

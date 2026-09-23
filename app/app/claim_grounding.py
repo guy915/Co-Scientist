@@ -397,6 +397,7 @@ def _persist_claim_edges(
                     s.to_dict() for s in assessment.contradicting_passages
                 ],
                 assessor=assessment.assessor,
+                verification_method=assessment.verification_method,
                 claim_role=role,
             ),
             db_path=db_path,

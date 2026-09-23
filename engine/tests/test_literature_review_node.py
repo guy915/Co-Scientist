@@ -417,3 +417,32 @@ async def test_a_failed_review_stays_failed_however_much_research_found(
     # The papers and the ledger still survive; only the text is held back.
     assert result["research_ledgers"]
     assert any(a.source_id == "PMID7" for a in result["articles"])
+
+
+async def test_tool_error_envelope_reaches_source_failure_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events, callback = _make_event_recorder()
+    _stub_node(monkeypatch, server_available=True, queries=["q"])
+
+    class Client:
+        async def call_tool(self, _name: str, **_params: Any) -> str:
+            return (
+                "Error calling tool 'search_europepmc': "
+                "Europe PMC unavailable: HTTP 429; Retry-After=60"
+            )
+
+    async def get_client(**_: Any) -> Client:
+        return Client()
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    await literature_review_node(
+        make_state(research_goal="public evidence", progress_callback=callback)
+    )
+    errors = [p for e, p in events if e == "literature_review_error"]
+    assert errors and errors[0]["search_errors_count"] > 0
+    assert any(
+        "Europe PMC" in s and "Retry-After=60" in s
+        for s in errors[0]["search_error_sample"]
+    )
+    assert not any(e == "literature_review_empty" for e, _ in events)

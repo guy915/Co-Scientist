@@ -1,0 +1,2634 @@
+{
+  "source_commit": "06a17a70e9aaf7d3f51bbc8c5c8157825c82c368",
+  "probe_sha256": "17f5d281254f6b80b0765b221636089a903ac5f69d980421d98752416ab7d9ff",
+  "started_at": "2026-09-19T21:10:18.534031+00:00",
+  "requested_model": "openrouter/nex-agi/nex-n2.5-mini:free",
+  "trial": 2,
+  "minimum_physical_start_spacing_seconds": 4,
+  "eligibility": {
+    "id": "nex-agi/nex-n2.5-mini:free",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Qwen3",
+      "instruct_type": null
+    },
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ]
+  },
+  "imported_sources": {
+    "evaluations.citation_eval": {
+      "path": "evaluations/citation_eval.py",
+      "sha256": "d516a7fbdf5734536a97f3b5df7e7e9a6a1218fad4eade4d341ae3e72c3b7ee7"
+    },
+    "app.claim_verifier": {
+      "path": "app/app/claim_verifier.py",
+      "sha256": "89da39707af716a82143b8c204e486840d9a8130988b18de1be9d6d0f76d47bb"
+    },
+    "app.claims_span": {
+      "path": "app/app/claims_span.py",
+      "sha256": "8e791f624be2403ac3d6f391205c274dc59de19bd136b72da8e34b25281bd911"
+    },
+    "co_scientist.llm_request": {
+      "path": "engine/src/co_scientist/llm_request.py",
+      "sha256": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b"
+    },
+    "app.claim_verifier_opposition": {
+      "path": "app/app/claim_verifier_opposition.py",
+      "sha256": "3099d267957c49632f3debfbb6ea1fd4dfbfd1ca23e28ceae918907c2d778042"
+    },
+    "opposition_module_present": true
+  },
+  "report": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 29,
+          "observed_model_calls": 29,
+          "reported_usage_calls": 29,
+          "priced_usage_calls": 29,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 29
+          },
+          "prompt_tokens": 32673,
+          "completion_tokens": 7686,
+          "reasoning_tokens": 6605,
+          "cached_prompt_tokens": 30080,
+          "cost_usd": 0.0,
+          "latency_seconds": 111.87422125299781,
+          "retries": 1,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        },
+        "citation_entailment.claim_opposition::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 8,
+          "observed_model_calls": 8,
+          "reported_usage_calls": 8,
+          "priced_usage_calls": 8,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 8
+          },
+          "prompt_tokens": 4727,
+          "completion_tokens": 3275,
+          "reasoning_tokens": 3704,
+          "cached_prompt_tokens": 2432,
+          "cost_usd": 0.0,
+          "latency_seconds": 37.48691195900028,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {
+            "opposition_verification_incomplete": 1
+          }
+        }
+      },
+      "physical_calls": 37,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/nex-agi/nex-n2.5-mini:free": 37
+      },
+      "observed_models": [
+        "openrouter/nex-agi/nex-n2.5-mini:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "name": "citation-entailment-challenge-v1",
+        "version": 1,
+        "license": "synthetic, CC0 \u2014 hand-written examples, no external corpus",
+        "description": "Adversarial claim/evidence panel for the entailment assessor, deliberately harder than citation-entailment-v1. Every item is designed so a lexical-overlap assessor is misled: the passage shares the claim's vocabulary but a semantic reader must reject or invert the naive match. Categories: `numeric_conflict` (the passage reports the opposite direction or an incompatible magnitude with no explicit negation cue), `species_mismatch` (evidence is in a different organism/model than the claim asserts), `temporal_mismatch` (evidence is about a different time window or endpoint), `topic_mention_only` (the passage mentions every keyword but never asserts the claimed relationship), `retracted` (the only supporting passage is a retracted study and must not count as support), `paraphrase_support` (an entailing passage restates the claim with little shared vocabulary), and `paraphrase_contradiction` (a contradicting passage with no lexicon negation marker). Expected labels use supports/contradicts/insufficient. A retracted or unavailable source yields insufficient because no admissible passage supports the claim. Synthetic and legally shareable; NOT Google's private set. Human audit and threshold selection remain an external gap (no annotator panel).",
+        "items": [
+          {
+            "kind": "numeric_conflict",
+            "claim": "Drug A increases progression-free survival in glioblastoma.",
+            "passages": [
+              "In the phase III cohort, Drug A shortened progression-free survival relative to placebo, from 9.2 months to 6.1 months."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Kinase X inhibition reduces AML tumor growth by roughly half.",
+            "passages": [
+              "Kinase X inhibition increased AML tumor volume threefold across the cell lines tested."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Compound C lowers pathogen P viability at micromolar doses.",
+            "passages": [
+              "Compound C raised pathogen P colony counts at every micromolar dose evaluated."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Blocking receptor Y restores CD8 T-cell infiltration.",
+            "passages": [
+              "Blocking receptor Y further depleted CD8 T cells from the tumor microenvironment."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Vaccine V raises neutralizing antibody titers by ten-fold.",
+            "passages": [
+              "Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Metabolic reprogramming via Z sensitizes human tumors to therapy.",
+            "passages": [
+              "Metabolic reprogramming via Z sensitized murine xenograft tumors to therapy; human tissue was not examined."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Pathway W drives fibrosis progression in human lung.",
+            "passages": [
+              "Pathway W drove fibrosis progression in a zebrafish fin-regeneration model."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Gene G confers drug resistance in human breast carcinoma.",
+            "passages": [
+              "Gene G conferred drug resistance in Drosophila S2 cell culture assays."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Vaccine V elicits durable antibody responses at twelve months.",
+            "passages": [
+              "Vaccine V elicited strong antibody responses when measured at day 14 post-immunization; later timepoints were not reported."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Drug A improves five-year overall survival in glioblastoma.",
+            "passages": [
+              "Drug A improved the 30-day tumor response rate in glioblastoma; overall survival was not assessed."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Inhibiting kinase X reduces tumor growth in AML.",
+            "passages": [
+              "Kinase X is a serine/threonine kinase frequently discussed in the context of AML tumor growth and cell proliferation."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Target T is druggable in solid tumors.",
+            "passages": [
+              "Target T, its solid-tumor expression, and the general concept of druggability have attracted considerable research interest."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "This review surveys many compounds, including compound C, and many pathogens, including pathogen P, without reporting new efficacy data."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Protein Q folds via a two-state mechanism.",
+            "passages": [
+              "Protein Q folding has been studied for decades, and two-state versus multi-state mechanisms remain debated."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "retracted",
+            "claim": "Drug A improves survival in glioblastoma.",
+            "passages": [
+              "RETRACTED: Drug A improved survival in glioblastoma. This article has been retracted for image duplication and unreliable data."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "retracted",
+            "claim": "Gene G is associated with disease D.",
+            "passages": [
+              "This study reporting that gene G is associated with disease D was retracted after the cohort was found to be fabricated."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Kinase X inhibition reduces AML tumor growth.",
+            "passages": [
+              "Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Blocking receptor Y restores immune surveillance.",
+            "passages": [
+              "Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+            "passages": [
+              "Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Protein Q folds via a two-state mechanism.",
+            "passages": [
+              "Q adopts its native structure through a single cooperative transition with no detectable intermediate."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "Across all assays, pathogen P grew just as vigorously in the presence of compound C as in its absence."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Blocking receptor Y restores immune surveillance.",
+            "passages": [
+              "Antagonizing the Y receptor left the animals just as unable to reject tumors as before treatment."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_contradiction",
+            "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+            "passages": [
+              "Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Compound C is effective against pathogen P.",
+            "passages": [
+              "Treatment with compound C sharply curtailed the proliferation of the P organism in culture."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Pathway W drives fibrosis progression.",
+            "passages": [
+              "Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "topic_mention_only",
+            "claim": "Drug A improves survival in glioblastoma.",
+            "passages": [
+              "Glioblastoma remains lethal, and many agents such as drug A are under active investigation for survival benefit."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "species_mismatch",
+            "claim": "Vaccine V elicits durable antibody responses in humans.",
+            "passages": [
+              "Vaccine V elicited durable antibody responses in rhesus macaques; a human trial has not been conducted."
+            ],
+            "label": "insufficient"
+          },
+          {
+            "kind": "paraphrase_support",
+            "claim": "Gene G is associated with disease D.",
+            "passages": [
+              "Carriers of the G locus showed a markedly elevated incidence of the D phenotype in the cohort."
+            ],
+            "label": "supports"
+          },
+          {
+            "kind": "numeric_conflict",
+            "claim": "Target T inhibition slows solid tumor growth.",
+            "passages": [
+              "Inhibiting target T accelerated solid tumor growth in every model examined."
+            ],
+            "label": "contradicts"
+          },
+          {
+            "kind": "temporal_mismatch",
+            "claim": "Compound C durably suppresses pathogen P over four weeks.",
+            "passages": [
+              "Compound C suppressed pathogen P at the 24-hour readout; suppression at later timepoints was not measured."
+            ],
+            "label": "insufficient"
+          }
+        ]
+      },
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "d516a7fbdf5734536a97f3b5df7e7e9a6a1218fad4eade4d341ae3e72c3b7ee7",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b",
+        "llm_gateway_routing.py": "125cd90fb3be7c2d68d20bcd4229c7a4a55cc1809085d7c87c4c96d2222bb10c",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "ab54b1a52542868c340ca90f4f53b9208e6f06fbdcaf6f3199b40fe7f06a1380"
+    },
+    "dataset": "citation-entailment-challenge-v1",
+    "dataset_version": 1,
+    "assessor": "llm:openrouter/nex-agi/nex-n2.5-mini:free",
+    "metrics": {
+      "accuracy": 0.567,
+      "contradiction_recall": 0.6,
+      "abstention_rate": 0.467,
+      "per_label": {
+        "supports": {
+          "precision": 1.0,
+          "recall": 0.5
+        },
+        "contradicts": {
+          "precision": 1.0,
+          "recall": 0.6
+        },
+        "insufficient": {
+          "precision": 0.571,
+          "recall": 0.571
+        }
+      },
+      "n": 30,
+      "by_kind": {
+        "numeric_conflict": {
+          "accuracy": 0.714,
+          "n": 7
+        },
+        "paraphrase_contradiction": {
+          "accuracy": 0.333,
+          "n": 3
+        },
+        "paraphrase_support": {
+          "accuracy": 0.5,
+          "n": 6
+        },
+        "retracted": {
+          "accuracy": 1.0,
+          "n": 2
+        },
+        "species_mismatch": {
+          "accuracy": 0.25,
+          "n": 4
+        },
+        "temporal_mismatch": {
+          "accuracy": 0.333,
+          "n": 3
+        },
+        "topic_mention_only": {
+          "accuracy": 0.8,
+          "n": 5
+        }
+      }
+    },
+    "confusion": {
+      "contradicts": {
+        "insufficient": 4,
+        "contradicts": 6
+      },
+      "insufficient": {
+        "insufficient": 8,
+        "partial": 6
+      },
+      "supports": {
+        "supports": 3,
+        "insufficient": 2,
+        "partial": 1
+      }
+    },
+    "production_gates": {
+      "passed": false,
+      "checks": {
+        "contradiction_recall": {
+          "value": 0.6,
+          "threshold": 0.8,
+          "passed": false
+        },
+        "accuracy": {
+          "value": 0.567,
+          "threshold": 0.75,
+          "passed": false
+        }
+      }
+    },
+    "external_gap": "Human-audited representative sample and threshold calibration not performed (no annotator panel); synthetic dataset only. Retraction handling is upstream of this assessor (retracted sources are quarantined before grounding), so a retracted-passage item scored here isolates only the assessor, not the full pipeline."
+  },
+  "controls_sha256": "2c226b079f5337b76919a842245744b429fbb76d78cc4ff70661b94f1300ec3a",
+  "historical_controls": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/nex-agi/nex-n2.5-mini:free": {
+          "deterministic_fallbacks": {},
+          "calls": 5,
+          "observed_model_calls": 5,
+          "reported_usage_calls": 5,
+          "priced_usage_calls": 5,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-mini:free": 5
+          },
+          "prompt_tokens": 5972,
+          "completion_tokens": 4829,
+          "reasoning_tokens": 5049,
+          "cached_prompt_tokens": 4096,
+          "cost_usd": 0.0,
+          "latency_seconds": 31.734922415000256,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 5,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/nex-agi/nex-n2.5-mini:free": 5
+      },
+      "observed_models": [
+        "openrouter/nex-agi/nex-n2.5-mini:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "name": "historical_false_contradiction_controls",
+        "version": 1,
+        "purpose": "Existing committed regression examples; only non-contradiction is adjudicated. No private production documents accessed.",
+        "items": [
+          {
+            "id": "test_offtarget_quote_does_not_yield_contradiction",
+            "claim": "Donepezil, at clinically achievable human brain free concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the ER-mitochondria contact site.",
+            "passages": [
+              "The same ligand is ineffective at blocking wild-type NaVs and does not disrupt action potential signals in neuronal cells or brain tissue at working concentrations."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claim_verifier_contradiction.py:54",
+            "source_sha256": "916c723165c480f12f7d8bdb8d4a09e640f21f5beabf1800db282688a5eb0641"
+          },
+          {
+            "id": "test_confirmatory_quote_does_not_yield_contradiction",
+            "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+            "passages": [
+              "These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claim_verifier_contradiction.py:95",
+            "source_sha256": "916c723165c480f12f7d8bdb8d4a09e640f21f5beabf1800db282688a5eb0641"
+          },
+          {
+            "id": "test_confirmatory_quote_is_not_a_contradiction",
+            "claim": "Together, these actions reduce collagen synthesis and \u03b1-SMA expression, attenuating the fibrotic phenotype.",
+            "passages": [
+              "Wnt inhibition and the fibrotic phenotype in cardiac fibroblasts. Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:78",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          },
+          {
+            "id": "test_off_drug_quote_is_not_a_contradiction",
+            "claim": "Metformin activates AMPK in human cardiac fibroblasts, leading to inhibitory phosphorylation of Smad3 (Ser203/207) and suppression of HIF-1\u03b1-mediated glycolysis, thereby blocking TGF-\u03b2-induced myofibroblast transition and collagen deposition.",
+            "passages": [
+              "Pirfenidone attenuates lung fibrotic fibroblast responses to transforming growth factor-\u03b21. Furthermore, pirfenidone attenuated TGF-\u03b21- and CTHRC1-induced fibroblast activity, upregulation of bone morphogenic protein-4(BMP-4)/Gremlin1, and downregulation of \u03b1-smooth muscle actin, fibronectin, and FHL2, similar to that observed post-CTHRC1 inhibition. Myofibroblast transition and collagen deposition were assessed in human cardiac fibroblasts after TGF-\u03b21 stimulation. AMPK phosphorylation, Smad3 phosphorylation and glycolysis were measured; HIF-1\u03b1 protein was quantified. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:105",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          },
+          {
+            "id": "test_off_stimulus_quote_is_not_a_contradiction",
+            "claim": "Metformin enters cardiac fibroblasts and activates AMPK via LKB1.",
+            "passages": [
+              "AMPK activation in fibroblasts under nutrient stress. We found that glucose starvation transiently activates AMPK, whereas changes in glucagon and insulin levels had no impact on AMPK. Body weight did not differ between groups."
+            ],
+            "allowed_labels": [
+              "supports",
+              "partial",
+              "insufficient"
+            ],
+            "source": "app/tests/test_claims_contradiction_quote.py:137",
+            "source_sha256": "3f9953ec29cb251d45354a1ee0aa25e96407b0af207dbdbf72b55d095c01b52b"
+          }
+        ]
+      },
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "d516a7fbdf5734536a97f3b5df7e7e9a6a1218fad4eade4d341ae3e72c3b7ee7",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b",
+        "llm_gateway_routing.py": "125cd90fb3be7c2d68d20bcd4229c7a4a55cc1809085d7c87c4c96d2222bb10c",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "43843d91e70b1f52b3d428a7ec994835e89b0c9cbdd721b88978a51649be050b"
+    },
+    "checks": [
+      {
+        "id": "test_offtarget_quote_does_not_yield_contradiction",
+        "label": "insufficient",
+        "passed": true
+      },
+      {
+        "id": "test_confirmatory_quote_does_not_yield_contradiction",
+        "label": "partial",
+        "passed": true
+      },
+      {
+        "id": "test_confirmatory_quote_is_not_a_contradiction",
+        "label": "partial",
+        "passed": true
+      },
+      {
+        "id": "test_off_drug_quote_is_not_a_contradiction",
+        "label": "insufficient",
+        "passed": true
+      },
+      {
+        "id": "test_off_stimulus_quote_is_not_a_contradiction",
+        "label": "partial",
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "controlled_primary": {
+    "mode": "controlled_primary_live_verifier",
+    "id": "test_confirmatory_quote_does_not_yield_contradiction",
+    "primary_response_controlled": true,
+    "label": "insufficient",
+    "passed": true,
+    "live_verifier_request_indices": [
+      42
+    ],
+    "note": "The primary completion is simulated and excluded from physical_requests. Only listed verifier requests are live."
+  },
+  "physical_requests": [
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:19.117782+00:00",
+      "prompt_sha256": "9d8a3097f5d3d32a96f50270d569abc162989dce3134a1ed3a2eb5255251496c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"In the phase III cohort, Drug A shortened progression-free survival relative to placebo, from 9.2 months to 6.1 months.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:23.262071+00:00",
+      "prompt_sha256": "64f8893471b36123b9808f03710507dcafd6eec3dd23689635c324f380ffac32",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": false,\n      \"mutually_exclusive\": false\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:29.297325+00:00",
+      "prompt_sha256": "8fed21bde044e53e7611229b0eb7d0fa9e3d688c8f53312a57a43e4b65bd62bd",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Kinase X inhibition increased AML tumor volume threefold across the cell lines tested.\"\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:33.359954+00:00",
+      "prompt_sha256": "dca7a433f1027f65101b77bcb86380b49ba455d63fe4501d70d4d494f84c32a3",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:37.360888+00:00",
+      "prompt_sha256": "5179e6be7ce3dfd0c2505adcb190252b309509650ac21e6499f731a07c98f04c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Compound C raised pathogen P colony counts at every micromolar dose evaluated.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:41.361578+00:00",
+      "prompt_sha256": "72274ddcb30bfcffc0a7afea5bbbb76b2e4b5cfb16ca533d88287b5bf8f2cbc1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:45.362515+00:00",
+      "prompt_sha256": "5a53c9dc4b75c34f0f3b2670b8a372d7e1c01d876ffa2e51c2616797d07953d7",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Blocking receptor Y further depleted CD8 T cells from the tumor microenvironment.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:49.363829+00:00",
+      "prompt_sha256": "83b154a547ea4f8169d4aa58f3614f178b02db5b941a3de78e60e5bf98659a9e",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:53.365439+00:00",
+      "prompt_sha256": "8867b531b60bfc9a752a656ef5d4312e5287457b3e042a3d6ac9efd1adf97ec9",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm.\"\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:10:57.366490+00:00",
+      "prompt_sha256": "f332cf6a412335ffe2af6fbaf9f852ad69e7d0a8677eda52b5524082016a2d17",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:01.367694+00:00",
+      "prompt_sha256": "1bd85e376928bf207c5cbad94b9ffb35cc270e8aa361d0d6d46eef02164dd37c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"The schema is for a single object with these properties: [\\\"id\\\", \\\"title\\\", \\\"description\\\", \\\"status\\\", \\\"created_at\\\", \\\"updated_at\\\", \\\"created_by\\\", \\\"updated_by\\\", \\\"department_id\\\", \\\"tags\\\"]. The schema does not list any additional properties. The schema requires [\\\"id\\\", \\\"title\\\", \\\"description\\\", \\\"status\\\", \\\"created_at\\\", \\\"created_by\\\", \\\"department_id\\\", \\\"tags\\\"]. The optional properties are [\\\"updated_at\\\", \\\"updated_by\\\"]. The schema states that the id property is a string, the title property is a string, the description property is a string, the status property is a string, the created_at property is a string, the updated_at property is a string, the created_by property is a string, the updated_by property is a string, the department_id property is a string, and the tags property is an array of strings. The schema states that the id property is a unique identifier. The schema states that the title property is the title of the resource. The schema states that the description property is a description of the resource. The schema states that the status property is the current status of the resource. The schema states that the created_at property is the timestamp when the resource was created. The schema states that the updated_at property is the timestamp when the resource was last updated. The schema states that the created_by property is the user who created the resource. The schema states that the updated_by property is the user who updated the resource. The schema states that the department_id property is the department associated with the resource. The schema states that the tags property is a list of tags associated with the resource. The schema states that the id property is a string. The schema states that the title property is a string. The schema states that the description property is a string. The schema states that the status property is a string. The schema states that the created_at property is a string. The schema states that the updated_at property is a string. The schema states that the created_by property is a string. The schema states that the updated_by property is a string. The schema states that the department_id property is a string. The schema states that the tags property is an array of strings.\"\n    }\n  ],\n  \"contradicting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Metabolic reprogramming via Z sensitized murine xenograft tumors to therapy; human tissue was not examined.\"\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:05.368325+00:00",
+      "prompt_sha256": "4b74063bb02034fa0a5235dea51d4a11dd3b89e3adfe59838f748529f6a0497a",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Pathway W drove fibrosis progression in a zebrafish fin-regeneration model.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:09.368743+00:00",
+      "prompt_sha256": "830269a2fd6d478b2e51438d203625d156ea75495442e64e57a04243e30c8ca4",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Gene G conferred drug resistance in Drosophila S2 cell culture assays.\"\n  },\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:13.369160+00:00",
+      "prompt_sha256": "23ed3762a9c624f7a82a4581eba3d45a80739060e0f40b852788832af982e933",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Vaccine V elicited strong antibody responses when measured at day 14 post-immunization; later timepoints were not reported.\"\n  },\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:17.370231+00:00",
+      "prompt_sha256": "6fbbd55eaaa93c66a22f2ce2be11561688c948b863b8cb22ade55c013fc879ce",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:21.371323+00:00",
+      "prompt_sha256": "6ecde97d504035fcca8b29d99245649a6a58345393accc7c8df16111bb7a24d9",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:25.372656+00:00",
+      "prompt_sha256": "47fcbf7d442e3e7f59722aa3505eb1828aa4bf253a30c504f2f1f3c853f8fd89",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:29.373845+00:00",
+      "prompt_sha256": "fb86bf2be8bf677eaf9b6a31f1142cdf1cbee4b72c0de63bd20aeda0509a1297",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:33.375107+00:00",
+      "prompt_sha256": "653d4a817927ecfc0f3899dcbb6960b82460c43d1fdc792bd324729e5962682e",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:37.694025+00:00",
+      "prompt_sha256": "771239ec5410331d15fe7490d88c5241686dc2047eee939d4507eca8993440b2",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:41.694565+00:00",
+      "prompt_sha256": "1b868782040d6f01d8787475790091f20b570532d17adeb9dc2ff200a734540f",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"This study reporting that gene G is associated with disease D was retracted after the cohort was found to be fabricated.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:45.695634+00:00",
+      "prompt_sha256": "d9df871a770be0a122d5fb588c1619d8b0efa6a1f6633b5d5c5da8a4b47f65d9",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:49.696674+00:00",
+      "prompt_sha256": "8c15af34f1482b53da5a5597da70ac655a39683d813856867030f7780eecf299",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells.\"\n  },\n  \"contradicting\": null\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:53.697969+00:00",
+      "prompt_sha256": "1fce8ae28d9988bacd26a7b98d9b6a9e568da494fd3762b4ceee1697893105c1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:11:57.698836+00:00",
+      "prompt_sha256": "2cdfbc741947acbbdfbac6441db2ae37e9d7120c2e56da20544f01ba47501394",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"supports\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed.\"\n  },\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:01.699987+00:00",
+      "prompt_sha256": "dcc1274a6d6517330ea495351db2876f61e87a85c395adc3a820a4d96b848ac1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:05.701110+00:00",
+      "prompt_sha256": "54e1fbf6de8d459ed44d1e0da7cd4f22cc7474d8416f230aee920ba8c330b5a4",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Antagonizing the Y receptor left the animals just as unable to reject tumors as before treatment.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:09.702169+00:00",
+      "prompt_sha256": "fc1a51d5fee1ab11d48291eb03cc09beae73b424f69c69d9d8241585723d9447",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:14.017371+00:00",
+      "prompt_sha256": "579e819e50107d5432d6825ccaaa0a0c46c73648515712277553a98f60216268",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:18.018473+00:00",
+      "prompt_sha256": "24ede65a8e0be04e24f273036a13c9b17286086046411ca65b58c751a779aaa0",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Treatment with compound C sharply curtailed the proliferation of the P organism in culture.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:22.019559+00:00",
+      "prompt_sha256": "997fa59fad57dedffe35050a10f39cdc53ffdc9b12849befff894756f61edcad",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:26.020704+00:00",
+      "prompt_sha256": "f343a357c41078d117386dbbb796b77418624554f379bcc49ab383006806f0bd",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:30.021814+00:00",
+      "prompt_sha256": "d8f85311a0c43ed753aaba5cbddf7d2183cd874b909d62d45aeb2ede0ed028ee",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"Glioblastoma remains lethal, and many agents such as drug A are under active investigation for survival benefit.\"\n  },\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:34.022925+00:00",
+      "prompt_sha256": "bffbb79ec6c0db4e988bb5c87c521dd96ff66b5ccec43514d591e2a2e6c30a38",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Vaccine V elicited durable antibody responses in rhesus macaques; a human trial has not been conducted.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:40.264095+00:00",
+      "prompt_sha256": "ac4c93c5f3fc65a65e75b08df11638c472405cf91f6ea62db8f54a82b1413ed8",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"contradicts\",\n  \"supporting\": [],\n  \"contradicting\": {\n    \"passage\": 1,\n    \"quote\": \"Inhibiting target T accelerated solid tumor growth in every model examined.\"\n  }\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:44.265317+00:00",
+      "prompt_sha256": "ef0b6a5146ad315b56c9e762426a36b04cc86b2226045fd85139b2c3c8a02d2c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": true,\n      \"mutually_exclusive\": true\n    }\n  ]\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-19T21:12:48.265997+00:00",
+      "prompt_sha256": "f14cb7d30b8fd47acf4689371f6e573a41541e9621b6a3dab1995e7b6196ea55",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Compound C suppressed pathogen P at the 24-hour readout; suppression at later timepoints was not measured.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-19T21:12:52.267102+00:00",
+      "prompt_sha256": "56850b58320d6411ce2e99c912ee7966fc198b0580e8d762b7f17d526cb5487c",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-19T21:12:56.268195+00:00",
+      "prompt_sha256": "1ddde0049b74e87524eaffa62a8a42f7f72d7cfeb9b3e572204f60abe0acca7b",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": {\n    \"passage\": 1,\n    \"quote\": \"These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations.\"\n  },\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-19T21:13:00.269341+00:00",
+      "prompt_sha256": "f5792c729bf783642ec3d7cef815b0641706d941549e165c08f736c1992cb730",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I.\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-19T21:13:06.650852+00:00",
+      "prompt_sha256": "acb797b1b618cd6a2b42449e83d9ebd55710824c615e3b1b0f36faed87f280e7",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"insufficient\",\n  \"supporting\": [],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "historical_full_live",
+      "started_at": "2026-09-19T21:13:10.806619+00:00",
+      "prompt_sha256": "2fdb73902061e9221bbe170a8297c5509aae9433d68ce3ca8dbac864a60ecd63",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"supporting\": [\n    {\n      \"passage\": 1,\n      \"quote\": \"We found that glucose starvation transiently activates AMPK\"\n    }\n  ],\n  \"contradicting\": []\n}"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-mini:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "controlled_primary_live_verifier",
+      "started_at": "2026-09-19T21:13:20.975986+00:00",
+      "prompt_sha256": "2a5db5a84ca6bcb956861b33e7ee62eaba2bbe5c8c66d9450fdf76fd85034ab1",
+      "response_model": "nex-agi/nex-n2.5-mini:free",
+      "content": "{\n  \"verdicts\": [\n    {\n      \"index\": 1,\n      \"same_conditions\": false,\n      \"mutually_exclusive\": false\n    }\n  ]\n}"
+    }
+  ],
+  "assessments": [
+    {
+      "phase": "challenge",
+      "claim": "Drug A increases progression-free survival in glioblastoma.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        0,
+        1
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Kinase X inhibition reduces AML tumor growth by roughly half.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        2,
+        3
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Kinase X inhibition increased AML tumor volume threefold across the cell lines tested."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C lowers pathogen P viability at micromolar doses.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        4,
+        5
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Compound C raised pathogen P colony counts at every micromolar dose evaluated."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores CD8 T-cell infiltration.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        6,
+        7
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V raises neutralizing antibody titers by ten-fold.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        8,
+        9
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Vaccine V produced neutralizing antibody titers indistinguishable from the unvaccinated arm."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes human tumors to therapy.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        10
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Metabolic reprogramming via Z sensitized murine xenograft tumors to therapy; human tissue was not examined."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Pathway W drives fibrosis progression in human lung.",
+      "label": "partial",
+      "physical_request_indices": [
+        11
+      ],
+      "supporting_quotes": [
+        "Pathway W drove fibrosis progression in a zebrafish fin-regeneration model."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G confers drug resistance in human breast carcinoma.",
+      "label": "partial",
+      "physical_request_indices": [
+        12
+      ],
+      "supporting_quotes": [
+        "Gene G conferred drug resistance in Drosophila S2 cell culture assays."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V elicits durable antibody responses at twelve months.",
+      "label": "partial",
+      "physical_request_indices": [
+        13
+      ],
+      "supporting_quotes": [
+        "Vaccine V elicited strong antibody responses when measured at day 14 post-immunization; later timepoints were not reported."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves five-year overall survival in glioblastoma.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        14
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Inhibiting kinase X reduces tumor growth in AML.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        15
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Target T is druggable in solid tumors.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        16
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        17
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Protein Q folds via a two-state mechanism.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        18
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves survival in glioblastoma.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        19
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G is associated with disease D.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        20
+      ],
+      "supporting_quotes": [
+        "This study reporting that gene G is associated with disease D was retracted after the cohort was found to be fabricated."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Kinase X inhibition reduces AML tumor growth.",
+      "label": "supports",
+      "physical_request_indices": [
+        21
+      ],
+      "supporting_quotes": [
+        "Pharmacologic blockade of the X kinase curtailed leukemic blast expansion in acute myeloid malignancies."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores immune surveillance.",
+      "label": "supports",
+      "physical_request_indices": [
+        22,
+        23
+      ],
+      "supporting_quotes": [
+        "Antagonism of the Y receptor re-enabled the host's ability to detect and eliminate transformed cells."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+      "label": "supports",
+      "physical_request_indices": [
+        24
+      ],
+      "supporting_quotes": [
+        "Rewiring cellular energetics through the Z axis lowered the treatment threshold at which cells succumbed."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Protein Q folds via a two-state mechanism.",
+      "label": "insufficient",
+      "physical_request_indices": [],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        25
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Blocking receptor Y restores immune surveillance.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        26
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Metabolic reprogramming via Z sensitizes cells to therapy.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        27,
+        28
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Shifting cellular metabolism through the Z axis made the cells markedly more tolerant of the same therapy."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C is effective against pathogen P.",
+      "label": "partial",
+      "physical_request_indices": [
+        29
+      ],
+      "supporting_quotes": [
+        "Treatment with compound C sharply curtailed the proliferation of the P organism in culture."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Pathway W drives fibrosis progression.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        30,
+        31
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Genetic ablation of pathway W accelerated fibrosis, whereas its activation was protective."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Drug A improves survival in glioblastoma.",
+      "label": "partial",
+      "physical_request_indices": [
+        32
+      ],
+      "supporting_quotes": [
+        "Glioblastoma remains lethal, and many agents such as drug A are under active investigation for survival benefit."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Vaccine V elicits durable antibody responses in humans.",
+      "label": "partial",
+      "physical_request_indices": [
+        33
+      ],
+      "supporting_quotes": [
+        "Vaccine V elicited durable antibody responses in rhesus macaques; a human trial has not been conducted."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Gene G is associated with disease D.",
+      "label": "insufficient",
+      "physical_request_indices": [],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "challenge",
+      "claim": "Target T inhibition slows solid tumor growth.",
+      "label": "contradicts",
+      "physical_request_indices": [
+        34,
+        35
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": [
+        "Inhibiting target T accelerated solid tumor growth in every model examined."
+      ]
+    },
+    {
+      "phase": "challenge",
+      "claim": "Compound C durably suppresses pathogen P over four weeks.",
+      "label": "partial",
+      "physical_request_indices": [
+        36
+      ],
+      "supporting_quotes": [
+        "Compound C suppressed pathogen P at the 24-hour readout; suppression at later timepoints was not measured."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Donepezil, at clinically achievable human brain free concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the ER-mitochondria contact site.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        37
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+      "label": "partial",
+      "physical_request_indices": [
+        38
+      ],
+      "supporting_quotes": [
+        "These findings identify a novel and complex compensatory interplay between glycolysis, autophagy, and senescence that helps maintain stemness in heterogeneous GBM tumor subpopulations."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Together, these actions reduce collagen synthesis and \u03b1-SMA expression, attenuating the fibrotic phenotype.",
+      "label": "partial",
+      "physical_request_indices": [
+        39
+      ],
+      "supporting_quotes": [
+        "Treatment with LGK-974 significantly reduced both \u03b1-SMA and collagen type I expression, whereas ETC-159 selectively decreased collagen type I."
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Metformin activates AMPK in human cardiac fibroblasts, leading to inhibitory phosphorylation of Smad3 (Ser203/207) and suppression of HIF-1\u03b1-mediated glycolysis, thereby blocking TGF-\u03b2-induced myofibroblast transition and collagen deposition.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        40
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "historical_full_live",
+      "claim": "Metformin enters cardiac fibroblasts and activates AMPK via LKB1.",
+      "label": "partial",
+      "physical_request_indices": [
+        41
+      ],
+      "supporting_quotes": [
+        "We found that glucose starvation transiently activates AMPK"
+      ],
+      "contradicting_quotes": []
+    },
+    {
+      "phase": "controlled_primary_live_verifier",
+      "claim": "GBM cells engage compensatory stress-response programs (autophagy-glycolysis crosstalk) to survive metabolic stress.",
+      "label": "insufficient",
+      "physical_request_indices": [
+        42
+      ],
+      "supporting_quotes": [],
+      "contradicting_quotes": []
+    }
+  ],
+  "finished_at": "2026-09-19T21:13:21.707844+00:00"
+}

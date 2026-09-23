@@ -28,6 +28,7 @@ from app import (
     store,
 )
 from app.auth import client_id
+from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from app.runs_models import (
     HumanAttachmentRequest,
@@ -130,11 +131,14 @@ async def add_human_hypothesis(
     thereafter appears in the run's hypotheses. A blocked hypothesis returns
     the admission decision and is not persisted (HTTP 200 with admitted=false).
     """
-    _require_run(run_id)
+    run = store.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
     author = client_id(request) or req.author
-    admission = await human_input.admit_human_hypothesis_with_escalation(
-        text=req.statement, author=author, run_id=run_id, title=req.title
-    )
+    with scoped_execution_policy(run.execution_policy):
+        admission = await human_input.admit_human_hypothesis_with_escalation(
+            text=req.statement, author=author, run_id=run_id, title=req.title
+        )
     if not admission.admitted or admission.hypothesis is None:
         return {"admitted": False, "safety": admission.safety_review.to_dict()}
 

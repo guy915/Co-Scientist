@@ -197,15 +197,24 @@ def _recall(labelled: list[tuple[str, str, str]], label: str) -> float:
 
 def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     """Score the lexical floor over the panel."""
-    labelled = [
-        (
-            str(item["id"]),
-            str(item["label"]),
-            deterministic_label(str(item["question"]), str(item["span"])),
-        )
-        for item in dataset["items"]
-    ]
+    from evaluations._panel_identity import capture_panel
+
+    with capture_panel(
+        "citation_usefulness",
+        dataset,
+        "deterministic_coverage",
+        live=False,
+    ) as evidence:
+        labelled = [
+            (
+                str(item["id"]),
+                str(item["label"]),
+                deterministic_label(str(item["question"]), str(item["span"])),
+            )
+            for item in dataset["items"]
+        ]
     return {
+        **evidence,
         "judge": "deterministic_coverage",
         "panel": dataset["name"],
         "metrics": score(labelled),
@@ -216,10 +225,20 @@ def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_llm(dataset: dict[str, Any], model: str) -> dict[str, Any]:
+def run_llm(
+    dataset: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
-    labelled = asyncio.run(_judge_all(dataset, model))
+    from evaluations._live_config import configure_live_environment
+    from evaluations._panel_identity import capture_panel
+
+    model = configure_live_environment(model)
+    with capture_panel(
+        "citation_usefulness", dataset, model, live=True
+    ) as evidence:
+        labelled = asyncio.run(_judge_all(dataset, model))
     return {
+        **evidence,
         "judge": model,
         "panel": dataset["name"],
         "metrics": score(labelled),
@@ -266,8 +285,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--model",
-        default="deepseek/deepseek-v4-flash",
-        help="Model to judge with under --llm.",
+        default=None,
+        help="Explicit OpenRouter model; otherwise use MODEL_NAME.",
     )
     args = parser.parse_args()
 

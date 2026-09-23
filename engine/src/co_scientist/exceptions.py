@@ -14,6 +14,10 @@ class CoScientistError(Exception):
     """Base class for all errors raised by the co-scientist engine."""
 
 
+class FreeModelEligibilityError(CoScientistError, RuntimeError):
+    """A request lacks zero-cost eligibility; do not send or retry it."""
+
+
 # Raised by ToolRegistry and the MCP tool provider (config/registry.py,
 # tools/provider.py) when tool configuration is missing or not initialized.
 class ConfigError(CoScientistError):

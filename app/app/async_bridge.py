@@ -73,15 +73,19 @@ def propagate_context(fn: Callable[..., _T]) -> Callable[..., _T]:
 
     Call this at the point a callable is *submitted* to a thread pool (not
     inside the pool worker), so the snapshot is the submitting thread's
-    ambient context, not the pool worker's own (empty) one.
+    ambient context, not the pool worker's own (empty) one. Every replayed
+    value is reset afterward because executor threads are reused across runs.
     """
     items = list(contextvars.copy_context().items())
 
     @functools.wraps(fn)
     def _wrapped(*args: Any, **kwargs: Any) -> _T:
-        for var, value in items:
-            var.set(value)
-        return fn(*args, **kwargs)
+        tokens = [(var, var.set(value)) for var, value in items]
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            for var, token in reversed(tokens):
+                var.reset(token)
 
     return _wrapped
 
@@ -93,7 +97,8 @@ def run_coroutine_sync(coro_factory: Callable[[], Awaitable[_T]]) -> _T:
     awaiting the real work, so a run-scoped budget/telemetry context set
     on the calling thread (itself possibly already replayed there by
     ``propagate_context``) reaches the provider call made on the bridge
-    loop's own thread.
+    loop's own thread. Replayed values are reset before the shared loop accepts
+    later work, so a campaign call cannot contaminate a standard call.
 
     Args:
         coro_factory: Builds the coroutine to run. A factory rather than a
@@ -105,9 +110,12 @@ def run_coroutine_sync(coro_factory: Callable[[], Awaitable[_T]]) -> _T:
     items = list(contextvars.copy_context().items())
 
     async def _runner() -> _T:
-        for var, value in items:
-            var.set(value)
-        return await coro_factory()
+        tokens = [(var, var.set(value)) for var, value in items]
+        try:
+            return await coro_factory()
+        finally:
+            for var, token in reversed(tokens):
+                var.reset(token)
 
     future = asyncio.run_coroutine_threadsafe(_runner(), loop)
     return future.result()

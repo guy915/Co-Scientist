@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from co_scientist.sandbox.argv import wrap_argv
-from co_scientist.sandbox.policy import SandboxPolicy
+from co_scientist.sandbox.policy import SandboxPolicy, campaign_workspace_policy
 from co_scientist.sandbox.runner import _terminate, build_env
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ class CommandSession:
                 a command is launched.
         """
         self._proc = await asyncio.create_subprocess_exec(
-            *wrap_argv(self.argv, policy),
+            *wrap_argv(self.argv, campaign_workspace_policy(policy)),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

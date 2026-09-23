@@ -107,6 +107,7 @@ def _rewind_and_restream(
     from app.interviews import _owned_interview, _request_byok
 
     interview = _owned_interview(interview_id, request)
+    byok = _request_byok(request, str(interview["execution_policy"]))
     _require_revisable_turn(interview, turn_id, role)
     store.rewind_interview(interview_id, turn_id)
     if replacement is not None:
@@ -114,7 +115,11 @@ def _rewind_and_restream(
             interview_id, store.NewInterviewTurn("user", replacement)
         )
     _reset_derivation(interview_id)
-    return _interview_stream(interview_id, _request_byok(request))
+    return _interview_stream(
+        interview_id,
+        byok,
+        execution_policy=str(interview["execution_policy"]),
+    )
 
 
 @router.put("/{interview_id}/turns/{turn_id}")

@@ -46,9 +46,9 @@ from app.async_bridge import run_coroutine_sync
 from app.claim_verifier import (
     _CITATION_LIST,
     _coerce_pairs,
-    _reject_unfounded_contradiction,
     _render_passages,
 )
+from app.claim_verifier_opposition import guard_contradictions
 from app.claims import (
     AssessorDraft,
     BatchAssessor,
@@ -64,17 +64,31 @@ _BATCH_SYSTEM_PROMPT = (
     "for EACH claim whether the evidence SUPPORTS, PARTIALLY supports, "
     "CONTRADICTS, or is INSUFFICIENT for it. Rules: judge each claim only "
     "from the passages, never outside knowledge, and independently of every "
-    "other claim. A passage SUPPORTS a claim only if it entails it. It is "
-    "PARTIAL when it directly addresses the claim and is consistent with it "
-    "-- evidence for a related mechanism, an adjacent finding, or the claim "
-    "under narrower conditions -- but does not fully entail it; partial is "
-    "for genuine near-misses, not for passages merely sharing a topic. It "
-    "CONTRADICTS only if it entails the claim's negation: the passage must "
+    "other claim. A passage SUPPORTS only if it entails the claim. PARTIAL "
+    "requires evidence within the scope asserted by the claim that "
+    "establishes only part of its result, mechanism, or effect magnitude. "
+    "When the stated population, model, intervention or dose, outcome, and "
+    "observation time match, evidence establishing the claimed direction "
+    "but leaving its asserted extent unreported is PARTIAL. Unreported "
+    "extent is not a contradiction; measured extent is contradictory only "
+    "when it entails the claim's negation. "
+    "An established component of a compound claim can be PARTIAL when that "
+    "component's own defining conditions match. An untested component is not "
+    "a contradicted one. Partial support is not a substitute for testing a "
+    "claim-defining condition. Evidence "
+    "is INSUFFICIENT if it substitutes or leaves untested an explicitly "
+    "required population or model, intervention or dose, outcome or "
+    "endpoint, or observation time. An adjacent mechanism, surrogate "
+    "endpoint, or different experimental context cannot supply that missing "
+    "condition. A narrower setting may provide PARTIAL support only when "
+    "it remains within the claim's stated scope; do not invent scope "
+    "restrictions absent from the claim. Mere topic overlap is INSUFFICIENT. "
+    "It CONTRADICTS only if it entails the claim's negation: the passage must "
     "be about the same molecule, target, or population as the claim AND "
     "must assert the opposite of what the claim asserts about it. A passage "
     "about a different molecule, target, or population is never a "
-    "contradiction, however similar the topic -- it is INSUFFICIENT (or "
-    "PARTIAL if it genuinely bears on the claim). A passage that states or "
+    "contradiction, however similar the topic -- apply the same scope rule "
+    "for INSUFFICIENT or PARTIAL. A passage that states or "
     "agrees with the claim is not a contradiction either, even if it also "
     "discusses caveats or other mechanisms. When in doubt between "
     "CONTRADICTS and INSUFFICIENT, choose INSUFFICIENT. Otherwise the claim "
@@ -84,8 +98,12 @@ _BATCH_SYSTEM_PROMPT = (
     "number shown before that passage in EVIDENCE (e.g. 3) -- not its "
     "contents, and not the claim's own number below; put a partial "
     'verdict\'s quote in "supporting". Keep each '
-    "quote SHORT -- at most 200 characters, the smallest verbatim span that "
-    "justifies the verdict, never the whole passage. Do not paraphrase "
+    "quote SHORT -- at most 200 characters. Use the shortest self-contained "
+    "verbatim span that justifies the verdict. Retain the explicitly named "
+    "subject (molecule, intervention, target, or population) and any "
+    "conditions needed to interpret the finding. Never cite a pronoun-only "
+    "or otherwise context-dependent fragment. If no self-contained span "
+    "fits within 200 characters, choose INSUFFICIENT. Do not paraphrase "
     "quotes. Respond with a single JSON object holding one verdict per "
     "claim, each carrying the claim's own number as its index -- never the "
     "claim's text -- and nothing else."
@@ -149,9 +167,8 @@ def _parse_batch_drafts(
     unparseable verdict leaves that position ``None`` rather than raising,
     so the caller (``claims.assess_claims_batch``) falls only that one
     claim back to the deterministic assessor instead of losing the whole
-    batch to one bad entry. Each parsed draft passes through
-    ``claim_verifier._reject_unfounded_contradiction`` against its own
-    claim before being stored, exactly like the single-claim path.
+    batch to one bad entry. The caller then guards contradictions against
+    located source quotes, exactly like the single-claim path.
     """
     num_claims = len(claims)
     drafts: list[AssessorDraft | None] = [None] * num_claims
@@ -173,6 +190,7 @@ def _parse_batch_drafts(
             continue
         draft = AssessorDraft(
             label=label,
+            verification_method="model_primary",
             supporting=_coerce_pairs(
                 item.get("supporting"), "claim_verifier.batch_supporting"
             ),
@@ -180,9 +198,7 @@ def _parse_batch_drafts(
                 item.get("contradicting"), "claim_verifier.batch_contradicting"
             ),
         )
-        drafts[position] = _reject_unfounded_contradiction(
-            claims[position], draft
-        )
+        drafts[position] = draft
     return drafts
 
 
@@ -276,13 +292,8 @@ def make_llm_batch_assessor(
 
     Args:
         model: The litellm model id (e.g. ``deepseek/deepseek-chat``).
-        call_counter: When given, ``call_counter[0]`` is incremented once
-            per actual provider call this assessor makes (not once per
-            Python call -- a group with no retrievable evidence never
-            calls the provider at all). Lets a caller report how many
-            entailment calls a pass actually spent, without threading a
-            return value through every layer between here and the log
-            line that reports it.
+        call_counter: Counts logical primary and verification requests.
+            Physical retries are counted separately by completion telemetry.
 
     Returns:
         ``(batch_assessor, assessor_id)`` where ``assessor_id`` matches
@@ -301,6 +312,12 @@ def make_llm_batch_assessor(
         data = _call_llm_batch_entailment(model, claims, passages)
         if data is None:
             return [None] * len(claims)
-        return _parse_batch_drafts(data, claims)
+        return guard_contradictions(
+            model,
+            claims,
+            passages,
+            _parse_batch_drafts(data, claims),
+            call_counter=call_counter,
+        )
 
     return _batch_assessor, assessor_id

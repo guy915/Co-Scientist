@@ -112,15 +112,14 @@ async def test_biorxiv_search_echoes_the_query_without_the_filter(
         (europepmc_search.search_biorxiv, "bioRxiv"),
     ],
 )
-async def test_a_failed_request_degrades_instead_of_raising(
+async def test_a_failed_request_is_distinct_from_an_empty_search(
     monkeypatch: pytest.MonkeyPatch, tool: object, source: str
 ) -> None:
-    """One unreachable source must not fail a step consulting several."""
+    """The caller needs a failure to preserve source diagnostics."""
     stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
-    result = await tool("PKMYT1")  # type: ignore[operator]
-
-    assert result == {"source": source, "query": "PKMYT1", "records": []}
+    with pytest.raises(RuntimeError, match=source):
+        await tool("PKMYT1")  # type: ignore[operator]
 
 
 async def test_every_record_carries_a_stable_identifier(
@@ -200,3 +199,50 @@ async def test_a_record_reads_as_plain_text(
     (record,) = search["records"]
     assert record["title"] == "Colistin resistance in K. pneumoniae"
     assert record["abstract"] == "Aims K. pneumoniae is a threat."
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"resultList": []},
+        {"resultList": {"result": "invalid"}},
+        {"resultList": {"result": [None]}},
+    ],
+)
+async def test_malformed_response_is_not_an_empty_search(
+    monkeypatch: pytest.MonkeyPatch, payload: object
+) -> None:
+    stub_responses(monkeypatch, payload)
+    with pytest.raises(RuntimeError, match="Europe PMC"):
+        await europepmc_search.search_europepmc("PKMYT1")
+
+
+async def test_valid_empty_response_remains_an_empty_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_responses(monkeypatch, {"resultList": {"result": []}})
+    assert await europepmc_search.search_europepmc("unlikely query") == {
+        "source": "Europe PMC",
+        "query": "unlikely query",
+        "records": [],
+    }
+
+
+async def test_rate_limit_retains_status_and_retry_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = httpx.Request(
+        "GET", "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+    )
+    response = httpx.Response(
+        429, request=request, headers={"Retry-After": "60"}
+    )
+    stub_failure(
+        monkeypatch,
+        httpx.HTTPStatusError("throttled", request=request, response=response),
+    )
+    with pytest.raises(RuntimeError, match="HTTP 429; Retry-After=60"):
+        await europepmc_search.search_preprints("PKMYT1")

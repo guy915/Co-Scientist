@@ -1,0 +1,94 @@
+{
+  "purpose": "Current source offline release verification; does not establish live workflow or release acceptance",
+  "source_commit": "ee77507415a248889683cef551ec1dd083645bb4",
+  "checks": [
+    {
+      "command": "make test-all",
+      "status": "failed_outer_sandbox",
+      "log_path": "/private/tmp/coscientist-test-all132.log",
+      "log_sha256": "001a5664a963b87ca835865a04dcf30825587e80db8407633473f9c869d841f7"
+    },
+    {
+      "command": "make test-all",
+      "status": "failed_app_pause_resume",
+      "log_path": "/private/tmp/coscientist-test-all133-host.log",
+      "log_sha256": "926752427fdb3e35df144d1b42c86ea740816222b79634f16dfadaf694f30025"
+    },
+    {
+      "command": "isolated pause/resume pytest",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-pause-resume136.log",
+      "log_sha256": "f3ef1675d80c8f38c460919c9a143a5153e974e03a983dc878b7e1472160d3c5"
+    },
+    {
+      "command": "make lint",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-lint134.log",
+      "log_sha256": "2a7f55804ee7c06728d6277d3ee33382afef1c65a01c971d45a91b53943b9a49"
+    },
+    {
+      "command": "make typecheck",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-typecheck134.log",
+      "log_sha256": "3404bdef86d1620179b10428bdea5aa4da068c25fc5392ca0cecd340396a6ab2"
+    },
+    {
+      "command": "make eval-smoke",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-eval-smoke136.log",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6"
+    },
+    {
+      "command": "make test-mcp parity",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-mcp-parity137.log",
+      "log_sha256": "3a4d832f6f96d6c6796416dd2b927e54600df91bfb6eabd6dcc7fb40320cb264"
+    },
+    {
+      "command": "make build",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-build138.log",
+      "log_sha256": "56f68c47c15184298ac5174aeb62bd28e1690717adfc519d659ac9e7214d1f67"
+    },
+    {
+      "command": "bun run test (app/frontend)",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-frontend139.log",
+      "log_sha256": "877f529906481bade2666beebc652e68f1cc9444fb8fc515005d966f82b7d832"
+    },
+    {
+      "command": "make e2e",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-e2e139.log",
+      "log_sha256": "3a3474305f7124432bc79eae025ea5b14ddb9f3870c261dafb723ba03fd18c18"
+    },
+    {
+      "command": "CLI lifecycle file pytest",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-cli-runs140.log",
+      "log_sha256": "de3f796a60e8debef13dcef7fa9a82c3a3d84c18b009fdd7b5dd182aa5caf1d1"
+    },
+    {
+      "command": "preceding CLI module plus pause/resume pytest",
+      "status": "passed",
+      "log_path": "/private/tmp/coscientist-cli-order141.log",
+      "log_sha256": "773fe6b9ffb351bcb162cf24f2f342a48ab9ad593a93361a145bcd037e0090be"
+    },
+    {
+      "command": "full app pytest retained basetemp142",
+      "status": "interrupted_no_terminal_result",
+      "log_path": "/private/tmp/coscientist-app142.log",
+      "log_sha256": "21d34303f3e6f428217a5d075931f5456f4a385b0a30821bb04879fa444f712c"
+    },
+    {
+      "command": "full app pytest --basetemp=/private/tmp/coscientist-app144",
+      "status": "passed",
+      "tests_passed": 1851,
+      "log_path": "/private/tmp/coscientist-app144.log",
+      "log_sha256": "5c646884c370c9e50c658c3f6e4f1d31b0ad0eeecf513ebd0da07a1c7079b8c9"
+    }
+  ],
+  "complete": false,
+  "remaining": "Live model qualification and workflow/release acceptance remain incomplete. Original full-suite pause/resume timeout did not recur in isolated, contextual, or full app rerun; its cause remains unproven. Successful unchanged engine/MCP/parity components are reused; do not describe the original make test-all invocation as passing.",
+  "offline_components_passed": true
+}

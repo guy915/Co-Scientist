@@ -67,7 +67,8 @@ reachable MCP server to make the toggles actually bite.
 
 Run:
     python -m evaluations.ablation_driver                 # offline
-    DEEPSEEK_API_KEY=... python -m evaluations.ablation_driver --live
+    # Export explicit MODEL_NAME and OPENROUTER_API_KEY before live use.
+    python -m evaluations.ablation_driver --live
 """
 
 from __future__ import annotations
@@ -193,6 +194,10 @@ def _arm_record(
         "goal_id": goal_id,
         "arm": arm_name,
         "run_id": arm["run_id"],
+        "goal": arm.get("goal"),
+        "tier": arm.get("tier"),
+        "overrides": arm.get("overrides"),
+        "evaluation_identity": arm.get("evaluation_identity"),
         "completed": arm["completed"],
         # No expert panel; ablation_summary treats a missing quality score
         # as an omission, never as a zero.
@@ -204,6 +209,8 @@ def _arm_record(
             else None
         ),
         "cost_usd": arm["metrics"]["cost_usd"],
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": arm["metrics"].get("usage_evidence"),
         "latency_seconds": arm["metrics"]["latency_seconds"],
     }
 
@@ -278,7 +285,11 @@ def run_ablation_sweep(
     driven, records = _drive_every_pair(
         goals, tier, arm_overrides, db_path, live=live
     )
+    from evaluations._comparison_groups import validate_comparison
+
+    validation = validate_comparison(driven, kind="ablation")
     return {
+        "comparison_validation": validation,
         "tier": tier,
         "mode": "live" if live else "offline",
         "goals": dict(goals),
@@ -303,7 +314,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run on the real provider backend (costs money and time).",
+        help="Run live with explicit verified free MODEL_NAME.",
     )
     return parser.parse_args()
 
@@ -311,8 +322,6 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Run the CLI: drive the sweep, write the artifact, print a summary."""
     args = _parse_args()
-    if args.live and not _run_driver.load_provider_key():
-        raise SystemExit("no DEEPSEEK_API_KEY available; cannot run --live")
     report = run_ablation_sweep(_DEFAULT_GOALS, args.tier, live=args.live)
     out = write_dated_artifact(report, "ablation-sweep")
 

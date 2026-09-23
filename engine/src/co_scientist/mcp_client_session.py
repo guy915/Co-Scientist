@@ -20,6 +20,12 @@ from langchain_mcp_adapters.sessions import Connection
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.constants import truncate
 from co_scientist.exceptions import MCPToolTimeoutError
+from co_scientist.mcp_campaign import (
+    PUBLIC_TOOLS,
+    CampaignAdmission,
+    prepare_admission,
+    require_bound_mode,
+)
 from co_scientist.mcp_client_helpers import (
     NOT_INITIALIZED_MESSAGE,
     _ensure_tools_initialized,
@@ -115,6 +121,7 @@ class MCPToolClient:
         provided
         (or server_url will default from environment).
         """
+        self._campaign_admission: CampaignAdmission | None = None
         self._tool_registry = tool_registry
         self._client: MultiServerMCPClient | None = None
         self._tools_dict: dict[str, Any] | None = None
@@ -139,39 +146,52 @@ class MCPToolClient:
         # A concurrent caller must not observe the transport during the await
         # below and mistake that half-initialized state for a usable client.
         if self._tools_dict is not None:
+            require_bound_mode(self._campaign_admission)
             logger.debug("MCP client already initialized")
             return
 
         async with self._initialize_lock:
             if self._tools_dict is not None:
+                require_bound_mode(self._campaign_admission)
                 logger.debug("MCP client initialized by concurrent caller")
                 return
-            if not self._server_configs:
-                raise RuntimeError("no server configurations available")
+            await self._initialize_locked()
 
-            server_names = list(self._server_configs.keys())
-            logger.info(
-                "initializing MCP client for %s server(s): %s",
-                len(server_names),
-                server_names,
-            )
+    async def _initialize_locked(self) -> None:
+        """Discover and publish tools while the initialization lock is held."""
+        if not self._server_configs:
+            raise RuntimeError("no server configurations available")
 
-            client = MultiServerMCPClient(
-                cast(dict[str, Connection], self._server_configs)
-            )
-            # This round-trips to every configured server. Publish the client
-            # only after its tool indexes are ready so all callers see one
-            # complete initialization state.
-            tools = await client.get_tools()
-            self._client = client
-            self._index_tools(tools)
+        server_names = list(self._server_configs.keys())
+        logger.info(
+            "initializing MCP client for %s server(s): %s",
+            len(server_names),
+            server_names,
+        )
 
-            assert self._tools_dict is not None  # set by _index_tools above
-            logger.info(
-                "MCP client initialized with %s tools: %s",
-                len(self._tools_dict),
-                list(self._tools_dict.keys()),
-            )
+        admission = await prepare_admission(self._server_configs)
+        configs = (
+            admission.transport_configs()
+            if admission is not None
+            else self._server_configs
+        )
+        client = MultiServerMCPClient(cast(dict[str, Connection], configs))
+        # This round-trips to every configured server. Publish the client
+        # only after its tool indexes are ready so all callers see one
+        # complete initialization state.
+        tools = await client.get_tools()
+        if admission is not None:
+            tools = [tool for tool in tools if tool.name in PUBLIC_TOOLS]
+        self._campaign_admission = admission
+        self._client = client
+        self._index_tools(tools)
+
+        assert self._tools_dict is not None  # set by _index_tools above
+        logger.info(
+            "MCP client initialized with %s tools: %s",
+            len(self._tools_dict),
+            list(self._tools_dict.keys()),
+        )
 
     def _index_tools(self, tools: list[Any]) -> None:
         """Populate lookup structures from the tools fetched by initialize().
@@ -203,6 +223,13 @@ class MCPToolClient:
         # Convert to OpenAI format for LiteLLM
         self._openai_tools = [convert_to_openai_tool(tool) for tool in tools]
 
+    async def _admit_campaign_tool(self, name: str) -> None:
+        require_bound_mode(self._campaign_admission)
+        if self._campaign_admission is not None:
+            await self._campaign_admission.require_tool(
+                name, self._server_configs
+            )
+
     @staticmethod
     def _require_tool(tools_dict: dict[str, Any], tool_name: str) -> Any:
         """Return the tool object for tool_name, or raise if not found."""
@@ -233,6 +260,7 @@ class MCPToolClient:
             RuntimeError: If client not initialized
             ValueError: If tool not found
         """
+        await self._admit_campaign_tool(tool_name)
         tools_dict = _ensure_tools_initialized(self._tools_dict)
         tool = self._require_tool(tools_dict, tool_name)
 
@@ -299,6 +327,7 @@ class MCPToolClient:
         """
         tools_dict = self._require_initialized_tools()
         tool_name = tool_call.function.name
+        await self._admit_campaign_tool(tool_name)
         tool_args = json.loads(tool_call.function.arguments)
 
         logger.debug(
@@ -338,6 +367,7 @@ class MCPToolClient:
             - tools_dict: Dict mapping tool names to tool objects
             - openai_tools: List of tools in OpenAI format for LiteLLM
         """
+        require_bound_mode(self._campaign_admission)
         tools_dict = _ensure_tools_initialized(self._tools_dict)
         # A separate condition, not a restatement of the one above: both are
         # populated together by _index_tools, so an unset OpenAI-format list
@@ -353,6 +383,7 @@ class MCPToolClient:
 
     def has_tool(self, tool_name: str) -> bool:
         """Check if a tool is available."""
+        require_bound_mode(self._campaign_admission)
         if self._tools_dict is None:
             return False
         return tool_name in self._tools_dict

@@ -20,8 +20,10 @@ from dataclasses import replace
 from typing import Any
 
 from co_scientist.cache import LLMCacheRequest
-from co_scientist.exceptions import LLMCallBudgetExceededError
-from co_scientist.llm_call_budget import record_provider_request
+from co_scientist.exceptions import (
+    FreeModelEligibilityError,
+    LLMCallBudgetExceededError,
+)
 from co_scientist.llm_credentials import current_api_key
 from co_scientist.llm_json_escalation import (
     BudgetEscalation,
@@ -179,11 +181,6 @@ async def _answered_completion(
     escalation = BudgetEscalation.NONE
     while True:
         try:
-            # Every pass through this loop is a real outbound request --
-            # count it before sending, same as the plain call_llm seam
-            # (llm_call._call_llm_and_cache), so a run's ceiling sees a
-            # tool-loop turn's own escalation attempts too.
-            record_provider_request()
             response = await _acompletion_within_timeout(
                 _build_tool_loop_completion_args(messages, request, escalation),
                 request.model_name,
@@ -287,10 +284,9 @@ async def _answer_without_tools(
     )
     args.pop("tools", None)
     try:
-        record_provider_request()
         response = await _acompletion_within_timeout(args, request.model_name)
         return _extract_completion_content(response, request.model_name)
-    except LLMCallBudgetExceededError:
+    except (LLMCallBudgetExceededError, FreeModelEligibilityError):
         raise
     except Exception as exc:
         logger.warning("Could not harvest a final answer: %s", exc)

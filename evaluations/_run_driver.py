@@ -35,28 +35,13 @@ if str(_ROOT / "app") not in sys.path:
 _SUPPORTED_CLAIM_LABELS = ("supports", "partial")
 
 
-def load_provider_key() -> str:
-    """Read DEEPSEEK_API_KEY from the environment or the checkout's .env."""
-    key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if key:
-        return key
-    env_file = _ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("DEEPSEEK_API_KEY="):
-                return line.split("=", 1)[1].strip()
-    return ""
-
-
 def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     """Set process env for one controlled-experiment invocation.
 
     Must run before any ``app``/``co_scientist`` import loads settings. A
-    fresh cache directory isolates this invocation's LLM response cache: a
-    later arm cache-hitting an earlier arm's identical call would silently
-    corrupt the cost/latency/llm_calls numbers these drivers exist to
-    measure, and caching is on by default.
+    disabled response cache prevents a later arm from reusing an earlier
+    arm's calls. The directory remains isolated for other cache artifacts.
+    run_arm also scopes caching off to cover an already-created singleton.
 
     An offline invocation forces ``COSCIENTIST_FORCE_OFFLINE=1`` rather than
     merely omitting the provider key. The per-run ``llm_backend="offline"``
@@ -74,6 +59,7 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     """
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+    os.environ["COSCIENTIST_CACHE_ENABLED"] = "0"
     if not live:
         os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
         # Forcing the flag is necessary but was not sufficient: it only
@@ -94,9 +80,9 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
     os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
-    key = load_provider_key()
-    if key:
-        os.environ["DEEPSEEK_API_KEY"] = key
+    from evaluations._live_config import configure_live_environment
+
+    configure_live_environment()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -143,6 +129,11 @@ def persist_arm_run(
             **overrides,
         }
     )
+    from evaluations._comparison_identity import arm_identity
+
+    config["evaluation_identity"] = arm_identity(
+        goal, config, invocation.backend
+    )
     run = store.create_run(
         goal,
         tier,
@@ -170,6 +161,10 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     from app import store, task_worker
     from co_scientist.offline_llm import install_offline_router
 
+    from evaluations._comparison_identity import validate_stored_arm
+
+    identity = validate_stored_arm(run_id, db_path)
+
     # This driver calls ``run_run_worker_pool`` directly rather than going
     # through the app's lifespan or the standalone ``run_forever`` loop, and
     # neither installs the offline router for it. Idempotent and a harmless
@@ -189,6 +184,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
         )
     )
     elapsed = time.monotonic() - start
+    validate_stored_arm(run_id, db_path, identity)
     return len(store.list_events(run_id, db_path=db_path)), elapsed
 
 
@@ -274,11 +270,15 @@ def compute_arm_metrics(
 
     metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
     model_usage = metrics.get("model_usage") or {}
-    cost = sum(float(v.get("cost_usd", 0.0)) for v in model_usage.values())
+    from evaluations._usage_evidence import summarize_usage
+
+    evidence = summarize_usage(model_usage)
     return {
         "llm_calls": int(metrics.get("llm_calls", 0)),
         "tasks": tasks_count,
-        "cost_usd": round(cost, 6),
+        "cost_usd": evidence["partial_estimated_total_usd"],
+        "cost_basis": "partial_static_estimate",
+        "usage_evidence": evidence,
         "latency_seconds": round(wall_clock_seconds, 3),
     }
 
@@ -301,7 +301,10 @@ def run_arm(
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)
-    events, elapsed = drive_arm_run(run_id, db_path)
+    from co_scientist.cache import scoped_cache_override
+
+    with scoped_cache_override(False):
+        events, elapsed = drive_arm_run(run_id, db_path)
     run = store.get_run(run_id, db_path=db_path)
     completed, real_backend = run_completion_status(run)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
@@ -309,6 +312,8 @@ def run_arm(
     tasks_count = len(store.list_tasks(run_id, db_path=db_path))
     return {
         "run_id": run_id,
+        "goal": goal,
+        "evaluation_identity": run.config["evaluation_identity"],
         "tier": tier,
         "overrides": overrides,
         "completed": completed,

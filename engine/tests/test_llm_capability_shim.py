@@ -461,3 +461,36 @@ async def test_call_llm_json_no_prune_for_supported_model(
             CompletionSpec(model_name="test-model", json_schema=_CLOSED_SCHEMA),
             max_attempts=2,
         )
+
+
+@pytest.mark.parametrize("unnamed_envelope", [False, True])
+async def test_native_bare_schema_has_named_wire_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+    unnamed_envelope: bool,
+) -> None:
+    """Bare schemas work through native providers requiring a named envelope."""
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=True)
+    captured = _capture_acompletion(
+        monkeypatch, [_completion('{"label":"supports"}')]
+    )
+    schema = {
+        "type": "object",
+        "properties": {"label": {"type": "string", "enum": ["supports"]}},
+        "required": ["label"],
+        "additionalProperties": False,
+    }
+    result = await call_llm_json(
+        "Classify the supplied evidence.",
+        CompletionSpec(
+            model_name="test-model",
+            json_schema={"schema": schema} if unnamed_envelope else schema,
+        ),
+        max_attempts=1,
+    )
+    assert result == {"label": "supports"}
+    assert captured[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "response", "schema": schema},
+    }
+    assert "name" not in schema

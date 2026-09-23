@@ -1,0 +1,101 @@
+{
+  "requested_model": "openrouter/qwen/qwen3.8-27b:free",
+  "started_at": "2026-09-22T12:11:09.190184+00:00",
+  "source_commit": "49111a15ba372842a3316ae8edcbd59c8807e55e",
+  "probe_sha256": "cdfe1c5fa688254b06ddc4bf92e1e7121b77d4d6814978306b8909a1abebf014",
+  "cases": [
+    {
+      "case": "json_off",
+      "passed": false,
+      "error_type": "RateLimitError",
+      "error": "litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"qwen/qwen3.8-27b:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"ModelRun\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"[redacted-account]\":\"[redacted-account]\"}",
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "json_off::openrouter/qwen/qwen3.8-27b:free": {
+            "deterministic_fallbacks": {},
+            "calls": 1,
+            "observed_model_calls": 0,
+            "reported_usage_calls": 0,
+            "priced_usage_calls": 0,
+            "requested_models": {
+              "openrouter/qwen/qwen3.8-27b:free": 1
+            },
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "reasoning_tokens": 0,
+            "cached_prompt_tokens": 0,
+            "cost_usd": 0.0,
+            "latency_seconds": 0.5926046669774223,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {
+              "RateLimitError": 1
+            }
+          }
+        },
+        "physical_calls": 1,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/qwen/qwen3.8-27b:free": 1
+        },
+        "observed_models": [],
+        "unobserved_model_calls": 1,
+        "unreported_usage_calls": 1,
+        "unpriced_calls": 1,
+        "has_usage_records": true,
+        "estimate_complete": false,
+        "estimated_total_usd": null,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      },
+      "physical_request_controls": [
+        {
+          "model": "openrouter/qwen/qwen3.8-27b:free",
+          "max_tokens": 6000,
+          "extra_body": {
+            "provider": {
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              },
+              "require_parameters": true
+            }
+          },
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "response",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "enum": [
+                      "supports",
+                      "contradicts",
+                      "insufficient"
+                    ]
+                  },
+                  "quote": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "quote"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "stream": null
+        }
+      ]
+    }
+  ]
+}

@@ -407,3 +407,38 @@ async def test_multi_source_hybrid_scores_when_goal_is_set() -> None:
     for item in metadata.values():
         assert 0.0 <= item["retrieval_score"] <= 1.0
         assert item["retriever_version"] == _HYBRID_VERSION
+
+
+async def test_source_error_preserves_healthy_sibling_and_diagnostics() -> None:
+    registry = make_tool_lookup_registry(
+        {
+            "src_a": make_tool_config(mcp_tool_name="search_europepmc"),
+            "src_b": make_tool_config(mcp_tool_name="search_pubmed"),
+        }
+    )
+    config = _multi_source_config(
+        registry,
+        make_two_source_workflow(1),
+        source_name="mixed",
+        papers_to_read_count=2,
+    )
+    config.semantic_relevance_enabled = False
+
+    class Client:
+        async def call_tool(self, name: str, **_: Any) -> Any:
+            if name == "search_europepmc":
+                return (
+                    "Error calling tool 'search_europepmc': "
+                    "Europe PMC unavailable: HTTP 503"
+                )
+            return {"P1": {"title": "Healthy source paper"}}
+
+    errors: list[str] = []
+    papers, sources = await _collect_multi_source(
+        ["q"], make_state(), config, Client(), errors
+    )
+    assert set(papers) == {"P1"}
+    assert sources == {"P1": "src_b"}
+    assert len(errors) == 1
+    assert "search_europepmc" in errors[0] and "Europe PMC" in errors[0]
+    assert "HTTP 503" in errors[0]

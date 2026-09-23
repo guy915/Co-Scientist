@@ -230,20 +230,27 @@ _GATEWAY_MAX_FALLBACKS: Final[int] = 3
 # rung was the routine destination rather than the emergency one. The guard
 # against it already existed -- ``_gateway_provider`` caps a routed call at
 # ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate -- but a primary
-# priced at zero has no meaningful multiple, so the cap was skipped and the
-# request could be served at any price the gateway liked. A *priced*
-# primary arms the ceiling; free rungs below it are safe for the same
-# reason they were dangerous above it.
+# priced at zero previously skipped the cap, leaving the request unbounded.
+# Zero is now an explicit ceiling for free routes, including per-request
+# fees. Current model eligibility still needs verification before live use.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    # A non-default chain head kept for a deployment that opts back into
-    # it. It was the deployed primary from 2026-09-05 until a real express
+    # Selected system default. Campaign probes observed reasoning on both Nex
+    # variants; until disabling is qualified, use bounded-minimal reasoning
+    # and fund its answer. No alternative model is qualified as a fallback.
+    "openrouter/nex-agi/nex-n2.5-pro:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    "openrouter/nex-agi/nex-n2.5-mini:free": GatewayModel(
+        takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    # A non-default chain head kept for a deployment that opts into it. It
+    # was the deployed primary from 2026-09-05 until a real express
     # run measured its single host (Decart) answering only 7 of 85 calls --
     # a shared free pool saturated most of the day (1 of 11 live probes
     # answered, matching the same shape noted 2026-08-26) -- against its
     # own first fallback rung, Minimax M3, serving 74 of those calls at $0.
-    # ``app.config`` now defaults every tier straight to that rung instead,
-    # with no chain behind it. This entry's own chain is unchanged, for
-    # whoever opts back in.
+    # The 2026-09-06 default switch went straight to that rung; this entry's
+    # chain remains for deployments that explicitly select it.
     "openrouter/z-ai/glm-5.2:free": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
@@ -253,9 +260,9 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
             "nvidia/nemotron-3.5-lightning:free",
         ),
     ),
-    # The deployed primary (also ``app.config``'s default on every tier),
-    # now heading its own all-free chain again -- a second reversal in one
-    # day. Measured 2026-09-05/06 through this account's OpenRouter key:
+    # The previously deployed primary, retained with its all-free chain for
+    # deployments that explicitly select it. Measured 2026-09-05/06 through
+    # this account's OpenRouter key:
     # every ``:free`` variant carries its own per-model daily cap (~100
     # requests/day, plus a shared 20 req/min across all free variants), not
     # the "one saturated pool" shape the 2026-09-06 single-model switch
@@ -268,17 +275,10 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     # a provider error, so a chain of N free models buys roughly N x 100
     # free calls/day before any of them needs a real spend.
     #
-    # **Every rung in this chain must be priced $0/$0.** A free primary
-    # disarms ``_gateway_provider``'s price cap outright (see the comment
-    # above ``_GATEWAY_MODELS``): zero has no meaningful multiple, so the
-    # route goes out uncapped. That is safe only because there is nothing
-    # here to overspend on -- a paid rung appended below a free primary was
-    # exactly the 2026-08-26 incident ($1.25/$4.25 "last resort" served
-    # 3.17M tokens, billed $5.23 in an afternoon, because 429 is the
-    # *normal* state of a shared free pool, not the rare case a last resort
-    # assumes). ``test_no_fallback_costs_more_than_the_model_above_it``
-    # holds this chain to that rule over the declared table, not by
-    # inspection.
+    # Every rung must be priced $0/$0. The provider's zero ceiling also
+    # binds fallback selection; a paid rung cannot escape it on a 429.
+    # ``test_no_fallback_costs_more_than_the_model_above_it`` keeps the
+    # declared chain consistent with that request-level constraint.
     #
     # Order follows the live probe (3 concurrent JSON requests each,
     # 2026-09-05/06): Nemotron Super and GLM M2.7 answered 3/3 fast
@@ -354,10 +354,12 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
     if order:
         provider["order"] = list(order)
     price = MODEL_PRICING.get(model_name)
-    if price is None or not price.prompt_usd_per_million:
+    if price is None:
         return provider
     provider["max_price"] = {
         "prompt": price.prompt_usd_per_million * _MAX_PRICE_MULTIPLE,
         "completion": (price.completion_usd_per_million * _MAX_PRICE_MULTIPLE),
     }
+    if price.prompt_usd_per_million == price.completion_usd_per_million == 0:
+        provider["max_price"]["request"] = 0.0
     return provider

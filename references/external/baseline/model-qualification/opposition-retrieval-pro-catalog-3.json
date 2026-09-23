@@ -1,0 +1,77 @@
+{
+  "selected": {
+    "id": "nex-agi/nex-n2.5-pro:free",
+    "canonical_slug": "nex-agi/nex-n2.5-pro-20260907",
+    "hugging_face_id": "nex-agi/Nex-N2.5-Pro",
+    "name": "Nex AGI: Nex-N2.5-Pro (free)",
+    "created": 1788890050,
+    "description": "Nex-N2.5 is an agentic model built to turn goals into working, verified outcomes. Its core strength is agentic coding within a visual feedback loop: it can explore codebases, implement multi-file...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Qwen3",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 235929,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "top_k": 40
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/nex-agi/nex-n2.5-pro-20260907/endpoints"
+    },
+    "reasoning": {
+      "mandatory": false,
+      "supported_efforts": [
+        "high",
+        "medium",
+        "none"
+      ],
+      "default_effort": "high"
+    }
+  },
+  "fetched_unix": 1789860163.246164,
+  "catalog_sha256": "1e615710d44db479461cc4135788599751f581e73f753cf74ee997c40613c684",
+  "execution_sources": {
+    "run_retrieval_trials.py": "a641fd657b74e398b73bb2bcb7cff5e43a5e0a81459356783ba23cd8061cedfb",
+    "probe_citation_panel.py": "8e3e58a6054be1b7a01ac810a4760fa404c9d76cf7c629ce570d5631281cb7f2",
+    "qualification_sources.py": "64edc5d5f57f6594ea0cdf9836c9a9a302a21b51e18faa0ccc1c76c04541238c",
+    "compare_opposition_panels.py": "6d0f73650557ef603d7505d5614f323c5f174310c035300932d57470df2e2348",
+    "source-manifest.json": "940a2e5f19b3cf8eda78a6dc12aa5c756feb6a3b76e9cb08ac5c60114c63e9ff"
+  }
+}

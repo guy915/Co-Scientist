@@ -73,6 +73,24 @@ def _render_evidence_span(span: Any, relation: str) -> str:
     return f"  - {relation} span — {source}: “{quote}”"
 
 
+_ASSESSMENT_METHODS = {
+    "legacy_unknown": "not recorded",
+    "no_evidence": "no candidate evidence",
+    "deterministic_lexical": "lexical comparison",
+    "model_primary": "model judgment",
+    "lexical_founded": "model judgment with a lexical contradiction check",
+    "contradiction_guard_rejected": (
+        "contradiction rejected by provenance checks"
+    ),
+    "model_opposition_verified": (
+        "separate model opposition check (not scientific validation)"
+    ),
+    "model_opposition_unconfirmed": (
+        "model opposition check did not confirm contradiction"
+    ),
+}
+
+
 def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
     """Render every persisted claim verdict for one released hypothesis."""
     if not edges:
@@ -82,6 +100,10 @@ def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
         role = str(edge.get("claim_role") or "categorical")
         claim = str(edge.get("claim") or "")
         lines.append(f"- **{_claim_status(edge)} · {role}** — {claim}")
+        method = _ASSESSMENT_METHODS.get(
+            str(edge.get("verification_method")), "not recorded"
+        )
+        lines.append(f"  Assessment method: {method}.")
         for span in edge.get("supporting") or []:
             lines.append(_render_evidence_span(span, "Supporting"))
         for span in edge.get("contradicting") or []:

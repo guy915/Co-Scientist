@@ -19,6 +19,11 @@ from typing import Any
 
 import httpx
 
+from mcp_server.campaign import (
+    campaign_free_mode,
+    require_metered_search_allowed,
+)
+
 logger = logging.getLogger(__name__)
 
 # Search snippets arrive with markup: Brave wraps query-term matches in
@@ -332,6 +337,7 @@ async def search_brave(
         Normalized results, or an empty dict on any network or parse error
         so a failed search degrades to "no results" rather than raising.
     """
+    require_metered_search_allowed()
     params: dict[str, str] = {
         "q": query,
         "count": str(max_results),
@@ -368,6 +374,7 @@ async def search_tavily(
     Returns:
         Normalized results, or an empty dict on any network or parse error.
     """
+    require_metered_search_allowed()
     payload: dict[str, Any] = {
         "query": query,
         "max_results": max_results,
@@ -441,6 +448,8 @@ def configured_providers() -> list[tuple[str, SearchFn]]:
         (provider name, search function) pairs, empty when no provider has
         an API key configured.
     """
+    if campaign_free_mode():
+        return []
     ordered: list[str] = []
     requested = os.environ.get("WEB_SEARCH_PROVIDER", "").strip().lower()
     if requested and _resolve_requested_provider(requested) is not None:

@@ -1,0 +1,148 @@
+{
+  "purpose": "Isolated local Nex Pro public-evidence acceptance preflight",
+  "checked_at": "2026-09-22T14:11:26+02:00",
+  "source_commit": "49111a15ba372842a3316ae8edcbd59c8807e55e",
+  "requested_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "public_zero_price_eligibility": {
+    "checked_at": "2026-09-22T12:05:29.848240+00:00",
+    "inference_performed": false,
+    "provider_credential_used": false,
+    "catalog_route_count": 444,
+    "catalog_route_found": true,
+    "raw_model": "nex-agi/nex-n2.5-pro:free",
+    "eligibility": "passed",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "architecture": {
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "context_length": 262144
+    },
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "retrieved_from": "https://openrouter.ai/api/v1/models"
+  },
+  "qualified_receipts": [
+    {
+      "artifact": "model-qualification/pro-challenge163-summary.json",
+      "sha256": "18f9189b6bfdd3e4de492a7b7f84791ad4c77da6b2744336abd371592c8d2a7c",
+      "accepted": true,
+      "scope": "current-code scientific panel"
+    },
+    {
+      "artifact": "model-qualification/nex-pro-reasoning-profile.json",
+      "sha256": "2c85e840f8bc1e76c5b94857e6d89dbfb72a8d448dd6b9b431609f400aeb98e0",
+      "accepted": true,
+      "scope": "reasoning and interface capabilities"
+    },
+    {
+      "artifact": "model-qualification/nex-pro-usefulness-series113-1.json",
+      "sha256": "0055a3ec4ac0b5ef3a186d00be54b08034bffdead5893cab2612ecbb8c492d29",
+      "accepted": true,
+      "scope": "usefulness trial series"
+    },
+    {
+      "artifact": "model-qualification/ranking-series114-acceptance.json",
+      "sha256": "e405b82370a9f0c6aaa93822e2976e54a76b0d8cb93bedc5b91fe13199488e9b",
+      "accepted": true,
+      "scope": "ranking trial series"
+    },
+    {
+      "artifact": "model-qualification/batch-context120-acceptance.json",
+      "sha256": "48ae091b9c3ed96e024e60131c426a34deadffa62b4c490d1e70688debd51ab9",
+      "accepted": true,
+      "scope": "batch-schema trial series"
+    }
+  ],
+  "local_stack": {
+    "session_id": 28675,
+    "api": {
+      "host": "127.0.0.1",
+      "port": 8118,
+      "state": "ready",
+      "health": "healthy",
+      "backend": "real",
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "all_roles_exact_model": true,
+      "execution_policy": "campaign",
+      "claims": "llm",
+      "evidence": "live",
+      "semantic_safety": true,
+      "free_model_enforcement": true,
+      "byok_enabled": false,
+      "web_search": false,
+      "email_notifications": false,
+      "auth": "required",
+      "authenticated_runs_readiness": true
+    },
+    "ui": {
+      "host": "127.0.0.1",
+      "port": 5283,
+      "state": "ready",
+      "served": true
+    },
+    "mcp": {
+      "host": "127.0.0.1",
+      "port": 8988,
+      "state": "ready",
+      "campaign_header_required": true,
+      "ephemeral_shared_secret": true,
+      "public_tool_count": 16,
+      "public_tool_policy": true
+    },
+    "fresh_state": {
+      "db_path": "/private/tmp/coscientist-local-live195.UUIRSr/coscientist.db",
+      "cache_path": "/private/tmp/coscientist-local-live195.UUIRSr/cache",
+      "mcp_cache_path": "/private/tmp/coscientist-local-live195.UUIRSr/mcp-cache",
+      "cache_enabled": false,
+      "scientific_tasks": 0,
+      "campaign_runs": 0,
+      "demo_seed_runs": 3,
+      "demo_seed_runs_are_campaign_evidence": false
+    },
+    "auth_file": "/private/tmp/coscientist-local-live195.UUIRSr/auth.json",
+    "auth_file_mode": "0600",
+    "handles_file": "/private/tmp/coscientist-local-live195.UUIRSr/handles.txt",
+    "handles_file_mode": "0600"
+  },
+  "credential_boundary": {
+    "openrouter_credential": "read from repo .env into API process environment only",
+    "provider_credential_value_recorded": false,
+    "ambient_credentials": "explicitly empty for alternate providers, web search, email, and public-data API keys",
+    "mcp_shared_secret_value_recorded": false,
+    "auth_values_recorded": false
+  },
+  "run_controls": {
+    "inference_performed_by_preparation": false,
+    "campaign_run_started": false,
+    "research_run_started": false,
+    "notifications_enabled": false,
+    "production_targeted": false,
+    "fallback_configured": false
+  },
+  "limitations": [
+    "This is stack readiness evidence; the coordinator must drive the browser workflow and any later run.",
+    "The three initial database rows are native offline demo seeds and are not campaign evidence.",
+    "No fallback model is qualified or configured, so this preflight does not claim full M1 acceptance."
+  ]
+}

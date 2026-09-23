@@ -1,0 +1,1410 @@
+{
+  "panel": "usefulness",
+  "trial": 3,
+  "requested_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "source_commit": "30c0788890a26ed21701285367ba4aa0f5befc58",
+  "invocation_sha256": "36feb99586bbfd257c5f6843bf53b9367c3e255efbeeba56bfd431ab284ed28f",
+  "observer_sha256": "6f180906b01e384722747abf251b83d7f161b01f38998a03559630f3db4e69d1",
+  "started_at": "2026-09-21T06:24:21.117995+00:00",
+  "eligibility": {
+    "id": "nex-agi/nex-n2.5-pro:free",
+    "canonical_slug": "nex-agi/nex-n2.5-pro-20260907",
+    "hugging_face_id": "nex-agi/Nex-N2.5-Pro",
+    "name": "Nex AGI: Nex-N2.5-Pro (free)",
+    "created": 1788890050,
+    "description": "Nex-N2.5 is an agentic model built to turn goals into working, verified outcomes. Its core strength is agentic coding within a visual feedback loop: it can explore codebases, implement multi-file...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image->text",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Qwen3",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 235929,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "top_k": 40
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/nex-agi/nex-n2.5-pro-20260907/endpoints"
+    },
+    "reasoning": {
+      "mandatory": false,
+      "supported_efforts": [
+        "high",
+        "medium",
+        "none"
+      ],
+      "default_effort": "high"
+    }
+  },
+  "report": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_usefulness::openrouter/nex-agi/nex-n2.5-pro:free": {
+          "deterministic_fallbacks": {},
+          "calls": 16,
+          "observed_model_calls": 16,
+          "reported_usage_calls": 16,
+          "priced_usage_calls": 16,
+          "requested_models": {
+            "openrouter/nex-agi/nex-n2.5-pro:free": 16
+          },
+          "prompt_tokens": 7250,
+          "completion_tokens": 3206,
+          "reasoning_tokens": 2665,
+          "cached_prompt_tokens": 3072,
+          "cost_usd": 0.0,
+          "latency_seconds": 92.02128395799082,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 16,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/nex-agi/nex-n2.5-pro:free": 16
+      },
+      "observed_models": [
+        "openrouter/nex-agi/nex-n2.5-pro:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_usefulness",
+      "dataset": {
+        "name": "citation_usefulness_v1",
+        "description": "Does a retrieved span answer the question the search was serving? Hand-authored, biomedical, deliberately including the failure mode a topic-overlap metric cannot see: a span on the right subject that answers a different question. Labels: useful (answers the question, for or against), partial (bears on it without settling it), useless (same topic, different question, or no bearing at all).",
+        "items": [
+          {
+            "id": "cu-001",
+            "question": "Is the TGF-beta receptor expressed in adult human liver?",
+            "claim": "TGF-beta signalling is available to target in adult human liver.",
+            "span": "Immunohistochemistry of 41 adult human liver biopsies detected TGFBR2 in hepatic stellate cells in all samples.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-002",
+            "question": "Is the TGF-beta receptor expressed in adult human liver?",
+            "claim": "TGF-beta signalling is available to target in adult human liver.",
+            "span": "TGF-beta receptor expression in murine embryonic liver peaks at E14.5 and declines thereafter.",
+            "label": "useless"
+          },
+          {
+            "id": "cu-003",
+            "question": "Does blocking IL-6 reduce fibrosis in humans?",
+            "claim": "IL-6 blockade is a plausible antifibrotic strategy.",
+            "span": "In a randomized trial of 212 patients, tocilizumab did not significantly change the forced vital capacity decline over 48 weeks.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-004",
+            "question": "Does blocking IL-6 reduce fibrosis in humans?",
+            "claim": "IL-6 blockade is a plausible antifibrotic strategy.",
+            "span": "IL-6 is elevated in the serum of patients with systemic sclerosis relative to healthy controls.",
+            "label": "partial"
+          },
+          {
+            "id": "cu-005",
+            "question": "Does blocking IL-6 reduce fibrosis in humans?",
+            "claim": "IL-6 blockade is a plausible antifibrotic strategy.",
+            "span": "Tocilizumab is approved for rheumatoid arthritis at a dose of 8 mg/kg every four weeks.",
+            "label": "useless"
+          },
+          {
+            "id": "cu-006",
+            "question": "What is the reported half-life of the compound in humans?",
+            "claim": "The compound can be dosed once daily.",
+            "span": "Mean terminal half-life after a single 40 mg oral dose in 18 healthy volunteers was 21.4 hours.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-007",
+            "question": "What is the reported half-life of the compound in humans?",
+            "claim": "The compound can be dosed once daily.",
+            "span": "The compound showed a half-life of 2.1 hours in Sprague-Dawley rats.",
+            "label": "partial"
+          },
+          {
+            "id": "cu-008",
+            "question": "Has senolytic therapy been tested in patients with idiopathic pulmonary fibrosis?",
+            "claim": "Senolytics are ready for a fibrosis trial.",
+            "span": "An open-label pilot of dasatinib plus quercetin in 14 patients with idiopathic pulmonary fibrosis improved six-minute walk distance.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-009",
+            "question": "Has senolytic therapy been tested in patients with idiopathic pulmonary fibrosis?",
+            "claim": "Senolytics are ready for a fibrosis trial.",
+            "span": "Senescent cell burden increases with age across most human tissues.",
+            "label": "useless"
+          },
+          {
+            "id": "cu-010",
+            "question": "Does the mechanism require a cofactor the cell does not supply?",
+            "claim": "The proposed enzymatic step proceeds in vivo.",
+            "span": "The reaction required exogenous NADPH; no activity was detected in cofactor-free lysate.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-011",
+            "question": "Does the mechanism require a cofactor the cell does not supply?",
+            "claim": "The proposed enzymatic step proceeds in vivo.",
+            "span": "Cytosolic NADPH concentrations in cultured hepatocytes range from 30 to 60 micromolar.",
+            "label": "partial"
+          },
+          {
+            "id": "cu-012",
+            "question": "Does the mechanism require a cofactor the cell does not supply?",
+            "claim": "The proposed enzymatic step proceeds in vivo.",
+            "span": "The crystal structure was solved to 1.9 angstrom resolution.",
+            "label": "useless"
+          },
+          {
+            "id": "cu-013",
+            "question": "Is there any human genetic evidence linking the gene to the disease?",
+            "claim": "The gene is a causal driver of the disease.",
+            "span": "A genome-wide association study of 12,400 cases identified a lead variant at this locus with odds ratio 1.31.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-014",
+            "question": "Is there any human genetic evidence linking the gene to the disease?",
+            "claim": "The gene is a causal driver of the disease.",
+            "span": "Knockout mice show a comparable phenotype to the human disease.",
+            "label": "useless"
+          },
+          {
+            "id": "cu-015",
+            "question": "Has anyone reported that the effect fails to replicate?",
+            "claim": "The effect is established.",
+            "span": "Three independent laboratories reported the original finding, and a fourth failed to reproduce it under matched conditions.",
+            "label": "useful"
+          },
+          {
+            "id": "cu-016",
+            "question": "Has anyone reported that the effect fails to replicate?",
+            "claim": "The effect is established.",
+            "span": "The original report has been cited 1,240 times.",
+            "label": "useless"
+          }
+        ]
+      },
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "7826d5f0de95e2d8fdc6935119a183521c63cfa1be606e71a39c2280e155f26e",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "1796431813a9febfb84c20ebb0c0433bfaed5544d85419f9c46a45176ca6c83b",
+        "llm_gateway_routing.py": "125cd90fb3be7c2d68d20bcd4229c7a4a55cc1809085d7c87c4c96d2222bb10c",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "order": [
+              "z-ai",
+              "deepinfra",
+              "novita",
+              "gmicloud"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "046f8c22f06277290a4b56024319760f73ea72e9047ce631d0298eb90cd89955"
+    },
+    "judge": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "panel": "citation_usefulness_v1",
+    "metrics": {
+      "n": 16,
+      "accuracy": 0.8125,
+      "recall_by_label": {
+        "useful": 0.8571,
+        "partial": 1.0,
+        "useless": 0.6667
+      },
+      "false_useful_rate": 0.0
+    },
+    "items": [
+      {
+        "id": "cu-001",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-002",
+        "expected": "useless",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-003",
+        "expected": "useful",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-004",
+        "expected": "partial",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-005",
+        "expected": "useless",
+        "predicted": "useless"
+      },
+      {
+        "id": "cu-006",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-007",
+        "expected": "partial",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-008",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-009",
+        "expected": "useless",
+        "predicted": "useless"
+      },
+      {
+        "id": "cu-010",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-011",
+        "expected": "partial",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-012",
+        "expected": "useless",
+        "predicted": "useless"
+      },
+      {
+        "id": "cu-013",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-014",
+        "expected": "useless",
+        "predicted": "partial"
+      },
+      {
+        "id": "cu-015",
+        "expected": "useful",
+        "predicted": "useful"
+      },
+      {
+        "id": "cu-016",
+        "expected": "useless",
+        "predicted": "useless"
+      }
+    ]
+  },
+  "physical_requests": [
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:21.265117+00:00",
+      "prompt_sha256": "752c8cf46266d3cc585952744a1badef8bfeef784f882687ac5480e21d42a4ca",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"It directly reports detection of TGFBR2, a TGF-beta receptor, in adult human liver biopsies.\"\n}",
+      "usage": {
+        "completion_tokens": 139,
+        "prompt_tokens": 461,
+        "total_tokens": 600,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 100,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:25.266288+00:00",
+      "prompt_sha256": "415bdc16f9e9bea32443b40c095d8d2d73178e8bf154f820bc2575dfb3564a08",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"The passage concerns TGF-beta receptor expression in liver, but in murine embryonic liver rather than adult human liver, so it is related evidence but does not settle the question.\"\n}",
+      "usage": {
+        "completion_tokens": 147,
+        "prompt_tokens": 453,
+        "total_tokens": 600,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 104,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:29.267030+00:00",
+      "prompt_sha256": "5bc8f6ca8af5671d8c65211516c908be161dd67f68659196369cce8f83047020",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"The passage is about a human randomized trial of tocilizumab, an IL-6 receptor blocker, but it reports forced vital capacity decline rather than a direct measure of fibrosis. It therefore provides indirect evidence related to fibrosis progression without directly answering whether IL-6 blockade reduces fibrosis.\"\n}",
+      "usage": {
+        "completion_tokens": 963,
+        "prompt_tokens": 460,
+        "total_tokens": 1423,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1014,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:44.480945+00:00",
+      "prompt_sha256": "c41111d2235561313bc79eb8f22966925574f736422f49bbfe924e8a1eae15a3",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"It shows IL-6 is elevated in systemic sclerosis patients, which is relevant to IL-6 involvement in a fibrotic human disease, but it does not assess IL-6 blockade or whether fibrosis is reduced.\"\n}",
+      "usage": {
+        "completion_tokens": 156,
+        "prompt_tokens": 448,
+        "total_tokens": 604,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 110,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:48.482059+00:00",
+      "prompt_sha256": "5ca3403601e79b4bdbb886a5cd6ce14b3dee1a3bbcdcd17ecd7ff6a7a53fea82",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useless\",\n  \"reason\": \"The passage only states that tocilizumab is approved and dosed for rheumatoid arthritis; it provides no evidence about whether IL-6 blockade reduces fibrosis in humans.\"\n}",
+      "usage": {
+        "completion_tokens": 153,
+        "prompt_tokens": 454,
+        "total_tokens": 607,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 104,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:52.482290+00:00",
+      "prompt_sha256": "0f831b911d5ad9daca8a59b911b56966db927e4b95249888ef593cfd4e426a1b",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"The passage directly reports the mean terminal half-life in healthy human volunteers after a single oral dose.\"\n}",
+      "usage": {
+        "completion_tokens": 120,
+        "prompt_tokens": 458,
+        "total_tokens": 578,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 91,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:24:56.483417+00:00",
+      "prompt_sha256": "00e14fc7c4dfacd91ba068086591e32a7c4e076baeb03e4a4b77915df5c54845",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"The passage reports a half-life for the compound, but only in Sprague-Dawley rats, not in humans.\"\n}",
+      "usage": {
+        "completion_tokens": 110,
+        "prompt_tokens": 451,
+        "total_tokens": 561,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 79,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:00.484496+00:00",
+      "prompt_sha256": "e1281326c3897fed2a2cdc700b00583b4ae2b81f399252087274eb9feec6ec71",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"The passage reports an open-label pilot study of dasatinib plus quercetin, a senolytic therapy, in 14 patients with idiopathic pulmonary fibrosis, directly showing that senolytic therapy has been tested in IPF patients.\"\n}",
+      "usage": {
+        "completion_tokens": 167,
+        "prompt_tokens": 464,
+        "total_tokens": 631,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 100,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:04.582536+00:00",
+      "prompt_sha256": "2a2056b984e62204e73ad1eda7330b5480382d1f51e9eb66a5b77f4419d885d9",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useless\",\n  \"reason\": \"The passage only states that senescent cell burden increases with age across human tissues. It does not address senolytic therapy, idiopathic pulmonary fibrosis, or whether such therapy has been tested in patients.\"\n}",
+      "usage": {
+        "completion_tokens": 145,
+        "prompt_tokens": 448,
+        "total_tokens": 593,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 95,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:08.584675+00:00",
+      "prompt_sha256": "0367dec4ec47c4bd7279c5975a1db14a0a64222b5ba6cad157558492bd08f944",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"The passage directly indicates that the reaction requires exogenous NADPH and has no activity without added cofactor, answering that the mechanism needs a cofactor not supplied in the lysate.\"\n}",
+      "usage": {
+        "completion_tokens": 192,
+        "prompt_tokens": 452,
+        "total_tokens": 644,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 147,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:14.993577+00:00",
+      "prompt_sha256": "ecd5a0af9da23c491c1c72cf559064dadcded9166acf3b079261cfc38bd895e9",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"It provides evidence that hepatocyte cells supply cytosolic NADPH at measurable concentrations, but it does not state whether the mechanism requires NADPH or any cofactor the cell lacks.\"\n}",
+      "usage": {
+        "completion_tokens": 235,
+        "prompt_tokens": 457,
+        "total_tokens": 692,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 196,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:25.988176+00:00",
+      "prompt_sha256": "c560b7258b3f1cd90e36f22021a59d066ca6c0c914910db3a44ee49c299694b3",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useless\",\n  \"reason\": \"The passage only reports the crystal structure resolution and provides no information about whether the mechanism requires a cofactor not supplied by the cell.\"\n}",
+      "usage": {
+        "completion_tokens": 117,
+        "prompt_tokens": 446,
+        "total_tokens": 563,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 85,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 384,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:37.832242+00:00",
+      "prompt_sha256": "80c3f4492ff48576b4862068230e5a766c3204ce7574397d9acc2e85621adba6",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"The passage reports a human genome-wide association study identifying a lead variant at the locus associated with the disease, providing human genetic evidence linking the gene/locus to the disease.\"\n}",
+      "usage": {
+        "completion_tokens": 215,
+        "prompt_tokens": 462,
+        "total_tokens": 677,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 171,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 448,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:42.188518+00:00",
+      "prompt_sha256": "0f1c5b093cd515eaed47a9255b9f61f28b464af78febd1ab698e457cad0d3ba4",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"partial\",\n  \"reason\": \"The passage provides animal model evidence from knockout mice, which is relevant to the gene-disease relationship but does not provide human genetic evidence.\"\n}",
+      "usage": {
+        "completion_tokens": 122,
+        "prompt_tokens": 445,
+        "total_tokens": 567,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 99,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:46.190652+00:00",
+      "prompt_sha256": "d8d4fdc8e35093f164fbe65be9fe9372ba29b30fc8d32059bd9b45ab643335af",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useful\",\n  \"reason\": \"The passage directly reports that a fourth laboratory failed to reproduce the original finding under matched conditions, answering the question that someone has reported a failed replication.\"\n}",
+      "usage": {
+        "completion_tokens": 112,
+        "prompt_tokens": 448,
+        "total_tokens": 560,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 89,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "order": [
+            "z-ai",
+            "deepinfra",
+            "novita",
+            "gmicloud"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "effort": "high"
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-21T06:25:50.192698+00:00",
+      "prompt_sha256": "5c519394f47ee9d74389f23ca7d3d6bcbfacbf199f1f052c957b5700cd22d2c6",
+      "response_model": "nex-agi/nex-n2.5-pro:free",
+      "content": "{\n  \"label\": \"useless\",\n  \"reason\": \"It only reports the citation count of the original report and does not address whether anyone reported a failed replication of the effect.\"\n}",
+      "usage": {
+        "completion_tokens": 113,
+        "prompt_tokens": 443,
+        "total_tokens": 556,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 81,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "finished_at": "2026-09-21T06:25:53.429446+00:00"
+}

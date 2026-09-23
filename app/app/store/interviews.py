@@ -18,6 +18,7 @@ class _NewInterviewFields:
 
     interview_id: str
     client_id: str
+    execution_policy: str
     challenge: str
     fields: dict[str, Any]
     now: float
@@ -28,11 +29,12 @@ def _insert_interview_rows(
 ) -> None:
     """Insert the interview row and its opening transcript turn."""
     conn.execute(
-        "INSERT INTO interviews (id, client_id, status, fields_json, "
-        "created_at, updated_at) VALUES (?,?,?,?,?,?)",
+        "INSERT INTO interviews (id, client_id, execution_policy, status, "
+        "fields_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
         (
             f.interview_id,
             f.client_id,
+            f.execution_policy,
             "active",
             json.dumps(f.fields),
             f.now,
@@ -50,6 +52,7 @@ def create_interview(
     client_id: str,
     challenge: str,
     *,
+    execution_policy: str = "standard",
     db_path: str | None = None,
 ) -> dict[str, Any]:
     """Create an active interview seeded with the scientist's challenge.
@@ -57,6 +60,7 @@ def create_interview(
     Args:
         client_id: The owning client.
         challenge: The scientist's opening research challenge.
+        execution_policy: Server-derived execution policy for this interview.
         db_path: Optional database override.
 
     Returns:
@@ -80,6 +84,7 @@ def create_interview(
             _NewInterviewFields(
                 interview_id=interview_id,
                 client_id=client_id,
+                execution_policy=execution_policy,
                 challenge=challenge,
                 fields=fields,
                 now=now,

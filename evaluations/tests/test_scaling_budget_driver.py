@@ -54,6 +54,11 @@ def test_offline_snapshots_carry_claim_counts_scaling_eval_expects() -> None:
     )
     snapshot = report["snapshots"][0]
     assert snapshot["goal_id"] == report["goal_id"]
+    assert (
+        snapshot["evaluation_identity"]
+        == report["arms"][0]["evaluation_identity"]
+    )
+    assert snapshot["evaluation_identity"]["cache_policy"] == "disabled"
     for hypothesis in snapshot["hypotheses"]:
         assert "text" in hypothesis
         assert "elo_rating" in hypothesis

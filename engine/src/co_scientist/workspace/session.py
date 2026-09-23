@@ -33,6 +33,7 @@ from co_scientist.sandbox import (
     run_sandboxed,
     workspace_write,
 )
+from co_scientist.sandbox.policy import campaign_workspace_policy
 from co_scientist.tool_effects import ToolEffect
 from co_scientist.workspace.command_session import SessionRegistry
 from co_scientist.workspace.output import SPILL_DIRECTORY
@@ -150,8 +151,9 @@ class WorkspaceSession:
         root.mkdir(parents=True, exist_ok=True)
         self.root = root.resolve()
         _ensure_metadata_directory(self.root)
-        self.policy = policy or workspace_write(
-            self.root, network_allowed=network_allowed
+        self.policy = campaign_workspace_policy(
+            policy
+            or workspace_write(self.root, network_allowed=network_allowed)
         )
         self.skills_enabled = skills_enabled
         # Commands that outlive the call that started them. Lazily
@@ -190,7 +192,7 @@ class WorkspaceSession:
         result = await run_sandboxed(
             ExecRequest(
                 argv=argv,
-                policy=self.policy,
+                policy=campaign_workspace_policy(self.policy),
                 cwd=self.root,
                 timeout_seconds=timeout_seconds,
                 env=build_env(extra=env),

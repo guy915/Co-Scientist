@@ -107,3 +107,43 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
         if task is not asyncio.current_task() and not task.done()
     ]
     assert pending == []
+
+
+async def test_closing_after_a_fragment_cancels_the_advance_task(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Closing a partially consumed stream does not leave its task running."""
+    interview_id = _seed_interview(isolated_db)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def _fake_advance(
+        _interview_id: str,
+        on_reasoning: Any = None,
+        _on_prose: Any = None,
+    ) -> dict[str, Any]:
+        assert on_reasoning is not None
+        await on_reasoning("first")
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    monkeypatch.setattr(interviews_stream, "_advance", _fake_advance)
+
+    gen = interviews_stream._advance_stream(interview_id)
+    assert "reasoning" in await gen.__anext__()
+    await asyncio.wait_for(started.wait(), timeout=5)
+    await gen.aclose()
+
+    assert cancelled.is_set()
+    pending = [
+        task
+        for task in asyncio.all_tasks()
+        if task is not asyncio.current_task() and not task.done()
+    ]
+    assert pending == []

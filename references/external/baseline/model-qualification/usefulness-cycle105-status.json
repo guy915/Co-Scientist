@@ -1,0 +1,31 @@
+{
+  "purpose": "Incomplete usefulness screen; first trial passed, second parked by daily cap",
+  "source_revision": "1a5713f9",
+  "runner_session": 44736,
+  "runner_exit_code": 1,
+  "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "trial1_passed": true,
+  "qualified": false,
+  "resume_not_before_utc": "2026-09-21T00:00:00Z",
+  "resume_not_before_epoch": 1789948800,
+  "retry_policy": "Retain trial2 failure; after reset and fresh eligibility, rerun the full trial2 to a new exclusive filename and complete trial3 under unchanged evaluator/model/configuration. If configuration changes, rerun the full series. Do not issue inference against the cap.",
+  "artifacts": [
+    {
+      "trial": 1,
+      "artifact": "nex-pro-usefulness-1.json",
+      "sha256": "211fe736b863f8e7090fcff5ac849a37daadc37058cde90186dc79d075bcac42",
+      "physical_attempts": 16,
+      "completed_responses": 16,
+      "error_type": null
+    },
+    {
+      "trial": 2,
+      "artifact": "nex-pro-usefulness-2.json",
+      "sha256": "69a8de54c812c52253bf77acc266d0eee32ecbbda4b5ab4e56b73a30cd1d1521",
+      "physical_attempts": 16,
+      "completed_responses": 15,
+      "error_type": "LLMRateLimitParkError"
+    }
+  ],
+  "secret_scan_passed": true
+}

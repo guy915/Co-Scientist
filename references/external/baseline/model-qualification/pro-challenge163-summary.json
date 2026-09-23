@@ -1,0 +1,51 @@
+{
+  "purpose": "Nex Pro current-code scientific qualification after Q1 and Q2",
+  "requested_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "source_commit": "ee77507415a248889683cef551ec1dd083645bb4",
+  "source_manifest": "pro-current-sources163.json",
+  "accepted": true,
+  "trials": [
+    {
+      "trial": 1,
+      "artifact": "pro-challenge163-1.json",
+      "sha256": "f15bb16cb2377466dfd34419c291f6fe1610468920e3fd2d204cb2c4e8a6fd98",
+      "accuracy": 0.933,
+      "contradiction_recall": 0.8,
+      "physical_requests": 64,
+      "all_gates_and_controls_passed": true
+    },
+    {
+      "trial": 2,
+      "artifact": "pro-challenge163-2.json",
+      "sha256": "da2590512010548253fd94a9fe7b12f559a6c2db4cb26d3ccbcd8cf0d340b781",
+      "accuracy": 0.933,
+      "contradiction_recall": 0.8,
+      "physical_requests": 67,
+      "all_gates_and_controls_passed": true
+    },
+    {
+      "trial": 3,
+      "artifact": "pro-challenge163-3.json",
+      "sha256": "c8e2c3ef4fd4663d77b69f2a4e0cf64cde9f623637664c72dbed4ae4b1052cf9",
+      "accuracy": 0.933,
+      "contradiction_recall": 0.8,
+      "physical_requests": 65,
+      "all_gates_and_controls_passed": true,
+      "recovered_transport_attempt": {
+        "physical_request_index": 63,
+        "error_type": "APIError",
+        "cause": "Malformed JSON response before response identity or usage was available",
+        "recovered_by_request_index": 64
+      }
+    }
+  ],
+  "all_attempts_have_zero_price_caps": true,
+  "all_successful_attempts_have_expected_served_model_and_usage": true,
+  "all_panels_have_zero_deterministic_fallbacks": true,
+  "historical_controls_passed": true,
+  "controlled_primary_passed": true,
+  "single_scope_controls_passed": true,
+  "batch_scope_controls_passed": true,
+  "independent_billing_receipt": false,
+  "disposition": "Accept Nex Pro as the primary model candidate; production selection still requires an independently qualified fallback and workflow verification."
+}

@@ -224,3 +224,21 @@ def test_a_gate_pass_that_made_no_calls_charges_nothing() -> None:
 
     assert state["metrics"].llm_calls == 7
     assert state["metrics"].model_usage == {}
+
+
+def test_reused_assessment_preserves_verification_method() -> None:
+    record = _gate_record([(_CLAIM, "speculative", "fixed-fingerprint")])
+    record["claims"][0]["verification_method"] = "model_opposition_verified"
+    restored = reusable_assessments(record)
+    assert (
+        restored["fixed-fingerprint"].verification_method
+        == "model_opposition_verified"
+    )
+
+
+def test_legacy_reused_assessment_has_unknown_method() -> None:
+    record = _gate_record([(_CLAIM, "speculative", "fixed-fingerprint")])
+    assert (
+        reusable_assessments(record)["fixed-fingerprint"].verification_method
+        == "legacy_unknown"
+    )

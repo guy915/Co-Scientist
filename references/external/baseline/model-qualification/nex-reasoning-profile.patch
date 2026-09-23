@@ -1,0 +1,19 @@
+diff --git a/engine/src/co_scientist/llm_gateway_routing.py b/engine/src/co_scientist/llm_gateway_routing.py
+index eee87e3e..216228dd 100644
+--- a/engine/src/co_scientist/llm_gateway_routing.py
++++ b/engine/src/co_scientist/llm_gateway_routing.py
+@@ -234,6 +234,14 @@ _GATEWAY_MAX_FALLBACKS: Final[int] = 3
+ # Zero is now an explicit ceiling for free routes, including per-request
+ # fees. Current model eligibility still needs verification before live use.
+ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
++    # Campaign probes observed reasoning on both Nex variants. Until disabling
++    # is qualified, use the shared bounded-minimal mode and fund its answer.
++    "openrouter/nex-agi/nex-n2.5-pro:free": GatewayModel(
++        takes_reasoning_knob=True, spends_budget_thinking=True
++    ),
++    "openrouter/nex-agi/nex-n2.5-mini:free": GatewayModel(
++        takes_reasoning_knob=True, spends_budget_thinking=True
++    ),
+     # A non-default chain head kept for a deployment that opts back into
+     # it. It was the deployed primary from 2026-09-05 until a real express
+     # run measured its single host (Decart) answering only 7 of 85 calls --

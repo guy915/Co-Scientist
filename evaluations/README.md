@@ -136,8 +136,15 @@ explicitly says otherwise; machine-readable results are written under
   blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
   latency; also aggregates paired feature-ablation arms without treating Elo
   as quality ground truth.
-- `release_gate.py` — fail-closed scientific publication readiness over claim,
-  safety, and provenance artifacts.
+- `release_gate.py` — scientific publication readiness over supplied claim,
+  hypothesis and safety artifacts. Supply the full public safety-audit records
+  (including integer `id` and `stage`): the newest final-stage `allow` or
+  actionable `redact` decision is required. An approved old hold requires a
+  newer successful final screen. Hypothesis holds exclude ideas, not the whole
+  report. Legacy/pending hypotheses are re-screened with the live deterministic
+  classifier and require their statement. This pure evaluator performs no
+  inference or audit writes and cannot attest an export's authenticity;
+  provenance completeness and supported-claim ratio remain observations.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
 - `golden_run.py` — a deliberate exception to "runs offline": drives one small
   biomedical run through the real durable path (`store.create_run` ->
@@ -180,12 +187,12 @@ python -m evaluations.citation_eval --challenge --llm  # adversarial panel, sema
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
 python -m evaluations.scaling_eval path/to/controlled-runs.json
 python -m evaluations.scaling_budget_driver              # offline; writes results/scaling-budget-curve-<date>.json
-python -m evaluations.scaling_budget_driver --live        # needs DEEPSEEK_API_KEY; real spend/time
+python -m evaluations.scaling_budget_driver --live        # explicit MODEL_NAME + OPENROUTER_API_KEY
 python -m evaluations.ablation_driver                     # offline; writes results/ablation-sweep-<date>.json
-python -m evaluations.ablation_driver --live               # needs DEEPSEEK_API_KEY + reachable MCP
+python -m evaluations.ablation_driver --live               # explicit MODEL_NAME + OPENROUTER_API_KEY + qualified MCP
 python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
-python -m evaluations.elo_concordance_eval --llm            # needs DEEPSEEK_API_KEY; scores the real judge
-python -m evaluations.golden_run            # LIVE; needs DEEPSEEK_API_KEY + a local MCP server
+python -m evaluations.elo_concordance_eval --llm            # explicit MODEL_NAME + OPENROUTER_API_KEY
+python -m evaluations.golden_run            # Non-campaign INDRA acceptance only
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
@@ -315,3 +322,22 @@ labs and are recorded honestly rather than fabricated:
 - **Wet-lab validation** (AML / fibrosis / AMR) is out of scope.
 
 Each runner records its own `external_gap` in its result artifact.
+
+### Golden run and campaign acceptance
+
+The INDRA golden runner requires explicit `MODEL_NAME` and its matching provider
+credential in the environment; it does not read `.env` or choose a model default.
+It remains a separate non-campaign acceptance check and may incur charges.
+Campaign mode rejects it before execution because INDRA is not qualified by the
+campaign MCP policy. Do not turn off campaign mode to run it during the campaign.
+Use the [public-evidence procedure](../references/external/campaign.md#public-evidence-acceptance-workflow)
+for campaign acceptance. Passing that procedure does not establish INDRA acceptance.
+
+Live citation entailment, citation usefulness and Elo panels use campaign
+configuration before importing model code. Set an explicit OpenRouter `MODEL_NAME`
+and `OPENROUTER_API_KEY`; citation usefulness also accepts `--model` explicitly.
+Every model role is pinned and transport admission checks current zero prices.
+No paid/default model is selected implicitly. Run each live panel in a fresh
+process. Offline modes require neither setting. Served-model, cost and fallback
+evidence is still being completed under M1-03d3b; a panel score alone is not
+qualified live scientific evidence. Historical results above remain historical.

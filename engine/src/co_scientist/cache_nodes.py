@@ -20,6 +20,8 @@ from co_scientist.cache_storage import (
 )
 from co_scientist.constants import DEFAULT_CACHE_DIR
 from co_scientist.constants_cache import DEFAULT_CACHE_TTL_SECONDS
+from co_scientist.llm_credentials import current_api_key
+from co_scientist.llm_free_policy import campaign_free_mode
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,10 @@ class NodeCache:
         Returns:
             Cached node output dict or None if not found
         """
+        # Shared node outputs have neither credential nor experiment provenance.
+        if campaign_free_mode() or current_api_key():
+            return None
+
         if not self.enabled and not force:
             return None
 
@@ -124,6 +130,9 @@ class NodeCache:
             **key_params: Parameters that affect the output
                 (e.g., research_goal="...")
         """
+        if campaign_free_mode() or current_api_key():
+            return
+
         if not self.enabled and not force:
             return
 

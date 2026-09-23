@@ -30,6 +30,7 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from app.execution_policy import scoped_execution_policy
 from app.llm_stream import stream_chunks
 from app.sse import sse_frame
 from app.store.models import RunRow
@@ -130,7 +131,7 @@ async def _stream_model_fragments(
             is the same branch an absent or failing provider takes -- the
             caller answers all three with the deterministic announcement.
     """
-    import litellm
+    from app import llm_request
 
     # Refuse before the request is shaped, not after: the prompt carries the
     # scientist's research goal verbatim.
@@ -143,7 +144,7 @@ async def _stream_model_fragments(
         if thinking_enabled
         else thinking_off_kwargs(model)
     )
-    response = await litellm.acompletion(
+    response = await llm_request.acompletion(
         model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
@@ -234,7 +235,10 @@ async def _announcement_attempts(
     ``interviews_model._stream_interview_content`` for the same shape on
     the interview's own stream.
     """
-    with credentials.scoped_byok(byok):
+    with (
+        scoped_execution_policy(run.execution_policy),
+        credentials.scoped_byok(byok),
+    ):
         async for frame in _relay_announcement(run, prose, reasoning):
             yield frame
         if "".join(prose).strip() or not "".join(reasoning).strip():

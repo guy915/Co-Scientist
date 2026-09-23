@@ -1,0 +1,19 @@
+{
+  "runner_session": 45354,
+  "runner_status": "live; trial3 running after trial2 exit0",
+  "trial2": {
+    "artifact": "nex-pro-ranking-series114-2.json",
+    "sha256": "1ddbb1a0cc1970655a1081fc5a28ef83a9cb49622f3977b90f5e4f44c7d5ba35",
+    "passed": true,
+    "top1_accuracy": 1.0,
+    "mean_tau_b": 0.8673,
+    "top_ties": 0,
+    "physical_calls": 48,
+    "reported_cost_usd": 0,
+    "zero_caps_verified": true,
+    "deterministic_fallbacks": 0,
+    "identity_matches_trial1": true
+  },
+  "series_complete": false,
+  "next": "Poll SAME runner45354 for trial3; do not restart."
+}

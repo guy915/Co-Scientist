@@ -1,0 +1,72 @@
+{
+  "purpose": "Fresh credential-free zero-price eligibility before bounded Gemma 4 26B capability qualification.",
+  "checked_at": "2026-09-22T10:15:08.126722+00:00",
+  "source_commit": "b3f2e31621d82a226fdabfa2def5637fbb6023f1",
+  "catalog_source": "https://openrouter.ai/api/v1/models",
+  "catalog_raw_sha256": "817012b6ae70c5c3d1d0dc886d5d1b153a13f2ba3dc41014022b8376f382cf81",
+  "catalog_entries": 444,
+  "requested_model": "openrouter/google/gemma-4-26b-a4b-it:free",
+  "raw_catalog_row": {
+    "id": "google/gemma-4-26b-a4b-it:free",
+    "canonical_slug": "google/gemma-4-26b-a4b-it-20260403",
+    "hugging_face_id": "google/gemma-4-26B-A4B-it",
+    "name": "Google: Gemma 4 26B A4B  (free)",
+    "created": 1775227989,
+    "description": "Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind. Despite 25.2B total parameters, only 3.8B activate per token during inference — delivering near-31B quality at...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["image", "text", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Gemma",
+      "instruct_type": null
+    },
+    "pricing": {"prompt": "0", "completion": "0"},
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "seed",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "default_parameters": {"temperature": 1, "top_p": 0.95, "top_k": 64},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/google/gemma-4-26b-a4b-it-20260403/endpoints"
+    },
+    "benchmarks": {
+      "design_arena": [],
+      "artificial_analysis": {
+        "intelligence_index": null,
+        "coding_index": 39.3,
+        "agentic_index": null
+      }
+    },
+    "reasoning": {"mandatory": false, "default_enabled": false}
+  },
+  "runtime_verify_model": {
+    "accepted": true,
+    "catalog_row_pricing": {"prompt": "0", "completion": "0"},
+    "catalog_row_architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["image", "text", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Gemma",
+      "instruct_type": null
+    }
+  },
+  "credential_used": false,
+  "live_calls_made": 0
+}

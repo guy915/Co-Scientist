@@ -1,0 +1,289 @@
+{
+  "requested_model": "openrouter/liquid/lfm-2.5-2.6b:free",
+  "started_at": "2026-09-21T12:37:32.140923+00:00",
+  "source_commit": "e1ffa6998c27cbac2ff9c20e6269db54403314f2",
+  "probe_sha256": "1a470cc7c7fb6cf7e35b0d116c65dc5e0ba4c88854ae0f73127a82ff78574abf",
+  "cases": [
+    {
+      "case": "json_off",
+      "passed": true,
+      "response": {
+        "label": "supports",
+        "quote": "Treatment X reduced cell viability by 30% relative to vehicle."
+      },
+      "prompt_characters": 166,
+      "thinking_requested": false,
+      "max_tokens_requested": 6000,
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "json_off::openrouter/liquid/lfm-2.5-2.6b:free": {
+            "deterministic_fallbacks": {},
+            "calls": 1,
+            "observed_model_calls": 1,
+            "reported_usage_calls": 1,
+            "priced_usage_calls": 0,
+            "requested_models": {
+              "openrouter/liquid/lfm-2.5-2.6b:free": 1
+            },
+            "prompt_tokens": 46,
+            "completion_tokens": 686,
+            "reasoning_tokens": 656,
+            "cached_prompt_tokens": 0,
+            "cost_usd": 0.0,
+            "latency_seconds": 3.504378249999718,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {}
+          }
+        },
+        "physical_calls": 1,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/liquid/lfm-2.5-2.6b:free": 1
+        },
+        "observed_models": [
+          "openrouter/liquid/lfm-2.5-2.6b:free"
+        ],
+        "unobserved_model_calls": 0,
+        "unreported_usage_calls": 0,
+        "unpriced_calls": 1,
+        "has_usage_records": true,
+        "estimate_complete": false,
+        "estimated_total_usd": null,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      },
+      "physical_request_controls": [
+        {
+          "model": "openrouter/liquid/lfm-2.5-2.6b:free",
+          "max_tokens": 6000,
+          "extra_body": {
+            "provider": {
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              },
+              "require_parameters": true
+            }
+          },
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "response",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "enum": [
+                      "supports",
+                      "contradicts",
+                      "insufficient"
+                    ]
+                  },
+                  "quote": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "quote"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "stream": null
+        }
+      ]
+    },
+    {
+      "case": "json_on",
+      "passed": true,
+      "response": {
+        "label": "supports",
+        "quote": "Treatment X reduced cell viability by 30% relative to vehicle."
+      },
+      "prompt_characters": 166,
+      "thinking_requested": true,
+      "max_tokens_requested": 6000,
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "json_on::openrouter/liquid/lfm-2.5-2.6b:free": {
+            "deterministic_fallbacks": {},
+            "calls": 1,
+            "observed_model_calls": 1,
+            "reported_usage_calls": 1,
+            "priced_usage_calls": 0,
+            "requested_models": {
+              "openrouter/liquid/lfm-2.5-2.6b:free": 1
+            },
+            "prompt_tokens": 46,
+            "completion_tokens": 440,
+            "reasoning_tokens": 411,
+            "cached_prompt_tokens": 32,
+            "cost_usd": 0.0,
+            "latency_seconds": 4.631909916002769,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {}
+          }
+        },
+        "physical_calls": 1,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/liquid/lfm-2.5-2.6b:free": 1
+        },
+        "observed_models": [
+          "openrouter/liquid/lfm-2.5-2.6b:free"
+        ],
+        "unobserved_model_calls": 0,
+        "unreported_usage_calls": 0,
+        "unpriced_calls": 1,
+        "has_usage_records": true,
+        "estimate_complete": false,
+        "estimated_total_usd": null,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      },
+      "physical_request_controls": [
+        {
+          "model": "openrouter/liquid/lfm-2.5-2.6b:free",
+          "max_tokens": 6000,
+          "extra_body": {
+            "provider": {
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              },
+              "require_parameters": true
+            }
+          },
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "response",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "enum": [
+                      "supports",
+                      "contradicts",
+                      "insufficient"
+                    ]
+                  },
+                  "quote": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "quote"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "stream": null
+        }
+      ]
+    },
+    {
+      "case": "tools",
+      "passed": false,
+      "error_type": "RateLimitError",
+      "error": "litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"liquid/lfm-2.5-2.6b:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"Liquid\",\"is_byok\":false,\"provider_error_code\":\"rate_limit_exceeded\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\",\"retry_after_seconds\":19,\"retry_after_seconds_raw\":19,\"headers\":{\"Retry-After\":\"19\"}}},\"[redacted-account]\":\"[redacted-account]\"}",
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "tools::openrouter/liquid/lfm-2.5-2.6b:free": {
+            "deterministic_fallbacks": {},
+            "calls": 2,
+            "observed_model_calls": 1,
+            "reported_usage_calls": 1,
+            "priced_usage_calls": 0,
+            "requested_models": {
+              "openrouter/liquid/lfm-2.5-2.6b:free": 2
+            },
+            "prompt_tokens": 105,
+            "completion_tokens": 64,
+            "reasoning_tokens": 47,
+            "cached_prompt_tokens": 16,
+            "cost_usd": 0.0,
+            "latency_seconds": 1.5564840839797398,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {
+              "RateLimitError": 1
+            }
+          }
+        },
+        "physical_calls": 2,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/liquid/lfm-2.5-2.6b:free": 2
+        },
+        "observed_models": [
+          "openrouter/liquid/lfm-2.5-2.6b:free"
+        ],
+        "unobserved_model_calls": 1,
+        "unreported_usage_calls": 1,
+        "unpriced_calls": 2,
+        "has_usage_records": true,
+        "estimate_complete": false,
+        "estimated_total_usd": null,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      },
+      "physical_request_controls": [
+        {
+          "model": "openrouter/liquid/lfm-2.5-2.6b:free",
+          "max_tokens": 6000,
+          "extra_body": {
+            "provider": {
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              },
+              "require_parameters": true
+            }
+          },
+          "response_format": null,
+          "stream": null
+        },
+        {
+          "model": "openrouter/liquid/lfm-2.5-2.6b:free",
+          "max_tokens": 6000,
+          "extra_body": {
+            "provider": {
+              "max_price": {
+                "prompt": 0,
+                "completion": 0,
+                "request": 0
+              },
+              "require_parameters": true
+            }
+          },
+          "response_format": null,
+          "stream": null
+        }
+      ]
+    }
+  ]
+}

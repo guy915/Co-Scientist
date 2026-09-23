@@ -76,6 +76,7 @@ class _NewRunFields:
     provider: str
     config: dict[str, Any]
     client_id: str
+    execution_policy: str
     now: float
     backend: str
 
@@ -85,7 +86,7 @@ def _insert_run_row(conn: sqlite3.Connection, f: _NewRunFields) -> None:
     conn.execute(
         "INSERT INTO runs (id, research_goal, title, profile, status, "
         "provider, config_json, client_id, created_at, updated_at, "
-        "llm_backend) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "llm_backend, execution_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             f.run_id,
             f.research_goal,
@@ -98,6 +99,7 @@ def _insert_run_row(conn: sqlite3.Connection, f: _NewRunFields) -> None:
             f.now,
             f.now,
             f.backend,
+            f.execution_policy,
         ),
     )
 
@@ -118,6 +120,7 @@ def _run_row_from_insert(f: _NewRunFields) -> RunRow:
         completed_at=None,
         error=None,
         llm_backend=f.backend,
+        execution_policy=f.execution_policy,
     )
 
 
@@ -149,6 +152,7 @@ class RunCreateOptions:
     client_id: str = ""
     title: str | None = None
     llm_backend: str | None = None
+    execution_policy: str = "standard"
     db_path: str | None = None
 
 
@@ -191,6 +195,7 @@ def create_run(
         provider=provider,
         config=config,
         client_id=opts.client_id,
+        execution_policy=opts.execution_policy,
         now=_now(),
         backend=_resolve_llm_backend(provider, opts.llm_backend),
     )

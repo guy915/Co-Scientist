@@ -33,6 +33,9 @@ behaviour exactly -- no header is sent, and the server does not require one
 MCP_AUTH_HEADER = "X-MCP-Shared-Secret"
 """HTTP header name carrying the shared secret, checked by the MCP server."""
 
+MCP_CAMPAIGN_HEADER = "X-CoScientist-Campaign"
+"""Authenticated request marker enabling campaign MCP policy."""
+
 
 def _resolve_server_url() -> str:
     """Return the MCP server URL from the environment or the default."""
@@ -48,7 +51,14 @@ def _mcp_auth_headers() -> dict[str, Any] | None:
         rather than sending an empty one.
     """
     secret = os.environ.get(MCP_SHARED_SECRET_ENV)
-    return {MCP_AUTH_HEADER: secret} if secret else None
+    if not secret:
+        return None
+    headers = {MCP_AUTH_HEADER: secret}
+    from co_scientist.llm_free_policy import campaign_free_mode
+
+    if campaign_free_mode():
+        headers[MCP_CAMPAIGN_HEADER] = "1"
+    return headers
 
 
 def _with_shared_secret(

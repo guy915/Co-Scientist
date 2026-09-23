@@ -1,0 +1,59 @@
+{
+  "observed_at": "2026-09-19T22:54:14.671Z",
+  "purpose": "Read-only production state refresh; no deployment performed",
+  "railway": {
+    "project_id": "74f2b037-0094-49d2-b645-4849991234af",
+    "environment_id": "28381ca2-0f6c-45d2-bcb3-74f731e59456",
+    "services": [
+      {
+        "name": "mcp",
+        "id": "0f81371a-98ed-49c7-9f2b-19ad0950e3c1",
+        "latest_deployment": {
+          "id": "0d49864d-782b-421f-ab8b-02b608a9c5d4",
+          "status": "SUCCESS",
+          "createdAt": "2026-09-10T20:51:32.918Z",
+          "url": null
+        },
+        "replicas_reported": null,
+        "volumes": []
+      },
+      {
+        "name": "api",
+        "id": "f5949ec3-47e3-42d1-91a9-1002b87ab3b0",
+        "latest_deployment": {
+          "id": "a6ddd7f0-3bb5-4ad1-bed8-14809846e88e",
+          "status": "SUCCESS",
+          "createdAt": "2026-09-10T20:51:32.919Z",
+          "url": null
+        },
+        "replicas_reported": null,
+        "volumes": [
+          {
+            "id": "68c51124-5ec7-4311-9618-c1a2385a415d",
+            "name": "api-volume",
+            "mountPath": "/app/data",
+            "sizeMB": 5000,
+            "region": "sfo"
+          }
+        ]
+      }
+    ]
+  },
+  "vercel": {
+    "id": "dpl_8t4oG4mTdGLEpdbtpzeqV9bZ7AeJ",
+    "state": "READY",
+    "target": "production",
+    "commit": "7dce086dd483831b40a12532a84cf7321f058e52",
+    "aliases": [
+      "ai-co-scientist.com",
+      "co-scientist-ui.vercel.app",
+      "www.ai-co-scientist.com",
+      "co-scientist-ui-guy915s-projects.vercel.app",
+      "co-scientist-ui-git-main-guy915s-projects.vercel.app"
+    ]
+  },
+  "limitations": [
+    "Railway status returned null replica counts; do not infer configured replica count from this response.",
+    "Platform status is not a campaign workflow smoke test."
+  ]
+}

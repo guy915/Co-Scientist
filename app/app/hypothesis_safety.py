@@ -11,6 +11,7 @@ import dataclasses
 import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
+from typing import TypeAlias
 
 from co_scientist.safety import (
     POLICY_VERSION,
@@ -21,12 +22,13 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
+from app.async_bridge import propagate_context
 from app.litellm_shutdown import run_in_scoped_loop
 
 # Compatibility names retained for existing API/store callers. They are aliases
 # of the canonical engine types, not parallel policy implementations.
-HypothesisSafetyOutcome = SafetyOutcome
-HypothesisSafetyReview = SafetyReview
+HypothesisSafetyOutcome: TypeAlias = SafetyOutcome
+HypothesisSafetyReview: TypeAlias = SafetyReview
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +216,10 @@ def escalate_held_hypotheses(
     with ThreadPoolExecutor(
         max_workers=min(_ESCALATION_CONCURRENCY, len(held))
     ) as pool:
-        return list(pool.map(_escalate_one, held))
+        futures = [
+            pool.submit(propagate_context(_escalate_one), item) for item in held
+        ]
+        return [future.result() for future in futures]
 
 
 __all__ = [

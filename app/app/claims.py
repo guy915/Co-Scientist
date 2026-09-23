@@ -284,4 +284,7 @@ def assess_claim(
         supporting_passages=tuple(supporting),
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
+        verification_method=(
+            draft.verification_method if candidates else "no_evidence"
+        ),
     )

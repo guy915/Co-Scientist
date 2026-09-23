@@ -257,6 +257,10 @@ async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
         "supports",
         "insufficient",
     ]
+    assert [claim["verification_method"] for claim in claims] == [
+        "deterministic_lexical",
+        "no_evidence",
+    ]
 
 
 @pytest.mark.asyncio

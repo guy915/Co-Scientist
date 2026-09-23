@@ -14,13 +14,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import credentials
+from app import credentials, store
+from app.execution_policy import scoped_execution_policy
 from app.interviews_model import ProseSink, ReasoningSink
 from app.sse import sse_frame
 
@@ -54,10 +55,42 @@ async def _advance(
     return await _advance_impl(interview_id, on_reasoning, on_prose)
 
 
+def _resolved_execution_policy(
+    interview_id: str, execution_policy: str | None
+) -> str | None:
+    """Use the trusted captured policy, or fail closed if the row vanished."""
+    if execution_policy is not None:
+        return execution_policy
+    interview = store.get_interview(interview_id)
+    if interview is None:
+        return None
+    return str(interview["execution_policy"])
+
+
+async def _start_stream_advance(
+    interview_id: str,
+) -> tuple[asyncio.Queue[_Fragment | None], asyncio.Task[dict[str, Any]]]:
+    queue: asyncio.Queue[_Fragment | None] = asyncio.Queue()
+
+    async def _on_reasoning(fragment: str) -> None:
+        await queue.put(("reasoning", fragment))
+
+    async def _on_prose(fragment: str) -> None:
+        await queue.put(("chunk", fragment))
+
+    task = asyncio.create_task(_advance(interview_id, _on_reasoning, _on_prose))
+    # Sentinel closes the drain loop whether the turn succeeded or raised;
+    # it queues behind any fragment already emitted, so nothing is dropped.
+    task.add_done_callback(lambda _: queue.put_nowait(None))
+    return queue, task
+
+
 async def _advance_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
-) -> AsyncIterator[str]:
+    *,
+    execution_policy: str | None = None,
+) -> AsyncGenerator[str, None]:
     """Advance one turn as SSE: live reasoning and prose, then the interview.
 
     The Agent's turn runs as a task that pushes fragments onto a queue while
@@ -87,28 +120,23 @@ async def _advance_stream(
     Args:
         interview_id: The interview to advance.
         byok: The request's credential, when one was sent.
+        execution_policy: Policy captured when the interview was authorized.
 
     Yields:
         ``reasoning`` and ``chunk`` frames, then one terminal ``interview``
         or ``error`` frame.
     """
-    with credentials.scoped_byok(byok):
-        queue: asyncio.Queue[_Fragment | None] = asyncio.Queue()
-
-        async def _on_reasoning(fragment: str) -> None:
-            await queue.put(("reasoning", fragment))
-
-        async def _on_prose(fragment: str) -> None:
-            await queue.put(("chunk", fragment))
-
-        task = asyncio.create_task(
-            _advance(interview_id, _on_reasoning, _on_prose)
-        )
-        # Sentinel closes the drain loop whether the turn succeeded or
-        # raised; it queues behind any fragment already emitted, so
-        # nothing is dropped.
-        task.add_done_callback(lambda _: queue.put_nowait(None))
-
+    execution_policy = _resolved_execution_policy(
+        interview_id, execution_policy
+    )
+    if execution_policy is None:
+        yield sse_frame({"type": "error", "detail": "interview not found"})
+        return
+    with (
+        scoped_execution_policy(execution_policy),
+        credentials.scoped_byok(byok),
+    ):
+        queue, task = await _start_stream_advance(interview_id)
         try:
             while (fragment := await queue.get()) is not None:
                 kind, content = fragment
@@ -168,18 +196,21 @@ async def _resolve_advance_task(
 def _interview_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
+    *,
+    execution_policy: str | None = None,
 ) -> StreamingResponse:
     """Wrap ``_advance_stream`` in a no-buffer SSE response.
 
     Args:
         interview_id: The interview to advance.
         byok: The request's credential, when one was sent.
+        execution_policy: Policy captured when the interview was authorized.
 
     Returns:
         The SSE response streaming the turn.
     """
     return StreamingResponse(
-        _advance_stream(interview_id, byok),
+        _advance_stream(interview_id, byok, execution_policy=execution_policy),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

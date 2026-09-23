@@ -1,0 +1,64 @@
+{
+  "requested_model": "openrouter/nex-agi/nex-n2.5-pro:free",
+  "started_at": "2026-09-19T20:19:57.603300+00:00",
+  "source_commit": "2ca151e8",
+  "probe_sha256": "9cd0d2ef991177a56fc2991a85f5d9bc8d23be097d5a1cfe339ed3c71f0f69a1",
+  "cases": [
+    {
+      "case": "tools",
+      "passed": true,
+      "invocations": [
+        {
+          "name": "lookup_measurement",
+          "arguments": {
+            "sample": "control-A"
+          }
+        }
+      ],
+      "answer": "The numeric measurement for **control-A** is **137 arbitrary units**.",
+      "execution_mode": "live_requested",
+      "usage_evidence": {
+        "model_usage": {
+          "tools::openrouter/nex-agi/nex-n2.5-pro:free": {
+            "deterministic_fallbacks": {},
+            "calls": 2,
+            "observed_model_calls": 2,
+            "reported_usage_calls": 2,
+            "priced_usage_calls": 0,
+            "requested_models": {
+              "openrouter/nex-agi/nex-n2.5-pro:free": 2
+            },
+            "prompt_tokens": 670,
+            "completion_tokens": 96,
+            "reasoning_tokens": 54,
+            "cached_prompt_tokens": 256,
+            "cost_usd": 0.0,
+            "latency_seconds": 2.9579882079997333,
+            "retries": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "errors": {}
+          }
+        },
+        "physical_calls": 2,
+        "recorded_deterministic_fallbacks": {},
+        "fallback_evidence": "recorded_events_only",
+        "requested_models": {
+          "openrouter/nex-agi/nex-n2.5-pro:free": 2
+        },
+        "observed_models": [
+          "openrouter/nex-agi/nex-n2.5-pro:free"
+        ],
+        "unobserved_model_calls": 0,
+        "unreported_usage_calls": 0,
+        "unpriced_calls": 2,
+        "has_usage_records": true,
+        "estimate_complete": false,
+        "estimated_total_usd": null,
+        "partial_estimated_total_usd": 0.0,
+        "billed_total_usd": null,
+        "cost_basis": "static_estimate_not_billing_receipt"
+      }
+    }
+  ]
+}

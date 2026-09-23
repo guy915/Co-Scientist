@@ -20,6 +20,11 @@ fastmcp.settings.stateless_http = True
 
 # Import config early to load .env
 from mcp_server import config
+from mcp_server.campaign import (
+    PUBLIC_TOOLS,
+    campaign_free_mode,
+    campaign_policy,
+)
 
 # Configure logging based on .env
 log_level = getattr(logging, config.LOG_LEVEL, logging.INFO)
@@ -150,6 +155,11 @@ _MCP_TOOLS = (
     (run_enrichment_analysis, "run_enrichment_analysis"),
 )
 
+if campaign_free_mode():
+    _MCP_TOOLS = tuple(
+        entry for entry in _MCP_TOOLS if entry[1] in PUBLIC_TOOLS
+    )
+
 for _tool_fn, _tool_name in _MCP_TOOLS:
     mcp.tool(with_call_logging(_tool_fn, _tool_name), name=_tool_name)
 
@@ -165,7 +175,7 @@ logger.info(
     "PubMed: %s",
     "configured"
     if entrez_email_present
-    else "unavailable (ENTREZ_EMAIL unset)",
+    else "anonymous (ENTREZ_EMAIL unset; reachability not yet checked)",
 )
 
 # Build the MCP app as an ASGI sub-app so it can be mounted onto a FastAPI
@@ -209,6 +219,7 @@ async def root() -> JSONResponse:
         {
             "status": "running",
             "service": "coscientist-lit-review",
+            "campaign_policy": campaign_policy(),
             "version": "0.1.0",
             "mcp_tools": [name for _, name in _MCP_TOOLS],
             "api_keys_configured": {

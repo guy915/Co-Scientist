@@ -11,7 +11,15 @@ Reuse still has to be the common case: in a deployment where every run
 resolves the same servers, nothing here should build a second transport.
 """
 
-from co_scientist.mcp_client import get_mcp_client
+import asyncio
+from typing import Any
+
+import httpx
+import pytest
+
+from co_scientist.llm_free_policy import scoped_campaign_mode
+from co_scientist.mcp_campaign import POLICY, PUBLIC_TOOLS
+from co_scientist.mcp_client import MCPToolClient, get_mcp_client
 from tests._mcp import FakeMultiServerMCPClient, make_registry, string_tool
 
 
@@ -49,3 +57,61 @@ async def test_matching_configuration_still_reuses_one_session(
 
     assert first is second
     assert _patch_mcp_seam.instances_created == 1
+
+
+async def test_same_configuration_keeps_standard_and_campaign_clients(
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """Policy-specific cached tools cannot cross concurrent run scopes."""
+    monkeypatch.setenv("COSCIENTIST_CAMPAIGN_MCP_URL", "http://a.test/mcp")
+    monkeypatch.setenv("COSCIENTIST_MCP_SHARED_SECRET", "secret")
+    _patch_mcp_seam.tools = [string_tool("search_pubmed", "ok")]
+
+    original = httpx.AsyncClient
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        assert request.headers["X-CoScientist-Campaign"] == "1"
+        assert request.headers["X-MCP-Shared-Secret"] == "secret"
+        return httpx.Response(
+            200,
+            json={
+                "service": "coscientist-lit-review",
+                "campaign_policy": {
+                    "version": POLICY,
+                    "enabled": True,
+                    "anonymous_openalex": True,
+                    "tools": sorted(PUBLIC_TOOLS),
+                },
+            },
+        )
+
+    def client(**kwargs: Any) -> httpx.AsyncClient:
+        return original(**kwargs, transport=httpx.MockTransport(reply))
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+
+    standard = await get_mcp_client(server_url="http://a.test/mcp")
+    with scoped_campaign_mode(True):
+        campaign = await get_mcp_client(server_url="http://a.test/mcp")
+    standard_again = await get_mcp_client(server_url="http://a.test/mcp")
+
+    assert campaign is not standard
+    assert standard_again is standard
+    assert _patch_mcp_seam.instances_created == 2
+
+
+def test_same_configuration_never_reuses_client_across_event_loops(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    """Durable worker loops must not share SDK sessions or asyncio locks."""
+    _patch_mcp_seam.tools = [string_tool("t1", "ok")]
+
+    async def get_client() -> MCPToolClient:
+        return await get_mcp_client(server_url="http://a.test/mcp")
+
+    first = asyncio.run(get_client())
+    second = asyncio.run(get_client())
+
+    assert first is not second
+    assert _patch_mcp_seam.instances_created == 2

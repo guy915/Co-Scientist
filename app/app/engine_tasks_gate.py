@@ -279,6 +279,7 @@ def _record_gate_enrichment(
                 # reuses each verdict whose own inputs still match.
                 "fingerprint": plan.claim_fingerprints[assessment.claim],
                 "label": assessment.label.value,
+                "verification_method": assessment.verification_method,
                 "supporting_passages": [
                     span.to_dict() for span in assessment.supporting_passages
                 ],

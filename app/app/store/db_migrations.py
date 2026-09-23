@@ -94,6 +94,12 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
 
 def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
     """Add the durable goal interview's own metadata columns."""
+    _add_column_if_missing(
+        conn,
+        "interviews",
+        "execution_policy",
+        "TEXT NOT NULL DEFAULT 'standard'",
+    )
     # The Agent's chain of thought for one interview turn. Persisted rather
     # than relayed and dropped: a chat is short enough to carry its own
     # thinking back into the next turn's context, and a resumed chat that
@@ -111,6 +117,16 @@ def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
     # JSON array. NULL leaves every pre-existing turn reading as "asked
     # nothing choosable", which is what those turns did.
     _add_column_if_missing(conn, "interview_turns", "questions_json", "TEXT")
+
+
+def _migrate_execution_policy(conn: sqlite3.Connection) -> None:
+    """Default legacy runs to the ordinary execution policy."""
+    _add_column_if_missing(
+        conn,
+        "runs",
+        "execution_policy",
+        "TEXT NOT NULL DEFAULT 'standard'",
+    )
 
 
 def _migrate_message_and_hypothesis_columns(
@@ -408,11 +424,22 @@ def _migrate_hypothesis_creation_iteration(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "hypotheses", "creation_iteration", "INTEGER")
 
 
+def _migrate_claim_verification_method(conn: sqlite3.Connection) -> None:
+    """Keep pre-existing assessments explicit about missing provenance."""
+    _add_column_if_missing(
+        conn,
+        "claim_evidence",
+        "verification_method",
+        "TEXT NOT NULL DEFAULT 'legacy_unknown'",
+    )
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
     _migrate_run_and_report_columns(conn)
     _migrate_interview_columns(conn)
+    _migrate_execution_policy(conn)
     _migrate_message_and_hypothesis_columns(conn)
     _migrate_match_and_safety_columns(conn)
     _migrate_proximity_and_evidence_columns(conn)
@@ -431,3 +458,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_match_debate_transcript(conn)
     _migrate_message_applied_columns(conn)
     _migrate_hypothesis_creation_iteration(conn)
+    _migrate_claim_verification_method(conn)

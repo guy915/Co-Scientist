@@ -18,8 +18,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.llm_free_policy import campaign_free_mode
 
 from app import engine_adapter, safety, store
+from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from tests._drain_helpers import _engine_hypothesis, _persist
 
@@ -118,6 +120,31 @@ def test_drain_escalates_and_raises_a_held_verdict(
         if d["stage"] == "hypothesis" and "prohibited" in d["reason"]
     ]
     assert raised, "expected an audit row recording the escalation's raise"
+
+
+def test_campaign_scope_reaches_held_hypothesis_executor(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The real held-hypothesis escalation inherits campaign admission."""
+    from app import hypothesis_safety_resolve
+
+    seen: list[bool] = []
+
+    async def resolve(review: Any, *_args: Any, **_kwargs: Any) -> Any:
+        seen.append(campaign_free_mode())
+        return review
+
+    monkeypatch.setattr(hypothesis_safety_resolve, "resolve_hold", resolve)
+    run = _real_run("campaign executor propagation")
+
+    with scoped_execution_policy("campaign"):
+        _persist(
+            run_id=run.id,
+            final_state=_escalation_state(),
+            db_path=isolated_db,
+        )
+
+    assert seen and all(seen)
 
 
 def test_rescreen_does_not_downgrade_an_escalation_raised_block(

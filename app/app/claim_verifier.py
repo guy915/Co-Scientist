@@ -61,10 +61,12 @@ from co_scientist.exceptions import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm_telemetry import record_deterministic_fallback
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
+from app.claim_verifier_opposition import guard_contradictions
 from app.claims import (
     Assessor,
     AssessorDraft,
@@ -72,7 +74,6 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.claims_assessor import _quote_negates_claim
 
 logger = logging.getLogger(__name__)
 
@@ -81,17 +82,32 @@ _SYSTEM_PROMPT = (
     "Given a CLAIM and numbered EVIDENCE passages, decide whether the evidence "
     "SUPPORTS, PARTIALLY supports, CONTRADICTS, or is INSUFFICIENT for the "
     "claim. Rules: judge only from the passages, never outside knowledge. A "
-    "passage SUPPORTS only if it entails the claim. It is PARTIAL when it "
-    "directly addresses the claim and is consistent with it -- evidence for a "
-    "related mechanism, an adjacent finding, or the claim under narrower "
-    "conditions -- but does not fully entail it; partial is for genuine "
-    "near-misses, not for passages merely sharing a topic. It CONTRADICTS only "
+    "passage SUPPORTS only if it entails the claim. PARTIAL requires evidence "
+    "within the scope asserted by the claim that establishes only part of "
+    "its result, mechanism, or effect magnitude. "
+    "When the stated population, model, intervention or dose, outcome, and "
+    "observation time match, evidence establishing the claimed direction "
+    "but leaving its asserted extent unreported is PARTIAL. Unreported "
+    "extent is not a contradiction; measured extent is contradictory only "
+    "when it entails the claim's negation. "
+    "An established component "
+    "of a compound claim can be PARTIAL when that component's own defining "
+    "conditions match. An untested component is not a contradicted one. "
+    "Partial support is not a substitute for "
+    "testing a claim-defining condition. Evidence is INSUFFICIENT if it "
+    "substitutes or leaves untested an explicitly required population or "
+    "model, intervention or dose, outcome or endpoint, or observation time. "
+    "An adjacent mechanism, surrogate endpoint, or different experimental "
+    "context cannot supply that missing condition. A narrower setting may "
+    "provide PARTIAL support only when it remains within the claim's stated "
+    "scope; do not invent scope restrictions absent from the claim. Mere "
+    "topic overlap is INSUFFICIENT. It CONTRADICTS only "
     "if it entails the claim's negation: the passage must be about the same "
     "molecule, target, or population as the claim AND must assert the "
     "opposite of what the claim asserts about it. A passage about a different "
     "molecule, target, or population is never a contradiction, however "
-    "similar the topic -- it is INSUFFICIENT (or PARTIAL if it genuinely "
-    "bears on the claim). A passage that states or agrees with the claim is "
+    "similar the topic -- apply the same scope rule for INSUFFICIENT or "
+    "PARTIAL. A passage that states or agrees with the claim is "
     "not a contradiction either, even if it also discusses caveats or other "
     "mechanisms. When in doubt between CONTRADICTS and INSUFFICIENT, choose "
     "INSUFFICIENT. Otherwise the claim is INSUFFICIENT. For a supports, "
@@ -190,45 +206,7 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def _reject_unfounded_contradiction(
-    claim: str, draft: AssessorDraft
-) -> AssessorDraft:
-    """Downgrade a CONTRADICTS verdict none of whose citations hold up.
-
-    Degrades to INSUFFICIENT rather than trusting the draft's ``supporting``
-    citations instead: the model's own verdict was wrong, so its other
-    citations are not more trustworthy just because they point the other
-    way -- see the root AGENTS.md "Never score a short claim against a long
-    document with Jaccard" gotcha, whose closing paragraph names this
-    exact judgement as the LLM entailment assessor's job.
-
-    This guards the *judge's* drafts only, and deliberately so: the
-    deterministic assessor this module falls back to cites the sentence
-    that negates the claim (``claims_assessor._contradicting_sentence``),
-    so its contradictions clear ``_quote_negates_claim`` by construction.
-    That gap used to be real and invisible, because a fallback verdict
-    keeps the ``llm:<model>`` provenance of the assessor that was asked
-    for: standard run e47a3ba1 (2026-09-08) persisted 11 unfounded
-    CONTRADICTS edges stamped ``llm:`` that this guard never saw. Any new
-    producer of a CONTRADICTS draft must be founded the same way -- by
-    construction, or by passing through here.
-    """
-    if draft.label is not EntailmentLabel.CONTRADICTS:
-        return draft
-    if any(
-        _quote_negates_claim(claim, quote) for _, quote in draft.contradicting
-    ):
-        return draft
-    logger.warning(
-        "LLM claim assessor's CONTRADICTS verdict failed the subject/negation "
-        "check; downgrading to insufficient rather than inventing support. "
-        "Claim: %.200r",
-        claim,
-    )
-    return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-
-
-def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
+def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
     """Parse the model's validated JSON reply into an :class:`AssessorDraft`.
 
     Returns None when the shape is still unusable (an empty/invalid label)
@@ -243,6 +221,7 @@ def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
         return None
     draft = AssessorDraft(
         label=label,
+        verification_method="model_primary",
         supporting=_coerce_pairs(
             data.get("supporting"), "claim_verifier.supporting"
         ),
@@ -250,7 +229,7 @@ def _parse_draft(data: dict[str, Any], claim: str) -> AssessorDraft | None:
             data.get("contradicting"), "claim_verifier.contradicting"
         ),
     )
-    return _reject_unfounded_contradiction(claim, draft)
+    return draft
 
 
 def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
@@ -388,18 +367,25 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
         claim: str, passages: Sequence[EvidencePassage]
     ) -> AssessorDraft:
         if not passages:
-            return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+            return AssessorDraft(
+                label=EntailmentLabel.INSUFFICIENT,
+                verification_method="no_evidence",
+            )
         data = _call_llm_entailment(model, claim, passages)
         if data is None:
+            record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
-        draft = _parse_draft(data, claim)
+        draft = _parse_draft(data)
         if draft is None:
             logger.warning(
                 "LLM claim assessor returned unparseable output; falling "
                 "back to deterministic assessor. Reply began: %.200r",
                 data,
             )
+            record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
-        return draft
+        guarded = guard_contradictions(model, [claim], passages, [draft])[0]
+        assert guarded is not None
+        return guarded
 
     return _assessor, assessor_id
