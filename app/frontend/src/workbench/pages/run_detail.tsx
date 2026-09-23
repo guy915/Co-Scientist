@@ -117,9 +117,14 @@ function reportIsUngrounded(data: RunDetailData): boolean {
 function terminalEndStateOf(run: RunWithSummary | null): {
   status: TerminalNonCompletedStatus;
   error: string | null;
+  failureKind: string | null | undefined;
 } | null {
   if (run && isTerminalNonCompletedStatus(run.status)) {
-    return {status: run.status, error: run.error};
+    return {
+      status: run.status,
+      error: run.error,
+      failureKind: run.failure_kind,
+    };
   }
   return null;
 }
@@ -199,7 +204,11 @@ function RunDetailBody({
   if (endState) {
     return (
       <main className={REPORT_SCROLL_CLASSES}>
-        <RunEndState status={endState.status} error={endState.error} />
+        <RunEndState
+          status={endState.status}
+          error={endState.error}
+          failureKind={endState.failureKind}
+        />
         <section
           className={
             'mx-auto mt-6 w-[min(100%_-_3rem,58rem)] ' +

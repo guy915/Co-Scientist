@@ -9,6 +9,7 @@ import {
   REPORT_DOCUMENT_CLASSES,
   REPORT_H2_CLASSES,
 } from './run_detail_document';
+import {runFailureGuidance} from './run_failure_guidance';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank tab).
@@ -325,6 +326,9 @@ const END_STATE_ERROR_CLASSES =
 const END_STATE_NEUTRAL_ERROR_CLASSES =
   'mt-8 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
 
+const FAILURE_GUIDANCE_CLASSES =
+  'mt-6 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
+
 /**
  * Truthful end state for a run that terminated without completing: the
  * status and the run's recorded error, in place of report tabs whose
@@ -333,15 +337,32 @@ const END_STATE_NEUTRAL_ERROR_CLASSES =
 export function RunEndState({
   status,
   error,
+  failureKind,
 }: {
   status: TerminalNonCompletedStatus;
   error: string | null;
+  failureKind?: string | null;
 }) {
   const copy = END_STATE_COPY[status];
+  const guidance = status === 'failed' ? runFailureGuidance(failureKind) : null;
   return (
     <article className={REPORT_DOCUMENT_CLASSES}>
       <h2 className={REPORT_H2_CLASSES}>{copy.heading}</h2>
       <p>{copy.description}</p>
+      {guidance && (
+        <section
+          aria-labelledby="run-failure-guidance-title"
+          className={FAILURE_GUIDANCE_CLASSES}
+        >
+          <h3
+            id="run-failure-guidance-title"
+            className="m-0 text-sm font-medium"
+          >
+            Suggested next step
+          </h3>
+          <p className="mb-0 mt-2">{guidance.message}</p>
+        </section>
+      )}
       {error && (
         <div
           role="status"

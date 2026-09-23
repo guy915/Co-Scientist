@@ -19,6 +19,7 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import {useDebouncedCallback} from '@/workbench/hooks/use_debounced_callback';
+import {runFailureGuidance} from './run_failure_guidance';
 import {
   type StreamConnectionState,
   type StreamEvent,
@@ -374,9 +375,18 @@ function useRunEventStream(
 
 // Toast message for a run that just reached a failed/blocked terminal state,
 // or null when the run doesn't warrant one.
+function failedRunToast(run: RunWithSummary): string {
+  const guidance = runFailureGuidance(run.failure_kind);
+  if (guidance) return guidance.toast;
+  return `Run failed${run.error ? `: ${run.error}` : ''}`;
+}
+
 function runEndToast(run: RunWithSummary): string | null {
-  if (run.status !== 'failed' && run.status !== 'blocked') return null;
-  return `Run ${run.status}${run.error ? `: ${run.error}` : ''}`;
+  if (run.status === 'failed') return failedRunToast(run);
+  if (run.status === 'blocked') {
+    return `Run blocked${run.error ? `: ${run.error}` : ''}`;
+  }
+  return null;
 }
 
 // Derives the toast (shown when a run ends failed/blocked) and the display
