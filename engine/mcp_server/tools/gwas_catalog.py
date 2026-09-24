@@ -89,6 +89,21 @@ def _record_urls(
     return urls
 
 
+def _association_effects(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "p_value": _number(row.get("p_value")),
+        "pvalue_mantissa": _number(row.get("pvalue_mantissa")),
+        "pvalue_exponent": _number(row.get("pvalue_exponent")),
+        "beta": row.get("beta"),
+        "odds_ratio": row.get("odds_ratio"),
+        "risk_frequency": row.get("risk_frequency"),
+        "confidence_interval": [
+            _number(row.get("ci_lower")),
+            _number(row.get("ci_upper")),
+        ],
+    }
+
+
 def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
     association_id = row.get("association_id")
     accession = row.get("accession_id")
@@ -113,16 +128,7 @@ def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
         "trait": traits[0] if traits else None,
         "traits": traits,
         "reported_traits": _strings(row.get("reported_trait")),
-        "p_value": _number(row.get("p_value")),
-        "pvalue_mantissa": _number(row.get("pvalue_mantissa")),
-        "pvalue_exponent": _number(row.get("pvalue_exponent")),
-        "beta": row.get("beta"),
-        "odds_ratio": row.get("odds_ratio"),
-        "risk_frequency": row.get("risk_frequency"),
-        "confidence_interval": [
-            _number(row.get("ci_lower")),
-            _number(row.get("ci_upper")),
-        ],
+        **_association_effects(row),
         "mapped_genes": _strings(row.get("mapped_genes")),
         "pubmed_id": str(pubmed_id) if pubmed_id is not None else None,
         "effect_alleles": _strings(row.get("snp_effect_allele")),
