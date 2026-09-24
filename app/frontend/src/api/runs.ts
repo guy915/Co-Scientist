@@ -180,27 +180,30 @@ export function runGoal(run: Run | null | undefined): string {
  * @param input Research goal and optional engine parameters.
  * @returns The newly created run.
  */
-export async function createRun(input: {
-  research_goal: string;
-  interview_id?: string;
-  // Documents staged through POST /api/documents before this call. Creation
-  // copies them into the run's corpus, so the run is grounded the moment it
-  // exists rather than by a follow-up upload that can fail on its own.
-  document_ids?: string[];
-  requirements?: string[];
-  attributes?: string[];
-  criteria?: string[];
-  focus?: RunFocus;
-  tier?: RunTier;
-  initial_hypotheses_count?: number;
-  max_iterations?: number;
-  evolution_max_count?: number;
-  k_factor?: number;
-  enable_literature_review?: boolean;
-  enable_web_search?: boolean;
-  notify_on_completion?: boolean;
-  completion_email?: string;
-}): Promise<Run> {
+export async function createRun(
+  input: {
+    research_goal: string;
+    interview_id?: string;
+    // Documents staged through POST /api/documents before this call. Creation
+    // copies them into the run's corpus, so the run is grounded the moment it
+    // exists rather than by a follow-up upload that can fail on its own.
+    document_ids?: string[];
+    requirements?: string[];
+    attributes?: string[];
+    criteria?: string[];
+    focus?: RunFocus;
+    tier?: RunTier;
+    initial_hypotheses_count?: number;
+    max_iterations?: number;
+    evolution_max_count?: number;
+    k_factor?: number;
+    enable_literature_review?: boolean;
+    enable_web_search?: boolean;
+    notify_on_completion?: boolean;
+    completion_email?: string;
+  },
+  options?: {idempotencyKey?: string},
+): Promise<Run> {
   const init = jsonRequest(input, true);
   // Bring-your-own-key: the stored key/provider ride along as request
   // headers; the backend validates the pair before accepting the run.
@@ -209,6 +212,9 @@ export async function createRun(input: {
     headers: {
       ...(init.headers as Record<string, string>),
       ...byokHeaders(),
+      ...(options?.idempotencyKey
+        ? {'Idempotency-Key': options.idempotencyKey}
+        : {}),
     },
   });
 }

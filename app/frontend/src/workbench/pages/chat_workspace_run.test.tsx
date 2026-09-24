@@ -97,23 +97,34 @@ async function driveToRunSpec() {
  * Selects the Ultra run type, confirms the spec, and waits for the durable run
  * to be created and started.
  */
-async function startRunFromSpec() {
+async function startRunFromSpec({
+  waitForSessionCard = true,
+}: {waitForSessionCard?: boolean} = {}) {
   fireEvent.click(screen.getByLabelText(/Ultra/i));
   fireEvent.click(screen.getByText('Start research'));
   await waitFor(() => {
-    expect(apiMock.createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        research_goal: RESEARCH_GOAL,
-        interview_id: 'interview-1',
-        requirements: ['Prioritize mechanistic novelty'],
-        attributes: ['Cold-stress glucose regulation'],
-        criteria: [],
-        focus: 'balance',
-        tier: 'ultra',
-      }),
-    );
+    expect(apiMock.createRun).toHaveBeenCalled();
+    const [payload, options] = apiMock.createRun.mock.calls.at(-1)!;
+    expect(payload).toStrictEqual({
+      research_goal: RESEARCH_GOAL,
+      interview_id: 'interview-1',
+      requirements: ['Prioritize mechanistic novelty'],
+      attributes: ['Cold-stress glucose regulation'],
+      criteria: [],
+      focus: 'balance',
+      tier: 'ultra',
+      notify_on_completion: false,
+      enable_literature_review: true,
+      enable_web_search: true,
+      document_ids: [],
+    });
+    expect(options).toEqual({
+      idempotencyKey: expect.stringMatching(/^run-create-/),
+    });
     expect(apiMock.startRun).toHaveBeenCalledWith('run-1');
   });
+  if (!waitForSessionCard) return;
+  expect(await screen.findByText('Research session')).toBeInTheDocument();
 }
 
 it('shows request and response controls in the transcript', async () => {
@@ -217,9 +228,7 @@ it('starts the durable run on confirmation', async () => {
   await startRunFromSpec();
 
   expect(screen.getByTestId('location')).toHaveTextContent('/');
-  // The Agent answers the scientist's own "Start research" turn, and the
-  // session card is attached under that answer -- the card carries no copy
-  // of its own for the live path to duplicate.
+  // The Agent answers the start turn; the card carries no duplicate copy.
   expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
   expect(apiMock.announceRunStart).toHaveBeenCalledWith(
     'run-1',
@@ -254,11 +263,8 @@ it('starts the durable run on confirmation', async () => {
 });
 
 it('does not repeat the start exchange the live tab already shows', async () => {
-  // Starting a run persists the exchange server-side, and the chat gains a
-  // run_id in the same moment -- which is the moment the message rehydrator
-  // becomes able to fetch those rows. In the tab that just wrote them they
-  // are already on screen, so fetching them back appends a second copy of
-  // everything.
+  // The persisted exchange becomes fetchable once the chat gains its run_id;
+  // fetching it must not duplicate the live copy.
   apiMock.listInterviews.mockResolvedValue([
     {
       id: 'interview-1',
@@ -310,10 +316,7 @@ it('does not repeat the start exchange the live tab already shows', async () => 
 });
 
 it('withholds the session block until the reply has been written', async () => {
-  // The turn reads as the Agent answering "Start research" and handing over
-  // the session. Attaching the session block to a reply that has not arrived
-  // yet puts the hand-off in front of the answer, and then grows it under the
-  // reader while the text streams in above.
+  // Keep the session block hidden until the Agent's start reply settles.
   let finishAnnouncement: (() => void) | undefined;
   apiMock.announceRunStart.mockImplementation(
     async (
@@ -330,7 +333,7 @@ it('withholds the session block until the reply has been written', async () => {
   );
 
   await driveToRunSpec();
-  await startRunFromSpec();
+  await startRunFromSpec({waitForSessionCard: false});
   await waitFor(() => {
     expect(apiMock.announceRunStart).toHaveBeenCalled();
   });
@@ -369,10 +372,7 @@ it('falls back to the standby copy when no reply is written', async () => {
 });
 
 it('drops a half-written reply the scientist stopped', async () => {
-  // Stopping abandons the stream, and the server persists nothing for a
-  // reply it never finished -- so a reload of this chat shows the standby
-  // copy. Keeping the fragment on screen would make the live card and the
-  // reloaded one disagree, with half a sentence as the live version.
+  // Interrupted replies are not persisted, so the live card must match reload.
   apiMock.announceRunStart.mockImplementation(
     async (
       _runId: string,
@@ -412,8 +412,7 @@ it('keeps the composer live once the run starts, asking it instead of the interv
   await driveToRunSpec();
   await startRunFromSpec();
 
-  // The interview is completed server-side once the run starts, but the
-  // composer itself stays usable -- it now asks the run, not the interview.
+  // The completed interview leaves the composer live for run Q&A.
   const composer = getComposer();
   expect(composer).toBeEnabled();
   expect(screen.getByRole('button', {name: 'Files'})).toBeEnabled();
@@ -491,7 +490,6 @@ it('re-enables the composer when a started session starts a new chat', async () 
     }),
   );
 
-  // The reset returns the workspace to the home stage with a live composer.
   const composer = screen.getByRole('textbox');
   expect(composer).toBeEnabled();
   expect(

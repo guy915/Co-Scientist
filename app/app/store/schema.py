@@ -68,6 +68,19 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
+
+-- Owner-scoped receipts make ambiguous run-create retries replay one run.
+-- The digest contains only canonical intent and a keyed fingerprint of any
+-- explicit BYOK secret; the raw provider key is never stored here.
+CREATE TABLE IF NOT EXISTS run_creation_receipts (
+    client_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    run_id TEXT NOT NULL UNIQUE,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (client_id, idempotency_key),
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
 """
 
 _SCHEMA_MID = """

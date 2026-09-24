@@ -200,6 +200,7 @@ it('editing a message revises it in place, not via the composer', async () => {
 it('starting a run creates it and reloads history', async () => {
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-xyz',
+    status: 'draft',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
   vi.mocked(runsApi.startRun).mockResolvedValue({
     id: 'run-xyz',
@@ -225,6 +226,7 @@ it('starting a run creates it and reloads history', async () => {
 it('asks the run instead of posting further interview turns once started', async () => {
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-xyz',
+    status: 'draft',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
   vi.mocked(runsApi.startRun).mockResolvedValue({
     id: 'run-xyz',
@@ -268,6 +270,7 @@ it('asks the run instead of posting further interview turns once started', async
 it('resetting a started session reopens the composer for a new chat', async () => {
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-xyz',
+    status: 'draft',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
   vi.mocked(runsApi.startRun).mockResolvedValue({
     id: 'run-xyz',
@@ -309,6 +312,7 @@ it('stages attached documents before the run is created', async () => {
   });
   vi.mocked(runsApi.createRun).mockResolvedValue({
     id: 'run-with-file',
+    status: 'draft',
   } as Awaited<ReturnType<typeof runsApi.createRun>>);
   vi.mocked(runsApi.stageDocument).mockResolvedValue({
     id: 'doc-1',

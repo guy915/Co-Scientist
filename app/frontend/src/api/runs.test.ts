@@ -79,10 +79,27 @@ describe('createRun', () => {
     const headers = opts?.headers as Record<string, string>;
     expect(headers['Content-Type']).toBe('application/json');
     expect(headers['X-Client-ID']).toBeTruthy();
+    expect(headers['Idempotency-Key']).toBeUndefined();
     expect(JSON.parse(opts?.body as string)).toEqual({
       research_goal: 'g',
     });
     expect(result).toEqual(run);
+  });
+
+  it('sends an optional idempotency key with the exact create body', async () => {
+    fetchMock().mockResolvedValue(jsonResponse({id: 'r2'}));
+    const payload = {
+      research_goal: 'g',
+      interview_id: 'chat-1',
+      document_ids: ['doc-1'],
+    };
+
+    await createRun(payload, {idempotencyKey: 'create-key-1'});
+
+    const [, opts] = firstCall();
+    const headers = opts?.headers as Record<string, string>;
+    expect(headers['Idempotency-Key']).toBe('create-key-1');
+    expect(opts?.body).toBe(JSON.stringify(payload));
   });
 
   it('throws "<status> <text>" on a non-OK response', async () => {

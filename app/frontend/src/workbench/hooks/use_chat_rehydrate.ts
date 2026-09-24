@@ -1,5 +1,7 @@
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import type {Interview} from '@/api/runs';
 import {
+  getRun,
   getInterview,
   getRunMessages,
   type ChatSummary,
@@ -7,10 +9,22 @@ import {
   type RunMessage,
 } from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
+import {type InferredRunSpec} from '../run_spec';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {useChatHistoryContext} from './chat_history_context';
 import {useRunHistoryContext} from './run_history_context';
 import {applyInterview} from './chat_session_transcript';
+import {readPendingCreateIntent} from './chat_session_create_intent';
+import {type LinkedDraftRecovery} from './chat_session_types';
+import {
+  type LinkedRun,
+  type LinkedRunTarget,
+  type PendingRunCreatePayload,
+  currentLinkedRun,
+  recoverySpecForRun,
+  recoveryStatus,
+  recoverySummary,
+} from './chat_linked_run_recovery';
 import {
   qaMessagesToEntries,
   runStartAnnouncement,
@@ -19,6 +33,60 @@ import {
 import {type useChatSession} from './use_chat_session';
 
 type ChatSession = ReturnType<typeof useChatSession>;
+
+interface RunResolution {
+  chatId: string;
+  runId: string;
+  chat: ChatSummary | undefined;
+  interview: Interview | null;
+  run: Run;
+  recoverySpec?: InferredRunSpec;
+}
+
+interface RunResolutionCallbacks {
+  cancelled: () => boolean;
+  setLinkedRun: (linkedRun: LinkedRun | null) => void;
+  setStartedSession: ChatSession['setStartedSession'];
+}
+
+async function runForRecovery(
+  target: LinkedRunTarget,
+  listedRun: Run | undefined,
+  refreshStatus: boolean,
+): Promise<Run> {
+  if (!refreshStatus && listedRun) return listedRun;
+  return getRun(target.runId);
+}
+
+async function pendingIntentForRun(
+  target: LinkedRunTarget,
+  run: Run,
+): Promise<PendingRunCreatePayload | undefined> {
+  if (run.status !== 'draft') return undefined;
+  const intent = await readPendingCreateIntent<PendingRunCreatePayload>(
+    target.chatId,
+  );
+  return intent?.payload;
+}
+
+function recoverySpecForStatus(
+  target: LinkedRunTarget,
+  run: Run,
+  intent: PendingRunCreatePayload | undefined,
+): InferredRunSpec | undefined {
+  if (run.status !== 'draft') return undefined;
+  return recoverySpecForRun(target, run, intent);
+}
+
+interface ResolveLinkedRunArgs {
+  chatId: string | undefined;
+  chats: ChatSummary[];
+  history: Run[];
+  interview: Interview | null;
+  startedSession: StartedSession | null;
+  setLinkedRun: (linkedRun: LinkedRun | null) => void;
+  setStartedSession: ChatSession['setStartedSession'];
+}
 
 // The label a resumed run card carries: the run's own generated title when
 // the run list has it, else a clause of whichever goal text is on hand.
@@ -33,10 +101,138 @@ function resumedSession(
   run: Run | undefined,
 ): StartedSession {
   return {
-    id: String(chat.run_id),
+    id: run?.id ?? String(chat.run_id),
     title: startedTitle(run, chat.challenge),
     at: run?.created_at ?? chat.updated_at,
   };
+}
+
+function linkedRunSummary(
+  chat: ChatSummary | undefined,
+  interview: Interview | null,
+  chatId: string,
+  runId: string,
+  run: Run,
+): ChatSummary {
+  if (chat) return chat;
+  const title = interview ? interview.fields.title : null;
+  const challenge = interview ? interview.fields.research_challenge : '';
+  const status = interview ? interview.status : 'completed';
+  return {
+    id: chatId,
+    title,
+    challenge,
+    status,
+    run_id: runId,
+    created_at: run.created_at,
+    updated_at: run.updated_at,
+  };
+}
+
+function applyResolvedRun(
+  resolution: RunResolution,
+  callbacks: RunResolutionCallbacks,
+): void {
+  if (callbacks.cancelled()) return;
+  const {chatId, runId, chat, interview, run, recoverySpec} = resolution;
+  callbacks.setLinkedRun({
+    chatId,
+    runId,
+    phase: 'ready',
+    run,
+    recoverySpec,
+  });
+  if (run.status === 'draft' || run.status === 'cancelled') {
+    callbacks.setStartedSession(current =>
+      current?.id === runId ? null : current,
+    );
+    return;
+  }
+  const summary = linkedRunSummary(chat, interview, chatId, runId, run);
+  callbacks.setStartedSession(current =>
+    current?.id === runId ? current : resumedSession(summary, run),
+  );
+}
+
+function loadLinkedRun(
+  target: LinkedRunTarget,
+  listedRun: Run | undefined,
+  refreshStatus: boolean,
+  callbacks: RunResolutionCallbacks,
+): void {
+  void (async () => {
+    const run = await runForRecovery(target, listedRun, refreshStatus);
+    const intent = await pendingIntentForRun(target, run);
+    const recoverySpec = recoverySpecForStatus(target, run, intent);
+    applyResolvedRun({...target, run, recoverySpec}, callbacks);
+  })().catch(() => {
+    // An inaccessible or deleted linked run must not be promoted to a new run.
+    if (!callbacks.cancelled()) {
+      callbacks.setLinkedRun({...target, phase: 'error'});
+    }
+  });
+}
+
+function linkedRunTarget(args: ResolveLinkedRunArgs): LinkedRunTarget | null {
+  if (!args.chatId) return null;
+  const chat = args.chats.find(entry => entry.id === args.chatId);
+  const runId = linkedRunId(args.interview, chat);
+  if (!runId) {
+    return null;
+  }
+  return {chatId: args.chatId, runId, chat, interview: args.interview};
+}
+
+function linkedRunId(
+  interview: Interview | null,
+  chat: ChatSummary | undefined,
+): string | null {
+  if (interview?.run_id) return interview.run_id;
+  return chat?.run_id ?? null;
+}
+
+function resolveLinkedRun(
+  args: ResolveLinkedRunArgs,
+  refreshStatus: boolean,
+): () => void {
+  const target = linkedRunTarget(args);
+  if (!target) {
+    args.setLinkedRun(null);
+    return () => undefined;
+  }
+  if (args.startedSession?.id === target.runId) {
+    args.setLinkedRun(null);
+    return () => undefined;
+  }
+
+  let cancelled = false;
+  const callbacks = {
+    cancelled: () => cancelled,
+    setLinkedRun: args.setLinkedRun,
+    setStartedSession: args.setStartedSession,
+  };
+  const listedRun = args.history.find(entry => entry.id === target.runId);
+  args.setLinkedRun({...target, phase: 'loading'});
+  loadLinkedRun(target, listedRun, refreshStatus, callbacks);
+  return () => {
+    cancelled = true;
+  };
+}
+
+function interviewForChat(
+  session: ChatSession,
+  chatId: string | undefined,
+): Interview | null {
+  return session.interview?.id === chatId ? session.interview : null;
+}
+
+function currentRunId(
+  interview: Interview | null,
+  chats: ChatSummary[],
+  chatId: string | undefined,
+): string | null {
+  if (interview?.run_id) return interview.run_id;
+  return chatRunId(chats, chatId ?? '');
 }
 
 // Whether this chat is already on screen: hydrated by an earlier pass, or
@@ -62,7 +258,7 @@ function alreadyShowing(
 export function useChatRehydration(
   session: ChatSession,
   chatId: string | undefined,
-): void {
+): LinkedDraftRecovery {
   const {chats} = useChatHistoryContext();
   const {history} = useRunHistoryContext();
   // The chat this hook has already applied, so a re-render (or the session's
@@ -77,6 +273,12 @@ export function useChatRehydration(
   // effect, and the merge below has to re-run when either side lands.
   const [announcement, setAnnouncement] =
     useState<RehydratedAnnouncement | null>(null);
+  const [linkedRun, setLinkedRun] = useState<LinkedRun | null>(null);
+  const [lookupRetry, setLookupRetry] = useState(0);
+  const retryLinkedRunLookup = useCallback(
+    () => setLookupRetry(current => current + 1),
+    [],
+  );
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -117,17 +319,32 @@ export function useChatRehydration(
     };
   }, [chatId]);
 
-  // The run a reopened chat started, attached once both lists are in hand.
-  // Separate from the load above because the chat and run lists arrive on
-  // their own schedules, and neither should hold up the transcript.
-  useEffect(() => {
-    const live = sessionRef.current;
-    if (!chatId || live.startedSession) return;
-    const chat = chats.find(entry => entry.id === chatId);
-    if (!chat?.run_id) return;
-    const run = history.find(entry => entry.id === chat.run_id);
-    live.setStartedSession(resumedSession(chat, run));
-  }, [chatId, chats, history, session.startedSession]);
+  // Resolve a linked run only after reading its owned status. The interview
+  // points at a run as soon as creation commits, while that run may still be
+  // a DRAFT whose start request never reached the server.
+  useEffect(
+    () =>
+      resolveLinkedRun(
+        {
+          chatId,
+          chats,
+          history,
+          interview: interviewForChat(sessionRef.current, chatId),
+          startedSession: session.startedSession,
+          setLinkedRun,
+          setStartedSession: sessionRef.current.setStartedSession,
+        },
+        lookupRetry > 0,
+      ),
+    [
+      chatId,
+      chats,
+      history,
+      lookupRetry,
+      session.interview,
+      session.startedSession?.id,
+    ],
+  );
 
   // A reopened chat's own Q&A exchanges: an answer that only ever lived in
   // memory would vanish on reload, so this rehydrates from the run's
@@ -181,6 +398,20 @@ export function useChatRehydration(
         : current,
     );
   }, [announcement, session.startedSession]);
+
+  const interview = interviewForChat(session, chatId);
+  const runId = currentRunId(interview, chats, chatId);
+  const currentLinked = currentLinkedRun(
+    chatId,
+    runId,
+    linkedRun,
+    session.startedSession,
+  );
+  return {
+    ...recoverySummary(currentLinked),
+    status: recoveryStatus(currentLinked),
+    retryStatusLookup: retryLinkedRunLookup,
+  };
 }
 
 // Whether the Q&A rehydration effect above should run for this render: a

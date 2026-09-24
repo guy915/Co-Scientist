@@ -1,20 +1,17 @@
 """Run CRUD and lifecycle helpers for the runs table.
 
-Covers creating runs, reading them, status transitions (including
-terminal-state timestamps), and the per-run summary counts. The enriched
-list rollups and the derived-data resets live in ``app.store.runs_views``,
-and the startup reconciliation of runs interrupted by a restart lives in
-``app.store.runs_reconcile``; both are re-exported here so the module
-namespace is unchanged.
+Covers reading runs, status transitions (including terminal-state
+timestamps), and the per-run summary counts. Creation lives in
+``app.store.runs_create``; the enriched list rollups and derived-data resets
+live in ``app.store.runs_views``, and startup reconciliation lives in
+``app.store.runs_reconcile``. Those APIs are re-exported here to keep the
+module namespace unchanged.
 """
 
 from __future__ import annotations
 
 import json
-import logging
 import sqlite3
-import uuid
-from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
@@ -42,6 +39,9 @@ from app.store.runs_bootstrap import (
 from app.store.runs_bootstrap import (
     mark_bootstrap_running as mark_bootstrap_running,
 )
+from app.store.runs_create import RunCreateOptions as RunCreateOptions
+from app.store.runs_create import create_run as create_run
+from app.store.runs_create import log_run_created as log_run_created
 from app.store.runs_delete import count_run_rows as count_run_rows
 from app.store.runs_delete import delete_run as delete_run
 from app.store.runs_reconcile import (
@@ -72,152 +72,6 @@ from app.store.runs_views import (
     list_expired_terminal_runs as list_expired_terminal_runs,
 )
 from app.store.runs_views import list_runs as list_runs
-
-logger = logging.getLogger(__name__)
-
-
-def _resolve_llm_backend(provider: str, llm_backend: str | None) -> str:
-    """Resolve the backend to persist, defaulting it from the provider."""
-    if llm_backend is not None:
-        return llm_backend
-    return "offline" if provider == "mock" else "real"
-
-
-@dataclass(frozen=True)
-class _NewRunFields:
-    """Fields needed to insert a run row and build its RunRow."""
-
-    run_id: str
-    research_goal: str
-    title: str | None
-    profile: str
-    provider: str
-    config: dict[str, Any]
-    client_id: str
-    execution_policy: str
-    now: float
-    backend: str
-
-
-def _insert_run_row(conn: sqlite3.Connection, f: _NewRunFields) -> None:
-    """Insert a new run row in the DRAFT state on an open connection."""
-    conn.execute(
-        "INSERT INTO runs (id, research_goal, title, profile, status, "
-        "provider, config_json, client_id, created_at, updated_at, "
-        "llm_backend, execution_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
-            f.run_id,
-            f.research_goal,
-            f.title,
-            f.profile,
-            RunStatus.DRAFT.value,
-            f.provider,
-            json.dumps(f.config),
-            f.client_id,
-            f.now,
-            f.now,
-            f.backend,
-            f.execution_policy,
-        ),
-    )
-
-
-def _run_row_from_insert(f: _NewRunFields) -> RunRow:
-    """Build the RunRow for a just-inserted run."""
-    return RunRow(
-        id=f.run_id,
-        research_goal=f.research_goal,
-        title=f.title,
-        profile=f.profile,
-        status=RunStatus.DRAFT.value,
-        provider=f.provider,
-        config=f.config,
-        client_id=f.client_id,
-        created_at=f.now,
-        updated_at=f.now,
-        completed_at=None,
-        error=None,
-        llm_backend=f.backend,
-        execution_policy=f.execution_policy,
-    )
-
-
-def _log_run_created(f: _NewRunFields) -> None:
-    """Log creation of a new run at info level."""
-    logger.info(
-        "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
-        f.run_id,
-        f.profile,
-        f.provider,
-        f.backend,
-        f.client_id,
-    )
-
-
-@dataclass(frozen=True)
-class RunCreateOptions:
-    """The optional inputs to a run creation, plus the db override.
-
-    ``client_id`` is the owning client identifier used for run isolation.
-    ``title`` is a short session heading, usually NULL at creation and
-    filled in shortly after by a background title generator, but supplied
-    directly for curated demo runs. ``llm_backend`` is the backend the run
-    will execute against, "offline" or "real"; when omitted it is derived
-    from the provider (the mock was always offline-backed), matching the
-    legacy-row default. ``db_path`` overrides the SQLite database path.
-    """
-
-    client_id: str = ""
-    title: str | None = None
-    llm_backend: str | None = None
-    execution_policy: str = "standard"
-    db_path: str | None = None
-
-
-def _create_run_impl(fields: _NewRunFields, db_path: str | None) -> RunRow:
-    """Persist a new DRAFT run row and return it as a RunRow."""
-    with connect(db_path) as conn:
-        _insert_run_row(conn, fields)
-    _log_run_created(fields)
-    return _run_row_from_insert(fields)
-
-
-def create_run(
-    research_goal: str,
-    profile: str,
-    provider: str,
-    config: dict[str, Any],
-    options: RunCreateOptions | None = None,
-) -> RunRow:
-    """Insert a new run row in the DRAFT state and return it.
-
-    Args:
-        research_goal: The natural-language research goal for the run.
-        profile: Canonical run mode. The column name is retained for
-            compatibility with older clients.
-        provider: The execution provider; every caller passes 'engine'
-            today (see ``engine_adapter.select_provider``).
-        config: Run configuration values serialized to JSON.
-        options: Optional creation inputs and database override (see
-            :class:`RunCreateOptions`).
-
-    Returns:
-        The newly created run as a RunRow.
-    """
-    opts = options or RunCreateOptions()
-    fields = _NewRunFields(
-        run_id=str(uuid.uuid4()),
-        research_goal=research_goal,
-        title=opts.title,
-        profile=profile,
-        provider=provider,
-        config=config,
-        client_id=opts.client_id,
-        execution_policy=opts.execution_policy,
-        now=_now(),
-        backend=_resolve_llm_backend(provider, opts.llm_backend),
-    )
-    return _create_run_impl(fields, opts.db_path)
 
 
 def run_used_offline(run: RunRow) -> bool:

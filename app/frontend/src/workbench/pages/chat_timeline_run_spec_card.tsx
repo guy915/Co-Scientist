@@ -35,6 +35,7 @@ import {
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {planLeadIn} from './chat_timeline_plan_prose';
+import {RecoveryLookupStatus} from './chat_timeline_recovery_status';
 import {
   type SpecFieldsEditor,
   SpecFieldsSection,
@@ -70,6 +71,9 @@ interface RunSpecCardProps {
   anchorId?: string;
   isStarting: boolean;
   locked?: boolean;
+  recoveryAction?: boolean;
+  recoveryLookupStatus?: 'checking' | 'error' | 'cancelled';
+  onRetryStatusLookup?: () => void;
   intro?: string;
   introReasoning?: string;
   introFallback?: boolean;
@@ -93,6 +97,57 @@ function planIntroText(intro?: string): string {
     'The interview is complete. I derived the research setup below from ' +
       'your answers.'
   );
+}
+
+function planInstructions(recoveryAction?: boolean): string {
+  if (recoveryAction) {
+    return 'This research setup is saved as a draft. Continue research to start the same session.';
+  }
+  return 'Review the four fields and select a focus and run type. Once ready, click "Start research" to begin.';
+}
+
+function startActionLabel(
+  isStarting: boolean,
+  recoveryAction: boolean,
+): string {
+  if (isStarting) return recoveryAction ? 'Continuing...' : 'Starting...';
+  return recoveryAction ? 'Continue research' : 'Start research';
+}
+
+function startActionDisabled({
+  isStarting,
+  locked,
+  recoveryAction,
+  canStart,
+}: {
+  isStarting: boolean;
+  locked: boolean;
+  recoveryAction: boolean;
+  canStart: boolean;
+}): boolean {
+  return isStarting || (locked && !recoveryAction) || !canStart;
+}
+
+function startStatusMessage(recoveryAction: boolean): string {
+  return recoveryAction ? 'Continuing research' : 'Starting research';
+}
+
+function runSpecResponseActions(props: RunSpecCardProps, responseText: string) {
+  return responseActions(
+    props.recoveryAction ? null : props.onRetry,
+    responseText,
+    'co-scientist-research-plan.md',
+  );
+}
+
+function runPlanEditAction(
+  props: RunSpecCardProps,
+  editor: SpecFieldsEditor,
+): (() => void) | undefined {
+  if (props.locked || !props.spec.interviewId || editor.editing) {
+    return undefined;
+  }
+  return editor.startEditing;
 }
 
 /**
@@ -119,16 +174,13 @@ export function RunSpecCard(props: RunSpecCardProps) {
       attachment={
         <MessageAttachment>
           <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
-            Review the four fields and select a focus and run type. Once ready,
-            click "Start research" to begin.
+            {planInstructions(props.recoveryAction)}
           </p>
-          <PlanHeading
-            onEdit={
-              !locked && props.spec.interviewId && !editor.editing
-                ? editor.startEditing
-                : undefined
-            }
+          <RecoveryLookupStatus
+            status={props.recoveryLookupStatus}
+            onRetry={props.onRetryStatusLookup}
           />
+          <PlanHeading onEdit={runPlanEditAction(props, editor)} />
           <p className={PLAN_SUBHEADING_CLASSES}>
             Here's my plan to tackle the topic:
           </p>
@@ -136,6 +188,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
             spec={props.spec}
             locked={locked}
             isStarting={props.isStarting}
+            recoveryAction={props.recoveryAction ?? false}
             editor={editor}
             onFocusChange={props.onFocusChange}
             onTierChange={props.onTierChange}
@@ -145,11 +198,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
           />
         </MessageAttachment>
       }
-      actions={responseActions(
-        props.onRetry,
-        responseText,
-        'co-scientist-research-plan.md',
-      )}
+      actions={runSpecResponseActions(props, responseText)}
     />
   );
 }
@@ -227,6 +276,7 @@ interface RunSpecDocumentProps {
   spec: InferredRunSpec;
   locked: boolean;
   isStarting: boolean;
+  recoveryAction: boolean;
   editor: SpecFieldsEditor;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
@@ -242,6 +292,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
     spec,
     locked,
     isStarting,
+    recoveryAction,
     editor,
     onFocusChange,
     onTierChange,
@@ -269,6 +320,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
       <RunSpecActions
         locked={locked}
         isStarting={isStarting}
+        recoveryAction={recoveryAction}
         onCancel={onCancel}
         onStart={onStart}
         canStart={isCompletionEmailValid(spec)}
@@ -277,18 +329,19 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
   );
 }
 
-// The cancel/start action row under RunSpecDocument: Cancel is hidden when
-// `locked` (a confirmed spec can't be discarded), and Start is disabled
-// while starting or locked.
+// A linked DRAFT remains locked for editing, but can be started explicitly
+// after a refresh.
 function RunSpecActions({
   locked,
   isStarting,
+  recoveryAction,
   onCancel,
   onStart,
   canStart,
 }: {
   locked: boolean;
   isStarting: boolean;
+  recoveryAction: boolean;
   onCancel: () => void;
   onStart: () => void;
   canStart: boolean;
@@ -308,11 +361,22 @@ function RunSpecActions({
       <button
         type="button"
         className={SETUP_PRIMARY_BUTTON_CLASSES}
+        aria-busy={isStarting}
         onClick={onStart}
-        disabled={isStarting || locked || !canStart}
+        disabled={startActionDisabled({
+          isStarting,
+          locked,
+          recoveryAction,
+          canStart,
+        })}
       >
-        {isStarting ? 'Starting...' : 'Start research'}
+        {startActionLabel(isStarting, recoveryAction)}
       </button>
+      {isStarting && (
+        <span className="sr-only" role="status" aria-live="polite">
+          {startStatusMessage(recoveryAction)}
+        </span>
+      )}
     </div>
   );
 }
@@ -334,6 +398,9 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     '## Preferences',
     ...spec.requirements.map(value => `* ${value}`),
     '',
+    ...(spec.criteria.length
+      ? ['## Criteria', ...spec.criteria.map(value => `* ${value}`), '']
+      : []),
     '## Title',
     spec.title || 'Optional',
     '',

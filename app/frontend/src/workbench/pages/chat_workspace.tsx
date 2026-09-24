@@ -13,6 +13,7 @@ import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
 import {useChatRehydration} from '../hooks/use_chat_rehydrate';
+import {type LinkedDraftRecovery} from '../hooks/chat_session_types';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
   HOME_TOAST_ACTION_CLASSES,
@@ -142,6 +143,7 @@ function useSyncHeaderTitle(
 function useWorkspaceLayoutBundle(
   sessionBundle: WorkspaceSessionBundle,
   navigate: NavigateFunction,
+  linkedDraftRecovery: LinkedDraftRecovery,
 ) {
   const {session, setToast, reloadHistory, focusComposer} = sessionBundle;
   const {draft, startedSession} = session;
@@ -158,6 +160,7 @@ function useWorkspaceLayoutBundle(
     navigate,
     resetWorkspace,
     focusComposer,
+    linkedDraftRecovery,
   );
   return {timelineItems, scrollRef, composerRef};
 }
@@ -185,10 +188,11 @@ export function ChatWorkspace() {
   // and builds the timeline on top of it.
   const sessionBundle = useWorkspaceSessionBundle(connectors);
   const {session, toast, history, homeScores} = sessionBundle;
-  useChatRehydration(session, chatId);
+  const linkedDraftRecovery = useChatRehydration(session, chatId);
   const {timelineItems, scrollRef, composerRef} = useWorkspaceLayoutBundle(
     sessionBundle,
     navigate,
+    linkedDraftRecovery,
   );
 
   return (

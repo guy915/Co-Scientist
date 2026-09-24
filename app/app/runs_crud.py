@@ -26,9 +26,8 @@ from fastapi import (
 
 from app import (
     credentials,
-    documents,
     engine_adapter,
-    run_corpus,
+    runs_crud_create,
     store,
 )
 from app.auth import client_id, require_client_scope
@@ -37,6 +36,11 @@ from app.execution_policy import (
     scoped_execution_policy,
 )
 from app.goal_restatement import generate_goal_restatement
+from app.runs_crud_create import (
+    _persist_new_run_for_owner as _persist_new_run_impl,
+)
+from app.runs_crud_create import _receipt_replay as _receipt_replay
+from app.runs_crud_create import _run_setup_documents as _run_setup_documents
 from app.runs_crud_resolve import (
     _build_run_config as _build_run_config,
 )
@@ -58,7 +62,28 @@ from app.runs_models import (
 )
 from app.runs_support import _run_or_404
 from app.store import RunStatus
-from app.title_gen import clean_title, generate_run_title
+from app.title_gen import generate_run_title
+
+
+def _persist_new_run(  # noqa: PLR0913 -- retain the route module's patch seam.
+    req: CreateRunRequest,
+    request: Request,
+    interview: dict[str, Any] | None,
+    resolved: _ResolvedRunSettings,
+    execution_policy: str = "standard",
+    *,
+    conn: sqlite3.Connection | None = None,
+) -> store.RunRow:
+    """Preserve the original helper signature and bind the same owner scope."""
+    return _persist_new_run_impl(
+        req,
+        request,
+        interview,
+        resolved,
+        execution_policy,
+        owner=client_id(request),
+        conn=conn,
+    )
 
 
 async def _populate_run_title(
@@ -136,103 +161,6 @@ async def _populate_goal_restatement(
         store.set_run_goal_restatement(run_id, restatement)
 
 
-def _persist_new_run(
-    req: CreateRunRequest,
-    request: Request,
-    interview: dict[str, Any] | None,
-    resolved: _ResolvedRunSettings,
-    execution_policy: str = "standard",
-) -> store.RunRow:
-    """Create the DRAFT run row and log its creation event.
-
-    The run is persisted in DRAFT; nothing executes until /start is called.
-
-    An interview-supplied title is normalized through the same cleaner a
-    generated one passes, because it is now kept rather than overwritten
-    (see ``create_run``'s scheduling guard). It arrives straight from the
-    model with only whitespace stripped, so without this an overlong one
-    would reach surfaces sized for ``_MAX_TITLE_CHARS``; rejected here, it
-    becomes None and titling falls through to generation.
-    """
-    interview_title = (
-        clean_title(interview["fields"].get("title") or "")
-        if interview
-        else None
-    )
-    run = store.create_run(
-        req.research_goal,
-        resolved.run_mode,
-        resolved.provider,
-        resolved.config,
-        store.RunCreateOptions(
-            client_id=client_id(request),
-            title=interview_title,
-            llm_backend=resolved.llm_backend,
-            execution_policy=execution_policy,
-        ),
-    )
-    # First entry in the run's event log, so replays show creation metadata.
-    store.append_event(
-        run.id,
-        "lifecycle",
-        {
-            "event": "created",
-            "run_mode": resolved.run_mode,
-            "provider": resolved.provider,
-            "focus": resolved.focus,
-            "tier": resolved.run_mode,
-        },
-    )
-    return run
-
-
-def _run_setup_documents(
-    req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
-) -> list[dict[str, Any]]:
-    """Resolve every staged document this run is to be created with.
-
-    The union of the documents named on the request and those already
-    attached to its chat, de-duplicated by id and ordered as staged.
-
-    Raises:
-        HTTPException: 404 when a named document is unknown or unowned.
-    """
-    named = documents.resolve_owned_documents(req.document_ids, owner)
-    from_chat = (
-        store.list_interview_documents(str(interview["id"]))
-        if interview is not None
-        else []
-    )
-    resolved: dict[str, dict[str, Any]] = {}
-    for document in [*named, *from_chat]:
-        resolved.setdefault(str(document["id"]), document)
-    return list(resolved.values())
-
-
-def _index_setup_documents(run_id: str, staged: list[dict[str, Any]]) -> None:
-    """Copy staged documents into the new run's private corpus.
-
-    Indexed with the same source marker an in-run upload uses, so the
-    run-scoped retriever and the report's provenance cannot tell a document
-    attached at setup from one attached later -- only the timing differs.
-    """
-    for document in staged:
-        store.add_evidence(
-            store.NewEvidence(
-                run_id=run_id,
-                title=str(document["title"]),
-                source=run_corpus.ATTACHMENT_SOURCE,
-                abstract=str(document["text"]),
-                mime_type=str(document["mime_type"]),
-                sha256=str(document["sha256"]),
-                byte_size=int(document["byte_size"]),
-                document_version=str(document["sha256"]),
-                extraction_tool=str(document["extraction_tool"]),
-            )
-        )
-    store.mark_documents_used_by_run(run_id, [str(d["id"]) for d in staged])
-
-
 def _apply_post_commit_effects(
     run: store.RunRow,
     req: CreateRunRequest,
@@ -257,8 +185,6 @@ def _apply_post_commit_effects(
         background_tasks: Queue used to title the run and synthesize its
             goal restatement off the critical path.
     """
-    if byok is not None:
-        credentials.store_run_credential(run.id, run.client_id, byok)
     model_backed = byok is not None or not engine_adapter.offline_mode()
     if run.title is None and model_backed:
         background_tasks.add_task(
@@ -286,50 +212,24 @@ async def create_run(
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """Create a new run for the requesting client and return it.
-
-    Creation is the single committing step of run setup: the credential and
-    every attached document are resolved BEFORE the run row is written, so a
-    request that cannot be satisfied leaves nothing behind. Uploading
-    attachments after creation instead made setup a three-call sequence
-    whose middle step could fail, stranding a created, unstarted, ungrounded
-    run that nothing named.
-
-    Args:
-        req: Request body with the research goal, run mode, and run config.
-        request: Incoming HTTP request, used to read the client identifier.
-        background_tasks: FastAPI background queue used to generate the run's
-            session title and goal restatement off the request's critical
-            path.
-
-    Returns:
-        The created run serialized as a dict.
-
-    Raises:
-        HTTPException: 400 when the caller carries no identity at all (a
-            compatibility caller sending no ``X-Client-ID`` header) --
-            checked first and before any other work, since a run created
-            under that scope would be invisible to its own creator (see
-            ``app.auth.require_client_scope``).
-    """
-    require_client_scope(request)
-    interview, req = _resolve_run_interview(req, request)
-    execution_policy = resolve_execution_policy(request, interview)
-    # Validated BEFORE any database write: a rejected key must surface as
-    # a clean 4xx here, never as a stored run that fails mid-execution.
-    with scoped_execution_policy(execution_policy):
-        byok = await _resolve_byok(request, execution_policy)
-    staged = _run_setup_documents(req, interview, client_id(request))
-    run = _persist_new_run(
+    """Keep the registered endpoint and its patchable post-commit seam."""
+    return await runs_crud_create.create_run(
         req,
         request,
-        interview,
-        _resolve_run_settings(req, interview, byok),
-        execution_policy,
+        background_tasks,
+        runs_crud_create.RunCreationCallbacks(
+            require_client_scope=require_client_scope,
+            client_id=client_id,
+            resolve_execution_policy=resolve_execution_policy,
+            scoped_execution_policy=scoped_execution_policy,
+            resolve_byok=_resolve_byok,
+            resolve_run_interview=_resolve_run_interview,
+            resolve_run_settings=_resolve_run_settings,
+            persist_new_run=_persist_new_run,
+            run_setup_documents=_run_setup_documents,
+            post_commit_effects=_apply_post_commit_effects,
+        ),
     )
-    _index_setup_documents(run.id, staged)
-    _apply_post_commit_effects(run, req, byok, background_tasks)
-    return run.to_dict()
 
 
 def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:

@@ -27,6 +27,11 @@ export function baseArgs(
     handleRetryDraftSpec: vi.fn(),
     handleStartRun: vi.fn().mockResolvedValue(undefined),
     confirmed: null,
+    linkedDraftRecovery: {
+      canContinueLinkedDraft: false,
+      status: undefined,
+      retryStatusLookup: () => undefined,
+    },
     stageDraftSpec: vi.fn(),
     startedSession: null,
     navigate: vi.fn() as unknown as NavigateFunction,

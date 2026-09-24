@@ -146,6 +146,54 @@ def list_interview_documents(
     return _rows_to_documents(rows)
 
 
+def merge_run_setup_documents(
+    named: list[dict[str, Any]],
+    interview_id: str | None,
+    *,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Merge request and interview attachments, retaining staged order."""
+    from_chat = (
+        list_interview_documents(interview_id, conn=conn)
+        if interview_id is not None
+        else []
+    )
+    resolved: dict[str, dict[str, Any]] = {}
+    for document in [*named, *from_chat]:
+        resolved.setdefault(str(document["id"]), document)
+    return list(resolved.values())
+
+
+def index_staged_documents_for_run(
+    run_id: str,
+    staged: list[dict[str, Any]],
+    source: str,
+    *,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Copy verified staged documents into a run's evidence corpus."""
+    from app.store.records import NewEvidence, add_evidence
+
+    for document in staged:
+        add_evidence(
+            NewEvidence(
+                run_id=run_id,
+                title=str(document["title"]),
+                source=source,
+                abstract=str(document["text"]),
+                mime_type=str(document["mime_type"]),
+                sha256=str(document["sha256"]),
+                byte_size=int(document["byte_size"]),
+                document_version=str(document["sha256"]),
+                extraction_tool=str(document["extraction_tool"]),
+            ),
+            conn=conn,
+        )
+    mark_documents_used_by_run(
+        run_id, [str(document["id"]) for document in staged], conn=conn
+    )
+
+
 def interview_document_excerpts(
     interview_id: str, *, db_path: str | None = None
 ) -> list[dict[str, str]]:
@@ -235,14 +283,18 @@ def delete_staged_documents_older_than(
 
 
 def mark_documents_used_by_run(
-    run_id: str, document_ids: list[str], *, db_path: str | None = None
+    run_id: str,
+    document_ids: list[str],
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Record which run carried these staged documents into its corpus."""
     if not document_ids:
         return
     placeholders = ",".join("?" for _ in document_ids)
-    with connect(db_path) as conn:
-        conn.execute(
+    with _use_conn(conn, db_path) as active:
+        active.execute(
             "UPDATE staged_documents SET run_id=? "
             f"WHERE id IN ({placeholders})",
             (run_id, *document_ids),

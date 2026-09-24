@@ -1,0 +1,141 @@
+"""Owner-scoped receipts for idempotent run creation."""
+
+from __future__ import annotations
+
+import re
+import sqlite3
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from app.store.db import _now, _use_conn
+from app.store.models import RunRow, _row_to_run
+
+if TYPE_CHECKING:
+    from app.credentials import ByokCredential
+
+
+@dataclass(frozen=True)
+class RunCreationReceipt:
+    """A stored request digest and its current owner-checked run, if present."""
+
+    request_digest: str
+    run: RunRow | None
+
+
+class StagedDocumentsUnavailableError(Exception):
+    """A staged document disappeared or changed owner before commit."""
+
+
+_IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9._~-]{1,128}")
+
+
+def valid_run_creation_key(key: str) -> bool:
+    """Whether a key matches the run-creation contract's ASCII token set."""
+    return _IDEMPOTENCY_KEY.fullmatch(key) is not None
+
+
+def lookup_run_creation_receipt(
+    client_id: str,
+    idempotency_key: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> RunCreationReceipt | None:
+    """Find one receipt without exposing a run owned by another client."""
+    with _use_conn(conn, db_path) as active:
+        receipt = active.execute(
+            "SELECT request_digest, run_id FROM run_creation_receipts "
+            "WHERE client_id=? AND idempotency_key=?",
+            (client_id, idempotency_key),
+        ).fetchone()
+        if receipt is None:
+            return None
+        row = active.execute(
+            "SELECT * FROM runs WHERE id=? AND client_id=?",
+            (receipt["run_id"], client_id),
+        ).fetchone()
+    return RunCreationReceipt(
+        request_digest=str(receipt["request_digest"]),
+        run=_row_to_run(row) if row is not None else None,
+    )
+
+
+def add_run_creation_receipt(  # noqa: PLR0913 -- receipt identity has four persisted fields.
+    client_id: str,
+    idempotency_key: str,
+    request_digest: str,
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Record a new receipt, normally on the run-creation transaction."""
+    with _use_conn(conn, db_path) as active:
+        active.execute(
+            "INSERT INTO run_creation_receipts "
+            "(client_id, idempotency_key, request_digest, run_id, created_at) "
+            "VALUES (?,?,?,?,?)",
+            (client_id, idempotency_key, request_digest, run_id, _now()),
+        )
+
+
+def _recheck_receipt_and_documents(
+    conn: sqlite3.Connection,
+    client_id: str,
+    idempotency_key: str | None,
+    staged_documents: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], RunCreationReceipt | None]:
+    """Recheck the concurrent receipt and staged ownership under the lock."""
+    from app.store.documents import get_staged_documents
+
+    if idempotency_key is not None:
+        receipt = lookup_run_creation_receipt(
+            client_id, idempotency_key, conn=conn
+        )
+        if receipt is not None:
+            return [], receipt
+    document_ids = [str(document["id"]) for document in staged_documents]
+    current = get_staged_documents(document_ids, client_id, conn=conn)
+    if len(current) != len(document_ids):
+        raise StagedDocumentsUnavailableError
+    return current, None
+
+
+def commit_run_creation(  # noqa: PLR0913 -- one atomic setup has ordered optional effects.
+    client_id: str,
+    idempotency_key: str | None,
+    request_digest: str | None,
+    staged_documents: list[dict[str, object]],
+    byok: ByokCredential | None,
+    create_run: Callable[[sqlite3.Connection], RunRow],
+    attachment_source: str,
+) -> tuple[RunRow | None, RunCreationReceipt | None]:
+    """Atomically write a run's setup, or return a concurrent receipt."""
+    from app import credentials
+    from app.store.db import transaction
+    from app.store.documents import index_staged_documents_for_run
+
+    if (idempotency_key is None) != (request_digest is None):
+        raise ValueError("an idempotency key and request digest must be paired")
+    with transaction() as conn:
+        current_documents, receipt = _recheck_receipt_and_documents(
+            conn, client_id, idempotency_key, staged_documents
+        )
+        if receipt is not None:
+            return None, receipt
+        run = create_run(conn)
+        if byok is not None:
+            credentials.store_run_credential(run.id, client_id, byok, conn=conn)
+        index_staged_documents_for_run(
+            run.id, current_documents, attachment_source, conn=conn
+        )
+        if idempotency_key is not None and request_digest is not None:
+            add_run_creation_receipt(
+                client_id,
+                idempotency_key,
+                request_digest,
+                run.id,
+                conn=conn,
+            )
+    return run, None

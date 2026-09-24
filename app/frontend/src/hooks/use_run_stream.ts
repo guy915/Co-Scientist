@@ -19,10 +19,7 @@ export interface StreamEvent {
  * retry cannot fix).
  */
 export type StreamConnectionState =
-  | 'connecting'
-  | 'open'
-  | 'reconnecting'
-  | 'disconnected';
+  'connecting' | 'open' | 'reconnecting' | 'disconnected';
 
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {

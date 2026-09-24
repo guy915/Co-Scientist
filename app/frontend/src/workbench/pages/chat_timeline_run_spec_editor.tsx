@@ -70,13 +70,16 @@ function SpecList({label, values}: {label: string; values: string[]}) {
   );
 }
 
-// The exact four fields shown by Google's interview progress and setup flow.
+// The interview fields plus any extra criteria stored on the run setup.
 function SpecSummary({spec}: {spec: InferredRunSpec}) {
   return (
     <dl className={SPEC_GRID_CLASSES}>
       <SpecRow label="Research Challenge">{spec.goal}</SpecRow>
       <SpecList label="Focus Area" values={spec.attributes} />
       <SpecList label="Preferences" values={spec.requirements} />
+      {spec.criteria.length > 0 && (
+        <SpecList label="Criteria" values={spec.criteria} />
+      )}
       <SpecRow label="Title">{spec.title || 'Optional'}</SpecRow>
     </dl>
   );

@@ -39,6 +39,7 @@ const apiMock = vi.hoisted(() => {
     createInterview: vi.fn(),
     createRun: vi.fn(),
     getHypotheses: vi.fn(),
+    getRun: vi.fn(),
     getInterview: vi.fn(),
     getRunMessages: vi.fn(),
     listDemoRuns,
@@ -199,6 +200,7 @@ export function installChatWorkspaceMocks() {
     completed_at: 2,
   }));
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
+  apiMock.getRun.mockRejectedValue(new Error('Run not found'));
   // The Agent's reply to "Start research", as the server streams it: some
   // thinking, then the announcement itself. Suites asserting the degraded
   // card override this with a rejection.

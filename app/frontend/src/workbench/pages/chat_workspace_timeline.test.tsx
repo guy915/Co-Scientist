@@ -235,6 +235,93 @@ it('renders read-only with retry and inert no-ops', () => {
   expect(() => cardElement.props.onStart()).not.toThrow();
 });
 
+it('offers an explicit continue action for a linked draft', () => {
+  const args = baseArgs({
+    confirmed: {spec: makeSpec(), createdAt: 9},
+    linkedDraftRecovery: {
+      canContinueLinkedDraft: true,
+      spec: makeSpec(),
+      status: undefined,
+      retryStatusLookup: vi.fn(),
+    },
+  });
+  renderItems(buildTimelineItems(args));
+
+  const button = screen.getByRole('button', {name: 'Continue research'});
+  expect(button).toBeEnabled();
+  expect(screen.queryByLabelText('Retry response')).not.toBeInTheDocument();
+  fireEvent.click(button);
+  expect(args.handleStartRun).toHaveBeenCalledOnce();
+});
+
+it('announces linked-draft recovery while the start request is loading', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        confirmed: {spec: makeSpec(), createdAt: 9},
+        linkedDraftRecovery: {
+          canContinueLinkedDraft: true,
+          spec: makeSpec(),
+          status: undefined,
+          retryStatusLookup: vi.fn(),
+        },
+        isStarting: true,
+      }),
+    ),
+  );
+
+  const button = screen.getByRole('button', {name: 'Continuing...'});
+  expect(button).toBeDisabled();
+  expect(button).toHaveAttribute('aria-busy', 'true');
+  expect(screen.getByRole('status')).toHaveTextContent('Continuing research');
+});
+
+it('keeps a linked run locked and offers a status retry on lookup failure', () => {
+  const retryStatusLookup = vi.fn();
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        confirmed: {spec: makeSpec(), createdAt: 9},
+        linkedDraftRecovery: {
+          canContinueLinkedDraft: false,
+          status: 'error',
+          retryStatusLookup,
+        },
+      }),
+    ),
+  );
+
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Could not verify the saved run status.',
+  );
+  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
+  expect(
+    screen.queryByRole('button', {name: 'Continue research'}),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: 'Retry status check'}));
+  expect(retryStatusLookup).toHaveBeenCalledOnce();
+});
+
+it('announces a linked run status lookup while keeping Start disabled', () => {
+  renderItems(
+    buildTimelineItems(
+      baseArgs({
+        confirmed: {spec: makeSpec(), createdAt: 9},
+        linkedDraftRecovery: {
+          canContinueLinkedDraft: false,
+          status: 'checking',
+          retryStatusLookup: vi.fn(),
+        },
+      }),
+    ),
+  );
+
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Checking saved research session status…',
+  );
+  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
+});
+
 it('renders nothing when there is no confirmed spec', () => {
   const items = buildTimelineItems(baseArgs({confirmed: null}));
   expect(items).toHaveLength(0);
