@@ -198,13 +198,21 @@ async def test_the_companion_edge_collides_with_its_reactive_enqueue(
     committed = engine_tasks_support._save_state_and_enqueue(
         TaskCommit(orchestrator, seq, isolated_db), state, "meta_review"
     )
+    assert store.complete_task(
+        orchestrator.id, "worker", {}, db_path=isolated_db
+    )
     meta_review = next(
         task
         for task in store.list_tasks(run.id, db_path=isolated_db)
         if task.task_type == _META_REVIEW
     )
+    leased_meta_review = store.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased_meta_review is not None
+    assert leased_meta_review.id == meta_review.id
     engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(meta_review, committed[0], isolated_db),
+        TaskCommit(leased_meta_review, committed[0], isolated_db),
         state,
         "research_overview",
     )
@@ -240,13 +248,21 @@ async def test_the_terminal_decision_writes_an_overview_then_a_report(
     committed = engine_tasks_support._save_state_and_enqueue(
         TaskCommit(orchestrator, seq, isolated_db), state, "research_overview"
     )
+    assert store.complete_task(
+        orchestrator.id, "worker", {}, db_path=isolated_db
+    )
     overview = next(
         task
         for task in store.list_tasks(run.id, db_path=isolated_db)
         if task.task_type == _OVERVIEW
     )
+    leased_overview = store.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased_overview is not None
+    assert leased_overview.id == overview.id
     engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(overview, committed[0], isolated_db), state, None
+        TaskCommit(leased_overview, committed[0], isolated_db), state, None
     )
 
     finalize = next(

@@ -178,6 +178,9 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     committed_seq, _ = engine_tasks_support._save_state_and_enqueue(
         commit, decided, "meta_review"
     )
+    assert store.complete_task(
+        predecessor.id, "worker", {}, db_path=isolated_db
+    )
     tasks = {
         task.task_type: task
         for task in store.list_tasks(run.id, db_path=isolated_db)
@@ -193,8 +196,15 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     )
 
     # meta_review now actually runs and halts instead of reaching evolve.
+    leased_meta_review = store.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased_meta_review is not None
+    assert leased_meta_review.id == meta_review.id
     halted_state = {**_task_state(run.id), "safety_blocked": True}
-    meta_review_commit = TaskCommit(meta_review, committed_seq, isolated_db)
+    meta_review_commit = TaskCommit(
+        leased_meta_review, committed_seq, isolated_db
+    )
     engine_tasks_support._save_state_and_enqueue(
         meta_review_commit, halted_state, None
     )
@@ -234,6 +244,9 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
     committed_seq, _ = engine_tasks_support._save_state_and_enqueue(
         commit, _task_state(run.id), "reflection"
     )
+    assert store.complete_task(
+        predecessor.id, "worker", {}, db_path=isolated_db
+    )
     tasks = {
         task.task_type: task
         for task in store.list_tasks(run.id, db_path=isolated_db)
@@ -243,8 +256,15 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
     assert review.status == "queued"
 
     # reflection now actually runs and halts instead of reaching review.
+    leased_reflection = store.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased_reflection is not None
+    assert leased_reflection.id == reflection.id
     halted_state = {**_task_state(run.id), "safety_blocked": True}
-    reflection_commit = TaskCommit(reflection, committed_seq, isolated_db)
+    reflection_commit = TaskCommit(
+        leased_reflection, committed_seq, isolated_db
+    )
     engine_tasks_support._save_state_and_enqueue(
         reflection_commit, halted_state, None
     )

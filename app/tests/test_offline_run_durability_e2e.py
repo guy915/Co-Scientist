@@ -71,7 +71,13 @@ def _steer_mid_run_then_crash(
     real = engine_tasks_support._save_state_and_enqueue
     box = {"commits": 0, "crashes": 0}
 
-    def crashing(commit: Any, state: Any, successor: Any) -> Any:
+    def crashing(
+        commit: Any,
+        state: Any,
+        successor: Any,
+        *,
+        pause_if_requested: bool = False,
+    ) -> Any:
         box["commits"] += 1
         if box["commits"] == 2:
             store.append_message(
@@ -86,7 +92,12 @@ def _steer_mid_run_then_crash(
         if commit.steering_ids and not box["crashes"]:
             box["crashes"] += 1
             raise RuntimeError("worker lost before the checkpoint committed")
-        return real(commit, state, successor)
+        return real(
+            commit,
+            state,
+            successor,
+            pause_if_requested=pause_if_requested,
+        )
 
     for module in (engine_tasks_support, engine_tasks, engine_tasks_node):
         monkeypatch.setattr(module, "_save_state_and_enqueue", crashing)
