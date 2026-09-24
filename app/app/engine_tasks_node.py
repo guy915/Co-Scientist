@@ -401,8 +401,9 @@ def _finalize_replay_or_none(
     return None
 
 
-async def _publish_finalize_report(
+async def _publish_finalize_report(  # noqa: PLR0913
     run: store.RunRow,
+    task: ScientificTask,
     drained: Any,
     execution_time: float,
     emit: Any,
@@ -425,6 +426,7 @@ async def _publish_finalize_report(
             **drained.report_inputs,
         ),
         emit,
+        task=task,
     ):
         pass
 
@@ -448,7 +450,9 @@ async def execute_finalize(
         run, state, db_path
     )
     emit = make_emitter(run.id, db_path=db_path)
-    await _publish_finalize_report(run, drained, execution_time, emit, db_path)
+    await _publish_finalize_report(
+        run, task, drained, execution_time, emit, db_path
+    )
     # A contribution posted after the last orchestrator boundary (the
     # report was still draining/publishing) has no continuation task
     # waiting for it -- reopen right here instead of stranding it on

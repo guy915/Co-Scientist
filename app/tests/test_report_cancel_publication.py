@@ -1,0 +1,411 @@
+"""Cancellation racing the durable finalize task's report publication."""
+
+from __future__ import annotations
+
+import os
+from collections import Counter
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from app import (
+    engine_tasks,
+    engine_tasks_node,
+    report_render,
+    store,
+    task_worker,
+)
+from app.config import settings
+from app.report_events import make_emitter
+from app.safety import SafetyDecision
+from tests._client import make_client
+from tests._engine_tasks_helpers import (
+    _Generator,
+    _seed_checkpoint,
+    _task_state,
+)
+
+_OWNER = {"X-Client-ID": "report-cancel-owner"}
+_EMAIL = "scientist@example.org"
+
+
+class _WorkerProcessCrashError(RuntimeError):
+    """Test signal for a crash after report commit and before task ack."""
+
+
+def _publication_event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
+    """Count report and terminal events around the cancellation boundary."""
+    event_types = Counter(event["type"] for event in events)
+    terminal_statuses = Counter(
+        event["payload"].get("status")
+        for event in events
+        if event["type"] == "status"
+    )
+    return {
+        "report": event_types["report"],
+        "completed": terminal_statuses["completed"],
+        "cancelled": terminal_statuses["cancelled"],
+    }
+
+
+def _seed_owned_finalize(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    claim: bool = True,
+) -> tuple[Any, str, Any, str]:
+    """Create an owner-scoped active run and enqueue its finalize task."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
+    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
+
+    owner = make_client()
+    created = owner.post(
+        "/api/runs",
+        headers=_OWNER,
+        json={
+            "research_goal": "Study cancellation at report publication",
+            "tier": "express",
+            "notify_on_completion": True,
+            "completion_email": _EMAIL,
+        },
+    )
+    assert created.status_code == 200, created.text
+    run_id = str(created.json()["id"])
+    store.update_run_status(
+        run_id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    hypothesis_id = store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run_id,
+            title="IL-6 feedback",
+            statement="IL-6 increases inflammation via STAT3 signaling.",
+        ),
+        db_path=isolated_db,
+    )
+    state = _task_state(run_id)
+    checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
+    queued = store.enqueue_task(
+        store.NewTask(
+            run_id=run_id,
+            task_type=engine_tasks.FINALIZE_TASK,
+            inputs={"checkpoint_seq": checkpoint_seq},
+            idempotency_key="cancel-finalize-publication",
+        ),
+        db_path=isolated_db,
+    )
+    task = (
+        store.claim_task(
+            "report-finalize-worker", run_id=run_id, db_path=isolated_db
+        )
+        if claim
+        else store.get_task(queued.id, db_path=isolated_db)
+    )
+    assert task is not None and task.id == queued.id
+    assert task.task_type == engine_tasks.FINALIZE_TASK
+    assert task.status == ("leased" if claim else "queued")
+    monkeypatch.setattr(
+        engine_tasks_node,
+        "_generator_for_restore",
+        lambda *_: _Generator(state),
+    )
+
+    async def fake_drain(*_: Any, **__: Any) -> tuple[Any, float]:
+        drained = SimpleNamespace(
+            safety_counts={},
+            grounding_counts={},
+            report_inputs={"citation_summary": {}},
+        )
+        return drained, 1.25
+
+    monkeypatch.setattr(
+        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
+    )
+    return owner, run_id, task, hypothesis_id
+
+
+def _install_report_stubs(
+    hypothesis_id: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Supply fixed report content and an allowing final safety verdict."""
+    built = report_render._BuiltReport(
+        payload={
+            "research_goal": "Study cancellation at report publication",
+            "leaderboard": [{"id": hypothesis_id, "title": "IL-6 feedback"}],
+        },
+        markdown="# Goal Report\n\nIL-6 feedback.",
+        facts=[
+            {
+                "hypothesis_id": hypothesis_id,
+                "evidence_id": "fixture-evidence",
+                "kind": "fact",
+                "statement": "IL-6 increases inflammation.",
+                "entities": ["IL6"],
+                "state": "supports",
+            }
+        ],
+        exclusion_tally={},
+    )
+
+    async def fake_build_report(*_: Any, **__: Any) -> Any:
+        return built
+
+    async def allow_final_screen(*_: Any, **__: Any) -> SafetyDecision:
+        return SafetyDecision(stage="final", decision="allow")
+
+    monkeypatch.setattr(
+        report_render, "_build_report_content", fake_build_report
+    )
+    monkeypatch.setattr(
+        report_render, "screen_with_escalation", allow_final_screen
+    )
+
+
+def _install_canceling_emitter(
+    owner: Any,
+    run_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    """Cancel after final safety is emitted and before report publication."""
+    real_make_emitter = make_emitter
+    cancel_responses: list[dict[str, Any]] = []
+
+    def make_canceling_emitter(*args: Any, **kwargs: Any) -> Any:
+        emit = real_make_emitter(*args, **kwargs)
+
+        async def cancel_after_final_safety(
+            event_type: str, payload: dict[str, Any]
+        ) -> dict[str, Any]:
+            emitted = await emit(event_type, payload)
+            if event_type == "safety.final":
+                response = owner.post(
+                    f"/api/runs/{run_id}/cancel", headers=_OWNER
+                )
+                assert response.status_code == 200, response.text
+                cancel_responses.append(response.json())
+            return emitted
+
+        return cancel_after_final_safety
+
+    monkeypatch.setattr(
+        engine_tasks_node, "make_emitter", make_canceling_emitter
+    )
+    return cancel_responses
+
+
+def _publication_snapshot(
+    owner: Any,
+    run_id: str,
+    task_id: str,
+    cancel_responses: list[dict[str, Any]],
+    isolated_db: str,
+) -> dict[str, Any]:
+    """Observe API, store, share and restart outcomes after the race."""
+    share = owner.post(f"/api/runs/{run_id}/shares", headers=_OWNER)
+    public = owner.get(
+        f"/api/shared/{share.json().get('token', 'no-issued-share-token')}"
+    )
+    reconciliation = store.reconcile_interrupted_runs(db_path=isolated_db)
+    persisted_run = store.get_run(run_id, db_path=isolated_db)
+    task_after = store.get_task(task_id, db_path=isolated_db)
+    assert persisted_run is not None and task_after is not None
+    events = store.list_events(run_id, db_path=isolated_db)
+    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    event_counts = _publication_event_counts(events)
+    task_types = [item.task_type for item in tasks]
+    final_run = store.get_run(run_id, db_path=isolated_db)
+    assert final_run is not None
+
+    return {
+        "cancel_reached_publication_boundary": cancel_responses
+        == [{"id": run_id, "status": "cancelled"}],
+        "run_status": persisted_run.status,
+        "task_status": task_after.status,
+        "report_row_exists": store.get_latest_report(
+            run_id, db_path=isolated_db
+        )
+        is not None,
+        "owner_report_status": owner.get(
+            f"/api/runs/{run_id}/report", headers=_OWNER
+        ).status_code,
+        "owner_markdown_status": owner.get(
+            f"/api/runs/{run_id}/report.md", headers=_OWNER
+        ).status_code,
+        "report_markdown_exists": Path(
+            os.environ["COSCIENTIST_REPORTS_DIR"], f"{run_id}.md"
+        ).exists(),
+        "knowledge_fact_count": len(
+            store.list_knowledge_facts(run_id, db_path=isolated_db)
+        ),
+        "report_event_count": event_counts["report"],
+        "completed_event_count": event_counts["completed"],
+        "cancelled_event_count": event_counts["cancelled"],
+        "email_task_count": task_types.count("notification.email"),
+        "owner_share_status": share.status_code,
+        "public_report_status": public.status_code,
+        "restart_run_status": final_run.status,
+        "restart_reconciles_as_active": run_id in reconciliation["failed"]
+        or run_id in reconciliation["resumable"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_final_safety_withholds_report_publication(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale claimed finalize task cannot publish after the owner cancels."""
+    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch
+    )
+    _install_report_stubs(hypothesis_id, monkeypatch)
+    cancel_responses = _install_canceling_emitter(owner, run_id, monkeypatch)
+
+    # execute_finalize checked status before safety. The revoked row must make
+    # this stale body stop before it saves a report or any related side effect.
+    with pytest.raises(task_worker._LeaseLostError):
+        await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    actual = _publication_snapshot(
+        owner, run_id, task.id, cancel_responses, isolated_db
+    )
+    assert actual == {
+        "cancel_reached_publication_boundary": True,
+        "run_status": store.RunStatus.CANCELLED.value,
+        "task_status": "cancelled",
+        "report_row_exists": False,
+        "owner_report_status": 404,
+        "owner_markdown_status": 404,
+        "report_markdown_exists": False,
+        "knowledge_fact_count": 0,
+        "report_event_count": 0,
+        "completed_event_count": 0,
+        "cancelled_event_count": 1,
+        "email_task_count": 0,
+        "owner_share_status": 409,
+        "public_report_status": 404,
+        "restart_run_status": store.RunStatus.CANCELLED.value,
+        "restart_reconciles_as_active": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_normal_finalize_publishes_and_survives_restart(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A normal leased finalize publishes in order and rejects late cancel."""
+    owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch, claim=False
+    )
+    _install_report_stubs(hypothesis_id, monkeypatch)
+
+    assert await task_worker.run_once(
+        "normal-report-worker", run_id=run_id, db_path=isolated_db
+    )
+
+    run = store.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == store.RunStatus.COMPLETED.value
+    report_response = owner.get(f"/api/runs/{run_id}/report", headers=_OWNER)
+    markdown_response = owner.get(
+        f"/api/runs/{run_id}/report.md", headers=_OWNER
+    )
+    assert report_response.status_code == 200
+    assert report_response.json()["payload"]["research_goal"] == (
+        "Study cancellation at report publication"
+    )
+    assert markdown_response.status_code == 200
+    assert "IL-6 feedback" in markdown_response.text
+    assert len(store.list_knowledge_facts(run_id, db_path=isolated_db)) == 1
+
+    events = store.list_events(run_id, db_path=isolated_db)
+    counts = _publication_event_counts(events)
+    report_event = next(event for event in events if event["type"] == "report")
+    completion_event = next(
+        event
+        for event in events
+        if event["type"] == "status"
+        and event["payload"].get("status") == "completed"
+    )
+    assert counts == {"report": 1, "completed": 1, "cancelled": 0}
+    assert report_event["seq"] < completion_event["seq"]
+
+    email_tasks = [
+        task
+        for task in store.list_tasks(run_id, db_path=isolated_db)
+        if task.task_type == "notification.email"
+    ]
+    assert len(email_tasks) == 1
+    assert email_tasks[0].inputs["email"] == _EMAIL
+
+    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+    assert run_id not in reconciled["failed"]
+    assert run_id not in reconciled["resumable"]
+    persisted_report = store.get_latest_report(run_id, db_path=isolated_db)
+    assert persisted_report is not None
+    assert (
+        owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
+        == 200
+    )
+    cancelled = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
+    assert cancelled.status_code == 409
+    persisted = store.get_run(run_id, db_path=isolated_db)
+    assert persisted is not None
+    assert persisted.status == store.RunStatus.COMPLETED.value
+
+
+@pytest.mark.asyncio
+async def test_restart_does_not_strand_finalize_lease_after_report_commit(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash before worker ack cannot strand a leased task with a report."""
+    owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch, claim=False
+    )
+    _install_report_stubs(hypothesis_id, monkeypatch)
+
+    def crash_before_ack(*_: Any, **__: Any) -> None:
+        raise _WorkerProcessCrashError("process stopped before complete_task")
+
+    monkeypatch.setattr(task_worker, "_record_success", crash_before_ack)
+    with pytest.raises(_WorkerProcessCrashError, match="before complete_task"):
+        await task_worker.run_once(
+            "crashed-report-worker", run_id=run_id, db_path=isolated_db
+        )
+
+    report = store.get_latest_report(run_id, db_path=isolated_db)
+    run = store.get_run(run_id, db_path=isolated_db)
+    task_rows = store.list_tasks(run_id, db_path=isolated_db)
+    finalize = next(
+        task
+        for task in task_rows
+        if task.task_type == engine_tasks.FINALIZE_TASK
+    )
+    assert report is not None
+    assert run is not None and run.status == store.RunStatus.COMPLETED.value
+    assert finalize.status == "leased"
+
+    reconciliation = store.reconcile_interrupted_runs(db_path=isolated_db)
+    recovered_runs = store.list_active_engine_task_run_ids(db_path=isolated_db)
+    recovered_task = store.get_task(finalize.id, db_path=isolated_db)
+    assert recovered_task is not None
+    assert run_id not in reconciliation["failed"]
+    assert run_id not in reconciliation["resumable"]
+    assert run_id not in recovered_runs
+    assert recovered_task.status == "completed"
+    assert store.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert (
+        owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
+        == 200
+    )
+    assert (
+        owner.get(f"/api/runs/{run_id}/report.md", headers=_OWNER).status_code
+        == 200
+    )
+    assert (
+        sum(
+            task.task_type == "notification.email"
+            for task in store.list_tasks(run_id, db_path=isolated_db)
+        )
+        == 1
+    )

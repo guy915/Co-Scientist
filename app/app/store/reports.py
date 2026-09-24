@@ -43,6 +43,11 @@ def _write_report_markdown(md_path: Path, markdown: str) -> None:
         logger.warning("Could not write report markdown to disk at %s", md_path)
 
 
+def write_report_markdown(markdown_path: str, markdown: str) -> None:
+    """Write a report's Markdown artifact after its database row commits."""
+    _write_report_markdown(Path(markdown_path), markdown)
+
+
 @dataclass(frozen=True)
 class _NewReportFields:
     """Fields needed to insert one report row."""
@@ -76,12 +81,13 @@ def _insert_report_row(conn: sqlite3.Connection, f: _NewReportFields) -> None:
     )
 
 
-def save_report(
+def save_report(  # noqa: PLR0913
     run_id: str,
     payload: dict[str, Any],
     markdown: str,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
+    write_markdown: bool = True,
 ) -> dict[str, str]:
     """Persist a report as a JSON row plus a rendered Markdown file.
 
@@ -95,13 +101,15 @@ def save_report(
         markdown: Rendered Markdown report written to disk.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
+        write_markdown: Whether to write the best-effort disk copy now.
 
     Returns:
         A dict with the new report 'id' and the 'markdown_path' on disk.
     """
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
-    _write_report_markdown(md_path, markdown)
+    if write_markdown:
+        _write_report_markdown(md_path, markdown)
     with _use_conn(conn, db_path) as conn:
         _insert_report_row(
             conn,

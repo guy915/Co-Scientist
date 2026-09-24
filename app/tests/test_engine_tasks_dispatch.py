@@ -236,7 +236,7 @@ def _seed_finalize_task(
         )
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    task = store.enqueue_task(
+    queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
             task_type=engine_tasks.FINALIZE_TASK,
@@ -245,6 +245,10 @@ def _seed_finalize_task(
         ),
         db_path=db_path,
     )
+    task = store.claim_task(
+        "finalize-dispatch-worker", run_id=run_id, db_path=db_path
+    )
+    assert task is not None and task.id == queued.id
     # Restore builds a real generator otherwise; the fixture generator carries a
     # null tool_registry, which restore_workflow_state accepts.
     monkeypatch.setattr(

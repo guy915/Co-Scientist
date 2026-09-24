@@ -10,6 +10,7 @@ depends on the SMTP configuration.
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import Any
 
 from app import store
@@ -88,9 +89,10 @@ def _enqueue_completion_notification(
     report_id: str,
     *,
     db_path: str | None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Enqueue the completion email task when the run opted in."""
-    run = store.get_run(run_id, db_path=db_path)
+    run = store.get_run(run_id, db_path=db_path, conn=conn)
     notification = (
         run.config.get("completion_notification") if run else {}
     ) or {}
@@ -104,4 +106,5 @@ def _enqueue_completion_notification(
             report_id,
         ),
         db_path=db_path,
+        conn=conn,
     )
