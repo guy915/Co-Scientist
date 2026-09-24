@@ -13,8 +13,9 @@ while the call site resolving it lives here too.
 The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
 live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
-probes live in ``app.store.tasks_probes``. Every name from all four
-sibling modules is re-exported here so the module namespace is unchanged.
+probes live in ``app.store.tasks_probes``. Ambiguous provider outcomes and
+expired-lease recovery live in ``app.store.tasks_recovery``. Every name from
+those sibling modules is re-exported here so the module namespace is unchanged.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from app.store import tasks_recovery
 from app.store.db import _now, _use_conn, connect, transaction
 from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
@@ -38,9 +40,6 @@ from app.store.tasks_attempts import (
 )
 from app.store.tasks_attempts import (
     _persist_failed_attempt as _persist_failed_attempt,
-)
-from app.store.tasks_attempts import (
-    _record_failed_attempt as _record_failed_attempt,
 )
 from app.store.tasks_attempts import complete_task as complete_task
 from app.store.tasks_attempts import renew_task_lease as renew_task_lease
@@ -85,6 +84,11 @@ from app.store.tasks_probes import cohort_poll as cohort_poll
 from app.store.tasks_probes import has_task_of_type as has_task_of_type
 from app.store.tasks_probes import (
     queue_health_snapshot as queue_health_snapshot,
+)
+
+_fail_ambiguous_expired_leases = tasks_recovery._fail_ambiguous_expired_leases
+_stop_run_after_unknown_provider_outcome = (
+    tasks_recovery._stop_run_after_unknown_provider_outcome
 )
 
 
@@ -308,69 +312,6 @@ def _dependencies_complete(
     return len(rows) == len(task.dependencies) and all(
         row["status"] in allowed for row in rows
     )
-
-
-def _stop_run_after_unknown_provider_outcome(
-    conn: sqlite3.Connection,
-    run_id: str,
-    task_type: str,
-    failure: TaskFailure,
-) -> None:
-    """Revoke uncompleted sibling work before publishing unknown failure."""
-    cancel_run_tasks(run_id, conn=conn)
-    _settle_run_for_failed_task(
-        conn,
-        run_id,
-        task_type,
-        failure,
-        retryable=False,
-    )
-
-
-def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
-    """Fail expired engine leases whose original request is unknowable.
-
-    Current model settings cannot prove which route an orphaned lease used
-    before a restart or rolling configuration change. Only an in-process
-    timeout carries the request-time exact-zero admission result.
-    """
-    rows = conn.execute(
-        "SELECT * FROM scientific_tasks WHERE status='leased' "
-        "AND lease_expires_at IS NOT NULL AND lease_expires_at<=? "
-        f"AND ({_ENGINE_RUN_STATUS_GUARD}) "
-        "AND substr(task_type,1,7)='engine.' "
-        "AND EXISTS (SELECT 1 FROM runs WHERE runs.id=scientific_tasks.run_id "
-        "            AND runs.status IN ('queued','running','synthesizing'))",
-        (now,),
-    ).fetchall()
-    unknown = TaskFailure(UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown")
-    failed_runs: set[str] = set()
-    failed_count = 0
-    for row in rows:
-        task = _decode(row)
-        if task.run_id in failed_runs:
-            continue
-        attempts_json = _record_failed_attempt(
-            task,
-            task.lease_owner or "unknown-worker",
-            unknown.error,
-            False,
-            now,
-        )
-        changed = conn.execute(
-            "UPDATE scientific_tasks SET status='failed', error=?, "
-            "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
-            "completed_at=?, updated_at=? WHERE id=? AND status='leased'",
-            (unknown.error, attempts_json, now, now, task.id),
-        ).rowcount
-        if not changed:
-            continue
-        failed_runs.add(task.run_id)
-        _stop_run_after_unknown_provider_outcome(
-            conn, task.run_id, task.task_type, unknown
-        )
-        failed_count += 1
-    return failed_count
 
 
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
