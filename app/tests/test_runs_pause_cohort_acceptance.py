@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import engine_tasks, store
 from app.config import settings
@@ -15,7 +16,7 @@ from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 _OWNER = {"X-Client-ID": "pause-cohort-owner"}
 
 
-def _owned_running_run(db_path: str) -> tuple[Any, str]:
+def _owned_running_run(db_path: str) -> tuple[TestClient, str]:
     """Create the RUNNING run through the owner-scoped API."""
     client = make_client()
     created = client.post(
@@ -55,7 +56,7 @@ def _leased_supervisor(
 
 
 async def _complete_supervisor_after_pause(
-    client: Any,
+    client: TestClient,
     run_id: str,
     writer: tuple[dict[str, Any], int, store.ScientificTask],
     db_path: str,
