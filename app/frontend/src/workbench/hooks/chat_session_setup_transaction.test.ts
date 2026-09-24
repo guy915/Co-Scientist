@@ -3,16 +3,19 @@ import {type InferredRunSpec} from '../run_spec';
 import {type HandlerDeps} from './chat_session_types';
 
 vi.mock('@/api/runs', () => ({
-  createRun: vi.fn(async () => ({id: 'r1'})),
+  createRun: vi.fn(async () => ({id: 'r1', status: 'draft'})),
   startRun: vi.fn(async () => {}),
-  cancelRun: vi.fn(async () => {}),
+  cancelRun: vi.fn(async (id: string) => ({id, status: 'cancelled'})),
+  getRun: vi.fn(async (id: string) => ({id, status: 'draft'})),
 }));
 
 // Imported after the mock is registered so the module under test binds to it.
-import {cancelRun, createRun, startRun} from '@/api/runs';
+import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
+import {readPendingCreateIntent} from './chat_session_create_intent';
 import {promoteDraftToRun} from './chat_session_start_run';
 
 const SPEC: InferredRunSpec = {
+  interviewId: 'chat-1',
   goal: 'g',
   requirements: [],
   attributes: [],
@@ -36,6 +39,7 @@ function deps(
   return {
     draft: {spec: SPEC, createdAt: 0},
     pubmedEnabled: false,
+    webSearchEnabled: false,
     reloadHistory: async () => {},
     setIsStarting: () => {},
     setError: (message: string) => recorded.errors.push(message),
@@ -52,16 +56,37 @@ function deps(
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.clearAllMocks();
 });
 
 it('sends staged document ids with the run it creates', async () => {
   await promoteDraftToRun(deps({errors: [], drafts: []}, [{id: 'doc-1'}]));
-  expect(vi.mocked(createRun).mock.calls[0][0].document_ids).toEqual(['doc-1']);
+  const [payload, options] = vi.mocked(createRun).mock.calls[0];
+  expect(payload).toStrictEqual({
+    research_goal: SPEC.goal,
+    interview_id: SPEC.interviewId,
+    document_ids: ['doc-1'],
+    requirements: [],
+    attributes: [],
+    criteria: [],
+    focus: 'balance',
+    tier: 'standard',
+    notify_on_completion: false,
+    enable_literature_review: false,
+    enable_web_search: false,
+  });
+  expect(options).toEqual({
+    idempotencyKey: expect.stringMatching(/^run-create-/),
+  });
 });
 
 it('settles the created run when starting it fails', async () => {
   vi.mocked(startRun).mockRejectedValueOnce(new Error('quota reached'));
+  vi.mocked(getRun).mockResolvedValueOnce({
+    id: 'r1',
+    status: 'draft',
+  } as Awaited<ReturnType<typeof getRun>>);
   const recorded: Recorded = {errors: [], drafts: []};
 
   await promoteDraftToRun(deps(recorded));
@@ -73,6 +98,7 @@ it('settles the created run when starting it fails', async () => {
   // scientist can retry rather than losing the specification.
   expect(recorded.errors.join(' ')).toContain('quota reached');
   expect(recorded.drafts.at(-1)).toEqual({spec: SPEC, createdAt: 0});
+  expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
 });
 
 it('leaves nothing behind when creating the run fails', async () => {

@@ -10,13 +10,22 @@ interface StoredIntent {
   ownerFingerprint: string;
   byokFingerprint: string;
   payloadJson: string;
+  createdRunId?: string;
+}
+
+export interface PendingCreateIntent<
+  T extends Record<string, unknown> = Record<string, unknown>,
+> {
+  key: string;
+  payload: T;
+  createdRunId?: string;
 }
 
 /** Returns one exact, owner- and credential-scoped create request per chat. */
 export async function getPendingCreateIntent<T extends Record<string, unknown>>(
   chatId: string,
   payload: T,
-): Promise<{key: string; payload: T}> {
+): Promise<{key: string; payload: T; createdRunId?: string}> {
   const storageKey = `${STORAGE_PREFIX}${encodeURIComponent(chatId)}`;
   const payloadJson = JSON.stringify(payload);
   const [ownerFingerprint, byokFingerprint] = await Promise.all([
@@ -26,7 +35,11 @@ export async function getPendingCreateIntent<T extends Record<string, unknown>>(
 
   const stored = readIntent(storageKey);
   if (matchesIntent(stored, ownerFingerprint, byokFingerprint, payloadJson)) {
-    return {key: stored.key, payload: JSON.parse(stored.payloadJson) as T};
+    return {
+      key: stored.key,
+      payload: JSON.parse(stored.payloadJson) as T,
+      createdRunId: stored.createdRunId,
+    };
   }
 
   const intent: StoredIntent = {
@@ -38,6 +51,76 @@ export async function getPendingCreateIntent<T extends Record<string, unknown>>(
   };
   sessionStorage.setItem(storageKey, JSON.stringify(intent));
   return {key: intent.key, payload: JSON.parse(payloadJson) as T};
+}
+
+/** Reads the exact pending request for this chat and owner without rebuilding it. */
+export async function readPendingCreateIntent<
+  T extends Record<string, unknown> = Record<string, unknown>,
+>(chatId: string): Promise<PendingCreateIntent<T> | undefined> {
+  const [ownerFingerprint, byokFingerprint] = await Promise.all([
+    fingerprint(ownerMaterial()),
+    fingerprint(credentialMaterial()),
+  ]);
+  const intent = readIntent(intentStorageKey(chatId));
+  if (!intent || !matchesOwner(intent, ownerFingerprint, byokFingerprint)) {
+    return undefined;
+  }
+
+  return publicIntent<T>(intent);
+}
+
+function matchesOwner(
+  intent: StoredIntent,
+  ownerFingerprint: string,
+  byokFingerprint: string,
+): boolean {
+  return (
+    intent.ownerFingerprint === ownerFingerprint &&
+    intent.byokFingerprint === byokFingerprint
+  );
+}
+
+function publicIntent<T extends Record<string, unknown>>(
+  intent: StoredIntent,
+): PendingCreateIntent<T> | undefined {
+  try {
+    const payload: unknown = JSON.parse(intent.payloadJson);
+    if (!isRecord(payload) || Array.isArray(payload)) return undefined;
+    return {
+      key: intent.key,
+      payload: payload as T,
+      createdRunId: intent.createdRunId,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Records the known run without changing the request's idempotency key. */
+export function rememberPendingCreateRun(
+  chatId: string,
+  key: string,
+  runId: string,
+): void {
+  const storageKey = intentStorageKey(chatId);
+  const intent = readIntent(storageKey);
+  if (!intent || intent.key !== key) return;
+  sessionStorage.setItem(
+    storageKey,
+    JSON.stringify({...intent, createdRunId: runId}),
+  );
+}
+
+/** Removes only the intent whose request key has reached a settled outcome. */
+export function retirePendingCreateIntent(chatId: string, key: string): void {
+  const storageKey = intentStorageKey(chatId);
+  if (readIntent(storageKey)?.key === key) {
+    sessionStorage.removeItem(storageKey);
+  }
+}
+
+function intentStorageKey(chatId: string): string {
+  return `${STORAGE_PREFIX}${encodeURIComponent(chatId)}`;
 }
 
 function ownerMaterial(): string {
@@ -76,6 +159,12 @@ function readIntent(key: string): StoredIntent | undefined {
 
 function isStoredIntent(value: unknown): value is StoredIntent {
   if (!isRecord(value) || value.version !== 1) return false;
+  if (
+    value.createdRunId !== undefined &&
+    typeof value.createdRunId !== 'string'
+  ) {
+    return false;
+  }
   const stringFields = [
     'key',
     'ownerFingerprint',
