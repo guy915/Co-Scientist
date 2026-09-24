@@ -260,11 +260,20 @@ def park_task_for_rate_limit(
     return bool(changed)
 
 
-def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
-    """Return paused queued work to the global ready queue."""
+def resume_run_tasks(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Return paused queued work to the global ready queue.
+
+    A caller may pass its existing write transaction to make unpausing
+    atomic with the subsequent resume-work discovery and enqueue.
+    """
     now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
             "UPDATE scientific_tasks SET status='queued', updated_at=? "
             "WHERE run_id=? AND status='paused'",
             (now, run_id),

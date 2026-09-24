@@ -74,10 +74,12 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     """
     now = _now()
     query = (
-        f"SELECT 1 FROM scientific_tasks WHERE {_QUEUED_AND_DUE}"
+        "SELECT 1 FROM scientific_tasks WHERE "
+        f"{_ENGINE_RUN_STATUS_GUARD} AND {_QUEUED_AND_DUE}"
         " AND (? IS NULL OR run_id=?)"
         " UNION ALL "
-        "SELECT 1 FROM scientific_tasks WHERE (? IS NULL OR run_id=?)"
+        "SELECT 1 FROM scientific_tasks WHERE "
+        f"{_ENGINE_RUN_STATUS_GUARD} AND (? IS NULL OR run_id=?)"
         f" AND {_EXPIRED_LEASE_RESCUABLE}"
         " LIMIT 1"
     )
@@ -128,6 +130,14 @@ def has_task_of_type(
 
 
 _ACTIVE_RUN_STATUSES = ("queued", "running", "synthesizing")
+
+# Pausing a run stops engine workflow tasks while leaving independent work,
+# such as a completion notification, eligible for the general task queue.
+_ENGINE_RUN_STATUS_GUARD = (
+    "(substr(task_type,1,7)<>'engine.' OR NOT EXISTS "
+    "(SELECT 1 FROM runs WHERE runs.id=scientific_tasks.run_id "
+    "AND runs.status='paused'))"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -258,15 +268,20 @@ def cohort_poll(
     query = (
         "SELECT"
         f" EXISTS(SELECT 1 FROM scientific_tasks"
-        f"        WHERE run_id=? AND {_QUEUED_AND_DUE})"
+        f"        WHERE run_id=? AND {_ENGINE_RUN_STATUS_GUARD}"
+        f"        AND {_QUEUED_AND_DUE})"
         " OR EXISTS(SELECT 1 FROM scientific_tasks WHERE run_id=?"
+        f"        AND {_ENGINE_RUN_STATUS_GUARD}"
         f"        AND {_EXPIRED_LEASE_RESCUABLE}) AS claimable,"
         " EXISTS(SELECT 1 FROM scientific_tasks"
         "        WHERE run_id=? AND status='leased'"
         "        AND (lease_expires_at IS NULL OR lease_expires_at>?"
-        "             OR attempt<max_attempts)) AS active,"
+        "             OR (attempt<max_attempts AND "
+        f"{_ENGINE_RUN_STATUS_GUARD})))"
+        " AS active,"
         " (SELECT MIN(available_at) FROM scientific_tasks"
-        "        WHERE run_id=? AND status='queued'"
+        f"        WHERE run_id=? AND {_ENGINE_RUN_STATUS_GUARD}"
+        "        AND status='queued'"
         "        AND available_at IS NOT NULL"
         "        AND available_at>?) AS parked_until"
     )

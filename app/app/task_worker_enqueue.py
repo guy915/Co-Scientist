@@ -9,6 +9,9 @@ patch against) keeps resolving.
 from __future__ import annotations
 
 import logging
+import sqlite3
+import time
+from dataclasses import dataclass
 from typing import Any
 
 from app import engine_tasks, store
@@ -17,8 +20,28 @@ from app.store import ScientificTask
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _ResumeDB:
+    """Database handle shared by one atomic resume decision."""
+
+    path: str | None
+    conn: sqlite3.Connection | None = None
+
+
+@dataclass(frozen=True)
+class _CheckpointMatch:
+    """The checkpoint facts used to find existing successor work."""
+
+    seq: int
+    successor: str
+    predecessor_id: str | None
+    fanout_source: str | None
+    include_predecessor_lease: bool
+
+
 def _resume_predecessor_id(
-    checkpoint: dict[str, Any], db_path: str | None
+    checkpoint: dict[str, Any],
+    db: _ResumeDB,
 ) -> str | None:
     """Return the real task id that produced a checkpoint, if any.
 
@@ -43,13 +66,17 @@ def _resume_predecessor_id(
     ):
         return None
     candidate = stage.rsplit(":", 1)[-1]
-    return candidate if store.get_task(candidate, db_path=db_path) else None
+    return (
+        candidate
+        if store.get_task(candidate, db_path=db.path, conn=db.conn)
+        else None
+    )
 
 
 def _enqueue_resume_task(
     run_id: str,
     checkpoint: dict[str, Any],
-    db_path: str | None,
+    db: _ResumeDB,
 ) -> ScientificTask:
     """Re-enqueue the task a checkpoint recorded as its own resume point.
 
@@ -73,12 +100,12 @@ def _enqueue_resume_task(
     task_type = str(recorded_successor or "") or (
         f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
     )
-    predecessor_id = _resume_predecessor_id(checkpoint, db_path)
+    predecessor_id = _resume_predecessor_id(checkpoint, db)
     if recorded_successor and predecessor_id is not None:
         return _enqueue_resume_successor(
-            run_id, task_type, predecessor_id, checkpoint_seq, db_path
+            run_id, task_type, predecessor_id, checkpoint_seq, db
         )
-    return _enqueue_resume_fallback(run_id, task_type, checkpoint_seq, db_path)
+    return _enqueue_resume_fallback(run_id, task_type, checkpoint_seq, db)
 
 
 def _enqueue_resume_successor(
@@ -86,11 +113,11 @@ def _enqueue_resume_successor(
     task_type: str,
     predecessor_id: str,
     checkpoint_seq: int,
-    db_path: str | None,
+    db: _ResumeDB,
 ) -> ScientificTask:
     """Resume a checkpoint whose stage names a real predecessor task."""
     idempotency_key = f"{task_type}:after:{predecessor_id}"
-    _revive_dead_resume_target(run_id, task_type, idempotency_key, db_path)
+    _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -101,16 +128,20 @@ def _enqueue_resume_successor(
             dependencies=(predecessor_id,),
             provenance={"scheduled_by": "resume"},
         ),
-        db_path=db_path,
+        db_path=db.path,
+        conn=db.conn,
     )
 
 
 def _enqueue_resume_fallback(
-    run_id: str, task_type: str, checkpoint_seq: int, db_path: str | None
+    run_id: str,
+    task_type: str,
+    checkpoint_seq: int,
+    db: _ResumeDB,
 ) -> ScientificTask:
     """Resume a checkpoint on the original checkpoint-sequence scheme."""
     idempotency_key = f"{task_type}:{checkpoint_seq}"
-    _revive_dead_resume_target(run_id, task_type, idempotency_key, db_path)
+    _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -120,12 +151,16 @@ def _enqueue_resume_fallback(
             priority=100,
             provenance={"scheduled_by": "resume"},
         ),
-        db_path=db_path,
+        db_path=db.path,
+        conn=db.conn,
     )
 
 
 def _revive_dead_resume_target(
-    run_id: str, task_type: str, idempotency_key: str, db_path: str | None
+    run_id: str,
+    task_type: str,
+    idempotency_key: str,
+    db: _ResumeDB,
 ) -> None:
     """Revive a dead task under this key before re-enqueuing over it.
 
@@ -136,30 +171,199 @@ def _revive_dead_resume_target(
     performs. Reviving is a no-op unless there is a dead task under this
     key.
     """
-    if store.revive_task_for_retry(run_id, idempotency_key, db_path=db_path):
+    if store.revive_task_for_retry(
+        run_id, idempotency_key, db_path=db.path, conn=db.conn
+    ):
         logger.info(
             "Resume revived a dead %s task for run %s", task_type, run_id
         )
 
 
-def _already_claimable_task(
-    run_id: str, db_path: str | None
-) -> ScientificTask | None:
-    """The engine task a resume should land on, if one already exists.
+def _is_live_engine_resume_row(task: ScientificTask, now: float) -> bool:
+    """Return whether an engine row is queued or can still be leased again."""
+    if not task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX):
+        return False
+    if task.status == "queued":
+        return True
+    return task.status == "leased" and (
+        task.lease_expires_at is None
+        or task.lease_expires_at > now
+        or task.attempt < task.max_attempts
+    )
 
-    There is one when the run was paused and un-pausing returned its
-    work to the queue.
+
+def _matches_checkpoint_target(
+    task: ScientificTask,
+    checkpoint_seq: int,
+    successor: str,
+    predecessor_id: str | None,
+    *,
+    include_predecessor_lease: bool = True,
+) -> bool:
+    """Return whether a task is the checkpoint's direct queued successor."""
+    if (
+        include_predecessor_lease
+        and task.id == predecessor_id
+        and task.status == "leased"
+    ):
+        return True
+    if not successor or task.task_type != successor:
+        return False
+    if predecessor_id is None:
+        return task.inputs.get("checkpoint_seq") == checkpoint_seq
+    return predecessor_id in task.dependencies
+
+
+def _is_checkpoint_fanout_row(
+    task: ScientificTask,
+    checkpoint_seq: int,
+    predecessor_type: str | None,
+) -> bool:
+    """Return whether a row belongs to the fan-out for this checkpoint."""
+    return (
+        predecessor_type is not None
+        and task.inputs.get("checkpoint_seq") == checkpoint_seq
+        and task.provenance.get("scheduled_by") == predecessor_type
+    )
+
+
+def _revive_spent_checkpoint_writer(
+    run_id: str,
+    predecessor: ScientificTask | None,
+    now: float,
+    db: _ResumeDB,
+) -> None:
+    """Replay an expired writer whose spent lease blocks its successor."""
+    if (
+        predecessor is None
+        or predecessor.status != "leased"
+        or predecessor.lease_expires_at is None
+        or predecessor.lease_expires_at > now
+        or predecessor.attempt < predecessor.max_attempts
+    ):
+        return
+    if store.revive_task_for_retry(
+        run_id,
+        predecessor.idempotency_key,
+        db_path=db.path,
+        conn=db.conn,
+    ):
+        logger.info(
+            "Resume revived spent checkpoint writer %s for run %s",
+            predecessor.task_type,
+            run_id,
+        )
+
+
+def _matching_checkpoint_rows(
+    tasks: list[ScientificTask],
+    match: _CheckpointMatch,
+    now: float,
+) -> list[ScientificTask]:
+    """Collect queued or leased rows matching this checkpoint's work."""
+    return [
+        task
+        for task in tasks
+        if _is_live_engine_resume_row(task, now)
+        and (
+            _matches_checkpoint_target(
+                task,
+                match.seq,
+                match.successor,
+                match.predecessor_id,
+                include_predecessor_lease=match.include_predecessor_lease,
+            )
+            or _is_checkpoint_fanout_row(task, match.seq, match.fanout_source)
+        )
+    ]
+
+
+def _find_checkpoint_resume_task(
+    run_id: str,
+    tasks: list[ScientificTask],
+    checkpoint: dict[str, Any],
+    db: _ResumeDB,
+) -> ScientificTask | None:
+    """Find live work directly tied to a checkpoint or its fan-out wave."""
+    checkpoint_seq = int(checkpoint["seq"])
+    predecessor_id = _resume_predecessor_id(checkpoint, db)
+    predecessor = (
+        store.get_task(predecessor_id, db_path=db.path, conn=db.conn)
+        if predecessor_id is not None
+        else None
+    )
+    if predecessor is not None and predecessor.run_id != run_id:
+        predecessor = None
+        predecessor_id = None
+    successor = str(checkpoint["state"].get("resume_successor") or "")
+    fanout_source = successor or (
+        predecessor.task_type if predecessor is not None else None
+    )
+    now = time.time()
+    _revive_spent_checkpoint_writer(run_id, predecessor, now, db)
+    paused_stage = str(checkpoint["stage"]).startswith("engine_task_paused:")
+    match = _CheckpointMatch(
+        checkpoint_seq,
+        successor,
+        predecessor_id,
+        fanout_source,
+        include_predecessor_lease=not paused_stage,
+    )
+    matching = _matching_checkpoint_rows(tasks, match, now)
+    queued = next((task for task in matching if task.status == "queued"), None)
+    return queued or next(iter(matching), None)
+
+
+def _already_claimable_task(
+    run_id: str,
+    db: _ResumeDB,
+) -> ScientificTask | None:
+    """Find work already attached to the latest resumable checkpoint.
+
+    A pause can race a leased task's commit: the API parks rows already in
+    the queue, while that worker may enqueue checkpoint successors after
+    the pause transaction. Such rows need no requeue, and using the
+    checkpoint sequence plus its predecessor avoids mistaking an older
+    portfolio guess for the current continuation. A live lease that wrote
+    the latest checkpoint is also already doing the continuation.
     """
-    if store.resume_run_tasks(run_id, db_path=db_path):
-        unpaused = [
-            task
-            for task in store.list_tasks(run_id, db_path=db_path)
-            if task.status == "queued"
-            and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
-        ]
-        if unpaused:
-            return unpaused[0]
-    return None
+    unpaused = store.resume_run_tasks(run_id, db_path=db.path, conn=db.conn)
+    checkpoint = store.get_latest_checkpoint(
+        run_id, db_path=db.path, conn=db.conn
+    )
+    tasks = store.list_tasks(run_id, db_path=db.path, conn=db.conn)
+
+    if checkpoint is None:
+        # Safety holds can park an engine task before the run has a
+        # checkpoint. Preserve that pre-checkpoint resume path.
+        return next(
+            (
+                task
+                for task in tasks
+                if unpaused
+                and task.status == "queued"
+                and task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX)
+            ),
+            None,
+        )
+
+    return _find_checkpoint_resume_task(run_id, tasks, checkpoint, db)
+
+
+def _enqueue_resumed_workflow(
+    run_id: str,
+    db: _ResumeDB,
+) -> ScientificTask:
+    """Discover or enqueue resume work under the same write lock."""
+    existing = _already_claimable_task(run_id, db)
+    if existing is not None:
+        return existing
+    checkpoint = store.get_latest_checkpoint(
+        run_id, db_path=db.path, conn=db.conn
+    )
+    if checkpoint is not None:
+        return _enqueue_resume_task(run_id, checkpoint, db)
+    return engine_tasks.enqueue_bootstrap(run_id, db_path=db.path, conn=db.conn)
 
 
 def enqueue_run_workflow(
@@ -171,10 +375,6 @@ def enqueue_run_workflow(
 ) -> ScientificTask:
     """Enqueue one idempotent workflow attempt for a run."""
     if resume:
-        claimable = _already_claimable_task(run_id, db_path)
-        if claimable is not None:
-            return claimable
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
-    if resume and checkpoint:
-        return _enqueue_resume_task(run_id, checkpoint, db_path)
+        with store.transaction(db_path) as conn:
+            return _enqueue_resumed_workflow(run_id, _ResumeDB(db_path, conn))
     return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)

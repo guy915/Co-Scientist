@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store, task_worker
+from app.store import RunStatus
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,77 @@ def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
     )
 
     assert resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+
+
+def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
+    isolated_db: str,
+) -> None:
+    """A queued fan-out wave is already the continuation for its checkpoint."""
+    run = store.create_run("paused fanout", "standard", "engine", {})
+    parent = store.enqueue_task(
+        store.NewTask(
+            run_id=run.id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
+            inputs={"checkpoint_seq": 0},
+            idempotency_key="pause:generate-parent",
+        ),
+        db_path=isolated_db,
+    )
+    leased = store.claim_task(
+        "parent-worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased is not None and leased.id == parent.id
+    assert store.complete_task(
+        parent.id, "parent-worker", {}, db_path=isolated_db
+    )
+    store.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
+    store.save_checkpoint(
+        run.id,
+        store.NewCheckpoint(
+            stage=f"engine_task:{parent.id}",
+            schema_version=1,
+            last_event_seq=1,
+            state={"provider": "engine"},
+        ),
+        db_path=isolated_db,
+    )
+
+    # A stale queued lookahead from another checkpoint must not mask the
+    # actual fan-out rows attached to the newest checkpoint.
+    stale = store.enqueue_task(
+        store.NewTask(
+            run_id=run.id,
+            task_type=f"{engine_tasks.NODE_TASK_PREFIX}review",
+            inputs={"checkpoint_seq": 0},
+            idempotency_key="pause:stale-lookahead",
+            provenance={"scheduled_by": "engine.node.old"},
+        ),
+        db_path=isolated_db,
+    )
+    fanout = store.enqueue_task(
+        store.NewTask(
+            run_id=run.id,
+            task_type="engine.fanout.generation.strategy",
+            inputs={"checkpoint_seq": 1},
+            idempotency_key="generation:debate_only:1:0:1",
+            dependencies=(parent.id,),
+            provenance={"scheduled_by": parent.task_type},
+        ),
+        db_path=isolated_db,
+    )
+    store.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
+
+    resumed = task_worker.enqueue_run_workflow(
+        run.id, resume=True, db_path=isolated_db
+    )
+
+    assert resumed.id == fanout.id
+    assert resumed.id != stale.id
+    assert not any(
+        task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        and task.status == "queued"
+        for task in store.list_tasks(run.id, db_path=isolated_db)
+    )
 
 
 def _wedge_task_at(

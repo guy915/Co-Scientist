@@ -67,6 +67,9 @@ from app.store.tasks_model import ScientificTask as ScientificTask
 from app.store.tasks_model import TaskFailure as TaskFailure
 from app.store.tasks_model import _decode as _decode
 from app.store.tasks_probes import (
+    _ENGINE_RUN_STATUS_GUARD as _ENGINE_RUN_STATUS_GUARD,
+)
+from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
 )
 from app.store.tasks_probes import (
@@ -309,7 +312,8 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "
-        f"WHERE {_EXPIRED_LEASE_RESCUABLE}",
+        f"WHERE {_EXPIRED_LEASE_RESCUABLE} "
+        f"AND ({_ENGINE_RUN_STATUS_GUARD})",
         (now, now),
     )
 
@@ -325,7 +329,8 @@ def _queued_tasks_query(
     """
     query = (
         "SELECT * FROM scientific_tasks WHERE status='queued'"
-        " AND (available_at IS NULL OR available_at<=?)"
+        f" AND (available_at IS NULL OR available_at<=?)"
+        f" AND ({_ENGINE_RUN_STATUS_GUARD})"
     )
     params: list[Any] = [now]
     if run_id is not None:
