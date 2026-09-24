@@ -10,6 +10,8 @@ ToolUniverse and Robin sources are closed. Sakana's result-conditioned search,
 OpenScience's provider-timeout question, ToolUniverse's GWAS candidate, and
 Robin's outcome-feedback question remain open in M11.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
+[M11's follow-up register](m11-follow-up-register.md) records the remaining
+mechanism gaps and the additional-repository selection decision.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
