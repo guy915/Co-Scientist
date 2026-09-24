@@ -5,10 +5,10 @@ record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
-The Kaimen, conradry, LLNL, raktim-mondol, K-Dense, Sakana, OpenScience, and
-ToolUniverse and Robin sources are closed. Sakana's result-conditioned search,
-OpenScience's provider-timeout question, ToolUniverse's GWAS candidate, and
-Robin's outcome-feedback question remain open in M11.
+All nine required source investigations are closed. The OpenScience timeout and
+ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.json).
+Sakana's result-conditioned search and Robin's outcome-feedback question remain
+open, as does post-expiry free-model qualification.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 [M11's follow-up register](m11-follow-up-register.md) records the remaining
 mechanism gaps and the additional-repository selection decision.
@@ -22,7 +22,7 @@ mechanism gaps and the additional-repository selection decision.
 | 5 | [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | [`49c6e97775eaa18ba791bebe23162a70ae601c18`](https://github.com/K-Dense-AI/scientific-agent-skills/commit/49c6e97775eaa18ba791bebe23162a70ae601c18) | [Closed; bounded citation-edge lookup adopted](k-dense-scientific-agent-skills.md) |
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) | [Closed; no product adoption, M11 follow-up open](sakana-ai-scientist.md) |
 | 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | [`4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5`](https://github.com/synthetic-sciences/openscience/commit/4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5) | [Closed; owned admission and lifecycle corrections adopted](synthetic-sciences-openscience.md) |
-| 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | [`78883724c46a94ec1d1bfdc984efb25ba1b76aed`](https://github.com/mims-harvard/ToolUniverse/commit/78883724c46a94ec1d1bfdc984efb25ba1b76aed) | [Assessed and released; GWAS follow-up open in M11](mims-harvard-tooluniverse.md) |
+| 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | [`78883724c46a94ec1d1bfdc984efb25ba1b76aed`](https://github.com/mims-harvard/ToolUniverse/commit/78883724c46a94ec1d1bfdc984efb25ba1b76aed) | [Assessed and released; GWAS follow-up adopted and released in M11](mims-harvard-tooluniverse.md) |
 | 9 | [Future-House/robin](https://github.com/Future-House/robin) | [`4a5cce310f3bc7663a67117db88af43b84733ffe`](https://github.com/Future-House/robin/commit/4a5cce310f3bc7663a67117db88af43b84733ffe) | [Assessed; no immediate adoption, outcome-feedback follow-up open in M11](future-house-robin.md) |
 
 Candidate IDs use `M<number>-<number>` and remain stable after checklist expansion.
