@@ -92,11 +92,13 @@ make e2e
 
 Run `make test-sandbox-linux` when execution confinement or container behavior changes. Run applicable live evaluations with the verified free configuration. Reuse successful checks only when the relevant code, dependencies, configuration, and evaluation inputs are unchanged.
 
+The user waived hosted GitHub Actions CI as a merge gate for this campaign on 2026-09-24 while the account billing/spending-limit hold prevents jobs from starting. Continue relevant local verification and record any skipped or failing check accurately; never describe a waived check as passing. Do not wait for the hosted gate before merging an otherwise reviewable campaign PR.
+
 Do not weaken assertions, loosen evaluation thresholds, or add skips merely to obtain a passing release.
 
 ### Deployment
 
-- Use a campaign milestone branch and commit after each completed item. Merge through a pull request after required checks pass; attach the PR to the task.
+- Use a campaign milestone branch and commit after each completed item. Merge through a pull request after required local checks pass; attach the PR to the task. The hosted CI exception above applies while its billing hold remains.
 - Deploy only to the existing services. Record the commit, deployment IDs, non-secret configuration changes, and observed deployment status.
 - Preserve the API’s single replica, required volume permissions, cache placement, and startup/recovery behavior.
 - Use backward-compatible migrations. Verify a consistent backup before any migration touching persistent production data.
@@ -5228,3 +5230,5 @@ Same cycle follow-on. Starting commit `a8a5b2a5`; code commit `f2a52890`. Orches
 Interim integration after 08d1: PR [#31](https://github.com/guy915/Co-Scientist/pull/31) merged `84b73eb9` through GitHub's administrator path at merge commit `838be8507dfe4f6a5ad3f9de395103ea517009db`. The ordinary merge was rejected by the base-branch policy because the hosted `Affected targets` GitHub Actions job failed before dependent tests ran; the user explicitly authorized skipping hosted CI, which is waived rather than reported as passing. The Vercel PR preview check succeeded. A non-mutating public production smoke after merge passed health, ownership isolation, untrusted-origin CORS, and sanitized-share 404; the public frontend returned HTTP 200. These probes do not establish that Railway is yet serving the merge commit, and no campaign inference or user run was launched. The M8 release checkbox and full local release checks remain open. Continued work starts from merged `main` on `feat/external-m08-openscience-cont`, with M8-PAUSE-08d2 next; the user-owned `AGENTS.md` edit remains unstaged.
 
 2026-09-24 read-only release follow-up: Railway production `api` deployment `972ae323-f6c3-49dd-a76d-ccc318b53fab` and `mcp` deployment `102e9dcd-0a2a-429f-9e8f-9e1cdc862e3b` both report SUCCESS, RUNNING instances and exact merge commit `838be8507dfe4f6a5ad3f9de395103ea517009db`. This closes the earlier commit-identity uncertainty for those two services; the interim production smoke had already passed. Vercel production commit identity, full M8 release checks and campaign-owned public-goal behavior remain open. No inference or configuration change occurred.
+
+2026-09-24 CI decision: the user confirmed that campaign PRs may merge without hosted GitHub Actions CI while its billing/spending-limit hold prevents jobs from starting. The already-merged PR #31 used this exception; later PRs may use the same path after required local checks and review. Hosted checks remain accurately recorded as waived, never passed, and failures found locally remain work to resolve. This changes the release gate, not the product acceptance or zero-cost rules.
