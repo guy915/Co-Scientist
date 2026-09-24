@@ -82,6 +82,16 @@ Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
 
+The current verified production code anchor is M8 [PR #35](https://github.com/guy915/Co-Scientist/pull/35),
+merge commit `6a9baa9ef8a233ac251085dd26781ac356ef0563`. Its
+[OpenScience dossier](synthetic-sciences-openscience.md#final-m8-release-and-architecture)
+records successful Railway/Vercel deployments, the live additive receipt schema,
+smoke checks, and the bounded owned create/replay/conflict probe. The consistent
+[pre-M8 backup](openscience/m8-production-backup.json) is retained for separately
+justified data recovery; ordinary code rollback should preserve the additive
+schema and current zero-cost routing. Hosted GitHub Actions did not run
+successfully for this merge under the existing user waiver.
+
 The M2 release's deployed system-default configuration is
 `MODEL_NAME=SUPERVISOR_MODEL_NAME=CHAT_MODEL_NAME=SEMANTIC_SAFETY_MODEL=openrouter/nex-agi/nex-n2.5-pro:free`;
 `CLAIM_VERIFIER_MODEL` remains unset and inherits `MODEL_NAME`. This route has
