@@ -11,23 +11,66 @@ _CHEMBL_URL = "https://www.ebi.ac.uk/chembl/api/data"
 _UNIPROT_URL = "https://rest.uniprot.org/uniprotkb/search"
 
 
-def _empty_result(source: str, query: str) -> dict[str, Any]:
-    """Builds the envelope a search returns when it cannot answer.
+def _response_records(
+    response: httpx.Response, field: str
+) -> list[dict[str, Any]]:
+    """Reads a provider's list of records, rejecting malformed JSON shapes.
 
-    Shaped identically to a genuine zero-hit response -- same "source" and
-    "query" keys, an empty "records" list -- so a failed request degrades
-    the same way every other registered tool does instead of raising. The
-    per-call log line (see ``tool_logging``) is what tells a degraded call
-    apart from a real empty result.
+    Args:
+        response: A successful HTTP response from a biomedical provider.
+        field: The top-level JSON key containing records.
+
+    Returns:
+        A list of record objects, or an empty list when there are no hits.
+
+    Raises:
+        ValueError: If the response is not a JSON object with a record list.
+    """
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("expected a JSON object")
+    if field not in payload:
+        raise ValueError("response omitted its record list")
+    records = payload[field]
+    if not isinstance(records, list) or any(
+        not isinstance(record, dict) for record in records
+    ):
+        raise ValueError("expected a list of JSON objects")
+    return records
+
+
+def _failure_result(
+    source: str, query: str, exc: Exception, provider_name: str
+) -> dict[str, Any]:
+    """Returns an empty, non-fatal envelope with safe failure metadata.
 
     Args:
         source: The provenance stamp a successful call would carry.
-        query: The original search text, echoed back on any outcome.
+        query: The original search text.
+        exc: The HTTP or response parsing error.
+        provider_name: Human-readable name used in the warning log.
 
     Returns:
-        Dict with "source", "query", and an empty "records" list.
+        The usual result envelope with a non-secret ``error`` object.
     """
-    return {"source": source, "query": query, "records": []}
+    if isinstance(exc, httpx.TimeoutException):
+        error: dict[str, Any] = {"kind": "timeout"}
+    elif isinstance(exc, httpx.HTTPStatusError):
+        error = {
+            "kind": "http_status",
+            "status_code": exc.response.status_code,
+        }
+    elif isinstance(
+        exc, (ValueError, TypeError, AttributeError, KeyError, IndexError)
+    ):
+        error = {"kind": "invalid_response"}
+    else:
+        error = {"kind": "network_error"}
+
+    logger.warning(
+        "%s search failed for %r (%s)", provider_name, query, error["kind"]
+    )
+    return {"source": source, "query": query, "records": [], "error": error}
 
 
 async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
@@ -38,8 +81,8 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
         max_results: Maximum records to return, capped at 25.
 
     Returns:
-        Source-stamped ChEMBL molecule records and response provenance, or
-        an empty-records envelope if the request fails.
+        Source-stamped ChEMBL molecule records, or an empty-records envelope
+        with non-secret error metadata if the request fails.
     """
     limit = max(1, min(max_results, 25))
     params: dict[str, str | int] = {
@@ -53,27 +96,33 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
                 f"{_CHEMBL_URL}/molecule/search.json", params=params
             )
             response.raise_for_status()
-        molecules = response.json().get("molecules") or []
-    except (httpx.HTTPError, ValueError) as exc:
+        molecules = _response_records(response, "molecules")
+        records = [
+            {
+                "chembl_id": molecule.get("molecule_chembl_id"),
+                "name": molecule.get("pref_name"),
+                "type": molecule.get("molecule_type"),
+                "max_phase": molecule.get("max_phase"),
+                "first_approval": molecule.get("first_approval"),
+                "url": (
+                    "https://www.ebi.ac.uk/chembl/explore/compound/"
+                    f"{molecule.get('molecule_chembl_id')}"
+                ),
+            }
+            for molecule in molecules[:limit]
+        ]
+    except (
+        httpx.HTTPError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        IndexError,
+    ) as exc:
         # Network/parsing failures degrade to no results rather than
         # propagating, so a single failed source doesn't fail the whole
         # literature-review step.
-        logger.warning("ChEMBL search failed for %r: %s", query, exc)
-        return _empty_result("ChEMBL", query)
-    records = [
-        {
-            "chembl_id": molecule.get("molecule_chembl_id"),
-            "name": molecule.get("pref_name"),
-            "type": molecule.get("molecule_type"),
-            "max_phase": molecule.get("max_phase"),
-            "first_approval": molecule.get("first_approval"),
-            "url": (
-                "https://www.ebi.ac.uk/chembl/explore/compound/"
-                f"{molecule.get('molecule_chembl_id')}"
-            ),
-        }
-        for molecule in molecules[:limit]
-    ]
+        return _failure_result("ChEMBL", query, exc, "ChEMBL")
     return {"source": "ChEMBL", "query": query, "records": records}
 
 
@@ -119,8 +168,8 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
         max_results: Maximum records to return, capped at 25.
 
     Returns:
-        Source-stamped reviewed protein records and response provenance, or
-        an empty-records envelope if the request fails.
+        Source-stamped reviewed protein records, or an empty-records envelope
+        with non-secret error metadata if the request fails.
     """
     limit = max(1, min(max_results, 25))
     params: dict[str, str | int] = {
@@ -132,14 +181,20 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(_UNIPROT_URL, params=params)
             response.raise_for_status()
-        results = (response.json().get("results") or [])[:limit]
-    except (httpx.HTTPError, ValueError) as exc:
+        results = _response_records(response, "results")[:limit]
+        records = [_uniprot_record(result) for result in results]
+    except (
+        httpx.HTTPError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        IndexError,
+    ) as exc:
         # Network/parsing failures degrade to no results rather than
         # propagating, so a single failed source doesn't fail the whole
         # literature-review step.
-        logger.warning("UniProt search failed for %r: %s", query, exc)
-        return _empty_result("UniProtKB/Swiss-Prot", query)
-    records = [_uniprot_record(result) for result in results]
+        return _failure_result("UniProtKB/Swiss-Prot", query, exc, "UniProt")
     return {
         "source": "UniProtKB/Swiss-Prot",
         "query": query,
