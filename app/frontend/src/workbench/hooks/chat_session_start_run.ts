@@ -5,6 +5,7 @@ import {type StartedSession} from '../pages/chat_timeline_cards';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {beginTurnAbort, isAbortError} from './chat_session_handlers_shared';
+import {getPendingCreateIntent} from './chat_session_create_intent';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
 
 /**
@@ -88,7 +89,14 @@ async function executeStart(deps: ExecuteStartDeps): Promise<StartedSession> {
     role: 'user',
     content: START_RESEARCH_PROMPT,
   });
-  const created = await createRun(buildCreateRunPayload(deps));
+  const createPayload = buildCreateRunPayload(deps);
+  const intent = createPayload.interview_id
+    ? await getPendingCreateIntent(createPayload.interview_id, createPayload)
+    : undefined;
+  const created = await createRun(
+    intent?.payload ?? createPayload,
+    intent ? {idempotencyKey: intent.key} : undefined,
+  );
   const session: StartedSession = {
     id: created.id,
     title: conciseTitle(deps.stageToStart.spec.goal),

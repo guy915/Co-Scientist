@@ -15,6 +15,7 @@ import {promoteDraftToRun} from './chat_session_start_run';
 
 const SPEC: InferredRunSpec = {
   goal: 'g',
+  interviewId: 'chat-1',
   requirements: [],
   attributes: [],
   criteria: [],
@@ -28,6 +29,7 @@ function deps(): HandlerDeps {
   return {
     draft: {spec: SPEC, createdAt: 0},
     pubmedEnabled: false,
+    webSearchEnabled: false,
     reloadHistory: async () => {},
     setIsStarting: () => {},
     setError: () => {},
@@ -37,6 +39,8 @@ function deps(): HandlerDeps {
     setInput: () => {},
     setMessages: () => {},
     setStartedSession: () => {},
+    setIsAwaitingAgent: () => {},
+    turnAbortRef: {current: null},
     pendingAttachments: [],
     setPendingAttachments: () => {},
   } as unknown as HandlerDeps;
@@ -45,12 +49,44 @@ function deps(): HandlerDeps {
 describe('start run', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.clearAllMocks();
   });
 
   it('creates the run from the confirmed draft spec', async () => {
     await promoteDraftToRun(deps());
     expect(vi.mocked(createRun).mock.calls[0][0].research_goal).toBe(SPEC.goal);
+  });
+
+  it('reuses the exact create intent when a manual retry follows a lost response', async () => {
+    vi.mocked(createRun)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({id: 'r1'} as Awaited<
+        ReturnType<typeof createRun>
+      >);
+    const session = deps();
+
+    await promoteDraftToRun(session);
+    await promoteDraftToRun(session);
+
+    const first = vi.mocked(createRun).mock.calls[0];
+    const second = vi.mocked(createRun).mock.calls[1];
+    expect(first[0]).toEqual(second[0]);
+    expect(first[0]).toEqual({
+      research_goal: SPEC.goal,
+      interview_id: 'chat-1',
+      requirements: [],
+      attributes: [],
+      criteria: [],
+      focus: 'balance',
+      tier: 'standard',
+      notify_on_completion: false,
+      enable_literature_review: false,
+      enable_web_search: false,
+      document_ids: [],
+    });
+    expect(first[1]?.idempotencyKey).toBeTruthy();
+    expect(second[1]?.idempotencyKey).toBe(first[1]?.idempotencyKey);
   });
 });
 
