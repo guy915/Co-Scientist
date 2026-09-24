@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from threading import Barrier
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
-from app import credentials
+from app import credentials, runs_crud, store
 from app.config import settings
 from tests._client import make_client
 
@@ -121,9 +124,12 @@ def test_concurrent_exact_retries_create_one_run() -> None:
     assert _owned_run_ids(client) == list(run_ids)
 
 
-def test_malformed_idempotency_key_is_rejected() -> None:
+@pytest.mark.parametrize(
+    "request_key", ["contains spaces", "bad/key", "x" * 129]
+)
+def test_malformed_idempotency_key_is_rejected(request_key: str) -> None:
     client = make_client()
-    response = _post_run(client, request_key="contains spaces")
+    response = _post_run(client, request_key=request_key)
 
     assert response.status_code == 400
     assert _owned_run_ids(client) == []
@@ -135,10 +141,12 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
     monkeypatch.setattr(
         settings, "byok_encryption_key", "test-encryption-secret"
     )
+    validated: list[str] = []
 
     async def accept_credential(
-        _credential: credentials.ByokCredential,
+        credential: credentials.ByokCredential,
     ) -> None:
+        validated.append(credential.api_key)
         return None
 
     async def no_model_call(*_args: Any, **_kwargs: Any) -> None:
@@ -170,3 +178,57 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
     assert first_secret not in changed.text
     assert changed_secret not in changed.text
     assert _owned_run_ids(client) == [first.json()["id"]]
+    assert validated == [first_secret]
+
+
+def test_create_route_uses_the_runs_crud_byok_monkeypatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def reject_byok(*_args: Any, **_kwargs: Any) -> None:
+        raise HTTPException(status_code=418, detail="patched resolver")
+
+    monkeypatch.setattr(runs_crud, "_resolve_byok", reject_byok)
+    client = make_client()
+
+    response = _post_run(client)
+
+    assert response.status_code == 418
+    assert response.json()["detail"] == "patched resolver"
+    assert _owned_run_ids(client) == []
+
+
+def test_create_route_uses_one_patched_client_scope_for_run_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scope_checks: list[str] = []
+    policy_scopes: list[str] = []
+
+    def require_scope(_request: Any) -> str:
+        scope_checks.append("checked")
+        return "patched-owner-scope"
+
+    def execution_policy(_request: Any, _interview: Any) -> str:
+        return "patched-policy"
+
+    @contextmanager
+    def scoped_policy(policy: str) -> Iterator[None]:
+        policy_scopes.append(policy)
+        yield
+
+    monkeypatch.setattr(runs_crud, "require_client_scope", require_scope)
+    monkeypatch.setattr(
+        runs_crud, "client_id", lambda _request: "patched-owner-scope"
+    )
+    monkeypatch.setattr(runs_crud, "resolve_execution_policy", execution_policy)
+    monkeypatch.setattr(runs_crud, "scoped_execution_policy", scoped_policy)
+    client = make_client()
+
+    response = _post_run(client)
+
+    assert response.status_code == 200
+    run = store.get_run(response.json()["id"])
+    assert run is not None
+    assert run.client_id == "patched-owner-scope"
+    assert run.execution_policy == "patched-policy"
+    assert scope_checks == ["checked"]
+    assert policy_scopes == ["patched-policy"]

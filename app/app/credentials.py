@@ -30,7 +30,11 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import hashlib
+import hmac
+import json
 import logging
+import sqlite3
 from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -150,6 +154,47 @@ def decrypt_api_key(token: str) -> str:
         ) from exc
 
 
+def idempotency_secret_fingerprint(api_key: str) -> str:
+    """HMAC a BYOK secret for a run-create receipt without storing it.
+
+    The domain prefix keeps this fingerprint separate from other uses of
+    the BYOK encryption secret.
+    """
+    secret = settings.byok_encryption_key
+    if not secret:
+        raise ByokNotConfiguredError(
+            "bring-your-own-key support requires BYOK_ENCRYPTION_KEY"
+        )
+    return hmac.new(
+        secret.encode("utf-8"),
+        b"co-scientist/run-create-idempotency/v1\0" + api_key.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def run_creation_request_digest(
+    request_fields: Mapping[str, Any],
+    *,
+    api_key: str | None = None,
+    provider: str | None = None,
+) -> str:
+    """Digest parsed run intent and a keyed fingerprint of an explicit key."""
+    key = (api_key or "").strip()
+    fingerprint = idempotency_secret_fingerprint(key) if key else None
+    canonical = json.dumps(
+        {
+            "request": request_fields,
+            "byok_provider": (provider or "").strip().lower() if key else None,
+            "byok_secret_fingerprint": fingerprint,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest_input = b"co-scientist/run-create/v1\0" + canonical
+    return hashlib.sha256(digest_input).hexdigest()
+
+
 # ---------------------------------------------------------------------------
 # Transport
 # ---------------------------------------------------------------------------
@@ -195,6 +240,8 @@ def store_run_credential(
     client_id: str,
     credential: ByokCredential,
     db_path: str | None = None,
+    *,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Persist a run's encrypted credential, replacing any prior one.
 
@@ -203,11 +250,12 @@ def store_run_credential(
         client_id: The owning client/researcher identity.
         credential: The validated credential to store.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to join an existing transaction.
     """
-    from app.store.db import _now, connect
+    from app.store.db import _now, _use_conn
 
-    with connect(db_path) as conn:
-        conn.execute(
+    with _use_conn(conn, db_path) as active:
+        active.execute(
             "INSERT INTO run_credentials (run_id, client_id, provider, "
             "model, encrypted_key, created_at) VALUES (?,?,?,?,?,?) "
             "ON CONFLICT(run_id) DO UPDATE SET client_id=excluded."

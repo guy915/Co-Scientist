@@ -94,12 +94,13 @@ def _log_stage(run_id: str, type_: str, payload: dict[str, Any]) -> None:
         _stage_logger.info("%s", message, extra={"run_id": run_id})
 
 
-def _append_event(
+def _append_event(  # noqa: PLR0913 -- connection, timestamp, and mirror mode are store state.
     conn: sqlite3.Connection,
     run_id: str,
     type_: str,
     payload: dict[str, Any],
     created_at: float,
+    mirror_log: bool = True,
 ) -> int:
     """Insert an event row on an open connection and return its seq.
 
@@ -111,9 +112,8 @@ def _append_event(
     reconnecting with ``?after=`` (both indexed lookups; the scalar ``MAX(a,
     b)`` picks the higher floor).
     """
-    # The activity discriminator is computed once here -- the single seam
-    # every event write passes through -- and merged into the payload
-    # rather than a new column, so replay/SSE/the schema are untouched.
+    # The activity discriminator is merged into the payload rather than a
+    # new column, so replay/SSE/the schema are untouched.
     payload = {**payload, "activity": activity_for_event(type_, payload)}
     row = conn.execute(
         "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) "
@@ -123,11 +123,19 @@ def _append_event(
         "WHERE run_id=?)), ?, ?, ?) RETURNING seq",
         (run_id, run_id, run_id, type_, json.dumps(payload), created_at),
     ).fetchone()
-    # Mirroring is best-effort: this is the canonical timeline, and a
-    # logging failure must never take its write down.
-    with contextlib.suppress(Exception):
-        _log_stage(run_id, type_, payload)
+    if mirror_log:
+        log_event_stage(run_id, type_, payload)
     return int(row["seq"])
+
+
+def log_event_stage(run_id: str, type_: str, payload: dict[str, Any]) -> None:
+    """Best-effort mirror of a persisted event to the application log."""
+    effective_payload = {
+        **payload,
+        "activity": activity_for_event(type_, payload),
+    }
+    with contextlib.suppress(Exception):
+        _log_stage(run_id, type_, effective_payload)
 
 
 def append_event(
@@ -151,6 +159,16 @@ def append_event(
     """
     with _use_conn(conn, db_path) as active:
         return _append_event(active, run_id, type_, payload, _now())
+
+
+def append_event_deferred_log(
+    run_id: str,
+    type_: str,
+    payload: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> int:
+    """Append inside a transaction and leave log mirroring to its owner."""
+    return _append_event(conn, run_id, type_, payload, _now(), mirror_log=False)
 
 
 def latest_event_seq(
