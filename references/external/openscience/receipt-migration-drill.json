@@ -1,0 +1,34 @@
+{
+  "purpose": "Offline M8-ADM-01a3a rehearsal of the additive run-creation receipt schema against an older persisted production SQLite backup; this is not the pre-release production backup",
+  "observed_utc_date": "2026-09-24",
+  "source": {
+    "evidence": "references/external/m5-production-backup.json",
+    "backup_sha256": "28a036df951811d266e17656eb72898f32fa8b292fde86a063ecf72a9355a57e",
+    "preexisting_application_tables": 31,
+    "pre_migration_schema_sha256": "a259d3a129f7dda9562c4703f08708cfbe6c06b47780c76118cbc7abe9f29f39"
+  },
+  "method": "Copy the verified pre-M5 SQLite backup into a 0700 temporary directory under the approved backup location, apply the current app.store.connect schema bootstrap to the copy, rerun it in a fresh Python process, inspect only schema metadata and row counts, then remove the temporary copy and WAL sidecars. This drill hashes the newline-joined non-null sqlite_master.sql statements ordered by type,name; the pre-M5 manifest did not define its schema-hash canonicalization, so only the full backup-file SHA-256 is compared with that manifest.",
+  "results": {
+    "quick_check_before": "ok",
+    "quick_check_after": "ok",
+    "quick_check_after_second_process": "ok",
+    "new_tables": [
+      "hypothesis_outcomes",
+      "run_creation_receipts"
+    ],
+    "preexisting_table_row_counts_unchanged": true,
+    "run_creation_receipt_rows": 0,
+    "second_process_schema_unchanged": true,
+    "second_process_row_counts_unchanged": true,
+    "post_migration_schema_sha256": "363e6be14e281d5767a33eb79f1832463d4b36765eb10e00a6dfadf734cbb386",
+    "temporary_copy_removed": true
+  },
+  "production_read_only_probe": {
+    "deployment_id": "0e192f0f-999d-4722-ade6-b9187393718b",
+    "deployed_commit": "58c625f04a008d3d5e57226bcdf862241b9dd493",
+    "database_bytes": 228855808,
+    "run_creation_receipts_table_present": false,
+    "sqlite_user_version": 0
+  },
+  "limits": "The source backup predates M5; the new table still requires a fresh consistent production backup immediately before deploying the receipt schema. No private row content was printed or retained in this artifact."
+}

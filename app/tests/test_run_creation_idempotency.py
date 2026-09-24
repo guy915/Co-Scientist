@@ -119,6 +119,7 @@ def test_concurrent_exact_retries_create_one_run() -> None:
         ]
 
     assert [response.status_code for response in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
     run_ids = {response.json()["id"] for response in responses}
     assert len(run_ids) == 1
     assert _owned_run_ids(client) == list(run_ids)
