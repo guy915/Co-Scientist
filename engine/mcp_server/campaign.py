@@ -56,6 +56,7 @@ PUBLIC_TOOLS = frozenset(
         "search_biorxiv",
         "search_ensembl_gene",
         "search_gnomad_constraint",
+        "search_gwas_catalog_associations",
         "search_clinical_trials",
     }
 )

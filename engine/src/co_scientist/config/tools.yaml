@@ -515,6 +515,22 @@ tools:
         states. Read the record's `interpretation` field for which
         direction each number runs in before citing one.
 
+    gwas_catalog_associations:
+      server: "default_pubmed"
+      mcp_tool_name: "search_gwas_catalog_associations"
+      display_name: "GWAS Catalog Associations"
+      description: "Look up published variant-trait associations by rsID"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      effects: ["read", "network"]
+      prompt_snippet: |
+        Use `search_gwas_catalog_associations` to check the reported trait,
+        effect estimate and supporting study for a specific rsID. Preserve
+        the study accession, p-value/effect context, and source URLs when
+        reporting a record. A statistical association or mapped gene does
+        not establish causality.
+
     # General web search (only registered when the MCP server has a
     # provider key; absent tools are skipped by the workflow whitelist)
     web_search:
@@ -725,6 +741,7 @@ workflows:
     search_tools:
       - "pubmed_search"
       - "web_search"
+      - "gwas_catalog_associations"
     read_tools:
       - "read_url"
       - "opencitations_citation_edges"
