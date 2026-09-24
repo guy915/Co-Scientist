@@ -127,7 +127,7 @@ async def _finalize_report_pipeline(
     Order matches the shared contract documented on ``finalize_report``.
     """
     built, blocked, gate_events = await _build_and_gate_report(
-        run_id, req, emit
+        run_id, req, emit, task
     )
     for event in gate_events:
         yield event
@@ -154,7 +154,7 @@ async def _gate_readiness_and_publish(
     """
     if _readiness_blocked(built.payload):
         async for event in _block_for_empty_leaderboard(
-            run_id, built, emit, db_path=req.db_path
+            run_id, built, emit, db_path=req.db_path, task=task
         ):
             yield event
         return
@@ -170,7 +170,10 @@ async def _gate_readiness_and_publish(
 
 
 async def _build_and_gate_report(
-    run_id: str, req: _ReportBuildArgs, emit: EmitFn
+    run_id: str,
+    req: _ReportBuildArgs,
+    emit: EmitFn,
+    task: ScientificTask | None,
 ) -> tuple[_BuiltReport, bool, list[dict[str, Any]]]:
     """Build the report content and run it through the final safety gate.
 
@@ -187,7 +190,7 @@ async def _build_and_gate_report(
     gate_events = [
         event
         async for event in apply_safety_gate(
-            run_id, final, emit, db_path=req.db_path
+            run_id, final, emit, db_path=req.db_path, task=task
         )
     ]
     blocked = final.decision in {"block", "hold"}
@@ -377,23 +380,50 @@ async def _block_for_empty_leaderboard(
     emit: EmitFn,
     *,
     db_path: str | None,
+    task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Record the empty-leaderboard block, mark the run blocked, and emit it."""
     reason = _empty_leaderboard_reason(
         built.payload["idea_count"], built.exclusion_tally
     )
-    store.add_safety_decision(
-        store.NewSafetyDecision(
-            run_id=run_id,
-            stage="scientific_readiness",
-            decision="block",
-            reason=reason,
-            matches=[],
-        ),
-        db_path=db_path,
+    decision = store.NewSafetyDecision(
+        run_id=run_id,
+        stage="scientific_readiness",
+        decision="block",
+        reason=reason,
+        matches=[],
     )
-    store.update_run_status(
-        run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
-    )
+    if task is None:
+        store.add_safety_decision(decision, db_path=db_path)
+        store.update_run_status(
+            run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
+        )
+        event = await emit("status", {"status": "blocked", "reason": reason})
+    else:
+        seq = _commit_empty_leaderboard_block(run_id, decision, task, db_path)
+        event = {
+            "seq": seq,
+            "type": "status",
+            "payload": {"status": "blocked", "reason": reason},
+        }
     logger.warning("Report finalize blocked for run %s: %s", run_id, reason)
-    yield await emit("status", {"status": "blocked", "reason": reason})
+    yield event
+
+
+def _commit_empty_leaderboard_block(
+    run_id: str,
+    decision: store.NewSafetyDecision,
+    task: ScientificTask,
+    db_path: str | None,
+) -> int:
+    """Atomically persist a readiness block while the finalize lease is live."""
+    from app.engine_tasks_support import _assert_task_commit_allowed
+
+    payload = {"status": "blocked", "reason": decision.reason}
+    with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
+        store.add_safety_decision(decision, conn=conn)
+        store.update_run_status(
+            run_id, RunStatus.BLOCKED, error=decision.reason, conn=conn
+        )
+        return store.append_event(run_id, "status", payload, conn=conn)

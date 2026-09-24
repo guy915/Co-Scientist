@@ -18,7 +18,6 @@ from app import (
     task_worker,
 )
 from app.config import settings
-from app.report_events import make_emitter
 from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -163,34 +162,24 @@ def _install_report_stubs(
     )
 
 
-def _install_canceling_emitter(
+def _install_cancel_before_publication(
     owner: Any,
     run_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Cancel after final safety is emitted and before report publication."""
-    real_make_emitter = make_emitter
+    """Cancel after final safety commits and before report publication."""
+    gate_readiness_and_publish = report_render._gate_readiness_and_publish
     cancel_responses: list[dict[str, Any]] = []
 
-    def make_canceling_emitter(*args: Any, **kwargs: Any) -> Any:
-        emit = real_make_emitter(*args, **kwargs)
-
-        async def cancel_after_final_safety(
-            event_type: str, payload: dict[str, Any]
-        ) -> dict[str, Any]:
-            emitted = await emit(event_type, payload)
-            if event_type == "safety.final":
-                response = owner.post(
-                    f"/api/runs/{run_id}/cancel", headers=_OWNER
-                )
-                assert response.status_code == 200, response.text
-                cancel_responses.append(response.json())
-            return emitted
-
-        return cancel_after_final_safety
+    async def cancel_before_publication(*args: Any, **kwargs: Any) -> Any:
+        response = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
+        assert response.status_code == 200, response.text
+        cancel_responses.append(response.json())
+        async for event in gate_readiness_and_publish(*args, **kwargs):
+            yield event
 
     monkeypatch.setattr(
-        engine_tasks_node, "make_emitter", make_canceling_emitter
+        report_render, "_gate_readiness_and_publish", cancel_before_publication
     )
     return cancel_responses
 
@@ -260,7 +249,9 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         isolated_db, monkeypatch
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    cancel_responses = _install_canceling_emitter(owner, run_id, monkeypatch)
+    cancel_responses = _install_cancel_before_publication(
+        owner, run_id, monkeypatch
+    )
 
     # execute_finalize checked status before safety. The revoked row must make
     # this stale body stop before it saves a report or any related side effect.
