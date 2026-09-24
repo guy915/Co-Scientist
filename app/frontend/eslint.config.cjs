@@ -13,10 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// The `typescript-eslint` meta-package is the same instance gts itself uses,
-// so extending its shared configs below reuses the plugin gts registers.
+// GTS registers the TypeScript plugin and parser. Reuse those when layering
+// strict rules: dependency layouts may resolve a second plugin instance.
 const tseslint = require('typescript-eslint');
 const {defineConfig} = require('eslint/config');
+const strictRules = tseslint.configs.strict.filter(
+  config => config.name !== 'typescript-eslint/base',
+);
+const stylisticRules = tseslint.configs.stylistic.filter(
+  config => config.name !== 'typescript-eslint/base',
+);
 
 module.exports = defineConfig([
   {
@@ -46,7 +52,7 @@ module.exports = defineConfig([
   //                 directory too; both must agree on the limit.
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
-    extends: [tseslint.configs.strict, tseslint.configs.stylistic],
+    extends: [...strictRules, ...stylisticRules],
     rules: {
       complexity: ['error', 5],
       'max-params': ['error', 5],

@@ -1,5 +1,4 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {type InferredRunSpec} from '../run_spec';
 import {type HandlerDeps} from './chat_session_types';
 
 vi.mock('@/api/runs', () => ({
@@ -18,40 +17,15 @@ import {
   readPendingCreateIntent,
   rememberPendingCreateRun,
 } from './chat_session_create_intent';
+import {
+  completedInterview,
+  createKeys,
+  createPayload,
+  deps,
+  runRecord,
+  SPEC,
+} from './chat_session_start_run_test_support';
 import {promoteDraftToRun} from './chat_session_start_run';
-
-const SPEC: InferredRunSpec = {
-  goal: 'g',
-  interviewId: 'chat-1',
-  requirements: [],
-  attributes: [],
-  criteria: [],
-  focus: 'balance',
-  tier: 'standard',
-};
-
-// The handler only reads a handful of HandlerDeps fields on the happy path;
-// the no-op setters satisfy the rest without reconstructing view state.
-function deps(): HandlerDeps {
-  return {
-    draft: {spec: SPEC, createdAt: 0},
-    pubmedEnabled: false,
-    webSearchEnabled: false,
-    reloadHistory: async () => {},
-    setIsStarting: () => {},
-    setError: () => {},
-    setToast: () => {},
-    setConfirmed: () => {},
-    setDraft: () => {},
-    setInput: () => {},
-    setMessages: () => {},
-    setStartedSession: () => {},
-    setIsAwaitingAgent: () => {},
-    turnAbortRef: {current: null},
-    pendingAttachments: [],
-    setPendingAttachments: () => {},
-  } as unknown as HandlerDeps;
-}
 
 describe('start run', () => {
   beforeEach(() => {
@@ -81,29 +55,36 @@ describe('start run', () => {
     expect(vi.mocked(createRun).mock.calls[0][0].research_goal).toBe(SPEC.goal);
   });
 
-  it('reuses the exact create intent when a manual retry follows a lost response', async () => {
+  it('resolves a lost create before starting a manually edited visible plan', async () => {
     vi.mocked(createRun)
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
-      .mockResolvedValueOnce({id: 'r1'} as Awaited<
+      .mockResolvedValueOnce({id: 'r1', status: 'draft'} as Awaited<
+        ReturnType<typeof createRun>
+      >)
+      .mockResolvedValueOnce({id: 'r2', status: 'draft'} as Awaited<
         ReturnType<typeof createRun>
       >);
     const session = deps();
+    const editedDraft = {
+      spec: {...SPEC, goal: 'edited visible plan'},
+      createdAt: 10,
+    };
+    const setStartedSession = vi.fn();
 
-    await promoteDraftToRun(session);
+    await promoteDraftToRun({...session, setStartedSession});
     await promoteDraftToRun({
       ...session,
-      draft: {
-        spec: {...SPEC, goal: 'reconstructed after refresh'},
-        createdAt: 10,
-      },
+      draft: editedDraft,
       pubmedEnabled: true,
       webSearchEnabled: true,
       pendingAttachments: [{id: 'changed-doc'}],
+      setStartedSession,
     } as unknown as HandlerDeps);
 
-    const first = vi.mocked(createRun).mock.calls[0];
-    const second = vi.mocked(createRun).mock.calls[1];
-    expect(first[0]).toEqual(second[0]);
+    const [first, replay, edited] = vi.mocked(createRun).mock.calls;
+    const keys = createKeys();
+    expect(replay[0]).toEqual(first[0]);
+    expect(keys[1]).toBe(keys[0]);
     expect(first[0]).toEqual({
       research_goal: SPEC.goal,
       interview_id: 'chat-1',
@@ -117,14 +98,61 @@ describe('start run', () => {
       enable_web_search: false,
       document_ids: [],
     });
-    expect(first[1]?.idempotencyKey).toBeTruthy();
-    expect(second[1]?.idempotencyKey).toBe(first[1]?.idempotencyKey);
+    expect(edited[0]).toEqual({
+      research_goal: 'edited visible plan',
+      interview_id: 'chat-1',
+      requirements: [],
+      attributes: [],
+      criteria: [],
+      focus: 'balance',
+      tier: 'standard',
+      notify_on_completion: false,
+      enable_literature_review: true,
+      enable_web_search: true,
+      document_ids: ['changed-doc'],
+    });
+    expect(keys[2]).toBeTruthy();
+    expect(keys[2]).not.toBe(keys[0]);
+    expect(cancelRun).toHaveBeenCalledWith('r1');
+    expect(startRun).toHaveBeenCalledTimes(1);
+    expect(startRun).toHaveBeenCalledWith('r2');
+    expect(setStartedSession).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'r2'}),
+    );
   });
 
   it('clears the pending key after a confirmed start', async () => {
     await promoteDraftToRun(deps());
 
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
+  });
+
+  it('retires a create intent rejected before commit so an edited draft gets a fresh key', async () => {
+    vi.mocked(createRun)
+      .mockRejectedValueOnce(
+        Object.assign(new Error('unprocessable request'), {status: 422}),
+      )
+      .mockResolvedValueOnce({id: 'r2', status: 'draft'} as Awaited<
+        ReturnType<typeof createRun>
+      >);
+    const session = deps();
+
+    await promoteDraftToRun(session);
+    const rejectedKey = vi.mocked(createRun).mock.calls[0][1]?.idempotencyKey;
+    expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
+
+    await promoteDraftToRun({
+      ...session,
+      draft: {spec: {...SPEC, goal: 'corrected plan'}, createdAt: 10},
+    });
+
+    expect(vi.mocked(createRun).mock.calls[1][0].research_goal).toBe(
+      'corrected plan',
+    );
+    expect(vi.mocked(createRun).mock.calls[1][1]?.idempotencyKey).not.toBe(
+      rejectedKey,
+    );
+    expect(startRun).toHaveBeenCalledWith('r2');
   });
 
   it('retires a created draft after confirmed cancellation so the next click creates a new run', async () => {
@@ -226,18 +254,9 @@ describe('start run', () => {
       new TypeError('cancel response lost'),
     );
     vi.mocked(getRun)
-      .mockResolvedValueOnce({
-        id: 'r1',
-        status: 'draft',
-      } as Awaited<ReturnType<typeof getRun>>)
-      .mockResolvedValueOnce({
-        id: 'r1',
-        status: 'draft',
-      } as Awaited<ReturnType<typeof getRun>>)
-      .mockResolvedValueOnce({
-        id: 'r1',
-        status: 'draft',
-      } as Awaited<ReturnType<typeof getRun>>);
+      .mockResolvedValueOnce(runRecord('r1', 'draft', 'g'))
+      .mockResolvedValueOnce(runRecord('r1', 'draft', 'g'))
+      .mockResolvedValueOnce(runRecord('r1', 'draft', 'g'));
 
     const session = deps();
     const stage = session.draft;
@@ -257,50 +276,62 @@ describe('start run', () => {
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
   });
 
-  it('uses the interview-linked draft after refresh without creating another run', async () => {
-    const intent = await getPendingCreateIntent('chat-1', {
-      research_goal: 'saved exact goal',
-      interview_id: 'chat-1',
+  it('continues a linked draft with saved attachments after refresh defaults reset', async () => {
+    vi.mocked(createRun).mockRejectedValueOnce(
+      new TypeError('Failed to fetch'),
+    );
+    const originalDeps = {
+      ...deps(),
+      pendingAttachments: [{id: 'doc-1'}],
+    } as unknown as HandlerDeps;
+
+    await promoteDraftToRun(originalDeps);
+    expect(vi.mocked(createRun).mock.calls[0][0]).toMatchObject({
+      document_ids: ['doc-1'],
+      enable_literature_review: false,
+      enable_web_search: false,
     });
+
+    vi.mocked(getRun).mockResolvedValueOnce(
+      runRecord('r1', 'draft', 'g', {
+        requirements: ['server persisted requirement'],
+        focus: 'prefer_novelty',
+        tier: 'express',
+      }),
+    );
+    const setConfirmed = vi.fn();
     const refreshedDeps = {
       ...deps(),
       draft: null,
-      interview: {
-        id: 'chat-1',
-        run_id: 'r1',
-        status: 'completed',
-        fields: {
-          research_challenge: 'saved exact goal',
-          focus_area: [],
-          preferences: [],
-          title: null,
-        },
-        turns: [
-          {
-            id: 4,
-            role: 'agent',
-            content: 'Plan ready.',
-            reasoning: null,
-            fallback: false,
-            questions: [],
-            created_at: 12,
-          },
-        ],
-      },
+      pubmedEnabled: true,
+      webSearchEnabled: true,
+      interview: completedInterview('r1', 'g'),
+      setConfirmed,
     } as unknown as HandlerDeps;
 
     await promoteDraftToRun(refreshedDeps);
 
-    expect(vi.mocked(createRun)).not.toHaveBeenCalled();
-    expect(vi.mocked(getRun)).toHaveBeenCalledWith('r1');
-    expect(vi.mocked(startRun)).toHaveBeenCalledWith('r1');
-    expect(intent.key).toBeTruthy();
+    expect(createRun).toHaveBeenCalledTimes(1);
+    expect(getRun).toHaveBeenCalledWith('r1');
+    expect(cancelRun).not.toHaveBeenCalled();
+    expect(startRun).toHaveBeenCalledTimes(1);
+    expect(startRun).toHaveBeenCalledWith('r1');
+    expect(setConfirmed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spec: expect.objectContaining({
+          goal: 'g',
+          requirements: ['server persisted requirement'],
+          focus: 'prefer_novelty',
+          tier: 'express',
+        }),
+      }),
+    );
   });
 
   it('does not create a new key when an owned getRun lookup fails', async () => {
     const intent = await getPendingCreateIntent('chat-1', {
-      research_goal: 'saved exact goal',
-      interview_id: 'chat-1',
+      ...createPayload('saved exact goal'),
+      document_ids: ['doc-1'],
     });
     rememberPendingCreateRun('chat-1', intent.key, 'r1');
     vi.mocked(getRun).mockRejectedValueOnce(new Error('404 not found'));
@@ -308,28 +339,9 @@ describe('start run', () => {
     const linkedDeps = {
       ...session,
       draft: null,
-      interview: {
-        id: 'chat-1',
-        run_id: 'r1',
-        status: 'completed',
-        fields: {
-          research_challenge: 'saved exact goal',
-          focus_area: [],
-          preferences: [],
-          title: null,
-        },
-        turns: [
-          {
-            id: 4,
-            role: 'agent',
-            content: 'Plan ready.',
-            reasoning: null,
-            fallback: false,
-            questions: [],
-            created_at: 12,
-          },
-        ],
-      },
+      pubmedEnabled: true,
+      webSearchEnabled: true,
+      interview: completedInterview('r1', 'saved exact goal'),
     } as unknown as HandlerDeps;
 
     await promoteDraftToRun(linkedDeps);
@@ -340,9 +352,44 @@ describe('start run', () => {
       createdRunId: 'r1',
     });
   });
+
+  it('shows the saved plan when retry finds that it already started', async () => {
+    const intent = await getPendingCreateIntent(
+      'chat-1',
+      createPayload('saved exact goal'),
+    );
+    vi.mocked(createRun).mockResolvedValueOnce(
+      runRecord('r1', 'running', 'saved exact goal'),
+    );
+    const setConfirmed = vi.fn();
+    const setStartedSession = vi.fn();
+
+    await promoteDraftToRun({
+      ...deps(),
+      draft: {spec: {...SPEC, goal: 'edited visible plan'}, createdAt: 10},
+      setConfirmed,
+      setStartedSession,
+    });
+
+    expect(vi.mocked(createRun)).toHaveBeenCalledWith(intent.payload, {
+      idempotencyKey: intent.key,
+    });
+    expect(startRun).not.toHaveBeenCalled();
+    expect(setConfirmed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spec: expect.objectContaining({goal: 'saved exact goal'}),
+      }),
+    );
+    expect(setStartedSession).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'r1', title: 'saved exact goal'}),
+    );
+  });
 });
 
 it('freezes the whole closing turn, not just its spec', async () => {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  vi.clearAllMocks();
   // The confirmed stage is the same turn the draft was, so it carries the
   // Agent's closing message and its thinking across the start. Dropping them
   // here is what made the plan turn lose its prose the moment the run began.
