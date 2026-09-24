@@ -1,0 +1,52 @@
+{
+  "source": "https://openrouter.ai/api/v1/models",
+  "checked_at_utc": "2026-09-24T20:45:41Z",
+  "models": [
+    {
+      "id": "nex-agi/nex-n2.5-pro:free",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "expiration_date": "2026-09-25",
+      "context_length": 262144,
+      "supported_parameters": [
+        "include_reasoning",
+        "logprobs",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ]
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "expiration_date": null,
+      "context_length": 262144,
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    }
+  ]
+}

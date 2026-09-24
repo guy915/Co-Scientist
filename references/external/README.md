@@ -6,9 +6,9 @@ records the starting system and baseline work.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
 The Kaimen, conradry, LLNL, raktim-mondol, K-Dense, Sakana, OpenScience, and
-ToolUniverse sources are closed. Sakana's result-conditioned search,
-OpenScience's provider-timeout question, and ToolUniverse's GWAS candidate
-remain open in M11; Robin is unacquired.
+ToolUniverse and Robin sources are closed. Sakana's result-conditioned search,
+OpenScience's provider-timeout question, ToolUniverse's GWAS candidate, and
+Robin's outcome-feedback question remain open in M11.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 
 | Order | Repository | Pinned revision | Assessment |
@@ -21,7 +21,7 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) | [Closed; no product adoption, M11 follow-up open](sakana-ai-scientist.md) |
 | 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | [`4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5`](https://github.com/synthetic-sciences/openscience/commit/4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5) | [Closed; owned admission and lifecycle corrections adopted](synthetic-sciences-openscience.md) |
 | 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | [`78883724c46a94ec1d1bfdc984efb25ba1b76aed`](https://github.com/mims-harvard/ToolUniverse/commit/78883724c46a94ec1d1bfdc984efb25ba1b76aed) | [Assessed and released; GWAS follow-up open in M11](mims-harvard-tooluniverse.md) |
-| 9 | [Future-House/robin](https://github.com/Future-House/robin) | Not acquired | Pending |
+| 9 | [Future-House/robin](https://github.com/Future-House/robin) | [`4a5cce310f3bc7663a67117db88af43b84733ffe`](https://github.com/Future-House/robin/commit/4a5cce310f3bc7663a67117db88af43b84733ffe) | [Assessed; no immediate adoption, outcome-feedback follow-up open in M11](future-house-robin.md) |
 
 Candidate IDs use `M<number>-<number>` and remain stable after checklist expansion.
 Each records the gap, upstream evidence, local counterpart, fidelity classification,
