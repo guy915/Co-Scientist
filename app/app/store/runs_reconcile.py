@@ -17,7 +17,7 @@ import logging
 import sqlite3
 
 from app.store.checkpoints import has_checkpoint
-from app.store.db import _now, connect
+from app.store.db import _now, connect, transaction
 from app.store.events import _append_event
 from app.store.models import RunStatus
 from app.store.tasks_model import TaskFailure
@@ -184,6 +184,16 @@ def _reconcile_one_run(
     return "failed"
 
 
+def _fail_ambiguous_expired_provider_leases(
+    db_path: str | None, now: float
+) -> None:
+    """Commit unknown lease outcomes before a generic restart event."""
+    from app.store.tasks import _fail_ambiguous_expired_leases
+
+    with transaction(db_path) as conn:
+        _fail_ambiguous_expired_leases(conn, now)
+
+
 def reconcile_interrupted_runs(
     db_path: str | None = None,
 ) -> dict[str, list[str]]:
@@ -207,6 +217,7 @@ def reconcile_interrupted_runs(
     reason = "Run interrupted by a server restart."
     failed: list[str] = []
     resumable: list[str] = []
+    _fail_ambiguous_expired_provider_leases(db_path, now)
     with connect(db_path) as conn:
         # A finalize task can commit its report and then lose the process
         # before the worker records task success. At startup all prior

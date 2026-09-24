@@ -293,16 +293,20 @@ def _revive_task_row(
 ) -> int:
     """Revive one terminally-dead or lease-expired task; return rows changed.
 
-    A lease outlives the worker that took it. Once it has expired that
-    worker is gone, and with its attempts spent claim_task will not take the
-    task back either ("unless their retry budget is spent"), so it is
-    stranded until something resets it. An unexpired lease is left strictly
-    alone: its owner may still be working, and reviving it would run the
-    boundary twice at once.
+    Engine attempt numbers also fence stale workers, so keep their sequence
+    monotonic. Preserve the original retry ceiling and extend it by at most
+    one when already exhausted; each owner recovery therefore authorizes no
+    more than one extra attempt. An unexpired lease is left strictly alone:
+    its owner may still be working, and reviving it would run the boundary
+    twice at once.
     """
     placeholders = ",".join("?" * len(_REVIVABLE_TASK_STATUSES))
     return conn.execute(
-        "UPDATE scientific_tasks SET status='queued', attempt=0, "
+        "UPDATE scientific_tasks SET status='queued', "
+        "attempt=CASE WHEN substr(task_type,1,7)='engine.' "
+        "THEN attempt ELSE 0 END, "
+        "max_attempts=CASE WHEN substr(task_type,1,7)='engine.' "
+        "THEN MAX(max_attempts, attempt+1) ELSE max_attempts END, "
         "error=NULL, completed_at=NULL, lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? WHERE run_id=? AND "
         f"idempotency_key=? AND (status IN ({placeholders}) OR "

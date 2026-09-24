@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import litellm
+from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
@@ -172,11 +173,30 @@ async def _acompletion_within_timeout(
     Raises:
         LLMTimeoutError: If the call exceeds the configured ceiling.
     """
-    await enforce_free_request(completion_args, byok=bool(current_api_key()))
+    # `api_key` may be a deployment credential added by a caller. Only the
+    # scoped credential seam records run-level BYOK provenance.
+    byok = bool(current_api_key())
+    zero_cost_admitted = (
+        await enforce_free_request(completion_args, byok=byok) and not byok
+    )
     record_provider_request()
     start = time.monotonic()
     try:
         response = await _run_completion(completion_args, model_name)
+    except (LLMTimeoutError, LiteLLMTimeout) as exc:
+        message = str(exc)
+        if isinstance(exc, LiteLLMTimeout):
+            message = (
+                f"LLM call to {model_name} timed out without a response; "
+                "provider outcome may be unknown"
+            )
+        timeout_error = LLMTimeoutError(
+            message, zero_cost_admitted=zero_cost_admitted
+        )
+        _record_completion_failure(
+            model_name, timeout_error, time.monotonic() - start
+        )
+        raise timeout_error from exc
     except Exception as exc:
         _record_completion_failure(model_name, exc, time.monotonic() - start)
         raise

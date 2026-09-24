@@ -9,6 +9,7 @@ from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 
 from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.store.tasks_model import UNKNOWN_PROVIDER_OUTCOME_ERROR
 from tests._client import make_client
 
 
@@ -48,12 +49,17 @@ async def test_owned_run_api_retains_typed_budget_failure_after_reopen(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("error", "expected_kind"),
+    ("error", "expected_kind", "expected_message"),
     [
-        (LLMTimeoutError("provider timed out"), "llm_timeout"),
+        (
+            LLMTimeoutError("provider timed out"),
+            "llm_timeout_unknown",
+            UNKNOWN_PROVIDER_OUTCOME_ERROR,
+        ),
         (
             RuntimeError("LLM-call ceiling exceeded: 251 provider requests"),
             None,
+            "LLM-call ceiling exceeded: 251 provider requests",
         ),
     ],
 )
@@ -62,6 +68,7 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     monkeypatch: pytest.MonkeyPatch,
     error: Exception,
     expected_kind: str | None,
+    expected_message: str,
 ) -> None:
     """Only exact known exception types receive provider guidance."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -84,7 +91,8 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
 
-        for _ in range(3):
+        attempts = 1 if isinstance(error, LLMTimeoutError) else 3
+        for _ in range(attempts):
             assert await task_worker.run_once("worker", db_path=isolated_db)
 
     with make_client() as reopened:
@@ -92,7 +100,7 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
 
     assert body["status"] == "failed"
     assert body["failure_kind"] == expected_kind
-    assert str(error) in body["error"]
+    assert expected_message in body["error"]
 
 
 @pytest.mark.asyncio

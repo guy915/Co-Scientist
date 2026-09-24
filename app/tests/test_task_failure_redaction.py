@@ -60,11 +60,10 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
 
-        # The queued bootstrap task exhausts its ordinary retry budget.
-        for _ in range(3):
-            assert await task_worker.run_once(
-                "synthetic-worker", db_path=isolated_db
-            )
+        # An ambiguous stored-key timeout requires an explicit owner retry.
+        assert await task_worker.run_once(
+            "synthetic-worker", db_path=isolated_db
+        )
         assert not await task_worker.run_once(
             "synthetic-worker", db_path=isolated_db
         )
@@ -93,12 +92,12 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
         [run_body, task_rows, replayed_events, logs.json()], sort_keys=True
     )
     assert run_body["status"] == "failed"
-    assert run_body["failure_kind"] == "llm_timeout"
+    assert run_body["failure_kind"] == "llm_timeout_unknown"
     assert _BYOK_KEY not in serialized
     assert "[REDACTED]" in serialized
     assert _DIAGNOSTIC in serialized
     assert task_rows[-1]["status"] == "failed"
-    assert len(task_rows[-1]["attempts"]) == 3
+    assert len(task_rows[-1]["attempts"]) == 1
     assert replayed_events[-1]["type"] == "_terminal"
     assert any(
         row.get("exc_text") and _DIAGNOSTIC in row["exc_text"]
@@ -165,10 +164,9 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
             ).status_code
             == 200
         )
-        for _ in range(3):
-            assert await task_worker.run_once(
-                "synthetic-worker", db_path=isolated_db
-            )
+        assert await task_worker.run_once(
+            "synthetic-worker", db_path=isolated_db
+        )
 
     with make_client() as reopened:
         owner_run = reopened.get(f"/api/runs/{run_id}", headers=owner_headers)

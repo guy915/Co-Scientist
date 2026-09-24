@@ -15,6 +15,11 @@ import json
 import sqlite3
 from typing import Any
 
+UNKNOWN_PROVIDER_OUTCOME_ERROR = (
+    "The provider may have accepted the request; acceptance and any charge "
+    "are unconfirmed. Automatic replay was stopped."
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class TaskFailure:

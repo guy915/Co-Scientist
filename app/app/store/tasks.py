@@ -13,8 +13,9 @@ while the call site resolving it lives here too.
 The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
 live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
-probes live in ``app.store.tasks_probes``. Every name from all four
-sibling modules is re-exported here so the module namespace is unchanged.
+probes live in ``app.store.tasks_probes``. Ambiguous provider outcomes and
+expired-lease recovery live in ``app.store.tasks_recovery``. Every name from
+those sibling modules is re-exported here so the module namespace is unchanged.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from app.store import tasks_recovery
 from app.store.db import _now, _use_conn, connect, transaction
 from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
@@ -38,9 +40,6 @@ from app.store.tasks_attempts import (
 )
 from app.store.tasks_attempts import (
     _persist_failed_attempt as _persist_failed_attempt,
-)
-from app.store.tasks_attempts import (
-    _record_failed_attempt as _record_failed_attempt,
 )
 from app.store.tasks_attempts import complete_task as complete_task
 from app.store.tasks_attempts import renew_task_lease as renew_task_lease
@@ -63,6 +62,9 @@ from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
+from app.store.tasks_model import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR as UNKNOWN_PROVIDER_OUTCOME_ERROR,
+)
 from app.store.tasks_model import ScientificTask as ScientificTask
 from app.store.tasks_model import TaskFailure as TaskFailure
 from app.store.tasks_model import _decode as _decode
@@ -82,6 +84,11 @@ from app.store.tasks_probes import cohort_poll as cohort_poll
 from app.store.tasks_probes import has_task_of_type as has_task_of_type
 from app.store.tasks_probes import (
     queue_health_snapshot as queue_health_snapshot,
+)
+
+_fail_ambiguous_expired_leases = tasks_recovery._fail_ambiguous_expired_leases
+_stop_run_after_unknown_provider_outcome = (
+    tasks_recovery._stop_run_after_unknown_provider_outcome
 )
 
 
@@ -308,7 +315,11 @@ def _dependencies_complete(
 
 
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
-    """Requeue leased tasks whose lease expired with retry budget left."""
+    """Fail ambiguous engine leases before rescuing other expired work."""
+    _fail_ambiguous_expired_leases(conn, now)
+
+    # Engine leases have no durable request-time admission receipt, so they
+    # fail closed regardless of the current route configuration.
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "
@@ -392,12 +403,14 @@ def claim_task(
     return None
 
 
-def fail_task(
+def fail_task(  # noqa: PLR0913 -- retry timing stays atomic with failure.
     task_id: str,
     worker_id: str,
     error: str | TaskFailure,
     *,
     retryable: bool = True,
+    retry_at: float | None = None,
+    stop_run: bool = False,
     db_path: str | None = None,
 ) -> bool:
     """Record failure and requeue when the bounded retry budget permits.
@@ -422,14 +435,19 @@ def fail_task(
             return False
         task = _decode(row)
         status = _persist_failed_attempt(
-            conn, task, worker_id, failure.error, retryable
+            conn, task, worker_id, failure.error, retryable, retry_at
         )
         if status == "failed":
-            _settle_run_for_failed_task(
-                conn,
-                task.run_id,
-                task.task_type,
-                failure,
-                retryable=retryable,
-            )
+            if stop_run:
+                _stop_run_after_unknown_provider_outcome(
+                    conn, task.run_id, task.task_type, failure
+                )
+            else:
+                _settle_run_for_failed_task(
+                    conn,
+                    task.run_id,
+                    task.task_type,
+                    failure,
+                    retryable=retryable,
+                )
     return True

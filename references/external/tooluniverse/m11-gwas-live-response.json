@@ -1,0 +1,74 @@
+{
+  "purpose": "M11-GWAS-07 keyless live API response after the M9 availability failures",
+  "source": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations?rs_id=rs334&page=0&size=1",
+  "checked_at_utc": "2026-09-24T21:16:22Z",
+  "http_status": 200,
+  "response_sha256": "e798ae6a88592d5aa23609140fcc09908105068ee13c2345663ea426b459aa8e",
+  "query": {
+    "rs_id": "rs334",
+    "page": 0,
+    "size": 1
+  },
+  "page": {
+    "size": 1,
+    "totalElements": 134,
+    "totalPages": 134,
+    "number": 0
+  },
+  "association": {
+    "association_id": 226290633,
+    "risk_frequency": "0.9614",
+    "pvalue_description": "",
+    "pvalue_mantissa": 3,
+    "pvalue_exponent": -31,
+    "multi_snp_haplotype": false,
+    "snp_interaction": false,
+    "range": "[0.12-0.16]",
+    "beta": "0.1401 unit increase",
+    "p_value": 3.0000000000000003E-31,
+    "efo_traits": [
+      {
+        "efo_id": "EFO_0004309",
+        "efo_trait": "platelet count"
+      }
+    ],
+    "reported_trait": [
+      "platelet count (minimum, inv-norm transformed)"
+    ],
+    "accession_id": "GCST90480652",
+    "locations": [
+      "11:5227002"
+    ],
+    "mapped_genes": [
+      "HBB"
+    ],
+    "bg_efo_traits": [],
+    "pubmed_id": "39024449",
+    "first_author": "Verma A",
+    "ci_lower": 0.12,
+    "ci_upper": 0.16,
+    "snp_effect_allele": [
+      "rs334-T"
+    ],
+    "snp_allele": [
+      {
+        "rs_id": "rs334",
+        "effect_allele": "T"
+      }
+    ],
+    "_links": {
+      "self": {
+        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/226290633"
+      },
+      "loci": {
+        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/226290633/loci"
+      },
+      "snp": {
+        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs334"
+      }
+    }
+  },
+  "next": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations?rs_id=rs334&page=1&size=1",
+  "interpretation": "Literature-curated variant-trait association; neither mapped gene nor association establishes causality.",
+  "service_terms": "https://www.ebi.ac.uk/gwas/docs/faq/"
+}

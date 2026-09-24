@@ -45,7 +45,20 @@ class ResponseParseError(CoScientistError):
 # stopped responding will not answer a second identical request any sooner,
 # and retrying multiplies one stalled call by the attempt count.
 class LLMTimeoutError(CoScientistError):
-    """An LLM call exceeded its wall-clock budget without responding."""
+    """An LLM call timed out, possibly after the provider accepted it.
+
+    ``zero_cost_admitted`` is true only when the exact request passed the
+    request-time zero-price gate and carried no caller-supplied credential.
+    Durable workers may use that evidence for bounded automatic recovery;
+    every other timeout remains an explicit-recovery outcome.
+    """
+
+    def __init__(
+        self, message: str, *, zero_cost_admitted: bool = False
+    ) -> None:
+        """Build the timeout with exact request-admission evidence."""
+        super().__init__(message)
+        self.zero_cost_admitted = zero_cost_admitted
 
 
 # Raised by call_llm when a completion comes back empty because the whole

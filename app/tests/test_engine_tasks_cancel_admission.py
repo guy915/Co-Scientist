@@ -170,7 +170,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A late verdict from a replaced bootstrap lease cannot stop the run."""
+    """A late verdict cannot stop a run after an owner-authorized retry."""
     from app.config import settings
     from app.safety_types import SafetyDecision
 
@@ -202,7 +202,12 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (original.id,),
         )
-    replacement = store.claim_task("new-bootstrap", run_id=run_id)
+    assert store.claim_task("new-bootstrap", run_id=run_id) is None
+    failed = store.get_task(original.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert "may have accepted" in (failed.error or "")
+    assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
+    replacement = store.claim_task("old-bootstrap", run_id=run_id)
     assert replacement is not None
     assert replacement.attempt == original.attempt + 1
     release_screening.set()
@@ -248,7 +253,11 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (original.id,),
         )
-    replacement = store.claim_task("current-paused-worker", run_id=run_id)
+    assert store.claim_task("current-paused-worker", run_id=run_id) is None
+    failed = store.get_task(original.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
+    replacement = store.claim_task("old-paused-worker", run_id=run_id)
     assert replacement is not None
     assert replacement.attempt == original.attempt + 1
     store.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)

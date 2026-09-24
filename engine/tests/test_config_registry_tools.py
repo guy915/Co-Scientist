@@ -240,3 +240,14 @@ def test_preprint_search_results_parse_into_articles() -> None:
     assert [article.title for article in articles] == [
         "NHE1 regulation of tumour pH"
     ]
+
+
+def test_gwas_catalog_associations_are_available_to_draft_tool_calls() -> None:
+    """The rsID lookup must reach the actual draft-generation MCP whitelist."""
+    registry = ToolRegistry(skip_user_config=True)
+
+    tool_ids = registry.get_tools_for_workflow("draft_generation")
+    assert "gwas_catalog_associations" in tool_ids
+    assert "search_gwas_catalog_associations" in registry.get_mcp_tool_names(
+        tool_ids
+    )

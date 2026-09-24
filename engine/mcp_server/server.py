@@ -50,6 +50,7 @@ from mcp_server.tools.genomics_databases import (
     search_ensembl_gene,
     search_gnomad_constraint,
 )
+from mcp_server.tools.gwas_catalog import search_gwas_catalog_associations
 from mcp_server.tools.indra_cogex import (
     query_causal_subnetwork,
     query_clinical_trials,
@@ -148,6 +149,7 @@ _MCP_TOOLS = (
     (search_biorxiv, "search_biorxiv"),
     (search_ensembl_gene, "search_ensembl_gene"),
     (search_gnomad_constraint, "search_gnomad_constraint"),
+    (search_gwas_catalog_associations, "search_gwas_catalog_associations"),
     (search_clinical_trials, "search_clinical_trials"),
     (query_gene_disease_network, "query_gene_disease_network"),
     (query_gene_codependents, "query_gene_codependents"),

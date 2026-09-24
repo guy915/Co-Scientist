@@ -381,7 +381,7 @@ def test_terminal_run_cannot_commit_an_exact_successor(
 def test_old_same_owner_attempt_cannot_commit_after_re_lease(
     isolated_db: str,
 ) -> None:
-    """Reclaiming to the same worker ID still revokes its earlier attempt."""
+    """An explicit retry to the same worker ID revokes the old attempt."""
     _client, run_id = _owned_running_run(isolated_db)
     stale_task, checkpoint_seq = _leased_task(
         run_id, "engine.node.supervisor", "same-owner-re-lease", isolated_db
@@ -394,6 +394,24 @@ def test_old_same_owner_attempt_cannot_commit_after_re_lease(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (stale_task.id,),
         )
+    assert (
+        store.claim_task(
+            "cancel-race-worker",
+            lease_seconds=60,
+            run_id=run_id,
+            db_path=isolated_db,
+        )
+        is None
+    )
+    failed = store.get_task(stale_task.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert "may have accepted" in (failed.error or "")
+    assert store.retry_task(
+        stale_task.id,
+        reason="owner authorized replay after ambiguous lease expiry",
+        db_path=isolated_db,
+    )
+    store.update_run_status(run_id, store.RunStatus.QUEUED, db_path=isolated_db)
     current_task = store.claim_task(
         "cancel-race-worker",
         lease_seconds=60,

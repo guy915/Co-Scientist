@@ -140,14 +140,14 @@ def _routes(args: dict[str, Any], body: dict[str, Any]) -> list[str]:
 
 async def enforce_free_request(
     args: dict[str, Any], *, byok: bool = False
-) -> None:
+) -> bool:
     """Validate routes before transport and attach binding zero-price ceilings.
 
     Campaign mode overrides BYOK. Outside it, the caller supplies credential
     provenance explicitly; a deployment key in kwargs is not a BYOK signal.
     """
     if not _requires_free(args, byok):
-        return
+        return False
     body = _request_body(args)
     routes = _routes(args, body)
     catalog = await asyncio.to_thread(current_catalog)
@@ -169,3 +169,4 @@ async def enforce_free_request(
     # Pin the transport too: an environment-level proxy/base override must
     # not send an OpenRouter-qualified route to a different billing service.
     args["api_base"] = _API_BASE
+    return True
