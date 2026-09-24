@@ -14,6 +14,7 @@ External seams stubbed (each bound on the submodule that consumes it):
   and fed to synthesis), so it is stubbed on both submodules.
 * ``synthesis.call_llm`` -> phase-4 synthesis text (prompt saving lives inside
   the real LLM wrappers now, so stubbing them also keeps prompt files off disk).
+* ``node.run_research_phase`` -> one canned Phase 6 finding, paper and ledger.
 
 With ``tool_registry=None`` the multi-source/PDF-discovery/content-fetch/
 context-enrichment phases (2.4/2.5/2.6) all early-return, so the node runs in
@@ -34,6 +35,9 @@ from co_scientist.agents.generation.literature_review import (
 )
 from co_scientist.agents.generation.literature_review import (
     synthesis as lr_synthesis,
+)
+from co_scientist.agents.generation.literature_review.research_phase import (
+    ResearchOutcome,
 )
 
 
@@ -135,6 +139,28 @@ def _stub_node(
     _stub_llms(monkeypatch, queries, synthesis)
 
     return fake_client
+
+
+def _stub_research(
+    monkeypatch: pytest.MonkeyPatch, section: str = "\n\n## Research\nfound"
+) -> None:
+    """Make phase 6 return one finding, one paper and a ledger."""
+
+    async def fake_phase(*_: Any, **__: Any) -> ResearchOutcome:
+        return ResearchOutcome(
+            ledger={"threads": [], "calls": [], "findings": []},
+            records={
+                "PMID7": {
+                    "title": "Researched paper",
+                    "abstract": "Abstract seven.",
+                    "retrieval_call_id": "call-7",
+                    "_source_name": "alpha",
+                }
+            },
+            section=section,
+        )
+
+    monkeypatch.setattr(lr, "run_research_phase", fake_phase)
 
 
 def _make_event_recorder() -> tuple[

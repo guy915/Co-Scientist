@@ -8,27 +8,21 @@ seams live in ``tests/_literature_node.py``.
 
 """
 
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from co_scientist import cache_nodes
 from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
 from co_scientist.agents.generation.literature_review import node as lr
-from co_scientist.agents.generation.literature_review import search as lr_search
-from co_scientist.agents.generation.literature_review.research_phase import (
-    ResearchOutcome,
-)
-from co_scientist.cache import NodeCache
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from tests._literature_node import (
     _TWO_PAPERS,
     _make_event_recorder,
     _RaisingClient,
     _stub_node,
+    _stub_research,
 )
 from tests._state import make_state
 
@@ -348,28 +342,6 @@ async def test_no_papers_without_error_emits_empty_event(
 # =============================================================================
 
 
-def _stub_research(
-    monkeypatch: pytest.MonkeyPatch, section: str = "\n\n## Research\nfound"
-) -> None:
-    """Make phase 6 return one finding, one paper and a ledger."""
-
-    async def fake_phase(*_: Any, **__: Any) -> ResearchOutcome:
-        return ResearchOutcome(
-            ledger={"threads": [], "calls": [], "findings": []},
-            records={
-                "PMID7": {
-                    "title": "Researched paper",
-                    "abstract": "Abstract seven.",
-                    "retrieval_call_id": "call-7",
-                    "_source_name": "alpha",
-                }
-            },
-            section=section,
-        )
-
-    monkeypatch.setattr(lr, "run_research_phase", fake_phase)
-
-
 async def test_research_reaches_the_result_the_run_persists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -396,140 +368,6 @@ async def test_research_reaches_the_result_the_run_persists(
     researched = [a for a in result["articles"] if a.source_id == "PMID7"]
     assert len(researched) == 1
     assert researched[0].retrieval_call_id == "call-7"
-
-
-async def test_cached_research_keeps_ledger_and_article_call_id(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A node cache hit keeps the deep-research provenance as one record.
-
-    The first pass writes the article and its ledger; the second pass must
-    return both from cache without repeating the Phase 2 search.
-    """
-    cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
-    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
-    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
-
-    client = _stub_node(
-        monkeypatch,
-        server_available=True,
-        search_payload=_TWO_PAPERS,
-        queries=["query alpha"],
-        synthesis="SYNTHESIZED REVIEW",
-    )
-
-    async def keep_lexical_order(
-        ranked: dict[str, dict[str, Any]], _config: Any
-    ) -> dict[str, dict[str, Any]]:
-        return ranked
-
-    monkeypatch.setattr(
-        lr_search, "_apply_semantic_relevance_if_enabled", keep_lexical_order
-    )
-    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
-    _stub_research(monkeypatch)
-    state = make_state(research_goal="goal", research_tier="extended")
-
-    first = await literature_review_node(state)
-    first_search_count = len(client.calls)
-    cached = await literature_review_node(state)
-
-    assert first["research_ledgers"] == cached["research_ledgers"]
-    researched = [a for a in cached["articles"] if a.source_id == "PMID7"]
-    assert len(researched) == 1
-    assert researched[0].retrieval_call_id == "call-7"
-    assert len(client.calls) == first_search_count
-
-
-async def test_legacy_research_cache_entry_is_refreshed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A cached article call id without its ledger cannot be replayed."""
-    from co_scientist.models import Article
-
-    cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
-    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
-    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
-    client = _stub_node(
-        monkeypatch,
-        server_available=True,
-        search_payload=_TWO_PAPERS,
-        queries=["query alpha"],
-        synthesis="REFRESHED REVIEW",
-    )
-
-    async def keep_lexical_order(
-        ranked: dict[str, dict[str, Any]], _config: Any
-    ) -> dict[str, dict[str, Any]]:
-        return ranked
-
-    monkeypatch.setattr(
-        lr_search, "_apply_semantic_relevance_if_enabled", keep_lexical_order
-    )
-    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
-    _stub_research(monkeypatch)
-    state = make_state(research_goal="goal", research_tier="extended")
-    config = lr._get_search_config(state)
-    cache.set(
-        "literature_review",
-        {
-            "articles": [
-                Article(
-                    title="Legacy researched paper",
-                    retrieval_call_id="call-legacy",
-                )
-            ],
-            "articles_with_reasoning": "LEGACY CACHE",
-        },
-        **lr._literature_cache_params(state, config),
-    )
-
-    result = await literature_review_node(state)
-
-    assert (
-        result["articles_with_reasoning"]
-        == "REFRESHED REVIEW\n\n## Research\nfound"
-    )
-    assert result["research_ledgers"]
-    assert client.calls
-
-
-@pytest.mark.parametrize(
-    ("cache_enabled", "force_cache"), [(True, False), (False, True)]
-)
-async def test_ordinary_cache_hit_without_research_provenance_is_preserved(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    cache_enabled: bool,
-    force_cache: bool,
-) -> None:
-    """Ordinary Phase 2 articles have no ledger and remain cacheable."""
-    from co_scientist.models import Article
-
-    cache = NodeCache(str(tmp_path), enabled=cache_enabled, ttl_seconds=None)
-    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
-    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
-    client = _stub_node(monkeypatch, server_available=False)
-    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
-    state = make_state(
-        research_goal="ordinary goal",
-        dev_test_lit_tools_isolation=force_cache,
-    )
-    config = lr._get_search_config(state)
-    cache.set(
-        "literature_review",
-        {
-            "articles": [Article(title="Ordinary Phase 2 paper")],
-            "articles_with_reasoning": "ORDINARY CACHED REVIEW",
-        },
-        force=force_cache,
-        **lr._literature_cache_params(state, config),
-    )
-
-    result = await literature_review_node(state)
-
-    assert result["articles_with_reasoning"] == "ORDINARY CACHED REVIEW"
-    assert client.calls == []
 
 
 async def test_a_failed_review_stays_failed_however_much_research_found(

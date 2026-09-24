@@ -73,6 +73,19 @@ def _failure_result(
     return {"source": source, "query": query, "records": [], "error": error}
 
 
+def _chembl_record(molecule: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one ChEMBL molecule into a flat record."""
+    chembl_id = molecule.get("molecule_chembl_id")
+    return {
+        "chembl_id": chembl_id,
+        "name": molecule.get("pref_name"),
+        "type": molecule.get("molecule_type"),
+        "max_phase": molecule.get("max_phase"),
+        "first_approval": molecule.get("first_approval"),
+        "url": f"https://www.ebi.ac.uk/chembl/explore/compound/{chembl_id}",
+    }
+
+
 async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search ChEMBL molecules and return normalized drug records.
 
@@ -97,20 +110,7 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
             )
             response.raise_for_status()
         molecules = _response_records(response, "molecules")
-        records = [
-            {
-                "chembl_id": molecule.get("molecule_chembl_id"),
-                "name": molecule.get("pref_name"),
-                "type": molecule.get("molecule_type"),
-                "max_phase": molecule.get("max_phase"),
-                "first_approval": molecule.get("first_approval"),
-                "url": (
-                    "https://www.ebi.ac.uk/chembl/explore/compound/"
-                    f"{molecule.get('molecule_chembl_id')}"
-                ),
-            }
-            for molecule in molecules[:limit]
-        ]
+        records = [_chembl_record(molecule) for molecule in molecules[:limit]]
     except (
         httpx.HTTPError,
         ValueError,
