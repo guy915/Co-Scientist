@@ -15,7 +15,7 @@ from app import (
     task_worker,
 )
 from app.config import settings
-from app.safety import SafetyDecision
+from app.safety import SafetyDecision, apply_safety_gate
 from app.safety_redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -29,6 +29,8 @@ def _seed_leased_finalize(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     client_id: str,
+    *,
+    monitor_halt: bool = False,
 ) -> tuple[Any, dict[str, str], str, Any]:
     """Create an owner-scoped run with a real claimed finalize task."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -49,6 +51,16 @@ def _seed_leased_finalize(
     )
 
     state = _task_state(run_id)
+    if monitor_halt:
+        state["safety_blocked"] = True
+        state["safety_decisions"] = [
+            {
+                "stage": "research_direction",
+                "outcome": "prohibited",
+                "reason": "Content matches a prohibited policy rule.",
+                "matches": ["engineer smallpox for greater transmiss"],
+            }
+        ]
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
     queued = store.enqueue_task(
         store.NewTask(
@@ -70,13 +82,15 @@ def _seed_leased_finalize(
         lambda *_: _Generator(state),
     )
 
-    async def fake_drain(*_: Any, **__: Any) -> tuple[Any, float]:
+    async def fake_drain(
+        *_: Any, **__: Any
+    ) -> tuple[Any, float, dict[str, Any]]:
         drained = SimpleNamespace(
             safety_counts={},
             grounding_counts={},
             report_inputs={"citation_summary": {}},
         )
-        return drained, 1.0
+        return drained, 1.0, {}
 
     monkeypatch.setattr(
         engine_tasks_node, "_drain_and_persist_final_state", fake_drain
@@ -292,6 +306,100 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
     )
     assert final_event["seq"] < report_event["seq"] < completed_event["seq"]
     assert "sensitive span" not in repr(report_event["payload"]).lower()
+
+
+@pytest.mark.asyncio
+async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A monitor verdict cannot write after owner cancellation."""
+    owner, headers, run_id, task = _seed_leased_finalize(
+        isolated_db,
+        monkeypatch,
+        "monitor-halt-cancel-owner",
+        monitor_halt=True,
+    )
+    cancel_responses: list[dict[str, Any]] = []
+
+    async def cancel_before_monitor_gate(
+        gated_run_id: str, decision: SafetyDecision, emit: Any, **kwargs: Any
+    ) -> Any:
+        response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
+        assert response.status_code == 200, response.text
+        cancel_responses.append(response.json())
+        async for event in apply_safety_gate(
+            gated_run_id, decision, emit, **kwargs
+        ):
+            yield event
+
+    monkeypatch.setattr(
+        engine_tasks_node, "apply_safety_gate", cancel_before_monitor_gate
+    )
+
+    with pytest.raises(task_worker._LeaseLostError):
+        await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
+    events = _assert_cancelled_task(
+        owner, headers, run_id, task.id, isolated_db
+    )
+    monitor = [
+        item
+        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        if item["stage"] == "research_direction"
+    ]
+    assert monitor == []
+    assert not any(
+        event["type"] == "safety.research_direction" for event in events
+    )
+    assert [
+        event["payload"].get("status")
+        for event in events
+        if event["type"] == "status"
+    ] == ["cancelled"]
+
+
+@pytest.mark.asyncio
+async def test_leased_monitor_halt_remains_auditable(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A valid leased monitor halt remains visible in owner event replay."""
+    owner, headers, run_id, task = _seed_leased_finalize(
+        isolated_db,
+        monkeypatch,
+        "monitor-halt-audit-owner",
+        monitor_halt=True,
+    )
+
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    persisted = store.get_run(run_id, db_path=isolated_db)
+    assert result["status"] == store.RunStatus.BLOCKED.value
+    assert persisted is not None
+    assert persisted.status == store.RunStatus.BLOCKED.value
+    monitor = [
+        item
+        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        if item["stage"] == "research_direction"
+    ]
+    assert len(monitor) == 1
+    assert monitor[0]["decision"] == "block"
+    assert monitor[0]["matches"] == ["engineer smallpox for greater transmiss"]
+
+    events = _owner_events(owner, headers, run_id)
+    halt_event = next(
+        event
+        for event in events
+        if event["type"] == "safety.research_direction"
+    )
+    blocked_event = next(
+        event
+        for event in events
+        if event["type"] == "status"
+        and event["payload"].get("status") == "blocked"
+    )
+    assert halt_event["seq"] < blocked_event["seq"]
+    assert not any(event["type"] == "report" for event in events)
 
 
 @pytest.mark.parametrize("decision", ["allow", "redact"])

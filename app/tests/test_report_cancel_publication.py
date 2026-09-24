@@ -111,13 +111,15 @@ def _seed_owned_finalize(
         lambda *_: _Generator(state),
     )
 
-    async def fake_drain(*_: Any, **__: Any) -> tuple[Any, float]:
+    async def fake_drain(
+        *_: Any, **__: Any
+    ) -> tuple[Any, float, dict[str, Any]]:
         drained = SimpleNamespace(
             safety_counts={},
             grounding_counts={},
             report_inputs={"citation_summary": {}},
         )
-        return drained, 1.25
+        return drained, 1.25, {}
 
     monkeypatch.setattr(
         engine_tasks_node, "_drain_and_persist_final_state", fake_drain
