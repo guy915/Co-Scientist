@@ -301,7 +301,10 @@ def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
 
 
 async def _halt_finalize_if_blocked(
-    run: store.RunRow, state: dict[str, Any], db_path: str | None
+    run: store.RunRow,
+    state: dict[str, Any],
+    task: ScientificTask,
+    db_path: str | None,
 ) -> dict[str, Any] | None:
     """Block a run the engine's safety monitor halted, instead of publishing.
 
@@ -319,7 +322,9 @@ async def _halt_finalize_if_blocked(
         return None
     decision = _monitor_halt_decision(state)
     emit = make_emitter(run.id, db_path=db_path)
-    async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
+    async for _ in apply_safety_gate(
+        run.id, decision, emit, db_path=db_path, task=task
+    ):
         pass
     return {"run_id": run.id, "status": RunStatus.BLOCKED.value}
 
@@ -443,7 +448,7 @@ async def execute_finalize(
     paused = _pause_finalize_if_requested(task, run, checkpoint, state, db_path)
     if paused is not None:
         return paused
-    halted = await _halt_finalize_if_blocked(run, state, db_path)
+    halted = await _halt_finalize_if_blocked(run, state, task, db_path)
     if halted is not None:
         return halted
     drained, execution_time = await _drain_and_persist_final_state(
