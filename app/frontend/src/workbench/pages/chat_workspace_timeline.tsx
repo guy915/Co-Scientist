@@ -2,7 +2,10 @@ import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
-import {type SpecStage} from '../hooks/chat_session_types';
+import {
+  type LinkedDraftRecovery,
+  type SpecStage,
+} from '../hooks/chat_session_types';
 import {
   type ChatEntry,
   ChatBubble,
@@ -61,6 +64,7 @@ export interface BuildTimelineItemsArgs {
   handleRetryDraftSpec: () => void;
   handleStartRun: () => Promise<void>;
   confirmed: SpecStage | null;
+  linkedDraftRecovery: LinkedDraftRecovery;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
   startedSession: StartedSession | null;
   navigate: NavigateFunction;
@@ -296,12 +300,21 @@ function draftTimelineItems({
 // thinking jumping below the plan) the instant Start research was clicked.
 function confirmedSpecTimelineItems({
   confirmed,
+  linkedDraftRecovery,
+  handleStartRun,
+  isStarting,
   stageDraftSpec,
 }: Pick<
   BuildTimelineItemsArgs,
-  'confirmed' | 'stageDraftSpec'
+  | 'confirmed'
+  | 'linkedDraftRecovery'
+  | 'handleStartRun'
+  | 'isStarting'
+  | 'stageDraftSpec'
 >): TimelineItem[] {
   if (!confirmed) return [];
+  const {canContinueLinkedDraft, spec, status, retryStatusLookup} =
+    linkedDraftRecovery;
   return [
     {
       id: CONFIRMED_SPEC_ITEM_ID,
@@ -309,8 +322,11 @@ function confirmedSpecTimelineItems({
       order: 50,
       node: (
         <RunSpecCard
-          spec={confirmed.spec}
-          isStarting={false}
+          spec={canContinueLinkedDraft && spec ? spec : confirmed.spec}
+          isStarting={isStarting}
+          recoveryAction={canContinueLinkedDraft}
+          recoveryLookupStatus={status}
+          onRetryStatusLookup={retryStatusLookup}
           intro={confirmed.intro}
           introReasoning={confirmed.reasoning}
           introFallback={confirmed.fallback}
@@ -323,7 +339,11 @@ function confirmedSpecTimelineItems({
           onRetry={() => {
             stageDraftSpec(confirmed.spec);
           }}
-          onStart={() => undefined}
+          onStart={
+            canContinueLinkedDraft
+              ? () => void handleStartRun()
+              : () => undefined
+          }
         />
       ),
     },

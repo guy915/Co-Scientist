@@ -22,8 +22,8 @@ export const VENV_PYTHON = join(REPO_ROOT, '.venv', 'bin', 'python');
 
 // Non-default ports so the harness never collides with a developer's running
 // `make start` (which binds API 8008 / UI 5173 / MCP 8888).
-export const API_PORT = 8108;
-export const UI_PORT = 5273;
+export const API_PORT = Number(process.env.COSCI_E2E_API_PORT ?? 8108);
+export const UI_PORT = Number(process.env.COSCI_E2E_UI_PORT ?? 5273);
 
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
 export const UI_URL = `http://127.0.0.1:${UI_PORT}`;

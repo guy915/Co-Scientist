@@ -1,5 +1,5 @@
 import {type Page} from '@playwright/test';
-import {expect, test} from '../support/fixtures';
+import {CLIENT_ID, expect, test} from '../support/fixtures';
 
 const GOAL =
   'What molecular checkpoints govern ferroptosis escape in ' +
@@ -254,4 +254,158 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   const id = await startRunFromPlan(page);
   await openRunDetail(page, id);
   await assertStreamedRunCompletes(page);
+});
+
+test('manually continues a linked draft after a lost create response', async ({
+  browser,
+  page,
+  api,
+}) => {
+  const createBodies: Record<string, unknown>[] = [];
+  const createKeys: string[] = [];
+  const startRequests: string[] = [];
+  let resolveCreated!: (id: string) => void;
+  const createdPromise = new Promise<string>(resolve => {
+    resolveCreated = resolve;
+  });
+  let releaseCreateResponse!: () => void;
+  const createResponseGate = new Promise<void>(resolve => {
+    releaseCreateResponse = resolve;
+  });
+  let resolveStartForwarded!: () => void;
+  const startForwarded = new Promise<void>(resolve => {
+    resolveStartForwarded = resolve;
+  });
+  let releaseStartResponse!: () => void;
+  const startResponseGate = new Promise<void>(resolve => {
+    releaseStartResponse = resolve;
+  });
+
+  await page.context().route('**/api/runs', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    createBodies.push(
+      route.request().postDataJSON() as Record<string, unknown>,
+    );
+    createKeys.push(route.request().headers()['idempotency-key'] ?? '');
+    if (createBodies.length > 1) return route.continue();
+
+    // The API commits the run and interview link, but the browser loses the
+    // response before it can save the returned run id.
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    const {id} = (await response.json()) as {id: string};
+    resolveCreated(id);
+    await createResponseGate;
+    await route.abort('failed');
+  });
+  await page.context().route('**/api/runs/*/start', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    startRequests.push(route.request().url());
+    if (startRequests.length > 1) return route.continue();
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+    const upstreamHeaders = response.headers();
+    const headers = Object.fromEntries(
+      Object.entries(upstreamHeaders).filter(([name]) =>
+        [
+          'access-control-allow-origin',
+          'access-control-allow-credentials',
+          'access-control-expose-headers',
+          'content-type',
+          'vary',
+        ].includes(name),
+      ),
+    );
+    resolveStartForwarded();
+    await startResponseGate;
+    await route.fulfill({
+      status: response.status(),
+      headers,
+      body,
+    });
+  });
+
+  await page.goto('/');
+  await draftGoalInComposer(page);
+  await answerInterviewUntilPlan(page);
+  const chatUrl = page.url();
+  const firstStartClick = page
+    .getByRole('button', {name: 'Start research'})
+    .click();
+  const runId = await createdPromise;
+  await expect(page.getByRole('button', {name: 'Starting...'})).toBeDisabled();
+  releaseCreateResponse();
+  await firstStartClick;
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(await api.getRun(runId)).toMatchObject({status: 'draft'});
+
+  await page.reload();
+  const continueButton = page.getByRole('button', {
+    name: 'Continue research',
+  });
+  await expect(continueButton).toBeEnabled();
+  expect(startRequests).toHaveLength(0);
+  expect(createBodies).toHaveLength(1);
+  const chatId = new URL(chatUrl).pathname.split('/').at(-1) ?? '';
+  const storedRequestMatches = await page.evaluate(
+    ({id, key, payload}) => {
+      const saved = JSON.parse(
+        sessionStorage.getItem(
+          `co_scientist_pending_run_create:${encodeURIComponent(id)}`,
+        ) ?? 'null',
+      ) as {key?: string; payloadJson?: string} | null;
+      if (!saved?.payloadJson) return false;
+      return (
+        saved.key === key &&
+        JSON.stringify(JSON.parse(saved.payloadJson)) ===
+          JSON.stringify(payload)
+      );
+    },
+    {id: chatId, key: createKeys[0], payload: createBodies[0]},
+  );
+  expect(storedRequestMatches).toBe(true);
+
+  // A different owner cannot reopen the interview or see its recovery action.
+  const otherContext = await browser.newContext();
+  await otherContext.addInitScript(clientId => {
+    window.localStorage.setItem('co_scientist_client_id', clientId);
+  }, `${CLIENT_ID}-other`);
+  const otherPage = await otherContext.newPage();
+  await otherPage.goto(chatUrl);
+  await expect(
+    otherPage.getByRole('button', {name: 'Continue research'}),
+  ).toHaveCount(0);
+  expect(startRequests).toHaveLength(0);
+  expect(await api.getRun(runId)).toMatchObject({status: 'draft'});
+  await otherContext.close();
+
+  // Native button semantics make the recovery action available by keyboard.
+  await continueButton.focus();
+  const continueByKeyboard = continueButton.press('Enter');
+  await startForwarded;
+  await expect(
+    page.getByRole('button', {name: 'Continuing...'}),
+  ).toBeDisabled();
+  await expect(
+    page.getByText('Continuing research', {exact: true}),
+  ).toBeVisible();
+  releaseStartResponse();
+  await continueByKeyboard;
+
+  await expect(
+    page.getByRole('region', {name: 'Started research session'}),
+  ).toBeVisible();
+  expect(startRequests).toHaveLength(1);
+  expect(createBodies).toHaveLength(1);
+  expect(await api.getRun(runId)).not.toMatchObject({status: 'draft'});
+
+  // Reopening a queued/running run shows it as the existing session and
+  // never creates or starts another one.
+  await page.reload();
+  await expect(
+    page.getByRole('region', {name: 'Started research session'}),
+  ).toBeVisible();
+  expect(startRequests).toHaveLength(1);
+  expect(createBodies).toHaveLength(1);
 });

@@ -1,6 +1,5 @@
 import {type ChangeEvent, useState} from 'react';
 import {
-  type RunAttribute,
   type RunCriterion,
   type RunWithSummary,
   type SafetyDecision,
@@ -9,6 +8,7 @@ import {
   uploadRunDocument,
 } from '@/api/runs';
 import {FOCUS_OPTIONS, TIER_OPTIONS, runOptionLabel} from '../run_spec';
+import {attributeDisplayString} from '../run_spec_display';
 import {
   REPORT_H3_CLASSES,
   ReportDocument,
@@ -24,41 +24,7 @@ const UPLOAD_LABEL_CLASSES =
   'mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border ' +
   'px-4 py-2 text-sm hover:bg-cosci-hover';
 
-// Joins values with a trailing "or" ("A, B, or C"), matching the published
-// run plan's own categorical-attribute punctuation.
-function joinWithOr(values: string[]): string {
-  if (values.length === 1) return values[0];
-  if (values.length === 2) return `${values[0]} or ${values[1]}`;
-  return `${values.slice(0, -1).join(', ')}, or ${values[values.length - 1]}`;
-}
-
-// Renders one 1-5 scaled axis, or its bare name when no anchor survives
-// (an anchor need not fill every point -- see attribute_display_strings).
-function scaledDisplayString(
-  name: string,
-  scale: {'1'?: string; '3'?: string; '5'?: string},
-): string {
-  const anchors = (['1', '3', '5'] as const)
-    .filter(point => scale[point])
-    .map(point => `${point}: ${scale[point]}`);
-  return anchors.length ? `${name}: 1-5 scale (${anchors.join(', ')})` : name;
-}
-
-// Renders one categorical axis, or its bare name when no option survives.
-function categoricalDisplayString(name: string, values: string[]): string {
-  const options = (values ?? []).filter(Boolean);
-  return options.length ? `${name} (${joinWithOr(options)})` : name;
-}
-
-// Renders one attribute setup item -- the legacy free-prose string, or the
-// R12-5 structured axis shape -- as a single display string, mirroring
-// app.run_modes_attributes.attribute_display_strings on the backend so a
-// stored run reads the same way here as in the report and Goal Details.
-export function attributeDisplayString(item: RunAttribute): string {
-  if (typeof item === 'string') return item;
-  if ('scale' in item) return scaledDisplayString(item.name, item.scale);
-  return categoricalDisplayString(item.name, item.values);
-}
+export {attributeDisplayString};
 
 // Requirements/attributes/criteria captured in a run's durable setup config,
 // each defaulted to an empty list when the run has no setup yet.

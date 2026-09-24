@@ -1,6 +1,7 @@
 import {Fragment, type RefObject, useEffect, useRef} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type useChatSession} from '../hooks/use_chat_session';
+import {type LinkedDraftRecovery} from '../hooks/chat_session_types';
 import {
   CHAT_COLUMN_CLASSES,
   CHAT_COMPOSER_CLASSES,
@@ -58,6 +59,7 @@ export function useConversationLayout(
   navigate: NavigateFunction,
   resetWorkspace: () => void,
   focusComposer: () => void,
+  linkedDraftRecovery: LinkedDraftRecovery,
 ) {
   // Wraps the overlaid composer; its measured height drives the timeline's
   // bottom padding (see the ResizeObserver effect below).
@@ -70,6 +72,7 @@ export function useConversationLayout(
     navigate,
     resetWorkspace,
     focusComposer,
+    linkedDraftRecovery,
   });
 
   // Auto-scrolls the timeline as it changes shape/order (see the hook).

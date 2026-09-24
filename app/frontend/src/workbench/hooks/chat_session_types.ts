@@ -30,6 +30,14 @@ export interface SpecStage {
   fallback?: boolean;
 }
 
+/** Run-resolution state used to render a safe, manual chat recovery action. */
+export interface LinkedDraftRecovery {
+  canContinueLinkedDraft: boolean;
+  spec?: InferredRunSpec;
+  status: 'checking' | 'error' | 'cancelled' | undefined;
+  retryStatusLookup: () => void;
+}
+
 /** The Agent's closing turn, as staged onto the plan card. */
 export interface DraftIntro {
   message?: string;
