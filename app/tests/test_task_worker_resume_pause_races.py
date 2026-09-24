@@ -247,10 +247,11 @@ def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
         db_path=isolated_db,
     )
     store.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
-    task = store.claim_task(
+    claimed = store.claim_task(
         "expired-worker", run_id=run.id, db_path=isolated_db
     )
-    assert task is not None
+    assert claimed is not None and claimed.id == task.id
+    task = claimed
     with store.transaction(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=? WHERE id=?",
