@@ -86,7 +86,7 @@ async def _commit_node(
     state = _task_state(run_id)
     state["mcp_available"] = mcp_available
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    task = store.enqueue_task(
+    queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}{node}",
@@ -95,6 +95,8 @@ async def _commit_node(
         ),
         db_path=db_path,
     )
+    task = store.claim_task(f"routing-{node}", run_id=run_id, db_path=db_path)
+    assert task is not None and task.id == queued.id
     successor_id = await _schedule_successor(
         node, TaskCommit(task, checkpoint_seq, db_path), state
     )
