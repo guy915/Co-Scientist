@@ -231,10 +231,10 @@ def test_resume_paused_stage_reuses_recorded_successor_not_writer(
     assert claimed is not None and claimed.id == resumed.id
 
 
-def test_resume_keeps_rescuable_checkpoint_lease_for_normal_claim(
+def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
     isolated_db: str,
 ) -> None:
-    """A retryable expired writer is rescued before its queued child."""
+    """Explicit resume requeues an expired writer before its queued child."""
     run = store.create_run("paused expired commit", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     task = store.enqueue_task(
@@ -246,13 +246,16 @@ def test_resume_keeps_rescuable_checkpoint_lease_for_normal_claim(
         ),
         db_path=isolated_db,
     )
-    _mark_leased(
-        task.id,
-        isolated_db,
-        owner="expired-worker",
-        expires_at=time.time() - 3600,
-        spend_budget=False,
+    store.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
+    task = store.claim_task(
+        "expired-worker", run_id=run.id, db_path=isolated_db
     )
+    assert task is not None
+    with store.transaction(isolated_db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET lease_expires_at=? WHERE id=?",
+            (time.time() - 3600, task.id),
+        )
     store.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
     store.save_checkpoint(
         run.id,
@@ -286,6 +289,7 @@ def test_resume_keeps_rescuable_checkpoint_lease_for_normal_claim(
         "replacement-worker", run_id=run.id, db_path=isolated_db
     )
     assert reclaimed is not None and reclaimed.id == task.id
+    assert reclaimed.attempt == task.attempt + 1
     assert store.complete_task(
         task.id, "replacement-worker", {}, db_path=isolated_db
     )
@@ -298,7 +302,7 @@ def test_resume_keeps_rescuable_checkpoint_lease_for_normal_claim(
 def test_resume_revives_spent_expired_checkpoint_writer_before_child(
     isolated_db: str,
 ) -> None:
-    """A spent expired writer must replay to release its recorded child."""
+    """Explicit resume replays a spent expired writer before its child."""
     run = store.create_run("paused spent commit", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     writer = store.enqueue_task(
@@ -348,11 +352,13 @@ def test_resume_revives_spent_expired_checkpoint_writer_before_child(
     revived_writer = store.get_task(writer.id, db_path=isolated_db)
     assert resumed.id == child.id
     assert revived_writer is not None and revived_writer.status == "queued"
-    assert revived_writer.attempt == 0
+    assert revived_writer.attempt == writer.max_attempts
+    assert revived_writer.max_attempts == writer.max_attempts + 1
     replayed = store.claim_task(
         "replacement-worker", run_id=run.id, db_path=isolated_db
     )
     assert replayed is not None and replayed.id == writer.id
+    assert replayed.attempt == writer.max_attempts + 1
     assert store.complete_task(
         writer.id, "replacement-worker", {}, db_path=isolated_db
     )

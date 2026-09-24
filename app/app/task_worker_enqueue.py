@@ -240,19 +240,18 @@ def _is_checkpoint_fanout_row(
     )
 
 
-def _revive_spent_checkpoint_writer(
+def _revive_expired_checkpoint_writer(
     run_id: str,
     predecessor: ScientificTask | None,
     now: float,
     db: _ResumeDB,
 ) -> None:
-    """Replay an expired writer whose spent lease blocks its successor."""
+    """Replay an expired writer after the owner explicitly resumes the run."""
     if (
         predecessor is None
         or predecessor.status != "leased"
         or predecessor.lease_expires_at is None
         or predecessor.lease_expires_at > now
-        or predecessor.attempt < predecessor.max_attempts
     ):
         return
     if store.revive_task_for_retry(
@@ -262,7 +261,7 @@ def _revive_spent_checkpoint_writer(
         conn=db.conn,
     ):
         logger.info(
-            "Resume revived spent checkpoint writer %s for run %s",
+            "Resume revived expired checkpoint writer %s for run %s",
             predecessor.task_type,
             run_id,
         )
@@ -313,7 +312,7 @@ def _find_checkpoint_resume_task(
         predecessor.task_type if predecessor is not None else None
     )
     now = time.time()
-    _revive_spent_checkpoint_writer(run_id, predecessor, now, db)
+    _revive_expired_checkpoint_writer(run_id, predecessor, now, db)
     paused_stage = str(checkpoint["stage"]).startswith("engine_task_paused:")
     match = _CheckpointMatch(
         checkpoint_seq,
@@ -378,7 +377,7 @@ def _enqueue_resumed_workflow(
     )
     if checkpoint is not None:
         return _enqueue_resume_task(run_id, checkpoint, db)
-    _revive_spent_precheckpoint_bootstrap(
+    _revive_resumable_precheckpoint_bootstrap(
         run_id,
         db,
         allow_failed=revive_failed_precheckpoint_bootstrap,
@@ -386,13 +385,13 @@ def _enqueue_resumed_workflow(
     return engine_tasks.enqueue_bootstrap(run_id, db_path=db.path, conn=db.conn)
 
 
-def _revive_spent_precheckpoint_bootstrap(
+def _revive_resumable_precheckpoint_bootstrap(
     run_id: str,
     db: _ResumeDB,
     *,
     allow_failed: bool = False,
 ) -> None:
-    """Revive an eligible bootstrap, leaving live/retryable leases to claim."""
+    """Revive only an expired lease or an explicitly resumable failure."""
     bootstrap = next(
         (
             task
@@ -401,11 +400,15 @@ def _revive_spent_precheckpoint_bootstrap(
         ),
         None,
     )
+    now = time.time()
     if (
         bootstrap is None
         or (
             bootstrap.status == "leased"
-            and bootstrap.attempt < bootstrap.max_attempts
+            and (
+                bootstrap.lease_expires_at is None
+                or bootstrap.lease_expires_at > now
+            )
         )
         or bootstrap.status not in {"leased", "failed"}
         or (

@@ -75,19 +75,22 @@ def test_resume_reuses_precheckpoint_bootstrap_lease(
             is None
         )
     elif lease_state == "expired_retryable":
-        assert tasks[0].status == "leased"
-        assert tasks[0].lease_owner == "bootstrap-owner"
+        assert tasks[0].status == "queued"
+        assert tasks[0].attempt == original.attempt
+        reclaimed = store.claim_task(
+            "second-worker", run_id=run_id, db_path=isolated_db
+        )
+        assert reclaimed is not None and reclaimed.id == task_id
+        assert reclaimed.attempt == original.attempt + 1
     else:
         assert tasks[0].status == "queued"
-        assert tasks[0].attempt == 0
+        assert tasks[0].attempt == original.max_attempts
         reclaimed = store.claim_task(
             "second-worker", run_id=run_id, db_path=isolated_db
         )
         assert reclaimed is not None and reclaimed.id == task_id
         assert reclaimed.lease_owner == "second-worker"
-        assert reclaimed.attempt == (
-            1 if lease_state == "expired_spent" else original.attempt + 1
-        )
+        assert reclaimed.attempt == original.max_attempts + 1
     events = store.list_events(run_id, db_path=isolated_db)
     assert (
         sum(
@@ -173,7 +176,7 @@ def test_resume_recovers_spent_bootstrap_abandoned_after_pause(
     assert run is not None and run.status == "queued"
     [reused] = store.list_tasks(run_id, db_path=isolated_db)
     assert reused.id == task_id and reused.task_type == "engine.bootstrap"
-    assert reused.status == "queued" and reused.attempt == 0
+    assert reused.status == "queued" and reused.attempt == task.max_attempts
     assert (
         store.list_safety_decisions(run_id, db_path=isolated_db)[0]["reason"]
         == "intake audit"
@@ -182,6 +185,7 @@ def test_resume_recovers_spent_bootstrap_abandoned_after_pause(
         "bootstrap-recovery", run_id=run_id, db_path=isolated_db
     )
     assert reclaimed is not None and reclaimed.id == task_id
+    assert reclaimed.attempt == task.max_attempts + 1
 
 
 def test_failed_precheckpoint_bootstrap_without_pause_is_not_resumable(
