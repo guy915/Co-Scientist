@@ -1,0 +1,46 @@
+{
+  "purpose": "M9-RET-06 Crossref retraction coverage check and existing offline extract refresh",
+  "recorded_at_utc": "2026-09-24T18:56:44Z",
+  "source": {
+    "dataset_url": "https://gitlab.com/crossref/retraction-watch-data/-/raw/main/retraction_watch.csv",
+    "remote_head_observed_after_fetch": "ce8398d9de9f221fb08be0ede82112195b1732fa",
+    "note": "The raw main fetch was not tied to the subsequently observed HEAD; the committed generated DOI set is the reproducible local artifact."
+  },
+  "extract": {
+    "path": "app/app/data/retractions.txt.gz",
+    "command": "PYTHONPATH=app python3 app/dev/refresh_retractions.py",
+    "old_doi_count": 104045,
+    "new_doi_count": 105374,
+    "added": 1331,
+    "removed": 2,
+    "old_sha256": "e56199c7f55822dd4cee99be3129a88f382ecc9ffe00026c369a3925f9d3ec3d",
+    "new_sha256": "20b8abb977670570ab9f614a3a5b20582879f676847156cfc4896307b107e9f1",
+    "new_compressed_bytes": 452323,
+    "configured_max_compressed_bytes": 5242880
+  },
+  "live_public_crossref_checks": [
+    {
+      "doi": "10.1021/am300292v",
+      "response": "ok",
+      "notice_type": "retraction",
+      "notice_doi": "10.1021/acsami.9b11759",
+      "source": "retraction-watch",
+      "in_old_extract": true
+    },
+    {
+      "doi": "10.1002/1873-3468.13480",
+      "response": "ok",
+      "notice_type": "retraction",
+      "notice_doi": "10.1002/1873-3468.70244",
+      "sources": ["publisher", "retraction-watch"],
+      "in_old_extract": false,
+      "in_new_extract": true
+    }
+  ],
+  "local_behavior": {
+    "new_doi_resolver_result": "retracted",
+    "targeted_tests": "37 passed: test_retraction_set.py, test_citation_resolver.py, test_report_markdown_bibliography.py",
+    "report_behavior": "Existing bibliography and Learning tab label positively identified retractions; no absence-of-notice clean assertion is shown."
+  },
+  "cost": "Public keyless Crossref metadata and dataset; no model inference, paid service, or private run/document input."
+}
