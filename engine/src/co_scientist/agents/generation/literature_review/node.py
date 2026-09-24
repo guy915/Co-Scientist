@@ -23,6 +23,7 @@ from typing import Any
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
     make_failure_result,
+    make_success_result,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _analyze_and_synthesize as _analyze_and_synthesize,
@@ -31,7 +32,7 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _append_kg_evidence_section as _append_kg_evidence_section,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
-    _build_and_cache_result as _build_and_cache_result,
+    _cache_result as _cache_result,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _collect_and_enrich_papers as _collect_and_enrich_papers,
@@ -210,6 +211,12 @@ async def _check_cache(
     )
     if cached is None:
         return None
+    if _has_orphaned_research_articles(cached):
+        logger.warning(
+            "Literature review cache entry has researched articles but no "
+            "research ledger; refreshing it"
+        )
+        return None
 
     logger.info("Literature review cache hit")
     await emit_progress(
@@ -220,6 +227,21 @@ async def _check_cache(
         cached=True,
     )
     return cached
+
+
+def _has_orphaned_research_articles(result: dict[str, Any]) -> bool:
+    """Return whether cached articles cite research without its ledger."""
+    if result.get("research_ledgers"):
+        return False
+    articles = result.get("articles")
+    if not isinstance(articles, list):
+        return False
+    return any(
+        article.get("retrieval_call_id")
+        if isinstance(article, dict)
+        else getattr(article, "retrieval_call_id", None)
+        for article in articles
+    )
 
 
 async def _check_server_available(
@@ -390,15 +412,14 @@ async def _finalize_review(
         state, queries, articles, collected.search_errors, synthesis
     )
 
-    result = _build_and_cache_result(
-        synthesis,
-        queries,
-        articles,
-        collected.context_enrichment_sources,
-        output.cache_plan,
-    )
+    result = make_success_result(synthesis, queries, articles)
+    if collected.context_enrichment_sources:
+        result["context_enrichment_sources"] = (
+            collected.context_enrichment_sources
+        )
     if output.research is not None:
         result["research_ledgers"] = [output.research.ledger]
+    result = _cache_result(result, output.cache_plan)
     return _with_llm_call_metrics(
         result, output.query_result.llm_calls + output.reviewed.llm_calls
     )

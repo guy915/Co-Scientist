@@ -32,7 +32,7 @@ distributed by Crossref.
     deduplicated and sorted -- none of the dataset's other columns
     (titles, authors, institutions, reasons) are retained or shipped.
     Rebuilt from the upstream CSV by app/dev/refresh_retractions.py; the
-    extract committed here was generated 2026-08-23.
+    extract committed here was generated 2026-09-24.
 
     Used by app/app/retraction_set.py as a second, independent retraction
     check in app/app/citation_resolver.py, alongside whatever the source

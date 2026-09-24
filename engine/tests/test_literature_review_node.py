@@ -16,15 +16,13 @@ from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
 from co_scientist.agents.generation.literature_review import node as lr
-from co_scientist.agents.generation.literature_review.research_phase import (
-    ResearchOutcome,
-)
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from tests._literature_node import (
     _TWO_PAPERS,
     _make_event_recorder,
     _RaisingClient,
     _stub_node,
+    _stub_research,
 )
 from tests._state import make_state
 
@@ -342,28 +340,6 @@ async def test_no_papers_without_error_emits_empty_event(
 # =============================================================================
 # Phase 6: what research adds to the node's result
 # =============================================================================
-
-
-def _stub_research(
-    monkeypatch: pytest.MonkeyPatch, section: str = "\n\n## Research\nfound"
-) -> None:
-    """Make phase 6 return one finding, one paper and a ledger."""
-
-    async def fake_phase(*_: Any, **__: Any) -> ResearchOutcome:
-        return ResearchOutcome(
-            ledger={"threads": [], "calls": [], "findings": []},
-            records={
-                "PMID7": {
-                    "title": "Researched paper",
-                    "abstract": "Abstract seven.",
-                    "retrieval_call_id": "call-7",
-                    "_source_name": "alpha",
-                }
-            },
-            section=section,
-        )
-
-    monkeypatch.setattr(lr, "run_research_phase", fake_phase)
 
 
 async def test_research_reaches_the_result_the_run_persists(

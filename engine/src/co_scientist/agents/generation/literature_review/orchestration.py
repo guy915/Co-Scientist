@@ -49,7 +49,6 @@ from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
     build_articles_from_metadata,
     get_papers_with_content,
-    make_success_result,
 )
 from co_scientist.agents.generation.literature_review.outcomes import (
     _handle_no_fulltext_available,
@@ -222,29 +221,15 @@ class _ReviewCachePlan:
     force_cache: bool
 
 
-def _build_and_cache_result(
-    synthesis: str,
-    queries: list[str],
-    articles: list[Article],
-    context_enrichment_sources: list[dict[str, Any]],
-    cache_plan: _ReviewCachePlan,
+def _cache_result(
+    result: dict[str, Any], cache_plan: _ReviewCachePlan
 ) -> dict[str, Any]:
-    """Build the success result dict and populate the node cache with it.
-
-    make_success_result always reports "success" even when synthesis is the
-    LITERATURE_REVIEW_FAILED sentinel (that case only reaches here via the
-    paper_analyses-empty branch, which still returns a normal-looking result
-    dict rather than an early failure return) - downstream nodes rely on
-    checking articles_with_reasoning for the sentinel rather than a
-    top-level status field.
+    """Store the finished literature-review result under its cache key.
 
     Cached under the same force_cache flag used for the lookup, so a
     dev-isolation run that missed the cache still populates it for the next
     call.
     """
-    result = make_success_result(synthesis, queries, articles)
-    if context_enrichment_sources:
-        result["context_enrichment_sources"] = context_enrichment_sources
     cache_plan.node_cache.set(
         "literature_review",
         result,

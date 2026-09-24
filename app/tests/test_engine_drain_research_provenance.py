@@ -15,8 +15,28 @@ surfaced them.
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from pathlib import Path
+from typing import Any, cast
+from unittest.mock import AsyncMock
 
+import pytest
+from co_scientist import cache_nodes
+from co_scientist.agents.generation.literature_review import node as lr
+from co_scientist.agents.generation.literature_review.collection import (
+    _CollectionResult,
+)
+from co_scientist.agents.generation.literature_review.orchestration import (
+    _ReviewSynthesis,
+)
+from co_scientist.agents.generation.literature_review.queries import (
+    QueryPhaseResult,
+)
+from co_scientist.agents.generation.literature_review.research_phase import (
+    ResearchOutcome,
+)
+from co_scientist.cache import NodeCache
+from co_scientist.models import Article
 from co_scientist.research import (
     CallStatus,
     Finding,
@@ -29,9 +49,14 @@ from co_scientist.research import (
     ThreadStatus,
     result_to_dict,
 )
+from co_scientist.state import WorkflowState
 
 from app import store
-from tests._drain_helpers import _persist_and_finalize
+from tests._drain_helpers import (
+    _build_report,
+    _engine_hypothesis,
+    _persist_and_finalize,
+)
 
 _CALL = SearchCall(
     question="What blocks TGF-beta signalling in humans?",
@@ -131,6 +156,125 @@ def test_evidence_resolves_to_the_search_that_found_it(
     assert found_by["query"] == "TGF-beta blockade human fibrosis"
     assert found_by["question"] == _CALL.question
     assert found_by["source"] == "pubmed"
+
+
+def test_cached_literature_review_keeps_provenance_through_the_report(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A cache hit preserves searches and article links without another search.
+
+    The engine cache and app drain/report are joined here so a cache payload
+    missing its ledger cannot silently publish evidence with no data source.
+    """
+    from co_scientist.agents.generation.literature_review import (
+        literature_review_node,
+    )
+
+    cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
+    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
+    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
+    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
+    collect = AsyncMock(
+        return_value=_CollectionResult(
+            all_paper_metadata={
+                "ordinary-1": {
+                    "title": "Ordinary search paper",
+                    "abstract": "A normal Phase 2 result.",
+                }
+            },
+            paper_source_map={},
+            search_errors=[],
+            background_context="",
+            context_enrichment_sources=[],
+        )
+    )
+    monkeypatch.setattr(lr, "check_mcp_available", AsyncMock(return_value=True))
+    monkeypatch.setattr(lr, "get_mcp_client", AsyncMock(return_value=object()))
+    monkeypatch.setattr(
+        lr,
+        "_phase1_generate_queries",
+        AsyncMock(
+            return_value=QueryPhaseResult(
+                queries=["TGF-beta blockade"], llm_calls=0
+            )
+        ),
+    )
+    monkeypatch.setattr(lr, "_collect_and_enrich_papers", collect)
+    monkeypatch.setattr(
+        lr,
+        "_analyze_and_synthesize",
+        AsyncMock(return_value=_ReviewSynthesis("SYNTHESIZED REVIEW", 0, [])),
+    )
+    monkeypatch.setattr(
+        lr,
+        "run_research_phase",
+        AsyncMock(
+            return_value=ResearchOutcome(
+                ledger=_ledger(),
+                records={
+                    "12345678": {
+                        "title": "A researched paper",
+                        "abstract": "TGF-beta blockade reduced fibrosis.",
+                        "retrieval_call_id": _CALL.id,
+                    }
+                },
+                section=(
+                    "\n\n## Research\nA human cohort supports the finding."
+                ),
+            )
+        ),
+    )
+
+    state = cast(
+        WorkflowState,
+        {
+            "research_goal": "reverse fibrosis",
+            "model_name": "test-model",
+            "research_tier": "extended",
+        },
+    )
+    cache.set(
+        "literature_review",
+        {
+            "articles": [
+                Article(
+                    title="Legacy researched paper",
+                    retrieval_call_id=_CALL.id,
+                )
+            ],
+            "articles_with_reasoning": "LEGACY CACHE",
+        },
+        **lr._literature_cache_params(state, lr._get_search_config(state)),
+    )
+    asyncio.run(literature_review_node(state))
+    cached = asyncio.run(literature_review_node(state))
+    assert collect.await_count == 1
+
+    final_state = {
+        "hypotheses": [
+            _engine_hypothesis("h1", "TGF-beta blockade reduces fibrosis.")
+        ],
+        "articles": [article.to_dict() for article in cached["articles"]],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+        "research_ledgers": cached.get("research_ledgers", []),
+    }
+    run = store.create_run("provenance goal", "extended", "engine", {})
+    _persist_and_finalize(run, final_state, isolated_db)
+
+    calls = store.list_retrieval_calls(run.id, db_path=isolated_db)
+    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    by_title = {row["title"]: row for row in evidence}
+    assert len(calls) == 1
+    assert by_title["A researched paper"]["retrieval_call_id"] == _CALL.id
+    assert by_title["Ordinary search paper"]["retrieval_call_id"] is None
+    _, markdown = asyncio.run(_build_report(run, isolated_db))
+    assert "## Data sources" in markdown
+    assert _CALL.question in markdown
 
 
 def test_what_was_seen_and_not_read_stays_on_record(
