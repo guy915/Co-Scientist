@@ -127,7 +127,11 @@ async def get_tasks(run_id: str) -> dict[str, Any]:
 
 
 async def _apply_adjudication_lifecycle(
-    run: store.RunRow, decision: dict[str, Any], resolution: str
+    run: store.RunRow,
+    decision: dict[str, Any],
+    resolution: str,
+    *,
+    expected_lifecycle_revision: int,
 ) -> None:
     """Apply the run-lifecycle consequence of one adjudicated decision.
 
@@ -141,20 +145,54 @@ async def _apply_adjudication_lifecycle(
         run: The run whose decision was adjudicated.
         decision: The resolved decision row (carries its ``stage``).
         resolution: ``"approved"`` or ``"rejected"``.
+        expected_lifecycle_revision: Transition revision observed at admission.
     """
     if decision["stage"] == "hypothesis":
         return
     if resolution == "rejected":
+        _block_rejected_run_if_current(
+            run, expected_lifecycle_revision=expected_lifecycle_revision
+        )
+    elif run.status == RunStatus.PAUSED.value:
+        await _release_approved_hold(
+            run.id,
+            expected_status=run.status,
+            expected_lifecycle_revision=expected_lifecycle_revision,
+        )
+
+
+def _block_rejected_run_if_current(
+    run: store.RunRow, *, expected_lifecycle_revision: int
+) -> None:
+    """Block a rejected run only while its admission state is unchanged."""
+    from app.runs_lifecycle import _lifecycle_revision
+
+    with store.transaction() as conn:
+        current = store.get_run(run.id, conn=conn)
+        if current is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if (
+            current.status != run.status
+            or _lifecycle_revision(run.id, conn=conn)
+            != expected_lifecycle_revision
+        ):
+            raise HTTPException(
+                status_code=409, detail="run status changed during adjudication"
+            )
         store.update_run_status(
             run.id,
             RunStatus.BLOCKED,
             error="Safety reviewer rejected held content.",
+            conn=conn,
         )
-    elif run.status == RunStatus.PAUSED.value:
-        await _release_approved_hold(run.id)
 
 
-async def _release_approved_hold(run_id: str) -> None:
+async def _release_approved_hold(
+    run_id: str,
+    *,
+    expected_status: str,
+    expected_lifecycle_revision: int,
+) -> None:
     """Relaunch a run whose intake or final hold a reviewer just approved.
 
     The gate that held the run parked its task rather than completing it
@@ -171,7 +209,11 @@ async def _release_approved_hold(run_id: str) -> None:
     """
     from app.runs_lifecycle import _launch_resume
 
-    await _launch_resume(run_id)
+    await _launch_resume(
+        run_id,
+        expected_status=expected_status,
+        expected_lifecycle_revision=expected_lifecycle_revision,
+    )
 
 
 @router.post("/{run_id}/safety/{decision_id}/adjudicate")
@@ -182,7 +224,9 @@ async def adjudicate_safety(
     request: Request,
 ) -> dict[str, Any]:
     """Resolve one held safety decision and update the run lifecycle."""
-    run = _run_or_404(run_id)
+    from app.runs_lifecycle import _resume_admission_snapshot
+
+    run, lifecycle_revision = _resume_admission_snapshot(run_id)
     reviewer = client_id(request)
     if not reviewer:
         raise HTTPException(
@@ -198,7 +242,12 @@ async def adjudicate_safety(
         )
     decisions = store.list_safety_decisions(run_id)
     decision = next(item for item in decisions if item["id"] == decision_id)
-    await _apply_adjudication_lifecycle(run, decision, body.resolution)
+    await _apply_adjudication_lifecycle(
+        run,
+        decision,
+        body.resolution,
+        expected_lifecycle_revision=lifecycle_revision,
+    )
     return {"resolution": body.resolution, "decision_id": decision_id}
 
 

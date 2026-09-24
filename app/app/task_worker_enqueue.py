@@ -424,20 +424,31 @@ def _revive_spent_precheckpoint_bootstrap(
     )
 
 
-def enqueue_run_workflow(
+def enqueue_run_workflow(  # noqa: PLR0913 -- `conn` joins lifecycle's transaction.
     run_id: str,
     *,
     force_provider: str | None = None,
     resume: bool = False,
     revive_failed_precheckpoint_bootstrap: bool = False,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    """Enqueue one idempotent workflow attempt for a run."""
+    """Enqueue one idempotent workflow attempt for a run.
+
+    A caller that already owns a write transaction may pass its connection so
+    resume discovery and enqueue stay atomic with the lifecycle transition.
+    """
     if resume:
+        if conn is not None:
+            return _enqueue_resumed_workflow(
+                run_id,
+                _ResumeDB(db_path, conn),
+                revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
+            )
         with store.transaction(db_path) as conn:
             return _enqueue_resumed_workflow(
                 run_id,
                 _ResumeDB(db_path, conn),
                 revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
             )
-    return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
+    return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path, conn=conn)

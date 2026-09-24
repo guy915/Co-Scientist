@@ -19,12 +19,33 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app import engine_adapter, engine_tasks, store, task_worker
+from app import engine_tasks, runs_resume_admission, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
 from app.runs_support import _run_or_404
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
-from app.task_worker_enqueue import is_abandoned_spent_bootstrap
+
+(
+    _has_failed_precheckpoint_bootstrap_while_paused,
+    _has_leased_precheckpoint_bootstrap,
+    _has_paused_engine_task,
+    _is_resumable,
+    _lifecycle_revision,
+    _prepare_resume_state,
+    _queue_resume_workflow,
+    _resume_admission_snapshot,
+    _resume_detail,
+) = (
+    runs_resume_admission._has_failed_precheckpoint_bootstrap_while_paused,
+    runs_resume_admission._has_leased_precheckpoint_bootstrap,
+    runs_resume_admission._has_paused_engine_task,
+    runs_resume_admission._is_resumable,
+    runs_resume_admission._lifecycle_revision,
+    runs_resume_admission._prepare_resume_state,
+    runs_resume_admission._queue_resume_workflow,
+    runs_resume_admission._resume_admission_snapshot,
+    runs_resume_admission._resume_detail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,47 +232,6 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail="run is not active")
 
 
-def _has_paused_engine_task(run_id: str) -> bool:
-    """Return whether the run has a paused engine-provider task queued."""
-    return store.has_task_of_type(
-        run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused"
-    )
-
-
-def _has_leased_precheckpoint_bootstrap(run_id: str) -> bool:
-    """A bootstrap lease is a resumable boundary before its first checkpoint."""
-    return not store.has_checkpoint(run_id) and store.has_task_of_type(
-        run_id, engine_tasks.BOOTSTRAP_TASK, status="leased"
-    )
-
-
-def _has_failed_precheckpoint_bootstrap_while_paused(run_id: str) -> bool:
-    """Allow retry only when abandonment failed a bootstrap in a paused run."""
-    if store.has_checkpoint(run_id):
-        return False
-    run = store.get_run(run_id)
-    if run is None or run.status != RunStatus.PAUSED.value:
-        return False
-    return any(
-        is_abandoned_spent_bootstrap(task) for task in store.list_tasks(run_id)
-    )
-
-
-def _is_resumable(run_id: str) -> bool:
-    """Report whether anything durable exists for this run to resume from.
-
-    A checkpoint restores engine state; a paused engine task resumes its
-    boundary; a leased or abandoned bootstrap survives pause before either
-    exists.
-    """
-    return (
-        store.has_checkpoint(run_id)
-        or _has_paused_engine_task(run_id)
-        or _has_leased_precheckpoint_bootstrap(run_id)
-        or _has_failed_precheckpoint_bootstrap_while_paused(run_id)
-    )
-
-
 @router.post("/{run_id}/resume")
 async def resume_run(run_id: str) -> dict[str, Any]:
     """Resume a paused or interrupted run from its last checkpoint.
@@ -266,14 +246,18 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     on: failing a run never touched its task rows, so their retry budgets
     are intact.
     """
-    run = _run_or_404(run_id)
+    run, lifecycle_revision = _resume_admission_snapshot(run_id)
     if run.status == RunStatus.COMPLETED.value:
         raise HTTPException(status_code=409, detail="run already completed")
     if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
         raise HTTPException(status_code=409, detail="run already in progress")
     if not _is_resumable(run_id):
         raise HTTPException(status_code=409, detail="run has no checkpoint")
-    await _launch_resume(run_id)
+    await _launch_resume(
+        run_id,
+        expected_status=run.status,
+        expected_lifecycle_revision=lifecycle_revision,
+    )
     return {"id": run_id, "status": "queued"}
 
 
@@ -290,82 +274,6 @@ def _log_resume_task_result(task: asyncio.Task[None]) -> None:
     _resume_tasks.discard(task)
     if not task.cancelled() and task.exception() is not None:
         logger.error("Resume worker crashed", exc_info=task.exception())
-
-
-def _prepare_resume_state(run_id: str) -> bool:
-    """Clear stale derived data for a legacy resume and return true_resume.
-
-    Two resume modes, chosen by the kind of checkpoint on disk:
-
-    - Engine checkpoint (a serialized WorkflowState), an already-queued
-      paused engine task, or a leased/abandoned pre-checkpoint bootstrap: a *true*
-      resume. The engine restores or continues that state
-      and re-enters at the orchestrator, so completed LLM/tool work is not
-      repeated. Derived data is NOT cleared — the engine persists artifacts
-      only at the final drain, so a mid-run interruption left only events +
-      the checkpoint, and clearing would discard the pre-orchestrator events
-      that resume never re-emits.
-    - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
-      state to restore, so the durable worker re-bootstraps the run from its
-      goal/config instead of a true resume. Derived data AND the stale
-      envelope checkpoint are cleared so the fresh run neither duplicates rows
-      or events nor trips the durable bootstrap's empty-checkpoint guard
-      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
-      history).
-    """
-    checkpoint = store.get_latest_checkpoint(run_id)
-    true_resume = (
-        engine_adapter.is_engine_checkpoint(checkpoint)
-        or _has_paused_engine_task(run_id)
-        or _has_leased_precheckpoint_bootstrap(run_id)
-        or _has_failed_precheckpoint_bootstrap_while_paused(run_id)
-    )
-    if not true_resume:
-        store.clear_run_derived_data(run_id)
-        store.clear_checkpoints(run_id)
-    return true_resume
-
-
-def _resume_detail(true_resume: bool) -> str:
-    """Name what the resume is actually re-entering from."""
-    return "from specialist checkpoint" if true_resume else "from checkpoint"
-
-
-def _queue_resume_workflow(
-    run_id: str,
-    true_resume: bool,
-    *,
-    revive_failed_precheckpoint_bootstrap: bool = False,
-) -> ScientificTask:
-    """Mark the run queued, emit the resuming event, and enqueue its task."""
-    store.update_run_status(run_id, RunStatus.QUEUED)
-    store.append_event(
-        run_id,
-        "status",
-        {
-            "status": "resuming",
-            "detail": _resume_detail(true_resume),
-        },
-    )
-    queued = task_worker.enqueue_run_workflow(
-        run_id,
-        resume=true_resume,
-        revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
-    )
-    # Say what the resume actually landed on, not just that it happened. The
-    # "resuming" event above is emitted before any work is queued, so on its
-    # own it cannot distinguish a resume that started work from one that
-    # enqueued nothing -- which is how a wedged run could announce a resume
-    # every restart and sit silent for hours with no way to tell why. A task
-    # here that is not 'queued' is the tell: nothing is claimable.
-    logger.info(
-        "Resume for run %s landed on %s task %s (status=%s)",
-        run_id,
-        queued.task_type,
-        queued.id[:8],
-        queued.status,
-    )
-    return queued
 
 
 def _launch_embedded_resume_worker(run_id: str) -> None:
@@ -395,7 +303,12 @@ def _launch_embedded_resume_worker(run_id: str) -> None:
     task.add_done_callback(_log_resume_task_result)
 
 
-async def _launch_resume(run_id: str) -> None:
+async def _launch_resume(
+    run_id: str,
+    *,
+    expected_status: str | None = None,
+    expected_lifecycle_revision: int | None = None,
+) -> None:
     """Relaunch a run through the durable worker, on a detached task.
 
     Shared by the resume endpoint and the startup auto-resume launcher.
@@ -404,18 +317,45 @@ async def _launch_resume(run_id: str) -> None:
     BackgroundTasks; a strong reference is kept until it finishes so it is
     not garbage-collected. A completed run is never relaunched by callers.
     """
-    _run_or_404(run_id)
-    revive_failed_bootstrap = _has_failed_precheckpoint_bootstrap_while_paused(
-        run_id
-    )
-    true_resume = _prepare_resume_state(run_id)
+    if expected_status is None or expected_lifecycle_revision is None:
+        # Retain the internal helper's direct-call contract; request, hold,
+        # and startup paths pass the state they observed at admission.
+        run, revision = _resume_admission_snapshot(run_id)
+        if expected_status is None:
+            expected_status = run.status
+        if expected_lifecycle_revision is None:
+            expected_lifecycle_revision = revision
     _queue_resume_workflow(
         run_id,
-        true_resume,
-        revive_failed_precheckpoint_bootstrap=revive_failed_bootstrap,
+        expected_status=expected_status,
+        expected_lifecycle_revision=expected_lifecycle_revision,
     )
     if settings.coscientist_embedded_worker:
         _launch_embedded_resume_worker(run_id)
+
+
+async def _resume_interrupted_run(run_id: str) -> None:
+    """Resume one startup candidate only if it is still active."""
+    try:
+        run, lifecycle_revision = _resume_admission_snapshot(run_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return
+        raise
+    if run.status not in {
+        RunStatus.QUEUED.value,
+        RunStatus.RUNNING.value,
+        RunStatus.SYNTHESIZING.value,
+    }:
+        return
+    try:
+        await _launch_resume(
+            run_id,
+            expected_status=run.status,
+            expected_lifecycle_revision=lifecycle_revision,
+        )
+    except HTTPException:
+        logger.warning("Could not auto-resume run %s", run_id)
 
 
 async def resume_interrupted_runs(run_ids: list[str]) -> None:
@@ -426,10 +366,4 @@ async def resume_interrupted_runs(run_ids: list[str]) -> None:
     Skips any run that has since completed.
     """
     for run_id in run_ids:
-        run = store.get_run(run_id)
-        if run is None or run.status == RunStatus.COMPLETED.value:
-            continue
-        try:
-            await _launch_resume(run_id)
-        except HTTPException:
-            logger.warning("Could not auto-resume run %s", run_id)
+        await _resume_interrupted_run(run_id)

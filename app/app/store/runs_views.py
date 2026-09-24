@@ -266,9 +266,11 @@ def clear_run_derived_data(
 ) -> None:
     """Delete a run's derived pipeline data for a clean deterministic resume.
 
-    Removes the run's events, report, safety decisions, evidence, matches,
-    reviews, citations, claim-evidence, execution metrics, and hypotheses
-    (plus the per-hypothesis state rows). The run row itself, its
+    Removes generated run events, report, safety decisions, evidence,
+    matches, reviews, citations, claim-evidence, execution metrics, and
+    hypotheses (plus the per-hypothesis state rows). Status and lifecycle
+    events remain as the admission audit and monotonic resume revision. The
+    run row itself, its
     checkpoints, its messages
     (steering/Q&A history), and the scientist's contributions (manual
     hypotheses, human reviews, attachments) are kept, so a resumed run
@@ -301,12 +303,13 @@ def clear_run_derived_data(
         _delete_agent_derived_rows(conn, run_id)
         for table in run_scoped:
             if table == "run_events":
-                # A scientist.outcome event is the immutable audit for a
-                # scientist-owned record; preserve its original payload and
-                # sequence while replacing agent-generated timeline entries.
+                # Keep scientist and lifecycle audit rows with their original
+                # sequences; status/lifecycle seqs reject stale resume admits.
+                # Generated timeline entries, including logs, are cleared.
                 conn.execute(
                     "DELETE FROM run_events WHERE run_id=? "
-                    "AND type != 'scientist.outcome'",
+                    "AND type NOT IN "
+                    "('scientist.outcome', 'status', 'lifecycle')",
                     (run_id,),
                 )
             else:
