@@ -92,48 +92,82 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
         await invoke("search_pubmed")
 
 
-@pytest.mark.parametrize("include_new_tool", [False, True])
-async def test_new_client_accepts_old_and_current_manifests_during_rollout(
-    qualified: dict[str, Any], _patch_mcp_seam: Any, include_new_tool: bool
+@pytest.mark.parametrize(
+    ("deployment", "expected_additions"),
+    [
+        # M10 added citation edges; M11 then added GWAS. These are the only
+        # two deployment manifests in the supported forward rollout.
+        ("m10", {"get_opencitations_citation_edges"}),
+        (
+            "m11",
+            {
+                "get_opencitations_citation_edges",
+                "search_gwas_catalog_associations",
+            },
+        ),
+        # Explicit rollback target before the M10 citation-tool addition.
+        ("pre_citation_rollback", set()),
+    ],
+)
+async def test_client_accepts_real_deployment_manifests_during_rollout(
+    qualified: dict[str, Any],
+    _patch_mcp_seam: Any,
+    deployment: str,
+    expected_additions: set[str],
 ) -> None:
+    current_tools = set(qualified["campaign_policy"]["tools"])
+    assert {
+        "get_opencitations_citation_edges",
+        "search_gwas_catalog_associations",
+    } <= current_tools
     manifest_tools = {
-        tool
-        for tool in qualified["campaign_policy"]["tools"]
-        if tool != "get_opencitations_citation_edges"
-    }
-    if include_new_tool:
-        manifest_tools.add("get_opencitations_citation_edges")
+        "m10": current_tools - {"search_gwas_catalog_associations"},
+        "m11": current_tools,
+        "pre_citation_rollback": current_tools
+        - {
+            "get_opencitations_citation_edges",
+            "search_gwas_catalog_associations",
+        },
+    }[deployment]
     qualified["campaign_policy"]["tools"] = sorted(manifest_tools)
+
+    tool_text = {
+        "search_pubmed": "public evidence",
+        "get_opencitations_citation_edges": "citation edges",
+        "search_gwas_catalog_associations": "GWAS associations",
+    }
     _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
-    if include_new_tool:
-        _patch_mcp_seam.tools.append(
-            string_tool("get_opencitations_citation_edges", "citation edges")
-        )
+    _patch_mcp_seam.tools.extend(
+        string_tool(name, tool_text[name]) for name in expected_additions
+    )
 
     client = MCPToolClient(server_url=URL)
     await client.initialize()
     tool_map, _ = client.get_tools()
-    expected_tools = {"search_pubmed"}
-    if include_new_tool:
-        expected_tools.add("get_opencitations_citation_edges")
-        assert "citation edges" in str(
-            await client.call_tool("get_opencitations_citation_edges")
-        )
-    assert set(tool_map) == expected_tools
+    assert set(tool_map) == {"search_pubmed", *expected_additions}
+    for name in expected_additions:
+        assert tool_text[name] in str(await client.call_tool(name))
 
-    if not include_new_tool:
-        # The MCP deployment can advance while this client remains active.
-        qualified["campaign_policy"]["tools"] = sorted(
-            [
-                *qualified["campaign_policy"]["tools"],
-                "get_opencitations_citation_edges",
-            ]
-        )
+    if deployment == "m10":
+        # An M10-bound client must tolerate the server advancing to M11.
+        qualified["campaign_policy"]["tools"] = sorted(current_tools)
         assert "public evidence" in str(await client.call_tool("search_pubmed"))
 
     qualified["campaign_policy"]["tools"].append("unqualified_paid_tool")
     with pytest.raises(RuntimeError, match="campaign"):
         await client.call_tool("search_pubmed")
+
+
+async def test_client_rejects_gwas_manifest_without_m10_citation_tool(
+    qualified: dict[str, Any], _patch_mcp_seam: Any
+) -> None:
+    """A GWAS-only addition cannot come from either actual deployment step."""
+    tools = set(qualified["campaign_policy"]["tools"])
+    tools.remove("get_opencitations_citation_edges")
+    qualified["campaign_policy"]["tools"] = sorted(tools)
+    with pytest.raises(RuntimeError, match="campaign"):
+        await MCPToolClient(server_url=URL).initialize()
+    assert _patch_mcp_seam.instances_created == 0
 
 
 @pytest.mark.parametrize(

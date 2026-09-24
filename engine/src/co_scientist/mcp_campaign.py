@@ -35,9 +35,13 @@ PUBLIC_TOOLS = frozenset(
         "search_ensembl_gene",
         "search_gnomad_constraint",
         "search_clinical_trials",
+        "search_gwas_catalog_associations",
     }
 )
-_PREVIOUS_PUBLIC_TOOLS = PUBLIC_TOOLS - {"get_opencitations_citation_edges"}
+_M10_PUBLIC_TOOLS = PUBLIC_TOOLS - {"search_gwas_catalog_associations"}
+_PRE_CITATION_ROLLBACK_TOOLS = _M10_PUBLIC_TOOLS - {
+    "get_opencitations_citation_edges"
+}
 
 
 def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
@@ -119,11 +123,16 @@ class CampaignAdmission:
             "enabled": True,
             "anonymous_openalex": True,
         }
-        # Permit only the previous safe manifest while the MCP deploy follows
-        # the API deploy; reject every other policy change.
+        # M10 added citation edges; M11 added GWAS after it. Accept those
+        # exact rollout states plus the known pre-citation rollback target.
+        # Reject hybrids and every unreviewed tool addition.
         accepted_policies = [
             {**expected_policy, "tools": sorted(tools)}
-            for tools in (PUBLIC_TOOLS, _PREVIOUS_PUBLIC_TOOLS)
+            for tools in (
+                PUBLIC_TOOLS,
+                _M10_PUBLIC_TOOLS,
+                _PRE_CITATION_ROLLBACK_TOOLS,
+            )
         ]
         if (
             not isinstance(data, dict)
