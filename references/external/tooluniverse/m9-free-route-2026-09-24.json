@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-09-24T19:27:45Z",
+  "source": "https://openrouter.ai/api/v1/models",
+  "id": "nex-agi/nex-n2.5-pro:free",
+  "pricing": {
+    "prompt": "0",
+    "completion": "0"
+  },
+  "expiration_date": "2026-09-25",
+  "context_length": 262144,
+  "supported_parameters": [
+    "include_reasoning",
+    "logprobs",
+    "max_tokens",
+    "reasoning",
+    "reasoning_effort",
+    "response_format",
+    "structured_outputs",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_k",
+    "top_logprobs",
+    "top_p"
+  ]
+}

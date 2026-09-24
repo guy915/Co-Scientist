@@ -56,4 +56,4 @@ Source exclusions: OpenAlex duplicates the current default connector, so its Too
 
 ## Release evidence
 
-M9-CACHE-03 and M9-ERR-05 have local code changes and bounded tests; M9-RET-06 refreshed the existing retraction extract. No M9 PR or deployment has occurred. Full release checks remain open.
+M9-CACHE-03 and M9-ERR-05 have local code changes and bounded tests; M9-RET-06 refreshed the existing retraction extract. The [24 September official OpenRouter catalog receipt](tooluniverse/m9-free-route-2026-09-24.json) shows the selected Nex Pro route at zero prompt/completion price through its advertised 25 September date. A non-secret Railway production readback found `MODEL_NAME`, `SUPERVISOR_MODEL_NAME`, `CHAT_MODEL_NAME` and `SEMANTIC_SAFETY_MODEL` all set to that exact route; `CLAIM_VERIFIER_MODEL` remains unset and inherits the main model. The request boundary rechecks price/date and binds zero-price caps. No M9 inference has run; M10-OPS-01 retains a hard prerequisite for any inference after expiry. No M9 PR or deployment has occurred. Full release checks remain open.
