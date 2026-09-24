@@ -24,9 +24,9 @@ Endpoints:
 - GET    /api/runs/{id}/report            structured report payload (latest)
 - GET    /api/runs/{id}/report.md         Goal Report document (markdown)
 
-Cancellation and pause are durable: they revoke the run's queued/leased
-tasks and update the run row, which the workers observe. Streams are backed
-by the persisted event log so they survive client reconnects and full
+Cancellation revokes queued and leased tasks; pause parks queued work while
+leased tasks may finish, with engine claims held until resume. Streams use
+the persisted event log so they survive client reconnects and full
 backend restarts. Request models live in ``runs_models`` and SSE streaming
 helpers in ``runs_events``.
 

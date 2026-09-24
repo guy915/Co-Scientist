@@ -54,7 +54,7 @@ def _seed_halted_finalize(
             }
         ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    task = store.enqueue_task(
+    queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
             task_type=engine_tasks.FINALIZE_TASK,
@@ -63,6 +63,10 @@ def _seed_halted_finalize(
         ),
         db_path=db_path,
     )
+    task = store.claim_task(
+        "finalize-safety-worker", run_id=run_id, db_path=db_path
+    )
+    assert task is not None and task.id == queued.id
     monkeypatch.setattr(
         engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
     )

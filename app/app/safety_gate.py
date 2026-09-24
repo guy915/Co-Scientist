@@ -9,6 +9,7 @@ is re-exported from ``app.safety``, which remains the import surface.
 from __future__ import annotations
 
 import logging
+import sqlite3
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
@@ -16,6 +17,7 @@ from app import store
 from app.safety_redaction import redact_matched_spans
 from app.safety_types import SafetyDecision
 from app.store import RunStatus
+from app.store.tasks_model import ScientificTask
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,11 @@ def _apply_intake_redaction(
 
 
 def _record_safety_decision(
-    run_id: str, result: SafetyDecision, *, db_path: str | None
+    run_id: str,
+    result: SafetyDecision,
+    *,
+    db_path: str | None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Persist the decision and log it at a level matching its severity."""
     store.add_safety_decision(
@@ -76,6 +82,7 @@ def _record_safety_decision(
             assessor=result.assessor,
         ),
         db_path=db_path,
+        conn=conn,
     )
     if result.decision in {"block", "hold"}:
         logger.warning(
@@ -91,6 +98,47 @@ def _record_safety_decision(
             run_id,
             result.stage,
         )
+
+
+def _commit_task_safety_events(
+    run_id: str,
+    result: SafetyDecision,
+    task: ScientificTask,
+    db_path: str | None,
+) -> list[dict[str, Any]]:
+    """Fence a durable task's safety decision and terminal status effects."""
+    from app.engine_tasks_support import _assert_task_commit_allowed
+
+    decision_payload = result.to_dict()
+    event_type = f"safety.{result.stage}"
+    events: list[dict[str, Any]] = []
+    with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
+        _record_safety_decision(run_id, result, db_path=db_path, conn=conn)
+        seq = store.append_event(
+            run_id, event_type, decision_payload, conn=conn
+        )
+        events.append(
+            {"seq": seq, "type": event_type, "payload": decision_payload}
+        )
+        if result.decision == "block":
+            status = RunStatus.BLOCKED
+            payload = {"status": "blocked", "error": result.reason}
+        elif result.decision == "hold":
+            status = RunStatus.PAUSED
+            payload = {
+                "status": "paused",
+                "reason": "safety_review",
+                "error": result.reason,
+            }
+        else:
+            return events
+        store.update_run_status(
+            run_id, status, error=result.reason, db_path=db_path, conn=conn
+        )
+        seq = store.append_event(run_id, "status", payload, conn=conn)
+        events.append({"seq": seq, "type": "status", "payload": payload})
+    return events
 
 
 def _commit_gate_status_event(
@@ -164,13 +212,14 @@ async def _yield_terminal_status_event(
             yield event
 
 
-async def apply_safety_gate(
+async def apply_safety_gate(  # noqa: PLR0913
     run_id: str,
     result: SafetyDecision,
     emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
     *,
     db_path: str | None = None,
     lease_guard: tuple[str, str | None, int] | None = None,
+    task: ScientificTask | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Record a safety decision, emit it, and gate the run on a hard block.
 
@@ -186,10 +235,17 @@ async def apply_safety_gate(
         emit: The provider's event emitter, called as ``emit(type, payload)``.
         db_path: Optional override for the SQLite database path.
         lease_guard: Optional bootstrap task lease to fence intake verdicts.
+        task: Optional durable task whose lease fences all gate writes.
 
     Yields:
         Event dicts to forward on the workflow's event stream.
     """
+    if task is not None:
+        events = _commit_task_safety_events(run_id, result, task, db_path)
+        _apply_intake_redaction(run_id, result, db_path=db_path)
+        for event in events:
+            yield event
+        return
     _record_safety_decision(run_id, result, db_path=db_path)
     _apply_intake_redaction(run_id, result, db_path=db_path)
     yield await emit(f"safety.{result.stage}", result.to_dict())

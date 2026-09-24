@@ -6,8 +6,9 @@ to the resume launcher shared by the resume endpoint and the startup
 auto-resume path (``resume_interrupted_runs``, called from the app
 lifespan in ``app.main``).
 
-Cancellation and pause are durable: they revoke the run's queued/leased
-tasks and update the run row, which the workers observe.
+Cancellation revokes queued and leased tasks. Pause parks queued work and
+marks the run PAUSED; leased work may finish its checkpoint, while the run
+status prevents its successors from being claimed until explicit resume.
 """
 
 from __future__ import annotations
@@ -201,9 +202,9 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
 async def pause_run(run_id: str) -> dict[str, Any]:
     """Cooperatively pause a durably-queued/running engine run.
 
-    Marks the run's queued/leased engine tasks paused and the run PAUSED; the
-    durable worker's own per-task checkpoint (``engine_tasks.py``) is what
-    makes the run resumable, so no extra checkpoint needs to be created here.
+    Parks queued engine tasks and marks the run PAUSED. Already-leased work
+    may finish its durable checkpoint, but no engine successor can be claimed
+    until explicit resume; no extra checkpoint needs to be created here.
     """
     with store.transaction() as conn:
         run = store.get_run(run_id, conn=conn)

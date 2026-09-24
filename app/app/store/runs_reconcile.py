@@ -208,6 +208,28 @@ def reconcile_interrupted_runs(
     failed: list[str] = []
     resumable: list[str] = []
     with connect(db_path) as conn:
+        # A finalize task can commit its report and then lose the process
+        # before the worker records task success. At startup all prior
+        # process leases are orphaned, so settle only that already-published
+        # boundary; no active run or other task type is eligible here.
+        recovered = conn.execute(
+            "UPDATE scientific_tasks SET status='completed', "
+            "result_json=COALESCE(result_json, '{}'), error=NULL, "
+            "lease_owner=NULL, lease_expires_at=NULL, completed_at=?, "
+            "updated_at=? WHERE task_type='engine.finalize' "
+            "AND status='leased' "
+            "AND EXISTS (SELECT 1 FROM runs WHERE "
+            "runs.id=scientific_tasks.run_id AND runs.status=?) "
+            "AND EXISTS (SELECT 1 FROM reports WHERE "
+            "reports.run_id=scientific_tasks.run_id)",
+            (now, now, RunStatus.COMPLETED.value),
+        ).rowcount
+        if recovered:
+            logger.info(
+                "Reconciled %d finalize task(s) whose reports were already "
+                "published before restart.",
+                recovered,
+            )
         rows = conn.execute(
             "SELECT id FROM runs WHERE status IN (?,?,?)",
             _ACTIVE_RUN_STATUSES,
