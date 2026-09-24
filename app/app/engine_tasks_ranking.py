@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app import store
 from app.engine_tasks_context import ExactSuccessor, TaskCommit
 from app.engine_tasks_ranking_wave import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
@@ -48,8 +49,8 @@ from app.engine_tasks_support import (
     _save_state_and_enqueue,
     _save_state_and_enqueue_exact,
 )
-from app.report_render import make_emitter
 from app.store import ScientificTask
+from app.store.runs_reconcile import _ACTIVE_RUN_STATUSES
 
 
 def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
@@ -248,17 +249,22 @@ async def _emit_ranking_wave_progress(
         next_index // RANKING_PROGRESS_EVERY
     )
     if plan.wave and next_index < rounds and crossed:
-        emit = make_emitter(commit.task.run_id, db_path=commit.db_path)
-        await emit(
-            "scientific_task",
-            {
-                "task": "ranking",
-                "status": "running",
-                "checkpoint_seq": committed_seq,
-                "successor": None,
-                "message": f"Tournament match {milestone} of {rounds}",
-            },
-        )
+        with store.transaction(commit.db_path) as conn:
+            run = store.get_run(commit.task.run_id, conn=conn)
+            if run is None or run.status not in _ACTIVE_RUN_STATUSES:
+                return
+            store.append_event(
+                commit.task.run_id,
+                "scientific_task",
+                {
+                    "task": "ranking",
+                    "status": "running",
+                    "checkpoint_seq": committed_seq,
+                    "successor": None,
+                    "message": f"Tournament match {milestone} of {rounds}",
+                },
+                conn=conn,
+            )
 
 
 async def _commit_ranking_match(

@@ -27,6 +27,9 @@ async def test_long_tournament_reports_progress_between_its_matches(
     newest handful of events) still shows the surrounding phases.
     """
     run = store.create_run("Task-level science", "standard", "engine", {})
+    store.update_run_status(
+        run.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
     _seed_ranking_node(
         run.id,
         monkeypatch,
