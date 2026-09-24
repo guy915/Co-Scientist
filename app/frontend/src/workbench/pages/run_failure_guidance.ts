@@ -15,6 +15,12 @@ export function runFailureGuidance(
           'The model provider did not respond within the request timeout. Try the research again later.',
         toast: 'Run failed. See the suggested next step below.',
       };
+    case 'llm_timeout_unknown':
+      return {
+        message:
+          'The provider may have accepted the request; acceptance and any charge are unconfirmed. The run was not retried automatically. Restarting or resuming may repeat provider work.',
+        toast: 'Run failed. See the suggested next step below.',
+      };
     default:
       return null;
   }

@@ -115,12 +115,13 @@ def _record_failed_attempt(
     return json.dumps(attempts)
 
 
-def _persist_failed_attempt(
+def _persist_failed_attempt(  # noqa: PLR0913 -- writes retry timing atomically.
     conn: sqlite3.Connection,
     task: ScientificTask,
     worker_id: str,
     error: str,
     retryable: bool,
+    retry_at: float | None = None,
 ) -> str:
     """Record one failed attempt and write the resulting task state.
 
@@ -141,11 +142,12 @@ def _persist_failed_attempt(
     conn.execute(
         "UPDATE scientific_tasks SET status=?, error=?, "
         "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
-        "completed_at=?, updated_at=? WHERE id=?",
+        "available_at=?, completed_at=?, updated_at=? WHERE id=?",
         (
             status,
             error,
             attempts_json,
+            retry_at if status == "queued" else None,
             now if status == "failed" else None,
             now,
             task.id,

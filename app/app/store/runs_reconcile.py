@@ -17,7 +17,7 @@ import logging
 import sqlite3
 
 from app.store.checkpoints import has_checkpoint
-from app.store.db import _now, connect
+from app.store.db import _now, connect, transaction
 from app.store.events import _append_event
 from app.store.models import RunStatus
 from app.store.tasks_model import TaskFailure
@@ -207,6 +207,12 @@ def reconcile_interrupted_runs(
     reason = "Run interrupted by a server restart."
     failed: list[str] = []
     resumable: list[str] = []
+    # Record ambiguous provider outcomes before a generic interruption event
+    # can hide the specific recovery guidance from the owner.
+    from app.store.tasks import _fail_ambiguous_expired_leases
+
+    with transaction(db_path) as conn:
+        _fail_ambiguous_expired_leases(conn, now)
     with connect(db_path) as conn:
         # A finalize task can commit its report and then lose the process
         # before the worker records task success. At startup all prior

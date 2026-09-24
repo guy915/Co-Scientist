@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -26,6 +27,7 @@ from co_scientist.exceptions import (
 from app import engine_tasks, store
 from app.engine_tasks_portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
+from app.store.tasks_model import UNKNOWN_PROVIDER_OUTCOME_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +51,19 @@ _FAILURE_KINDS = {
 
 def _failure_kind(exc: Exception) -> str | None:
     """Classify only the exact provider failure types with user guidance."""
+    if isinstance(exc, LLMTimeoutError):
+        return (
+            "llm_timeout" if exc.zero_cost_admitted else "llm_timeout_unknown"
+        )
     return _FAILURE_KINDS.get(type(exc))
 
 
 def _failure_error(exc: Exception) -> str | store.TaskFailure:
-    """Carry a typed kind with the unchanged raw message to task storage."""
+    """Carry a typed kind and safe error text to task storage."""
+    if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
+        return store.TaskFailure(
+            UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown"
+        )
     kind = _failure_kind(exc)
     return store.TaskFailure(str(exc), kind) if kind is not None else str(exc)
 
@@ -258,17 +268,36 @@ def _fail_retryable_task(
 
     Worker boundary isolates one task failure from the rest of the cohort.
     """
-    _cancel_downstream_before_terminal_failure(
-        task, retryable=True, db_path=db_path
+    retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
+    retry_at = None
+    if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
+        from co_scientist.llm_retry_backoff import (
+            _provider_outage_backoff_seconds,
+        )
+
+        retry_at = time.time() + _provider_outage_backoff_seconds(task.attempt)
+    unknown_provider_outcome = (
+        isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted
     )
+    if not unknown_provider_outcome:
+        _cancel_downstream_before_terminal_failure(
+            task, retryable=retryable, db_path=db_path
+        )
     store.fail_task(
         task.id,
         worker_id,
         _failure_error(exc),
-        retryable=True,
+        retryable=retryable,
+        retry_at=retry_at,
+        stop_run=unknown_provider_outcome,
         db_path=db_path,
     )
-    logger.exception("Task %s failed", task.id)
+    if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
+        logger.exception(
+            "Task %s failed with an unknown provider outcome", task.id
+        )
+    else:
+        logger.exception("Task %s failed", task.id)
 
 
 # Ordered exactly like the except-clause chain this replaced: the first

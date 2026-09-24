@@ -63,6 +63,9 @@ from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
 )
+from app.store.tasks_model import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR as UNKNOWN_PROVIDER_OUTCOME_ERROR,
+)
 from app.store.tasks_model import ScientificTask as ScientificTask
 from app.store.tasks_model import TaskFailure as TaskFailure
 from app.store.tasks_model import _decode as _decode
@@ -307,8 +310,75 @@ def _dependencies_complete(
     )
 
 
+def _stop_run_after_unknown_provider_outcome(
+    conn: sqlite3.Connection,
+    run_id: str,
+    task_type: str,
+    failure: TaskFailure,
+) -> None:
+    """Revoke uncompleted sibling work before publishing unknown failure."""
+    cancel_run_tasks(run_id, conn=conn)
+    _settle_run_for_failed_task(
+        conn,
+        run_id,
+        task_type,
+        failure,
+        retryable=False,
+    )
+
+
+def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
+    """Fail expired engine leases whose original request is unknowable.
+
+    Current model settings cannot prove which route an orphaned lease used
+    before a restart or rolling configuration change. Only an in-process
+    timeout carries the request-time exact-zero admission result.
+    """
+    rows = conn.execute(
+        "SELECT * FROM scientific_tasks WHERE status='leased' "
+        "AND lease_expires_at IS NOT NULL AND lease_expires_at<=? "
+        f"AND ({_ENGINE_RUN_STATUS_GUARD}) "
+        "AND substr(task_type,1,7)='engine.' "
+        "AND EXISTS (SELECT 1 FROM runs WHERE runs.id=scientific_tasks.run_id "
+        "            AND runs.status IN ('queued','running','synthesizing'))",
+        (now,),
+    ).fetchall()
+    unknown = TaskFailure(UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown")
+    failed_runs: set[str] = set()
+    failed_count = 0
+    for row in rows:
+        task = _decode(row)
+        if task.run_id in failed_runs:
+            continue
+        attempts_json = _record_failed_attempt(
+            task,
+            task.lease_owner or "unknown-worker",
+            unknown.error,
+            False,
+            now,
+        )
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='failed', error=?, "
+            "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
+            "completed_at=?, updated_at=? WHERE id=? AND status='leased'",
+            (unknown.error, attempts_json, now, now, task.id),
+        ).rowcount
+        if not changed:
+            continue
+        failed_runs.add(task.run_id)
+        _stop_run_after_unknown_provider_outcome(
+            conn, task.run_id, task.task_type, unknown
+        )
+        failed_count += 1
+    return failed_count
+
+
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
-    """Requeue leased tasks whose lease expired with retry budget left."""
+    """Fail ambiguous engine leases before rescuing other expired work."""
+    _fail_ambiguous_expired_leases(conn, now)
+
+    # Engine leases have no durable request-time admission receipt, so they
+    # fail closed regardless of the current route configuration.
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "
@@ -392,12 +462,14 @@ def claim_task(
     return None
 
 
-def fail_task(
+def fail_task(  # noqa: PLR0913 -- retry timing stays atomic with failure.
     task_id: str,
     worker_id: str,
     error: str | TaskFailure,
     *,
     retryable: bool = True,
+    retry_at: float | None = None,
+    stop_run: bool = False,
     db_path: str | None = None,
 ) -> bool:
     """Record failure and requeue when the bounded retry budget permits.
@@ -422,14 +494,19 @@ def fail_task(
             return False
         task = _decode(row)
         status = _persist_failed_attempt(
-            conn, task, worker_id, failure.error, retryable
+            conn, task, worker_id, failure.error, retryable, retry_at
         )
         if status == "failed":
-            _settle_run_for_failed_task(
-                conn,
-                task.run_id,
-                task.task_type,
-                failure,
-                retryable=retryable,
-            )
+            if stop_run:
+                _stop_run_after_unknown_provider_outcome(
+                    conn, task.run_id, task.task_type, failure
+                )
+            else:
+                _settle_run_for_failed_task(
+                    conn,
+                    task.run_id,
+                    task.task_type,
+                    failure,
+                    retryable=retryable,
+                )
     return True

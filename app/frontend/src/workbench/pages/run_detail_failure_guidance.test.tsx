@@ -81,6 +81,28 @@ it('shows exact timeout guidance and keeps the recorded error', async () => {
   ).toBeInTheDocument();
 });
 
+it('warns before owner recovery when the timed-out outcome is unknown', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...failedRun('llm_timeout_unknown'),
+    error:
+      'The provider may have accepted the request; acceptance and any charge are unconfirmed. Automatic replay was stopped.',
+  });
+
+  renderAt('/runs/run-1/details');
+
+  const guidance = await screen.findByRole('region', {
+    name: 'Suggested next step',
+  });
+  expect(guidance).toHaveTextContent(
+    'The provider may have accepted the request; acceptance and any charge are unconfirmed. The run was not retried automatically. Restarting or resuming may repeat provider work.',
+  );
+  expect(
+    screen.getByText(
+      'The provider may have accepted the request; acceptance and any charge are unconfirmed. Automatic replay was stopped.',
+    ),
+  ).toBeInTheDocument();
+});
+
 it.each(['llm_timeoutish', 'LLM_TIMEOUT'])(
   'keeps unknown failure kind %s generic',
   async failureKind => {

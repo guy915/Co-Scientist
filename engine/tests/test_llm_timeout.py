@@ -14,6 +14,9 @@ import pytest
 from litellm.exceptions import (
     ContextWindowExceededError,
 )
+from litellm.exceptions import (
+    Timeout as LiteLLMTimeout,
+)
 
 from co_scientist import llm, llm_request, llm_retry_backoff
 from co_scientist.exceptions import LLMTimeoutError
@@ -170,6 +173,52 @@ async def test_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == 1, "a timeout must not be retried"
 
 
+@pytest.mark.parametrize(
+    ("api_key", "expected_zero_cost"), [(None, True), ("byok-key", False)]
+)
+async def test_native_provider_timeout_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    api_key: str | None,
+    expected_zero_cost: bool,
+) -> None:
+    """A provider-accepted request with a lost response is ambiguous once.
+
+    LiteLLM's native Timeout is not asyncio.TimeoutError. It must enter the
+    same no-in-call-replay path as the engine's own wall-clock timeout.
+    """
+    accepted: list[dict[str, Any]] = []
+    admissions: list[bool] = []
+
+    async def admit(_args: dict[str, Any], *, byok: bool = False) -> bool:
+        admissions.append(byok)
+        return True
+
+    async def accepted_then_lost(**kwargs: Any) -> Any:
+        accepted.append(kwargs)
+        raise LiteLLMTimeout(
+            message="read timed out after provider accepted request",
+            model="deepseek/deepseek-v4-flash",
+            llm_provider="deepseek",
+        )
+
+    monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
+    monkeypatch.setattr(llm_request, "enforce_free_request", admit)
+
+    with pytest.raises(LLMTimeoutError) as excinfo:
+        await llm.call_llm_json(
+            "prompt",
+            CompletionSpec(
+                model_name="deepseek/deepseek-v4-flash", api_key=api_key
+            ),
+            max_attempts=5,
+            options=LLMCallOptions(use_cache=False),
+        )
+
+    assert len(accepted) == 1, "an ambiguous provider call must not replay"
+    assert admissions == [api_key is not None]
+    assert excinfo.value.zero_cost_admitted is expected_zero_cost
+
+
 async def test_generic_failure_is_still_retried(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -293,6 +342,43 @@ async def test_schema_failure_still_retries_without_waiting(
         )
     assert calls == 3
     assert slept == [], "only throttling should slow the retry loop"
+
+
+async def test_deployment_api_key_does_not_disable_free_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deployment key still passes the real exact-zero admission guard."""
+    accepted: list[dict[str, Any]] = []
+
+    async def accepted_then_lost(**kwargs: Any) -> Any:
+        accepted.append(kwargs)
+        raise LiteLLMTimeout(
+            message="read timed out after provider accepted request",
+            model="openrouter/nex-agi/nex-n2.5-pro:free",
+            llm_provider="openrouter",
+        )
+
+    monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
+
+    with pytest.raises(LLMTimeoutError) as excinfo:
+        await llm_request._acompletion_within_timeout(
+            {
+                "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+                "messages": [{"role": "user", "content": "prompt"}],
+                "api_key": "deployment-key",
+            },
+            "openrouter/nex-agi/nex-n2.5-pro:free",
+        )
+
+    assert len(accepted) == 1
+    assert accepted[0]["api_key"] == "deployment-key"
+    assert accepted[0]["api_base"] == "https://openrouter.ai/api/v1"
+    assert accepted[0]["extra_body"]["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+    assert excinfo.value.zero_cost_admitted is True
 
 
 async def test_an_oversized_prompt_is_not_retried(
