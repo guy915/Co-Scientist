@@ -19,33 +19,29 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app import engine_tasks, runs_resume_admission, store, task_worker
+from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
+from app.runs_resume_admission import (
+    _has_paused_engine_task as _has_paused_engine_task,
+)
+from app.runs_resume_admission import (
+    _is_resumable as _is_resumable,
+)
+from app.runs_resume_admission import (
+    _lifecycle_revision as _lifecycle_revision,
+)
+from app.runs_resume_admission import (
+    _prepare_resume_state as _prepare_resume_state,
+)
+from app.runs_resume_admission import (
+    _queue_resume_workflow as _queue_resume_workflow,
+)
+from app.runs_resume_admission import (
+    _resume_admission_snapshot as _resume_admission_snapshot,
+)
 from app.runs_support import _run_or_404
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
-
-(
-    _has_failed_precheckpoint_bootstrap_while_paused,
-    _has_leased_precheckpoint_bootstrap,
-    _has_paused_engine_task,
-    _is_resumable,
-    _lifecycle_revision,
-    _prepare_resume_state,
-    _queue_resume_workflow,
-    _resume_admission_snapshot,
-    _resume_detail,
-) = (
-    runs_resume_admission._has_failed_precheckpoint_bootstrap_while_paused,
-    runs_resume_admission._has_leased_precheckpoint_bootstrap,
-    runs_resume_admission._has_paused_engine_task,
-    runs_resume_admission._is_resumable,
-    runs_resume_admission._lifecycle_revision,
-    runs_resume_admission._prepare_resume_state,
-    runs_resume_admission._queue_resume_workflow,
-    runs_resume_admission._resume_admission_snapshot,
-    runs_resume_admission._resume_detail,
-)
 
 logger = logging.getLogger(__name__)
 
