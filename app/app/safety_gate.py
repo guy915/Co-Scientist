@@ -25,7 +25,11 @@ __all__ = ["apply_safety_gate"]
 
 
 def _apply_intake_redaction(
-    run_id: str, result: SafetyDecision, *, db_path: str | None
+    run_id: str,
+    result: SafetyDecision,
+    *,
+    db_path: str | None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Scrub a redacted goal from the run row, not just from the audit record.
 
@@ -40,10 +44,11 @@ def _apply_intake_redaction(
         run_id: Identifier of the run being gated.
         result: The decision to act on; a no-op unless it redacts at intake.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse within the transaction.
     """
     if result.stage != "intake" or result.decision != "redact":
         return
-    run = store.get_run(run_id, db_path=db_path)
+    run = store.get_run(run_id, db_path=db_path, conn=conn)
     if run is None:
         return
     matches = list(result.matches)
@@ -52,6 +57,7 @@ def _apply_intake_redaction(
         redact_matched_spans(run.research_goal, matches),
         redact_matched_spans(run.title or "", matches),
         db_path=db_path,
+        conn=conn,
     )
     logger.warning(
         "Redacted %d matched span(s) from run %s's goal at the intake gate.",
@@ -100,6 +106,27 @@ def _record_safety_decision(
         )
 
 
+def _assert_bootstrap_intake_lease(
+    run_id: str, task: ScientificTask, conn: sqlite3.Connection
+) -> None:
+    """Require the bootstrap's unexpired lease before an intake commit."""
+    if task.run_id == run_id and store.bootstrap_task_lease_matches(
+        conn, run_id, task.id, task.lease_owner, task.attempt
+    ):
+        return
+    from app.task_worker_outcomes import _LeaseLostError
+
+    raise _LeaseLostError(
+        f"bootstrap task {task.id} lost its lease before intake commit"
+    )
+
+
+def _event_record(
+    seq: int, event_type: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    return {"seq": seq, "type": event_type, "payload": payload}
+
+
 def _commit_task_safety_events(
     run_id: str,
     result: SafetyDecision,
@@ -111,16 +138,16 @@ def _commit_task_safety_events(
 
     decision_payload = result.to_dict()
     event_type = f"safety.{result.stage}"
-    events: list[dict[str, Any]] = []
     with store.transaction(db_path) as conn:
         _assert_task_commit_allowed(task, conn)
+        if result.stage == "intake":
+            _assert_bootstrap_intake_lease(run_id, task, conn)
         _record_safety_decision(run_id, result, db_path=db_path, conn=conn)
+        _apply_intake_redaction(run_id, result, db_path=db_path, conn=conn)
         seq = store.append_event(
             run_id, event_type, decision_payload, conn=conn
         )
-        events.append(
-            {"seq": seq, "type": event_type, "payload": decision_payload}
-        )
+        events = [_event_record(seq, event_type, decision_payload)]
         if result.decision == "block":
             status = RunStatus.BLOCKED
             payload = {"status": "blocked", "error": result.reason}
@@ -137,7 +164,7 @@ def _commit_task_safety_events(
             run_id, status, error=result.reason, db_path=db_path, conn=conn
         )
         seq = store.append_event(run_id, "status", payload, conn=conn)
-        events.append({"seq": seq, "type": "status", "payload": payload})
+        events.append(_event_record(seq, "status", payload))
     return events
 
 
@@ -242,7 +269,6 @@ async def apply_safety_gate(  # noqa: PLR0913
     """
     if task is not None:
         events = _commit_task_safety_events(run_id, result, task, db_path)
-        _apply_intake_redaction(run_id, result, db_path=db_path)
         for event in events:
             yield event
         return
