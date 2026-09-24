@@ -19,9 +19,27 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app import engine_adapter, engine_tasks, store, task_worker
+from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
+from app.runs_resume_admission import (
+    _has_paused_engine_task as _has_paused_engine_task,
+)
+from app.runs_resume_admission import (
+    _is_resumable as _is_resumable,
+)
+from app.runs_resume_admission import (
+    _lifecycle_revision as _lifecycle_revision,
+)
+from app.runs_resume_admission import (
+    _prepare_resume_state as _prepare_resume_state,
+)
+from app.runs_resume_admission import (
+    _queue_resume_workflow as _queue_resume_workflow,
+)
+from app.runs_resume_admission import (
+    _resume_admission_snapshot as _resume_admission_snapshot,
+)
 from app.runs_support import _run_or_404
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
 
@@ -49,7 +67,7 @@ def _check_startable(run: RunRow) -> None:
         raise HTTPException(status_code=409, detail="run already completed")
 
 
-def _reserve_capacity_or_409(run: RunRow) -> None:
+def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
     """Reserve the client's concurrent-run slot, raising 409 if it is full.
 
     One ceiling for every tier, and one ceiling *across* them. Heavier
@@ -63,11 +81,20 @@ def _reserve_capacity_or_409(run: RunRow) -> None:
     which it can only do if every tier draws on the same slots.
     """
     limit = settings.max_concurrent_runs
-    if not store.reserve_run_capacity(
+    if not store.reserve_run_capacity_in_transaction(
+        conn,
         run.id,
-        client_id=run.client_id,
-        limit=limit,
+        run.client_id,
+        limit,
+        run.status,
     ):
+        current = store.get_run(run.id, conn=conn)
+        if current is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if current.status != run.status:
+            raise HTTPException(
+                status_code=409, detail="run status changed while starting"
+            )
         raise HTTPException(
             status_code=409,
             detail=f"concurrent run limit reached ({limit})",
@@ -75,22 +102,34 @@ def _reserve_capacity_or_409(run: RunRow) -> None:
 
 
 def _enqueue_workflow_and_maybe_launch_worker(
-    run_id: str, background: BackgroundTasks
+    run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
-    """Queue the run's workflow task and, in embedded mode, launch a worker.
+    """Reserve quota and admit work atomically, then launch if embedded.
 
     Every run is delivered through the durable worker queue -- the engine is
     the only provider now, so there is no in-process alternative to select.
     """
-    store.append_event(run_id, "lifecycle", {"event": "queued"})
-    task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
+    with store.transaction() as conn:
+        _reserve_capacity_or_409(run, conn)
+        store.revive_task_for_retry(
+            run.id,
+            "engine:bootstrap:v1",
+            conn=conn,
+        )
+        task = engine_tasks.enqueue_bootstrap(run.id, conn=conn)
+        store.append_event(
+            run.id,
+            "lifecycle",
+            {"event": "queued"},
+            conn=conn,
+        )
     if settings.coscientist_embedded_worker:
         # Local compatibility mode consumes the same durable lease. A
         # production worker service runs ``python -m app.task_worker`` and
         # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
         background.add_task(
             task_worker.run_run_worker_pool_sync,
-            run_id,
+            run.id,
             f"embedded-api:{os.getpid()}",
         )
     return task
@@ -118,8 +157,20 @@ async def start_run(
     """
     run = _run_or_404(run_id)
     _check_startable(run)
-    _reserve_capacity_or_409(run)
-    task = _enqueue_workflow_and_maybe_launch_worker(run_id, background)
+    if run.status in {
+        RunStatus.CANCELLED.value,
+        RunStatus.FAILED.value,
+    } and store.has_checkpoint(run_id):
+        raise HTTPException(
+            status_code=409,
+            detail="run has a checkpoint; use /resume to continue it",
+        )
+    if run.status == RunStatus.BLOCKED.value:
+        raise HTTPException(
+            status_code=409,
+            detail="run was blocked; create a new run",
+        )
+    task = _enqueue_workflow_and_maybe_launch_worker(run, background)
     return {"id": run_id, "status": "queued", "task_id": task.id}
 
 
@@ -134,12 +185,15 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     status event is emitted (mirroring the failed-run path) so open SSE
     streams close. An already-terminal run cannot be cancelled, returns 409.
     """
-    run = _run_or_404(run_id)
-    if run.status in TERMINAL_STATUSES:
-        raise HTTPException(status_code=409, detail="run already finished")
-    store.cancel_run_tasks(run_id)
-    store.update_run_status(run_id, RunStatus.CANCELLED)
-    store.append_event(run_id, "status", {"status": "cancelled"})
+    with store.transaction() as conn:
+        run = store.get_run(run_id, conn=conn)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if RunStatus(run.status) in TERMINAL_STATUSES:
+            raise HTTPException(status_code=409, detail="run already finished")
+        store.cancel_run_tasks(run_id, conn=conn)
+        store.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
+        store.append_event(run_id, "status", {"status": "cancelled"}, conn=conn)
     return {"id": run_id, "status": "cancelled"}
 
 
@@ -151,35 +205,27 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     durable worker's own per-task checkpoint (``engine_tasks.py``) is what
     makes the run resumable, so no extra checkpoint needs to be created here.
     """
-    run = _run_or_404(run_id)
-    has_engine_task = store.has_task_of_type(
-        run_id, engine_tasks.ENGINE_TASK_PREFIX
-    )
-    if has_engine_task and run.status in {
-        RunStatus.QUEUED.value,
-        RunStatus.RUNNING.value,
-    }:
-        store.pause_run_tasks(run_id)
-        store.update_run_status(run_id, RunStatus.PAUSED)
-        store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
-        return {"id": run_id, "status": "paused"}
+    with store.transaction() as conn:
+        run = store.get_run(run_id, conn=conn)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        has_engine_task = store.has_task_of_type(
+            run_id, engine_tasks.ENGINE_TASK_PREFIX, conn=conn
+        )
+        if has_engine_task and run.status in {
+            RunStatus.QUEUED.value,
+            RunStatus.RUNNING.value,
+        }:
+            store.pause_run_tasks(run_id, conn=conn)
+            store.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
+            store.append_event(
+                run_id,
+                "lifecycle",
+                {"event": "pause_requested"},
+                conn=conn,
+            )
+            return {"id": run_id, "status": "paused"}
     raise HTTPException(status_code=404, detail="run is not active")
-
-
-def _has_paused_engine_task(run_id: str) -> bool:
-    """Return whether the run has a paused engine-provider task queued."""
-    return store.has_task_of_type(
-        run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused"
-    )
-
-
-def _is_resumable(run_id: str) -> bool:
-    """Report whether anything durable exists for this run to resume from.
-
-    Two shapes, one question. A checkpoint restores the run's engine
-    state; a paused engine task is a run the user stopped.
-    """
-    return store.has_checkpoint(run_id) or _has_paused_engine_task(run_id)
 
 
 @router.post("/{run_id}/resume")
@@ -196,14 +242,18 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     on: failing a run never touched its task rows, so their retry budgets
     are intact.
     """
-    run = _run_or_404(run_id)
+    run, lifecycle_revision = _resume_admission_snapshot(run_id)
     if run.status == RunStatus.COMPLETED.value:
         raise HTTPException(status_code=409, detail="run already completed")
     if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
         raise HTTPException(status_code=409, detail="run already in progress")
     if not _is_resumable(run_id):
         raise HTTPException(status_code=409, detail="run has no checkpoint")
-    await _launch_resume(run_id)
+    await _launch_resume(
+        run_id,
+        expected_status=run.status,
+        expected_lifecycle_revision=lifecycle_revision,
+    )
     return {"id": run_id, "status": "queued"}
 
 
@@ -220,69 +270,6 @@ def _log_resume_task_result(task: asyncio.Task[None]) -> None:
     _resume_tasks.discard(task)
     if not task.cancelled() and task.exception() is not None:
         logger.error("Resume worker crashed", exc_info=task.exception())
-
-
-def _prepare_resume_state(run_id: str) -> bool:
-    """Clear stale derived data for a legacy resume and return true_resume.
-
-    Two resume modes, chosen by the kind of checkpoint on disk:
-
-    - Engine checkpoint (a serialized WorkflowState) or an already-queued
-      paused engine task: a *true* resume. The engine restores that state
-      and re-enters at the orchestrator, so completed LLM/tool work is not
-      repeated. Derived data is NOT cleared — the engine persists artifacts
-      only at the final drain, so a mid-run interruption left only events +
-      the checkpoint, and clearing would discard the pre-orchestrator events
-      that resume never re-emits.
-    - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
-      state to restore, so the durable worker re-bootstraps the run from its
-      goal/config instead of a true resume. Derived data AND the stale
-      envelope checkpoint are cleared so the fresh run neither duplicates rows
-      or events nor trips the durable bootstrap's empty-checkpoint guard
-      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
-      history).
-    """
-    checkpoint = store.get_latest_checkpoint(run_id)
-    true_resume = engine_adapter.is_engine_checkpoint(
-        checkpoint
-    ) or _has_paused_engine_task(run_id)
-    if not true_resume:
-        store.clear_run_derived_data(run_id)
-        store.clear_checkpoints(run_id)
-    return true_resume
-
-
-def _resume_detail(true_resume: bool) -> str:
-    """Name what the resume is actually re-entering from."""
-    return "from specialist checkpoint" if true_resume else "from checkpoint"
-
-
-def _queue_resume_workflow(run_id: str, true_resume: bool) -> ScientificTask:
-    """Mark the run queued, emit the resuming event, and enqueue its task."""
-    store.update_run_status(run_id, RunStatus.QUEUED)
-    store.append_event(
-        run_id,
-        "status",
-        {
-            "status": "resuming",
-            "detail": _resume_detail(true_resume),
-        },
-    )
-    queued = task_worker.enqueue_run_workflow(run_id, resume=true_resume)
-    # Say what the resume actually landed on, not just that it happened. The
-    # "resuming" event above is emitted before any work is queued, so on its
-    # own it cannot distinguish a resume that started work from one that
-    # enqueued nothing -- which is how a wedged run could announce a resume
-    # every restart and sit silent for hours with no way to tell why. A task
-    # here that is not 'queued' is the tell: nothing is claimable.
-    logger.info(
-        "Resume for run %s landed on %s task %s (status=%s)",
-        run_id,
-        queued.task_type,
-        queued.id[:8],
-        queued.status,
-    )
-    return queued
 
 
 def _launch_embedded_resume_worker(run_id: str) -> None:
@@ -312,7 +299,12 @@ def _launch_embedded_resume_worker(run_id: str) -> None:
     task.add_done_callback(_log_resume_task_result)
 
 
-async def _launch_resume(run_id: str) -> None:
+async def _launch_resume(
+    run_id: str,
+    *,
+    expected_status: str | None = None,
+    expected_lifecycle_revision: int | None = None,
+) -> None:
     """Relaunch a run through the durable worker, on a detached task.
 
     Shared by the resume endpoint and the startup auto-resume launcher.
@@ -321,11 +313,45 @@ async def _launch_resume(run_id: str) -> None:
     BackgroundTasks; a strong reference is kept until it finishes so it is
     not garbage-collected. A completed run is never relaunched by callers.
     """
-    _run_or_404(run_id)
-    true_resume = _prepare_resume_state(run_id)
-    _queue_resume_workflow(run_id, true_resume)
+    if expected_status is None or expected_lifecycle_revision is None:
+        # Retain the internal helper's direct-call contract; request, hold,
+        # and startup paths pass the state they observed at admission.
+        run, revision = _resume_admission_snapshot(run_id)
+        if expected_status is None:
+            expected_status = run.status
+        if expected_lifecycle_revision is None:
+            expected_lifecycle_revision = revision
+    _queue_resume_workflow(
+        run_id,
+        expected_status=expected_status,
+        expected_lifecycle_revision=expected_lifecycle_revision,
+    )
     if settings.coscientist_embedded_worker:
         _launch_embedded_resume_worker(run_id)
+
+
+async def _resume_interrupted_run(run_id: str) -> None:
+    """Resume one startup candidate only if it is still active."""
+    try:
+        run, lifecycle_revision = _resume_admission_snapshot(run_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return
+        raise
+    if run.status not in {
+        RunStatus.QUEUED.value,
+        RunStatus.RUNNING.value,
+        RunStatus.SYNTHESIZING.value,
+    }:
+        return
+    try:
+        await _launch_resume(
+            run_id,
+            expected_status=run.status,
+            expected_lifecycle_revision=lifecycle_revision,
+        )
+    except HTTPException:
+        logger.warning("Could not auto-resume run %s", run_id)
 
 
 async def resume_interrupted_runs(run_ids: list[str]) -> None:
@@ -336,10 +362,4 @@ async def resume_interrupted_runs(run_ids: list[str]) -> None:
     Skips any run that has since completed.
     """
     for run_id in run_ids:
-        run = store.get_run(run_id)
-        if run is None or run.status == RunStatus.COMPLETED.value:
-            continue
-        try:
-            await _launch_resume(run_id)
-        except HTTPException:
-            logger.warning("Could not auto-resume run %s", run_id)
+        await _resume_interrupted_run(run_id)

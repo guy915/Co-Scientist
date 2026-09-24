@@ -14,6 +14,8 @@ import pytest
 from co_scientist.models import Hypothesis, HypothesisReview
 
 from app import engine_tasks, store, task_worker
+from app.config import settings
+from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -123,6 +125,85 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert (
         review_events[0]["payload"]["successor"] == "comprehensive_reflection"
     )
+
+
+@pytest.mark.asyncio
+async def test_review_fanout_created_during_pause_waits_for_resume(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A leased review planner's item wave is unavailable until resume."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    original_dispatch = engine_tasks._dispatch_node_fanout
+
+    with make_client() as client:
+        created = client.post(
+            "/api/runs", json={"research_goal": "Paused review fan-out"}
+        )
+        assert created.status_code == 200, created.text
+        run_id = str(created.json()["id"])
+        store.update_run_status(
+            run_id, store.RunStatus.RUNNING, db_path=isolated_db
+        )
+        state = _task_state(run_id)
+        state["hypotheses"] = [
+            Hypothesis(text="alpha"),
+            Hypothesis(text="beta"),
+        ]
+
+        async def pause_during_dispatch(
+            task: Any,
+            node_state: dict[str, Any],
+            node_name: str,
+            checkpoint_seq: int,
+            db_path: str | None,
+        ) -> dict[str, Any] | None:
+            if node_name == "review":
+                paused = client.post(f"/api/runs/{run_id}/pause")
+                assert paused.status_code == 200, paused.text
+                assert paused.json()["status"] == "paused"
+            return await original_dispatch(
+                task, node_state, node_name, checkpoint_seq, db_path
+            )
+
+        monkeypatch.setattr(
+            engine_tasks, "_dispatch_node_fanout", pause_during_dispatch
+        )
+        await _advance_to_review_parent(
+            run_id, monkeypatch, _Generator(state), isolated_db
+        )
+
+        tasks = store.list_tasks(run_id, db_path=isolated_db)
+        review_work = [
+            task
+            for task in tasks
+            if task.task_type
+            in {
+                engine_tasks.REVIEW_ITEM_TASK,
+                engine_tasks.REVIEW_AGGREGATE_TASK,
+            }
+        ]
+        assert len(review_work) == 3
+        saved_run = store.get_run(run_id, db_path=isolated_db)
+        assert saved_run is not None and saved_run.status == "paused"
+        assert (
+            store.claim_task(
+                "before-resume", run_id=run_id, db_path=isolated_db
+            )
+            is None
+        )
+
+        resumed = client.post(f"/api/runs/{run_id}/resume")
+        assert resumed.status_code == 200, resumed.text
+        claimed = [
+            store.claim_task(
+                f"after-resume-{index}", run_id=run_id, db_path=isolated_db
+            )
+            for index in range(2)
+        ]
+        assert all(item is not None for item in claimed)
+        assert {item.task_type for item in claimed if item is not None} == {
+            engine_tasks.REVIEW_ITEM_TASK
+        }
 
 
 @pytest.mark.asyncio

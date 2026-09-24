@@ -93,33 +93,75 @@ def _record_safety_decision(
         )
 
 
+def _commit_gate_status_event(
+    run_id: str,
+    status: RunStatus,
+    error: str | None,
+    payload: dict[str, Any],
+    *,
+    status_guard: tuple[str | None, tuple[str, str | None, int] | None],
+) -> dict[str, Any] | None:
+    """Write a safety stop only while the run is still nonterminal.
+
+    The run transition and its status event share one transaction. Otherwise
+    cancellation could commit between them, leaving a late paused/blocked
+    event after the user's completed cancel.
+    """
+    active_statuses = (
+        RunStatus.DRAFT,
+        RunStatus.QUEUED,
+        RunStatus.RUNNING,
+        RunStatus.SYNTHESIZING,
+        RunStatus.PAUSED,
+    )
+    db_path, lease_guard = status_guard
+    with store.transaction(db_path) as conn:
+        if lease_guard is not None and not store.bootstrap_task_lease_matches(
+            conn, run_id, *lease_guard
+        ):
+            return None
+        changed = store.update_run_status_if_current(
+            conn, run_id, status, active_statuses, error
+        )
+        if not changed:
+            return None
+        seq = store.append_event(run_id, "status", payload, conn=conn)
+    return {"seq": seq, "type": "status", "payload": payload}
+
+
 async def _yield_terminal_status_event(
     run_id: str,
     result: SafetyDecision,
-    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
     *,
     db_path: str | None,
+    lease_guard: tuple[str, str | None, int] | None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Update the run's status and yield its event when the result is final."""
     if result.decision == "block":
-        store.update_run_status(
-            run_id, RunStatus.BLOCKED, error=result.reason, db_path=db_path
+        event = _commit_gate_status_event(
+            run_id,
+            RunStatus.BLOCKED,
+            result.reason,
+            {"status": "blocked", "error": result.reason},
+            status_guard=(db_path, lease_guard),
         )
-        yield await emit(
-            "status", {"status": "blocked", "error": result.reason}
-        )
+        if event is not None:
+            yield event
     elif result.decision == "hold":
-        store.update_run_status(
-            run_id, RunStatus.PAUSED, error=result.reason, db_path=db_path
+        payload = {
+            "status": "paused",
+            "reason": "safety_review",
+            "error": result.reason,
+        }
+        event = _commit_gate_status_event(
+            run_id,
+            RunStatus.PAUSED,
+            result.reason,
+            payload,
+            status_guard=(db_path, lease_guard),
         )
-        yield await emit(
-            "status",
-            {
-                "status": "paused",
-                "reason": "safety_review",
-                "error": result.reason,
-            },
-        )
+        if event is not None:
+            yield event
 
 
 async def apply_safety_gate(
@@ -128,6 +170,7 @@ async def apply_safety_gate(
     emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
     *,
     db_path: str | None = None,
+    lease_guard: tuple[str, str | None, int] | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Record a safety decision, emit it, and gate the run on a hard block.
 
@@ -142,6 +185,7 @@ async def apply_safety_gate(
         result: The safety screening outcome to record and act on.
         emit: The provider's event emitter, called as ``emit(type, payload)``.
         db_path: Optional override for the SQLite database path.
+        lease_guard: Optional bootstrap task lease to fence intake verdicts.
 
     Yields:
         Event dicts to forward on the workflow's event stream.
@@ -150,6 +194,6 @@ async def apply_safety_gate(
     _apply_intake_redaction(run_id, result, db_path=db_path)
     yield await emit(f"safety.{result.stage}", result.to_dict())
     async for event in _yield_terminal_status_event(
-        run_id, result, emit, db_path=db_path
+        run_id, result, db_path=db_path, lease_guard=lease_guard
     ):
         yield event

@@ -15,6 +15,8 @@ import pytest
 from co_scientist.models import Article, Hypothesis
 
 from app import engine_tasks, store
+from app.config import settings
+from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,
@@ -212,7 +214,7 @@ async def _advance_verification_node(
 
 
 async def _run_verification_children_and_aggregate(
-    run_id: str, db_path: str
+    run_id: str, db_path: str, before_aggregate: Any | None = None
 ) -> None:
     """Lease the three verification children and commit one aggregate."""
     children = [
@@ -236,6 +238,8 @@ async def _run_verification_children_and_aggregate(
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
+    if before_aggregate is not None:
+        before_aggregate()
     result = await engine_tasks.execute_verification_aggregate(
         aggregate, db_path=db_path
     )
@@ -327,6 +331,86 @@ async def test_verification_children_commit_through_single_aggregator(
     _assert_verification_committed(run.id, isolated_db)
     _assert_fingerprints_survive_the_checkpoint(run.id, isolated_db)
     _assert_verifications_are_marked_once_ever(run.id, isolated_db)
+
+
+@pytest.mark.asyncio
+async def test_verification_aggregate_pauses_and_resumes_to_ranking(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Leased verifier aggregate retains evidence and the ranking successor."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+
+    with make_client() as client:
+        created = client.post(
+            "/api/runs", json={"research_goal": "Paused verification aggregate"}
+        )
+        assert created.status_code == 200, created.text
+        run_id = str(created.json()["id"])
+        store.update_run_status(
+            run_id, store.RunStatus.RUNNING, db_path=isolated_db
+        )
+        await _advance_verification_node(run_id, monkeypatch, isolated_db)
+        checkpoint_before = store.get_latest_checkpoint(
+            run_id, db_path=isolated_db
+        )
+        assert checkpoint_before is not None
+        import co_scientist.agents.reflection.deep_verification as verification
+
+        monkeypatch.setattr(verification, "_verify_one", _fake_verify)
+
+        def pause() -> None:
+            response = client.post(f"/api/runs/{run_id}/pause")
+            assert response.status_code == 200, response.text
+
+        await _run_verification_children_and_aggregate(
+            run_id, isolated_db, before_aggregate=pause
+        )
+
+        checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+        assert checkpoint is not None
+        assert checkpoint["seq"] == checkpoint_before["seq"] + 1
+        saved_run = store.get_run(run_id, db_path=isolated_db)
+        assert saved_run is not None and saved_run.status == "paused"
+        state = checkpoint["state"]["state"]
+        assert all(
+            hypothesis["deep_verification_verdict"] == "holds"
+            for hypothesis in state["hypotheses"]
+        )
+        assert state["articles"][-1]["source_id"] == "probe-1"
+        metrics = store.get_run_metrics(run_id, db_path=isolated_db)
+        assert metrics is not None and metrics["llm_calls"] == 6
+        verification_items = [
+            task
+            for task in store.list_tasks(run_id, db_path=isolated_db)
+            if task.task_type == engine_tasks.VERIFICATION_ITEM_TASK
+        ]
+        assert len(verification_items) == 3
+        assert all(
+            task.status == "completed" and task.result
+            for task in verification_items
+        )
+        [event] = _task_events(run_id, "deep_verification", db_path=isolated_db)
+        assert event["payload"]["successor"] == "ranking"
+        ranking_tasks = [
+            task
+            for task in store.list_tasks(run_id, db_path=isolated_db)
+            if task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
+        ]
+        assert len(ranking_tasks) == 1
+        assert (
+            store.claim_task(
+                "before-resume", run_id=run_id, db_path=isolated_db
+            )
+            is None
+        )
+
+        resumed = client.post(f"/api/runs/{run_id}/resume")
+        assert resumed.status_code == 200, resumed.text
+        successor = store.claim_task(
+            "after-resume", run_id=run_id, db_path=isolated_db
+        )
+        assert successor is not None
+        assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
 
 
 @pytest.mark.asyncio

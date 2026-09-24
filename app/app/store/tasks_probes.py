@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import sqlite3
 
-from app.store.db import _now, connect
+from app.store.db import _now, _use_conn, connect
 
 # The liveness invariant shared by the advisory probes and the claim's
 # rescue UPDATE: an expired lease with retry budget left is claimable
@@ -74,10 +74,12 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     """
     now = _now()
     query = (
-        f"SELECT 1 FROM scientific_tasks WHERE {_QUEUED_AND_DUE}"
+        "SELECT 1 FROM scientific_tasks WHERE "
+        f"{_ENGINE_RUN_STATUS_GUARD} AND {_QUEUED_AND_DUE}"
         " AND (? IS NULL OR run_id=?)"
         " UNION ALL "
-        "SELECT 1 FROM scientific_tasks WHERE (? IS NULL OR run_id=?)"
+        "SELECT 1 FROM scientific_tasks WHERE "
+        f"{_ENGINE_RUN_STATUS_GUARD} AND (? IS NULL OR run_id=?)"
         f" AND {_EXPIRED_LEASE_RESCUABLE}"
         " LIMIT 1"
     )
@@ -94,11 +96,12 @@ def has_task_of_type(
     *,
     status: str | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Return whether the run has a task of this type prefix and status.
 
-    Read-only, like every probe here: it opens no write transaction, so it
-    can never queue behind (or ahead of) the single writer.
+    Read-only. With no supplied connection it opens no write transaction;
+    callers may also join an existing transaction for an atomic decision.
 
     The prefix is compared literally, not as a LIKE pattern, so it matches
     a caller's ``task_type.startswith(prefix)`` exactly -- LIKE would treat
@@ -109,6 +112,7 @@ def has_task_of_type(
         type_prefix: Literal prefix the task type must start with.
         status: Optional queue status the task must also be in.
         db_path: Optional override for the SQLite database path.
+        conn: Optional transaction to join.
 
     Returns:
         True if the run has at least one matching task.
@@ -120,12 +124,20 @@ def has_task_of_type(
         " LIMIT 1"
     )
     params = (run_id, len(type_prefix), type_prefix, status, status)
-    with connect(db_path) as conn:
-        row = conn.execute(query, params).fetchone()
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(query, params).fetchone()
     return row is not None
 
 
 _ACTIVE_RUN_STATUSES = ("queued", "running", "synthesizing")
+
+# Pausing a run stops engine workflow tasks while leaving independent work,
+# such as a completion notification, eligible for the general task queue.
+_ENGINE_RUN_STATUS_GUARD = (
+    "(substr(task_type,1,7)<>'engine.' OR NOT EXISTS "
+    "(SELECT 1 FROM runs WHERE runs.id=scientific_tasks.run_id "
+    "AND runs.status='paused'))"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -256,15 +268,20 @@ def cohort_poll(
     query = (
         "SELECT"
         f" EXISTS(SELECT 1 FROM scientific_tasks"
-        f"        WHERE run_id=? AND {_QUEUED_AND_DUE})"
+        f"        WHERE run_id=? AND {_ENGINE_RUN_STATUS_GUARD}"
+        f"        AND {_QUEUED_AND_DUE})"
         " OR EXISTS(SELECT 1 FROM scientific_tasks WHERE run_id=?"
+        f"        AND {_ENGINE_RUN_STATUS_GUARD}"
         f"        AND {_EXPIRED_LEASE_RESCUABLE}) AS claimable,"
         " EXISTS(SELECT 1 FROM scientific_tasks"
         "        WHERE run_id=? AND status='leased'"
         "        AND (lease_expires_at IS NULL OR lease_expires_at>?"
-        "             OR attempt<max_attempts)) AS active,"
+        "             OR (attempt<max_attempts AND "
+        f"{_ENGINE_RUN_STATUS_GUARD})))"
+        " AS active,"
         " (SELECT MIN(available_at) FROM scientific_tasks"
-        "        WHERE run_id=? AND status='queued'"
+        f"        WHERE run_id=? AND {_ENGINE_RUN_STATUS_GUARD}"
+        "        AND status='queued'"
         "        AND available_at IS NOT NULL"
         "        AND available_at>?) AS parked_until"
     )

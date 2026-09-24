@@ -78,7 +78,13 @@ from app.engine_tasks_gate import (
     _GatePlan as _GatePlan,
 )
 from app.engine_tasks_inputs import (
+    _bootstrap_start_status as _bootstrap_start_status,
+)
+from app.engine_tasks_inputs import (
     _merge_scientist_inputs as _merge_scientist_inputs,
+)
+from app.engine_tasks_inputs import (
+    _screen_bootstrap_intake as _screen_bootstrap_intake_impl,
 )
 from app.engine_tasks_inputs import (
     enqueue_bootstrap as enqueue_bootstrap,
@@ -260,12 +266,7 @@ from app.engine_tasks_support import (
 from app.execution_policy import scoped_execution_policy
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
-from app.safety import (
-    ScreenSubject,
-    apply_safety_gate,
-    screen_intake,
-    screen_with_escalation,
-)
+from app.safety import apply_safety_gate, screen_intake, screen_with_escalation
 from app.store import RunStatus, ScientificTask
 
 
@@ -273,55 +274,29 @@ async def _screen_bootstrap_intake(
     run: store.RunRow,
     emit: Any,
     db_path: str | None,
+    task: ScientificTask | None = None,
 ) -> dict[str, Any] | None:
-    """Screen a run's research goal at the durable bootstrap boundary.
-
-    Via screen_with_escalation, not screen_contextual directly: the
-    escalation wrapper carries the two guards this boundary must honor --
-    an offline-backed run never pays for a real contextual model call, and
-    a stage a human already approved is not re-screened (which would
-    otherwise let a fresh contextual verdict re-hold an approved run on
-    every resume).
-
-    Returns a withheld result if the goal was blocked, else ``None`` to
-    let the caller proceed.
-
-    Raises:
-        SafetyHoldError: If the goal was held for human adjudication. A
-            block is terminal, so the task is genuinely done; a hold is a
-            wait, and must leave this bootstrap claimable again for when a
-            reviewer approves it.
-    """
-    decision = await screen_with_escalation(
-        run.id,
-        ScreenSubject(
-            "intake", run.research_goal, screen_intake(run.research_goal)
-        ),
-        provider=run.provider,
-        db_path=db_path,
+    return await _screen_bootstrap_intake_impl(
+        run,
+        emit,
+        db_path,
+        task=task,
+        screening=(screen_with_escalation, screen_intake, apply_safety_gate),
     )
-    async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
-        pass
-    if decision.decision == "hold":
-        raise SafetyHoldError(f"intake held for review: {decision.reason}")
-    if decision.decision == "block":
-        return {"run_id": run.id, "status": "withheld", "terminal": True}
-    return None
 
 
 async def _prepare_bootstrap_state(
     task: ScientificTask, run: store.RunRow, db_path: str | None
-) -> tuple[dict[str, Any], TaskCommit, dict[str, Any] | None]:
-    """Build initial workflow state, honoring a cancel/pause during prep.
+) -> tuple[dict[str, Any], TaskCommit]:
+    """Build initial state and commit target, aborting if cancelled.
 
-    Returns the prepared state, the commit target, and -- if the run was
-    paused meanwhile -- the checkpointed-pause result the caller must
-    return instead of continuing. Bootstrap never consumes steering
-    (``consume_steering=False``): any steering queued before the run even
-    started is folded into the initial preferences text same as always,
-    but stays pending until the run's first orchestrator cycle -- the one
-    place ``pending_steering`` is actually read for scheduling -- rather
-    than being acknowledged here where nothing acts on it.
+    Pause-versus-successor is decided by the caller's commit transaction.
+    Bootstrap never consumes steering (``consume_steering=False``): any
+    steering queued before the run even started is folded into the initial
+    preferences text same as always, but stays pending until the run's first
+    orchestrator cycle -- the one place ``pending_steering`` is actually read
+    for scheduling -- rather than being acknowledged here where nothing acts
+    on it.
     """
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
@@ -333,13 +308,9 @@ async def _prepare_bootstrap_state(
     refreshed = store.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
-    if refreshed.status == RunStatus.PAUSED.value:
-        checkpoint_seq = _save_paused_state(
-            commit, state, f"{NODE_TASK_PREFIX}supervisor"
-        )
-        paused = {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-        return state, commit, paused
-    return state, commit, None
+    # A PAUSED snapshot is advisory only. /resume can change it to QUEUED
+    # before the commit transaction, which must choose pause vs successor.
+    return state, commit
 
 
 async def execute_bootstrap(
@@ -348,22 +319,23 @@ async def execute_bootstrap(
     """Safety-gate a run, prepare state, and enqueue its first task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
-    withheld = await _screen_bootstrap_intake(run, emit, db_path)
+    withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)
     if withheld is not None:
         return withheld
     run = _require_run(task, db_path)  # the gate may have redacted the goal
-
-    store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    bootstrap_status = _bootstrap_start_status(task, run, db_path)
+    if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
+        return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.
     sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
-    state, commit, paused = await _prepare_bootstrap_state(task, run, db_path)
-    if paused is not None:
-        return paused
+    state, commit = await _prepare_bootstrap_state(task, run, db_path)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, state, "supervisor"
+        commit, state, "supervisor", pause_if_requested=True
     )
+    if successor_id is None:
+        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
     await emit(
         "scientific_task",
         {

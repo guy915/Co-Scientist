@@ -120,24 +120,31 @@ def cancel_run_tasks(
     run_id: str,
     *,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Revoke every queued/leased task for a cancelled run."""
+    """Revoke every queued, leased, or paused task for a cancelled run."""
     now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
             "UPDATE scientific_tasks SET status='cancelled', "
             "lease_owner=NULL, lease_expires_at=NULL, completed_at=?, "
-            "updated_at=? WHERE run_id=? AND status IN ('queued','leased')",
+            "updated_at=? WHERE run_id=? "
+            "AND status IN ('queued','leased','paused')",
             (now, now, run_id),
         ).rowcount
     return int(changed)
 
 
-def pause_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
-    """Make queued work non-claimable while an in-flight lease checkpoints."""
+def pause_run_tasks(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Make queued work non-claimable, joining a caller transaction if given."""
     now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
             "UPDATE scientific_tasks SET status='paused', updated_at=? "
             "WHERE run_id=? AND status='queued'",
             (now, run_id),
@@ -253,11 +260,20 @@ def park_task_for_rate_limit(
     return bool(changed)
 
 
-def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
-    """Return paused queued work to the global ready queue."""
+def resume_run_tasks(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Return paused queued work to the global ready queue.
+
+    A caller may pass its existing write transaction to make unpausing
+    atomic with the subsequent resume-work discovery and enqueue.
+    """
     now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
             "UPDATE scientific_tasks SET status='queued', updated_at=? "
             "WHERE run_id=? AND status='paused'",
             (now, run_id),
@@ -301,6 +317,7 @@ def revive_task_for_retry(
     idempotency_key: str,
     *,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Return one terminally-dead task to the queue with a fresh budget.
 
@@ -323,13 +340,14 @@ def revive_task_for_retry(
         run_id: The run whose task should be revived.
         idempotency_key: Key identifying the task within the run.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to join an existing transaction.
 
     Returns:
         True if a dead task was revived, False if there was nothing to revive.
     """
     now = _now()
-    with transaction(db_path) as conn:
-        changed = _revive_task_row(conn, run_id, idempotency_key, now)
+    with _use_conn(conn, db_path) as active:
+        changed = _revive_task_row(active, run_id, idempotency_key, now)
     return changed > 0
 
 

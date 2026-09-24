@@ -42,6 +42,12 @@ from app.engine_tasks_metrics import (
 from app.engine_tasks_metrics import (
     _plain_metrics as _plain_metrics,
 )
+from app.engine_tasks_pause import (
+    _save_paused_if_requested as _save_paused_if_requested,
+)
+from app.engine_tasks_pause import (
+    _save_paused_state as _save_paused_state,
+)
 from app.engine_tasks_portfolio import (
     _enqueue_node_portfolio as _enqueue_node_portfolio,
 )
@@ -130,6 +136,39 @@ def _successor_task_type(successor: str | None) -> str:
     return f"{NODE_TASK_PREFIX}{successor}"
 
 
+def _assert_task_commit_allowed(
+    task: ScientificTask, conn: sqlite3.Connection
+) -> None:
+    """Require the task's lease and run to remain live inside its commit."""
+    row = conn.execute(
+        "SELECT task.status AS task_status, task.lease_owner AS lease_owner, "
+        "task.attempt AS attempt, "
+        "run.status AS run_status FROM scientific_tasks AS task "
+        "JOIN runs AS run ON run.id=task.run_id "
+        "WHERE task.id=? AND task.run_id=?",
+        (task.id, task.run_id),
+    ).fetchone()
+    terminal = {status.value for status in store.TERMINAL_STATUSES}
+    if (
+        task.status != "leased"
+        or task.lease_owner is None
+        or row is None
+        or row["task_status"] != "leased"
+        or row["lease_owner"] != task.lease_owner
+        or row["attempt"] != task.attempt
+        or row["run_status"] in terminal
+    ):
+        # Import lazily to keep the shared support module below the worker
+        # outcome module in the import graph. BEGIN IMMEDIATE makes this
+        # read indivisible with the checkpoint and successor writes below.
+        from app.task_worker_outcomes import _LeaseLostError
+
+        raise _LeaseLostError(
+            f"task {task.id} cannot commit after lease revocation "
+            "or run termination"
+        )
+
+
 def _generator_and_opts(
     task: ScientificTask, db_path: str | None
 ) -> tuple[Any, dict[str, Any]]:
@@ -208,6 +247,8 @@ def _save_state_and_enqueue(
     commit: TaskCommit,
     state: dict[str, Any],
     successor: str | None,
+    *,
+    pause_if_requested: bool = False,
 ) -> tuple[int, str | None]:
     """Atomically checkpoint one node effect and enqueue its successor.
 
@@ -222,7 +263,9 @@ def _save_state_and_enqueue(
     ``co_scientist.task_runtime.plan_portfolio`` can already resolve from
     ``state`` (finding F4): a bounded portfolio rather than one task at a
     time, without changing that this transaction still advances the
-    checkpoint chain by exactly one commit.
+    checkpoint chain by exactly one commit. Node commits set
+    ``pause_if_requested`` to choose a paused checkpoint under this same
+    transaction when the API pause has already committed.
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
@@ -233,6 +276,13 @@ def _save_state_and_enqueue(
     )
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
+        if pause_if_requested:
+            paused = _save_paused_if_requested(
+                commit, state, successor_type, envelope, conn
+            )
+            if paused is not None:
+                return paused
         checkpoint_seq = _save_node_checkpoint(
             task, envelope, successor_type, commit.current_seq, conn
         )
@@ -318,6 +368,7 @@ def _save_state_and_enqueue_exact(
         ),
     )
     with store.transaction(commit.db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_exact_checkpoint(
             task, envelope, commit.current_seq, conn
         )
@@ -325,48 +376,6 @@ def _save_state_and_enqueue_exact(
             task, successor, checkpoint_seq, conn
         )
     return checkpoint_seq, enqueued.id
-
-
-def _save_paused_state(
-    commit: TaskCommit,
-    state: dict[str, Any],
-    resume_successor: str,
-) -> int:
-    """Checkpoint an in-flight task without making successor work claimable.
-
-    A pause commits the guidance-carrying state as durably as a successor
-    commit does, so it retires the same steering in the same transaction.
-    """
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
-
-    task, db_path = commit.task, commit.db_path
-    envelope = serialize_workflow_state(
-        state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
-    )
-    with store.transaction(db_path) as conn:
-        latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-        latest_seq = int(latest["seq"]) if latest else 0
-        if latest_seq != commit.current_seq:
-            raise RuntimeError("checkpoint changed while pausing task")
-        _ack_consumed_steering(commit, conn, state)
-        return store.save_checkpoint(
-            task.run_id,
-            store.NewCheckpoint(
-                stage=f"engine_task_paused:{task.id}",
-                schema_version=CHECKPOINT_VERSION,
-                last_event_seq=envelope["last_event_seq"],
-                state={
-                    "provider": _CHECKPOINT_PROVIDER,
-                    "resume_successor": resume_successor,
-                    **envelope,
-                },
-            ),
-            conn=conn,
-        )
 
 
 def _latest_task_checkpoint(

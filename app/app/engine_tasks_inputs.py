@@ -9,19 +9,28 @@ remains the stable import and monkeypatch surface.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from app import store
 from app.elo import INITIAL_ELO
-from app.engine_tasks_support import BOOTSTRAP_TASK, NODE_TASK_PREFIX
+from app.engine_tasks_support import (
+    BOOTSTRAP_TASK,
+    NODE_TASK_PREFIX,
+    SafetyHoldError,
+)
 from app.human_input import VERDICT_REVIEW_SCORES
-from app.store import RunStatus, ScientificTask
+from app.safety import ScreenSubject
+from app.store import RunRow, RunStatus, ScientificTask
 
 
 def enqueue_bootstrap(
-    run_id: str, *, db_path: str | None = None
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    """Enqueue the first idempotent task of a node-level engine run."""
+    """Enqueue the bootstrap, optionally in its caller's transaction."""
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -36,7 +45,60 @@ def enqueue_bootstrap(
             budget={"lease_seconds": 300},
         ),
         db_path=db_path,
+        conn=conn,
     )
+
+
+def _bootstrap_start_status(
+    task: ScientificTask, run: RunRow, db_path: str | None
+) -> str:
+    """Advance run status only while this bootstrap still owns its lease."""
+    status = store.mark_bootstrap_running(
+        run.id,
+        task.id,
+        task.lease_owner,
+        task.attempt,
+        db_path=db_path,
+    )
+    if status is None:
+        from app.task_worker_outcomes import _LeaseLostError
+
+        raise _LeaseLostError(
+            f"bootstrap task {task.id} lost its lease before run start"
+        )
+    return status
+
+
+async def _screen_bootstrap_intake(
+    run: RunRow,
+    emit: Any,
+    db_path: str | None,
+    task: ScientificTask | None,
+    *,
+    screening: tuple[Any, Any, Any],
+) -> dict[str, Any] | None:
+    """Run the intake gate with the bootstrap lease as its status fence."""
+    screen_with_escalation, screen_intake, apply_safety_gate = screening
+    decision = await screen_with_escalation(
+        run.id,
+        ScreenSubject(
+            "intake", run.research_goal, screen_intake(run.research_goal)
+        ),
+        provider=run.provider,
+        db_path=db_path,
+    )
+    lease_guard = (
+        (task.id, task.lease_owner, task.attempt) if task is not None else None
+    )
+    async for _ in apply_safety_gate(
+        run.id, decision, emit, db_path=db_path, lease_guard=lease_guard
+    ):
+        pass
+    if decision.decision == "hold":
+        raise SafetyHoldError(f"intake held for review: {decision.reason}")
+    if decision.decision == "block":
+        return {"run_id": run.id, "status": "withheld", "terminal": True}
+    return None
 
 
 def reopen_for_pending_scientist_input(
