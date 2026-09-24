@@ -24,6 +24,7 @@ from app.config import settings
 from app.runs_models import StartRunRequest
 from app.runs_support import _run_or_404
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
+from app.task_worker_enqueue import is_abandoned_spent_bootstrap
 
 logger = logging.getLogger(__name__)
 
@@ -217,13 +218,38 @@ def _has_paused_engine_task(run_id: str) -> bool:
     )
 
 
+def _has_leased_precheckpoint_bootstrap(run_id: str) -> bool:
+    """A bootstrap lease is a resumable boundary before its first checkpoint."""
+    return not store.has_checkpoint(run_id) and store.has_task_of_type(
+        run_id, engine_tasks.BOOTSTRAP_TASK, status="leased"
+    )
+
+
+def _has_failed_precheckpoint_bootstrap_while_paused(run_id: str) -> bool:
+    """Allow retry only when abandonment failed a bootstrap in a paused run."""
+    if store.has_checkpoint(run_id):
+        return False
+    run = store.get_run(run_id)
+    if run is None or run.status != RunStatus.PAUSED.value:
+        return False
+    return any(
+        is_abandoned_spent_bootstrap(task) for task in store.list_tasks(run_id)
+    )
+
+
 def _is_resumable(run_id: str) -> bool:
     """Report whether anything durable exists for this run to resume from.
 
-    Two shapes, one question. A checkpoint restores the run's engine
-    state; a paused engine task is a run the user stopped.
+    A checkpoint restores engine state; a paused engine task resumes its
+    boundary; a leased or abandoned bootstrap survives pause before either
+    exists.
     """
-    return store.has_checkpoint(run_id) or _has_paused_engine_task(run_id)
+    return (
+        store.has_checkpoint(run_id)
+        or _has_paused_engine_task(run_id)
+        or _has_leased_precheckpoint_bootstrap(run_id)
+        or _has_failed_precheckpoint_bootstrap_while_paused(run_id)
+    )
 
 
 @router.post("/{run_id}/resume")
@@ -271,8 +297,9 @@ def _prepare_resume_state(run_id: str) -> bool:
 
     Two resume modes, chosen by the kind of checkpoint on disk:
 
-    - Engine checkpoint (a serialized WorkflowState) or an already-queued
-      paused engine task: a *true* resume. The engine restores that state
+    - Engine checkpoint (a serialized WorkflowState), an already-queued
+      paused engine task, or a leased/abandoned pre-checkpoint bootstrap: a *true*
+      resume. The engine restores or continues that state
       and re-enters at the orchestrator, so completed LLM/tool work is not
       repeated. Derived data is NOT cleared — the engine persists artifacts
       only at the final drain, so a mid-run interruption left only events +
@@ -287,9 +314,12 @@ def _prepare_resume_state(run_id: str) -> bool:
       history).
     """
     checkpoint = store.get_latest_checkpoint(run_id)
-    true_resume = engine_adapter.is_engine_checkpoint(
-        checkpoint
-    ) or _has_paused_engine_task(run_id)
+    true_resume = (
+        engine_adapter.is_engine_checkpoint(checkpoint)
+        or _has_paused_engine_task(run_id)
+        or _has_leased_precheckpoint_bootstrap(run_id)
+        or _has_failed_precheckpoint_bootstrap_while_paused(run_id)
+    )
     if not true_resume:
         store.clear_run_derived_data(run_id)
         store.clear_checkpoints(run_id)
@@ -301,7 +331,12 @@ def _resume_detail(true_resume: bool) -> str:
     return "from specialist checkpoint" if true_resume else "from checkpoint"
 
 
-def _queue_resume_workflow(run_id: str, true_resume: bool) -> ScientificTask:
+def _queue_resume_workflow(
+    run_id: str,
+    true_resume: bool,
+    *,
+    revive_failed_precheckpoint_bootstrap: bool = False,
+) -> ScientificTask:
     """Mark the run queued, emit the resuming event, and enqueue its task."""
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(
@@ -312,7 +347,11 @@ def _queue_resume_workflow(run_id: str, true_resume: bool) -> ScientificTask:
             "detail": _resume_detail(true_resume),
         },
     )
-    queued = task_worker.enqueue_run_workflow(run_id, resume=true_resume)
+    queued = task_worker.enqueue_run_workflow(
+        run_id,
+        resume=true_resume,
+        revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
+    )
     # Say what the resume actually landed on, not just that it happened. The
     # "resuming" event above is emitted before any work is queued, so on its
     # own it cannot distinguish a resume that started work from one that
@@ -366,8 +405,15 @@ async def _launch_resume(run_id: str) -> None:
     not garbage-collected. A completed run is never relaunched by callers.
     """
     _run_or_404(run_id)
+    revive_failed_bootstrap = _has_failed_precheckpoint_bootstrap_while_paused(
+        run_id
+    )
     true_resume = _prepare_resume_state(run_id)
-    _queue_resume_workflow(run_id, true_resume)
+    _queue_resume_workflow(
+        run_id,
+        true_resume,
+        revive_failed_precheckpoint_bootstrap=revive_failed_bootstrap,
+    )
     if settings.coscientist_embedded_worker:
         _launch_embedded_resume_worker(run_id)
 

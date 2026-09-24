@@ -61,7 +61,7 @@ async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
 
     async def prepare_without_providers(*_: Any, **__: Any) -> tuple[Any, ...]:
         prepared.append(True)
-        return {}, object(), None
+        return {}, object()
 
     async def emit_without_persisting(*_: Any, **__: Any) -> None:
         return None
@@ -235,7 +235,6 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     original = store.claim_task("old-paused-worker", run_id=run_id)
     assert original is not None
-    store.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
     with store.transaction(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
@@ -244,6 +243,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     replacement = store.claim_task("current-paused-worker", run_id=run_id)
     assert replacement is not None
     assert replacement.attempt == original.attempt + 1
+    store.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
     prepared: list[bool] = []
     synced: list[bool] = []
 
@@ -252,7 +252,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
 
     async def fake_prepare(*_: Any, **__: Any) -> tuple[Any, ...]:
         prepared.append(True)
-        return {}, object(), {"status": "paused"}
+        return {}, object()
 
     monkeypatch.setattr(
         engine_tasks, "_screen_bootstrap_intake", no_intake_work

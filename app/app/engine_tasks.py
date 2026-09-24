@@ -287,17 +287,16 @@ async def _screen_bootstrap_intake(
 
 async def _prepare_bootstrap_state(
     task: ScientificTask, run: store.RunRow, db_path: str | None
-) -> tuple[dict[str, Any], TaskCommit, dict[str, Any] | None]:
-    """Build initial workflow state, honoring a cancel/pause during prep.
+) -> tuple[dict[str, Any], TaskCommit]:
+    """Build initial state and commit target, aborting if cancelled.
 
-    Returns the prepared state, the commit target, and -- if the run was
-    paused meanwhile -- the checkpointed-pause result the caller must
-    return instead of continuing. Bootstrap never consumes steering
-    (``consume_steering=False``): any steering queued before the run even
-    started is folded into the initial preferences text same as always,
-    but stays pending until the run's first orchestrator cycle -- the one
-    place ``pending_steering`` is actually read for scheduling -- rather
-    than being acknowledged here where nothing acts on it.
+    Pause-versus-successor is decided by the caller's commit transaction.
+    Bootstrap never consumes steering (``consume_steering=False``): any
+    steering queued before the run even started is folded into the initial
+    preferences text same as always, but stays pending until the run's first
+    orchestrator cycle -- the one place ``pending_steering`` is actually read
+    for scheduling -- rather than being acknowledged here where nothing acts
+    on it.
     """
     generator, opts = _generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
@@ -309,13 +308,9 @@ async def _prepare_bootstrap_state(
     refreshed = store.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
-    if refreshed.status == RunStatus.PAUSED.value:
-        checkpoint_seq = _save_paused_state(
-            commit, state, f"{NODE_TASK_PREFIX}supervisor"
-        )
-        paused = {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-        return state, commit, paused
-    return state, commit, None
+    # A PAUSED snapshot is advisory only. /resume can change it to QUEUED
+    # before the commit transaction, which must choose pause vs successor.
+    return state, commit
 
 
 async def execute_bootstrap(
@@ -335,12 +330,12 @@ async def execute_bootstrap(
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.
     sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
-    state, commit, paused = await _prepare_bootstrap_state(task, run, db_path)
-    if paused is not None:
-        return paused
+    state, commit = await _prepare_bootstrap_state(task, run, db_path)
     checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, state, "supervisor"
+        commit, state, "supervisor", pause_if_requested=True
     )
+    if successor_id is None:
+        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
     await emit(
         "scientific_task",
         {

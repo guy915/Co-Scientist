@@ -16,6 +16,7 @@ from typing import Any
 
 from app import engine_tasks, store
 from app.store import ScientificTask
+from app.store.tasks_lifecycle import _DEAD_LEASE_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,18 @@ class _CheckpointMatch:
     predecessor_id: str | None
     fanout_source: str | None
     include_predecessor_lease: bool
+
+
+# Match the persisted marker from ``store.abandon_dead_leases``; exhaustion
+# alone can also describe a permanent worker failure on its final attempt.
+def is_abandoned_spent_bootstrap(task: ScientificTask) -> bool:
+    """Identify the dead-lease failure written by store abandonment."""
+    return (
+        task.task_type == engine_tasks.BOOTSTRAP_TASK
+        and task.status == "failed"
+        and task.attempt >= task.max_attempts
+        and task.error == _DEAD_LEASE_ERROR
+    )
 
 
 def _resume_predecessor_id(
@@ -353,6 +366,8 @@ def _already_claimable_task(
 def _enqueue_resumed_workflow(
     run_id: str,
     db: _ResumeDB,
+    *,
+    revive_failed_precheckpoint_bootstrap: bool = False,
 ) -> ScientificTask:
     """Discover or enqueue resume work under the same write lock."""
     existing = _already_claimable_task(run_id, db)
@@ -363,7 +378,50 @@ def _enqueue_resumed_workflow(
     )
     if checkpoint is not None:
         return _enqueue_resume_task(run_id, checkpoint, db)
+    _revive_spent_precheckpoint_bootstrap(
+        run_id,
+        db,
+        allow_failed=revive_failed_precheckpoint_bootstrap,
+    )
     return engine_tasks.enqueue_bootstrap(run_id, db_path=db.path, conn=db.conn)
+
+
+def _revive_spent_precheckpoint_bootstrap(
+    run_id: str,
+    db: _ResumeDB,
+    *,
+    allow_failed: bool = False,
+) -> None:
+    """Revive an eligible bootstrap, leaving live/retryable leases to claim."""
+    bootstrap = next(
+        (
+            task
+            for task in store.list_tasks(run_id, db_path=db.path, conn=db.conn)
+            if task.task_type == engine_tasks.BOOTSTRAP_TASK
+        ),
+        None,
+    )
+    if (
+        bootstrap is None
+        or (
+            bootstrap.status == "leased"
+            and bootstrap.attempt < bootstrap.max_attempts
+        )
+        or bootstrap.status not in {"leased", "failed"}
+        or (
+            bootstrap.status == "failed"
+            and (
+                not allow_failed or not is_abandoned_spent_bootstrap(bootstrap)
+            )
+        )
+    ):
+        return
+    _revive_dead_resume_target(
+        run_id,
+        bootstrap.task_type,
+        bootstrap.idempotency_key,
+        db,
+    )
 
 
 def enqueue_run_workflow(
@@ -371,10 +429,15 @@ def enqueue_run_workflow(
     *,
     force_provider: str | None = None,
     resume: bool = False,
+    revive_failed_precheckpoint_bootstrap: bool = False,
     db_path: str | None = None,
 ) -> ScientificTask:
     """Enqueue one idempotent workflow attempt for a run."""
     if resume:
         with store.transaction(db_path) as conn:
-            return _enqueue_resumed_workflow(run_id, _ResumeDB(db_path, conn))
+            return _enqueue_resumed_workflow(
+                run_id,
+                _ResumeDB(db_path, conn),
+                revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
+            )
     return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
