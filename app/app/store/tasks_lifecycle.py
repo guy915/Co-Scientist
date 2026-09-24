@@ -135,11 +135,16 @@ def cancel_run_tasks(
     return int(changed)
 
 
-def pause_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
-    """Make queued work non-claimable while an in-flight lease checkpoints."""
+def pause_run_tasks(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Make queued work non-claimable, joining a caller transaction if given."""
     now = _now()
-    with transaction(db_path) as conn:
-        changed = conn.execute(
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
             "UPDATE scientific_tasks SET status='paused', updated_at=? "
             "WHERE run_id=? AND status='queued'",
             (now, run_id),

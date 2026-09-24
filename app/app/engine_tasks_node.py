@@ -27,6 +27,9 @@ from app.engine_tasks_gate import _apply_pre_ranking_evidence_gate
 from app.engine_tasks_inputs import (
     reopen_for_pending_scientist_input as reopen_for_pending_scientist_input,
 )
+from app.engine_tasks_pause import (
+    _pause_node_task_if_requested as _pause_node_task_if_requested,
+)
 from app.engine_tasks_ranking import _schedule_ranking_chain
 from app.engine_tasks_restore import (
     ADMISSION_NODE as ADMISSION_NODE,
@@ -126,33 +129,6 @@ def _check_portfolio_predecessor(
     raise SupersededTaskError("portfolio task checkpoint was superseded")
 
 
-def _pause_node_task_if_requested(
-    commit: TaskCommit,
-    run: store.RunRow,
-    node_name: str,
-    state: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Checkpoint and pause a node task the operator paused mid-flight.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        run: The task's run row, read for a mid-flight pause.
-        node_name: Engine node the paused task was about to run.
-        state: Workflow state to checkpoint at the pause point.
-
-    Returns:
-        The pause result to return, or ``None`` if the run is not paused.
-    """
-    if run.status != RunStatus.PAUSED.value:
-        return None
-    checkpoint_seq = _save_paused_state(commit, state, commit.task.task_type)
-    return {
-        "checkpoint_seq": checkpoint_seq,
-        "node": node_name,
-        "status": "paused",
-    }
-
-
 # Node types with a synchronous fan-out enqueue helper (see below).
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
     "review": _enqueue_review_fanout,
@@ -214,20 +190,23 @@ async def _commit_node_result(
     successor_type = _successor_task_type(successor)
     if run.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(commit, committed, successor_type)
-        return {
-            "checkpoint_seq": checkpoint_seq,
-            "node": node_name,
-            "status": "paused",
-        }
-    checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, committed, successor
-    )
+        successor_id = None
+    else:
+        checkpoint_seq, successor_id = _save_state_and_enqueue(
+            commit, committed, successor, pause_if_requested=True
+        )
     await _emit_node_completion(
         task.run_id,
         NodeCompletion(node_name, successor, checkpoint_seq),
         committed,
         db_path,
     )
+    if successor_id is None:
+        return {
+            "checkpoint_seq": checkpoint_seq,
+            "node": node_name,
+            "status": "paused",
+        }
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from threading import Event, Thread
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,11 +18,16 @@ from app import (
     store,
     task_worker,
 )
+from app.config import settings
 from app.engine_tasks_context import ExactSuccessor, TaskCommit
 from app.engine_tasks_fanout_aggregates import _AggregateSpec
 from app.engine_tasks_fanout_generation import _GenerationPlan, _StrategyInputs
 from tests._client import make_client
-from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
+from tests._engine_tasks_helpers import (
+    _seed_checkpoint,
+    _task_events,
+    _task_state,
+)
 
 _OWNER = {"X-Client-ID": "cancel-commit-owner"}
 
@@ -123,6 +130,173 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
     assert cancelled_task is not None and cancelled_task.status == "cancelled"
     cancelled_run = store.get_run(run_id, db_path=isolated_db)
     assert cancelled_run is not None and cancelled_run.status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A final-boundary pause checkpoints without making work claimable."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client, run_id = _owned_running_run(isolated_db)
+    state = _task_state(run_id)
+    task, checkpoint_seq = _leased_task(
+        run_id, "engine.node.supervisor", "pause-successor-race", isolated_db
+    )
+    monkeypatch.setattr(
+        engine_tasks,
+        "_prepare_node_task",
+        lambda *_: (
+            state,
+            TaskCommit(task, checkpoint_seq, isolated_db),
+            "supervisor",
+        ),
+    )
+
+    async def execute_node(
+        _name: str, node_state: dict[str, Any]
+    ) -> tuple[dict[str, Any], str]:
+        node_state["metrics"].llm_calls = 7
+        node_state["metrics"].hypothesis_count = 3
+        return {**node_state, "committed_after_execution": True}, "generate"
+
+    from co_scientist import task_runtime
+
+    monkeypatch.setattr(task_runtime, "execute_task_node", execute_node)
+
+    commit_node_result = engine_tasks._commit_node_result
+
+    async def pause_then_commit(
+        commit: TaskCommit,
+        run: store.RunRow,
+        node_name: str,
+        committed: dict[str, Any],
+        successor: str | None,
+    ) -> dict[str, Any]:
+        response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "paused"
+        return await commit_node_result(
+            commit, run, node_name, committed, successor
+        )
+
+    monkeypatch.setattr(engine_tasks, "_commit_node_result", pause_then_commit)
+
+    result = await engine_tasks.execute_node_task(task, db_path=isolated_db)
+
+    saved_tasks = store.list_tasks(run_id, db_path=isolated_db)
+    assert not any(row.status == "queued" for row in saved_tasks), result
+    assert result["status"] == "paused"
+    assert store.complete_task(
+        task.id, "cancel-race-worker", result, db_path=isolated_db
+    )
+    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert latest is not None and latest["seq"] == checkpoint_seq + 1
+    assert latest["stage"] == f"engine_task_paused:{task.id}"
+    assert latest["state"]["resume_successor"] == "engine.node.generate"
+    metrics = store.get_run_metrics(run_id, db_path=isolated_db)
+    assert metrics is not None
+    assert metrics["llm_calls"] == 7
+    assert metrics["hypothesis_count"] == 3
+    [completion] = _task_events(run_id, "supervisor", db_path=isolated_db)
+    assert completion["payload"] == {
+        "task": "supervisor",
+        "status": "completed",
+        "checkpoint_seq": checkpoint_seq + 1,
+        "successor": "generate",
+        "activity": "planning",
+    }
+    saved_tasks = store.list_tasks(run_id, db_path=isolated_db)
+    assert [row.id for row in saved_tasks] == [task.id]
+    assert (
+        store.claim_task(
+            "pause-race-claim-check", run_id=run_id, db_path=isolated_db
+        )
+        is None
+    )
+
+    resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
+    assert resumed.status_code == 200, resumed.text
+    queued = [
+        row
+        for row in store.list_tasks(run_id, db_path=isolated_db)
+        if row.status == "queued"
+    ]
+    assert len(queued) == 1
+    assert queued[0].task_type == "engine.node.generate"
+
+
+def test_pause_api_serializes_queued_revocation_with_node_commit(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A commit cannot slip between pause's queue and run-state writes."""
+    client, run_id = _owned_running_run(isolated_db)
+    task, checkpoint_seq = _leased_task(
+        run_id, "engine.node.supervisor", "pause-api-transaction", isolated_db
+    )
+    commit_finished = Event()
+    commit_attempted = Event()
+    commit_result: list[tuple[int, str | None]] = []
+    commit_errors: list[BaseException] = []
+
+    def commit_successor() -> None:
+        try:
+            commit_result.append(
+                engine_tasks_support._save_state_and_enqueue(
+                    TaskCommit(task, checkpoint_seq, isolated_db),
+                    _task_state(run_id),
+                    "generate",
+                    pause_if_requested=True,
+                )
+            )
+        except BaseException as exc:
+            commit_errors.append(exc)
+        finally:
+            commit_finished.set()
+
+    original_pause_tasks = store.pause_run_tasks
+    original_transaction = store.transaction
+    commit_thread: Thread | None = None
+
+    @contextmanager
+    def signal_commit_transaction(
+        db_path: str | None = None,
+    ) -> Iterator[Any]:
+        commit_attempted.set()
+        with original_transaction(db_path) as conn:
+            yield conn
+
+    def pause_tasks_then_race(
+        target_run_id: str, *, db_path: str | None = None, conn: Any = None
+    ) -> int:
+        nonlocal commit_thread
+        changed = original_pause_tasks(
+            target_run_id, db_path=db_path, conn=conn
+        )
+        commit_attempted.clear()
+        commit_thread = Thread(target=commit_successor)
+        commit_thread.start()
+        assert commit_attempted.wait(2), "commit did not reach its transaction"
+        assert not commit_finished.wait(0.2), "commit escaped pause transaction"
+        return changed
+
+    monkeypatch.setattr(store, "pause_run_tasks", pause_tasks_then_race)
+    monkeypatch.setattr(store, "transaction", signal_commit_transaction)
+    response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "paused"
+    assert commit_thread is not None
+    commit_thread.join(timeout=5)
+    assert not commit_thread.is_alive()
+    assert not commit_errors
+    assert commit_result == [(checkpoint_seq + 1, None)]
+    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
+    assert not any(
+        row.status == "queued"
+        for row in store.list_tasks(run_id, db_path=isolated_db)
+    )
 
 
 @pytest.mark.asyncio

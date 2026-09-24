@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 import sqlite3
 
-from app.store.db import _now, connect
+from app.store.db import _now, _use_conn, connect
 
 # The liveness invariant shared by the advisory probes and the claim's
 # rescue UPDATE: an expired lease with retry budget left is claimable
@@ -94,11 +94,12 @@ def has_task_of_type(
     *,
     status: str | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Return whether the run has a task of this type prefix and status.
 
-    Read-only, like every probe here: it opens no write transaction, so it
-    can never queue behind (or ahead of) the single writer.
+    Read-only. With no supplied connection it opens no write transaction;
+    callers may also join an existing transaction for an atomic decision.
 
     The prefix is compared literally, not as a LIKE pattern, so it matches
     a caller's ``task_type.startswith(prefix)`` exactly -- LIKE would treat
@@ -109,6 +110,7 @@ def has_task_of_type(
         type_prefix: Literal prefix the task type must start with.
         status: Optional queue status the task must also be in.
         db_path: Optional override for the SQLite database path.
+        conn: Optional transaction to join.
 
     Returns:
         True if the run has at least one matching task.
@@ -120,8 +122,8 @@ def has_task_of_type(
         " LIMIT 1"
     )
     params = (run_id, len(type_prefix), type_prefix, status, status)
-    with connect(db_path) as conn:
-        row = conn.execute(query, params).fetchone()
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(query, params).fetchone()
     return row is not None
 
 

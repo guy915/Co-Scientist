@@ -187,18 +187,26 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     durable worker's own per-task checkpoint (``engine_tasks.py``) is what
     makes the run resumable, so no extra checkpoint needs to be created here.
     """
-    run = _run_or_404(run_id)
-    has_engine_task = store.has_task_of_type(
-        run_id, engine_tasks.ENGINE_TASK_PREFIX
-    )
-    if has_engine_task and run.status in {
-        RunStatus.QUEUED.value,
-        RunStatus.RUNNING.value,
-    }:
-        store.pause_run_tasks(run_id)
-        store.update_run_status(run_id, RunStatus.PAUSED)
-        store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
-        return {"id": run_id, "status": "paused"}
+    with store.transaction() as conn:
+        run = store.get_run(run_id, conn=conn)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        has_engine_task = store.has_task_of_type(
+            run_id, engine_tasks.ENGINE_TASK_PREFIX, conn=conn
+        )
+        if has_engine_task and run.status in {
+            RunStatus.QUEUED.value,
+            RunStatus.RUNNING.value,
+        }:
+            store.pause_run_tasks(run_id, conn=conn)
+            store.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
+            store.append_event(
+                run_id,
+                "lifecycle",
+                {"event": "pause_requested"},
+                conn=conn,
+            )
+            return {"id": run_id, "status": "paused"}
     raise HTTPException(status_code=404, detail="run is not active")
 
 
