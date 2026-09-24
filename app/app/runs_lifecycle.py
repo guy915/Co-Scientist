@@ -237,15 +237,19 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     true engine resume restores the persisted WorkflowState; a legacy
     (pre-flip) envelope checkpoint instead clears derived artifacts and
     re-bootstraps the run from its goal/config (see ``_launch_resume``). A
-    completed or
-    actively-running run cannot be resumed -- a *failed* one can, which is
-    what makes this the recovery path for a run an earlier restart gave up
-    on: failing a run never touched its task rows, so their retry budgets
-    are intact.
+    completed, blocked, or actively-running runs cannot be resumed; a
+    *failed* one can, which makes this the recovery path for a run an earlier
+    restart gave up on: failing a run never touched its task rows, so their
+    retry budgets are intact.
     """
     run, lifecycle_revision = _resume_admission_snapshot(run_id)
     if run.status == RunStatus.COMPLETED.value:
         raise HTTPException(status_code=409, detail="run already completed")
+    if run.status == RunStatus.BLOCKED.value:
+        raise HTTPException(
+            status_code=409,
+            detail="run was blocked; create a new run",
+        )
     if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
         raise HTTPException(status_code=409, detail="run already in progress")
     if not _is_resumable(run_id):
