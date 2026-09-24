@@ -91,7 +91,12 @@ async def _screen_bootstrap_intake(
         (task.id, task.lease_owner, task.attempt) if task is not None else None
     )
     async for _ in apply_safety_gate(
-        run.id, decision, emit, db_path=db_path, lease_guard=lease_guard
+        run.id,
+        decision,
+        emit,
+        db_path=db_path,
+        lease_guard=lease_guard,
+        task=task,
     ):
         pass
     if decision.decision == "hold":

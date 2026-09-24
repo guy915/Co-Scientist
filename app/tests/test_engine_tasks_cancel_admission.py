@@ -143,19 +143,23 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
     )
     release_screening.set()
 
-    if decision == "hold":
-        with pytest.raises(engine_tasks.SafetyHoldError):
-            await bootstrap
-    else:
-        assert (await bootstrap)["status"] == "withheld"
+    with pytest.raises(task_worker._LeaseLostError):
+        await bootstrap
 
     run = store.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "cancelled"
+    assert [
+        item
+        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        if item["stage"] == "intake"
+    ] == []
+    events = store.list_events(run_id, db_path=isolated_db)
+    assert not any(event["type"] == "safety.intake" for event in events)
     assert not any(
         event["type"] == "status"
         and event["seq"] > cancel_seq
         and event["payload"].get("status") in {"blocked", "paused"}
-        for event in store.list_events(run_id, db_path=isolated_db)
+        for event in events
     )
 
 
@@ -203,18 +207,22 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     assert replacement.attempt == original.attempt + 1
     release_screening.set()
 
-    if decision == "hold":
-        with pytest.raises(engine_tasks.SafetyHoldError):
-            await bootstrap
-    else:
-        assert (await bootstrap)["status"] == "withheld"
+    with pytest.raises(task_worker._LeaseLostError):
+        await bootstrap
 
     run = store.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "queued"
+    assert [
+        item
+        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        if item["stage"] == "intake"
+    ] == []
+    events = store.list_events(run_id, db_path=isolated_db)
+    assert not any(event["type"] == "safety.intake" for event in events)
     assert not any(
         event["type"] == "status"
         and event["payload"].get("status") in {"blocked", "paused"}
-        for event in store.list_events(run_id, db_path=isolated_db)
+        for event in events
     )
 
 

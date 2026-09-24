@@ -292,7 +292,11 @@ def set_run_llm_backend(
 
 
 def redact_run_goal(
-    run_id: str, goal: str, title: str, db_path: str | None = None
+    run_id: str,
+    goal: str,
+    title: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Overwrite a run's goal and title with their redacted forms.
 
@@ -310,9 +314,10 @@ def redact_run_goal(
         goal: The redacted research goal to persist.
         title: The redacted session title to persist.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse within a transaction.
     """
-    with connect(db_path) as conn:
-        conn.execute(
+    with _use_conn(conn, db_path) as active:
+        active.execute(
             "UPDATE runs SET research_goal = ?, title = ?, "
             "goal_restatement = NULL WHERE id = ?",
             (goal, title, run_id),
