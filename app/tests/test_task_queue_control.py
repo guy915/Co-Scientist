@@ -11,10 +11,10 @@ from app import store
 from tests._task_queue_helpers import _run, _three_control_tasks
 
 
-def test_cancel_run_tasks_revokes_queued_and_leased_work(
+def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
     isolated_db: str,
 ) -> None:
-    """Cancellation prevents both queued and in-flight task acknowledgement."""
+    """Cancellation revokes every task state that is safe to restart."""
     run_id = _run()
     first = store.enqueue_task(
         store.NewTask(
@@ -34,8 +34,18 @@ def test_cancel_run_tasks_revokes_queued_and_leased_work(
         ),
         db_path=isolated_db,
     )
+    store.enqueue_task(
+        store.NewTask(
+            run_id=run_id,
+            task_type="engine.node.review",
+            inputs={},
+            idempotency_key="cancel:paused",
+        ),
+        db_path=isolated_db,
+    )
     assert store.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert store.cancel_run_tasks(run_id, db_path=isolated_db) == 2
+    assert store.pause_run_tasks(run_id, db_path=isolated_db) == 2
+    assert store.cancel_run_tasks(run_id, db_path=isolated_db) == 3
     assert not store.complete_task(
         first.id, "worker", {"late": True}, db_path=isolated_db
     )

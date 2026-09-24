@@ -165,9 +165,11 @@ from app.store.runs import (
     get_run,
     list_expired_terminal_runs,
     list_runs,
+    mark_bootstrap_running,
     reconcile_interrupted_runs,
     redact_run_goal,
     reserve_run_capacity,
+    reserve_run_capacity_in_transaction,
     run_exists,
     run_offline_backed,
     run_used_offline,
@@ -176,6 +178,10 @@ from app.store.runs import (
     set_run_timing,
     summary_counts,
     update_run_status,
+    update_run_status_if_current,
+)
+from app.store.runs import (
+    bootstrap_task_lease_matches as bootstrap_task_lease_matches,
 )
 from app.store.runs_labels import (
     set_run_goal_restatement,
@@ -273,6 +279,7 @@ __all__ = [
     "append_log",
     "append_message",
     "attach_documents_to_interview",
+    "bootstrap_task_lease_matches",
     "cancel_run_tasks",
     "cancel_task",
     "checkpoint_wal",
@@ -339,6 +346,7 @@ __all__ = [
     "list_staged_documents_for_client",
     "list_supervisor_allocations",
     "list_tasks",
+    "mark_bootstrap_running",
     "mark_documents_used_by_run",
     "mark_steering_applied",
     "park_task",
@@ -356,6 +364,7 @@ __all__ = [
     "replace_supervisor_allocations",
     "reprioritize_task",
     "reserve_run_capacity",
+    "reserve_run_capacity_in_transaction",
     "resolve_report_share",
     "resolve_safety_decision",
     "resume_run_tasks",
@@ -385,4 +394,5 @@ __all__ = [
     "update_hypothesis_state",
     "update_interview",
     "update_run_status",
+    "update_run_status_if_current",
 ]

@@ -17,12 +17,30 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
+from app.store.db import _now, _use_conn, connect
 from app.store.models import (
     TERMINAL_STATUSES,
     RunRow,
     RunStatus,
     _row_to_run,
+)
+from app.store.runs_admission import (
+    _count_other_active_runs as _count_other_active_runs,
+)
+from app.store.runs_admission import (
+    _queue_run_if_startable as _queue_run_if_startable,
+)
+from app.store.runs_admission import (
+    reserve_run_capacity as reserve_run_capacity,
+)
+from app.store.runs_admission import (
+    reserve_run_capacity_in_transaction as reserve_run_capacity_in_transaction,
+)
+from app.store.runs_bootstrap import (
+    bootstrap_task_lease_matches as bootstrap_task_lease_matches,
+)
+from app.store.runs_bootstrap import (
+    mark_bootstrap_running as mark_bootstrap_running,
 )
 from app.store.runs_delete import count_run_rows as count_run_rows
 from app.store.runs_delete import delete_run as delete_run
@@ -330,74 +348,6 @@ def get_run(
         return _row_to_run(row) if row else None
 
 
-def _count_other_active_runs(
-    conn: sqlite3.Connection, run_id: str, client_id: str
-) -> int:
-    """Count the client's other in-flight runs, whatever tier they are.
-
-    Deliberately blind to ``profile``: the quota is one ceiling per
-    identity. Partitioning the count by tier as well made the effective
-    allowance ``max_concurrent_runs`` per tier -- four times what is
-    advertised, and reachable simply by naming a different tier each time.
-    """
-    return int(
-        conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE client_id=? "
-            "AND status IN (?,?,?) AND id!=?",
-            (client_id, *_ACTIVE_RUN_STATUSES, run_id),
-        ).fetchone()[0]
-    )
-
-
-def _queue_run_if_startable(
-    conn: sqlite3.Connection, run_id: str, now: float
-) -> int:
-    """Move a run to QUEUED if it is still in a startable status."""
-    return conn.execute(
-        "UPDATE runs SET status=?, updated_at=?, completed_at=NULL, "
-        "error=NULL WHERE id=? AND status IN (?,?,?,?)",
-        (
-            RunStatus.QUEUED.value,
-            now,
-            run_id,
-            RunStatus.DRAFT.value,
-            RunStatus.FAILED.value,
-            RunStatus.BLOCKED.value,
-            RunStatus.CANCELLED.value,
-        ),
-    ).rowcount
-
-
-def reserve_run_capacity(
-    run_id: str,
-    *,
-    client_id: str,
-    limit: int,
-    db_path: str | None = None,
-) -> bool:
-    """Atomically reserve one of the scientist's concurrency slots.
-
-    One ceiling per identity, counted over every tier together: a caller
-    that spreads its runs across tiers gets no extra allowance.
-
-    Args:
-        run_id: Draft run to transition to queued.
-        client_id: Scientist ownership scope.
-        limit: Maximum concurrent runs for the scientist.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when the slot was reserved and the run queued; False when the
-        quota was already full or the run was no longer startable.
-    """
-    with transaction(db_path) as conn:
-        count = _count_other_active_runs(conn, run_id, client_id)
-        if count >= limit:
-            return False
-        changed = _queue_run_if_startable(conn, run_id, _now())
-    return bool(changed)
-
-
 def run_exists(run_id: str, db_path: str | None = None) -> bool:
     """Return whether a run exists, without materializing the row.
 
@@ -423,6 +373,7 @@ def update_run_status(
     status: RunStatus,
     error: str | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Update a run's status, timestamps, and optional error message.
 
@@ -431,15 +382,44 @@ def update_run_status(
         status: The new lifecycle status to persist.
         error: Optional error message to store when the run failed.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to join an existing transaction.
     """
     now = _now()
     completed_at = now if status in TERMINAL_STATUSES else None
-    with connect(db_path) as conn:
-        conn.execute(
+    with _use_conn(conn, db_path) as active:
+        active.execute(
             "UPDATE runs SET status=?, error=?, updated_at=?, "
             "completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
         )
+
+
+def update_run_status_if_current(
+    conn: sqlite3.Connection,
+    run_id: str,
+    status: RunStatus,
+    expected_statuses: tuple[RunStatus, ...],
+    error: str | None = None,
+) -> bool:
+    """Change status only if the current row is in an allowed state."""
+    if not expected_statuses:
+        return False
+    now = _now()
+    completed_at = now if status in TERMINAL_STATUSES else None
+    placeholders = ",".join("?" for _ in expected_statuses)
+    changed = conn.execute(
+        "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? "
+        f"WHERE id=? AND status IN ({placeholders})",
+        (
+            status.value,
+            error,
+            now,
+            completed_at,
+            run_id,
+            *(item.value for item in expected_statuses),
+        ),
+    ).rowcount
+    return bool(changed)
 
 
 def set_run_timing(

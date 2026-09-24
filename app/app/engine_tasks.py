@@ -78,7 +78,13 @@ from app.engine_tasks_gate import (
     _GatePlan as _GatePlan,
 )
 from app.engine_tasks_inputs import (
+    _bootstrap_start_status as _bootstrap_start_status,
+)
+from app.engine_tasks_inputs import (
     _merge_scientist_inputs as _merge_scientist_inputs,
+)
+from app.engine_tasks_inputs import (
+    _screen_bootstrap_intake as _screen_bootstrap_intake_impl,
 )
 from app.engine_tasks_inputs import (
     enqueue_bootstrap as enqueue_bootstrap,
@@ -260,12 +266,7 @@ from app.engine_tasks_support import (
 from app.execution_policy import scoped_execution_policy
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
-from app.safety import (
-    ScreenSubject,
-    apply_safety_gate,
-    screen_intake,
-    screen_with_escalation,
-)
+from app.safety import apply_safety_gate, screen_intake, screen_with_escalation
 from app.store import RunStatus, ScientificTask
 
 
@@ -273,40 +274,15 @@ async def _screen_bootstrap_intake(
     run: store.RunRow,
     emit: Any,
     db_path: str | None,
+    task: ScientificTask | None = None,
 ) -> dict[str, Any] | None:
-    """Screen a run's research goal at the durable bootstrap boundary.
-
-    Via screen_with_escalation, not screen_contextual directly: the
-    escalation wrapper carries the two guards this boundary must honor --
-    an offline-backed run never pays for a real contextual model call, and
-    a stage a human already approved is not re-screened (which would
-    otherwise let a fresh contextual verdict re-hold an approved run on
-    every resume).
-
-    Returns a withheld result if the goal was blocked, else ``None`` to
-    let the caller proceed.
-
-    Raises:
-        SafetyHoldError: If the goal was held for human adjudication. A
-            block is terminal, so the task is genuinely done; a hold is a
-            wait, and must leave this bootstrap claimable again for when a
-            reviewer approves it.
-    """
-    decision = await screen_with_escalation(
-        run.id,
-        ScreenSubject(
-            "intake", run.research_goal, screen_intake(run.research_goal)
-        ),
-        provider=run.provider,
-        db_path=db_path,
+    return await _screen_bootstrap_intake_impl(
+        run,
+        emit,
+        db_path,
+        task=task,
+        screening=(screen_with_escalation, screen_intake, apply_safety_gate),
     )
-    async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path):
-        pass
-    if decision.decision == "hold":
-        raise SafetyHoldError(f"intake held for review: {decision.reason}")
-    if decision.decision == "block":
-        return {"run_id": run.id, "status": "withheld", "terminal": True}
-    return None
 
 
 async def _prepare_bootstrap_state(
@@ -348,12 +324,13 @@ async def execute_bootstrap(
     """Safety-gate a run, prepare state, and enqueue its first task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
-    withheld = await _screen_bootstrap_intake(run, emit, db_path)
+    withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)
     if withheld is not None:
         return withheld
     run = _require_run(task, db_path)  # the gate may have redacted the goal
-
-    store.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    bootstrap_status = _bootstrap_start_status(task, run, db_path)
+    if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
+        return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
     # Sync the run row before the generator is built (_generator_and_opts
     # reads it back via run_used_offline), so a config-pinned llm_backend
     # takes effect on this boundary.

@@ -135,6 +135,7 @@ def append_event(
     type_: str,
     payload: dict[str, Any],
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> int:
     """Append an event to a run's append-only event log.
 
@@ -143,12 +144,13 @@ def append_event(
         type_: Event type, e.g. an agent name, 'status', or 'log'.
         payload: Event payload serialized to JSON.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to join an existing transaction.
 
     Returns:
         The monotonically increasing sequence number assigned to the event.
     """
-    with connect(db_path) as conn:
-        return _append_event(conn, run_id, type_, payload, _now())
+    with _use_conn(conn, db_path) as active:
+        return _append_event(active, run_id, type_, payload, _now())
 
 
 def latest_event_seq(

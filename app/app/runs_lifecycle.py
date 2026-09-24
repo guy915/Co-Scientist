@@ -49,7 +49,7 @@ def _check_startable(run: RunRow) -> None:
         raise HTTPException(status_code=409, detail="run already completed")
 
 
-def _reserve_capacity_or_409(run: RunRow) -> None:
+def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
     """Reserve the client's concurrent-run slot, raising 409 if it is full.
 
     One ceiling for every tier, and one ceiling *across* them. Heavier
@@ -63,11 +63,20 @@ def _reserve_capacity_or_409(run: RunRow) -> None:
     which it can only do if every tier draws on the same slots.
     """
     limit = settings.max_concurrent_runs
-    if not store.reserve_run_capacity(
+    if not store.reserve_run_capacity_in_transaction(
+        conn,
         run.id,
-        client_id=run.client_id,
-        limit=limit,
+        run.client_id,
+        limit,
+        run.status,
     ):
+        current = store.get_run(run.id, conn=conn)
+        if current is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if current.status != run.status:
+            raise HTTPException(
+                status_code=409, detail="run status changed while starting"
+            )
         raise HTTPException(
             status_code=409,
             detail=f"concurrent run limit reached ({limit})",
@@ -75,22 +84,34 @@ def _reserve_capacity_or_409(run: RunRow) -> None:
 
 
 def _enqueue_workflow_and_maybe_launch_worker(
-    run_id: str, background: BackgroundTasks
+    run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
-    """Queue the run's workflow task and, in embedded mode, launch a worker.
+    """Reserve quota and admit work atomically, then launch if embedded.
 
     Every run is delivered through the durable worker queue -- the engine is
     the only provider now, so there is no in-process alternative to select.
     """
-    store.append_event(run_id, "lifecycle", {"event": "queued"})
-    task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
+    with store.transaction() as conn:
+        _reserve_capacity_or_409(run, conn)
+        store.revive_task_for_retry(
+            run.id,
+            "engine:bootstrap:v1",
+            conn=conn,
+        )
+        task = engine_tasks.enqueue_bootstrap(run.id, conn=conn)
+        store.append_event(
+            run.id,
+            "lifecycle",
+            {"event": "queued"},
+            conn=conn,
+        )
     if settings.coscientist_embedded_worker:
         # Local compatibility mode consumes the same durable lease. A
         # production worker service runs ``python -m app.task_worker`` and
         # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
         background.add_task(
             task_worker.run_run_worker_pool_sync,
-            run_id,
+            run.id,
             f"embedded-api:{os.getpid()}",
         )
     return task
@@ -118,8 +139,20 @@ async def start_run(
     """
     run = _run_or_404(run_id)
     _check_startable(run)
-    _reserve_capacity_or_409(run)
-    task = _enqueue_workflow_and_maybe_launch_worker(run_id, background)
+    if run.status in {
+        RunStatus.CANCELLED.value,
+        RunStatus.FAILED.value,
+    } and store.has_checkpoint(run_id):
+        raise HTTPException(
+            status_code=409,
+            detail="run has a checkpoint; use /resume to continue it",
+        )
+    if run.status == RunStatus.BLOCKED.value:
+        raise HTTPException(
+            status_code=409,
+            detail="run was blocked; create a new run",
+        )
+    task = _enqueue_workflow_and_maybe_launch_worker(run, background)
     return {"id": run_id, "status": "queued", "task_id": task.id}
 
 
@@ -134,12 +167,15 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     status event is emitted (mirroring the failed-run path) so open SSE
     streams close. An already-terminal run cannot be cancelled, returns 409.
     """
-    run = _run_or_404(run_id)
-    if run.status in TERMINAL_STATUSES:
-        raise HTTPException(status_code=409, detail="run already finished")
-    store.cancel_run_tasks(run_id)
-    store.update_run_status(run_id, RunStatus.CANCELLED)
-    store.append_event(run_id, "status", {"status": "cancelled"})
+    with store.transaction() as conn:
+        run = store.get_run(run_id, conn=conn)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if RunStatus(run.status) in TERMINAL_STATUSES:
+            raise HTTPException(status_code=409, detail="run already finished")
+        store.cancel_run_tasks(run_id, conn=conn)
+        store.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
+        store.append_event(run_id, "status", {"status": "cancelled"}, conn=conn)
     return {"id": run_id, "status": "cancelled"}
 
 

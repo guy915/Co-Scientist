@@ -11,12 +11,13 @@ now a ``Settings`` field, which is what these tests pin.
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 from typing import Any
 
 import pytest
 from fastapi import BackgroundTasks
 
-from app import main, runs_lifecycle, store, task_worker
+from app import engine_tasks, main, runs_lifecycle, store
 from app.config import Settings, settings
 
 
@@ -49,16 +50,32 @@ def test_start_launches_an_embedded_worker_only_when_enabled(
 ) -> None:
     """A worker-service deployment leaves the queued task for its own worker."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", embedded)
-    monkeypatch.setattr(store, "append_event", lambda *a, **k: None)
+    monkeypatch.setattr(store, "transaction", lambda: nullcontext(object()))
     monkeypatch.setattr(
-        task_worker,
-        "enqueue_run_workflow",
-        lambda run_id, **_: run_id,
+        store, "reserve_run_capacity_in_transaction", lambda *_, **__: True
     )
+    monkeypatch.setattr(store, "revive_task_for_retry", lambda *_, **__: None)
+    monkeypatch.setattr(
+        engine_tasks, "enqueue_bootstrap", lambda *_, **__: object()
+    )
+    monkeypatch.setattr(store, "append_event", lambda *a, **k: None)
     background = BackgroundTasks()
 
     runs_lifecycle._enqueue_workflow_and_maybe_launch_worker(
-        "run-1", background
+        store.RunRow(
+            id="run-1",
+            research_goal="test",
+            profile="express",
+            status="draft",
+            provider="engine",
+            config={},
+            client_id="client",
+            created_at=0,
+            updated_at=0,
+            completed_at=None,
+            error=None,
+        ),
+        background,
     )
 
     assert len(background.tasks) == expected
