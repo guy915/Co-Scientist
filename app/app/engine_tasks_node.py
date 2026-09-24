@@ -11,7 +11,7 @@ monkeypatch surface.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from app import store
@@ -30,6 +30,10 @@ from app.engine_tasks_inputs import (
 from app.engine_tasks_pause import (
     _pause_node_task_if_requested as _pause_node_task_if_requested,
 )
+from app.engine_tasks_pause import (
+    _save_paused_checkpoint,
+    _save_paused_state_if_requested,
+)
 from app.engine_tasks_ranking import _schedule_ranking_chain
 from app.engine_tasks_restore import (
     ADMISSION_NODE as ADMISSION_NODE,
@@ -42,6 +46,7 @@ from app.engine_tasks_support import (
     NodeCompletion,
     SafetyHoldError,
     SupersededTaskError,
+    _assert_task_commit_allowed,
     _emit_node_completion,
     _generator_for_restore,
     _latest_task_checkpoint,
@@ -225,40 +230,61 @@ def _require_active_run(
 
 
 def _pause_finalize_if_requested(
-    task: ScientificTask,
-    run: store.RunRow,
-    checkpoint: dict[str, Any],
-    state: dict[str, Any],
-    db_path: str | None,
+    commit: TaskCommit, state: dict[str, Any]
 ) -> dict[str, Any] | None:
-    """Checkpoint and pause finalization if the operator paused mid-flight."""
-    refreshed = store.get_run(run.id, db_path=db_path)
-    if refreshed is None or refreshed.status != RunStatus.PAUSED.value:
+    """Checkpoint a pause that arrived before finalize starts its drain."""
+    run = store.get_run(commit.task.run_id, db_path=commit.db_path)
+    if run is None or run.status != RunStatus.PAUSED.value:
         return None
-    # Finalization reads no steering, so this commit acknowledges none.
-    checkpoint_seq = _save_paused_state(
-        TaskCommit(task, int(checkpoint["seq"]), db_path),
-        state,
-        FINALIZE_TASK,
+    checkpoint_seq = _save_paused_state_if_requested(
+        commit, state, FINALIZE_TASK
     )
+    if checkpoint_seq is None:
+        return None
     return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+
+
+def _commit_finalize_drain(
+    commit: TaskCommit,
+    state: dict[str, Any],
+    drained: Any,
+    metrics: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Preserve pause or enter synthesis after final drain atomically."""
+    from co_scientist.checkpoint import serialize_workflow_state
+
+    task, db_path = commit.task, commit.db_path
+    envelope = serialize_workflow_state(state, last_event_seq=0)
+    with store.transaction(db_path) as conn:
+        _assert_task_commit_allowed(task, conn)
+        status = conn.execute(
+            "SELECT status FROM runs WHERE id=?", (task.run_id,)
+        ).fetchone()["status"]
+        if status == RunStatus.PAUSED.value:
+            store.clear_publication_artifacts(task.run_id, conn=conn)
+            envelope["last_event_seq"] = store.latest_event_seq(
+                task.run_id, conn=conn
+            )
+            checkpoint_seq = _save_paused_checkpoint(
+                commit,
+                state,
+                FINALIZE_TASK,
+                envelope,
+                conn,
+            )
+            store.save_run_metrics(task.run_id, metrics, conn=conn)
+            return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+        store.save_run_metrics(task.run_id, metrics, conn=conn)
+        store.update_run_status(task.run_id, RunStatus.SYNTHESIZING, conn=conn)
+        for event_type, payload in _finalize_stage_events(drained):
+            store.append_event(task.run_id, event_type, payload, conn=conn)
+    return None
 
 
 def _settle_finalize_outcome(
     run_id: str, db_path: str | None
 ) -> dict[str, Any]:
-    """Report how finalization ended, parking the task if it was withheld.
-
-    The final gate holds by pausing the run and publishing nothing, so a
-    paused run with no report means finalization is waiting on a person
-    rather than finished. Letting this task succeed there is what left an
-    approved final hold with nothing to claim; raising parks it instead,
-    ready for ``resume_run_tasks`` to release. An operator pause landing
-    during finalization reaches the same state and wants the same thing.
-
-    Raises:
-        SafetyHoldError: If the run was withheld rather than published.
-    """
+    """Report outcome; park unpublished work for explicit resume."""
     run = store.get_run(run_id, db_path=db_path)
     status = run.status if run else "missing"
     if (
@@ -267,6 +293,21 @@ def _settle_finalize_outcome(
     ):
         raise SafetyHoldError("report finalization held for review")
     return {"run_id": run_id, "status": status}
+
+
+async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
+    """Emit drain stage events for compatibility callers."""
+    for event_type, payload in _finalize_stage_events(drained):
+        await emit(event_type, payload)
+
+
+def _finalize_stage_events(
+    drained: Any,
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Yield the ordered, persisted progress events for a completed drain."""
+    yield "safety.hypothesis", drained.safety_counts
+    yield "citation.grounding", drained.grounding_counts
+    yield "citation_audit", dict(drained.report_inputs["citation_summary"])
 
 
 def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
@@ -333,37 +374,16 @@ async def _drain_and_persist_final_state(
     run: store.RunRow,
     state: dict[str, Any],
     db_path: str | None,
-) -> tuple[Any, float]:
-    """Persist the drained final state and mark the run synthesizing.
-
-    Final drain is deterministic and replayable. Clears only this run's
-    prior publication rows so a crash after persistence but before task
-    acknowledgement cannot duplicate hypotheses, evidence, matches, or
-    verification edges. Awaited: its provider waves run off the caller's
-    event loop (see ``drain._persist_final_state``).
-    """
+) -> tuple[Any, float, dict[str, Any]]:
+    """Persist replayable final artifacts outside a database lock."""
     final_state = _plain_final_state(state)
     store.clear_publication_artifacts(run.id, db_path=db_path)
     drained = await _persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
-    # _metrics_snapshot also folds in the Supervisor's performance_assessment
-    # (finding F5); reused here (not just at each node commit, finding L14)
-    # so the run's final metrics row does not silently drop it on finalize.
     metrics = _metrics_snapshot(final_state)
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
-    store.save_run_metrics(run.id, metrics, db_path=db_path)
-    store.update_run_status(run.id, RunStatus.SYNTHESIZING, db_path=db_path)
-    return drained, execution_time
-
-
-async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
-    """Emit the post-drain safety, grounding, and citation-audit stages."""
-    await emit("safety.hypothesis", drained.safety_counts)
-    await emit("citation.grounding", drained.grounding_counts)
-    await emit(
-        "citation_audit", dict(drained.report_inputs["citation_summary"])
-    )
+    return drained, execution_time, metrics
 
 
 def _restore_finalize_checkpoint(
@@ -414,8 +434,7 @@ async def _publish_finalize_report(  # noqa: PLR0913
     emit: Any,
     db_path: str | None,
 ) -> None:
-    """Emit finalize's stage events, then publish through the report gate."""
-    await _emit_finalize_stage_events(emit, drained)
+    """Publish through the report gate after the drain commit."""
     setup = run.config.get("setup") if isinstance(run.config, dict) else None
     async for _ in finalize_report(
         run.id,
@@ -445,36 +464,34 @@ async def execute_finalize(
     if replayed is not None:
         return replayed
     checkpoint, state = _restore_finalize_checkpoint(task, db_path)
-    paused = _pause_finalize_if_requested(task, run, checkpoint, state, db_path)
+    commit = TaskCommit(task, int(checkpoint["seq"]), db_path)
+    paused = _pause_finalize_if_requested(commit, state)
     if paused is not None:
         return paused
     halted = await _halt_finalize_if_blocked(run, state, task, db_path)
     if halted is not None:
         return halted
-    drained, execution_time = await _drain_and_persist_final_state(
+    drained, execution_time, metrics = await _drain_and_persist_final_state(
         run, state, db_path
     )
+    paused = _commit_finalize_drain(commit, state, drained, metrics)
+    if paused is not None:
+        return paused
     emit = make_emitter(run.id, db_path=db_path)
     await _publish_finalize_report(
         run, task, drained, execution_time, emit, db_path
     )
-    # A contribution posted after the last orchestrator boundary (the
-    # report was still draining/publishing) has no continuation task
-    # waiting for it -- reopen right here instead of stranding it on
-    # whatever scientist input happens to arrive next. No-ops when the
-    # run did not land completed (blocked/held/paused above) or nothing
-    # is pending.
+    # Contributions posted during report publication have no continuation
+    # task. Reopen here; the helper no-ops unless completed with pending input.
     reopen_for_pending_scientist_input(run.id, db_path=db_path)
     return _settle_and_release(run.id, db_path)
 
 
 def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
-    """Settle the finalized run and drop its LLM-call counter.
+    """Settle the run and release its call-budget tracking.
 
-    The run is done, so the counter is released here rather than left to
-    the tracking cap's eviction -- that exists for runs which never reach
-    a terminal state through this path at all (cancelled, or failed with
-    their retry budget spent elsewhere).
+    Release it now rather than relying on cap eviction for runs this path
+    cannot settle, including cancellations and exhausted failures.
     """
     from co_scientist.llm_call_budget import release_run_call_budget
 
