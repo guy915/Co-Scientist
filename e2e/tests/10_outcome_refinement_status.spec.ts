@@ -39,6 +39,7 @@ test('saved refinement stays visible in active and failed runs', async ({
   );
   expect(outcomeResponse.status(), await outcomeResponse.text()).toBe(201);
   const outcomeId = ((await outcomeResponse.json()) as {id: string}).id;
+  const completedRun = await researcherApi.getRun(runId);
 
   await page.addInitScript(
     accessToken => sessionStorage.setItem('co_scientist_access_token', accessToken),
@@ -46,9 +47,11 @@ test('saved refinement stays visible in active and failed runs', async ({
   );
   let visibleRunStatus = 'running';
   await page.route(`**/api/runs/${runId}`, async route => {
-    const response = await route.fetch();
-    const body = (await response.json()) as Record<string, unknown>;
-    await route.fulfill({response, json: {...body, status: visibleRunStatus}});
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({...completedRun, status: visibleRunStatus}),
+    });
   });
   await page.route(
     `**/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
