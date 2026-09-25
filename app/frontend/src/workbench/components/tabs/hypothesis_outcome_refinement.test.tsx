@@ -148,18 +148,42 @@ it('treats an owner-visible 404 as no saved action after loading', async () => {
   expect(runsApi.requestHypothesisOutcomeRefinement).not.toHaveBeenCalled();
 });
 
-it('shows a retryable error when saved refinement status cannot be loaded', async () => {
-  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValueOnce(
-    new Error('503 API unavailable'),
-  );
+it('refreshes failed saved-action loads with GET before allowing a new request', async () => {
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement)
+    .mockRejectedValueOnce(new Error('503 API unavailable'))
+    .mockRejectedValueOnce(
+      new runsApi.HttpError('404 run or outcome not found', 404),
+    );
   renderOwnedOutcome();
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Could not load refinement status: 503 API unavailable',
   );
   expect(
-    screen.getByRole('button', {name: 'Retry refinement request'}),
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {name: 'Refresh refinement status'}),
   ).toBeEnabled();
+
+  fireEvent.click(
+    screen.getByRole('button', {name: 'Refresh refinement status'}),
+  );
+
+  expect(
+    await screen.findByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).toBeEnabled();
+  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledTimes(2);
+  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenLastCalledWith(
+    'run-1',
+    'h1',
+    'out-1',
+  );
+  expect(runsApi.requestHypothesisOutcomeRefinement).not.toHaveBeenCalled();
 });
 
 it('refreshes status-only failures with GET and never offers a new action', async () => {

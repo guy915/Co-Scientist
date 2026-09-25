@@ -12,6 +12,9 @@ from co_scientist.models import Hypothesis, HypothesisOrigin, HypothesisReview
 from app import store, task_worker
 from app.config import settings
 from tests._client import make_client
+from tests._outcome_refinement_api_support import (
+    MESELSON_STAHL_OUTCOME_FIELDS,
+)
 from tests.test_outcome_refinement_executor import _setup_action
 
 
@@ -202,6 +205,10 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None and action["child_hypothesis_id"] == child.id
+    assert (
+        MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"]
+        in action["context_snapshot"]
+    )
     assert parent_id in {hypothesis.id for hypothesis in hypotheses}
     assert sibling_id in {hypothesis.id for hypothesis in hypotheses}
     tasks = store.list_tasks(run_id, db_path=isolated_db)
@@ -211,5 +218,7 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
         for task in tasks
     )
     events = store.list_events(run_id, db_path=isolated_db)
-    assert "Hybrid band only after one cycle." not in str(events)
+    assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] not in str(
+        events
+    )
     client.close()

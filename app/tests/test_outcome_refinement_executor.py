@@ -17,6 +17,11 @@ from app import auth, store, task_worker
 from app.config import settings
 from app.store import RunStatus
 from tests._client import make_client
+from tests._outcome_refinement_api_support import (
+    MESELSON_STAHL_OUTCOME_FIELDS,
+    MESELSON_STAHL_PARENT_TEXT,
+    _add_meselson_stahl_fixture,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -52,20 +57,26 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
     )
     assert created.status_code == 200
     run_id = str(created.json()["id"])
-    parent_id = "target-parent"
+    parent_id, outcome_fields, _source_ids = _add_meselson_stahl_fixture(
+        run_id, db_path
+    )
     sibling_id = "unrelated-sibling"
-    parent = _hypothesis(parent_id, "Target hypothesis about pathway A.")
+    parent = Hypothesis(
+        id=parent_id,
+        text=MESELSON_STAHL_PARENT_TEXT,
+        title="Semiconservative DNA replication in E. coli",
+        origin=HypothesisOrigin.GENERATION,
+    )
     sibling = _hypothesis(sibling_id, "Sibling hypothesis about pathway B.")
-    for hypothesis in (parent, sibling):
-        store.add_hypothesis(
-            store.NewHypothesis(
-                run_id=run_id,
-                hypothesis_id=hypothesis.id,
-                title=hypothesis.title or hypothesis.id,
-                statement=hypothesis.text,
-            ),
-            db_path=db_path,
-        )
+    store.add_hypothesis(
+        store.NewHypothesis(
+            run_id=run_id,
+            hypothesis_id=sibling.id,
+            title=sibling.title or sibling.id,
+            statement=sibling.text,
+        ),
+        db_path=db_path,
+    )
     event_seq = store.latest_event_seq(run_id, db_path=db_path)
     envelope = serialize_workflow_state(
         {
@@ -93,15 +104,7 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
     recorded = client.post(
         f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
         headers=headers,
-        json={
-            "method_protocol": "Isotope shift",
-            "conditions": "One generation cycle",
-            "measured_observation": "Hybrid band only after one cycle.",
-            "units": "density band",
-            "controls": "Heavy and light references",
-            "interpretation": "Consistent with the target mechanism.",
-            "referenced_evidence_ids": [],
-        },
+        json=outcome_fields,
     )
     assert recorded.status_code == 201
     response = client.post(
@@ -186,7 +189,15 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     assert [
         hypothesis.id for hypothesis in calls[0]["prompt_state"]["hypotheses"]
     ] == [parent_id]
-    assert "Hybrid band only after one cycle." in calls[0]["outcome_context"]
+    context = calls[0]["outcome_context"]
+    assert MESELSON_STAHL_PARENT_TEXT in context
+    assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] in context
+    assert "10.1073/pnas.44.7.671" in context
+    assert "16590258" in context
+    assert "PMC528642" in context
+    assert "Hanawalt's historical account" in context
+    assert "PMC539797" in context
+    assert context.index("10.1073/pnas.44.7.671") < context.index("PMC539797")
     assert (
         "Sibling hypothesis about pathway B." not in calls[0]["outcome_context"]
     )
@@ -230,7 +241,9 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     assert stored_parent["elo_rating"] == 1200
     assert stored_sibling["elo_rating"] == 1200
     events = store.list_events(run_id, db_path=isolated_db)
-    assert "Hybrid band only after one cycle." not in str(events)
+    assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] not in str(
+        events
+    )
     assert not any(
         event["type"] in {"review", "claim_evidence", "safety", "match"}
         for event in events
@@ -333,7 +346,9 @@ def test_provider_failure_retries_same_action_after_restart(
         nonlocal calls
         calls += 1
         assert parent.id == parent_id
-        assert "Hybrid band only after one cycle." in outcome_context
+        assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] in (
+            outcome_context
+        )
         return (
             Hypothesis(
                 id="recovered-child",
