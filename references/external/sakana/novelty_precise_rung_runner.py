@@ -937,6 +937,8 @@ def _preflight(
                     "max_metadata_ids",
                     "preregistered_slugs",
                     "prereg_sha256",
+                    "runner_input_sha256",
+                    "source_prereg_sha256",
                     "pair_definitions_sha256",
                     "amendment_path",
                     "case_context_path",
@@ -1383,10 +1385,29 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _persist_stopped(output: Path | None, exc: BaseException, stage: str) -> None:
+def _persist_stopped(
+    output: Path | None,
+    exc: BaseException,
+    stage: str,
+    *,
+    initialize_if_empty: bool = False,
+) -> None:
     if output is None or not output.is_file():
         return
     try:
+        if initialize_if_empty and output.stat().st_size == 0:
+            _save(
+                output,
+                {
+                    "status": "STOPPED",
+                    "error": {"stage": stage, "class": type(exc).__name__},
+                    "ended_at_utc": _utc_now(),
+                    "calls": [],
+                    "model_inference_calls": 0,
+                    "paid_calls": 0,
+                },
+            )
+            return
         report = json.loads(output.read_text(encoding="utf-8"))
         if not isinstance(report, dict):
             return
@@ -1444,6 +1465,7 @@ def main(argv: list[str] | None = None) -> int:
     blind: Path | None = None
     context_output: Path | None = None
     reserved_paths: list[Path] = []
+    report_reservations_complete = False
     try:
         arms, output, blind, hashes = _preflight(args)
         protocol = hashes.get("protocol", "original")
@@ -1458,6 +1480,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in paths_to_reserve:
             _reserve(path)
             reserved_paths.append(path)
+        report_reservations_complete = True
         amendment_path = hashes.get("amendment_path", AMENDMENT)
         pilot_id = hashes.get("pilot_id", uuid.uuid4().hex[:12])
         pilot_label = hashes.get("protocol_id", "M11-NOV-RUNG-01a")
@@ -1544,14 +1567,26 @@ def main(argv: list[str] | None = None) -> int:
         return result
     except (KeyboardInterrupt, asyncio.CancelledError) as exc:
         print(f"Pilot stopped: {type(exc).__name__}", file=sys.stderr)
-        _persist_stopped(output, exc, "interrupted")
+        if output in reserved_paths:
+            _persist_stopped(
+                output,
+                exc,
+                "interrupted",
+                initialize_if_empty=report_reservations_complete,
+            )
         _discard_empty([path for path in reserved_paths if path != output])
         return 2
     except Exception as exc:
         print(f"Pilot stopped: {type(exc).__name__}: {exc}", file=sys.stderr)
         if output is None:
             _persist_preflight_failure(args, exc)
-        _persist_stopped(output, exc, "runner")
+        if output in reserved_paths:
+            _persist_stopped(
+                output,
+                exc,
+                "runner",
+                initialize_if_empty=report_reservations_complete,
+            )
         _discard_empty([path for path in reserved_paths if path != output])
         _discard_empty(reserved_paths)
         return 2
