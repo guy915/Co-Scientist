@@ -1,0 +1,83 @@
+{
+  "bind_host": "127.0.0.1",
+  "bind_port": 55091,
+  "cache_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/baseline-cache",
+  "credential_env_names": [
+    "COSCIENTIST_MCP_SHARED_SECRET"
+  ],
+  "entrez": {
+    "api_key_absent": true,
+    "max_tries": 1,
+    "sleep_between_tries": 0
+  },
+  "environment": {
+    "COSCIENTIST_LIT_REVIEW_DIR": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/baseline-cache",
+    "COSCIENTIST_PUBMED_PILOT_BUILD_ID": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+    "COSCIENTIST_PUBMED_PILOT_TRACE": "1"
+  },
+  "import_network_guard_restored": true,
+  "launcher_path": "references/external/sakana/novelty_precise_rung_server_launcher.py",
+  "launcher_sha256": "24bfb6606bd87ee16a0071d75c2891fe3ea8f8b6ad35772180ac3b2d6ab1c125",
+  "maintained_tool_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/baseline/engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
+  "maintained_tool_file_sha256": "596da1a66d53cee54c36bda77082c2d1d46702334cbf90055f81ac9085bb74df",
+  "maintained_trace": {
+    "cache_empty_after_cleanup": true,
+    "enabled": true,
+    "fake_entrez_calls": {
+      "efetch": 6,
+      "elink": 3,
+      "esearch": 1
+    },
+    "final_ids": [
+      "99000001",
+      "99000002",
+      "99000003"
+    ],
+    "manifest_ids": [
+      "99000001",
+      "99000002",
+      "99000003"
+    ],
+    "manifest_run_id": "m11_launcher_probe_40535",
+    "patches_restored": true,
+    "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/baseline-cache/pubmed/m11_launcher_probe_40535/runs/m11_launcher_probe_40535/.search-trace.json",
+    "process_id": 40535,
+    "readiness_artifacts_removed": true,
+    "run_id": "m11_launcher_probe_40535",
+    "selected_ids": [
+      "99000001",
+      "99000002",
+      "99000003"
+    ],
+    "server_build_id": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+    "sha256": "cca5c9fca403af9724c23feb9ef958737c603a9f75133e6b3bc36447d6a8b8ab",
+    "slug": "m11_launcher_probe_40535",
+    "sort": "pub_date",
+    "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/baseline/engine/mcp_server/pubmed_client.py",
+    "validated": true
+  },
+  "max_workers": 1,
+  "monkeypatches_restored": true,
+  "reload": false,
+  "schema_version": "novelty_precise_rung_launcher_receipt_v1",
+  "secret_env_name": "COSCIENTIST_MCP_SHARED_SECRET",
+  "secret_free": true,
+  "secret_length": 64,
+  "server_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/baseline/engine/mcp_server/server.py",
+  "server_file_sha256": "ad81a2b2ad23543f76a49be9aa8e354df7db8914a0333acea9ff3b9cc092f9bc",
+  "server_module": "mcp_server.server:app",
+  "serving_pid": 40535,
+  "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/baseline/engine/mcp_server/pubmed_client.py",
+  "source_file_sha256": "94649a48c93fb4faef29a0bbddcc167ee7382326ad4bcb26fadfafbdd88b0951",
+  "source_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/baseline",
+  "source_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+  "status": "passed",
+  "trace_enabled": true,
+  "transient_probe": {
+    "external_traffic": false,
+    "injected_status": 503,
+    "patch_target": "Bio.Entrez.urlopen",
+    "restored": true,
+    "underlying_attempts": 1
+  }
+}
