@@ -115,6 +115,7 @@ export {
   getEvidence,
   getHypotheses,
   getHypothesisOutcomes,
+  getHypothesisOutcomeRefinement,
   requestHypothesisOutcomeRefinement,
   getMatches,
   getProximity,

@@ -1,9 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   addHypothesisOutcome,
+  getHypothesisOutcomeRefinement,
   getHypothesisOutcomes,
   requestHypothesisOutcomeRefinement,
 } from './runs';
+import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 
 const row = {
   id: 'out-1',
@@ -33,7 +35,10 @@ function response(status: number, body: unknown): Response {
 const fetchMock = () => globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  clearAccessToken();
+});
 
 describe('hypothesis outcomes API', () => {
   it('loads the owned run outcome collection with the standard client identity', async () => {
@@ -103,5 +108,46 @@ describe('hypothesis outcomes API', () => {
       'Idempotency-Key': 'outcome-refinement:run-1:hyp-1:out-1',
     });
     expect(options?.body).toBeUndefined();
+  });
+
+  it('loads an existing owner refinement action with the researcher session', async () => {
+    const action = {
+      action_id: 'action-1',
+      run_id: 'run-1',
+      outcome_id: 'out-1',
+      hypothesis_id: 'hyp-1',
+      task_idempotency_key: 'outcome-refinement:action-1',
+      checkpoint_seq: 3,
+      context_codepoints: 850,
+      status: 'queued',
+      child_hypothesis_id: null,
+      created_at: 1_700_000_000,
+      replayed: true,
+    };
+    setAccessToken('researcher-session');
+    fetchMock().mockResolvedValue(response(200, action));
+
+    await expect(
+      getHypothesisOutcomeRefinement('run-1', 'hyp-1', 'out-1'),
+    ).resolves.toEqual(action);
+    const [url, options] = fetchMock().mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe('/api/runs/run-1/hypotheses/hyp-1/outcomes/out-1/refine');
+    expect(options?.method).toBeUndefined();
+    expect(options?.headers).toEqual({
+      Authorization: 'Bearer researcher-session',
+    });
+  });
+
+  it('preserves a missing-action 404 for the owner-visible component', async () => {
+    fetchMock().mockResolvedValue(
+      response(404, {detail: 'run or outcome not found'}),
+    );
+
+    await expect(
+      getHypothesisOutcomeRefinement('run-1', 'hyp-1', 'out-1'),
+    ).rejects.toMatchObject({status: 404});
   });
 });

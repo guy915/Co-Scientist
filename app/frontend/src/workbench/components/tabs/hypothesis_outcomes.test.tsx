@@ -14,6 +14,7 @@ vi.mock('@/api/runs', async importActual => {
   return {
     ...actual,
     addHypothesisOutcome: vi.fn(),
+    getHypothesisOutcomeRefinement: vi.fn(),
     requestHypothesisOutcomeRefinement: vi.fn(),
   };
 });
@@ -50,6 +51,9 @@ const savedOutcome: HypothesisOutcome = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
+    new runsApi.HttpError('404 run or outcome not found', 404),
+  );
   clearAccessToken();
 });
 
@@ -231,7 +235,7 @@ it('discloses and replays one explicitly requested outcome refinement', async ()
       'This sends the linked hypothesis and this recorded outcome, with up to three source metadata links, to the run’s configured AI model to draft one follow-up hypothesis. AI output may be wrong. This action does not verify the observation or change existing claims, reviews, safety decisions, or ranking.',
     ),
   ).toBeInTheDocument();
-  const actionButton = screen.getByRole('button', {
+  const actionButton = await screen.findByRole('button', {
     name: 'Use outcome to refine this hypothesis',
   });
   fireEvent.click(actionButton);
@@ -289,7 +293,7 @@ it('announces pending refinement work and prevents duplicate clicks', async () =
     />,
   );
 
-  const button = screen.getByRole('button', {
+  const button = await screen.findByRole('button', {
     name: 'Use outcome to refine this hypothesis',
   });
   fireEvent.click(button);
@@ -325,7 +329,9 @@ it('announces a refinement error and leaves the same action retryable', async ()
   );
 
   fireEvent.click(
-    screen.getByRole('button', {name: 'Use outcome to refine this hypothesis'}),
+    await screen.findByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
   );
 
   expect(await screen.findByRole('alert')).toHaveTextContent(

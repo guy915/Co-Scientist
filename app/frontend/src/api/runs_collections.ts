@@ -213,6 +213,18 @@ export function addHypothesisOutcome(
   );
 }
 
+/** Fetch one existing outcome refinement action for its owner. */
+export function getHypothesisOutcomeRefinement(
+  runId: string,
+  hypothesisId: string,
+  outcomeId: string,
+): Promise<OutcomeRefinementAction> {
+  return fetchJson(
+    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
+    {headers: clientHeaders()},
+  );
+}
+
 /** Request or replay one owner's outcome-to-parent refinement intent. */
 export function requestHypothesisOutcomeRefinement(
   runId: string,
