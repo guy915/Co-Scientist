@@ -1,0 +1,165 @@
+{
+  "input_artifact_id": "M11-NOV-RUNG-01c1-confirmatory-input-v1",
+  "version": 1,
+  "status": "frozen_runner_inputs_only_not_execution_authorization",
+  "live_retrieval_authorized": false,
+  "request_inputs": [
+    {
+      "request_id": "N01",
+      "draft": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs.",
+      "exact_query": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N02",
+      "draft": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses.",
+      "exact_query": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N03",
+      "draft": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola.",
+      "exact_query": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N04",
+      "draft": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact.",
+      "exact_query": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N05",
+      "draft": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity.",
+      "exact_query": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N06",
+      "draft": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer.",
+      "exact_query": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    }
+  ],
+  "paired_call_order": [
+    {
+      "order": 1,
+      "request_id": "N01",
+      "arm": "baseline"
+    },
+    {
+      "order": 2,
+      "request_id": "N01",
+      "arm": "candidate"
+    },
+    {
+      "order": 3,
+      "request_id": "N02",
+      "arm": "baseline"
+    },
+    {
+      "order": 4,
+      "request_id": "N02",
+      "arm": "candidate"
+    },
+    {
+      "order": 5,
+      "request_id": "N03",
+      "arm": "baseline"
+    },
+    {
+      "order": 6,
+      "request_id": "N03",
+      "arm": "candidate"
+    },
+    {
+      "order": 7,
+      "request_id": "N04",
+      "arm": "baseline"
+    },
+    {
+      "order": 8,
+      "request_id": "N04",
+      "arm": "candidate"
+    },
+    {
+      "order": 9,
+      "request_id": "N05",
+      "arm": "baseline"
+    },
+    {
+      "order": 10,
+      "request_id": "N05",
+      "arm": "candidate"
+    },
+    {
+      "order": 11,
+      "request_id": "N06",
+      "arm": "baseline"
+    },
+    {
+      "order": 12,
+      "request_id": "N06",
+      "arm": "candidate"
+    }
+  ],
+  "source_hash_pins": {
+    "protocol_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-prereg-v1.json",
+    "request_inputs_canonical_sha256": "0b784aa58028cd500c3b8af09660128b72d18d89172529345c6fc8f7a3dd9764",
+    "hash_rule": "Canonical SHA-256 over UTF-8 JSON serialized with ensure_ascii=false, recursively sorted keys, and compact separators (comma and colon).",
+    "whole_file_hash_rule": "The separate authorization amendment must pin this exact input file SHA-256 over raw UTF-8 bytes including its final newline, as well as the whole preregistration file SHA-256."
+  },
+  "source_and_build_pins": {
+    "baseline": {
+      "commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+      "mcp_server_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726"
+    },
+    "candidate": {
+      "commit": "8c91e5a9ed9661a37886c994f37083d75b41f8a5",
+      "mcp_server_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
+      "runtime_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+      "allowed_runtime_change": "Selection-only retention of first-seen PMIDs from already-attempted relaxation rungs; query construction, sort, rung definitions/order, stop threshold, retmax, metadata fetching, PMC preference, maintained ToolConfig/ResponseParser, and max_papers remain fixed."
+    }
+  },
+  "fixed_settings": {
+    "pubmed_sort": "pub_date",
+    "recency_years": 0,
+    "max_papers": 3,
+    "retmax_ids_per_rung": 9,
+    "minimum_ids_before_relaxation": 3,
+    "maximum_existing_rungs_per_outer_call": 3,
+    "rung_order": "exact pinned baseline relaxation_ladder",
+    "maintained_tool_config_and_parser": "same exact maintained ToolConfig mapping and ResponseParser across both arms; amendment must pin their source/config hashes and prove identity before calls",
+    "query_mutation": "forbidden",
+    "alternate_provider_or_fallback": "forbidden"
+  },
+  "limits": {
+    "planned_outer_pubmed_mcp_calls": 12,
+    "absolute_outer_pubmed_mcp_call_cap": 12,
+    "retry_or_recovery_calls": 0,
+    "maximum_esearch_requests_for_frozen_schedule": 36,
+    "maximum_ids_submitted_for_metadata_per_outer_call": 9,
+    "maximum_total_ids_submitted_for_metadata": 108,
+    "maximum_returned_papers_per_outer_call": 3,
+    "minimum_seconds_between_outer_call_starts": 2,
+    "stop_on_first_error": true,
+    "model_inference_calls": 0,
+    "provider_or_ncbi_api_keys": "absent",
+    "paid_fallbacks": "forbidden"
+  },
+  "isolation": {
+    "processes": "Run the exact pinned baseline and candidate MCP builds in separate isolated loopback child processes. The future amendment must record each PID, port, imported source path, commit/tree/build hash, effective tool configuration, parser hash, trace flag/build ID, and listener ownership.",
+    "caches": "Use an empty, non-overlapping cache namespace for every request_id × arm. Verify file_count=0, metadata_count=0, and first_ids=[] before every call; retain same-call supplementation only.",
+    "network_retries": "Pin zero retries at every transport layer and at Bio.Entrez. The offline amendment must inject one retryable transport failure per arm and prove exactly one attempted request before the runner stops.",
+    "tracing": "Require per-call trace at the expected arm cache path, matching request, arm, build, run ID, exact query, sort, every attempted rung, selected/fetched/final ID lineage, and empty pre-search pool."
+  },
+  "run_artifact_paths": {
+    "result_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-run-2026-09-25.json",
+    "blind_review_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-2026-09-25.json",
+    "blind_labels_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-labels-2026-09-25.json",
+    "pilot_run_id": "m11novrung01c1confirmatoryv1",
+    "per_call_run_id_template": "m11novrung01c1confirmatoryv1_{request_id_lower}_{arm}",
+    "per_call_slug_template": "m11novrung01c1confirmatoryv1_{request_id_lower}_{arm}",
+    "collision_rule": "If any output path or run/slug identity already exists, stop before call 1 and issue a new dated preregistration; never overwrite or append an ad hoc suffix."
+  }
+}
