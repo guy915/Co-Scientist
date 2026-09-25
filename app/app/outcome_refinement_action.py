@@ -1,7 +1,7 @@
 """Admission for an owner-authorized, one-outcome refinement intent.
 
-The intent is a durable outbox record, deliberately separate from the
-claimable scientific-task queue until the targeted executor lands in 01c.
+The intent is a durable outbox record that recovery can materialize as
+one claimable scientific task.
 """
 
 from __future__ import annotations
