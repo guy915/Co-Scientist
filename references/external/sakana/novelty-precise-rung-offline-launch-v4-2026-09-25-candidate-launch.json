@@ -1,7 +1,7 @@
 {
   "bind_host": "127.0.0.1",
-  "bind_port": 55092,
-  "cache_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/candidate-cache",
+  "bind_port": 55811,
+  "cache_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/candidate-cache",
   "credential_env_names": [
     "COSCIENTIST_MCP_SHARED_SECRET"
   ],
@@ -11,14 +11,14 @@
     "sleep_between_tries": 0
   },
   "environment": {
-    "COSCIENTIST_LIT_REVIEW_DIR": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/candidate-cache",
+    "COSCIENTIST_LIT_REVIEW_DIR": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/candidate-cache",
     "COSCIENTIST_PUBMED_PILOT_BUILD_ID": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
     "COSCIENTIST_PUBMED_PILOT_TRACE": "1"
   },
   "import_network_guard_restored": true,
   "launcher_path": "references/external/sakana/novelty_precise_rung_server_launcher.py",
   "launcher_sha256": "24bfb6606bd87ee16a0071d75c2891fe3ea8f8b6ad35772180ac3b2d6ab1c125",
-  "maintained_tool_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/candidate/engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
+  "maintained_tool_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/worktrees/candidate/engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
   "maintained_tool_file_sha256": "596da1a66d53cee54c36bda77082c2d1d46702334cbf90055f81ac9085bb74df",
   "maintained_trace": {
     "cache_empty_after_cleanup": true,
@@ -38,22 +38,22 @@
       "99000002",
       "99000003"
     ],
-    "manifest_run_id": "m11_launcher_probe_40553",
+    "manifest_run_id": "m11_launcher_probe_45406",
     "patches_restored": true,
-    "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/candidate-cache/pubmed/m11_launcher_probe_40553/runs/m11_launcher_probe_40553/.search-trace.json",
-    "process_id": 40553,
+    "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/candidate-cache/pubmed/m11_launcher_probe_45406/runs/m11_launcher_probe_45406/.search-trace.json",
+    "process_id": 45406,
     "readiness_artifacts_removed": true,
-    "run_id": "m11_launcher_probe_40553",
+    "run_id": "m11_launcher_probe_45406",
     "selected_ids": [
       "99000001",
       "99000002",
       "99000003"
     ],
     "server_build_id": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
-    "sha256": "5301cbefbdb4b2f46c41198af75523ee97c9d1fbade5fa6cedd663262d208673",
-    "slug": "m11_launcher_probe_40553",
+    "sha256": "ead6a85e3c8fdbda483d289fc87e78a5b66f8252a0cbb2a16473a420852cbe05",
+    "slug": "m11_launcher_probe_45406",
     "sort": "pub_date",
-    "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/candidate/engine/mcp_server/pubmed_client.py",
+    "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/worktrees/candidate/engine/mcp_server/pubmed_client.py",
     "validated": true
   },
   "max_workers": 1,
@@ -63,13 +63,13 @@
   "secret_env_name": "COSCIENTIST_MCP_SHARED_SECRET",
   "secret_free": true,
   "secret_length": 64,
-  "server_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/candidate/engine/mcp_server/server.py",
+  "server_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/worktrees/candidate/engine/mcp_server/server.py",
   "server_file_sha256": "ad81a2b2ad23543f76a49be9aa8e354df7db8914a0333acea9ff3b9cc092f9bc",
   "server_module": "mcp_server.server:app",
-  "serving_pid": 40553,
-  "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/candidate/engine/mcp_server/pubmed_client.py",
+  "serving_pid": 45406,
+  "source_file_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/worktrees/candidate/engine/mcp_server/pubmed_client.py",
   "source_file_sha256": "94649a48c93fb4faef29a0bbddcc167ee7382326ad4bcb26fadfafbdd88b0951",
-  "source_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-_p45670m/worktrees/candidate",
+  "source_root": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/m11-rung-3934_4uo/worktrees/candidate",
   "source_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
   "status": "passed",
   "trace_enabled": true,

@@ -141,6 +141,7 @@ def _run_cli(
     runner_signal: int | None = None,
     launcher_exit: int | None = None,
     runner_cleanup_timeouts: int = 0,
+    amendment_committed: bool = True,
 ) -> tuple[int, dict[str, Any], list[_Process], list[list[str]]]:
     launcher = tmp_path / "launcher.py"
     runner = tmp_path / "runner.py"
@@ -162,6 +163,9 @@ def _run_cli(
     monkeypatch.setattr(driver, "LAUNCHER_PATH", launcher)
     monkeypatch.setattr(driver, "RUNNER_PATH", runner)
     monkeypatch.setattr(driver, "AMENDMENT_PATH", amendment)
+    monkeypatch.setattr(
+        driver, "_committed_amendment", lambda _path: amendment_committed, raising=False
+    )
     monkeypatch.setattr(driver, "ROOT", repository_root)
     monkeypatch.setattr(
         driver.secrets,
@@ -338,6 +342,19 @@ def test_cli_starts_two_pinned_servers_then_runner_and_retains_cleanup(
     assert "COSCIENTIST_MCP_SHARED_SECRET" not in encoded
     assert "offline-test-secret" not in encoded
     assert receipt["model_inference_calls"] == 0
+
+
+def test_uncommitted_authorization_never_starts_runner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result, receipt, processes, _commands = _run_cli(
+        monkeypatch, tmp_path, amendment_committed=False
+    )
+
+    assert result == 2
+    assert receipt["error_stage"] == "amendment_gate"
+    assert receipt["runner_started"] is False
+    assert [process.pid for process in processes] == [64101, 64102]
 
 
 def test_cli_interrupt_still_terminates_children_and_writes_receipt(

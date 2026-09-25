@@ -214,6 +214,30 @@ def _wait_for_server(
     raise TimeoutError("Launcher did not produce a receipt and loopback listener")
 
 
+def _committed_amendment(path: Path) -> bool:
+    try:
+        relative = path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return False
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", relative],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    changed = subprocess.run(
+        ["git", "status", "--porcelain", "--", relative],
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+    )
+    return (
+        tracked.returncode == 0
+        and changed.returncode == 0
+        and not changed.stdout.strip()
+    )
+
+
 def _amendment_ready(
     path: Path,
     records: dict[str, dict[str, Any]],
@@ -221,7 +245,7 @@ def _amendment_ready(
     runner_hash: str,
     driver_hash: str,
 ) -> str | None:
-    if path.is_symlink() or not path.is_file():
+    if path.is_symlink() or not path.is_file() or not _committed_amendment(path):
         return None
     raw = path.read_bytes()
     try:
