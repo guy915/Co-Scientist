@@ -29,15 +29,15 @@
   "status": "authorized_for_retrieval",
   "trace_preflight": {
     "baseline": {
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-baseline-launch.json",
-      "receipt_sha256": "1c86edec382565d97e5d6c82f6141d324ecbb97cddff349b076e69fa54e9c10c"
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v2-2026-09-25-baseline-launch.json",
+      "receipt_sha256": "4f2a66dc700b6d9a841b68f3028e1f6f9b4f090f35837e8f836349e33e0b67d5"
     },
     "candidate": {
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-candidate-launch.json",
-      "receipt_sha256": "81a8ebf227a5fd9d91454bc9449442fe29046da28b0ce5f4992bf67eb5da8b39"
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v2-2026-09-25-candidate-launch.json",
+      "receipt_sha256": "f418ac94c858e23ba834f0198b824af16189955bb97dd1455a8bc6609b8f32ce"
     },
     "driver_path": "references/external/sakana/novelty_precise_rung_lifecycle_driver.py",
-    "driver_sha256": "32d657ce15dbb4e0c12721ab2382b9a74e9d7f28a219e639b3e9ee5cc969400c",
+    "driver_sha256": "b57dd3cad113204dae7b11da3ae049ed5f764450ef0993cae08fcdd41157f579",
     "launcher_path": "references/external/sakana/novelty_precise_rung_server_launcher.py",
     "launcher_sha256": "24bfb6606bd87ee16a0071d75c2891fe3ea8f8b6ad35772180ac3b2d6ab1c125"
   }
