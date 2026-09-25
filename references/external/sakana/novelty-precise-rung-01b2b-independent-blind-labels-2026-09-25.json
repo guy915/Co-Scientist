@@ -1,0 +1,138 @@
+{
+  "schema": "novelty-precise-rung-independent-blind-labels-v1",
+  "protocol": "M11-NOV-RUNG-01b2b-independent-v1 blinded relevance batch",
+  "query_context_protocol": "novelty-precise-rung-independent-query-context-v1",
+  "input_sha256": {
+    "blind_packet": "6d573dbd541ab7f782019036ebce790d50d70b92606fde397a7194439acc970d",
+    "query_only_case_context": "a964e0e5a8df7cbfae8c049228c2398f14aac1fa19416be47bee779e0f277641"
+  },
+  "label_definitions": {
+    "supports_central_mechanism": "The abstract directly asserts the query mechanism with matching entities, direction, and context.",
+    "related_without_mechanism_support": "The abstract is topically related but does not directly support the query mechanism.",
+    "unrelated": "The abstract has no meaningful scientific relation to the query.",
+    "insufficient_abstract": "The abstract contains too little text to judge."
+  },
+  "blinded_scope": "Labels were assigned using only the shuffled abstracts and the case_id-to-query mapping. No score/source/arm mapping was seen.",
+  "items": [
+    {
+      "case_id": "uE91PVV0LFpb-jEqGpiHz2vH",
+      "label": "unrelated",
+      "reason": "The abstract concerns chronic pancreatitis and retained pancreatic stents, without cancer or the proposed metabolic mechanism."
+    },
+    {
+      "case_id": "wgkvsufSnJr8kGSYkAK1H_Y8",
+      "label": "unrelated",
+      "reason": "The abstract concerns engineered-probiotic 5-HTP production and reports no tumor or lactate-shuttle mechanism."
+    },
+    {
+      "case_id": "Lz-rf2RciPb7DEaNzsQCQ552",
+      "label": "related_without_mechanism_support",
+      "reason": "It studies hypoxia in tumor cells, but describes an NTR-activated probe rather than lactate export, MCT1 import, or oxidative metabolism."
+    },
+    {
+      "case_id": "nQtE9ihGZCwUD3nJlHGoWGNH",
+      "label": "unrelated",
+      "reason": "The abstract concerns air pollution and rheumatoid arthritis activity, without the stated lung-cancer macrophage mechanism."
+    },
+    {
+      "case_id": "2M8PinTOe7vU1cSq4cTGudpm",
+      "label": "related_without_mechanism_support",
+      "reason": "It reports tumor-associated placental metabolic changes, including lactate changes, but no macrophage or proposed mTORC1-to-HIF-2α mechanism."
+    },
+    {
+      "case_id": "yiQNvEghmk_-66OQaBsukkxJ",
+      "label": "related_without_mechanism_support",
+      "reason": "It studies hypoxia in tumor cells, but describes an NTR-activated probe rather than lactate export, MCT1 import, or oxidative metabolism."
+    },
+    {
+      "case_id": "mbR22spp421dc0shQYAh5rFp",
+      "label": "related_without_mechanism_support",
+      "reason": "It models bacterial cancer therapy and tumor oxygen conditions, but does not describe the proposed lactate shuttle."
+    },
+    {
+      "case_id": "5oV1Vpkk8u2wLjdfmijd1dpJ",
+      "label": "supports_central_mechanism",
+      "reason": "It directly reports c-Maf regulation of immunosuppressive macrophages, TCA-cycle and UDP-GlcNAc metabolism, T-cell suppression, and tumor progression, including in lung-cancer contexts."
+    },
+    {
+      "case_id": "QTQKK4yiDPDs7jJAFzwD6eJu",
+      "label": "related_without_mechanism_support",
+      "reason": "It reviews hypoxia-targeted tumor probes and prodrugs, without the proposed lactate exchange between hypoxic and oxygenated cancer cells."
+    },
+    {
+      "case_id": "-2yb37_jx8H4v1KQiQfWp0mV",
+      "label": "unrelated",
+      "reason": "The abstract concerns episodic memory, spatial navigation, and medial-temporal brain networks."
+    },
+    {
+      "case_id": "OuGaAOOnRibposnqd9Bheb9X",
+      "label": "related_without_mechanism_support",
+      "reason": "The adenoma resection and glycemic changes connect cancer and metabolism, but the abstract does not describe folliculin or the proposed pathway."
+    },
+    {
+      "case_id": "__Z-OGF0Q_cjvFF4kGBUrRQ4",
+      "label": "related_without_mechanism_support",
+      "reason": "The adenoma resection and glycemic changes connect cancer and metabolism, but the abstract does not describe folliculin or the proposed pathway."
+    },
+    {
+      "case_id": "hfolUAYqdwrV5hv-j1gocRAR",
+      "label": "related_without_mechanism_support",
+      "reason": "It studies glycolysis and STAT3 in lung cancer cells, but not tumor lactate signaling through the specified macrophage pathway."
+    },
+    {
+      "case_id": "0c1kYd050NDfDd8vtzj95hdg",
+      "label": "related_without_mechanism_support",
+      "reason": "It links bacteria-derived D-lactate to tumor growth, but through STAT3 lactylation in ESCC cells rather than macrophage mTORC1, TFEB, ATP6V0d2, or HIF-2α."
+    },
+    {
+      "case_id": "j6bQuXUucVvP4pL8ueL5selw",
+      "label": "unrelated",
+      "reason": "The abstract models hepatitis B vaccination policies and their health and economic effects."
+    },
+    {
+      "case_id": "3X4MaIfVnbEO2Y1Na23NbR8e",
+      "label": "related_without_mechanism_support",
+      "reason": "It reports tumor-associated placental metabolic changes, including lactate changes, but no macrophage or proposed mTORC1-to-HIF-2α mechanism."
+    },
+    {
+      "case_id": "CBKA3UbmOen6Vne1i4S_BVll",
+      "label": "related_without_mechanism_support",
+      "reason": "It studies glycolysis and STAT3 in lung cancer cells, but not tumor lactate signaling through the specified macrophage pathway."
+    },
+    {
+      "case_id": "ZiQ_39fsaPrq1P5mHHSgytnV",
+      "label": "unrelated",
+      "reason": "The abstract concerns episodic memory, spatial navigation, and medial-temporal brain networks."
+    },
+    {
+      "case_id": "zlKEzWhvGUe1-cEcdW3Xpxh0",
+      "label": "unrelated",
+      "reason": "The abstract concerns engineered-probiotic 5-HTP production and reports no tumor or lactate-shuttle mechanism."
+    },
+    {
+      "case_id": "Aeymk1crR-YGorj6uQ-in-St",
+      "label": "related_without_mechanism_support",
+      "reason": "It links bacteria-derived D-lactate to tumor growth, but through STAT3 lactylation in ESCC cells rather than macrophage mTORC1, TFEB, ATP6V0d2, or HIF-2α."
+    },
+    {
+      "case_id": "ByKYT8hrUt0OSy_DaJZq-iBY",
+      "label": "related_without_mechanism_support",
+      "reason": "It models bacterial cancer therapy and tumor oxygen conditions, but does not describe the proposed lactate shuttle."
+    },
+    {
+      "case_id": "Kz9dlEv9Ty2fNBpoaS5jv1Im",
+      "label": "related_without_mechanism_support",
+      "reason": "It reviews hypoxia-targeted tumor probes and prodrugs, without the proposed lactate exchange between hypoxic and oxygenated cancer cells."
+    },
+    {
+      "case_id": "vEPnaY5-u3mbHOftoGD7SXIR",
+      "label": "unrelated",
+      "reason": "The abstract concerns chronic pancreatitis and retained pancreatic stents, without cancer or the proposed metabolic mechanism."
+    },
+    {
+      "case_id": "e-TMdyb8NtmdoI_7ZjGClBjw",
+      "label": "unrelated",
+      "reason": "The abstract concerns air pollution and rheumatoid arthritis activity, without the stated lung-cancer macrophage mechanism."
+    }
+  ]
+}
