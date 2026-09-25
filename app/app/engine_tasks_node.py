@@ -16,12 +16,24 @@ from typing import Any
 
 from app import store
 from app.engine_adapter.drain import _persist_final_state
+from app.engine_tasks_checkpoint_guard import (
+    _check_node_task_checkpoint as _check_node_task_checkpoint,
+)
+from app.engine_tasks_checkpoint_guard import (
+    _check_portfolio_predecessor as _check_portfolio_predecessor,
+)
 from app.engine_tasks_context import TaskCommit
 from app.engine_tasks_fanout import (
     _enqueue_generation_fanout,
     _enqueue_mature_reflection_fanout,
     _enqueue_review_fanout,
     _enqueue_verification_fanout,
+)
+from app.engine_tasks_finalize_outcomes import (
+    _finalize_replay_or_none as _finalize_replay_or_none,
+)
+from app.engine_tasks_finalize_outcomes import (
+    _settle_finalize_outcome as _settle_finalize_outcome,
 )
 from app.engine_tasks_gate import _apply_pre_ranking_evidence_gate
 from app.engine_tasks_inputs import (
@@ -44,8 +56,6 @@ from app.engine_tasks_restore import (
 from app.engine_tasks_support import (
     FINALIZE_TASK,
     NodeCompletion,
-    SafetyHoldError,
-    SupersededTaskError,
     _assert_task_commit_allowed,
     _emit_node_completion,
     _generator_for_restore,
@@ -61,78 +71,6 @@ from app.report_render import ReportRequest, finalize_report, make_emitter
 from app.run_modes import normalize_run_tier
 from app.safety import SafetyDecision, apply_safety_gate
 from app.store import RunStatus, ScientificTask
-
-
-def _check_node_task_checkpoint(
-    task: ScientificTask, checkpoint: dict[str, Any], current_seq: int
-) -> dict[str, Any] | None:
-    """Return a replay result if this task already advanced the checkpoint.
-
-    Raises when a different task advanced it, or when the leased checkpoint
-    does not match what this task was scheduled against.
-
-    A task enqueued with a ``dependencies`` entry (every portfolio row --
-    finding F4 -- both the immediate successor and any lookahead hop
-    chained behind it) validates against its named predecessor instead of
-    a pre-recorded checkpoint sequence: that sequence cannot be known for
-    a lookahead row planned before its predecessor has run. A task with no
-    dependencies (bootstrap, resume, scientist-directed continuation) is
-    unaffected and keeps the original sequence check.
-    """
-    # Redelivery after the checkpoint commit but before task completion is an
-    # acknowledgement replay, never a second scientific effect -- true
-    # regardless of which validation branch below applies.
-    if checkpoint["stage"] == f"engine_task:{task.id}":
-        return {"checkpoint_seq": current_seq, "replayed": True}
-    if task.dependencies:
-        _check_portfolio_predecessor(task, checkpoint)
-        return None
-    expected_seq = int(task.inputs.get("checkpoint_seq", -1))
-    if current_seq > expected_seq:
-        raise SupersededTaskError("specialist task checkpoint was superseded")
-    if current_seq != expected_seq:
-        raise RuntimeError("specialist task checkpoint does not match input")
-    return None
-
-
-def _check_portfolio_predecessor(
-    task: ScientificTask, checkpoint: dict[str, Any]
-) -> None:
-    """Confirm a portfolio row's named predecessor produced this checkpoint.
-
-    Verifies not just that the predecessor committed, but that its own
-    recorded successor names this exact task -- a plan can still turn out
-    wrong (most often a mid-run safety halt, finding J6, that routes the
-    predecessor to finalize instead of the node this row was planned as).
-    Checking only the predecessor's identity would let that stale row run
-    anyway, since the predecessor genuinely did commit; the recorded
-    successor is what ``app.engine_tasks_portfolio`` also compares to
-    decide whether a queued row is a reuse target or a stale plan to
-    cancel, so a row that slips past that cancellation still cannot run
-    here -- it settles as superseded instead, the durable worker's benign
-    idempotent outcome for an obsolete branch.
-
-    A checkpoint saved mid-pause (``engine_task_paused:{id}``, from
-    ``_save_paused_state``) names its predecessor the same way a normal
-    commit does; a portfolio row anchored to it by a resumed run's
-    ``_enqueue_resume_task`` (``app.task_worker_enqueue``) validates
-    identically either way.
-
-    Raises:
-        SupersededTaskError: If the predecessor's real successor was not
-            this task.
-    """
-    predecessor_id = task.dependencies[0]
-    resume_successor = checkpoint.get("state", {}).get("resume_successor")
-    stage = checkpoint["stage"]
-    predecessor_stages = {
-        f"engine_task:{predecessor_id}",
-        f"engine_task_paused:{predecessor_id}",
-    }
-    if stage in predecessor_stages and resume_successor == task.task_type:
-        return
-    raise SupersededTaskError("portfolio task checkpoint was superseded")
-
 
 # Node types with a synchronous fan-out enqueue helper (see below).
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
@@ -288,20 +226,6 @@ def _commit_finalize_drain(
     return None
 
 
-def _settle_finalize_outcome(
-    run_id: str, db_path: str | None
-) -> dict[str, Any]:
-    """Report outcome; park unpublished work for explicit resume."""
-    run = store.get_run(run_id, db_path=db_path)
-    status = run.status if run else "missing"
-    if (
-        status == RunStatus.PAUSED.value
-        and store.get_latest_report(run_id, db_path=db_path) is None
-    ):
-        raise SafetyHoldError("report finalization held for review")
-    return {"run_id": run_id, "status": status}
-
-
 async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
     """Emit drain stage events for compatibility callers."""
     for event_type, payload in _finalize_stage_events(drained):
@@ -407,32 +331,6 @@ def _restore_finalize_checkpoint(
     return checkpoint, state
 
 
-def _finalize_replay_or_none(
-    run: store.RunRow, *, db_path: str | None
-) -> dict[str, Any] | None:
-    """Return the replayed outcome when finalization already published.
-
-    Args:
-        run: The run whose finalization is being attempted.
-        db_path: Optional database override.
-
-    Returns:
-        The replayed completion result, or ``None`` to finalize now.
-
-    Raises:
-        RuntimeError: If the run was cancelled before finalization.
-    """
-    if run.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled before finalization")
-    already_published = (
-        run.status == RunStatus.COMPLETED.value
-        and store.get_latest_report(run.id, db_path=db_path) is not None
-    )
-    if already_published:
-        return {"run_id": run.id, "status": "completed", "replayed": True}
-    return None
-
-
 async def _publish_finalize_report(  # noqa: PLR0913
     run: store.RunRow,
     task: ScientificTask,
@@ -495,11 +393,7 @@ async def execute_finalize(
 
 
 def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
-    """Settle the run and release its call-budget tracking.
-
-    Release it now rather than relying on cap eviction for runs this path
-    cannot settle, including cancellations and exhausted failures.
-    """
+    """Settle and free call-budget tracking, including nonterminal exits."""
     from co_scientist.llm_call_budget import release_run_call_budget
 
     outcome = _settle_finalize_outcome(run_id, db_path)

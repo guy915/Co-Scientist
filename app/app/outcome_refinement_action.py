@@ -111,16 +111,29 @@ def _action_payload(
     }
 
 
-def _context_snapshot(context: RefinementContext) -> str:
-    evidence_ids = context.outcome["referenced_evidence_ids"]
-    evidence = context.outcome["referenced_evidence"]
-    if len(evidence_ids) > MAX_OUTCOME_SOURCE_LINKS or len(evidence) > (
-        MAX_OUTCOME_SOURCE_LINKS
+def get_owner_outcome_refinement_action(
+    run_id: str,
+    hypothesis_id: str,
+    outcome_id: str,
+    owner_id: str,
+    *,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Read an existing owner's action without recovering or enqueueing it."""
+    action = store.get_outcome_refinement_action_for_outcome(
+        run_id, outcome_id, db_path=db_path
+    )
+    if (
+        action is None
+        or action["hypothesis_id"] != hypothesis_id
+        or action["owner_id"] != owner_id
     ):
-        raise OutcomeRefinementContextTooLargeError
-    if [item.get("id") for item in evidence] != evidence_ids:
         raise OutcomeRefinementNotFoundError
+    return _action_payload(action, replayed=True)
 
+
+def _context_snapshot(context: RefinementContext) -> str:
+    evidence_ids, evidence = _context_evidence(context)
     snapshot = {
         "context_version": 1,
         "action_id": context.action_id,
@@ -133,32 +146,52 @@ def _context_snapshot(context: RefinementContext) -> str:
             "title": context.parent.title or "",
             "statement": context.parent.text,
         },
-        "outcome": {
-            "outcome_id": context.outcome["id"],
-            "run_id": context.outcome["run_id"],
-            "hypothesis_id": context.outcome["hypothesis_id"],
-            "hypothesis_snapshot": context.outcome["hypothesis_snapshot"],
-            "method_protocol": context.outcome["method_protocol"],
-            "conditions": context.outcome["conditions"],
-            "measured_observation": context.outcome["measured_observation"],
-            "units": context.outcome["units"],
-            "controls": context.outcome["controls"],
-            "interpretation": context.outcome["interpretation"],
-            "referenced_evidence_ids": evidence_ids,
-            "referenced_evidence": evidence,
-            "author": context.outcome["author"],
-            "recorded_at": context.outcome["recorded_at"],
-        },
+        "outcome": _outcome_snapshot(context.outcome, evidence_ids, evidence),
     }
     serialized = json.dumps(
-        snapshot,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
+        snapshot, ensure_ascii=False, separators=(",", ":"), sort_keys=True
     )
     if len(serialized) > MAX_OUTCOME_CONTEXT_CODEPOINTS:
         raise OutcomeRefinementContextTooLargeError
     return serialized
+
+
+def _context_evidence(
+    context: RefinementContext,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    evidence_ids = context.outcome["referenced_evidence_ids"]
+    evidence = context.outcome["referenced_evidence"]
+    if (
+        len(evidence_ids) > MAX_OUTCOME_SOURCE_LINKS
+        or len(evidence) > MAX_OUTCOME_SOURCE_LINKS
+    ):
+        raise OutcomeRefinementContextTooLargeError
+    if [item.get("id") for item in evidence] != evidence_ids:
+        raise OutcomeRefinementNotFoundError
+    return evidence_ids, evidence
+
+
+def _outcome_snapshot(
+    outcome: dict[str, Any],
+    evidence_ids: list[str],
+    evidence: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "outcome_id": outcome["id"],
+        "run_id": outcome["run_id"],
+        "hypothesis_id": outcome["hypothesis_id"],
+        "hypothesis_snapshot": outcome["hypothesis_snapshot"],
+        "method_protocol": outcome["method_protocol"],
+        "conditions": outcome["conditions"],
+        "measured_observation": outcome["measured_observation"],
+        "units": outcome["units"],
+        "controls": outcome["controls"],
+        "interpretation": outcome["interpretation"],
+        "referenced_evidence_ids": evidence_ids,
+        "referenced_evidence": evidence,
+        "author": outcome["author"],
+        "recorded_at": outcome["recorded_at"],
+    }
 
 
 def _owned_run(conn: Any, request: OutcomeRefinementRequest) -> Any:
@@ -237,18 +270,60 @@ def _replay_for_key(
     return _action_payload(existing, replayed=True)
 
 
+def _replay_existing_action(
+    request: OutcomeRefinementRequest, request_key: str, conn: Any
+) -> dict[str, Any] | None:
+    action = store.get_outcome_refinement_action_by_key(
+        request.run_id, request_key, conn=conn
+    )
+    replay = _replay_for_key(action, request)
+    if action is None or replay is None:
+        return replay
+    _materialize_action(action, conn)
+    current = store.get_outcome_refinement_action(
+        request.run_id, action["action_id"], conn=conn
+    )
+    return _action_payload(current or action, replayed=True)
+
+
 def _new_intent(
     request: OutcomeRefinementRequest,
     target: RefinementTarget,
     request_key: str,
     conn: Any,
 ) -> dict[str, Any]:
-    existing_for_outcome = store.get_outcome_refinement_action_for_outcome(
-        request.run_id, request.outcome_id, conn=conn
+    _require_unclaimed_outcome(request, conn)
+    action, replayed = store.create_outcome_refinement_action(
+        _new_action_record(request, target, request_key),
+        conn=conn,
     )
-    if existing_for_outcome is not None:
+    _materialize_action(action, conn)
+    action = (
+        store.get_outcome_refinement_action(
+            request.run_id, action["action_id"], conn=conn
+        )
+        or action
+    )
+    return _action_payload(action, replayed=replayed)
+
+
+def _require_unclaimed_outcome(
+    request: OutcomeRefinementRequest, conn: Any
+) -> None:
+    if (
+        store.get_outcome_refinement_action_for_outcome(
+            request.run_id, request.outcome_id, conn=conn
+        )
+        is not None
+    ):
         raise store.OutcomeRefinementConflictError
 
+
+def _new_action_record(
+    request: OutcomeRefinementRequest,
+    target: RefinementTarget,
+    request_key: str,
+) -> NewOutcomeRefinementAction:
     action_id = str(uuid.uuid4())
     task_idempotency_key = f"outcome-refinement:{action_id}"
     context_snapshot = _context_snapshot(
@@ -262,28 +337,17 @@ def _new_intent(
             outcome=target.outcome,
         )
     )
-    action, replayed = store.create_outcome_refinement_action(
-        NewOutcomeRefinementAction(
-            action_id=action_id,
-            run_id=request.run_id,
-            outcome_id=request.outcome_id,
-            hypothesis_id=request.hypothesis_id,
-            owner_id=request.owner_id,
-            request_idempotency_key=request_key,
-            task_idempotency_key=task_idempotency_key,
-            checkpoint_seq=target.checkpoint_seq,
-            context_snapshot=context_snapshot,
-        ),
-        conn=conn,
+    return NewOutcomeRefinementAction(
+        action_id=action_id,
+        run_id=request.run_id,
+        outcome_id=request.outcome_id,
+        hypothesis_id=request.hypothesis_id,
+        owner_id=request.owner_id,
+        request_idempotency_key=request_key,
+        task_idempotency_key=task_idempotency_key,
+        checkpoint_seq=target.checkpoint_seq,
+        context_snapshot=context_snapshot,
     )
-    _materialize_action(action, conn)
-    action = (
-        store.get_outcome_refinement_action(
-            request.run_id, action["action_id"], conn=conn
-        )
-        or action
-    )
-    return _action_payload(action, replayed=replayed)
 
 
 def _materialize_action(
@@ -401,25 +465,8 @@ def request_outcome_refinement_action(
     with store.transaction(db_path) as conn:
         run = _owned_run(conn, request)
         outcome = _matching_outcome(conn, request)
-        replay = _replay_for_key(
-            store.get_outcome_refinement_action_by_key(
-                request.run_id, request_key, conn=conn
-            ),
-            request,
-        )
+        replay = _replay_existing_action(request, request_key, conn)
         if replay is not None:
-            action = store.get_outcome_refinement_action_by_key(
-                request.run_id, request_key, conn=conn
-            )
-            if action is not None:
-                _materialize_action(action, conn)
-                action = (
-                    store.get_outcome_refinement_action(
-                        request.run_id, action["action_id"], conn=conn
-                    )
-                    or action
-                )
-                return _action_payload(action, replayed=True)
             return replay
         _validate_new_action_run(run)
         target = _eligible_parent(conn, request)

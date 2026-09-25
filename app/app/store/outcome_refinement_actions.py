@@ -68,6 +68,23 @@ def _matches_request(
     )
 
 
+def _append_requested_event(
+    conn: sqlite3.Connection, intent: NewOutcomeRefinementAction, now: float
+) -> None:
+    _append_event(
+        conn,
+        intent.run_id,
+        "scientist.outcome_refinement_requested",
+        {
+            "action_id": intent.action_id,
+            "outcome_id": intent.outcome_id,
+            "hypothesis_id": intent.hypothesis_id,
+            "task_idempotency_key": intent.task_idempotency_key,
+        },
+        now,
+    )
+
+
 def _insert_action(
     conn: sqlite3.Connection, intent: NewOutcomeRefinementAction
 ) -> dict[str, Any]:
@@ -92,18 +109,7 @@ def _insert_action(
             now,
         ),
     )
-    _append_event(
-        conn,
-        intent.run_id,
-        "scientist.outcome_refinement_requested",
-        {
-            "action_id": intent.action_id,
-            "outcome_id": intent.outcome_id,
-            "hypothesis_id": intent.hypothesis_id,
-            "task_idempotency_key": intent.task_idempotency_key,
-        },
-        now,
-    )
+    _append_requested_event(conn, intent, now)
     row = conn.execute(
         "SELECT * FROM outcome_refinement_actions WHERE action_id=?",
         (intent.action_id,),

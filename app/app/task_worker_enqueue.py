@@ -326,6 +326,32 @@ def _find_checkpoint_resume_task(
     return queued or next(iter(matching), None)
 
 
+def _outcome_refinement_resume_task(
+    tasks: list[ScientificTask],
+) -> ScientificTask | None:
+    active = next(
+        (
+            task
+            for task in tasks
+            if task.task_type == engine_tasks.OUTCOME_REFINEMENT_TASK
+            and task.status in {"queued", "leased"}
+        ),
+        None,
+    )
+    if active is not None:
+        return active
+    # Only the owner replay may revive a failed refinement action.
+    return next(
+        (
+            task
+            for task in tasks
+            if task.task_type == engine_tasks.OUTCOME_REFINEMENT_TASK
+            and task.status in {"failed", "cancelled"}
+        ),
+        None,
+    )
+
+
 def _already_claimable_task(
     run_id: str,
     db: _ResumeDB,
@@ -345,31 +371,9 @@ def _already_claimable_task(
     )
     tasks = store.list_tasks(run_id, db_path=db.path, conn=db.conn)
 
-    action_task = next(
-        (
-            task
-            for task in tasks
-            if task.task_type == engine_tasks.OUTCOME_REFINEMENT_TASK
-            and task.status in {"queued", "leased"}
-        ),
-        None,
-    )
+    action_task = _outcome_refinement_resume_task(tasks)
     if action_task is not None:
         return action_task
-    failed_action = next(
-        (
-            task
-            for task in tasks
-            if task.task_type == engine_tasks.OUTCOME_REFINEMENT_TASK
-            and task.status in {"failed", "cancelled"}
-        ),
-        None,
-    )
-    if failed_action is not None:
-        # This intent is retried only when its owner replays the explicit
-        # refinement request. Startup recovery and generic run resume must
-        # not revive provider failures or fall through to the full workflow.
-        return failed_action
 
     if checkpoint is None:
         # Safety holds can park an engine task before the run has a

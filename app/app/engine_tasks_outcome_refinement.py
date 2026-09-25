@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.agents.evolution.evolve import _build_evolution_context
@@ -24,6 +24,15 @@ from app.engine_tasks_support import (
     _generator_for_restore,
     _save_exact_checkpoint,
     _save_node_checkpoint,
+)
+from app.outcome_refinement_lineage import (
+    _checkpointed_child as _checkpointed_child,
+)
+from app.outcome_refinement_lineage import (
+    _child_row as _child_row,
+)
+from app.outcome_refinement_lineage import (
+    _result_checkpoint_state as _result_checkpoint_state,
 )
 from app.safety import screen_intake
 from app.store import RunStatus, ScientificTask
@@ -46,6 +55,16 @@ class _TargetedEvolution:
     db_path: str | None
 
 
+def _targeted_prompt_state(request: _TargetedEvolution) -> dict[str, Any]:
+    """Retain run guidance while exposing only the selected hypothesis."""
+    return {
+        "research_goal": request.state.get("research_goal"),
+        "preferences": request.state.get("preferences"),
+        "lab_constraints": request.state.get("lab_constraints"),
+        "hypotheses": [request.parent],
+    }
+
+
 def _result(
     action: dict[str, Any], *, replayed: bool = False
 ) -> dict[str, Any]:
@@ -66,6 +85,15 @@ def _validate_intent(
     *,
     db_path: str | None,
 ) -> tuple[Hypothesis, dict[str, Any]]:
+    _validate_intent_identity(task, action)
+    snapshot = _validate_intent_snapshot(action)
+    parent = _validate_intent_target(action, state, db_path)
+    return parent, snapshot
+
+
+def _validate_intent_identity(
+    task: ScientificTask, action: dict[str, Any]
+) -> None:
     if (
         task.idempotency_key != action["task_idempotency_key"]
         or task.inputs.get("action_id") != action["action_id"]
@@ -76,7 +104,10 @@ def _validate_intent(
         raise ValueError(
             "outcome refinement task identity does not match intent"
         )
-    snapshot = json.loads(action["context_snapshot"])
+
+
+def _validate_intent_snapshot(action: dict[str, Any]) -> dict[str, Any]:
+    snapshot = cast(dict[str, Any], json.loads(action["context_snapshot"]))
     if (
         snapshot.get("action_id") != action["action_id"]
         or snapshot.get("task_idempotency_key")
@@ -92,6 +123,14 @@ def _validate_intent(
         or len(action["context_snapshot"]) > 6_000
     ):
         raise ValueError("stored outcome refinement snapshot is invalid")
+    return snapshot
+
+
+def _validate_intent_target(
+    action: dict[str, Any],
+    state: dict[str, Any],
+    db_path: str | None,
+) -> Hypothesis:
     parent = next(
         (
             hypothesis
@@ -116,7 +155,7 @@ def _validate_intent(
         or outcome["author"] != action["owner_id"]
     ):
         raise ValueError("outcome refinement target is no longer eligible")
-    return parent, snapshot
+    return parent
 
 
 def _checkpoint_state(
@@ -158,31 +197,6 @@ def _checkpoint_result(
     return seq
 
 
-def _child_row(run_id: str, child: Hypothesis) -> store.NewHypothesis:
-    if child.parent_id is None or child.parent_ids != [child.parent_id]:
-        raise ValueError(
-            "targeted outcome refinement returned non-single lineage"
-        )
-    return store.NewHypothesis(
-        run_id=run_id,
-        hypothesis_id=child.id,
-        parent_id=child.parent_id,
-        parent_ids=[child.parent_id],
-        generation=child.generation,
-        creation_iteration=child.creation_iteration,
-        category=child.category,
-        title=child.title or child.text[:120],
-        statement=child.text,
-        mechanism=child.literature_grounding or "",
-        expected_effect=child.explanation or "",
-        experimental_context=child.experiment or "",
-        introduction=child.introduction or "",
-        recent_findings=child.recent_findings or "",
-        safety_and_toxicity=child.safety_and_toxicity or "",
-        created_by_agent="evolution",
-    )
-
-
 def _commit_result(
     task: ScientificTask,
     action: dict[str, Any],
@@ -204,28 +218,6 @@ def _commit_result(
         if child is not None:
             return _commit_child(task, action, current, child, conn)
         return _commit_terminal_action(task, action, marker, conn)
-
-
-def _checkpointed_child(
-    action: dict[str, Any],
-    state: dict[str, Any],
-    marker: dict[str, Any],
-) -> Hypothesis | None:
-    """Resolve and validate the child carried by the action checkpoint."""
-    child_id = marker.get("child_hypothesis_id")
-    child = next(
-        (
-            hypothesis
-            for hypothesis in state.get("hypotheses", [])
-            if hypothesis.id == child_id
-        ),
-        None,
-    )
-    if marker["kind"] == "child" and child is None:
-        raise ValueError("checkpointed refinement child is missing")
-    if child is not None and child.parent_id != action["hypothesis_id"]:
-        raise ValueError("checkpointed refinement child has the wrong parent")
-    return child
 
 
 def _commit_child(
@@ -400,7 +392,7 @@ async def _evolve_targeted_parent(
     context = _build_evolution_context(scoped_state, [], None)
     context = replace(
         context,
-        state=None,
+        state=_targeted_prompt_state(request),
         ranked_hypotheses=(request.parent,),
         meta_review={},
         removed_duplicates=[],
@@ -423,37 +415,70 @@ async def _evolve_targeted_parent(
     return child
 
 
-def _result_checkpoint_state(
-    action: dict[str, Any],
-    state: dict[str, Any],
-    parent: Hypothesis,
+def _targeted_evolution_request(
+    request: _TargetedEvolution,
+) -> _TargetedEvolution:
+    siblings = [
+        hypothesis
+        for hypothesis in request.state.get("hypotheses", [])
+        if hypothesis.id != request.parent.id
+    ]
+    return replace(request, siblings=siblings)
+
+
+def _checkpoint_and_commit_refinement(
+    request: _TargetedEvolution,
     child: Hypothesis | None,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Attach single-parent lineage and form the durable action marker."""
-    if child is None:
-        return state, {
-            "kind": "no_child",
-            "action_id": action["action_id"],
-            "outcome_id": action["outcome_id"],
-            "hypothesis_id": action["hypothesis_id"],
-            "child_hypothesis_id": None,
-        }
-    if child.parent_id != parent.id or child.parent_ids != [parent.id]:
-        raise ValueError("targeted outcome evolution must return one parent")
-    child.enrichments["outcome_refinement"] = {
-        "action_id": action["action_id"],
-        "outcome_id": action["outcome_id"],
-        "parent_hypothesis_id": parent.id,
-    }
-    updated_state = {**state, "hypotheses": [*state["hypotheses"], child]}
-    updated_state["resume_successor"] = _REVIEW_TASK
-    return updated_state, {
-        "kind": "child",
-        "action_id": action["action_id"],
-        "outcome_id": action["outcome_id"],
-        "hypothesis_id": action["hypothesis_id"],
-        "child_hypothesis_id": child.id,
-    }
+    current_seq: int,
+) -> dict[str, Any]:
+    task, action, state, parent = (
+        request.task,
+        request.action,
+        request.state,
+        request.parent,
+    )
+    db_path = request.db_path
+    successor_state, result_marker = _result_checkpoint_state(
+        action, state, parent, child
+    )
+    _checkpoint_result(
+        task, successor_state, current_seq, result_marker, db_path=db_path
+    )
+    latest = store.get_latest_checkpoint(task.run_id, db_path=db_path)
+    assert latest is not None
+    restored, _checkpoint_seq = _checkpoint_state(task, latest, db_path=db_path)
+    return _commit_result(
+        task, action, restored, result_marker, db_path=db_path
+    )
+
+
+async def _execute_loaded_refinement(
+    task: ScientificTask,
+    action: dict[str, Any],
+    checkpoint: dict[str, Any],
+    db_path: str | None,
+) -> dict[str, Any]:
+    _require_expected_checkpoint(task, checkpoint)
+    state, current_seq = _checkpoint_state(task, checkpoint, db_path=db_path)
+    parent, _snapshot = _validate_intent(task, action, state, db_path=db_path)
+    context_block = action["context_snapshot"]
+    if screen_intake(context_block).decision != "allow":
+        return _commit_safety_rejection(
+            task, action, state, current_seq, db_path
+        )
+    request = _targeted_evolution_request(
+        _TargetedEvolution(
+            task=task,
+            action=action,
+            parent=parent,
+            context_block=context_block,
+            siblings=[],
+            state=state,
+            db_path=db_path,
+        )
+    )
+    child = await _evolve_targeted_parent(request)
+    return _checkpoint_and_commit_refinement(request, child, current_seq)
 
 
 async def execute_outcome_refinement(
@@ -466,43 +491,4 @@ async def execute_outcome_refinement(
     replay = _replay_checkpointed_result(task, action, checkpoint, db_path)
     if replay is not None:
         return replay
-    _require_expected_checkpoint(task, checkpoint)
-    state, current_seq = _checkpoint_state(task, checkpoint, db_path=db_path)
-    parent, _snapshot = _validate_intent(task, action, state, db_path=db_path)
-    context_block = action["context_snapshot"]
-    if screen_intake(context_block).decision != "allow":
-        return _commit_safety_rejection(
-            task, action, state, current_seq, db_path
-        )
-    siblings = [
-        hypothesis
-        for hypothesis in state.get("hypotheses", [])
-        if hypothesis.id != parent.id
-    ]
-    child = await _evolve_targeted_parent(
-        _TargetedEvolution(
-            task=task,
-            action=action,
-            parent=parent,
-            context_block=context_block,
-            siblings=siblings,
-            state=state,
-            db_path=db_path,
-        )
-    )
-    successor_state, result_marker = _result_checkpoint_state(
-        action, state, parent, child
-    )
-    _checkpoint_result(
-        task, successor_state, current_seq, result_marker, db_path=db_path
-    )
-    latest = store.get_latest_checkpoint(task.run_id, db_path=db_path)
-    assert latest is not None
-    restored, _checkpoint_seq = _checkpoint_state(task, latest, db_path=db_path)
-    return _commit_result(
-        task,
-        action,
-        restored,
-        result_marker,
-        db_path=db_path,
-    )
+    return await _execute_loaded_refinement(task, action, checkpoint, db_path)
