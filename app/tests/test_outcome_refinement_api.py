@@ -10,9 +10,12 @@ from app.config import settings
 from app.store import RunStatus
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
+    MESELSON_STAHL_PARENT_TEXT,
     _add_hypothesis,
+    _add_meselson_stahl_fixture,
     _new_run,
     _outcome_body,
+    _record_meselson_stahl_outcome,
     _save_engine_checkpoint,
     _signed_headers,
 )
@@ -35,26 +38,16 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     }
     client = make_client()
     run_id = _new_run(client, owner)
-    statement = "Treatment X by pathway Y."
-    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Treatment X")
-    evidence_id = store.add_evidence(
-        store.NewEvidence(
-            run_id=run_id,
-            title="Assay protocol",
-            source="pubmed",
-            url="https://example.test/protocol",
-            doi="10.5555/protocol",
-            abstract="This full text is not part of the refinement context.",
-        ),
-        db_path=isolated_db,
-    )
-    outcome_response = client.post(
-        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
-        headers=headers,
-        json=_outcome_body(evidence_id),
+    hypothesis_id, outcome_fields, source_ids, outcome_response = (
+        _record_meselson_stahl_outcome(client, run_id, owner, isolated_db)
     )
     assert outcome_response.status_code == 201
-    outcome_id = outcome_response.json()["id"]
+    outcome = outcome_response.json()
+    outcome_id = outcome["id"]
+    assert outcome["author"] == owner
+    assert outcome["referenced_evidence_ids"] == source_ids
+    for field, value in outcome_fields.items():
+        assert outcome[field] == value
     assert (
         store.list_pending_outcome_refinement_actions(
             run_id, db_path=isolated_db
@@ -66,8 +59,8 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         run_id,
         Hypothesis(
             id=hypothesis_id,
-            text=statement,
-            title="Treatment reduces growth",
+            text=MESELSON_STAHL_PARENT_TEXT,
+            title="Semiconservative DNA replication in E. coli",
         ),
         isolated_db,
     )
@@ -99,10 +92,19 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     assert persisted is not None
     context = persisted["context_snapshot"]
     assert len(context) <= 6_000
-    assert statement in context
-    assert _outcome_body(evidence_id)["measured_observation"] in context
-    assert evidence_id in context
-    assert "This full text is not part" not in context
+    assert MESELSON_STAHL_PARENT_TEXT in context
+    assert outcome_fields["measured_observation"] in context
+    assert outcome_fields["interpretation"] in context
+    assert all(evidence_id in context for evidence_id in source_ids)
+    assert "10.1073/pnas.44.7.671" in context
+    assert "16590258" in context
+    assert "PMC528642" in context
+    assert "Hanawalt's historical account" in context
+    assert "PMC539797" in context
+    assert context.index(
+        "The replication of DNA in Escherichia coli"
+    ) < context.index("Hanawalt's historical account")
+    assert "Full text and abstracts are outside" not in context
     tasks = store.list_tasks(run_id, db_path=isolated_db)
     assert len(tasks) == 1
     assert tasks[0].task_type == "engine.outcome.refinement"
@@ -130,7 +132,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     ]
     assert len(action_events) == 1
     assert action_events[0]["payload"]["action_id"] == action["action_id"]
-    assert _outcome_body(evidence_id)["measured_observation"] not in str(
+    assert outcome_fields["measured_observation"] not in str(
         action_events[0]["payload"]
     )
     client.close()
@@ -162,30 +164,21 @@ def test_refinement_action_is_owner_scoped_and_exactly_one_per_outcome(
     other_owner = "different-outcome-owner"
     client = make_client()
     run_id = _new_run(client, owner)
-    parent_id = _add_hypothesis(run_id, isolated_db, "Target parent")
+    parent_id, body, _ = _add_meselson_stahl_fixture(run_id, isolated_db)
     sibling_id = _add_hypothesis(run_id, isolated_db, "Different sibling")
-    body = _outcome_body()
-    outcome = store.add_hypothesis_outcome(
-        store.NewHypothesisOutcome(
-            run_id=run_id,
-            hypothesis_id=parent_id,
-            method_protocol=body["method_protocol"],
-            conditions=body["conditions"],
-            measured_observation=body["measured_observation"],
-            units=body["units"],
-            controls=body["controls"],
-            interpretation=body["interpretation"],
-            referenced_evidence_ids=[],
-            author=owner,
-        ),
-        db_path=isolated_db,
+    recorded = client.post(
+        f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
+        headers=_signed_headers(owner),
+        json=body,
     )
+    assert recorded.status_code == 201
+    outcome = recorded.json()
     _save_engine_checkpoint(
         run_id,
         Hypothesis(
             id=parent_id,
-            text="Target parent by pathway Y.",
-            title="Target parent",
+            text=MESELSON_STAHL_PARENT_TEXT,
+            title="Semiconservative DNA replication in E. coli",
         ),
         isolated_db,
     )
