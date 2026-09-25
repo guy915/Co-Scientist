@@ -357,6 +357,13 @@ def test_uncommitted_authorization_never_starts_runner(
     assert [process.pid for process in processes] == [64101, 64102]
 
 
+def test_driver_requires_absolute_script_invocation() -> None:
+    relative = Path("references/external/sakana") / driver.DRIVER_PATH.name
+    with pytest.raises(ValueError, match="absolute"):
+        driver._require_absolute_script_invocation(relative)
+    driver._require_absolute_script_invocation(driver.DRIVER_PATH)
+
+
 def test_cli_interrupt_still_terminates_children_and_writes_receipt(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

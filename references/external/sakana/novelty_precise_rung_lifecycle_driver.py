@@ -48,6 +48,11 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _require_absolute_script_invocation(invocation: Path) -> None:
+    if invocation.name == DRIVER_PATH.name and invocation != DRIVER_PATH:
+        raise ValueError("Lifecycle driver requires its absolute pinned script path")
+
+
 def _read_build_pins() -> dict[str, Any]:
     if (
         INPUT_PATH.is_symlink()
@@ -534,6 +539,7 @@ def main(argv: list[str] | None = None) -> int:
         os.close(fd)
         reserved = True
         previous_sigterm_handler = signal.signal(signal.SIGTERM, handle_sigterm)
+        _require_absolute_script_invocation(Path(sys.argv[0]))
         if args.startup_timeout_seconds < 1 or args.amendment_wait_seconds < 0:
             raise ValueError("Timeouts must be positive; amendment wait may be zero")
         if amendment != AMENDMENT_PATH.resolve():

@@ -5,7 +5,7 @@
       "child_absent": true,
       "kill_sent": false,
       "listener_absent": true,
-      "pid": 45401,
+      "pid": 46847,
       "returncode": -15,
       "term_sent": true
     },
@@ -13,7 +13,7 @@
       "child_absent": true,
       "kill_sent": false,
       "listener_absent": true,
-      "pid": 45406,
+      "pid": 46876,
       "returncode": -15,
       "term_sent": true
     },
@@ -24,21 +24,21 @@
     }
   },
   "driver_path": "references/external/sakana/novelty_precise_rung_lifecycle_driver.py",
-  "driver_sha256": "32d657ce15dbb4e0c12721ab2382b9a74e9d7f28a219e639b3e9ee5cc969400c",
-  "ended_at_utc": "2026-09-25T20:39:49.646192+00:00",
+  "driver_sha256": "b57dd3cad113204dae7b11da3ae049ed5f764450ef0993cae08fcdd41157f579",
+  "ended_at_utc": "2026-09-25T20:45:15.084998+00:00",
   "engine_python": "/Users/guy/.codex/worktrees/external-m10-robin/co-scientist/.venv/bin/python",
   "error_class": "TimeoutError",
   "error_stage": "amendment_gate",
   "launcher_diagnostics": {
     "baseline": {
       "bytes": 4096,
-      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v4-2026-09-25-baseline-stderr.log",
+      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v5-2026-09-25-baseline-stderr.log",
       "secret_redacted": true,
       "truncated": true
     },
     "candidate": {
       "bytes": 4096,
-      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v4-2026-09-25-candidate-stderr.log",
+      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v5-2026-09-25-candidate-stderr.log",
       "secret_redacted": true,
       "truncated": true
     }
@@ -51,20 +51,20 @@
   "schema_version": "novelty_precise_rung_lifecycle_receipt_v1",
   "server_children": {
     "baseline": {
-      "listener_pid": 45401,
-      "pid": 45401,
-      "port": 55810,
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v4-2026-09-25-baseline-launch.json",
-      "receipt_sha256": "d274df4d6aabbe49523975c722b576fdc0419e60157ba9cfb6589a3f08bd150a"
+      "listener_pid": 46847,
+      "pid": 46847,
+      "port": 55968,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v5-2026-09-25-baseline-launch.json",
+      "receipt_sha256": "c9b487645ac599ec48d27eedde13e91b1e9dfb6d82cf2fb1bc5fb7064c41412a"
     },
     "candidate": {
-      "listener_pid": 45406,
-      "pid": 45406,
-      "port": 55811,
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v4-2026-09-25-candidate-launch.json",
-      "receipt_sha256": "17c15771faa9856387c2b78d8aa0289daec6297c5ee83ddc711ea91d1a35649e"
+      "listener_pid": 46876,
+      "pid": 46876,
+      "port": 55969,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-offline-launch-v5-2026-09-25-candidate-launch.json",
+      "receipt_sha256": "8494fc29302968f49eeabb912f60a73a8475735a3bfd1b4af1533db7b3556f11"
     }
   },
-  "started_at_utc": "2026-09-25T20:39:39.377692+00:00",
+  "started_at_utc": "2026-09-25T20:45:04.179183+00:00",
   "status": "aborted"
 }

@@ -1,0 +1,85 @@
+{
+  "amendment_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-protocol-amendment-2026-09-25.json",
+  "amendment_sha256": "5f3f0caa1149c2205efcf792d8078bce6cda487729117ba3663e31677383540b",
+  "cleanup": {
+    "baseline": {
+      "child_absent": true,
+      "kill_sent": false,
+      "listener_absent": true,
+      "pid": 46124,
+      "returncode": -15,
+      "term_sent": true
+    },
+    "candidate": {
+      "child_absent": true,
+      "kill_sent": false,
+      "listener_absent": true,
+      "pid": 46130,
+      "returncode": -15,
+      "term_sent": true
+    },
+    "runner": {
+      "child_absent": true,
+      "interrupt_sent": false,
+      "kill_sent": false,
+      "pid": 46572,
+      "result_status": "STOPPED",
+      "returncode": 2,
+      "term_sent": false
+    },
+    "temporary_root_removed": true,
+    "worktrees": {
+      "baseline": true,
+      "candidate": true
+    }
+  },
+  "driver_path": "references/external/sakana/novelty_precise_rung_lifecycle_driver.py",
+  "driver_sha256": "32d657ce15dbb4e0c12721ab2382b9a74e9d7f28a219e639b3e9ee5cc969400c",
+  "ended_at_utc": "2026-09-25T20:42:58.836190+00:00",
+  "engine_python": "/Users/guy/.codex/worktrees/external-m10-robin/co-scientist/.venv/bin/python",
+  "launcher_diagnostics": {
+    "baseline": {
+      "bytes": 4096,
+      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-baseline-stderr.log",
+      "secret_redacted": true,
+      "truncated": true
+    },
+    "candidate": {
+      "bytes": 4096,
+      "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-candidate-stderr.log",
+      "secret_redacted": true,
+      "truncated": true
+    }
+  },
+  "mcp_python": "/Users/guy/Code/co-scientist/.venv-mcp/bin/python",
+  "model_inference_calls": 0,
+  "pilot": "M11-NOV-RUNG-01b2b",
+  "runner_diagnostics": {
+    "bytes": 88,
+    "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-runner-stderr.log",
+    "secret_redacted": true,
+    "truncated": false
+  },
+  "runner_exit_code": 2,
+  "runner_pid": 46572,
+  "runner_started": true,
+  "schema_version": "novelty_precise_rung_lifecycle_receipt_v1",
+  "server_children": {
+    "baseline": {
+      "listener_pid": 46124,
+      "pid": 46124,
+      "port": 55865,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-baseline-launch.json",
+      "receipt_sha256": "1c86edec382565d97e5d6c82f6141d324ecbb97cddff349b076e69fa54e9c10c"
+    },
+    "candidate": {
+      "listener_pid": 46130,
+      "pid": 46130,
+      "port": 55866,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-2026-09-25-candidate-launch.json",
+      "receipt_sha256": "81a8ebf227a5fd9d91454bc9449442fe29046da28b0ce5f4992bf67eb5da8b39"
+    }
+  },
+  "started_at_utc": "2026-09-25T20:41:29.476148+00:00",
+  "status": "runner_failed"
+}

@@ -338,7 +338,10 @@ def test_independent_cli_fails_closed_without_measured_retry_launcher(
     ]
 
     assert runner.main(argv) == 2
-    assert not output.exists()
+    stopped = json.loads(output.read_text(encoding="utf-8"))
+    assert stopped["status"] == "STOPPED"
+    assert stopped["error"] == {"stage": "preflight", "class": "ValueError"}
+    assert stopped["calls"] == []
     assert "launcher hash" in capsys.readouterr().err.lower()
 
 
