@@ -14,7 +14,7 @@ Fresh on this final branch, with `PYTHONPATH` set to this worktree's root,
 
 - `pytest evaluations/tests/test_function_length.py -q`: 3 passed.
 - `python -m evaluations.smoke`: safety and citation offline evaluations passed.
-- Static link check over `PLAN.md` and `references/external/**/*.md`: 405 local
+- Static link check over `PLAN.md` and `references/external/**/*.md`: 413 local
   links, zero missing targets.
 - JSON syntax check: 290 valid retained JSON artifacts; two zero-byte raw files
   are deliberately excluded. They are the previously retained
@@ -23,6 +23,9 @@ Fresh on this final branch, with `PYTHONPATH` set to this worktree's root,
   adjacent baseline summary or failure record and Plan log; they are not
   parsed as results.
 - `git diff --check`: passed after the reference-only import.
+- Secret-pattern scan of the retained reference directory: 194 generic matches
+  were reviewed by field and value shape; all were 64-character SHA-256 hashes
+  or deployment/service UUIDs, with no credential-shaped value identified.
 
 The [experimental-branch receipt](final-local-verification-2026-09-25.json)
 reports its own `make test-all` function-length failure in two unaccepted PubMed

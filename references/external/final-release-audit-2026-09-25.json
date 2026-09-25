@@ -203,5 +203,14 @@
     "No deployment or configuration changes",
     "No run creation, inference, model probe, or paid call",
     "No changes to PLAN.md"
-  ]
+  ],
+  "known_good_rollback_point": {
+    "product_commit": "91c70ed0dd23b34529f19fbfb9331b247d56ef9d",
+    "railway_api_deployment_id": "7df12d74-2a5c-4556-b793-e4905626cb19",
+    "railway_mcp_deployment_id": "77738945-4aa2-4a39-87d3-d85664b71469",
+    "vercel_frontend_deployment_id": "dpl_Dj2gzjbEmbg1Npi8UXq3RhrQpooC",
+    "basis": "This exact three-service deployment passed the fresh five-check GET-only production smoke and is the last verified product state for a later release rollback.",
+    "current_closeout_requires_deployment": false,
+    "runtime_configuration_limit": "Railway OAuth redacts variable values; this audit cannot assert exact current model roles or secret/path settings."
+  }
 }
