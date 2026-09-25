@@ -1,0 +1,65 @@
+{
+  "amendment_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-protocol-amendment-2026-09-25.json",
+  "amendment_sha256": "f8d8628331fee83413f74fc2db628ee3254e74de9381d815e94af5d14bd526a3",
+  "cleanup": {
+    "baseline": {
+      "child_absent": true,
+      "kill_sent": false,
+      "listener_absent": true,
+      "pid": 52336,
+      "returncode": -15,
+      "term_sent": true
+    },
+    "candidate": {
+      "child_absent": true,
+      "kill_sent": false,
+      "listener_absent": true,
+      "pid": 52343,
+      "returncode": -15,
+      "term_sent": true
+    },
+    "runner": {
+      "child_absent": true,
+      "interrupt_sent": false,
+      "kill_sent": false,
+      "pid": 53595,
+      "result_status": "COMPLETED",
+      "returncode": 0,
+      "term_sent": false
+    },
+    "temporary_root_removed": true,
+    "worktrees": {
+      "baseline": true,
+      "candidate": true
+    }
+  },
+  "driver_path": "references/external/sakana/novelty_precise_rung_lifecycle_driver.py",
+  "driver_sha256": "b57dd3cad113204dae7b11da3ae049ed5f764450ef0993cae08fcdd41157f579",
+  "ended_at_utc": "2026-09-25T21:02:37.120743+00:00",
+  "engine_python": "/Users/guy/.codex/worktrees/external-m10-robin/co-scientist/.venv/bin/python",
+  "mcp_python": "/Users/guy/Code/co-scientist/.venv-mcp/bin/python",
+  "model_inference_calls": 0,
+  "pilot": "M11-NOV-RUNG-01b2b",
+  "runner_exit_code": 0,
+  "runner_pid": 53595,
+  "runner_started": true,
+  "schema_version": "novelty_precise_rung_lifecycle_receipt_v1",
+  "server_children": {
+    "baseline": {
+      "listener_pid": 52336,
+      "pid": 52336,
+      "port": 56764,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v3-2026-09-25-baseline-launch.json",
+      "receipt_sha256": "1258193f14e7243f884654c6fe9af5c677d25c18fb7d332fe262165dff69c882"
+    },
+    "candidate": {
+      "listener_pid": 52343,
+      "pid": 52343,
+      "port": 56765,
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v3-2026-09-25-candidate-launch.json",
+      "receipt_sha256": "9e4fcbd9e3aeab694fd40f345a70d217306fc26086dc4bd70d0261ab986aa23b"
+    }
+  },
+  "started_at_utc": "2026-09-25T20:59:42.285012+00:00",
+  "status": "completed"
+}
