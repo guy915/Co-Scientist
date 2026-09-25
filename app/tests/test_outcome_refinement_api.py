@@ -15,7 +15,6 @@ from tests._outcome_refinement_api_support import (
     _add_meselson_stahl_fixture,
     _new_run,
     _outcome_body,
-    _record_meselson_stahl_outcome,
     _save_engine_checkpoint,
     _signed_headers,
 )
@@ -38,8 +37,13 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     }
     client = make_client()
     run_id = _new_run(client, owner)
-    hypothesis_id, outcome_fields, source_ids, outcome_response = (
-        _record_meselson_stahl_outcome(client, run_id, owner, isolated_db)
+    hypothesis_id, outcome_fields, source_ids = _add_meselson_stahl_fixture(
+        run_id, isolated_db
+    )
+    outcome_response = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=_signed_headers(owner),
+        json=outcome_fields,
     )
     assert outcome_response.status_code == 201
     outcome = outcome_response.json()

@@ -89,21 +89,6 @@ def _add_meselson_stahl_fixture(
     return parent_id, outcome_fields, source_ids
 
 
-def _record_meselson_stahl_outcome(
-    client: Any, run_id: str, owner: str, db_path: str
-) -> tuple[str, dict[str, Any], list[str], Any]:
-    """Record the frozen outcome through the authenticated public endpoint."""
-    parent_id, outcome_fields, source_ids = _add_meselson_stahl_fixture(
-        run_id, db_path
-    )
-    response = client.post(
-        f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
-        headers=_signed_headers(owner),
-        json=outcome_fields,
-    )
-    return parent_id, outcome_fields, source_ids, response
-
-
 def _signed_headers(owner: str) -> dict[str, str]:
     token = auth.create_session_token(owner)
     return {"Authorization": f"Bearer {token}"}
