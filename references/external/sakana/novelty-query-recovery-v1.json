@@ -1,0 +1,41 @@
+{
+  "name": "M11-NOV-00b single-control retrieval recovery preregistration",
+  "version": 1,
+  "registered_at_utc": "2026-09-25T01:50:39Z",
+  "reason": "The original bounded run stopped at its final call on an upstream Entrez HTTP 500, after all six positive calls and five control calls completed. Its no-retry rule was honored. This is a separately registered recovery of the one missing control, not a replay of the full panel.",
+  "frozen_evidence": {
+    "result_path": "references/external/sakana/novelty-query-results-v1.json",
+    "result_sha256": "0fc7bcecbabd68e652a9e51b0b6de4cc1f45034e082c5a48f338eb4b469ad6da",
+    "original_prereg_sha256": "79afc453855e826be1202990fda0b33c2ae85a64ee67eb1a34fb52088e9b92a9",
+    "completed_positive_recall_at_3": {
+      "baseline": "0/3",
+      "candidate": "0/3"
+    },
+    "successful_original_calls": 11,
+    "failed_original_call_order": 12,
+    "failed_original_http_status": 500
+  },
+  "single_call": {
+    "not_before_utc": "2026-09-25T02:33:39Z",
+    "tool": "pubmed_search_with_fulltext",
+    "case_id": "qa1-cmv-effector-control",
+    "arm": "candidate",
+    "query": "During murine cytomegalovirus infection Qa-1-restricted CD8 T cells",
+    "max_papers": 3,
+    "slug": "m11_nov_00b_qa1_cmv_effector_control",
+    "run_id": "m11_nov_00b_qa1_cmv_effector_control",
+    "recency_years": "omit; the maintained tool defaults to zero",
+    "target_control_anchor_pmid": "41417899",
+    "paired_positive_pmid_diagnostic": "36151395"
+  },
+  "execution_contract": {
+    "source": "the same maintained local PubMed MCP implementation and response parser as the original result, through one qualified loopback campaign endpoint",
+    "credentials": "no Entrez API key, email credential, model key, or paid service",
+    "campaign_mode": "retain COSCIENTIST_REQUIRE_FREE_MODELS=1, one explicitly qualified endpoint and its ephemeral shared secret",
+    "cache": "use a new empty candidate-arm cache root; retain the original eleven returned-ID records unchanged",
+    "maximum_calls": 1,
+    "maximum_returned_papers": 3,
+    "error_rule": "If the one call has an MCP, upstream, transport, or parser error, stop without another retry; retain the original incomplete comparison and the new error evidence.",
+    "result_rule": "Append a separate recovery artifact containing status, exact request, parsed PMIDs, anchor/cross-pair flags, timing, keyless/zero-cost proof, and any error class. Never overwrite the original result. Calculate the completed control metrics only if this call succeeds. The primary 0/3 versus 0/3 finding cannot become an adoption under the frozen rule."
+  }
+}
