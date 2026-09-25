@@ -83,7 +83,6 @@ function RefinementActionPanel({
       <RefinementStatus message={statusMessage} />
       <RefinementAlert error={error} loadError={loadError} />
       <RefinementActionButton
-        statusOnly={statusOnly}
         loadError={loadError}
         checking={checking}
         busy={busy}
@@ -146,7 +145,6 @@ function RefinementAlert({
 }
 
 function RefinementActionButton({
-  statusOnly,
   loadError,
   checking,
   busy,
@@ -155,7 +153,6 @@ function RefinementActionButton({
   onRefresh,
   onRequest,
 }: {
-  statusOnly: boolean;
   loadError: boolean;
   checking: boolean;
   busy: boolean;
@@ -165,13 +162,13 @@ function RefinementActionButton({
   onRequest: () => Promise<void>;
 }) {
   const label =
-    refinementLoadErrorLabel(statusOnly, loadError, checking) ??
+    refinementLoadErrorLabel(loadError, checking) ??
     refinementButtonLabel(busy, action, error, checking);
   return (
     <button
       type="button"
       onClick={() =>
-        void handleRefinementClick(statusOnly, loadError, onRefresh, onRequest)
+        void handleRefinementClick(loadError, onRefresh, onRequest)
       }
       disabled={checking || busy}
       className="w-fit rounded-full border border-cosci-border px-4 py-2 text-sm font-medium disabled:opacity-60"
@@ -195,11 +192,10 @@ function refinementButtonLabel(
 }
 
 function refinementLoadErrorLabel(
-  statusOnly: boolean,
   loadError: boolean,
   checking: boolean,
 ): string | null {
-  if (!statusOnly || !loadError) return null;
+  if (!loadError) return null;
   return checking ? 'Checking refinement…' : 'Refresh refinement status';
 }
 
@@ -214,12 +210,11 @@ function shouldShowRefinementDisclosure(
 }
 
 function handleRefinementClick(
-  statusOnly: boolean,
   loadError: boolean,
   refreshStatus: () => Promise<void>,
   requestOrReplay: () => Promise<void>,
 ): Promise<void> {
-  if (statusOnly && loadError) return refreshStatus();
+  if (loadError) return refreshStatus();
   return requestOrReplay();
 }
 
