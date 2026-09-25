@@ -27,11 +27,13 @@ def _prompt(
     recorded_context: str, operator: EvolutionOperator | None = None
 ) -> str:
     operation = _EvolutionOperation(
+        operator=(
+            EvolutionOperator.ENHANCEMENT if operator is None else operator
+        ),
         outcome_refinement=_OutcomeRefinement(
             context=recorded_context,
             validation_hypotheses=(),
         ),
-        **({"operator": operator} if operator is not None else {}),
     )
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the selected parent"), [], _context(), operation
