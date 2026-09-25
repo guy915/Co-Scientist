@@ -1,9 +1,10 @@
-import {render, screen} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import type {HypothesisOutcome, OutcomeRefinementAction} from '@/api/runs';
 import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {makeHypothesis} from '@/test_fixtures';
+import {HypothesisOutcomeRefinement} from './hypothesis_outcome_refinement';
 import {HypothesisOutcomeSection} from './hypothesis_outcomes';
 
 vi.mock('@/api/runs', async importActual => {
@@ -159,6 +160,38 @@ it('shows a retryable error when saved refinement status cannot be loaded', asyn
   expect(
     screen.getByRole('button', {name: 'Retry refinement request'}),
   ).toBeEnabled();
+});
+
+it('refreshes status-only failures with GET and never offers a new action', async () => {
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement)
+    .mockRejectedValueOnce(new Error('503 API unavailable'))
+    .mockResolvedValueOnce(refinementAction());
+  setAccessToken('researcher-session');
+  render(
+    <HypothesisOutcomeRefinement
+      runId="run-1"
+      hypothesisId="h1"
+      outcomeId="out-1"
+      statusOnly
+    />,
+  );
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Could not load refinement status: 503 API unavailable',
+  );
+  fireEvent.click(
+    screen.getByRole('button', {name: 'Refresh refinement status'}),
+  );
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Refinement request is queued.',
+  );
+  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledTimes(2);
+  expect(runsApi.requestHypothesisOutcomeRefinement).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
 });
 
 it('does not fetch or expose refinement state without researcher access', () => {

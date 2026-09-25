@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useMemo, type ReactNode} from 'react';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/duration';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
@@ -25,6 +25,7 @@ interface ActiveRunViewProps {
   evidenceCount: number;
   ideaCount: number;
   allocationLedger: AllocationLedgerState;
+  outcomeStatus?: ReactNode;
 }
 
 // How long the run has been going, floored at zero to guard against clock
@@ -106,6 +107,7 @@ export function ActiveRunView(props: ActiveRunViewProps) {
           connection={run.stream_connection}
           nowSeconds={nowSeconds}
         />
+        {props.outcomeStatus}
       </section>
     </main>
   );

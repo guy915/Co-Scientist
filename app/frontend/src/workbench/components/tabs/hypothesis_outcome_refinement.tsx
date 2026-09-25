@@ -1,10 +1,5 @@
-import {useEffect, useState} from 'react';
-import {
-  getHypothesisOutcomeRefinement,
-  HttpError,
-  requestHypothesisOutcomeRefinement,
-  type OutcomeRefinementAction,
-} from '@/api/runs';
+import type {OutcomeRefinementAction} from '@/api/runs';
+import {useHypothesisOutcomeRefinement} from './use_hypothesis_outcome_refinement';
 
 const STATUS_MESSAGES: Record<
   string,
@@ -29,62 +24,44 @@ export function HypothesisOutcomeRefinement({
   runId,
   hypothesisId,
   outcomeId,
+  statusOnly = false,
 }: {
   runId: string;
   hypothesisId: string;
   outcomeId: string;
+  statusOnly?: boolean;
 }) {
-  const [action, setAction] = useState<OutcomeRefinementAction | null>(null);
-  const [checking, setChecking] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [replayed, setReplayed] = useState(false);
-
-  useEffect(() => {
-    let current = true;
-    setChecking(true);
-    setAction(null);
-    setError(null);
-    setLoadError(false);
-    setReplayed(false);
-    void getHypothesisOutcomeRefinement(runId, hypothesisId, outcomeId)
-      .then(savedAction => {
-        if (current) setAction(savedAction);
-      })
-      .catch(err => {
-        if (!current) return;
-        if (err instanceof HttpError && err.status === 404) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setLoadError(true);
-      })
-      .finally(() => {
-        if (current) setChecking(false);
-      });
-    return () => {
-      current = false;
-    };
-  }, [runId, hypothesisId, outcomeId]);
-
-  async function requestOrReplay() {
-    setBusy(true);
-    setError(null);
-    setLoadError(false);
-    try {
-      const requestedAction = await requestHypothesisOutcomeRefinement(
-        runId,
-        hypothesisId,
-        outcomeId,
-      );
-      setAction(requestedAction);
-      setReplayed(requestedAction.replayed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  const refinement = useHypothesisOutcomeRefinement(
+    runId,
+    hypothesisId,
+    outcomeId,
+  );
+  if (
+    shouldHideStatusOnly(
+      statusOnly,
+      refinement.checking,
+      refinement.action,
+      refinement.loadError,
+    )
+  ) {
+    return null;
   }
+  return <RefinementActionPanel {...refinement} statusOnly={statusOnly} />;
+}
 
+function RefinementActionPanel({
+  action,
+  checking,
+  busy,
+  error,
+  loadError,
+  replayed,
+  refreshSavedAction,
+  requestOrReplay,
+  statusOnly,
+}: ReturnType<typeof useHypothesisOutcomeRefinement> & {
+  statusOnly: boolean;
+}) {
   const statusMessage = refinementStatusMessage(
     action,
     busy,
@@ -96,28 +73,111 @@ export function HypothesisOutcomeRefinement({
       className="grid gap-2 border-t border-cosci-border pt-3"
       aria-busy={checking || busy}
     >
-      <p role="note" className="text-sm text-cosci-muted">
-        This sends the linked hypothesis and this recorded outcome, with up to
-        three source metadata links, to the run’s configured AI model to draft
-        one follow-up hypothesis. AI output may be wrong. This action does not
-        verify the observation or change existing claims, reviews, safety
-        decisions, or ranking.
-      </p>
-      {statusMessage && (
-        <p role="status" className="text-sm text-cosci-muted">
-          {statusMessage}
-        </p>
-      )}
-      {error && <p role="alert">{refinementErrorMessage(error, loadError)}</p>}
-      <button
-        type="button"
-        onClick={() => void requestOrReplay()}
-        disabled={checking || busy}
-        className="w-fit rounded-full border border-cosci-border px-4 py-2 text-sm font-medium disabled:opacity-60"
-      >
-        {refinementButtonLabel(busy, action, error, checking)}
-      </button>
+      <RefinementDisclosure
+        statusOnly={statusOnly}
+        action={action}
+        busy={busy}
+        error={error}
+        loadError={loadError}
+      />
+      <RefinementStatus message={statusMessage} />
+      <RefinementAlert error={error} loadError={loadError} />
+      <RefinementActionButton
+        statusOnly={statusOnly}
+        loadError={loadError}
+        checking={checking}
+        busy={busy}
+        action={action}
+        error={error}
+        onRefresh={refreshSavedAction}
+        onRequest={requestOrReplay}
+      />
     </div>
+  );
+}
+
+function RefinementDisclosure({
+  statusOnly,
+  action,
+  busy,
+  error,
+  loadError,
+}: {
+  statusOnly: boolean;
+  action: OutcomeRefinementAction | null;
+  busy: boolean;
+  error: string | null;
+  loadError: boolean;
+}) {
+  if (
+    !shouldShowRefinementDisclosure(statusOnly, action, busy, error, loadError)
+  ) {
+    return null;
+  }
+  return (
+    <p role="note" className="text-sm text-cosci-muted">
+      This sends the linked hypothesis and this recorded outcome, with up to
+      three source metadata links, to the run’s configured AI model to draft one
+      follow-up hypothesis. AI output may be wrong. This action does not verify
+      the observation or change existing claims, reviews, safety decisions, or
+      ranking.
+    </p>
+  );
+}
+
+function RefinementStatus({message}: {message: string | null}) {
+  if (!message) return null;
+  return (
+    <p role="status" className="text-sm text-cosci-muted">
+      {message}
+    </p>
+  );
+}
+
+function RefinementAlert({
+  error,
+  loadError,
+}: {
+  error: string | null;
+  loadError: boolean;
+}) {
+  if (!error) return null;
+  return <p role="alert">{refinementErrorMessage(error, loadError)}</p>;
+}
+
+function RefinementActionButton({
+  statusOnly,
+  loadError,
+  checking,
+  busy,
+  action,
+  error,
+  onRefresh,
+  onRequest,
+}: {
+  statusOnly: boolean;
+  loadError: boolean;
+  checking: boolean;
+  busy: boolean;
+  action: OutcomeRefinementAction | null;
+  error: string | null;
+  onRefresh: () => Promise<void>;
+  onRequest: () => Promise<void>;
+}) {
+  const label =
+    refinementLoadErrorLabel(statusOnly, loadError, checking) ??
+    refinementButtonLabel(busy, action, error, checking);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void handleRefinementClick(statusOnly, loadError, onRefresh, onRequest)
+      }
+      disabled={checking || busy}
+      className="w-fit rounded-full border border-cosci-border px-4 py-2 text-sm font-medium disabled:opacity-60"
+    >
+      {label}
+    </button>
   );
 }
 
@@ -132,6 +192,44 @@ function refinementButtonLabel(
   if (error) return 'Retry refinement request';
   if (action) return 'Check or retry refinement';
   return 'Use outcome to refine this hypothesis';
+}
+
+function refinementLoadErrorLabel(
+  statusOnly: boolean,
+  loadError: boolean,
+  checking: boolean,
+): string | null {
+  if (!statusOnly || !loadError) return null;
+  return checking ? 'Checking refinement…' : 'Refresh refinement status';
+}
+
+function shouldShowRefinementDisclosure(
+  statusOnly: boolean,
+  action: OutcomeRefinementAction | null,
+  busy: boolean,
+  error: string | null,
+  loadError: boolean,
+): boolean {
+  return !statusOnly || Boolean(action) || busy || Boolean(error && !loadError);
+}
+
+function handleRefinementClick(
+  statusOnly: boolean,
+  loadError: boolean,
+  refreshStatus: () => Promise<void>,
+  requestOrReplay: () => Promise<void>,
+): Promise<void> {
+  if (statusOnly && loadError) return refreshStatus();
+  return requestOrReplay();
+}
+
+function shouldHideStatusOnly(
+  statusOnly: boolean,
+  checking: boolean,
+  action: OutcomeRefinementAction | null,
+  loadError: boolean,
+): boolean {
+  return statusOnly && !checking && !action && !loadError;
 }
 
 function refinementStatusMessage(

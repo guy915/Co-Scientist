@@ -4,6 +4,7 @@ import * as runsApi from '@/api/runs';
 import {
   type Evidence,
   type HypothesisOutcome,
+  type OutcomeRefinementAction,
   type RunWithSummary,
 } from '@/api/runs';
 import {clearAccessToken, setAccessToken} from '@/lib/client_id';
@@ -49,6 +50,8 @@ vi.mock('@/api/runs', async importActual => {
     getRun: vi.fn(),
     getHypotheses: vi.fn().mockResolvedValue([]),
     getHypothesisOutcomes: vi.fn().mockResolvedValue([]),
+    getHypothesisOutcomeRefinement: vi.fn(),
+    requestHypothesisOutcomeRefinement: vi.fn(),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
@@ -74,9 +77,167 @@ beforeEach(() => {
   // Reset per-run collection mocks so overrides do not leak between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
+    new runsApi.HttpError('404 run or outcome not found', 404),
+  );
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+});
+
+const SAVED_OUTCOME: HypothesisOutcome = {
+  id: 'out-1',
+  run_id: 'run-1',
+  hypothesis_id: 'h1',
+  author: 'Dr. Ada',
+  recorded_at: 1_700_000_000,
+  method_protocol: 'Western blot',
+  conditions: 'Cells treated for 24 hours',
+  measured_observation: 'Signal rose by two fold',
+  controls: 'Vehicle control',
+  interpretation: 'Consistent with the hypothesis',
+  referenced_evidence_ids: [],
+};
+
+function savedRefinement(
+  overrides: Partial<OutcomeRefinementAction> = {},
+): OutcomeRefinementAction {
+  return {
+    action_id: 'action-1',
+    run_id: 'run-1',
+    outcome_id: 'out-1',
+    hypothesis_id: 'h1',
+    task_idempotency_key: 'outcome-refinement:action-1',
+    checkpoint_seq: 3,
+    context_codepoints: 850,
+    status: 'running',
+    child_hypothesis_id: null,
+    created_at: 1_700_000_000,
+    replayed: true,
+    ...overrides,
+  };
+}
+
+it('shows owner refinement status on the active run without offering a new action', async () => {
+  setAccessToken('researcher-session');
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'running',
+    provider: 'engine',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
+  ]);
+  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([
+    {...SAVED_OUTCOME, id: 'out-2', recorded_at: 1_800_000_000},
+    SAVED_OUTCOME,
+  ]);
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockImplementation(
+    (_runId, _hypothesisId, outcomeId) =>
+      outcomeId === 'out-1'
+        ? Promise.resolve(savedRefinement())
+        : Promise.reject(new runsApi.HttpError('404 no saved action', 404)),
+  );
+
+  renderAt('/runs/run-1/overview');
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Refinement is running.',
+  );
+  expect(
+    screen.getByRole('button', {name: 'Check or retry refinement'}),
+  ).toBeEnabled();
+  expect(
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
+  expect(runsApi.requestHypothesisOutcomeRefinement).not.toHaveBeenCalled();
+  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledWith(
+    'run-1',
+    'h1',
+    'out-1',
+  );
+  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledWith(
+    'run-1',
+    'h1',
+    'out-2',
+  );
+});
+
+it('keeps failed owner refinement status and retry on a terminal run', async () => {
+  setAccessToken('researcher-session');
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'failed',
+    error: 'worker exited',
+    provider: 'engine',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
+  ]);
+  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([SAVED_OUTCOME]);
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockResolvedValue(
+    savedRefinement({status: 'failed'}),
+  );
+  vi.mocked(runsApi.requestHypothesisOutcomeRefinement).mockResolvedValue(
+    savedRefinement({status: 'queued'}),
+  );
+
+  renderAt('/runs/run-1/overview');
+
+  expect(
+    await screen.findByText(
+      'Refinement failed and remains available for owner retry.',
+    ),
+  ).toHaveAttribute('role', 'status');
+  fireEvent.click(
+    screen.getByRole('button', {name: 'Check or retry refinement'}),
+  );
+  expect(
+    await screen.findByText(
+      'The saved refinement request was replayed; no second action was created. Current status: queued.',
+    ),
+  ).toHaveAttribute('role', 'status');
+  expect(runsApi.requestHypothesisOutcomeRefinement).toHaveBeenCalledWith(
+    'run-1',
+    'h1',
+    'out-1',
+  );
+  expect(
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
+});
+
+it('does not fetch or disclose saved refinement state on active or failed runs without owner access', async () => {
+  for (const status of ['running', 'failed'] as const) {
+    vi.mocked(runsApi.getRun).mockResolvedValue({
+      ...makeRun('Study pathway X'),
+      status,
+      provider: 'engine',
+    } as RunWithSummary);
+    vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+      makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
+    ]);
+    vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([SAVED_OUTCOME]);
+
+    const view = renderAt('/runs/run-1/overview');
+    expect(
+      await screen.findByRole('link', {name: 'Researcher access'}),
+    ).toBeInTheDocument();
+    expect(runsApi.getHypothesisOutcomeRefinement).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Refinement is running/)).not.toBeInTheDocument();
+    view.unmount();
+    vi.clearAllMocks();
+    vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+    vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+    vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
+    vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
+      new runsApi.HttpError('404 run or outcome not found', 404),
+    );
+  }
 });
 
 it('shows recorded outcomes after SSE refresh and after reopening the report', async () => {

@@ -12,9 +12,10 @@ export function outcomeRefinementContext(
   allowed: boolean,
   runId?: string,
   hypothesisId?: string,
-): {runId: string; hypothesisId: string} | undefined {
+  statusOnly = false,
+): {runId: string; hypothesisId: string; statusOnly?: boolean} | undefined {
   if (!allowed || !runId || !hypothesisId) return undefined;
-  return {runId, hypothesisId};
+  return {runId, hypothesisId, statusOnly};
 }
 
 export function outcomeHypothesisTitle(
