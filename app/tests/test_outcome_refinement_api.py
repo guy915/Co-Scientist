@@ -77,6 +77,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
         f"outcomes/{outcome_id}/refine"
     )
+    assert client.get(action_path, headers=headers).status_code == 404
     created = client.post(action_path, headers=headers)
     assert created.status_code == 202
     action = created.json()
@@ -87,6 +88,10 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     assert action["task_idempotency_key"] == (
         f"outcome-refinement:{action['action_id']}"
     )
+    assert client.get(action_path, headers=headers).json() == {
+        **action,
+        "replayed": True,
+    }
 
     persisted = store.get_outcome_refinement_action(
         run_id, action["action_id"], db_path=isolated_db
@@ -133,6 +138,10 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
 
     store_db._initialized.discard(isolated_db)
     reopened_client = make_client()
+    assert reopened_client.get(action_path, headers=headers).json() == {
+        **action,
+        "replayed": True,
+    }
     replay_after_restart = reopened_client.post(action_path, headers=headers)
     assert replay_after_restart.status_code == 202
     assert replay_after_restart.json() == {**action, "replayed": True}
@@ -221,6 +230,20 @@ def test_refinement_action_is_owner_scoped_and_exactly_one_per_outcome(
 
     created = client.post(action_path, headers=owner_headers)
     assert created.status_code == 202
+    assert (
+        client.get(
+            action_path, headers=_signed_headers(other_owner)
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/api/runs/{run_id}/hypotheses/{sibling_id}/"
+            f"outcomes/{outcome['id']}/refine",
+            headers=owner_headers,
+        ).status_code
+        == 404
+    )
     second_outcome = client.post(
         f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
         headers=owner_headers,
