@@ -1,0 +1,115 @@
+{
+  "name": "M11-NOV-00b ordered keyword query comparison preregistration",
+  "version": 1,
+  "status": "PREREGISTERED_BEFORE_IMPLEMENTATION_AND_LIVE_COMPARISON",
+  "registered_at_utc": "2026-09-25T01:03:45Z",
+  "question": "Does replacing the validation path's first-200-character hypothesis prose query with the existing deterministic ordered keyword distillation improve exact source-PMID retrieval through the maintained PubMed MCP, without losing a baseline anchor or regressing pairwise-distinct controls?",
+  "inputs": {
+    "fixture_path": "references/external/sakana/novelty-result-conditioned-fixture-v1.json",
+    "fixture_sha256": "e0f30c2be18b0b983bdf713efe3c251f065b41601a6d2c0b3a869599ea4eecbb",
+    "fixture_status": "PROVISIONAL_NOT_ACCEPTED",
+    "keyword_helper": "engine/src/co_scientist/agents/generation/literature_review/queries.py::_distill_goal_to_query",
+    "keyword_helper_sha256": "8c480080494a8d4f55851d06b8b04749804170f80d413a83925c4d8c30c2b0f1",
+    "keyword_rule": "Use the existing deterministic helper unchanged: tokenize in source order, remove its fixed stopwords, retain at most its first eight terms, and join with spaces. No generated query, added term, stemming, sorting, or model call."
+  },
+  "design": {
+    "pairs": [
+      {
+        "id": "stmn2-unc13a",
+        "positive_case": "stmn2-tdp43",
+        "positive_target_pmid": "30643298",
+        "control_case": "unc13a-cognitive-control",
+        "control_anchor_pmid": "42596024",
+        "control_pair_positive_pmid": "30643298",
+        "positive_draft": "In motor neurons, loss of nuclear TDP-43 may expose a cryptic polyadenylation site in STMN2 pre-mRNA, reducing functional stathmin-2 and impairing axonal regeneration.",
+        "control_draft": "In Alzheimer’s disease, the UNC13A cryptic-exon risk variant may associate with cognitive decline without tracking TDP-43 pathology.",
+        "control_label": "distinct from paired known-prior-art idea at the primary-source-abstract level; provisional single-curator review",
+        "candidate_queries": {
+          "positive": "motor neurons loss nuclear TDP-43 may expose cryptic",
+          "control": "Alzheimer s disease UNC13A cryptic-exon risk variant may"
+        }
+      },
+      {
+        "id": "sars-entry-isg15",
+        "positive_case": "sarscov2-entry",
+        "positive_target_pmid": "32142651",
+        "control_case": "sars-isg15-endothelium-control",
+        "control_anchor_pmid": "42150851",
+        "control_pair_positive_pmid": "32142651",
+        "positive_draft": "SARS-CoV-2 may require ACE2 engagement and TMPRSS2-mediated spike priming to enter susceptible human cells.",
+        "control_draft": "In vascular endothelial cells, SARS-CoV-2 spike S1 may induce inflammatory dysfunction through interferon and ISG15 signaling.",
+        "control_label": "distinct from paired known-prior-art idea at the primary-source-abstract level; provisional single-curator review",
+        "candidate_queries": {
+          "positive": "SARS-CoV-2 may require ACE2 engagement TMPRSS2-mediated spike priming",
+          "control": "vascular endothelial cells SARS-CoV-2 spike S1 may induce"
+        }
+      },
+      {
+        "id": "qa1b-cmv",
+        "positive_case": "qa1b-immune-evasion",
+        "positive_target_pmid": "36151395",
+        "control_case": "qa1-cmv-effector-control",
+        "control_anchor_pmid": "41417899",
+        "control_pair_positive_pmid": "36151395",
+        "positive_draft": "In checkpoint-treated mouse tumors, interferon-gamma sensing may induce Qa-1b and restrain CD8 T cells through NKG2A/CD94.",
+        "control_draft": "During murine cytomegalovirus infection, Qa-1-restricted CD8 T cells may recognize viral peptides and support host defense.",
+        "control_label": "distinct from paired known-prior-art idea at the primary-source-abstract level; provisional single-curator review",
+        "candidate_queries": {
+          "positive": "checkpoint-treated mouse tumors interferon-gamma sensing may induce Qa-1b",
+          "control": "During murine cytomegalovirus infection Qa-1-restricted CD8 T cells"
+        }
+      }
+    ],
+    "arms": {
+      "baseline": {
+        "query": "the exact frozen draft string sliced as draft_hypothesis[:200]"
+      },
+      "candidate": {
+        "query": "the exact frozen helper output listed per case above"
+      },
+      "order": "For each pair in listed order: baseline positive, candidate positive, baseline control, candidate control. Stop the entire comparison on the first retrieval error or rate limit."
+    },
+    "request_contract": {
+      "server_source": "the maintained local PubMed MCP implementation in this checkout; both arms use the same code, configured pubmed_fulltext ToolConfig, pubmed_search_with_fulltext tool, parameter mapping, and ResponseParser",
+      "server_endpoint": "loopback MCP endpoint(s) for the maintained checkout only; do not switch to direct Entrez or Europe PMC",
+      "tool": "pubmed_search_with_fulltext",
+      "common_parameters": {
+        "max_papers": 3,
+        "recency_years": 0,
+        "slug_rule": "m11_nov_00b_{case_id_with_hyphens_replaced_by_underscores}",
+        "run_id_rule": "m11_nov_00b_{case_id_with_hyphens_replaced_by_underscores}"
+      },
+      "only_arm_parameter_difference": "query",
+      "cache_rule": "Separate empty COSCIENTIST_LIT_REVIEW_DIR roots for baseline and candidate, using the same maintained server code and identical per-case slug/run_id across arms. Keep cases isolated by their per-case slug/run_id.",
+      "call_and_paper_bounds": "At most one MCP tool call per arm per draft: 12 total calls, 2 calls per draft, max_papers=3 per call, at most 6 returned paper records per draft and 36 overall. Preserve the MCP tool's existing bounded query-relaxation behavior; no extra query, retry, or pagination.",
+      "credentials_and_cost": "No API keys, email credentials, account-backed route, paid service, or model inference. Expected cost is $0. Do not print or store credential values."
+    }
+  },
+  "outcomes": {
+    "primary_metric": "Positive exact-target PMID recall@3: number of the three positive drafts whose exact positive_target_pmid appears in that arm's first three parsed PubMed results; report numerator and denominator.",
+    "adoption_threshold": "Candidate positive recall@3 must be strictly greater than baseline positive recall@3.",
+    "no_baseline_target_loss": "For each positive draft, if its exact positive target PMID appears in baseline top three, it must also appear in candidate top three.",
+    "control_non_regression": "For each control draft, compare its own control_anchor_pmid in baseline and candidate top three. Candidate must not remove an anchor present in baseline; report both arm counts. The control's provisional distinct-idea label is pairwise only and does not claim global novelty.",
+    "unrelated_hit_diagnostic": "For each control, record whether its paired positive's exact target PMID appears in the top three. Report any baseline-to-candidate increase as cross-pair retrieval. A retrieval hit alone is not a novelty rejection or a semantic duplicate verdict.",
+    "retrieval_error_classification": {
+      "success_nonempty": "MCP returns a valid response, parser produces one or more papers.",
+      "success_empty": "MCP returns a valid response and parser produces zero papers; never reinterpret as novelty evidence.",
+      "mcp_or_upstream_error": "MCP isError or an exposed PubMed/Entrez service error, including 429; stop immediately.",
+      "transport_error": "Connection, protocol, timeout, or tool-call exception; stop immediately.",
+      "malformed_result": "Response cannot be parsed by the configured ResponseParser or has an unexpected shape; stop immediately."
+    },
+    "decision_rule": "Adopt the minimal ordered-keyword query change only if the primary metric strictly improves, no positive baseline target is lost, control-anchor recall does not regress, and the count of controls returning their paired positive target does not increase. If all calls succeed but there is no primary improvement, record inconclusive/no adoption; empty result sets are not novelty passes. Any error or rate limit makes the comparison incomplete and stops further calls."
+  },
+  "evidence_to_record": [
+    "UTC start/end time and per-call order",
+    "fixture and helper hashes, checkout commit, maintained MCP source revision",
+    "sanitized case ID, arm, exact query, common parameters, MCP status/error class",
+    "parsed source IDs/PMIDs only, result count, positive/control anchor and cross-pair hit flags",
+    "isolated cache paths without secret values, call count, paper cap, model-call count, and cost"
+  ],
+  "prohibited_changes_during_comparison": [
+    "No edits to the fixture, helper, baseline query, or metric after preregistration.",
+    "No model inference, direct Europe PMC call, manual query repair, retries, or broad benchmark.",
+    "No code adoption based on empty results or exploratory earlier Europe PMC snapshots."
+  ]
+}
