@@ -33,7 +33,7 @@ The source-release trail is PRs [#22](https://github.com/guy915/Co-Scientist/pul
 
 ## Deferred open items
 
-The owner directed skipping blocked or rate-limited work for the time being. These eight items are **unfinished and still open in the original campaign**, not complete or rejected. Their evidence and revisit triggers are recorded in the [deferred follow-up register](deferred-followups-2026-09-25.md); their original criteria remain in [PLAN.md](../../PLAN.md#L358-L398):
+The owner directed skipping blocked or rate-limited work for the time being. These eight items are **unfinished and still open in the original campaign**, not complete or rejected. Their evidence and revisit triggers are recorded in the [deferred follow-up register](deferred-followups-2026-09-25.md); their acceptance criteria remain in [PLAN.md](../../PLAN.md):
 
 - `M11-OPS-02b` and `M11-OPS-02c`: qualify a current exact-zero route, then only if qualified switch defaults and verify deployment. The single bounded Qwen/ModelRun interface probe stopped on an upstream 429; there is no served-model or usage receipt, and no replacement qualified by the retained privacy/capability screen.
 - `M11-NOV-01a3b3b2` and `M11-NOV-01a3b3c`: pin a qualified route and complete the preregistration, then run the one bounded six-pair result-conditioned pilot. The prepared protocol has `model_name: null`; no candidate call occurred.
