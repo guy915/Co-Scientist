@@ -28,6 +28,7 @@ _FREE_PRIMARY = "openrouter/z-ai/glm-5.2:free"
 _GLM = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 _MINIMAX = "openrouter/minimax/minimax-m3:free"
 _NEX_PRO = "openrouter/nex-agi/nex-n2.5-pro:free"
+_QWEN_CANDIDATE = "openrouter/qwen/qwen3.8-27b:free"
 
 
 def test_the_primary_model_carries_its_fallback_chain() -> None:
@@ -126,6 +127,26 @@ def test_selected_nex_pro_default_has_no_model_fallback() -> None:
     assert not _GATEWAY_MODELS[_NEX_PRO].fallbacks
     body = deepseek_thinking_extra_body(_NEX_PRO)
     assert "models" not in body
+    assert body["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+
+
+def test_qwen_candidate_uses_only_its_verified_zero_retention_host() -> None:
+    """A provisional route must not drift to a provider with unknown terms."""
+    body = deepseek_thinking_extra_body(_QWEN_CANDIDATE, enabled=False)
+
+    assert "models" not in body
+    assert body["reasoning"] == {
+        "enabled": True,
+        "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
+    }
+    assert body["provider"]["only"] == ["modelrun"]
+    assert body["provider"]["zdr"] is True
+    assert body["provider"]["data_collection"] == "deny"
+    assert "order" not in body["provider"]
     assert body["provider"]["max_price"] == {
         "prompt": 0,
         "completion": 0,

@@ -156,6 +156,35 @@ def test_capabilities_eligibility_error_is_retained_before_provider_call(
     assert "catalog route unavailable" in record["cases"][0]["error"]
 
 
+def test_capabilities_tool_probe_allows_only_one_tool_round_trip(
+    monkeypatch, tmp_path
+):
+    output = tmp_path / "tool-probe.json"
+    calls = []
+    _env(monkeypatch, output, QUALIFICATION_CASES="tools")
+    modules = _capability_modules(monkeypatch, calls)
+
+    async def call_with_tools(_prompt, _spec, loop, _options):
+        assert loop.max_iterations == 1
+        call = types.SimpleNamespace(
+            id="call-1",
+            function=types.SimpleNamespace(
+                name="lookup_measurement",
+                arguments='{"sample":"control-A"}',
+            ),
+        )
+        await loop.executor(call)
+        return "137", []
+
+    modules["co_scientist.llm_tool_loop"] = _module(
+        "co_scientist.llm_tool_loop",
+        ToolLoop=lambda **kwargs: types.SimpleNamespace(**kwargs),
+        call_llm_with_tools=call_with_tools,
+    )
+    assert _run(monkeypatch, FOLDER / "probe_capabilities.py", modules) == 0
+    assert json.loads(output.read_text())["cases"][0]["passed"] is True
+
+
 def _citation_modules(
     *, report=None, failure=None, source_error=None, eligibility_failure=None
 ):
