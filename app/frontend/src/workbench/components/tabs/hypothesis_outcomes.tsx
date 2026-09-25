@@ -3,6 +3,13 @@ import {addHypothesisOutcome} from '@/api/runs';
 import type {Hypothesis, HypothesisOutcome} from '@/api/runs';
 import {getAccessToken} from '@/lib/client_id';
 import {
+  canUseOutcomeRefinement,
+  hasEmptyOutcomeCollection,
+  outcomeHypothesisTitle,
+  outcomeRefinementContext,
+} from './hypothesis_outcome_data';
+import {HypothesisOutcomeRefinement} from './hypothesis_outcome_refinement';
+import {
   ReportDocument,
   REPORT_H4_CLASSES,
 } from '@/workbench/pages/run_detail_document';
@@ -17,6 +24,7 @@ interface OutcomeCollectionProps {
   loading?: boolean;
   error?: string | null;
   onRefresh?: () => Promise<void> | void;
+  allowRefinement?: boolean;
 }
 
 type ReadyOutcomeCollectionProps = Omit<
@@ -51,6 +59,7 @@ export function HypothesisOutcomeSection({
   error,
   readOnly,
   onRefresh,
+  allowRefinement = false,
 }: OutcomeCollectionProps & {
   runId: string;
   hypothesis: Hypothesis;
@@ -80,6 +89,7 @@ export function HypothesisOutcomeSection({
         outcomes={matching}
         readOnly={Boolean(readOnly)}
         hasResearcherSession={hasResearcherSession}
+        allowRefinement={allowRefinement}
         runId={runId}
         hypothesisId={hypothesis.id}
         onRefresh={onRefresh}
@@ -93,6 +103,7 @@ function OutcomeAccessState({
   outcomes,
   readOnly,
   hasResearcherSession,
+  allowRefinement,
   runId,
   hypothesisId,
   onRefresh,
@@ -101,6 +112,7 @@ function OutcomeAccessState({
   outcomes: HypothesisOutcome[];
   readOnly: boolean;
   hasResearcherSession: boolean;
+  allowRefinement: boolean;
   runId: string;
   hypothesisId: string;
   onRefresh: () => Promise<void> | void;
@@ -115,6 +127,13 @@ function OutcomeAccessState({
         error={state.error}
         onRefresh={onRefresh}
         emptyText="No observations have been recorded for this hypothesis."
+        allowRefinement={canUseOutcomeRefinement(
+          allowRefinement,
+          readOnly,
+          hasResearcherSession,
+        )}
+        runId={runId}
+        hypothesisId={hypothesisId}
       />
       {readOnly ? (
         <p role="note" className="text-sm text-cosci-muted">
@@ -263,9 +282,15 @@ function OutcomeCollectionState({
   onRefresh,
   emptyText,
   titleById,
+  allowRefinement = false,
+  runId,
+  hypothesisId,
 }: ReadyOutcomeCollectionProps & {
   emptyText: string;
   titleById?: Map<string, string>;
+  allowRefinement?: boolean;
+  runId?: string;
+  hypothesisId?: string;
 }) {
   const newestFirst = [...outcomes].sort(
     (left, right) => right.recorded_at - left.recorded_at,
@@ -275,18 +300,19 @@ function OutcomeCollectionState({
       <OutcomeLoading loading={loading} />
       <OutcomeError error={error} />
       <OutcomeEmpty
-        visible={!loading && !error && newestFirst.length === 0}
+        visible={hasEmptyOutcomeCollection(loading, error, newestFirst.length)}
         text={emptyText}
       />
       {newestFirst.map(outcome => (
         <OutcomeCard
           key={outcome.id}
           outcome={outcome}
-          hypothesisTitle={
-            titleById?.get(outcome.hypothesis_id) ??
-            outcome.hypothesis_snapshot?.title ??
-            outcome.hypothesis_id
-          }
+          hypothesisTitle={outcomeHypothesisTitle(outcome, titleById)}
+          refinement={outcomeRefinementContext(
+            allowRefinement,
+            runId,
+            hypothesisId,
+          )}
         />
       ))}
       <button
@@ -323,9 +349,11 @@ function OutcomeEmpty({visible, text}: {visible: boolean; text: string}) {
 function OutcomeCard({
   outcome,
   hypothesisTitle,
+  refinement,
 }: {
   outcome: HypothesisOutcome;
   hypothesisTitle?: string;
+  refinement?: {runId: string; hypothesisId: string};
 }) {
   const recordedDate = new Date(outcome.recorded_at * 1000);
   return (
@@ -353,6 +381,13 @@ function OutcomeCard({
         <OutcomeDetail label="Interpretation" value={outcome.interpretation} />
       </dl>
       <OutcomeReferences outcome={outcome} />
+      {refinement && (
+        <HypothesisOutcomeRefinement
+          runId={refinement.runId}
+          hypothesisId={refinement.hypothesisId}
+          outcomeId={outcome.id}
+        />
+      )}
     </article>
   );
 }

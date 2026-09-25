@@ -103,6 +103,12 @@ function runUsedOffline(run: RunWithSummary): boolean {
   return backend === 'offline';
 }
 
+function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
+  return Boolean(
+    run?.status === 'completed' && run.provider === 'engine' && !run.is_demo,
+  );
+}
+
 // A completed run whose literature retrieval returned nothing still reads
 // categorically; flag it as ungrounded unless it was offline-backed.
 function reportIsUngrounded(data: RunDetailData): boolean {
@@ -283,6 +289,7 @@ function IdeasSection({
       <IdeasTab
         key={ideasViewKey}
         runId={data.run?.id ?? ''}
+        allowRefinement={canRefineOutcomeForRun(data.run)}
         hypotheses={data.hypotheses}
         reviews={data.reviews}
         matches={data.matches}

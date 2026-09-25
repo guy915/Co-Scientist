@@ -39,6 +39,7 @@ interface DetailSectionsProps {
   paneClasses: string;
   hypothesis: Hypothesis;
   runId?: string;
+  allowRefinement?: boolean;
   isDemo?: boolean;
   review: Review | undefined;
   allReviews: Review[];
@@ -56,6 +57,7 @@ export function HypothesisDetailSections({
   paneClasses,
   hypothesis,
   runId,
+  allowRefinement,
   isDemo,
   review,
   allReviews,
@@ -87,6 +89,7 @@ export function HypothesisDetailSections({
         <DetailSection title={SECTIONS.outcomes}>
           <HypothesisOutcomeSection
             runId={runId}
+            allowRefinement={allowRefinement}
             hypothesis={hypothesis}
             readOnly={isDemo}
             outcomes={outcomes}

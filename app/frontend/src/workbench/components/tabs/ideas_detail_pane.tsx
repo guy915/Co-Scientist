@@ -45,6 +45,7 @@ const IDEA_DETAIL_EMPTY_CLASSES =
 interface HypothesisDetailProps {
   hypothesis: Hypothesis | null;
   runId?: string;
+  allowRefinement?: boolean;
   isDemo?: boolean;
   // The run's full review/match/claim sets; the detail filters them down to
   // the hypothesis itself, so call sites just forward what they have.
@@ -92,6 +93,7 @@ function useHypothesisRecords(
 export function HypothesisDetail({
   hypothesis,
   runId,
+  allowRefinement,
   isDemo,
   reviews,
   matches,
@@ -122,6 +124,7 @@ export function HypothesisDetail({
       paneClasses={IDEA_DETAIL_PANE_CLASSES}
       hypothesis={hypothesis}
       runId={runId}
+      allowRefinement={allowRefinement}
       isDemo={isDemo}
       review={review}
       allReviews={allReviews}

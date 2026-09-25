@@ -1,5 +1,9 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {addHypothesisOutcome, getHypothesisOutcomes} from './runs';
+import {
+  addHypothesisOutcome,
+  getHypothesisOutcomes,
+  requestHypothesisOutcomeRefinement,
+} from './runs';
 
 const row = {
   id: 'out-1',
@@ -67,5 +71,37 @@ describe('hypothesis outcomes API', () => {
     expect(options?.method).toBe('POST');
     expect(JSON.parse(String(options?.body))).toEqual(input);
     expect(options?.headers).toHaveProperty('X-Client-ID');
+  });
+
+  it('replays the same owner-authorized outcome refinement intent', async () => {
+    const action = {
+      action_id: 'action-1',
+      run_id: 'run-1',
+      outcome_id: 'out-1',
+      hypothesis_id: 'hyp-1',
+      task_idempotency_key: 'outcome-refinement:action-1',
+      checkpoint_seq: 3,
+      context_codepoints: 850,
+      status: 'queued',
+      child_hypothesis_id: null,
+      created_at: 1_700_000_000,
+      replayed: true,
+    };
+    fetchMock().mockResolvedValue(response(202, action));
+
+    await expect(
+      requestHypothesisOutcomeRefinement('run-1', 'hyp-1', 'out-1'),
+    ).resolves.toEqual(action);
+    const [url, options] = fetchMock().mock.calls[0] as [
+      string,
+      RequestInit | undefined,
+    ];
+    expect(url).toBe('/api/runs/run-1/hypotheses/hyp-1/outcomes/out-1/refine');
+    expect(options?.method).toBe('POST');
+    expect(options?.headers).toMatchObject({
+      'X-Client-ID': expect.any(String),
+      'Idempotency-Key': 'outcome-refinement:run-1:hyp-1:out-1',
+    });
+    expect(options?.body).toBeUndefined();
   });
 });

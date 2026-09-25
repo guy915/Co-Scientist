@@ -74,6 +74,7 @@ export type {
   SupportSpan,
 } from './run_types';
 export type {
+  OutcomeRefinementAction,
   SupervisorAllocation,
   SupervisorPlanRecord,
   SupervisorPlanResponse,
@@ -114,6 +115,7 @@ export {
   getEvidence,
   getHypotheses,
   getHypothesisOutcomes,
+  requestHypothesisOutcomeRefinement,
   getMatches,
   getProximity,
   getReport,
