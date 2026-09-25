@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import (
     Hypothesis,
@@ -121,8 +122,6 @@ def _claim_action(run_id: str, worker_id: str, db_path: str) -> Any:
 def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import engine_tasks_outcome_refinement
-
     client = make_client()
     run_id, parent_id, sibling_id, action_id = _setup_action(
         client, isolated_db
@@ -158,7 +157,7 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
         return child, {"parent_id": parent.id, "child_id": child.id}
 
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         evolve_stub,
     )
@@ -210,14 +209,12 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
         if row.task_type == "engine.node.review"
     ]
     assert len(review_tasks) == 1
-    assert (
-        store.get_hypothesis(parent_id, db_path=isolated_db)["elo_rating"]
-        == 1200
-    )
-    assert (
-        store.get_hypothesis(sibling_id, db_path=isolated_db)["elo_rating"]
-        == 1200
-    )
+    stored_parent = store.get_hypothesis(parent_id, db_path=isolated_db)
+    stored_sibling = store.get_hypothesis(sibling_id, db_path=isolated_db)
+    assert stored_parent is not None
+    assert stored_sibling is not None
+    assert stored_parent["elo_rating"] == 1200
+    assert stored_sibling["elo_rating"] == 1200
     events = store.list_events(run_id, db_path=isolated_db)
     assert "Hybrid band only after one cycle." not in str(events)
     assert not any(
@@ -253,8 +250,6 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
 def test_provider_failure_retries_same_action_after_restart(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import engine_tasks_outcome_refinement
-
     client = make_client()
     run_id, parent_id, _, action_id = _setup_action(client, isolated_db)
     first = _claim_action(run_id, "first-worker", isolated_db)
@@ -267,7 +262,7 @@ def test_provider_failure_retries_same_action_after_restart(
         raise RuntimeError("offline provider unavailable")
 
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         flaky_evolve,
     )
@@ -337,7 +332,7 @@ def test_provider_failure_retries_same_action_after_restart(
         )
 
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         recovered_evolve,
     )
@@ -352,8 +347,6 @@ def test_provider_failure_retries_same_action_after_restart(
 def test_checkpointed_child_is_committed_without_repeating_evolution(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import engine_tasks_outcome_refinement
-
     client = make_client()
     run_id, _parent_id, _, action_id = _setup_action(client, isolated_db)
     task = _claim_action(run_id, "checkpoint-worker", isolated_db)
@@ -379,7 +372,7 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
         )
 
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         evolve_once,
     )
@@ -425,7 +418,7 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
         raise AssertionError("checkpoint replay repeated provider work")
 
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         should_not_evolve,
     )
@@ -539,11 +532,11 @@ def _install_deterministic_gate_stubs(
     )
     from co_scientist.agents.reflection import review as review_module
 
-    from app import engine_tasks_outcome_refinement, engine_tasks_ranking_wave
+    from app import engine_tasks_ranking_wave
 
     stubs = _OfflineGateStubs(parent_id, sibling_id)
     monkeypatch.setattr(
-        engine_tasks_outcome_refinement.evolution,
+        evolution,
         "evolve_single_hypothesis_from_outcome",
         stubs.evolve,
     )

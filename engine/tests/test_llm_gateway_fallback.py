@@ -158,7 +158,10 @@ def test_qwen_candidate_uses_native_schema() -> None:
     """Its sole endpoint advertises structured outputs, not JSON object mode."""
     assert _supports_json_schema_response_format(_QWEN_CANDIDATE) is True
     args = _build_completion_args(
-        "Return JSON", _QWEN_CANDIDATE, 6000, 0,
+        "Return JSON",
+        _QWEN_CANDIDATE,
+        6000,
+        0,
         CompletionShape(json_schema={"type": "object", "properties": {}}),
     )
     assert args["response_format"]["type"] == "json_schema"
