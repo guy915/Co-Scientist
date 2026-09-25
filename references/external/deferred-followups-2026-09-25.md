@@ -1,6 +1,6 @@
 # Deferred campaign follow-ups
 
-On 25 September 2026 the owner prioritized finishing the external-reference campaign and directed blocked work, including rate-limited work, to be skipped. The entries below are **unfinished and unverified**. Deferral is a scope decision, not evidence of rejection, adoption, or Google behavior. Their original acceptance criteria remain in `PLAN.md` and the linked dossiers. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from this register.
+On 25 September 2026 the owner directed blocked work, including rate-limited work, to be skipped for the time being. PR #46 treated that as a narrower closeout, but the owner clarified that the original campaign should not be called finished on that basis. The entries below are **open, unfinished and unverified** in `PLAN.md`; this register records why they are paused, not a disposition. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from it.
 
 | Item | Status at deferral | Revisit only when |
 |---|---|---|
@@ -13,4 +13,4 @@ On 25 September 2026 the owner prioritized finishing the external-reference camp
 | `M11-NOV-01b` | No result-conditioned exploratory or independent confirmatory comparison passed; no product adaptation was adopted. | The exploratory pilot completes and passes, followed by a separately eligible confirmatory protocol and result. |
 | `M11-ROBIN-01d4` | The Robin-inspired owner action and UI were released and tested offline, but no campaign-owned public live refinement was observed. The retained run has zero hypotheses; existence of another eligible owned run is [unknown](robin/m11-01d4-eligibility-audit-2026-09-25.md). | Verified campaign-owner inventory yields an eligible run and an exact-zero route, or a newly qualified route permits the smallest bounded public run. |
 
-The nine required repositories were assessed and their accepted released changes remain documented in their dossiers and release receipts. This register does not authorize another call, deployment, or a timer-based retry. Current execution is limited to reconciling the completed work, final offline checks, release status, attribution and cleanup.
+The nine required repositories were assessed and their accepted released changes remain documented in their dossiers and release receipts. This register does not authorize another call, deployment, or a timer-based retry. The original campaign remains open until these items meet their acceptance criteria.

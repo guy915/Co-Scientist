@@ -1,6 +1,6 @@
 # External source campaign — scoped closure report
 
-**As of:** 25 September 2026. **Status:** Nine required source assessments and accepted product releases are reconciled. Under the owner's closure direction, eight unfinished M11 follow-ups are deferred outside this acceptance scope. None of the deferred items is completed, verified, or rejected by deferral.
+**As of:** 25 September 2026. **Status:** Nine required source assessments and accepted product releases are reconciled. This is the PR #46 scoped evidence snapshot, not final acceptance of the original campaign: eight unfinished M11 follow-ups remain open in `PLAN.md` after the owner's status correction. None is completed, verified, or rejected by deferral.
 
 ## Reconciliation
 
@@ -33,7 +33,7 @@ The source-release trail is PRs [#22](https://github.com/guy915/Co-Scientist/pul
 
 ## Deferred open items
 
-The owner directed skipping blocked or rate-limited work. These eight items are **unfinished and outside this owner-directed closure scope**, not complete or rejected. Their evidence and revisit triggers are recorded in the [deferred follow-up register](deferred-followups-2026-09-25.md); their original criteria remain in [PLAN.md](../../PLAN.md#L358-L398):
+The owner directed skipping blocked or rate-limited work for the time being. These eight items are **unfinished and still open in the original campaign**, not complete or rejected. Their evidence and revisit triggers are recorded in the [deferred follow-up register](deferred-followups-2026-09-25.md); their acceptance criteria remain in [PLAN.md](../../PLAN.md):
 
 - `M11-OPS-02b` and `M11-OPS-02c`: qualify a current exact-zero route, then only if qualified switch defaults and verify deployment. The single bounded Qwen/ModelRun interface probe stopped on an upstream 429; there is no served-model or usage receipt, and no replacement qualified by the retained privacy/capability screen.
 - `M11-NOV-01a3b3b2` and `M11-NOV-01a3b3c`: pin a qualified route and complete the preregistration, then run the one bounded six-pair result-conditioned pilot. The prepared protocol has `model_name: null`; no candidate call occurred.
@@ -51,4 +51,4 @@ The campaign branch also contains experimental PubMed pilot instrumentation unde
 
 ## Campaign acceptance boundary
 
-The [final offline verification](final-closure-verification.md) and no-inference production audit are complete. The released product code passed its release-time checks and browser suite; the reference-only closeout branch additionally passed the function-length gate and offline safety/citation smoke. The eight deferred follow-ups remain unfinished, and the experimental PubMed branch's separate check failed. No fresh public research run, live refinement, current model-role readback, or scientific-quality result is claimed. No Google private-implementation or fidelity claim is inferred from the nine external repositories.
+The [scoped offline verification](final-closure-verification.md) and no-inference production audit are complete. The released product code passed its release-time checks and browser suite; the reference-only closeout branch additionally passed the function-length gate and offline safety/citation smoke. The original campaign is **not complete**: eight follow-ups remain open, the experimental PubMed branch's separate check failed, and no fresh public research run, live refinement, current model-role readback, or scientific-quality result is claimed. No Google private-implementation or fidelity claim is inferred from the nine external repositories.
