@@ -1,0 +1,98 @@
+{
+  "name": "M11-NOV-01a2b post-correction keyless fixture screen",
+  "version": 1,
+  "registered_at_utc": "2026-09-25T04:38:49Z",
+  "status": "PREREGISTERED_BEFORE_RECOVERY_CALLS",
+  "purpose": "Screen the three frozen public prior-art fixtures through the production novelty query builder and maintained PubMed MCP retrieval path after the query and retrieval corrections. This is fixture screening only, not a candidate-versus-baseline quality comparison or candidate acceptance.",
+  "source_scope": {
+    "original_discovery_prereg": "references/external/sakana/novelty-fixture-discovery-prereg-v1.json",
+    "original_discovery_prereg_sha256": "868d1485699403dfbce0397f43a7d5db72f54a88940b47b773a5dc74dc7d9d8e",
+    "public_fixture": "references/external/sakana/novelty-result-conditioned-fixture-v1.json",
+    "public_fixture_sha256": "e0f30c2be18b0b983bdf713efe3c251f065b41601a6d2c0b3a869599ea4eecbb",
+    "independent_abstract_label_note": "references/external/sakana/novelty-control-adjudication-v1.md",
+    "independent_abstract_label_note_sha256": "ef60fcb00154816684652335e6a74df0db600bc0bcc5161cf5ff6c4c865ec867",
+    "registration_checkout_commit": "6d2e6b95984649323c895eadf34fee6aedd80749",
+    "mcp_server_tree": "4b2ef446aa09f95f65109471d2b0705c16afb657",
+    "engine_source_tree": "e4a6c2917b40c3507a130a2ccfb2b1407844bfb8",
+    "runtime_file_sha256": {
+      "engine/src/co_scientist/config/tools.yaml": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+      "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py": "e82a20acd2065396ae5faff980be447ef889cb75bd8dcdc20f8ade17e2154826",
+      "engine/src/co_scientist/tools/response_parser.py": "9be8110bfbe8d3851ff10dedc0e20bd9d37fea63ef99bd5f1b874055e515aea8",
+      "engine/src/co_scientist/mcp_client.py": "f246f6c573d86fe24ad076cf0956e24b1ce569cd612e69a360ee7bcb38c61a10",
+      "engine/src/co_scientist/mcp_client_helpers.py": "9d73c551da97f9c27782cb00250cdd9ff53a58259b8825d1296b0590aa05b274",
+      "engine/src/co_scientist/config/registry.py": "f8ee20bb268f373f2c193d1098aaa9dae89c9478e56eb2bf2be228c3fac3c509",
+      "engine/mcp_server/pubmed_query.py": "8d97757b3d5b062b8da36010b9e39a7391c587b64ba25b259ba9026056bb8711",
+      "engine/mcp_server/pubmed_client.py": "5ef5fcd4ae2f343be03e8255d307d6c954206c6451e0f5f0af0090b1ca6eee9b",
+      "engine/mcp_server/literature_review.py": "c4ebd959824aa799d00016a6e8066aad85d72efd5feb823aabcf107d6f95417c",
+      "engine/mcp_server/tools/lit_review/search_pubmed.py": "7abe013439a610e677e64329337774419613ea8dc4e802a4bc30e97e67faf75e",
+      "engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py": "596da1a66d53cee54c36bda77082c2d1d46702334cbf90055f81ac9085bb74df"
+    }
+  },
+  "query_builder": {
+    "import": "co_scientist.agents.generation.literature_tools.validate_search._build_novelty_search_query",
+    "source": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+    "rule": "Apply the committed builder to the frozen raw draft once; the resulting exact string is frozen below and sent unchanged through the configured ToolConfig mapper. No model query rewrite is used."
+  },
+  "cases_in_call_order": [
+    {
+      "id": "stmn2-tdp43-recovery",
+      "target_pmid": "30643298",
+      "raw_draft": "In motor neurons with TDP-43 dysfunction, use of a cryptic STMN2 polyadenylation signal produces truncated transcripts and limits axonal repair.",
+      "wire_query": "TDP-43 STMN2 motor neurons dysfunction cryptic polyadenylation signal produces truncated transcripts limits axonal repair"
+    },
+    {
+      "id": "sars-entry-recovery",
+      "target_pmid": "32142651",
+      "raw_draft": "In airway epithelial cells, reducing TMPRSS2 activity should decrease ACE2-dependent infection by SARS-CoV-2 spike-bearing virus.",
+      "wire_query": "TMPRSS2 ACE2-dependent SARS-CoV-2 airway epithelial cells reducing activity decrease infection spike-bearing virus"
+    },
+    {
+      "id": "qa1b-tumor-recovery",
+      "target_pmid": "36151395",
+      "raw_draft": "Interferon-rich tumors increase Qa-1b ligand display, engaging inhibitory NKG2A/CD94 on cytotoxic CD8 cells and weakening antitumor killing.",
+      "wire_query": "Qa-1b NKG2A/CD94 CD8 Interferon-rich tumors increase ligand display engaging inhibitory cytotoxic cells weakening antitumor killing"
+    }
+  ],
+  "request_contract": {
+    "path": "Frozen raw draft -> committed _build_novelty_search_query -> current pubmed_fulltext ToolConfig parameter mapper -> one MCPToolClient call to maintained pubmed_search_with_fulltext -> configured ResponseParser.",
+    "endpoint": "http://127.0.0.1:8899/mcp",
+    "query": "Send the exact frozen wire_query for each case; no rewrite, appended term, date filter, or retry.",
+    "max_papers": 3,
+    "recency_years": "omitted; maintained tool default is 0",
+    "maximum_outer_calls": 3,
+    "minimum_seconds_between_call_starts": 1.2,
+    "on_first_retrieval_or_rate_error": "Stop immediately; retain the completed prefix, error class, and any available selected-rung evidence. Do not try another provider or query.",
+    "initialization": "MCP protocol initialization/tool listing is permitted; exactly one outer PubMed search-tool call is allowed per case."
+  },
+  "selected_rung_evidence": {
+    "required": true,
+    "source": "Dedicated loopback MCP server INFO log for mcp_server.pubmed_query.",
+    "retained_fields": [
+      "rung_index",
+      "rung_type",
+      "result_count",
+      "threshold_met",
+      "selected_query_log"
+    ],
+    "selected_query_log_max_chars": 160,
+    "raw_server_logs": "Read only the dedicated log's appended bytes for each call; do not copy or retain raw log lines. Keep only parsed rung metadata and the server's bounded selected-query field in the result artifact."
+  },
+  "runtime_boundary": {
+    "model_inference": "none",
+    "credentials": "No provider or retrieval API credentials inherited; the only allowed secret is a transient COSCIENTIST_MCP_SHARED_SECRET for loopback MCP authentication, and it must never be printed or stored.",
+    "free_mode": "COSCIENTIST_REQUIRE_FREE_MODELS=1",
+    "cache": "/tmp/cosci-m11-nov-01a2b",
+    "cache_requirement": "Dedicated, newly empty cache used by the server for this screen; no colocated .env files in repository, engine, or MCP server directories.",
+    "server_log_path": "/tmp/cosci-m11-nov-01a2b-mcp.log",
+    "server_log_requirement": "Dedicated INFO log from the same isolated server process, started with unbuffered output; the runner does not retain the full log.",
+    "estimated_additional_cost_usd": 0
+  },
+  "screening_rule": {
+    "target_recall_at_3": "Count cases whose exact target PMID appears among the first three parsed results, divided by 3 when all cases complete; report as incomplete otherwise.",
+    "abstract_mechanism_relevance": "Independently review each returned abstract from the isolated cache against its frozen draft and label supports_central_mechanism, related_without_mechanism_support, unrelated, or insufficient_abstract. Preserve only the abstract SHA-256, label, and a short reason in the result; do not copy abstract text into the repository.",
+    "fixture_eligibility": "A target is eligible for a later frozen positive fixture only when it appears in the first three and its primary-source abstract supports the draft's central mechanism.",
+    "control_comparisons": "None in this screen; no control anchors are queried or compared.",
+    "abstract_retention": "Abstract text remains only in the isolated /tmp cache and in process memory during retrieval; the committed and result artifacts contain no full abstracts."
+  },
+  "interpretation_boundary": "This direct maintained-MCP screen uses the shared production query builder and therefore tests the query/retrieval boundary. Full validator downstream judgments remain for M11-NOV-01a3/01b. Results are fixture screening, not a quality comparison, novelty finding, or candidate acceptance."
+}

@@ -1,0 +1,314 @@
+{
+  "checked_at": "2026-09-25T13:48:11.780245+00:00",
+  "source_commit": "92cd709d656e1cf3781b168e00f8b3ad1872adab",
+  "model": {
+    "id": "qwen/qwen3.8-27b:free",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "context_length": 262144,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "reasoning_effort",
+      "repetition_penalty",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "expiration_date": null
+  },
+  "endpoint": {
+    "name": "ModelRun | qwen/qwen3.8-27b-20260814:free",
+    "model_id": "qwen/qwen3.8-27b:free",
+    "model_name": "Qwen: Qwen3.8 27B",
+    "context_length": 262144,
+    "pricing": {
+      "prompt": "0",
+      "completion": "0",
+      "discount": 0
+    },
+    "provider_name": "ModelRun",
+    "tag": "modelrun/fp4",
+    "quantization": "fp4",
+    "max_completion_tokens": 235929,
+    "max_prompt_tokens": null,
+    "supported_parameters": [
+      "reasoning",
+      "include_reasoning",
+      "max_tokens",
+      "temperature",
+      "presence_penalty",
+      "repetition_penalty",
+      "frequency_penalty",
+      "stop",
+      "top_p",
+      "structured_outputs",
+      "tools",
+      "tool_choice",
+      "reasoning_effort"
+    ],
+    "supports_tool_choice": {
+      "none": false,
+      "auto": true,
+      "required": true,
+      "function": true
+    },
+    "status": 0,
+    "uptime_last_30m": 99.93808049535605,
+    "uptime_last_5m": 99.63099630996311,
+    "uptime_last_1d": 98.10130090915811,
+    "supports_implicit_caching": false,
+    "supports_voice_cloning": false,
+    "latency_last_30m": null,
+    "throughput_last_30m": null
+  },
+  "zdr_endpoint": {
+    "name": "ModelRun | qwen/qwen3.8-27b-20260814:free",
+    "model_id": "qwen/qwen3.8-27b:free",
+    "model_name": "Qwen: Qwen3.8 27B",
+    "provider_name": "ModelRun",
+    "tag": "modelrun/fp4",
+    "pricing": {
+      "prompt": "0",
+      "completion": "0",
+      "discount": 0
+    },
+    "supported_parameters": [
+      "reasoning",
+      "include_reasoning",
+      "max_tokens",
+      "temperature",
+      "presence_penalty",
+      "repetition_penalty",
+      "frequency_penalty",
+      "stop",
+      "top_p",
+      "structured_outputs",
+      "tools",
+      "tool_choice",
+      "reasoning_effort"
+    ],
+    "status": 0
+  },
+  "public_api_receipts": {
+    "catalog": {
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "c3648954438d992e988d25e6bc3f3e0216d04b091f2978c83b630c455d113bc4"
+    },
+    "endpoints": {
+      "url": "https://openrouter.ai/api/v1/models/qwen/qwen3.8-27b:free/endpoints",
+      "sha256": "fada7fa6f30d5112a55c966aec3426e7a727f329fa1aeb2bc029a721021d1a9b"
+    },
+    "zdr": {
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "sha256": "44e2b8e5bb75bbae3df1a85c22d7917f09b10082149248590ef2da483cb5b642"
+    }
+  },
+  "provider_terms": {
+    "directory_url": "https://openrouter.ai/providers/",
+    "provider": "ModelRun [by Modular]",
+    "trains": "No per OpenRouter provider directory checked 2026-09-25",
+    "retention": "Zero retention per OpenRouter directory and exact provider endpoint appearing in /api/v1/endpoints/zdr",
+    "terms_url": "https://www.modular.com/legal/terms",
+    "terms_last_modified": "2026-08-17",
+    "terms_limit": "Modular terms section 3.5 permit collection/use/disclosure of aggregated or anonymized derivative data, which may be based on user-generated content transmitted through its platform; this probe therefore sends only a synthetic public-interface prompt.",
+    "privacy_url": "https://www.modular.com/legal/privacy"
+  },
+  "request_budget": {
+    "max_requests_if_all_cases_complete": 6,
+    "max_attempts_per_json_case": 1,
+    "runner_stops_on_first_error": true,
+    "provider": "ModelRun only current exact :free endpoint",
+    "request_caps": {
+      "prompt": 0,
+      "completion": 0,
+      "request": 0
+    },
+    "paid_fallbacks": false
+  },
+  "probe": {
+    "runner": "references/external/baseline/model-qualification/probe_capabilities.py",
+    "runner_sha256": "501ac67cb6a1289563ae68594b189b0bccc9eef42df6066f13b60923e13ca002",
+    "requested_model": "openrouter/qwen/qwen3.8-27b:free",
+    "exit_code": 1,
+    "artifact": "/tmp/m11-qwen-capabilities-2026-09-25.json",
+    "artifact_sha256": "1d7e2cf1d4911f957fce45d515f9139e3a5eab632bcf57698f6b697ea148743b"
+  },
+  "result": {
+    "requested_model": "openrouter/qwen/qwen3.8-27b:free",
+    "started_at": "2026-09-25T13:48:21.322570+00:00",
+    "source_commit": "92cd709d656e1cf3781b168e00f8b3ad1872adab",
+    "probe_sha256": "501ac67cb6a1289563ae68594b189b0bccc9eef42df6066f13b60923e13ca002",
+    "cases": [
+      {
+        "case": "json_off",
+        "passed": false,
+        "error_type": "RateLimitError",
+        "error": "litellm.RateLimitError: RateLimitError: OpenrouterException - {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"qwen/qwen3.8-27b:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations\",\"provider_name\":\"ModelRun\",\"is_byok\":false,\"provider_error_code\":\"429\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"[redacted-account]\":\"[redacted-account]\"}",
+        "execution_mode": "live_requested",
+        "usage_evidence": {
+          "model_usage": {
+            "json_off::openrouter/qwen/qwen3.8-27b:free": {
+              "deterministic_fallbacks": {},
+              "calls": 1,
+              "observed_model_calls": 0,
+              "reported_usage_calls": 0,
+              "priced_usage_calls": 0,
+              "requested_models": {
+                "openrouter/qwen/qwen3.8-27b:free": 1
+              },
+              "prompt_tokens": 0,
+              "completion_tokens": 0,
+              "reasoning_tokens": 0,
+              "cached_prompt_tokens": 0,
+              "cost_usd": 0.0,
+              "latency_seconds": 0.831627667000248,
+              "retries": 0,
+              "cache_hits": 0,
+              "cache_misses": 0,
+              "errors": {
+                "RateLimitError": 1
+              }
+            }
+          },
+          "physical_calls": 1,
+          "recorded_deterministic_fallbacks": {},
+          "fallback_evidence": "recorded_events_only",
+          "requested_models": {
+            "openrouter/qwen/qwen3.8-27b:free": 1
+          },
+          "observed_models": [],
+          "unobserved_model_calls": 1,
+          "unreported_usage_calls": 1,
+          "unpriced_calls": 1,
+          "has_usage_records": true,
+          "estimate_complete": false,
+          "estimated_total_usd": null,
+          "partial_estimated_total_usd": 0.0,
+          "billed_total_usd": null,
+          "cost_basis": "static_estimate_not_billing_receipt"
+        },
+        "physical_request_controls": [
+          {
+            "model": "openrouter/qwen/qwen3.8-27b:free",
+            "max_tokens": 18000,
+            "extra_body": {
+              "provider": {
+                "require_parameters": true,
+                "allow_fallbacks": true,
+                "preferred_min_throughput": 25,
+                "only": [
+                  "modelrun"
+                ],
+                "zdr": true,
+                "data_collection": "deny",
+                "max_price": {
+                  "prompt": 0,
+                  "completion": 0,
+                  "request": 0
+                }
+              },
+              "reasoning": {
+                "enabled": true,
+                "max_tokens": 2048
+              }
+            },
+            "response_format": {
+              "type": "json_schema",
+              "json_schema": {
+                "name": "response",
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "enum": [
+                        "supports",
+                        "contradicts",
+                        "insufficient"
+                      ]
+                    },
+                    "quote": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "quote"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "stream": null
+          }
+        ]
+      }
+    ]
+  },
+  "assessment": {
+    "disposition": "unqualified_operationally_inconclusive",
+    "reason": "The first structured-output request returned HTTP 429 from ModelRun shared pool; the runner stopped immediately.",
+    "actual_interface_cases": {
+      "attempted": [
+        "json_off"
+      ],
+      "passed": [],
+      "unattempted": [
+        "json_on",
+        "tools",
+        "streaming",
+        "long_json"
+      ]
+    },
+    "request_observation": {
+      "physical_requests": 1,
+      "retry_count": 0,
+      "requested_model": "openrouter/qwen/qwen3.8-27b:free",
+      "provider_error": {
+        "provider_name": "ModelRun",
+        "provider_error_code": "429",
+        "limit_source": "upstream_provider_shared_pool"
+      },
+      "routing_controls": {
+        "require_parameters": true,
+        "allow_fallbacks": true,
+        "preferred_min_throughput": 25,
+        "only": [
+          "modelrun"
+        ],
+        "zdr": true,
+        "data_collection": "deny",
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "reasoning_request": {
+        "enabled": true,
+        "max_tokens": 2048
+      },
+      "served_model": null,
+      "reported_usage": null,
+      "reported_cost_usd": null,
+      "effective_cost_ceiling_usd": 0,
+      "cost_note": "The exact endpoint is listed at zero prompt/completion price and the physical request attached zero prompt/completion/request caps. The 429 response returned no usage or cost receipt, so invoice-level billed cost is not observable in this artifact."
+    },
+    "privacy_boundary": "The request used a synthetic public interface prompt only. Current provider directory says no training and zero retention; outgoing request included provider.only=[modelrun], zdr=true, data_collection=deny. Modular Terms section 3.5 separately permits use/disclosure of aggregated or anonymized Derivative Data that may be based on user-generated content transmitted via its platform.",
+    "fallback_boundary": "No application model fallback was configured. The observed provider restriction allows only ModelRun and all request prices are capped at zero; the provider body still carries allow_fallbacks=true, constrained by only=[modelrun] and zero price caps.",
+    "decision": "Do not select Qwen as a default or fallback; do not repeat the batch merely to clear the rate limit. All unattempted interface cases remain unresolved."
+  },
+  "preflight_failures_without_inference": [
+    "A first endpoint-response parser expected an unwrapped endpoint list and aborted before key lookup; no provider request was made.",
+    "A second preflight found no credential in the isolated worktree and aborted before inference; only the existing OpenRouter credential was then extracted in memory from the canonical ignored workspace .env for the clean child process."
+  ]
+}

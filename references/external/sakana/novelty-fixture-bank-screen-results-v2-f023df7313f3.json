@@ -1,0 +1,1296 @@
+{
+  "name": "M11-NOV-01a3b2b second full-validator prior-art fixture screen",
+  "status": "INCOMPLETE_ERROR",
+  "prereg_sha256": "a1b1df652f7c8beb4dfc070f88e1986f555e1d61b9027470086a0508432453ca",
+  "tool": "pubmed_search_with_fulltext",
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "raw_abstracts_in_result": false,
+  "calls": [
+    {
+      "order": 1,
+      "pair_id": "gdf15-gfral-ret",
+      "arm": "positive",
+      "target_pmid": "28846097",
+      "anchor_pmid": null,
+      "draft": "GDF15 activates GFRAL-RET signaling in area postrema and NTS neurons, reducing food intake and body weight.",
+      "wire_query": "GDF15 activates GFRAL-RET signaling in area postrema and NTS neurons, reducing food intake and body weight.",
+      "started_at_utc": "2026-09-25T09:27:28.140252+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42602551",
+          "title": "Immunomodulatory functions of growth differentiation factor 15 in skin aging and inflammatory dermatoses.",
+          "authors": [
+            "Ruijun Wang",
+            "Haopeng Tan",
+            "Zhiqi Li",
+            "Dongmei Li",
+            "Yuanming Pan",
+            "Zhanbiao He"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fimmu.2026.1902574",
+          "abstract_available": true,
+          "abstract_sha256": "7d2d4a5e489e7a6f13328118f3e48689a610342d6768676a35542b750fb5107e",
+          "fulltext_available": true,
+          "blind_id": "996fd2858fb84ed1a99d8b09423f2b6b"
+        },
+        {
+          "rank": 2,
+          "pmid": "42188045",
+          "title": "GDF15 Improves Renal Injury Induced by Ectopic Lipid Deposition via AMPK/SIRT1 Pathway-Mediated Autophagy.",
+          "authors": [
+            "Qiang Zhang",
+            "Xidong Yang",
+            "Yuxuan Yang",
+            "Min Wang",
+            "Yulin Wu",
+            "Xin Xie",
+            "Yongjun Jin",
+            "Ming Yang",
+            "Meizi Yang"
+          ],
+          "year": 2026,
+          "doi": "10.3390/metabo16050336",
+          "abstract_available": true,
+          "abstract_sha256": "80a8f7c2c500f4b8f708ca70fa82a330485b51444926137e7d50e37255e2cfdc",
+          "fulltext_available": true,
+          "blind_id": "2ae77b069a4d4cc0879a3f3a04c7866d"
+        },
+        {
+          "rank": 3,
+          "pmid": "41828483",
+          "title": "GDF15 in Patients with Autoimmune Primary Adrenal Insufficiency.",
+          "authors": [
+            "Aleksandra Zdrojowy-Wełna",
+            "Jowita Halupczok-Żyła",
+            "Katarzyna Kolačkov",
+            "Justyna Kuliczkowska-Płaksej",
+            "Aleksandra Jawiarczyk-Przybyłowska",
+            "Barbara Stachowska",
+            "Iga Zendran-Zahorska",
+            "Marek Bolanowski"
+          ],
+          "year": 2026,
+          "doi": "10.3390/ijms27052260",
+          "abstract_available": true,
+          "abstract_sha256": "61c7dd82fbbe463fd8b50cc60522ba253b694e994e04a78b7e61f2503dd0865f",
+          "fulltext_available": true,
+          "blind_id": "bb020e316b224edc848a0e564a9dca16"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:27:40.287316+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "GDF15 activates GFRAL-RET signaling in area postrema and NTS neurons, reducing food intake and body weight.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_01",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_01"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_01",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42602551",
+              "42188045",
+              "41828483",
+              "41182793",
+              "40674958",
+              "40111545",
+              "39778760",
+              "39931072",
+              "39147013"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42602551",
+            "42188045",
+            "41828483",
+            "41182793",
+            "40674958",
+            "40111545",
+            "39778760",
+            "39931072",
+            "39147013"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42602551",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42188045",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41828483",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41182793",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40674958",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40111545",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39778760",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39931072",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39147013",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42602551",
+          "42188045",
+          "41828483"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 2,
+      "pair_id": "gdf15-gfral-ret",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "11373681",
+      "draft": "Leptin excites arcuate POMC neurons by direct depolarization and reduced NPY/GABA inhibition, restraining food intake.",
+      "wire_query": "Leptin excites arcuate POMC neurons by direct depolarization and reduced NPY/GABA inhibition, restraining food intake.",
+      "started_at_utc": "2026-09-25T09:27:40.288180+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "37683049",
+          "title": "Leptin excites basolateral amygdala principal neurons and reduces food intake by LepRb-JAK2-PI3K-dependent depression of GIRK channels.",
+          "authors": [
+            "Cody A Boyle",
+            "Phani K Kola",
+            "Chidiebele S Oraegbuna",
+            "Saobo Lei"
+          ],
+          "year": 2025,
+          "doi": "10.1002/jcp.31117",
+          "abstract_available": true,
+          "abstract_sha256": "79ced8ad80c94b290133d109d9f710ab4dfba4fb8bf49e5c63b60328dd8fbb3c",
+          "fulltext_available": true,
+          "blind_id": "1845973ca8114fbf82e72f8b29bc577f"
+        },
+        {
+          "rank": 2,
+          "pmid": "36442744",
+          "title": "CRISPR/SaCas9 mutagenesis of stromal interaction molecule 1 in proopiomelanocortin neurons increases glutamatergic excitability and protects against diet-induced obesity.",
+          "authors": [
+            "Jian Qiu",
+            "Martha A Bosch",
+            "Todd L Stincic",
+            "Avery C Hunker",
+            "Larry S Zweifel",
+            "Oline K Rønnekleiv",
+            "Martin J Kelly"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.molmet.2022.101645",
+          "abstract_available": true,
+          "abstract_sha256": "14bff3fb4b0afe5e24186ee848978b75972821d5eb4baf86823e032fdf039ee7",
+          "fulltext_available": true,
+          "blind_id": "54107af28a6944dc8a119b178ca7fff6"
+        },
+        {
+          "rank": 3,
+          "pmid": "32538782",
+          "title": "Leptin increases sympathetic nerve activity via induction of its own receptor in the paraventricular nucleus.",
+          "authors": [
+            "Zhigang Shi",
+            "Nicole E Pelletier",
+            "Jennifer Wong",
+            "Baoxin Li",
+            "Andrei D Sdrulla",
+            "Christopher J Madden",
+            "Daniel L Marks",
+            "Virginia L Brooks"
+          ],
+          "year": 2024,
+          "doi": "10.7554/eLife.55357",
+          "abstract_available": true,
+          "abstract_sha256": "71123c09ee73a90d506c01d6d73424313e0030e49c6e91364cda24e063e09ea9",
+          "fulltext_available": true,
+          "blind_id": "76e75477faf2431389e0c2c507a23b24"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:28:02.958662+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Leptin excites arcuate POMC neurons by direct depolarization and reduced NPY/GABA inhibition, restraining food intake.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_02",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_02"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_02",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "37683049",
+              "36442744",
+              "32538782",
+              "29663284",
+              "30106375",
+              "28654087",
+              "24703699",
+              "21285322",
+              "21223453"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "37683049",
+            "36442744",
+            "32538782",
+            "29663284",
+            "30106375",
+            "28654087",
+            "24703699",
+            "21285322",
+            "21223453"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "37683049",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "36442744",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "32538782",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "29663284",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "30106375",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "28654087",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "24703699",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "21285322",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "21223453",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "37683049",
+          "36442744",
+          "32538782"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 3,
+      "pair_id": "trem2-apoe-clu-uptake",
+      "arm": "positive",
+      "target_pmid": "27477018",
+      "anchor_pmid": null,
+      "draft": "TREM2 binds APOE and CLU lipoproteins and promotes microglial uptake of amyloid-beta-lipoprotein complexes.",
+      "wire_query": "TREM2 binds APOE and CLU lipoproteins and promotes microglial uptake of amyloid-beta-lipoprotein complexes.",
+      "started_at_utc": "2026-09-25T09:28:02.959624+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42522548",
+          "title": "Soluble TREM2 Drives Atherosclerosis via HSP90β-Dependent Myeloid Inflammation.",
+          "authors": [
+            "Xiaoqing Guo",
+            "Xiaoming Liu",
+            "Jie Yu",
+            "Mengting Qin",
+            "Shengnan Wang",
+            "Jiaojiao Chen",
+            "Dailiang Jiang",
+            "Yuhang Feng",
+            "Jiangnan Yu",
+            "Xiaojun Xu",
+            "Ling Mao"
+          ],
+          "year": 2026,
+          "doi": "10.1161/CIRCRESAHA.125.327491",
+          "abstract_available": true,
+          "abstract_sha256": "e8b12ac36193464df5cbd0ec7236b834f602061a8ae47185ba54d3bb9bd8b9c4",
+          "fulltext_available": true,
+          "blind_id": "b5c4bcc1eb314dbcb44cb6468feafd1e"
+        },
+        {
+          "rank": 2,
+          "pmid": "42192204",
+          "title": "Soluble TREM2 engages cell-surface nucleolin to drive vascular permeability and malignant ascites in ovarian cancer.",
+          "authors": [
+            "Qianqian Li",
+            "Yubo Zhang",
+            "Hui Luo",
+            "Yongjian Wu",
+            "Jingbo Qin",
+            "Lijie Wang",
+            "Qianqian Zhang",
+            "Ting Yu",
+            "Xi Huang",
+            "Shuang Guo",
+            "Bingfan Xie",
+            "Huanhuan He"
+          ],
+          "year": 2026,
+          "doi": "10.1038/s44321-026-00452-2",
+          "abstract_available": true,
+          "abstract_sha256": "fc500685b2fbc541c912ab5a7f73a4ca727a6f8cc48f420071594efd2f7af0cf",
+          "fulltext_available": true,
+          "blind_id": "ee84ced9228848568af03d837a41bb26"
+        },
+        {
+          "rank": 3,
+          "pmid": "42079091",
+          "title": "XL-MS and De Novo Protein Design Identified a Common Motif for TREM2 Binding.",
+          "authors": [
+            "Doniesha Perera",
+            "Emmanuel Ajiboye",
+            "Kalana Pitakatuwana",
+            "Sophia Wier",
+            "Vincent Duong",
+            "Haifan Wu"
+          ],
+          "year": 2026,
+          "doi": "10.64898/2026.04.23.720433",
+          "abstract_available": true,
+          "abstract_sha256": "573373a4a963c1dab4cbab40f129a442b6c3600944225c8675144e0942ae5d69",
+          "fulltext_available": true,
+          "blind_id": "faceca7c9eca48c98dfcec56a21041b5"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:28:19.057431+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "TREM2 binds APOE and CLU lipoproteins and promotes microglial uptake of amyloid-beta-lipoprotein complexes.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_03",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_03"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_03",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42604666",
+              "42595239",
+              "42689388",
+              "42276260",
+              "42522548",
+              "42192204",
+              "42079091",
+              "41731491",
+              "41390810"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42604666",
+            "42595239",
+            "42689388",
+            "42276260",
+            "42522548",
+            "42192204",
+            "42079091",
+            "41731491",
+            "41390810"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42604666",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42595239",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42689388",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42276260",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42522548",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42192204",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42079091",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41731491",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41390810",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42522548",
+          "42192204",
+          "42079091"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 4,
+      "pair_id": "trem2-apoe-clu-uptake",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "11466313",
+      "draft": "BACE1's transmembrane domain localizes it to late Golgi and grants access to APP for beta-cleavage.",
+      "wire_query": "BACE1's transmembrane domain localizes it to late Golgi and grants access to APP for beta-cleavage.",
+      "started_at_utc": "2026-09-25T09:28:19.059687+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42635983",
+          "title": "Neural Organization of Episodic Memory and Navigation in Children and Adults.",
+          "authors": [
+            "Kim V Nguyen",
+            "Lena J Skalaban",
+            "Büşra Tanriverdi",
+            "John J Erardi",
+            "Giovanna Arantes de Oliveira Campos",
+            "Ingrid R Olson",
+            "Vishnu P Murty",
+            "Nora S Newcombe"
+          ],
+          "year": 2026,
+          "doi": "10.1162/JOCN.a.2688",
+          "abstract_available": true,
+          "abstract_sha256": "e7c88453f6d109094a2d9be9002c01bcede35e9c125cf0e0084561c7bbb7bbb9",
+          "fulltext_available": true,
+          "blind_id": "a7fb38e5d23e4d61be23c7e0b29ff821"
+        },
+        {
+          "rank": 2,
+          "pmid": "42785340",
+          "title": "Diagnostic performance and testing costs of pooled testing for molecular detection of tuberculosis in seven countries: a prospective, observational, diagnostic accuracy study.",
+          "authors": [
+            "Tushar Garg",
+            "Melissa Sander",
+            "Rachel L Byrne",
+            "S M Mazidur Rahman",
+            "Victor Santana Santos",
+            "Steve Wandiga",
+            "Augustine T Choko",
+            "Suraj Abdulkarim",
+            "Mosunmola Oluwaseun Iwakun",
+            "Andrew J Codlin",
+            "Konstantina Kontogianni",
+            "Vibol Iem",
+            "Ana I Cubas Atienzar",
+            "Marc Y R Henrion",
+            "S Bertel Squire",
+            "Sayera Banu",
+            "Cyrille Mbuli",
+            "Albert Ochieng' Okumu",
+            "John Bimba",
+            "Stephen John",
+            "Luan Nguyen Quang Vo",
+            "Tom Wingfield",
+            "Jacob Creswell"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.langlo.2026.104051",
+          "abstract_available": true,
+          "abstract_sha256": "fd31f624d1a2e918e7005e0eb9fa37b55adf69b0a35cbabe4fea5165afd03d21",
+          "fulltext_available": true,
+          "blind_id": "7a7ad8ac4ae14b328b5a693d71c06de8"
+        },
+        {
+          "rank": 3,
+          "pmid": "42770930",
+          "title": "Self-Reported Sleep Quality in Late Pregnancy Is Associated With Early-Childhood Growth Trajectories in Children Aged 0-2 Years in Hispanic Populations.",
+          "authors": [
+            "Xiaoran Yang",
+            "Sandrah P Eckel",
+            "Erika Garcia",
+            "Tingyu Yang",
+            "Xinci Chen",
+            "Brendan Grubbs",
+            "Laila Al-Marayati",
+            "Claudia M Toledo-Corral",
+            "Jill Johnston",
+            "Kathleen A Page",
+            "Genevieve F Dunton",
+            "Shohreh F Farzan",
+            "Theresa M Bastain",
+            "Carrie V Breton"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.amepre.2026.108546",
+          "abstract_available": true,
+          "abstract_sha256": "0622fe767e65ea091fa2ff02f472beed064e0e6ccd045aea701fcdccb1b474aa",
+          "fulltext_available": true,
+          "blind_id": "1b9f84a0be86426b957823698599d7e2"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:28:30.977710+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "BACE1's transmembrane domain localizes it to late Golgi and grants access to APP for beta-cleavage.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_04",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_04"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_04",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 2,
+            "first_ids": [
+              "29078331",
+              "22895721"
+            ],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 3,
+            "rung_type": "or",
+            "count": 9,
+            "first_ids": [
+              "42635983",
+              "42785340",
+              "42770930",
+              "42542126",
+              "42777751",
+              "42685739",
+              "42685738",
+              "42526491",
+              "42526489"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 3,
+          "rung_type": "or",
+          "count": 9,
+          "ids": [
+            "42635983",
+            "42785340",
+            "42770930",
+            "42542126",
+            "42777751",
+            "42685739",
+            "42685738",
+            "42526491",
+            "42526489"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42635983",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42785340",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42770930",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42542126",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42777751",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42685739",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42685738",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42526491",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42526489",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42635983",
+          "42785340",
+          "42770930"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 5,
+      "pair_id": "rankl-nfatc1-osteoclast",
+      "arm": "positive",
+      "target_pmid": "12479813",
+      "anchor_pmid": null,
+      "draft": "RANKL induces calcineurin-activated NFATc1, driving monocyte-macrophage differentiation into bone-resorbing osteoclasts.",
+      "wire_query": "RANKL induces calcineurin-activated NFATc1, driving monocyte-macrophage differentiation into bone-resorbing osteoclasts.",
+      "started_at_utc": "2026-09-25T09:28:30.986741+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42335646",
+          "title": "Immune metabolic remodeling during exercise rehabilitation: Linking skeletal muscle regeneration, bone homeostasis, and systemic immune adaptation.",
+          "authors": [
+            "Fei Wang",
+            "Wenjie Qin"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.tice.2026.103687",
+          "abstract_available": true,
+          "abstract_sha256": "b9973673c2ed283f39272fc22c56dc696a05d812e4ecc6591c8d9c10fa198aa2",
+          "fulltext_available": true,
+          "blind_id": "51de6f6b23f64277930ff75380d187fa"
+        },
+        {
+          "rank": 2,
+          "pmid": "42761833",
+          "title": "Bioceramic bone tissue-engineered substitutes with anti-inflammatory effects in periodontitis.",
+          "authors": [
+            "Boying Xiao",
+            "Yuzhu Han",
+            "Chuqiao Wei",
+            "Yangfan Pei",
+            "Yunxiao Wu",
+            "Zhibo Wang",
+            "Hanchi Wang",
+            "Yanmin Zhou"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fbioe.2026.1934456",
+          "abstract_available": true,
+          "abstract_sha256": "092b1e5311db0aad040adef0d2aeddaa3d0e5b193ab87668a1b9b44277ed8602",
+          "fulltext_available": true,
+          "blind_id": "40539ebe864f41f3a1efc9cbf1f0cac9"
+        },
+        {
+          "rank": 3,
+          "pmid": "41872383",
+          "title": "Giant cell tumor of bone inhibits osteoblastogenesis via WNT5B.",
+          "authors": [
+            "Masaki Shimada",
+            "Tomonori Tsuyama",
+            "Naoto Yoshimura",
+            "Makoto Tateyama",
+            "Hideto Matsunaga",
+            "Fuka Homma",
+            "Kasumi Dainobu",
+            "Xiao Tian",
+            "Shu Takata",
+            "Kosei Takata",
+            "Shuntaro Tanimura",
+            "Yuto Shibata",
+            "Kazuya Maeda",
+            "Junki Kawakami",
+            "Takahiro Arima",
+            "Tatsuki Karasugi",
+            "Takuya Tokunaga",
+            "Hiro Sato",
+            "Tetsuro Masuda",
+            "Satoshi Hisanaga",
+            "Yuki Kai",
+            "Soichiro Karata",
+            "Hikaru Goshogawa",
+            "Rui Tajiri",
+            "Hibiki Yamada",
+            "Yusuke Uehara",
+            "Takayuki Nakamura",
+            "Masaki Yugami",
+            "Kazuki Sugimoto",
+            "Ryuji Yonemitsu",
+            "Hironori Tanoue",
+            "Kazuya Yamagata",
+            "Takeshi Miyamoto"
+          ],
+          "year": 2026,
+          "doi": "10.1007/s00774-026-01713-3",
+          "abstract_available": true,
+          "abstract_sha256": "a6ac5307635883985eb769009d6abb71343c415335b9ff8f08a262ee8494e687",
+          "fulltext_available": true,
+          "blind_id": "50b1d820211c46a6b7dc7c0dfc3486c3"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:28:44.708445+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "RANKL induces calcineurin-activated NFATc1, driving monocyte-macrophage differentiation into bone-resorbing osteoclasts.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_05",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_05"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_05",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42335646",
+              "42761833",
+              "42069096",
+              "42251792",
+              "41786203",
+              "42492705",
+              "41872383",
+              "41999706",
+              "42181479"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42335646",
+            "42761833",
+            "42069096",
+            "42251792",
+            "41786203",
+            "42492705",
+            "41872383",
+            "41999706",
+            "42181479"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42335646",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42761833",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42069096",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42251792",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41786203",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42492705",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41872383",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41999706",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42181479",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42335646",
+          "42761833",
+          "41872383"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 6,
+      "pair_id": "rankl-nfatc1-osteoclast",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "15778503",
+      "draft": "Sclerostin binds LRP5/6 and antagonizes canonical Wnt signaling in osteoblast-lineage cells.",
+      "wire_query": "Sclerostin binds LRP5/6 and antagonizes canonical Wnt signaling in osteoblast-lineage cells.",
+      "started_at_utc": "2026-09-25T09:28:44.710429+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "41569384",
+          "title": "The vinculin-β-catenin axis promotes bone formation and repair: an essential prerequisite for the anti-osteoporotic efficacy of sclerostin-neutralizing antibody.",
+          "authors": [
+            "Sixiong Lin",
+            "Chu Tao",
+            "Yishu Wang",
+            "Jianglong Li",
+            "YuJia Shi",
+            "Qinnan Yan",
+            "Yiming Zhong",
+            "Huanqing Gao",
+            "Tingxuan Wang",
+            "Yibo Wang",
+            "Qing Yao",
+            "Jianmei Huang",
+            "Peijun Zhang",
+            "Di Chen",
+            "Lijun Lin",
+            "Dongyang Qian",
+            "Xuenong Zou",
+            "Guozhi Xiao"
+          ],
+          "year": 2026,
+          "doi": "10.1007/s11427-025-3089-5",
+          "abstract_available": true,
+          "abstract_sha256": "e1f5c3613e85810a7c1f7e22ba800f939d578e9396bfd9c2bc9c1c0df1a8b7ae",
+          "fulltext_available": true,
+          "blind_id": "e072bdf0416746d68fd9609f8eb19b7c"
+        },
+        {
+          "rank": 2,
+          "pmid": "41723149",
+          "title": "Identification of ephrin-A1-EphA2 signalling as a potential target for fracture prevention.",
+          "authors": [
+            "Sofia Movérare-Skrtic",
+            "Maria Nethander",
+            "Lei Li",
+            "Nelson Tsz Long Chu",
+            "Ostap Dregval",
+            "Xin Tian",
+            "Karin H Nilsson",
+            "Petra Henning",
+            "Ulf H Lerner",
+            "Andrei S Chagin",
+            "Claes Ohlsson"
+          ],
+          "year": 2026,
+          "doi": "10.1038/s41467-026-69863-6",
+          "abstract_available": true,
+          "abstract_sha256": "820c5b4f1ff40f6291af90f0bfd14b522492fb2f559ad3449c9814f779822b95",
+          "fulltext_available": true,
+          "blind_id": "04c63c6bfb534d3dac666825d7e2b12e"
+        },
+        {
+          "rank": 3,
+          "pmid": "40728828",
+          "title": "In silico identification of sclerostin inhibitors.",
+          "authors": [
+            "Yusuf Şimşek",
+            "Sahra Setenay Baran",
+            "Erdal Ergünol",
+            "Altay Uludamar",
+            "Aylin Sepici Dinçel",
+            "Şakir Erkoç"
+          ],
+          "year": 2026,
+          "doi": "10.1007/s11030-025-11298-0",
+          "abstract_available": true,
+          "abstract_sha256": "5c2a15ca1c0039618778141ac743a397edf00c98d85e3c7ef6f6e47101631bc3",
+          "fulltext_available": true,
+          "blind_id": "d863da9f091f4a7b95c25c330645245a"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T09:29:00.103189+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Sclerostin binds LRP5/6 and antagonizes canonical Wnt signaling in osteoblast-lineage cells.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_06",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_06"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_06",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "41569384",
+              "41723149",
+              "40728828",
+              "40896957",
+              "40593608",
+              "39726666",
+              "39596206",
+              "39389544",
+              "37608541"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "41569384",
+            "41723149",
+            "40728828",
+            "40896957",
+            "40593608",
+            "39726666",
+            "39596206",
+            "39389544",
+            "37608541"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "41569384",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41723149",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40728828",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40896957",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40593608",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39726666",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39596206",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "39389544",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "37608541",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "41569384",
+          "41723149",
+          "40728828"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 7,
+      "pair_id": "glp1r-adenylate-cyclase",
+      "arm": "positive",
+      "target_pmid": "1326760",
+      "anchor_pmid": null,
+      "draft": "A pancreatic islet GLP-1 receptor binds GLP-1 with high affinity and activates adenylate cyclase.",
+      "wire_query": "A pancreatic islet GLP-1 receptor binds GLP-1 with high affinity and activates adenylate cyclase.",
+      "started_at_utc": "2026-09-25T09:29:00.104653+00:00",
+      "papers": [],
+      "ended_at_utc": "2026-09-25T09:29:09.550219+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "A pancreatic islet GLP-1 receptor binds GLP-1 with high affinity and activates adenylate cyclase.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_v2_8759cb448901_07",
+        "run_id": "m11_nov_01a3b2_v2_8759cb448901_07"
+      },
+      "trace_error": "ValueError",
+      "target_in_first_three": false,
+      "classification": "retrieval_error",
+      "exception_type": "ValueError",
+      "upstream_http_status": null,
+      "retry_after": null
+    }
+  ]
+}

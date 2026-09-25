@@ -1,0 +1,287 @@
+{
+  "title": "M11 exact-zero privacy-compatible route shortlist",
+  "checked_at_utc": "2026-09-25T13:57:20.874922+00:00",
+  "purpose": "Read-only screening of current exact-zero routes against structured/tool capability, provider data-use policy and retained M1 interface evidence. No inference, credential access, retry, configuration or deployment change.",
+  "result": {
+    "defensible_replacement_count": 0,
+    "decision": "No currently listed explicit exact-zero route besides Qwen meets the provider ZDR/no-training screen. Qwen is operationally unavailable in the retained M1 evidence after repeated shared-pool 429s, including the single 25 September probe; therefore no replacement is selectable or qualified."
+  },
+  "official_catalog": {
+    "url": "https://openrouter.ai/api/v1/models",
+    "sha256": "c3648954438d992e988d25e6bc3f3e0216d04b091f2978c83b630c455d113bc4",
+    "total_entries": 458,
+    "exact_zero_models_with_structured_outputs_and_tools": 5,
+    "matching_ids": [
+      "qwen/qwen3.8-27b:free",
+      "dots-studio/dots-3-note-preview:free",
+      "liquid/lfm-2.5-2.6b:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "openrouter/free"
+    ],
+    "explicit_matching_ids": [
+      "qwen/qwen3.8-27b:free",
+      "dots-studio/dots-3-note-preview:free",
+      "liquid/lfm-2.5-2.6b:free",
+      "nvidia/nemotron-3-super-120b-a12b:free"
+    ]
+  },
+  "zdr_endpoint_catalog": {
+    "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+    "sha256": "75252fe715ba246773d0c4381803e19ae699c279ad61aa12f26afa2a5045e142",
+    "matched_exact_zero_endpoints": [
+      {
+        "model_id": "qwen/qwen3.8-27b:free",
+        "provider_name": "ModelRun",
+        "name": "ModelRun | qwen/qwen3.8-27b-20260814:free",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "discount": 0
+        },
+        "status": 0
+      }
+    ]
+  },
+  "endpoint_receipts": {
+    "qwen/qwen3.8-27b:free": {
+      "url": "https://openrouter.ai/api/v1/models/qwen/qwen3.8-27b%3Afree/endpoints",
+      "sha256": "97c16206551b630f7bad3468fe2465a49754d440740e1011f1db0e6d9b3772a2",
+      "endpoints": [
+        {
+          "name": "ModelRun | qwen/qwen3.8-27b-20260814:free",
+          "provider_name": "ModelRun",
+          "capabilities": {
+            "structured_outputs": true,
+            "tools": true,
+            "reasoning_controls": true,
+            "streaming": "not exposed in catalog parameter list; requires a live interface response"
+          }
+        }
+      ]
+    },
+    "dots-studio/dots-3-note-preview:free": {
+      "url": "https://openrouter.ai/api/v1/models/dots-studio/dots-3-note-preview%3Afree/endpoints",
+      "sha256": "a869b7d3768f97e58fd0ca11ab5da081074962dd628d85517612e285e2e1aee1",
+      "endpoints": [
+        {
+          "name": "AtlasCloud | dots-studio/dots-3-note-preview-20260813:free",
+          "provider_name": "AtlasCloud",
+          "capabilities": {
+            "structured_outputs": true,
+            "tools": true,
+            "reasoning_controls": true,
+            "streaming": "not exposed in catalog parameter list; requires a live interface response"
+          }
+        }
+      ]
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "url": "https://openrouter.ai/api/v1/models/liquid/lfm-2.5-2.6b%3Afree/endpoints",
+      "sha256": "21cbebd99929e8a14bc4fd944afe98031a175ed70e7a1c1e244b51b56fc510ab",
+      "endpoints": [
+        {
+          "name": "Liquid | liquid/lfm-2.5-2.6b-20260811:free",
+          "provider_name": "Liquid",
+          "capabilities": {
+            "structured_outputs": true,
+            "tools": true,
+            "reasoning_controls": true,
+            "streaming": "not exposed in catalog parameter list; requires a live interface response"
+          }
+        }
+      ]
+    },
+    "nvidia/nemotron-3-super-120b-a12b:free": {
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-super-120b-a12b%3Afree/endpoints",
+      "sha256": "d4141d26e4089df13f596a5138c427740e110d4513b98ab5900b35353a9ade8b",
+      "endpoints": [
+        {
+          "name": "Nvidia | nvidia/nemotron-3-super-120b-a12b-20230311:free",
+          "provider_name": "Nvidia",
+          "capabilities": {
+            "structured_outputs": true,
+            "tools": true,
+            "reasoning_controls": true,
+            "streaming": "not exposed in catalog parameter list; requires a live interface response"
+          }
+        }
+      ]
+    }
+  },
+  "provider_directory_observations": {
+    "source": "https://openrouter.ai/providers/",
+    "checked_date": "2026-09-25",
+    "columns": "Trains; Retention; BYOK; headquarters",
+    "ModelRun": {
+      "trains": false,
+      "retention": "Zero retention",
+      "byok": false
+    },
+    "AtlasCloud": {
+      "trains": false,
+      "retention": "Retains prompts",
+      "byok": true
+    },
+    "Liquid": {
+      "trains": true,
+      "retention": "Retains prompts",
+      "byok": true
+    },
+    "NVIDIA": {
+      "trains": true,
+      "retention": "Retains prompts",
+      "byok": true
+    },
+    "provider_terms": {
+      "ModelRun_by_Modular": "https://www.modular.com/legal/terms",
+      "note": "Modular Terms §3.5 permit use/disclosure of aggregated or anonymized derivative data that may be based on User Generated Content transmitted via its platform; OpenRouter currently lists the ModelRun Qwen endpoint as zero retention and no training."
+    }
+  },
+  "routes": {
+    "qwen/qwen3.8-27b:free": {
+      "current_catalog": {
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "capabilities": {
+          "structured_outputs": true,
+          "tools": true,
+          "reasoning_controls": true,
+          "streaming": "not exposed in catalog parameter list; requires a live interface response"
+        }
+      },
+      "privacy": "ModelRun: no training and zero retention in provider directory; exact endpoint appears in ZDR endpoint API.",
+      "retained_M1": "No completed capability case after repeated upstream shared-pool 429s; 25 Sep one-request json_off attempt also stopped on 429. No served model or usage. Streaming/tools/long cases remain unavailable.",
+      "disposition": "Only provider-policy match, but not an operationally available or qualified replacement; do not retry."
+    },
+    "dots-studio/dots-3-note-preview:free": {
+      "current_catalog": {
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 512000,
+        "capabilities": {
+          "structured_outputs": true,
+          "tools": true,
+          "reasoning_controls": true,
+          "streaming": "not exposed in catalog parameter list; requires a live interface response"
+        }
+      },
+      "privacy": "AtlasCloud is listed as not training, but retains prompts; exact endpoint is absent from current ZDR list.",
+      "retained_M1": "Five interface cases passed, including 6 streaming content deltas. Batch-schema acceptance is false after a missing population-scope quote; scientific characterization failed its declared recall gate.",
+      "disposition": "Exclude from this privacy-compatible shortlist because prompts are retained; previous interface pass is not a default approval."
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "current_catalog": {
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 65536,
+        "capabilities": {
+          "structured_outputs": true,
+          "tools": true,
+          "reasoning_controls": true,
+          "streaming": "not exposed in catalog parameter list; requires a live interface response"
+        }
+      },
+      "privacy": "OpenRouter model page says prompts and outputs may be retained and used to train Liquid models; provider directory agrees.",
+      "retained_M1": "All five interface cases passed across the original and post-reset artifacts. All three scientific trials failed accuracy and contradiction-recall gates and failed scope controls.",
+      "disposition": "Exclude because provider retains/trains on prompts and prior scientific qualification failed."
+    },
+    "nvidia/nemotron-3-super-120b-a12b:free": {
+      "current_catalog": {
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "capabilities": {
+          "structured_outputs": true,
+          "tools": true,
+          "reasoning_controls": true,
+          "streaming": "not exposed in catalog parameter list; requires a live interface response"
+        }
+      },
+      "privacy": "Provider directory marks training and prompt retention. OpenRouter model page says free endpoint requests are logged for security/product improvement and asks users not to send confidential or personal data.",
+      "retained_M1": "Short JSON, tools and streaming passed in cycle 164; long JSON passed in cycle 181. Later scientific evaluation is inconclusive due provider overload/deterministic fallback and a manifest issue.",
+      "disposition": "Exclude for data-use terms; the retained interface coverage does not override the provider restriction."
+    },
+    "openrouter/free": {
+      "current_catalog": {
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 200000,
+        "capabilities": {
+          "structured_outputs": true,
+          "tools": true,
+          "reasoning_controls": true,
+          "streaming": "not exposed in catalog parameter list; requires a live interface response"
+        }
+      },
+      "privacy": "Dynamic generic router has no stable provider/model terms; the campaign README explicitly excludes non-explicit openrouter/free.",
+      "retained_M1": "No exact model route or single-provider compatibility result applies.",
+      "disposition": "Ineligible despite exact-zero aggregate catalog pricing."
+    }
+  },
+  "official_model_pages": {
+    "qwen": "https://openrouter.ai/qwen/qwen3.8-27b:free",
+    "dots": "https://openrouter.ai/dots-studio/dots-3-note-preview:free",
+    "liquid": "https://openrouter.ai/liquid/lfm-2.5-2.6b:free",
+    "nemotron": "https://openrouter.ai/nvidia/nemotron-3-super-120b-a12b:free"
+  },
+  "retained_evidence_hashes": {
+    "README": {
+      "path": "references/external/baseline/model-qualification/README.md",
+      "sha256": "77cecea16bc766d132b30e7733ec8d06f853b262b1abf66f96e667bcda9a5560"
+    },
+    "qwen_2026_probe": {
+      "path": "references/external/baseline/model-qualification/qwen-m11-capabilities-2026-09-25.json",
+      "sha256": "af0f04d4c15e97aeb33ff3590984253fb9dab463f1d906614d9d7010ecaa2b0c"
+    },
+    "dots_capabilities": {
+      "path": "references/external/baseline/model-qualification/dots-capabilities127.json",
+      "sha256": "478d057792454d74f37b27570244bc282a28abfdb6b76b5158551b61cc79f712"
+    },
+    "dots_batch": {
+      "path": "references/external/baseline/model-qualification/dots-batch127-acceptance.json",
+      "sha256": "3f3b41220b17c8d2c9b955655a7d790d292502e8248f9d9a0904e7d6220280ca"
+    },
+    "dots_scientific": {
+      "path": "references/external/baseline/model-qualification/dots-challenge128-summary.json",
+      "sha256": "d769d810f8025f70184330156ed9e9658d7a87072fb018a6bf9801eb77e1039f"
+    },
+    "liquid_capabilities": {
+      "path": "references/external/baseline/model-qualification/liquid-capabilities169-summary.json",
+      "sha256": "e8e4345db13e779120e7684bf847370ee6a1a1fa08654a23f89383d74f096ed0"
+    },
+    "liquid_scientific": {
+      "path": "references/external/baseline/model-qualification/liquid-resume172.md",
+      "sha256": "86478acfff34e78903f04638e0d85bdf807d887c5395dbe70bc767c32545caa6"
+    },
+    "nemotron_capabilities": {
+      "path": "references/external/baseline/model-qualification/nemotron-super-capabilities164.json",
+      "sha256": "de2dfedc59f5823439ca870fe534b550286c21eedf0710171b0b514856977d3b"
+    },
+    "nemotron_long": {
+      "path": "references/external/baseline/model-qualification/nemotron-super-capabilities181.json",
+      "sha256": "5d18c16abb23106e4436e7c8ddaa60e1b1a9ce4d4942c7748df2bce7ed359a5f"
+    },
+    "nemotron_scientific": {
+      "path": "references/external/baseline/model-qualification/nemotron-scientific-summary182.md",
+      "sha256": "84a5cdbab71ec95aff8c3974478c8e2c3c9c10513ea1cd67c3388a340394517a"
+    }
+  },
+  "limits": [
+    "Catalog/provider metadata establishes advertised interfaces and policies, not live compatibility or reliable uptime.",
+    "No route with both a current exact-zero listing and provider ZDR/no-training policy (other than repeatedly rate-limited Qwen) can be selected from this inventory.",
+    "Streaming capability is supported by retained M1 observations for Dots/Liquid/Nemotron only; Qwen has no observed stream response.",
+    "The generic openrouter/free aggregate route is not a substitute because provider/model identity and data terms can vary."
+  ],
+  "next_action": "Keep M11-OPS-02b open; continue independent work. Do not repeat the Qwen probe or add a provider-retaining route to a default chain."
+}

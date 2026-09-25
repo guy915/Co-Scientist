@@ -1,0 +1,580 @@
+{
+  "purpose": "Preregistered M11-NOV-01a3a PubMed date-vs-relevance sort-only diagnostic",
+  "result_sha256": "caa105d7262be9725362659bf437c0b327ff3a3954e7d4a449f652b8976fc13f",
+  "blind_batch_sha256": "ce4fdb71ab3ffb29a265755b4f384d7989e28da2ef202dd8ed7a5232aa8d6f3d",
+  "blind_labels_sha256": "51fd5cdec0a8269bdcc38244bf13bf2ce111c54c5c4b71e36855181a7502bf87",
+  "reviewer": "fresh-context Luna 6 xhigh, blinded to arm, sort, PMID, rank and outcome",
+  "judgments": [
+    {
+      "item_id": "6cNhv-v9LhKh13tP",
+      "label": "related_without_mechanism_support",
+      "reason": "Covers SARS-CoV-2 entry and cardiac TMPRSS2 context, not airway infection reduced by TMPRSS2 inhibition.",
+      "abstract_sha256": "ec71009f2f44554b3714458c842693772c5d0eeb751ca87c96a34facc8257ae6",
+      "title_sha256": "6f552109fdda8f91dfbc1bdf198faaf6648b691005b0c4702d4322721a76d9dd"
+    },
+    {
+      "item_id": "ufO9G5aSN7Y8EecL",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies spike-mediated entry and fusion, not endothelial inflammatory signaling.",
+      "abstract_sha256": "06503bc09b07a82268870a78b8a2b9403924fc090ef4ed07136bba8633673c38",
+      "title_sha256": "fd6d67be0e2196685759edbe628c46b9722fc4fda2477a0f74888fdb26a60adf"
+    },
+    {
+      "item_id": "y6SGLwhZCKPIEcGx",
+      "label": "related_without_mechanism_support",
+      "reason": "Covers AD UNC13A cryptic splicing, not STMN2 transcripts or axonal repair.",
+      "abstract_sha256": "e9242be4dbdb0777eb259c7cb912979c567522263e80a94fa6994abf236fa989",
+      "title_sha256": "6065cec75256ae2e36f0f84e4a385cdfaffbd2d4218463d0bc0fe3c01c6c4ac3"
+    },
+    {
+      "item_id": "Q23bmSaaeiUNn24n",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies Qa-1 CD8 regulation, not viral peptide recognition or CMV defense.",
+      "abstract_sha256": "80783e06aa1e237568106020822565cf7dd4706d774837f8bc6db18e988bf38c",
+      "title_sha256": "1530614ce93db4a784c2136df2a0e0e5bdaef9ea6f67c6b7f6d2bd7e02a175fe"
+    },
+    {
+      "item_id": "kaUHVP0V3ug-jK2N",
+      "label": "related_without_mechanism_support",
+      "reason": "Links TDP-43, STMN2 splicing, and regeneration, but does not state the cryptic polyadenylation mechanism.",
+      "abstract_sha256": "595b67bac45978382a39a487e59dc6916fa9550af634ef42ce873befa9f8c482",
+      "title_sha256": "f17301632f9360cb32015457ed4f08d5145d47b60bd3d95b58582ee10f60f3bb"
+    },
+    {
+      "item_id": "v08skkOLuSlzmbRb",
+      "label": "related_without_mechanism_support",
+      "reason": "Associates AD cryptic RNAs with brain volumes, not the UNC13A risk variant with cognitive decline independent of TDP-43 pathology.",
+      "abstract_sha256": "346c5d059d1f51e6a3e975225c62943f8942fa4130285a1f1205c2c57bc84159",
+      "title_sha256": "838a4a3f1f493ca22957352022c6edb1faaee198590264e7537b70d37ce5cf41"
+    },
+    {
+      "item_id": "t0JKjuQbjkZ5JvL0",
+      "label": "related_without_mechanism_support",
+      "reason": "Mentions STMN2 as a therapeutic target, without the proposed transcript and repair mechanism.",
+      "abstract_sha256": "cd73565e6f47d195f888868b526ec62964509cfbb7eb15d2c2844d4ee81a87bd",
+      "title_sha256": "eacb155a9812cb2cff1e3f03488e9994e34cd24d68055a55e457f7e579c94922"
+    },
+    {
+      "item_id": "6jexmeKgNgwiPWLc",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies UNC13A variants in ALS/FTD, not the stated AD cognitive association.",
+      "abstract_sha256": "c3b4d0572c325da19cd814fe8e6ab40a6f960347756f0f6cbceed2f9aea64f47",
+      "title_sha256": "cb60c7c9884c236be01f33a8ce0d945dfdccfc9e91a341b8c88d13a0f1d636d4"
+    },
+    {
+      "item_id": "oKY1lv0RtXgeJNBT",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies TMPRSS2-dependent viral entry, not endothelial inflammation through interferon and ISG15.",
+      "abstract_sha256": "869ab7be4d716f75ef21c7ec4f72f15766e728bff3a905e728cc9999ba6955d0",
+      "title_sha256": "e5d4968451f63403e0674576fa6771a225ff42c2e20d3d99d442af10e8514022"
+    },
+    {
+      "item_id": "FweAlJ70PV2Rgsw_",
+      "label": "unrelated",
+      "reason": "Studies fungal gene-cluster engineering and metabolite production.",
+      "abstract_sha256": "7d4be0bb50b6a76372883879ebd53ab3f616b096deac99b5b857afc893e695ac",
+      "title_sha256": "893b5b11be67ec2f3bc42a8101dd7f01f9aee85bc57378b6114530b0cc25e4d2"
+    },
+    {
+      "item_id": "gnPQIupviD3Fgppq",
+      "label": "related_without_mechanism_support",
+      "reason": "Reviews cryptic exons in TDP-43 disorders, without the stated AD UNC13A association.",
+      "abstract_sha256": "6fd8524438ec54d36340eded5bf0f44c8bd5e3dd6c4351ab2d8f55cb65be9756",
+      "title_sha256": "773ca5cb87cfa16647ee63783303f8c9783ebe81ca8f9c10b9fc0dd4d0d05db8"
+    },
+    {
+      "item_id": "dtR__NRcB_wLDGVc",
+      "label": "unrelated",
+      "reason": "Studies biosynthesis of antifungal antibiotics.",
+      "abstract_sha256": "0b01e43c08e11527d6810c5a5d8a0bbf96a6a40295527f38d641cb9c8d7e07df",
+      "title_sha256": "e4298b68de4cdf08654008c0c792378a6ac63f826d3ed4eac788e60d281433a1"
+    },
+    {
+      "item_id": "x2g2-2K9dBVFEEc8",
+      "label": "related_without_mechanism_support",
+      "reason": "Links TDP-43 and UNC13A splicing in neurodegeneration, not the stated AD variant-cognition association.",
+      "abstract_sha256": "73cabcc3ff29a33f4917f83875fdaf739ab4d2a7453b532c7060ad0187f887ef",
+      "title_sha256": "98498278a1f2af47d7d203500af4d5478abad555e9fbcdb7cb31a0b31d2cc701"
+    },
+    {
+      "item_id": "dIR8S7jT2DF28YNz",
+      "label": "related_without_mechanism_support",
+      "reason": "Tests SARS-CoV-2 entry inhibition but does not establish that TMPRSS2 reduction causes it.",
+      "abstract_sha256": "bb40e307afaa620cd379d0137dbcdd263024b2a4e57b0f1469e0a44aa8df28c6",
+      "title_sha256": "c66b549ae67b93313a729caafdaa79926b70826e791264f91eabc910827fe6a6"
+    },
+    {
+      "item_id": "rQdrCtdE78yaYVi7",
+      "label": "related_without_mechanism_support",
+      "reason": "Shows UNC13A variant effects in ALS/FTD, not the stated AD cognitive association.",
+      "abstract_sha256": "739b5bca3d0a3f1695f7771bdeb654864e6bb035be8b0594f8494830c72388dd",
+      "title_sha256": "bd6789a57e6a4ceeb21ed084840ee6f19e484d01d05934d48884b01d841dd55d"
+    },
+    {
+      "item_id": "b8f5V8kyyXmEeKiJ",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies tumor immune inhibition through FGL1-LAG-3, not Qa-1b-NKG2A/CD94 signaling.",
+      "abstract_sha256": "f7ac251913af15467a7b2ac9cdbc4df3f25a11ec86b96f96e08115219136117f",
+      "title_sha256": "c8cdd0df731dd1db10ef26befd67f1fd330f7fff39dcbb3be1caa6340735a7f7"
+    },
+    {
+      "item_id": "siuCFypxwXbhtOpI",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies tumor-associated T-cell suppression through TDO2, not Qa-1b-NKG2A/CD94 signaling.",
+      "abstract_sha256": "187b02002773736f8668acd4584e7b117eea9d567f02628cd962af03924c1244",
+      "title_sha256": "3a8ff7fb44adb1de10adc005738348a8fdee1e9960863adbb933187572b82edf"
+    },
+    {
+      "item_id": "UeGahYsG0WjbjrhP",
+      "label": "related_without_mechanism_support",
+      "reason": "Reviews Qa-1-restricted regulatory T cells, not antiviral CMV recognition and defense.",
+      "abstract_sha256": "f56a9f898328f1f409d59bde33fae9c7dd7ba060e9ce6ed71069ba489d12f9d7",
+      "title_sha256": "9daef6a1f72afc85bcf2c63e8dca248f91a40d40301eb4caf2f75be08dc667fb"
+    },
+    {
+      "item_id": "H45d4AnSgpSW2Eda",
+      "label": "supports_central_mechanism",
+      "reason": "Qa-1-restricted CD8 cells protect against murine CMV lethality.",
+      "abstract_sha256": "6de52a5f2ef2a853bf6496a57c124a9927a9e725240e0be2f5dd8504e909270a",
+      "title_sha256": "964477f12f8987c38b41c18ee73c98bcfc8d27e720f6fc9917313cf2277251f3"
+    },
+    {
+      "item_id": "fB8QNtvYzgrN73Y7",
+      "label": "unrelated",
+      "reason": "Studies language-network changes in brain arteriovenous malformations.",
+      "abstract_sha256": "edec9b25a064f5af7b29e017c2b59aae6fe00ef0dcd70df355a0511c72f3b8a8",
+      "title_sha256": "6fee92c9a2367d692c7e274c97a786f179651bc9b7f5e6c7a60bb4c63daceee4"
+    },
+    {
+      "item_id": "ZSogENONA8bbkIYP",
+      "label": "related_without_mechanism_support",
+      "reason": "Reviews STMN2 cryptic exons, without the specific polyadenylation-to-axonal-repair claim.",
+      "abstract_sha256": "6fd8524438ec54d36340eded5bf0f44c8bd5e3dd6c4351ab2d8f55cb65be9756",
+      "title_sha256": "773ca5cb87cfa16647ee63783303f8c9783ebe81ca8f9c10b9fc0dd4d0d05db8"
+    },
+    {
+      "item_id": "sAhrdavLaykJpLVH",
+      "label": "related_without_mechanism_support",
+      "reason": "Finds STMN2 cryptic transcripts in C9-FTD synapses, not the proposed motor-neuron repair mechanism.",
+      "abstract_sha256": "61970bb4a326cb50d54c20439454cb08ef8679c68f3d5afe3e61eb87e90f7684",
+      "title_sha256": "931d680081d97fb38f588d2e38086d30dd85e746f02ea4cf8f7add45aaf0b5c0"
+    },
+    {
+      "item_id": "SkgUgzxaX4pq6D1T",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies SARS-CoV-2 entry in kidney organoids, with redundant pathways and a different cell context.",
+      "abstract_sha256": "3df0cb2cbf8b465c78b90c67b79b752aa0fba1f63e7dc548b364a35d7209bf31",
+      "title_sha256": "3bc190d39755c0a43ffa5d1ef34d666ac9afaaefad2ff5c529199ebcaf07483e"
+    },
+    {
+      "item_id": "3GvgMFw7uzEH_Iem",
+      "label": "related_without_mechanism_support",
+      "reason": "Shows spike S1 involvement in entry, not endothelial inflammatory dysfunction.",
+      "abstract_sha256": "81710c8cc578993cb5ae9d24792ff3c7ede95138fbe552e9abeea4d0d56dba1a",
+      "title_sha256": "068f65994698ee70935abb442c47f1a5a21fc785839288ae5b0c85954b8d8cec"
+    },
+    {
+      "item_id": "SUKQfVmWwOL_3Y5g",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies ACE2-dependent pseudovirus entry, not the effect of TMPRSS2 reduction.",
+      "abstract_sha256": "65df7e4ddfd937f911a1bdf778023d0a615c75c40cf57a483778ebf5fb060e31",
+      "title_sha256": "2110ae704c1bd6d3559503b5b06050bc72e6be6e404da363bcc751fa48ed54c7"
+    },
+    {
+      "item_id": "2ebJp-lwT8K4JQoa",
+      "label": "related_without_mechanism_support",
+      "reason": "Measures vaccine-induced immune responses, not endothelial effects of spike S1.",
+      "abstract_sha256": "e28ecd147c094e1b8f44e83b1dcfd0ded880958a179acdff64bb1b7bf5b02efc",
+      "title_sha256": "89c62e57a70a38b34d0276379cdad3ddce2ea098a7bb792a0acf50f971e39dc2"
+    },
+    {
+      "item_id": "8rvLmb09UBQIYnfs",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies Qa-1 CD8 regulation of transplant rejection, not CMV defense.",
+      "abstract_sha256": "110a72c594e974daaa188d49a08def1e1da3ff5e386d31e6bb220d8450c9bdc8",
+      "title_sha256": "6c89a7ab376a163e3736627d1e388dc82e271640aeba5e04a087678178df4690"
+    },
+    {
+      "item_id": "98wxDHinHudwcITs",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies CKD and COVID outcomes, not endothelial spike-driven inflammation.",
+      "abstract_sha256": "9076614e2364171c76b3a81d5dee7f49cda4bc0c99a4468e3dbb9aff54edac9c",
+      "title_sha256": "026fb77f04e82af7d2477e38e92d77a18527c10de70f379ecf929f77d408d7d7"
+    },
+    {
+      "item_id": "pfeBN35MwjaKQTJx",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies tumor CD8 survival signals, not Qa-1b-NKG2A/CD94 inhibition.",
+      "abstract_sha256": "159132ba13d77aa8ef30632b614f804e24d66a86052d7e63205f520070e74c1b",
+      "title_sha256": "2c925f3a97ec4ccca708a37b42b9444ca6b0ac9c2a8724b2597f0a7e21caa196"
+    },
+    {
+      "item_id": "kJA7GpqsM_-LRp4u",
+      "label": "related_without_mechanism_support",
+      "reason": "Finds spike S1-related neuroinflammation, not endothelial interferon/ISG15 dysfunction.",
+      "abstract_sha256": "6076340bd1ba24a7da7cbf29133e2a82ffcdc96c276012a780d97b0a2019eb26",
+      "title_sha256": "d863054e8f92ffffd6c97f00311f1646af3121539591749c3cb7fa9fd9e8d19a"
+    },
+    {
+      "item_id": "D8BP8z4gOIAZxXvw",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies ACE2-independent sarbecovirus entry, not ACE2-dependent SARS-CoV-2 infection in airway cells.",
+      "abstract_sha256": "7172c00880af0cb4e469c583c279c156f171b4b0aa3105750b65e9fa59d7eced",
+      "title_sha256": "38886a20f49d6724be1ad28edd10d1090d65634ca78c6e31f5d33e1a3e90045b"
+    },
+    {
+      "item_id": "TNz-MAR5unOhAfX-",
+      "label": "supports_central_mechanism",
+      "reason": "Links TDP-43 loss to STMN2 cryptic splicing and shows correction restores axonal regeneration.",
+      "abstract_sha256": "5b98b74771f33cc226c3de748f3ea0ff711abb7f135e74ea081af796f987270a",
+      "title_sha256": "c43538fe448713dac4f47bf8ac9baeed8bf5a601e3cb5ec8d9d0b7fc24c3faa9"
+    },
+    {
+      "item_id": "45SK2gYTc_uIlEA3",
+      "label": "supports_central_mechanism",
+      "reason": "Shows Qa-1-restricted cells recognize CMV peptides and protect mice from mortality.",
+      "abstract_sha256": "0387843329429b945f5b29116f6b213eaf29d4a21f469e13fb1af69336716808",
+      "title_sha256": "20df1dbe7f3e77931ba98761620ae87fc2ca8ee599fa781b4f01c3de0219defd"
+    },
+    {
+      "item_id": "TFIoxn7N1SUU_1p2",
+      "label": "related_without_mechanism_support",
+      "reason": "Studies ACE2-independent bat sarbecovirus entry; TMPRSS2 had no effect in the tested system.",
+      "abstract_sha256": "1cfe65f575f750276773d83ae25ed7edae994abc81d60b391922f931b4ddee4c",
+      "title_sha256": "8bf34190158af1a887511b8423d3d1408c7847e27ad80ca1b530e473564d3600"
+    },
+    {
+      "item_id": "Q0aDFdQzPpuQJTIV",
+      "label": "supports_central_mechanism",
+      "reason": "Reports that the AD UNC13A variant associates with cognitive decline but not TDP-43 pathology.",
+      "abstract_sha256": "e9242be4dbdb0777eb259c7cb912979c567522263e80a94fa6994abf236fa989",
+      "title_sha256": "6065cec75256ae2e36f0f84e4a385cdfaffbd2d4218463d0bc0fe3c01c6c4ac3"
+    },
+    {
+      "item_id": "tImKrNzCSzeIPR2o",
+      "label": "supports_central_mechanism",
+      "reason": "Shows Qa-1-restricted cells recognize CMV peptides and protect mice from mortality.",
+      "abstract_sha256": "0387843329429b945f5b29116f6b213eaf29d4a21f469e13fb1af69336716808",
+      "title_sha256": "20df1dbe7f3e77931ba98761620ae87fc2ca8ee599fa781b4f01c3de0219defd"
+    }
+  ],
+  "metrics": {
+    "baseline": {
+      "positive_target_recall_at_3": 0,
+      "positive_cases": 3,
+      "control_own_anchor_recall_at_3": 2,
+      "control_cases": 3,
+      "positive_supporting_abstracts": 0,
+      "positive_unrelated_abstracts": 3,
+      "cross_pair_anchor_hits_at_3": [
+        {
+          "pair": "stmn2",
+          "retrieving_case": "stmn2-tdp43-recovery",
+          "other_case_anchor_pmid": "42596024"
+        }
+      ]
+    },
+    "candidate": {
+      "positive_target_recall_at_3": 0,
+      "positive_cases": 3,
+      "control_own_anchor_recall_at_3": 1,
+      "control_cases": 3,
+      "positive_supporting_abstracts": 1,
+      "positive_unrelated_abstracts": 0,
+      "cross_pair_anchor_hits_at_3": []
+    }
+  },
+  "per_call": [
+    {
+      "case_id": "stmn2-tdp43-recovery",
+      "kind": "positive",
+      "arm": "baseline",
+      "source_anchor_pmid": "30643298",
+      "source_publication_year": "2019",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "42359165",
+        "42596024",
+        "42619804"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "stmn2-tdp43-recovery",
+      "kind": "positive",
+      "arm": "candidate",
+      "source_anchor_pmid": "30643298",
+      "source_publication_year": "2019",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "36922834",
+        "36927019",
+        "30643292"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 2,
+        "supports_central_mechanism": 1
+      }
+    },
+    {
+      "case_id": "unc13a-cognitive-control",
+      "kind": "distinct_idea_control",
+      "arm": "candidate",
+      "source_anchor_pmid": "42596024",
+      "source_publication_year": "2026",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "35197626",
+        "36922834",
+        "35197628"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "unc13a-cognitive-control",
+      "kind": "distinct_idea_control",
+      "arm": "baseline",
+      "source_anchor_pmid": "42596024",
+      "source_publication_year": "2026",
+      "anchor_in_final_3": true,
+      "anchor_in_selected_9": true,
+      "anchor_in_any_attempt_first_9": true,
+      "final_pmids": [
+        "42596024",
+        "42178983",
+        "41952326"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "supports_central_mechanism": 1,
+        "related_without_mechanism_support": 2
+      }
+    },
+    {
+      "case_id": "sars-entry-recovery",
+      "kind": "positive",
+      "arm": "candidate",
+      "source_anchor_pmid": "32142651",
+      "source_publication_year": "2020",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "36409074",
+        "38334329",
+        "35874948"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "sars-entry-recovery",
+      "kind": "positive",
+      "arm": "baseline",
+      "source_anchor_pmid": "32142651",
+      "source_publication_year": "2020",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "42354881",
+        "40166473",
+        "39536058"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "sars-isg15-endothelium-control",
+      "kind": "distinct_idea_control",
+      "arm": "baseline",
+      "source_anchor_pmid": "42150851",
+      "source_publication_year": "2026",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": true,
+      "final_pmids": [
+        "42268674",
+        "42620834",
+        "42362101"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        1,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "sars-isg15-endothelium-control",
+      "kind": "distinct_idea_control",
+      "arm": "candidate",
+      "source_anchor_pmid": "42150851",
+      "source_publication_year": "2026",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": true,
+      "final_pmids": [
+        "39146425",
+        "35104837",
+        "33082294"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        1,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "qa1b-tumor-recovery",
+      "kind": "positive",
+      "arm": "baseline",
+      "source_anchor_pmid": "36151395",
+      "source_publication_year": "2022",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "42666366",
+        "42775084",
+        "42740829"
+      ],
+      "selected_rung_type": "or",
+      "rung_counts": [
+        0,
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "unrelated": 3
+      }
+    },
+    {
+      "case_id": "qa1b-tumor-recovery",
+      "kind": "positive",
+      "arm": "candidate",
+      "source_anchor_pmid": "36151395",
+      "source_publication_year": "2022",
+      "anchor_in_final_3": false,
+      "anchor_in_selected_9": false,
+      "anchor_in_any_attempt_first_9": false,
+      "final_pmids": [
+        "34343496",
+        "35972800",
+        "30580966"
+      ],
+      "selected_rung_type": "or",
+      "rung_counts": [
+        0,
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "related_without_mechanism_support": 3
+      }
+    },
+    {
+      "case_id": "qa1-cmv-effector-control",
+      "kind": "distinct_idea_control",
+      "arm": "candidate",
+      "source_anchor_pmid": "41417899",
+      "source_publication_year": "2025",
+      "anchor_in_final_3": true,
+      "anchor_in_selected_9": true,
+      "anchor_in_any_attempt_first_9": true,
+      "final_pmids": [
+        "41417899",
+        "30970256",
+        "20488793"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "supports_central_mechanism": 2,
+        "related_without_mechanism_support": 1
+      }
+    },
+    {
+      "case_id": "qa1-cmv-effector-control",
+      "kind": "distinct_idea_control",
+      "arm": "baseline",
+      "source_anchor_pmid": "41417899",
+      "source_publication_year": "2025",
+      "anchor_in_final_3": true,
+      "anchor_in_selected_9": true,
+      "anchor_in_any_attempt_first_9": true,
+      "final_pmids": [
+        "41417899",
+        "33501647",
+        "32111690"
+      ],
+      "selected_rung_type": "anchored",
+      "rung_counts": [
+        0,
+        9
+      ],
+      "relevance_label_counts": {
+        "supports_central_mechanism": 1,
+        "related_without_mechanism_support": 2
+      }
+    }
+  ],
+  "candidate_disposition": "not adopted: exact positive target recall@3 is 0/3 in both arms; candidate control-anchor recall is 1/3 versus baseline 2/3. Secondary abstract relevance is diagnostic only.",
+  "limits": [
+    "36 abstract judgments are model-assisted triage, not expert or wet-lab validation",
+    "No target PMID appeared in any positive first-nine rung or final selection in either arm",
+    "The SARS distinct-idea control anchor appeared in exact rung 1 in both arms but was dropped on expansion to rung 2; this requires a separate preregistered candidate",
+    "All calls used public keyless NCBI access; no project-model inference or paid call"
+  ],
+  "retrieval_errors": 0,
+  "shared_pool_carryover_events": 0
+}

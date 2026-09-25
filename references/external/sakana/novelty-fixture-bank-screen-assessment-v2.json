@@ -1,0 +1,287 @@
+{
+  "name": "M11-NOV-01a3b2b2 second full-validator public fixture-bank screen assessment",
+  "status": "INCOMPLETE_RETRIEVAL_ERROR_AND_INSUFFICIENT_PAIRS",
+  "assessed_at_utc": "2026-09-25T09:34:47.681726+00:00",
+  "preregistration": "references/external/sakana/novelty-fixture-bank-prereg-v2.json",
+  "preregistration_sha256": "a1b1df652f7c8beb4dfc070f88e1986f555e1d61b9027470086a0508432453ca",
+  "launch_receipt": "references/external/sakana/novelty-fixture-bank-screen-launch-v2.json",
+  "launch_receipt_sha256": "b3601f581f64ab0450b95b65e8387fdd2e7bc5192e2699a901d96d0e9da89988",
+  "screen_result": "references/external/sakana/novelty-fixture-bank-screen-results-v2-f023df7313f3.json",
+  "screen_result_sha256": "2dd06d38f999553560b898e1590a5e8d242f37f0201cf26093511f919aba4512",
+  "private_blind_packet_sha256": "b48cf4600327f049a1cb6d5835b26cc83b27cea70e601f50239d9c641e0b6138",
+  "private_original_labels_sha256": "85c20dab7d0cb5059225921e9c3cd4114149a54aa12b2f8284e1dc87c34cafd6",
+  "private_audited_labels_sha256": "6e36ba91d892d621bbe45acc87c669f4118206a3101c60a6cbe28cd7889fa896",
+  "label_scope": "Fresh-context Luna 6 xhigh reviewer saw shuffled draft/abstract/blind-ID items only, with no PMIDs, ranks, arms, source anchors or result order. Original three central-support labels were re-audited blind against the preregistered full-draft rule; two partial-axis labels were downgraded and their original labels and reasons are retained. Abstract-level model labels are not expert or full-text validation.",
+  "label_counts": {
+    "unrelated_or_insufficient": 3,
+    "related_only": 14,
+    "central_support": 1
+  },
+  "calls_attempted": 7,
+  "calls_completed": 6,
+  "retrieval_errors": 1,
+  "stopped_on_order": 7,
+  "error": "The configured maintained PubMed fulltext tool raised KeyError: AuthorList while parsing an upstream paper missing AuthorList; the runner recorded retrieval_error/ValueError and stopped. No retry, changed query, provider or widened call cap.",
+  "positive_target_recall_at_3_completed_pairs": "0/3",
+  "control_anchor_recall_at_3_completed_pairs": "0/3",
+  "eligible_new_positive_pairs_in_frozen_order": [],
+  "preserved_v1_eligible_pair": "gpx4-ferroptosis",
+  "required_new_eligible_pairs": 2,
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "pairs": [
+    {
+      "pair_id": "gdf15-gfral-ret",
+      "positive_target_pmid": "28846097",
+      "control_anchor_pmid": "11373681",
+      "screen_status": "complete",
+      "positive_results": [
+        {
+          "pmid": "42602551",
+          "rank": 1,
+          "blind_id": "996fd2858fb84ed1a99d8b09423f2b6b",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It reviews GDF15 in skin pigmentation, aging, and inflammation, without the area-postrema/NTS GFRAL–RET pathway or appetite and body-weight effects.",
+          "abstract_sha256": "7d2d4a5e489e7a6f13328118f3e48689a610342d6768676a35542b750fb5107e"
+        },
+        {
+          "pmid": "42188045",
+          "rank": 2,
+          "blind_id": "2ae77b069a4d4cc0879a3f3a04c7866d",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It connects GDF15/GFRAL to renal autophagy and injury, not GFRAL–RET signaling in brainstem neurons or reduced food intake and body weight.",
+          "abstract_sha256": "80a8f7c2c500f4b8f708ca70fa82a330485b51444926137e7d50e37255e2cfdc"
+        },
+        {
+          "pmid": "41828483",
+          "rank": 3,
+          "blind_id": "bb020e316b224edc848a0e564a9dca16",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It measures GDF15 and body-composition associations in adrenal insufficiency, without the GFRAL–RET neural pathway or food-intake and weight-loss effects.",
+          "abstract_sha256": "61c7dd82fbbe463fd8b50cc60522ba253b694e994e04a78b7e61f2503dd0865f"
+        }
+      ],
+      "positive_target_recall_at_3": false,
+      "control_results": [
+        {
+          "pmid": "37683049",
+          "rank": 1,
+          "blind_id": "1845973ca8114fbf82e72f8b29bc577f",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It links leptin signaling to food intake, but in basolateral-amygdala neurons through LepRb–JAK2/PI3K and GIRK channels, not arcuate POMC neurons or the proposed inhibitory inputs.",
+          "abstract_sha256": "79ced8ad80c94b290133d109d9f710ab4dfba4fb8bf49e5c63b60328dd8fbb3c"
+        },
+        {
+          "pmid": "36442744",
+          "rank": 2,
+          "blind_id": "54107af28a6944dc8a119b178ca7fff6",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It studies excitability and energy-balance effects in POMC neurons, but the tested mechanism is STIM1–mGluR/TRPC5 glutamatergic signaling, not leptin's proposed direct and NPY/GABA-mediated actions.",
+          "abstract_sha256": "14bff3fb4b0afe5e24186ee848978b75972821d5eb4baf86823e032fdf039ee7"
+        },
+        {
+          "pmid": "32538782",
+          "rank": 3,
+          "blind_id": "76e75477faf2431389e0c2c507a23b24",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It reports leptin effects on hypothalamic neurons and sympathetic activity, but centers on PVN glutamatergic/TRH circuitry rather than arcuate POMC feeding circuitry.",
+          "abstract_sha256": "71123c09ee73a90d506c01d6d73424313e0030e49c6e91364cda24e063e09ea9"
+        }
+      ],
+      "distinct_control_target_recall_at_3": false,
+      "eligible_positive_non_target_prior_art": false
+    },
+    {
+      "pair_id": "trem2-apoe-clu-uptake",
+      "positive_target_pmid": "27477018",
+      "control_anchor_pmid": "11466313",
+      "screen_status": "complete",
+      "positive_results": [
+        {
+          "pmid": "42522548",
+          "rank": 1,
+          "blind_id": "b5c4bcc1eb314dbcb44cb6468feafd1e",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It involves TREM2 in myeloid cells, but studies soluble TREM2–HSP90beta signaling in atherosclerosis rather than APOE/CLU binding and amyloid uptake in microglia.",
+          "abstract_sha256": "e8b12ac36193464df5cbd0ec7236b834f602061a8ae47185ba54d3bb9bd8b9c4"
+        },
+        {
+          "pmid": "42192204",
+          "rank": 2,
+          "blind_id": "ee84ced9228848568af03d837a41bb26",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It studies soluble TREM2 in ovarian-cancer vascular leakage through NCL–AKT/eNOS, not the APOE/CLU–microglial amyloid-uptake mechanism.",
+          "abstract_sha256": "fc500685b2fbc541c912ab5a7f73a4ca727a6f8cc48f420071594efd2f7af0cf"
+        },
+        {
+          "pmid": "42079091",
+          "rank": 3,
+          "blind_id": "faceca7c9eca48c98dfcec56a21041b5",
+          "label": "related_only",
+          "original_label": "central_support",
+          "correction_reason": "Downgraded because support for the TREM2–APOE sub-axis alone does not support the full causal claim, including CLU binding and uptake.",
+          "rationale": "It supports TREM2–APOE binding in Alzheimer disease, but the full draft also claims CLU binding and microglial uptake of amyloid-beta–lipoprotein complexes, which the abstract does not establish.",
+          "abstract_sha256": "573373a4a963c1dab4cbab40f129a442b6c3600944225c8675144e0942ae5d69"
+        }
+      ],
+      "positive_target_recall_at_3": false,
+      "control_results": [
+        {
+          "pmid": "42635983",
+          "rank": 1,
+          "blind_id": "a7fb38e5d23e4d61be23c7e0b29ff821",
+          "label": "unrelated_or_insufficient",
+          "original_label": "unrelated_or_insufficient",
+          "correction_reason": null,
+          "rationale": "The abstract concerns medial-temporal memory and navigation; it gives no BACE1, APP cleavage, or trafficking evidence.",
+          "abstract_sha256": "e7c88453f6d109094a2d9be9002c01bcede35e9c125cf0e0084561c7bbb7bbb9"
+        },
+        {
+          "pmid": "42785340",
+          "rank": 2,
+          "blind_id": "7a7ad8ac4ae14b328b5a693d71c06de8",
+          "label": "unrelated_or_insufficient",
+          "original_label": "unrelated_or_insufficient",
+          "correction_reason": null,
+          "rationale": "The abstract evaluates pooled tuberculosis diagnostics and contains no BACE1, APP, or related trafficking mechanism.",
+          "abstract_sha256": "fd31f624d1a2e918e7005e0eb9fa37b55adf69b0a35cbabe4fea5165afd03d21"
+        },
+        {
+          "pmid": "42770930",
+          "rank": 3,
+          "blind_id": "1b9f84a0be86426b957823698599d7e2",
+          "label": "unrelated_or_insufficient",
+          "original_label": "unrelated_or_insufficient",
+          "correction_reason": null,
+          "rationale": "The abstract studies maternal sleep and childhood growth trajectories, with no BACE1, APP cleavage, or trafficking evidence.",
+          "abstract_sha256": "0622fe767e65ea091fa2ff02f472beed064e0e6ccd045aea701fcdccb1b474aa"
+        }
+      ],
+      "distinct_control_target_recall_at_3": false,
+      "eligible_positive_non_target_prior_art": false
+    },
+    {
+      "pair_id": "rankl-nfatc1-osteoclast",
+      "positive_target_pmid": "12479813",
+      "control_anchor_pmid": "15778503",
+      "screen_status": "complete",
+      "positive_results": [
+        {
+          "pmid": "42335646",
+          "rank": 1,
+          "blind_id": "51de6f6b23f64277930ff75380d187fa",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It mentions RANKL/OPG in exercise-related bone remodeling, but does not establish the RANKL–calcineurin–NFATc1 osteoclast-differentiation mechanism.",
+          "abstract_sha256": "b9973673c2ed283f39272fc22c56dc696a05d812e4ecc6591c8d9c10fa198aa2"
+        },
+        {
+          "pmid": "42761833",
+          "rank": 2,
+          "blind_id": "40539ebe864f41f3a1efc9cbf1f0cac9",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It discusses RANKL-associated bone resorption in periodontitis, but does not support the proposed calcineurin–NFATc1 route or monocyte-to-osteoclast differentiation.",
+          "abstract_sha256": "092b1e5311db0aad040adef0d2aeddaa3d0e5b193ab87668a1b9b44277ed8602"
+        },
+        {
+          "pmid": "41872383",
+          "rank": 3,
+          "blind_id": "50b1d820211c46a6b7dc7c0dfc3486c3",
+          "label": "related_only",
+          "original_label": "central_support",
+          "correction_reason": "Downgraded because the abstract supports the RANKL–osteoclast sub-axis but omits the draft’s named signaling mechanism and differentiation claim.",
+          "rationale": "It supports RANKL-associated osteoclast overproduction in a bone-tumor context, but not the full calcineurin–NFATc1 mechanism or monocyte/macrophage differentiation stated in the draft.",
+          "abstract_sha256": "a6ac5307635883985eb769009d6abb71343c415335b9ff8f08a262ee8494e687"
+        }
+      ],
+      "positive_target_recall_at_3": false,
+      "control_results": [
+        {
+          "pmid": "41569384",
+          "rank": 1,
+          "blind_id": "e072bdf0416746d68fd9609f8eb19b7c",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It concerns bone formation, beta-catenin, and response to a sclerostin-neutralizing drug, but does not show sclerostin binding LRP5/6 or antagonizing canonical Wnt signaling.",
+          "abstract_sha256": "e1f5c3613e85810a7c1f7e22ba800f939d578e9396bfd9c2bc9c1c0df1a8b7ae"
+        },
+        {
+          "pmid": "41723149",
+          "rank": 2,
+          "blind_id": "04c63c6bfb534d3dac666825d7e2b12e",
+          "label": "related_only",
+          "original_label": "related_only",
+          "correction_reason": null,
+          "rationale": "It associates circulating sclerostin with fracture risk in a bone context, but does not establish LRP5/6 binding or canonical Wnt antagonism.",
+          "abstract_sha256": "820c5b4f1ff40f6291af90f0bfd14b522492fb2f559ad3449c9814f779822b95"
+        },
+        {
+          "pmid": "40728828",
+          "rank": 3,
+          "blind_id": "d863da9f091f4a7b95c25c330645245a",
+          "label": "central_support",
+          "original_label": "central_support",
+          "correction_reason": null,
+          "rationale": "The abstract explicitly states that sclerostin binds LRP5/6 and inhibits canonical Wnt signaling in the bone context.",
+          "abstract_sha256": "5c2a15ca1c0039618778141ac743a397edf00c98d85e3c7ef6f6e47101631bc3"
+        }
+      ],
+      "distinct_control_target_recall_at_3": false,
+      "eligible_positive_non_target_prior_art": false
+    },
+    {
+      "pair_id": "glp1r-adenylate-cyclase",
+      "positive_target_pmid": "1326760",
+      "control_anchor_pmid": "7628397",
+      "screen_status": "partial_error",
+      "positive_results": [],
+      "positive_target_recall_at_3": null,
+      "control_results": [],
+      "distinct_control_target_recall_at_3": null,
+      "eligible_positive_non_target_prior_art": false
+    },
+    {
+      "pair_id": "piezo1-macrophage-glycolysis",
+      "positive_target_pmid": "36119083",
+      "control_anchor_pmid": "10952994",
+      "screen_status": "not_run_after_first_error",
+      "positive_results": [],
+      "positive_target_recall_at_3": null,
+      "control_results": [],
+      "distinct_control_target_recall_at_3": null,
+      "eligible_positive_non_target_prior_art": false
+    },
+    {
+      "pair_id": "vhl-hif2a-renal",
+      "positive_target_pmid": "17220275",
+      "control_anchor_pmid": "21075312",
+      "screen_status": "not_run_after_first_error",
+      "positive_results": [],
+      "positive_target_recall_at_3": null,
+      "control_results": [],
+      "distinct_control_target_recall_at_3": null,
+      "eligible_positive_non_target_prior_art": false
+    }
+  ],
+  "disposition": "The fixed v2 screen cannot supply the required two new eligible pairs: the first three complete positives have no full-draft central-mechanism-supporting non-target paper. The seventh call failed in the maintained PubMed parser, so the remaining cases were not screened. Selecting partial-axis hits or rerunning this batch after observing results would violate the preregistered rule. No result-conditioned candidate comparison is authorized from this screen. Preserve the promising search candidate open; address the parser as a separate correctness defect, then preregister a scientifically valid unselected comparison design or retain it as inconclusive."
+}

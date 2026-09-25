@@ -8,8 +8,8 @@ Sources are acquired sequentially in ignored `references/work/<slug>/`.
 All nine required source investigations are closed. The OpenScience timeout and
 ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.json).
 Sakana's result-conditioned search and post-expiry free-model qualification
-remain open. Robin's owner-authorized outcome refinement is implemented locally;
-its M11 release check remains open.
+remain open. Robin's owner-authorized outcome refinement is released; its
+campaign-owned live observation remains open.
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 [M11's follow-up register](m11-follow-up-register.md) records the remaining
 mechanism gaps and the additional-repository selection decision.
@@ -24,9 +24,10 @@ mechanism gaps and the additional-repository selection decision.
 | 6 | [SakanaAI/AI-Scientist](https://github.com/SakanaAI/AI-Scientist) | [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) | [Closed; no product adoption, M11 follow-up open](sakana-ai-scientist.md) |
 | 7 | [synthetic-sciences/openscience](https://github.com/synthetic-sciences/openscience) | [`4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5`](https://github.com/synthetic-sciences/openscience/commit/4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5) | [Closed; owned admission and lifecycle corrections adopted](synthetic-sciences-openscience.md) |
 | 8 | [mims-harvard/ToolUniverse](https://github.com/mims-harvard/ToolUniverse) | [`78883724c46a94ec1d1bfdc984efb25ba1b76aed`](https://github.com/mims-harvard/ToolUniverse/commit/78883724c46a94ec1d1bfdc984efb25ba1b76aed) | [Assessed and released; GWAS follow-up adopted and released in M11](mims-harvard-tooluniverse.md) |
-| 9 | [Future-House/robin](https://github.com/Future-House/robin) | [`4a5cce310f3bc7663a67117db88af43b84733ffe`](https://github.com/Future-House/robin/commit/4a5cce310f3bc7663a67117db88af43b84733ffe) | [Assessed; outcome-feedback technique implemented locally, release pending in M11](future-house-robin.md) |
+| 9 | [Future-House/robin](https://github.com/Future-House/robin) | [`4a5cce310f3bc7663a67117db88af43b84733ffe`](https://github.com/Future-House/robin/commit/4a5cce310f3bc7663a67117db88af43b84733ffe) | [Assessed and released; campaign-owned live observation remains open](future-house-robin.md) |
 
-Candidate IDs use `M<number>-<number>` and remain stable after checklist expansion.
+Candidate IDs normally use `M<number>-<number>`; M6's stable `KDS-*` IDs are the
+documented exception. IDs remain stable after checklist expansion.
 Each records the gap, upstream evidence, local counterpart, fidelity classification,
 reuse route, acceptance criteria, test boundary, costs/results, and disposition.
 Only adopted, already covered, evidence-backed rejection, and out-of-scope decisions

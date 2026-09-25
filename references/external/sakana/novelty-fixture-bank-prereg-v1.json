@@ -1,0 +1,146 @@
+{
+  "name": "M11-NOV-01a3b full-validator public prior-art fixture screen",
+  "version": 1,
+  "status": "PREREGISTERED_BEFORE_ANY_VALIDATOR_SCREEN",
+  "purpose": "Find source-backed cases with actual first-page relevant prior art in the current validation retrieval path. This is fixture screening, not a claim that the result-conditioned candidate improves science.",
+  "source_snapshot": {
+    "retrieved_date_utc": "2026-09-25",
+    "provider": "NCBI PubMed EFetch, keyless public XML, one batched source-metadata request",
+    "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=24226770,25586379,24439385,24577084,24528868,28289409,23973224,19836068,21512004,19701202,24928781,35820416&retmode=xml",
+    "response_sha256": "ff7b88a773e4ffeb8d30921d1a9691bcfa2ac7620edcb70dbb9a82b9e4701577",
+    "record_count": 12,
+    "retention": "Public PMID permalinks and this receipt are retained; the batched source XML remains outside the repository. No abstracts are copied into this preregistration."
+  },
+  "validation_boundary": {
+    "code_commit_before_registration": "cf209d8a7d8c5d01836010801fec2315644934dc",
+    "validator": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+    "validator_sha256": "93d794fd510188d03b5923d6759945bdfa6bdf05dc11e8609b4870c40b783b03",
+    "parser": "engine/src/co_scientist/tools/response_parser.py",
+    "parser_sha256": "9be8110bfbe8d3851ff10dedc0e20bd9d37fea63ef99bd5f1b874055e515aea8",
+    "tool_config": "engine/src/co_scientist/config/tools.yaml",
+    "tool_config_sha256": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+    "configured_tool": "first validation search-category tool: pubmed_fulltext -> pubmed_search_with_fulltext",
+    "query": "exact draft[:200], no subject-first rewrite, identifier injection, extra term, date filter, or other result-conditioned request",
+    "canonical_parameters": ["query", "max_papers", "slug", "run_id"],
+    "mapping": "ToolConfig.map_parameters, then _search_papers_via_tool_config and ResponseParser.parse_to_articles",
+    "source_id": "Article.source_id from the dictionary key, then _articles_to_paper_dict",
+    "max_papers": 3,
+    "recency_years": "omitted; maintained tool default",
+    "upstream_search": "retain selected relaxation rung and all fetched/selected IDs from the maintained tool's bounded trace; do not use custom Entrez output as the validator result"
+  },
+  "cases_in_fixed_order": [
+    {
+      "id": "butyrate-foxp3",
+      "positive": {
+        "draft": "Microbial butyrate promotes colonic Foxp3+ regulatory T-cell differentiation by increasing histone acetylation at Foxp3 regulatory regions and limiting experimental colitis.",
+        "target_pmid": "24226770",
+        "year": 2013,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/24226770/"
+      },
+      "distinct_control": {
+        "draft": "Microbial propionate promotes intestinal gluconeogenesis through enteric VIP-VPAC1 signaling and a gut-brain metabolic axis.",
+        "anchor_pmid": "25586379",
+        "year": 2015,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/25586379/"
+      },
+      "overlap_rule": "Both concern microbial metabolites in gut physiology, but the positive requires butyrate/Foxp3 T-cell differentiation and the control requires propionate/VIP-VPAC1 glucose metabolism."
+    },
+    {
+      "id": "gpx4-ferroptosis",
+      "positive": {
+        "draft": "GPX4 inactivation permits lipid peroxide accumulation and ferroptotic death in susceptible cancer cells.",
+        "target_pmid": "24439385",
+        "year": 2014,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/24439385/"
+      },
+      "distinct_control": {
+        "draft": "Activated RIPK3 requires MLKL, but not Drp1, to execute necroptotic death in mouse embryonic fibroblasts.",
+        "anchor_pmid": "24577084",
+        "year": 2014,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/24577084/"
+      },
+      "overlap_rule": "Both involve non-apoptotic cell death, but GPX4/lipid peroxidation and RIPK3/MLKL necroptosis are different causal mechanisms."
+    },
+    {
+      "id": "cgas-beclin1",
+      "positive": {
+        "draft": "During cytosolic microbial-DNA sensing, cGAS binding to Beclin-1 releases Rubicon-mediated inhibition of autophagy, clears DNA, and limits persistent interferon signaling.",
+        "target_pmid": "24528868",
+        "year": 2014,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/24528868/"
+      },
+      "distinct_control": {
+        "draft": "Mitochondrial DNA activates macrophage NLRP3 and caspase-1-dependent IL-1beta production, contributing to experimental type 1 diabetes.",
+        "anchor_pmid": "28289409",
+        "year": 2017,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/28289409/"
+      },
+      "overlap_rule": "Both contain DNA-sensing terms, but Beclin-1/autophagic clearance with interferon control differs from mitochondrial-DNA/NLRP3 inflammasome pathology. Mere DNA-sensing overlap never qualifies as central-mechanism support."
+    },
+    {
+      "id": "indole-ahr-il22",
+      "positive": {
+        "draft": "Lactobacillus-derived indole-3-aldehyde activates AhR-dependent IL-22 transcription, improving murine mucosal resistance to Candida albicans.",
+        "target_pmid": "23973224",
+        "year": 2013,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/23973224/"
+      },
+      "distinct_control": {
+        "draft": "Segmented filamentous bacteria induce murine intestinal lamina propria Th17 cells and enhance resistance to Citrobacter rodentium.",
+        "anchor_pmid": "19836068",
+        "year": 2009,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/19836068/"
+      },
+      "overlap_rule": "Both concern commensal-dependent mucosal defense, but indole-3-aldehyde/AhR/IL-22 antifungal resistance differs from segmented-filamentous-bacteria/Th17 antibacterial resistance."
+    },
+    {
+      "id": "bfragilis-psa-tlr2",
+      "positive": {
+        "draft": "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 on Foxp3+ regulatory T cells to promote mucosal tolerance and colonization.",
+        "target_pmid": "21512004",
+        "year": 2011,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/21512004/"
+      },
+      "distinct_control": {
+        "draft": "Enterotoxigenic Bacteroides fragilis induces IL-17 and IL-23-linked inflammation, colitis, and colon tumorigenesis in mice.",
+        "anchor_pmid": "19701202",
+        "year": 2009,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/19701202/"
+      },
+      "overlap_rule": "This deliberately hard same-genus control concerns toxigenic inflammatory carcinogenesis, not non-toxigenic polysaccharide-A/TLR2 tolerance; shared B. fragilis words alone are insufficient."
+    },
+    {
+      "id": "gpr81-lactate-survival",
+      "positive": {
+        "draft": "Pancreatic cancer-cell GPR81 senses lactate, induces lactate transport and metabolism genes, and supports survival under low-glucose conditions.",
+        "target_pmid": "24928781",
+        "year": 2014,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/24928781/"
+      },
+      "distinct_control": {
+        "draft": "Tumor-derived lactate impairs CD8+ T-cell cytotoxicity by reducing pyruvate-carboxylase anaplerosis and succinate-receptor signaling.",
+        "anchor_pmid": "35820416",
+        "year": 2022,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/35820416/"
+      },
+      "overlap_rule": "Both involve tumor lactate, but GPR81-dependent tumor-cell fuel adaptation differs from lactate-mediated host CD8+ T-cell suppression."
+    }
+  ],
+  "screening_protocol": {
+    "old_case_exclusion": "The prior STMN2/TDP-43, SARS-CoV-2/TMPRSS2, and Qa-1b/NKG2A positive drafts and their UNC13A, endothelial ISG15 and CMV controls are excluded. No source target or draft is substituted from an observed result.",
+    "order": "Run all six positive/control pairs in the fixed order above, positive then control, at most one maintained-path call per draft.",
+    "maximum_outer_calls": 12,
+    "cache": "One new empty campaign cache root, with a unique slug/run_id namespace per draft; no reuse of prior pilot caches or search results.",
+    "credentials": "No ambient credentials, no model inference, no paid plugin or metered tool; keyless loopback maintained PubMed MCP only.",
+    "spacing": "At least 1.2 seconds between outer calls; do not busy-loop internal or outer retries.",
+    "on_first_error_or_rate_limit": "Stop the whole screen, preserve partial request/result/error record and retry-after; do not substitute another query, route or case.",
+    "labeling": "A reviewer blind to pair order, target IDs and output rank labels the returned abstracts for central-mechanism support, related-only or unrelated, with a rationale; merely topical overlap fails.",
+    "enrollment": "Take the first three pairs in this preregistered order whose positive initial top three include at least one independently labeled central-mechanism-supporting non-target prior-art PMID, whose source target and control anchor have stable PMID identities, and whose control is scientifically distinct under its fixed overlap rule. The source target need not itself appear in top three; that absence is the gap the later candidate would seek to recover.",
+    "if_fewer_than_three": "Report insufficient eligible fixtures. Freeze a new bounded source bank before any further screen; never rewrite these drafts or relabel observed result IDs as target IDs.",
+    "later_comparison": "This screen cannot establish improvement. A separate accepted-triplet preregistration must freeze baseline and candidate behavior, static-query follow-up control, exact-target recall, non-rejection, provenance/error criteria, equal model settings and evidence/caches, and the two-search/six-paper bound before a product experiment."
+  },
+  "cost": {
+    "estimated_additional_usd": 0,
+    "model_requests": 0
+  }
+}

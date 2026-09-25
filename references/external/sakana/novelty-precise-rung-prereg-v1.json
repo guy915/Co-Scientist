@@ -1,0 +1,374 @@
+{
+  "name": "M11-NOV-RUNG-01a precise-rung retention paired retrieval preregistration",
+  "version": 1,
+  "status": "frozen_inputs_and_protocol_candidate_build_hash_required_before_any_retrieval",
+  "frozen_at_utc": "2026-09-25T14:12:54Z",
+  "purpose": "Test whether the maintained PubMed relaxation search should retain first-seen IDs from earlier, more-constrained rungs before filling the existing nine-ID candidate buffer from broader rungs. This is a bounded retrieval-behavior comparison, not a novelty verdict or a claim about scientific quality outside the frozen cases.",
+  "selection_record": {
+    "source_basis": "Six primary research articles on the publisher's Journal of Clinical Investigation site were read for their central mechanisms. OpenAlex DOI-resolved metadata was used only to confirm PMID mappings where the publisher page did not expose a PMID. The exact public draft strings paraphrase the source findings and do not copy article titles.",
+    "selection_independence": "Cases were chosen from source content and mechanism distinctions before sending any of their exact queries to the maintained PubMed tool. The existing novelty dossier was consulted only to exclude previously used target/anchor identifiers and drafts, including the observed Bacteroides fragilis target PMID 21512004; none of the six frozen PMIDs is reused. No candidate retrieval output was consulted to select or revise these cases.",
+    "calls_during_selection": {
+      "pubmed_or_ncbi_search_calls": 0,
+      "model_inference_calls": 0,
+      "paid_calls": 0
+    },
+    "scope_limit": "The set has three pairs. No further case search or replacement is permitted after this file is committed. A source error discovered before the first retrieval requires a separate dated amendment; retrieval outcomes never authorize case substitution."
+  },
+  "baseline_snapshot": {
+    "repository_commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+    "files": [
+      {
+        "path": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+        "sha256": "93d794fd510188d03b5923d6759945bdfa6bdf05dc11e8609b4870c40b783b03",
+        "role": "Validation's query truncation, ToolConfig mapping, ResponseParser path, and normalized returned papers"
+      },
+      {
+        "path": "engine/src/co_scientist/config/tools.yaml",
+        "sha256": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+        "role": "Current tool parameter and response mapping"
+      },
+      {
+        "path": "engine/src/co_scientist/config/tool_schema.py",
+        "sha256": "bae73dcff14525fc8655ce6885e6c1235ab491dcd3ab6d234df7f686dad87c73",
+        "role": "ToolConfig mapping contract"
+      },
+      {
+        "path": "engine/src/co_scientist/tools/response_parser.py",
+        "sha256": "9be8110bfbe8d3851ff10dedc0e20bd9d37fea63ef99bd5f1b874055e515aea8",
+        "role": "Configured public-tool response parser"
+      },
+      {
+        "path": "engine/mcp_server/pubmed_query.py",
+        "sha256": "43c29fddfe3ae16a6540bec893d70e2b90fe46e0f6593c9148427809fff2ea3f",
+        "role": "Current relaxation ladder and first-rung-meeting-threshold selection"
+      },
+      {
+        "path": "engine/mcp_server/pubmed_client.py",
+        "sha256": "94649a48c93fb4faef29a0bbddcc167ee7382326ad4bcb26fadfafbdd88b0951",
+        "role": "ESearch dispatch and bounded PubMed metadata retrieval"
+      },
+      {
+        "path": "engine/mcp_server/literature_review.py",
+        "sha256": "c80620bf41d3ababfef0fb656558b92154d2438a6655324b7d92955813ebee31",
+        "role": "Three-times paper buffer, metadata fetching, and downstream paper selection"
+      },
+      {
+        "path": "engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
+        "sha256": "596da1a66d53cee54c36bda77082c2d1d46702334cbf90055f81ac9085bb74df",
+        "role": "Maintained MCP public-tool entry point"
+      }
+    ],
+    "candidate_build_gate": "Before any network retrieval, implement and verify the selection-only candidate in an isolated build. Commit a dated amendment to this preregistration that pins the candidate commit, runner hash, candidate source diff, and any trace-only instrumentation hashes. The amendment must confirm that query construction, sort, relaxation rung definitions, stopping threshold, metadata fetching, PMC preference, parser, and paper cap are unchanged. Without that amendment, no retrieval call is authorized by this protocol."
+  },
+  "request_inputs": [
+    {
+      "request_id": "R01",
+      "pair_id": "P1",
+      "draft": "PML supports detached breast cancer cell survival by increasing fatty-acid oxidation, ATP production, and resistance to anoikis.",
+      "exact_query": "PML supports detached breast cancer cell survival by increasing fatty-acid oxidation, ATP production, and resistance to anoikis.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R02",
+      "pair_id": "P1",
+      "draft": "MYC induces ADHFE1 in breast cancer, generating D-2-hydroxyglutarate and reactive oxygen that drive reductive glutamine metabolism, dedifferentiation, and mesenchymal transition.",
+      "exact_query": "MYC induces ADHFE1 in breast cancer, generating D-2-hydroxyglutarate and reactive oxygen that drive reductive glutamine metabolism, dedifferentiation, and mesenchymal transition.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R03",
+      "pair_id": "P2",
+      "draft": "Loss of folliculin activates AMPK–PGC-1α mitochondrial biogenesis and ROS-driven HIF transcription, promoting Warburg reprogramming and tumorigenesis.",
+      "exact_query": "Loss of folliculin activates AMPK–PGC-1α mitochondrial biogenesis and ROS-driven HIF transcription, promoting Warburg reprogramming and tumorigenesis.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R04",
+      "pair_id": "P2",
+      "draft": "Hypoxic tumor cells export lactate that oxygenated cancer cells import through MCT1 for oxidative metabolism, creating a metabolic symbiosis.",
+      "exact_query": "Hypoxic tumor cells export lactate that oxygenated cancer cells import through MCT1 for oxidative metabolism, creating a metabolic symbiosis.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R05",
+      "pair_id": "P3",
+      "draft": "In lung cancer, c-Maf programs immunosuppressive macrophages through TCA-cycle and UDP-GlcNAc metabolism, suppressing T-cell activity and promoting tumor progression.",
+      "exact_query": "In lung cancer, c-Maf programs immunosuppressive macrophages through TCA-cycle and UDP-GlcNAc metabolism, suppressing T-cell activity and promoting tumor progression.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R06",
+      "pair_id": "P3",
+      "draft": "Tumor lactate activates macrophage mTORC1, suppresses TFEB-dependent ATP6V0d2, and supports HIF-2α-mediated VEGF production and tumor growth.",
+      "exact_query": "Tumor lactate activates macrophage mTORC1, suppresses TFEB-dependent ATP6V0d2, and supports HIF-2α-mediated VEGF production and tumor growth.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    }
+  ],
+  "pair_definitions": [
+    {
+      "pair_id": "P1",
+      "positive_request_id": "R01",
+      "control_request_id": "R02",
+      "distinctness_rule": "Both concern breast cancer metabolism, but PML-dependent fatty-acid oxidation sustains detached-cell survival, whereas MYC–ADHFE1 produces D-2-hydroxyglutarate and alters redox, glutamine metabolism, and cell state. Shared disease and metabolism terms do not establish central-mechanism support."
+    },
+    {
+      "pair_id": "P2",
+      "positive_request_id": "R03",
+      "control_request_id": "R04",
+      "distinctness_rule": "Both concern tumor bioenergetics, but FLCN loss engages AMPK, mitochondrial biogenesis, ROS, and HIF; the control concerns lactate transfer from hypoxic to oxygenated tumor cells through MCT1. Shared tumor-metabolism vocabulary does not establish either causal path."
+    },
+    {
+      "pair_id": "P3",
+      "positive_request_id": "R05",
+      "control_request_id": "R06",
+      "distinctness_rule": "Both concern lung-tumor macrophages, but c-Maf-mediated transcriptional programming and TCA/UDP-GlcNAc metabolism differ from lactate–mTORC1–TFEB–ATP6V0d2–HIF-2 signaling. Shared cell type and tumor context do not establish central-mechanism support."
+    }
+  ],
+  "scoring_key": [
+    {
+      "request_id": "R01",
+      "metric_role": "positive_target",
+      "target_pmid": "22886304",
+      "source_id": "S1",
+      "target_title": "A metabolic prosurvival role for PML in breast cancer",
+      "source_supported_claim": "The primary study reports a PML-linked fatty-acid oxidation program that supports ATP production and breast-cancer-cell survival under detachment stress."
+    },
+    {
+      "request_id": "R02",
+      "metric_role": "distinct_control_anchor",
+      "anchor_pmid": "29202474",
+      "source_id": "S2",
+      "target_title": "ADHFE1 is a breast cancer oncogene and induces metabolic reprogramming",
+      "source_supported_claim": "The primary study links MYC/iron-regulated ADHFE1 to D-2-hydroxyglutarate, reactive oxygen, reductive glutamine metabolism, and breast-cancer cell-state changes."
+    },
+    {
+      "request_id": "R03",
+      "metric_role": "positive_target",
+      "target_pmid": "24762438",
+      "source_id": "S3",
+      "target_title": "The tumor suppressor folliculin regulates AMPK-dependent metabolic transformation",
+      "source_supported_claim": "The primary study reports that FLCN loss activates AMPK-linked mitochondrial biogenesis and ROS, activates HIF transcription, and promotes Warburg-like reprogramming and tumorigenesis."
+    },
+    {
+      "request_id": "R04",
+      "metric_role": "distinct_control_anchor",
+      "anchor_pmid": "19033663",
+      "source_id": "S4",
+      "target_title": "Targeting lactate-fueled respiration selectively kills hypoxic tumor cells in mice",
+      "source_supported_claim": "The primary study reports lactate production by hypoxic tumor cells and MCT1-mediated lactate use by oxygenated tumor cells, with MCT1 inhibition disrupting this metabolic symbiosis."
+    },
+    {
+      "request_id": "R05",
+      "metric_role": "positive_target",
+      "target_pmid": "31945018",
+      "source_id": "S5",
+      "target_title": "Transcription factor c-Maf is a checkpoint that programs macrophages in lung cancer",
+      "source_supported_claim": "The primary study reports that c-Maf supports immunosuppressive tumor-associated macrophage programming, T-cell suppression, tumor progression, and metabolic changes involving the TCA cycle and UDP-GlcNAc biosynthesis."
+    },
+    {
+      "request_id": "R06",
+      "metric_role": "distinct_control_anchor",
+      "anchor_pmid": "30431439",
+      "source_id": "S6",
+      "target_title": "Lactate inhibits ATP6V0d2 expression in tumor-associated macrophages to promote HIF-2α-mediated tumor progression",
+      "source_supported_claim": "The primary study reports lactate-triggered mTORC1 suppression of TFEB-mediated ATP6V0d2 expression and a macrophage HIF-2α/VEGF tumor-growth pathway."
+    }
+  ],
+  "source_evidence": [
+    {
+      "source_id": "S1",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "A metabolic prosurvival role for PML in breast cancer",
+      "doi": "10.1172/JCI62129",
+      "publisher_url": "https://www.jci.org/articles/view/62129",
+      "publisher_issue_date": "2012-09-04",
+      "pmid": "22886304",
+      "pmid_mapping": {
+        "source": "publisher page citation_pmid metadata, cross-checked against OpenAlex DOI record",
+        "openalex_id": "W2037209340",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI62129",
+        "response_bytes": 68428,
+        "response_sha256": "864b187d222a8a20a52ccfb1cb56035d151712461162d9481a6c7cebd02657e4"
+      },
+      "publisher_response_bytes": 236152,
+      "publisher_response_sha256": "3eb822cefda2c93d614789c706bb1c22846e5eeaaf60897a23880d953a4f89b3",
+      "mechanism_summary": "PML-associated fatty-acid oxidation supplies ATP and supports breast cancer cell survival when cells lose attachment."
+    },
+    {
+      "source_id": "S2",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "ADHFE1 is a breast cancer oncogene and induces metabolic reprogramming",
+      "doi": "10.1172/JCI93815",
+      "publisher_url": "https://www.jci.org/articles/view/93815",
+      "publisher_issue_date": "2018-01-02",
+      "pmid": "29202474",
+      "pmid_mapping": {
+        "source": "OpenAlex DOI record; publisher citation_pmid metadata reports 0",
+        "openalex_id": "W2768640432",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI93815",
+        "response_bytes": 50015,
+        "response_sha256": "497b9b781136946b81937da0bd9c6906e5e13b19530b87ece0c975aa1f7acbfd"
+      },
+      "publisher_response_bytes": 224852,
+      "publisher_response_sha256": "2cb16c61f2136d18c27610851b629842b0ac065cd08ff1d2bf005f3ac27716ea",
+      "mechanism_summary": "MYC and iron regulation of ADHFE1 is linked to D-2-hydroxyglutarate and redox changes that alter glutamine metabolism and breast cancer cell state."
+    },
+    {
+      "source_id": "S3",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "The tumor suppressor folliculin regulates AMPK-dependent metabolic transformation",
+      "doi": "10.1172/JCI71749",
+      "publisher_url": "https://www.jci.org/articles/view/71749",
+      "publisher_issue_date": "2014-06-02",
+      "pmid": "24762438",
+      "pmid_mapping": {
+        "source": "OpenAlex DOI record; publisher citation_pmid metadata reports 0",
+        "openalex_id": "W2140801892",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI71749",
+        "response_bytes": 51654,
+        "response_sha256": "f11565f1cef00db30c28c53eefe1b884190347d4997216c05cc2f0a12c8581df"
+      },
+      "publisher_response_bytes": 198303,
+      "publisher_response_sha256": "5aafc5a29cbfa3b5871045e3fd5146ed0773df56a31bc31d6fc703a3392d8314",
+      "mechanism_summary": "FLCN loss activates AMPK-linked mitochondrial biogenesis and ROS, which activate HIF transcription and Warburg-like metabolic changes."
+    },
+    {
+      "source_id": "S4",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "Targeting lactate-fueled respiration selectively kills hypoxic tumor cells in mice",
+      "doi": "10.1172/JCI36843",
+      "publisher_url": "https://www.jci.org/articles/view/36843",
+      "publisher_issue_date": "2008-12-01",
+      "pmid": "19033663",
+      "pmid_mapping": {
+        "source": "publisher page citation_pmid metadata, cross-checked against OpenAlex DOI record",
+        "openalex_id": "W2017007251",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI36843",
+        "response_bytes": 41653,
+        "response_sha256": "a2b9d44dab643d34f4ac4ff3609c44504f583d3e010b37f15f12cdd5c501c1dc"
+      },
+      "publisher_response_bytes": 176141,
+      "publisher_response_sha256": "8ab226519bd36be563c4838a8e700bc226f8f6553f7287577307e4c8b26ccf9b",
+      "mechanism_summary": "Hypoxic tumor cells release lactate that oxygenated tumor cells import through MCT1 and use for oxidative metabolism."
+    },
+    {
+      "source_id": "S5",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "Transcription factor c-Maf is a checkpoint that programs macrophages in lung cancer",
+      "doi": "10.1172/JCI131335",
+      "publisher_url": "https://www.jci.org/articles/view/131335",
+      "publisher_issue_date": "2020-04-01",
+      "pmid": "31945018",
+      "pmid_mapping": {
+        "source": "OpenAlex DOI record; publisher citation_pmid metadata reports 0",
+        "openalex_id": "W3000546176",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI131335",
+        "response_bytes": 52424,
+        "response_sha256": "2546dff9ff6892ff81bbda54b3e130ba895215147d6f0aa4dcd302b952e1e806"
+      },
+      "publisher_response_bytes": 245443,
+      "publisher_response_sha256": "f54a9da6c99788778e884827d2393853a382e0d9e56579220ef566ea007c546d",
+      "mechanism_summary": "c-Maf programs immunosuppressive lung tumor macrophages, promoting T-cell suppression and tumor progression through transcriptional and metabolic changes that include TCA-cycle and UDP-GlcNAc pathways."
+    },
+    {
+      "source_id": "S6",
+      "type": "primary_research_article",
+      "publisher": "Journal of Clinical Investigation",
+      "title": "Lactate inhibits ATP6V0d2 expression in tumor-associated macrophages to promote HIF-2α-mediated tumor progression",
+      "doi": "10.1172/JCI123027",
+      "publisher_url": "https://www.jci.org/articles/view/123027",
+      "publisher_issue_date": "2019-02-01",
+      "pmid": "30431439",
+      "pmid_mapping": {
+        "source": "OpenAlex DOI record; publisher citation_pmid metadata reports 0",
+        "openalex_id": "W2901939398",
+        "openalex_url": "https://api.openalex.org/works/https://doi.org/10.1172/JCI123027",
+        "response_bytes": 47120,
+        "response_sha256": "1f068ec6056dc135ea9be3757cbd82f58e962e3c38711f1fd3e188324ba5583a"
+      },
+      "publisher_response_bytes": 200058,
+      "publisher_response_sha256": "d6c6cd5a18ae60ecd9a7ecf381684a08b45998f9f4b6af3b23764832c2151681",
+      "mechanism_summary": "Lactate in the tumor environment triggers mTORC1-linked suppression of TFEB-mediated ATP6V0d2 expression in macrophages, enabling HIF-2α/VEGF-associated tumor growth."
+    }
+  ],
+  "comparison_protocol": {
+    "boundary": "Call the maintained pubmed_search_with_fulltext MCP tool through the current validation parameter mapping and ResponseParser. Send each exact query in request_inputs with max_papers=3, recency_years=0, and a unique slug/run_id. The current PubmedSource uses a nine-ID search buffer for three requested papers and the unchanged downstream metadata, PMC-fulltext preference, and parser path.",
+    "baseline_arm": "Run the pinned baseline tree. For each query, current search_with_relaxation stops at the first existing rung with at least three IDs, returning that rung's IDs; if no rung reaches three, it returns the first nonempty rung's IDs. Earlier rung IDs are discarded when a later rung reaches the threshold.",
+    "candidate_arm": "In an isolated candidate build, issue exactly the same existing relaxation rungs, in the same order, with the same query and retmax=9. Stop at the same first rung with at least three IDs, or exhaust the same ladder. Concatenate IDs from attempted rungs in rung order, keep each ID only at its first occurrence, and cap the list at the first nine IDs. Earlier-rung IDs therefore remain ahead of broader-rung IDs. Pass this list to the unchanged metadata fetch, PMC preference, tool response, configured parser, and max_papers=3 behavior. Do not add queries or rungs, change sorting, change fulltext preference, expand any cap, use another provider, or add a retry.",
+    "paired_call_order": [
+      "baseline R01",
+      "candidate R01",
+      "baseline R02",
+      "candidate R02",
+      "baseline R03",
+      "candidate R03",
+      "baseline R04",
+      "candidate R04",
+      "baseline R05",
+      "candidate R05",
+      "baseline R06",
+      "candidate R06"
+    ],
+    "fixed_settings": {
+      "pubmed_sort": "pub_date",
+      "recency_years": 0,
+      "max_papers": 3,
+      "search_buffer_ids_per_rung": 9,
+      "minimum_ids_before_relaxation": 3,
+      "rung_order": "the pinned current relaxation_ladder",
+      "tool_and_parser": "unchanged maintained pubmed_search_with_fulltext mapped through engine/src/co_scientist/config/tools.yaml and parsed by the configured ResponseParser"
+    },
+    "credential_and_cost_boundary": {
+      "model_inference_calls": 0,
+      "provider_api_keys": "absent",
+      "ncbi_api_key": "absent; anonymous keyless public retrieval only",
+      "paid_fallbacks_or_other_retrieval_providers": "forbidden",
+      "estimated_project_spend": "$0",
+      "rate_limit_behavior": "Use the maintained Entrez request pacing and wait at least two seconds between outer tool-call starts. Honor server/provider retry or rate responses as a terminal retrieval error for this preregistered batch; do not retry, resume, or substitute."
+    },
+    "isolation_and_provenance": {
+      "cache": "Use a new empty cache namespace for each request_id × arm; no cache sharing across cases or arms.",
+      "shared_pool": "Use an isolated per-call corpus; assert its metadata pool is empty before every search and record any same-call supplementation. Any cross-case carry-over is a protocol failure.",
+      "server_builds": "Run isolated loopback baseline and candidate MCP server processes. Record commit/tree hash, candidate diff hash, process ID, port, tool endpoint, and arm for each call.",
+      "per_call_trace": "Retain UTC start/end, exact query, slug/run_id, actual sort, every attempted rung index/type/count and first at most nine PMIDs, the selected ordered ID list, metadata-fetch/fulltext availability for all selected IDs, and final parsed PMID order. Do not store raw server logs, credentials, or full abstracts in the committed results.",
+      "target_blinding": "Only request_inputs may be given to the retrieval runner. Keep scoring_key outside the request process; assert that no target/anchor PMID or source title occurs in any query, slug, run_id, tool argument other than the fixed query/settings, or blinded abstract packet. Reveal the scoring key only after all final outputs and per-rung traces are written and hashed."
+    },
+    "hard_bounds": {
+      "outer_mcp_tool_calls": 12,
+      "maximum_existing_rungs_per_call": 3,
+      "maximum_esearch_requests": 36,
+      "maximum_ids_submitted_for_metadata_per_call": 9,
+      "maximum_total_ids_submitted_for_metadata": 108,
+      "retry_or_recovery_calls": 0,
+      "stop_condition": "Stop the entire batch at the first transport error, rate limit, HTTP/provider error, parse error, missing/invalid trace, nonempty pre-search shared pool, query mismatch, or price/cost ambiguity. Preserve only the completed prefix plus the error class. Do not mark incomplete cases as misses."
+    }
+  },
+  "predeclared_metrics_and_decisions": {
+    "primary_metric": "Exact positive target PMID recall@3 in the final parsed public-tool response: count of R01, R03, and R05 whose source target PMID occurs among the first three returned papers, candidate versus matched baseline, range 0–3.",
+    "strict_improvement_gate": "Candidate must retrieve at least one more positive target at final recall@3 than baseline and must lose no positive target hit present in baseline.",
+    "control_anchor_gate": "For R02, R04, and R06, report each control's own source-anchor recall@3. Candidate may not lose any anchor hit present in baseline. Report positive-target cross-hits in control queries separately; an exact ID hit is not a semantic rejection.",
+    "unrelatedness_gate": "After capture, an independent reviewer labels anonymized final title/abstract items as supports_central_mechanism, related_without_mechanism_support, unrelated, or insufficient_abstract. Remove PMID, pair role, arm, rank, and query from the review packet; label before unblinding. Candidate must not increase the per-request count of unrelated returned papers. If the blind assessment is missing, disputed, or insufficient, the result is inconclusive.",
+    "provenance_gate": "All calls must have complete matching query, arm/build/run identity, rung trace, selected/fetched/final ID lineage, empty pre-search pool, and no carry-over. Any provenance regression fails the candidate gate.",
+    "interpretation": "Adopt no change from this pilot alone. A complete batch supports only the frozen retrieval behavior. If no positive target appears in any attempted rung in either arm, the retention hypothesis was not testable on these cases and remains inconclusive. A retrieval hit is evidence that an exact source was surfaced; it does not establish semantic contradiction, novelty rejection, or scientific validity.",
+    "failure_disposition": "If candidate does not strictly improve the primary metric or fails a non-regression gate, do not adopt this candidate behavior. If an error or incomplete blind/provenance record occurs, leave the candidate unresolved rather than scoring missing calls as zero."
+  },
+  "reproducibility": {
+    "result_path": "references/external/sakana/novelty-precise-rung-results-v1.json",
+    "frozen_inputs_sha256": "0c078ea05a30815d049930bfa8ec1eb5059840c6bd310b8f6dee8f88792663e3",
+    "source_manifest_sha256": "da59d185c903939ae6e591a582fd567959993f1e17ed9223d8914df7a13bf267",
+    "input_digest_rule": "These SHA-256 digests are over UTF-8 canonical JSON for request_inputs and source_evidence, respectively, using recursively sorted keys and compact separators. Repeat and record frozen_inputs_sha256 in every result file; any change requires a dated preregistration amendment before calls.",
+    "source_digest_rule": "The publisher_response_sha256 fields hash the captured publisher HTML responses. The pmid_mapping response_sha256 fields hash the captured OpenAlex DOI metadata responses. Those exact bodies are not committed; source URLs, response byte counts, IDs, titles, DOI and hashes are retained here.",
+    "candidate_hash_rule": "A dated preregistration amendment must be committed before the first call with exact candidate and runner hashes. Do not infer candidate identity from the current branch name or working-tree state."
+  },
+  "known_limits": [
+    "The three pairs share broad oncology/metabolism or macrophage vocabulary by design but differ in their primary causal mechanisms; they are not six independent biological domains.",
+    "The benchmark is small and source-selected. It can test exact-ID retention for these fixed queries only; it cannot establish comprehensive PubMed recall or novelty judgment quality.",
+    "Live PubMed indexes and result ordering may change between paired requests. Interleave arms per request, record timestamps, and treat major service changes or any protocol error as inconclusive.",
+    "Four publisher pages reported citation_pmid=0 in captured HTML; OpenAlex DOI records supplied their PMID mappings. The retained DOI and OpenAlex hashes make this resolution auditable without a PubMed search/API or NCBI request during selection."
+  ]
+}

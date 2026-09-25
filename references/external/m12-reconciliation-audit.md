@@ -1,0 +1,54 @@
+# M12 first-item reconciliation audit
+
+**Snapshot result:** The nine required source records reconcile at the pin and dossier-link level. At this snapshot, the first M12 item remained open because two status summaries were stale, the M11 register omitted a current candidate family, and the branch could not resolve the PR #45 merge object locally. The resolution below closes these documentation and object-location gaps; M12 reconciliation remains open while M11 candidates are unfinished.
+
+**Audit boundary:** Read-only comparison of `PLAN.md`, the external-source inventory, nine source dossiers, retained release receipts, and local Git objects. Snapshot: `feat/external-m11-free-route` at `6fa455bd3425649c8ac2a81dc97306ff2cebcda2`. No upstream fetch, model inference, web experiment, deployment, or production mutation was performed. The local pin comparison establishes internal consistency, not current upstream availability.
+
+## Verified reconciliation
+
+- All nine source rows in [README.md](README.md#L17-L27) point to existing dossiers. Their 40-character pins match the first pinned commit recorded in each dossier (9/9).
+- A static check of the inventory, nine dossiers, and M11 register found 183 relative Markdown targets and no missing local targets.
+- Each dossier records the source license and its applicable reuse boundary. Specific caveats are retained for GPT Researcher and dependencies (M3), the separately derived `x_code/` component (M5), skill/data terms (M6), the conditional source license and NVIDIA component (M7), bundled component licenses (M8), the ToolUniverse documentation/root-license conflict and optional AGPL component (M9), and Robin's separate Edison/provider/material terms (M10). The dossiers describe accepted behavior as independently implemented; they do not report copying upstream code. Existing [NOTICE](../../NOTICE) entries cover the retained dataset/vendor attributions they identify as shipped material.
+- Candidate records exist for each source. Their final status is summarized below; open post-source obligations are carried into M11 rather than being treated as source-milestone failures.
+
+| Source | Candidate IDs recorded in dossier | Current disposition recorded in dossier/PLAN |
+|---|---|---|
+| M2 Kaimen | `M2-01`–`M2-06` | Two already covered; two outside scope; two rejected with evidence. No adoption. |
+| M3 Conradry | `M3-01`–`M3-08` | `M3-02` and `M3-04` adopted; remaining six covered, rejected, or outside scope. |
+| M4 LLNL | `M4-01`–`M4-09` | `M4-01` and `M4-09` adopted; remaining seven covered, rejected, or outside scope. |
+| M5 Raktim | `M5-01`–`M5-12` | `M5-10` adopted; remaining eleven covered or rejected for the stated replacement, scope, safety, or evidence limits. |
+| M6 K-Dense | `KDS-HYP-01`, `KDS-CITE-02`, `KDS-DATA-03`, `KDS-BRAIN-04`, `KDS-DESIGN-05`, `KDS-REVIEW-06` | `KDS-CITE-02` adopted independently; the other five rejected, covered, or outside scope. M6 is marked verified in PLAN. |
+| M7 Sakana | `M7-NOV-01`, `M7-REV-02`, `M7-EXP-03`, `M7-ARCH-04`, `M7-PAPER-05`, `M7-NOV-06` | `M7-NOV-01` remains promising and transferred to M11; the other five are covered, rejected, or outside scope. |
+| M8 OpenScience | Candidate register plus subsequent `M8-*` acceptance IDs | Accepted lifecycle corrections are locally verified and released; `M8-LLM-07` transferred to M11 and was released as M11-LLM-02. M8 is marked complete in PLAN. |
+| M9 ToolUniverse | `M9-DIS-01`, `M9-ERR-02`, `M9-CACHE-03`, `M9-COMP-04`, `M9-ERR-05`, `M9-RET-06`, `M9-GWAS-07` | Cache/error/retraction changes and GWAS lookup were independently adopted; other entries are covered or rejected. GWAS was released in M11. |
+| M10 Robin | `M10-01`–`M10-05` | `M10-01` was independently implemented; M10's source release and two M11 Robin releases are recorded. Only live campaign acceptance remains open as M11-ROBIN-01d4. |
+
+The release trail is recorded across [PLAN.md](../../PLAN.md), each dossier, and the applicable JSON receipts. Final source releases are recorded as PRs #22, #23, #24, #25, #28, #30, #35, #37, and #39. Follow-up releases include PR #41 (timeout and GWAS), #43 and #45 (Robin), and #44 (PubMed optional-author parsing). Hosted CI failures/waivers are explicitly described as not passing; do not summarize them as green CI. The sampled merge commit objects for PRs #22–#44 resolve in this checkout.
+
+## Gaps and exact next checks
+
+1. **Robin status is stale in the inventory.** [README lines 8–12](README.md#L8-L12) call its M11 release check open, and [row 9](README.md#L27) says release pending. The [PR #45 receipt](robin/m11-ui-release-verification.json) records the frozen-case release, deployment, and 5/5 production smoke; [PLAN's 01d3 log](../../PLAN.md#L5539) says the public live action remains open as 01d4. Update the inventory to say the release is complete and only the campaign-owned live observation remains open. Keep source investigation closure separate from live acceptance.
+
+2. **K-Dense has a direct status contradiction.** The [dossier state](k-dense-scientific-agent-skills.md#L3) and its [interim PR #27 paragraph](k-dense-scientific-agent-skills.md#L83) say release verification/tool release remains open; the next paragraph records PR #28, the deployed tool, production smoke, and [the retained release receipt](m6-production-verification.json). [M6 in PLAN](../../PLAN.md#L270-L277) is verified. Replace the stale current-state sentence and label the PR #27 text as an interim stage, preserving PR #28 as the final acceptance.
+
+3. **The M11 register does not inventory the precise-rung candidate.** [M11 follow-up register](m11-follow-up-register.md#L9-L15) says it has separate PLAN items but has no `M11-NOV-RUNG-01` row. Current open checklist IDs in [PLAN](../../PLAN.md#L358-L397) are: `M11-OPS-02b`, `M11-OPS-02c`, `M11-NOV-01a3b3b`, `M11-NOV-01a3b3c`, `M11-NOV-RUNG-01b1`, `M11-NOV-RUNG-01b2a`, `M11-NOV-RUNG-01b2b`, `M11-NOV-RUNG-01c`, `M11-NOV-01b`, and `M11-ROBIN-01d4`. Add the precise-rung gap and refresh the register's next-action wording against this exact list; retain the current blockers:
+   - The free-route shortlist found no qualified privacy-compatible replacement, and the bounded Qwen probe stopped on an upstream 429 ([shortlist](baseline/model-qualification/m11-free-route-shortlist-2026-09-25.json), [probe](baseline/model-qualification/qwen-m11-capabilities-2026-09-25.json)). Keep 02b/02c open; do not repeat that rate-limited probe. Robin live acceptance and model-based novelty calls depend on route qualification.
+   - The result-conditioned novelty protocol is committed with `model_name: null` and candidate calls unauthorized; finish the offline runner and complete the preregistration before any candidate call, then run only after route qualification. A passing pilot still needs the independently eligible three-pair confirmation in 01b.
+   - The precise-rung protocol is separately frozen ([protocol](sakana/novelty-precise-rung-prereg-v1.json)); finish its offline candidate and runner checks before the bounded 12-call keyless evaluation, then retain the declared disposition/release gate. Do not merge it into the result-conditioned candidate's acceptance.
+   - The campaign-owned Robin run receipt shows eight route-admission failures and zero hypotheses ([run state](robin/m11-public-run-state.json)); 01d4 still needs a qualified route and a completed eligible campaign-owned run before explicit refinement can be observed.
+
+4. **PR #45's merge object is absent from this checkout.** The receipt names merge commit `91c70ed0dd23b34529f19fbfb9331b247d56ef9d` and production IDs, and PLAN records the release. `git cat-file -e 91c70ed0dd23b34529f19fbfb9331b247d56ef9d^{commit}` fails at this snapshot, while sampled earlier merge objects resolve. This is a local evidence-location gap, not proof that the release failed: the current feature branch may predate the mainline merge. Before final integration, sync the authoritative main history, rerun `git cat-file -e` and `git merge-base --is-ancestor` for the receipt's merge commit, and compare PR #45's API/MCP/Vercel deployment commit fields with that exact hash.
+
+5. **Two inventory conventions need precision.** [README lines 29–32](README.md#L29-L32) says candidate IDs use `M<number>-<number>`, while M6 deliberately uses stable `KDS-*` IDs. Clarify the exception without renumbering candidates. The Sakana dossier's [follow-up narrative](sakana-ai-scientist.md#L76-L82) also names superseded M11 subtask IDs and assigns the already-frozen precise-rung protocol to an older novelty parent. Refresh only its current next-action links to the present `M11-NOV-01*` and `M11-NOV-RUNG-01*` items; keep the earlier result chronology and limits intact.
+
+## Acceptance boundary
+
+This audit closes no candidate and changes no production state. M12's first item can close after the stale inventory/dossier/register pointers are corrected, the PR #45 merge object is reconciled on the final integrated branch, and a fresh open-item scan confirms that remaining M11 work is still explicitly tracked rather than silently marked complete.
+
+## Resolution on 25 September 2026
+
+The source inventory now identifies Robin's released M11 change and its still-open campaign-owned live observation. The K-Dense dossier identifies PR #27 as an interim stage and PR #28 as the verified tool release. The M11 register has a distinct `M11-NOV-RUNG-01` row and keeps the result-conditioned candidate separate. The Sakana dossier points to the current PLAN items and frozen precise-rung protocol; the inventory documents M6's stable `KDS-*` ID exception. These are status and attribution corrections, not new candidate dispositions.
+
+After fetching `origin/main`, `git cat-file -e 91c70ed0dd23b34529f19fbfb9331b247d56ef9d^{commit}` and `git merge-base --is-ancestor 91c70ed0dd23b34529f19fbfb9331b247d56ef9d origin/main` both succeeded. The [PR #45 receipt](robin/m11-ui-release-verification.json) records that exact commit for Railway API `7df12d74-2a5c-4556-b793-e4905626cb19` (SUCCESS), Railway MCP `77738945-4aa2-4a39-87d3-d85664b71469` (SUCCESS), and Vercel `dpl_Dj2gzjbEmbg1Npi8UXq3RhrQpooC` (READY). This resolves the snapshot's missing local object without repeating a deployment or treating receipt status as a fresh health check.
+
+M12's first checkbox stays open until the remaining M11 candidates have final evidence-backed dispositions and the final integrated branch and release are reconciled.
