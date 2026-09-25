@@ -203,22 +203,62 @@ def get_outcome_refinement_action_for_outcome(
 def list_pending_outcome_refinement_actions(
     run_id: str | None = None,
     *,
+    limit: int = 25,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
     """Read intents not yet materialized into claimable executor tasks."""
+    bounded_limit = min(max(int(limit), 1), 100)
     with _use_conn(conn, db_path) as active:
         if run_id is None:
             rows = active.execute(
                 "SELECT * FROM outcome_refinement_actions "
                 "WHERE status='pending_executor' "
-                "ORDER BY created_at, action_id"
+                "ORDER BY created_at, action_id LIMIT ?",
+                (bounded_limit,),
             ).fetchall()
         else:
             rows = active.execute(
                 "SELECT * FROM outcome_refinement_actions "
                 "WHERE run_id=? AND status='pending_executor' "
-                "ORDER BY created_at, action_id",
-                (run_id,),
+                "ORDER BY created_at, action_id LIMIT ?",
+                (run_id, bounded_limit),
             ).fetchall()
         return [_decode_action(row) for row in rows]
+
+
+def update_outcome_refinement_action(
+    action_id: str,
+    *,
+    status: str,
+    child_hypothesis_id: str | None = None,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any] | None:
+    """Set execution state and its optional child under the caller's commit."""
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT child_hypothesis_id FROM outcome_refinement_actions "
+            "WHERE action_id=?",
+            (action_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        existing_child = row["child_hypothesis_id"]
+        if (
+            existing_child is not None
+            and child_hypothesis_id is not None
+            and existing_child != child_hypothesis_id
+        ):
+            raise OutcomeRefinementConflictError
+        active.execute(
+            "UPDATE outcome_refinement_actions SET status=?, "
+            "child_hypothesis_id=COALESCE(child_hypothesis_id, ?), "
+            "updated_at=? WHERE action_id=?",
+            (status, child_hypothesis_id, _now(), action_id),
+        )
+        updated = active.execute(
+            "SELECT * FROM outcome_refinement_actions WHERE action_id=?",
+            (action_id,),
+        ).fetchone()
+        return _decode_action(updated) if updated is not None else None

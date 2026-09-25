@@ -140,6 +140,9 @@ from app.engine_tasks_node import (
 from app.engine_tasks_node import (
     execute_finalize as execute_finalize,
 )
+from app.engine_tasks_outcome_refinement import (
+    execute_outcome_refinement as execute_outcome_refinement,
+)
 from app.engine_tasks_ranking import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
@@ -187,6 +190,9 @@ from app.engine_tasks_support import (
 )
 from app.engine_tasks_support import (
     NODE_TASK_PREFIX as NODE_TASK_PREFIX,
+)
+from app.engine_tasks_support import (
+    OUTCOME_REFINEMENT_TASK as OUTCOME_REFINEMENT_TASK,
 )
 from app.engine_tasks_support import (
     RANKING_FINALIZE_TASK as RANKING_FINALIZE_TASK,
@@ -384,6 +390,7 @@ async def execute_node_task(
 # Non-node task types, by exact match (node/unrecognized: see below).
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,
+    OUTCOME_REFINEMENT_TASK: execute_outcome_refinement,
     REVIEW_ITEM_TASK: execute_review_item,
     REVIEW_AGGREGATE_TASK: execute_review_aggregate,
     VERIFICATION_ITEM_TASK: execute_verification_item,

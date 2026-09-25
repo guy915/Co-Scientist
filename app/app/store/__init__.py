@@ -123,6 +123,7 @@ from app.store.outcome_refinement_actions import (
     get_outcome_refinement_action_by_key,
     get_outcome_refinement_action_for_outcome,
     list_pending_outcome_refinement_actions,
+    update_outcome_refinement_action,
 )
 from app.store.outcomes import (
     InvalidOutcomeReferencesError,
@@ -421,6 +422,7 @@ __all__ = [
     "transaction",
     "update_hypothesis_state",
     "update_interview",
+    "update_outcome_refinement_action",
     "update_run_status",
     "update_run_status_if_current",
 ]

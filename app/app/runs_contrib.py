@@ -20,6 +20,8 @@ from fastapi import (
     Request,
     UploadFile,
 )
+from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 
 from app import (
     document_ingest,
@@ -27,8 +29,10 @@ from app import (
     human_input,
     run_corpus,
     store,
+    task_worker,
 )
 from app.auth import client_id, require_bearer_principal
+from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from app.outcome_refinement_action import (
@@ -242,16 +246,11 @@ async def request_hypothesis_outcome_refinement(
     idempotency_key: Annotated[
         str, Header(alias="Idempotency-Key", min_length=1, max_length=200)
     ],
-) -> dict[str, Any]:
-    """Persist the owner's separate authorization to use one outcome.
-
-    This 01b endpoint creates a durable, non-claimable outbox intent. The
-    targeted executor arrives in 01c; recording or replaying an outcome does
-    not enqueue an engine task or call a model.
-    """
+) -> JSONResponse:
+    """Queue the owner's separate, targeted use of one recorded outcome."""
     owner = require_bearer_principal(request).subject
     try:
-        return request_outcome_refinement_action(
+        action = request_outcome_refinement_action(
             OutcomeRefinementRequest(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
@@ -260,6 +259,17 @@ async def request_hypothesis_outcome_refinement(
                 request_idempotency_key=idempotency_key,
             )
         )
+        background_task = None
+        if (
+            settings.coscientist_embedded_worker
+            and action["status"] == "queued"
+        ):
+            background_task = BackgroundTask(
+                task_worker.run_run_worker_pool_sync,
+                run_id,
+                f"embedded-api:outcome-refinement:{action['action_id'][:8]}",
+            )
+        return JSONResponse(action, status_code=202, background=background_task)
     except (
         OutcomeRefinementNotFoundError,
         OutcomeRefinementIneligibleError,

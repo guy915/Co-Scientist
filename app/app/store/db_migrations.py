@@ -434,6 +434,16 @@ def _migrate_claim_verification_method(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_outcome_refinement_child(conn: sqlite3.Connection) -> None:
+    """Keep the action's child lineage on databases created during 01b."""
+    _add_column_if_missing(
+        conn,
+        "outcome_refinement_actions",
+        "child_hypothesis_id",
+        "TEXT",
+    )
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
     _migrate_client_isolation(conn)
@@ -459,3 +469,4 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_message_applied_columns(conn)
     _migrate_hypothesis_creation_iteration(conn)
     _migrate_claim_verification_method(conn)
+    _migrate_outcome_refinement_child(conn)

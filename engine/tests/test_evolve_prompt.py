@@ -28,6 +28,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _format_partner_context,
     _format_refinement_priorities,
     _log_meta_review_debug,
+    _OutcomeRefinement,
 )
 from co_scientist.models import HypothesisReview
 from co_scientist.offline_content import subject_terms
@@ -339,6 +340,60 @@ def test_published_templates_hedge_novelty_claims(
     assert "Novelty claims must be hedged" in prompt
     assert "to our knowledge" in prompt
     assert "{{MISSING" not in prompt
+
+
+@pytest.mark.parametrize(
+    "operator",
+    [
+        EvolutionOperator.COHERENCE_FEASIBILITY,
+        EvolutionOperator.OUT_OF_BOX,
+    ],
+)
+def test_recorded_outcome_precedes_published_json_response_contract(
+    operator: EvolutionOperator,
+) -> None:
+    """Targeted outcome context stays before each published terminal cue."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the selected parent"),
+        [],
+        _evolution_context(),
+        _EvolutionOperation(
+            operator=operator,
+            outcome_refinement=_OutcomeRefinement(
+                context='{"outcome_id":"o-1","measured_observation":"band"}',
+                validation_hypotheses=(),
+            ),
+        ),
+    )
+
+    response_contract = (
+        "Response: a single JSON object carrying all nine components above, "
+        "and nothing else."
+    )
+    assert "the selected parent" in prompt
+    assert "<recorded_outcome>" in prompt
+    assert prompt.index("<recorded_outcome>") < prompt.rindex(response_contract)
+    assert prompt.rstrip().endswith(response_contract)
+
+
+def test_recorded_outcome_precedes_local_structured_output_format() -> None:
+    """The ordinary evolution template keeps its output instructions last."""
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the selected parent"),
+        [],
+        _evolution_context(),
+        _EvolutionOperation(
+            outcome_refinement=_OutcomeRefinement(
+                context='{"outcome_id":"o-1","measured_observation":"band"}',
+                validation_hypotheses=(),
+            )
+        ),
+    )
+
+    assert prompt.index("<recorded_outcome>") < prompt.index("## Output Format")
+    assert prompt.rstrip().endswith(
+        "- Prefer concise plain text when it communicates the idea equally well"
+    )
 
 
 def test_feasibility_prompt_stays_on_topic_offline() -> None:

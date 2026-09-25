@@ -18,6 +18,7 @@ from tests._client import make_client
 def _configure_outcome_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "auth_mode", "compatibility")
     monkeypatch.setattr(settings, "auth_secret", "outcome-test-secret")
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
 
 def _signed_headers(owner: str) -> dict[str, str]:
@@ -299,7 +300,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     created = client.post(action_path, headers=headers)
     assert created.status_code == 202
     action = created.json()
-    assert action["status"] == "pending_executor"
+    assert action["status"] == "queued"
     assert action["outcome_id"] == outcome_id
     assert action["hypothesis_id"] == hypothesis_id
     assert action["action_id"]
@@ -317,18 +318,24 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     assert _outcome_body(evidence_id)["measured_observation"] in context
     assert evidence_id in context
     assert "This full text is not part" not in context
-    assert store.list_tasks(run_id, db_path=isolated_db) == []
+    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    assert len(tasks) == 1
+    assert tasks[0].task_type == "engine.outcome.refinement"
+    assert tasks[0].idempotency_key == action["task_idempotency_key"]
+    assert tasks[0].provenance == {
+        "action_id": action["action_id"],
+        "outcome_id": outcome_id,
+        "hypothesis_id": hypothesis_id,
+    }
 
     replayed = client.post(action_path, headers=headers)
     assert replayed.status_code == 202
     assert replayed.json() == {**action, "replayed": True}
     assert (
-        len(
-            store.list_pending_outcome_refinement_actions(
-                run_id, db_path=isolated_db
-            )
+        store.list_pending_outcome_refinement_actions(
+            run_id, db_path=isolated_db
         )
-        == 1
+        == []
     )
     events = store.list_events(run_id, db_path=isolated_db)
     action_events = [
@@ -350,12 +357,10 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
     assert replay_after_restart.status_code == 202
     assert replay_after_restart.json() == {**action, "replayed": True}
     assert (
-        len(
-            store.list_pending_outcome_refinement_actions(
-                run_id, db_path=isolated_db
-            )
+        store.list_pending_outcome_refinement_actions(
+            run_id, db_path=isolated_db
         )
-        == 1
+        == []
     )
     assert len(store.list_events(run_id, db_path=isolated_db)) == len(events)
     reopened_client.close()
@@ -468,14 +473,10 @@ def test_refinement_action_is_owner_scoped_and_exactly_one_per_outcome(
         ).status_code
         == 404
     )
-    assert (
-        len(
-            store.list_pending_outcome_refinement_actions(
-                run_id, db_path=isolated_db
-            )
-        )
-        == 1
+    action = store.get_outcome_refinement_action_for_outcome(
+        run_id, outcome["id"], db_path=isolated_db
     )
+    assert action is not None and action["status"] == "queued"
     client.close()
 
 
@@ -711,22 +712,24 @@ def test_refinement_context_uses_unicode_codepoints_and_rejects_6001(
     monkeypatch.setattr(outcomes_module, "_now", lambda: 1_800_000_000.125)
     owner = "outcome-refinement-context"
     headers = _signed_headers(owner)
-    client = make_client()
-    run_id = _new_run(client, owner)
-    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Bounded parent")
     statement = "Bounded parent by pathway Y."
-    _save_engine_checkpoint(
-        run_id,
-        Hypothesis(
-            id=hypothesis_id,
-            text=statement,
-            title="Bounded parent",
-        ),
-        isolated_db,
-    )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    client = make_client()
 
-    def record(observation: str) -> dict[str, Any]:
+    def refine(observation: str, key: str) -> tuple[int, int]:
+        run_id = _new_run(client, owner)
+        hypothesis_id = _add_hypothesis(run_id, isolated_db, "Bounded parent")
+        _save_engine_checkpoint(
+            run_id,
+            Hypothesis(
+                id=hypothesis_id,
+                text=statement,
+                title="Bounded parent",
+            ),
+            isolated_db,
+        )
+        store.update_run_status(
+            run_id, RunStatus.COMPLETED, db_path=isolated_db
+        )
         response = client.post(
             f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
             headers=headers,
@@ -737,41 +740,29 @@ def test_refinement_context_uses_unicode_codepoints_and_rejects_6001(
             },
         )
         assert response.status_code == 201
-        return cast(dict[str, Any], response.json())
-
-    calibration = record("🧬")
-    first_action = client.post(
-        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
-        f"outcomes/{calibration['id']}/refine",
-        headers={**headers, "Idempotency-Key": "unicode-calibration"},
-    )
-    assert first_action.status_code == 202
-    baseline_length = first_action.json()["context_codepoints"]
-    exact_length_observation = "🧬" * (6_000 - baseline_length + 1)
-    exact_outcome = record(exact_length_observation)
-    exact = client.post(
-        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
-        f"outcomes/{exact_outcome['id']}/refine",
-        headers={**headers, "Idempotency-Key": "unicode-exact-boundary"},
-    )
-    assert exact.status_code == 202
-    assert exact.json()["context_codepoints"] == 6_000
-
-    oversized_outcome = record(exact_length_observation + "🧬")
-    oversized = client.post(
-        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
-        f"outcomes/{oversized_outcome['id']}/refine",
-        headers={**headers, "Idempotency-Key": "unicode-over-boundary"},
-    )
-    assert oversized.status_code == 422
-    assert (
-        len(
-            store.list_pending_outcome_refinement_actions(
-                run_id, db_path=isolated_db
-            )
+        outcome = cast(dict[str, Any], response.json())
+        action_response = client.post(
+            f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+            f"outcomes/{outcome['id']}/refine",
+            headers={**headers, "Idempotency-Key": key},
         )
-        == 2
+        return action_response.status_code, int(
+            action_response.json().get("context_codepoints", 0)
+        )
+
+    calibration_status, baseline_length = refine("🧬", "unicode-calibration")
+    assert calibration_status == 202
+    exact_length_observation = "🧬" * (6_000 - baseline_length + 1)
+    exact_status, exact_length = refine(
+        exact_length_observation, "unicode-exact-boundary"
     )
+    assert exact_status == 202
+    assert exact_length == 6_000
+
+    oversized_status, _ = refine(
+        exact_length_observation + "🧬", "unicode-over-boundary"
+    )
+    assert oversized_status == 422
     client.close()
 
 

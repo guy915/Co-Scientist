@@ -7,6 +7,7 @@ claimable scientific-task queue until the targeted executor lands in 01c.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -18,10 +19,13 @@ from co_scientist.checkpoint import (
 
 from app import store
 from app.engine_adapter.checkpoints import is_engine_checkpoint
+from app.engine_tasks_support import OUTCOME_REFINEMENT_TASK
 from app.store import DEMO_CLIENT_ID, NewOutcomeRefinementAction
 
 MAX_OUTCOME_CONTEXT_CODEPOINTS = 6_000
 MAX_OUTCOME_SOURCE_LINKS = 3
+_PENDING_RECOVERY_LIMIT = 25
+logger = logging.getLogger(__name__)
 
 
 class OutcomeRefinementNotFoundError(ValueError):
@@ -101,6 +105,7 @@ def _action_payload(
         "checkpoint_seq": action["checkpoint_seq"],
         "context_codepoints": action["context_codepoints"],
         "status": action["status"],
+        "child_hypothesis_id": action.get("child_hypothesis_id"),
         "created_at": action["created_at"],
         "replayed": replayed,
     }
@@ -271,7 +276,119 @@ def _new_intent(
         ),
         conn=conn,
     )
+    _materialize_action(action, conn)
+    action = (
+        store.get_outcome_refinement_action(
+            request.run_id, action["action_id"], conn=conn
+        )
+        or action
+    )
     return _action_payload(action, replayed=replayed)
+
+
+def _materialize_action(
+    action: dict[str, Any], conn: Any, *, retry_failed: bool = True
+) -> None:
+    """Atomically attach the saved intent to the durable engine queue."""
+    if action["status"] in {"completed", "no_child", "safety_rejected"}:
+        return
+    run = store.get_run(action["run_id"], conn=conn)
+    if run is None or run.status in {
+        store.RunStatus.CANCELLED.value,
+        store.RunStatus.BLOCKED.value,
+    }:
+        return
+    if not _ensure_action_task(action, conn, retry_failed=retry_failed):
+        return
+    if run.status in {
+        store.RunStatus.COMPLETED.value,
+        store.RunStatus.FAILED.value,
+    }:
+        store.update_run_status(
+            action["run_id"], store.RunStatus.QUEUED, conn=conn
+        )
+        store.append_event(
+            action["run_id"],
+            "lifecycle",
+            {
+                "event": "outcome_refinement_queued",
+                "action_id": action["action_id"],
+                "outcome_id": action["outcome_id"],
+                "hypothesis_id": action["hypothesis_id"],
+            },
+            conn=conn,
+        )
+    store.update_outcome_refinement_action(
+        action["action_id"], status="queued", conn=conn
+    )
+
+
+def _ensure_action_task(
+    action: dict[str, Any], conn: Any, *, retry_failed: bool
+) -> bool:
+    """Create the stable task row or explicitly revive its failed attempt."""
+    existing = conn.execute(
+        "SELECT id, status FROM scientific_tasks "
+        "WHERE run_id=? AND idempotency_key=?",
+        (action["run_id"], action["task_idempotency_key"]),
+    ).fetchone()
+    if existing is None:
+        store.enqueue_task(
+            store.NewTask(
+                run_id=action["run_id"],
+                task_type=OUTCOME_REFINEMENT_TASK,
+                inputs={
+                    "action_id": action["action_id"],
+                    "checkpoint_seq": action["checkpoint_seq"],
+                },
+                idempotency_key=action["task_idempotency_key"],
+                provenance={
+                    "action_id": action["action_id"],
+                    "outcome_id": action["outcome_id"],
+                    "hypothesis_id": action["hypothesis_id"],
+                },
+                max_attempts=3,
+            ),
+            conn=conn,
+        )
+        return True
+    if existing["status"] in {"failed", "cancelled"}:
+        return retry_failed and store.revive_task_for_retry(
+            action["run_id"], action["task_idempotency_key"], conn=conn
+        )
+    return True
+
+
+def materialize_pending_outcome_refinements(
+    *, db_path: str | None = None
+) -> int:
+    """Recover a bounded set of pre-executor intents without retrying work."""
+    pending = store.list_pending_outcome_refinement_actions(
+        db_path=db_path, limit=_PENDING_RECOVERY_LIMIT
+    )
+    materialized = 0
+    for snapshot in pending:
+        try:
+            with store.transaction(db_path) as conn:
+                action = store.get_outcome_refinement_action(
+                    snapshot["run_id"], snapshot["action_id"], conn=conn
+                )
+                if action is None or action["status"] != "pending_executor":
+                    continue
+                _materialize_action(action, conn, retry_failed=False)
+                current = store.get_outcome_refinement_action(
+                    snapshot["run_id"], snapshot["action_id"], conn=conn
+                )
+                materialized += int(
+                    current is not None and current["status"] == "queued"
+                )
+        except Exception:
+            logger.warning(
+                "Could not recover outcome-refinement intent %s",
+                snapshot["action_id"],
+                exc_info=True,
+            )
+    return materialized
 
 
 def request_outcome_refinement_action(
@@ -291,6 +408,18 @@ def request_outcome_refinement_action(
             request,
         )
         if replay is not None:
+            action = store.get_outcome_refinement_action_by_key(
+                request.run_id, request_key, conn=conn
+            )
+            if action is not None:
+                _materialize_action(action, conn)
+                action = (
+                    store.get_outcome_refinement_action(
+                        request.run_id, action["action_id"], conn=conn
+                    )
+                    or action
+                )
+                return _action_payload(action, replayed=True)
             return replay
         _validate_new_action_run(run)
         target = _eligible_parent(conn, request)

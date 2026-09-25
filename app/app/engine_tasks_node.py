@@ -192,6 +192,13 @@ async def _commit_node_result(
         The task result: the committed checkpoint plus successor or pause.
     """
     task, db_path = commit.task, commit.db_path
+    if node_name == "ranking" and successor == "orchestrator":
+        from app.engine_tasks_ranking import _consume_outcome_refinement_gate
+
+        if _consume_outcome_refinement_gate(
+            task.run_id, committed, db_path=db_path
+        ):
+            successor = None
     successor_type = _successor_task_type(successor)
     if run.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(commit, committed, successor_type)
