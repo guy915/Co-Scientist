@@ -220,5 +220,15 @@
     "derived_entrez_method_invocations_total": 164,
     "observed_underlying_http_request_total": "unknown",
     "derivation": "Pinned pubmed_client.py issues one ESearch per retained attempt, one EFetch per submitted PMID, and one ELink after each successfully fetched PMID. All eight calls completed with all submitted PMID rows fetched. Launcher receipts set Bio.Entrez max_tries=1 and force-test one 503 attempt; the method invocation total is derived from trace and pinned code, not independently counted at the wire."
+  },
+  "positive_target_cross_hits_in_controls": {
+    "R04": {
+      "baseline": [],
+      "candidate": []
+    },
+    "R06": {
+      "baseline": [],
+      "candidate": []
+    }
   }
 }
