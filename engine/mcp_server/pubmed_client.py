@@ -30,7 +30,7 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
         "<invalid>" token in it.
     """
     names = []
-    for author in article["AuthorList"]:
+    for author in article.get("AuthorList", []):
         name = (
             f"{author.get('ForeName', '<invalid>')} "
             f"{author.get('LastName', '<invalid>')}"
