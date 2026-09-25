@@ -133,6 +133,45 @@ def test_fetch_paper_details_reads_as_plain_text(
     assert metadata["abstract"] == "Background: blaNDM-1 is widespread."
 
 
+def test_fetch_paper_details_keeps_article_without_author_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An optional AuthorList does not discard otherwise valid metadata."""
+    canned = {
+        "PubmedArticle": [
+            {
+                "MedlineCitation": {
+                    "Article": {
+                        "ArticleTitle": "A paper without an author list",
+                        "Abstract": {"AbstractText": ["Useful abstract."]},
+                        "Journal": {"Title": "Nature"},
+                    },
+                    "DateRevised": {"Year": "2020", "Month": "1", "Day": "1"},
+                },
+                "PubmedData": {"ArticleIdList": []},
+            }
+        ]
+    }
+
+    client = _EntrezClient(tmp_path)
+    monkeypatch.setattr(
+        "mcp_server.pubmed_client.entrez_call", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        _EntrezClient, "entrez_read", lambda self, handle: canned
+    )
+    monkeypatch.setattr(
+        _EntrezClient, "_fetch_pmc_fulltext_id", lambda self, *_a: None
+    )
+
+    metadata = client._fetch_paper_details("123")
+
+    assert metadata["title"] == "A paper without an author list"
+    assert metadata["abstract"] == "Useful abstract."
+    assert metadata["publication"] == "Nature"
+    assert metadata["authors"] == []
+
+
 def test_extract_abstract_keeps_the_missing_sentinel() -> None:
     """An article with no abstract still reports "<not found>".
 
