@@ -18,7 +18,7 @@
   "retry_or_recovery_calls": 0,
   "runner_input_sha256": "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0",
   "runner_path": "references/external/sakana/novelty_precise_rung_runner.py",
-  "runner_sha256": "f6e38bab4683323d7552f9303faadd177445a91065e51c8dec198af3f0f56f1d",
+  "runner_sha256": "eeb6537672d48cc5a3a3b1754cbff71a4e0d578870b60981c20b0ad9a32ae22c",
   "runtime_support": {
     "engine_project_sha256": "e379d9a4332d01c1d7b4a6fa3769acae251dd10446eaf9b3c8a1f97394975c83",
     "engine_source_tree_sha256": "25a70d61610e6a4f95465193797dd91d7f2656f2398c464662e9dd43498b040d",
@@ -29,12 +29,12 @@
   "status": "authorized_for_retrieval",
   "trace_preflight": {
     "baseline": {
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v2-2026-09-25-baseline-launch.json",
-      "receipt_sha256": "4f2a66dc700b6d9a841b68f3028e1f6f9b4f090f35837e8f836349e33e0b67d5"
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v3-2026-09-25-baseline-launch.json",
+      "receipt_sha256": "1258193f14e7243f884654c6fe9af5c677d25c18fb7d332fe262165dff69c882"
     },
     "candidate": {
-      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v2-2026-09-25-candidate-launch.json",
-      "receipt_sha256": "f418ac94c858e23ba834f0198b824af16189955bb97dd1455a8bc6609b8f32ce"
+      "receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-precise-rung-01b2b-lifecycle-v3-2026-09-25-candidate-launch.json",
+      "receipt_sha256": "9e4fcbd9e3aeab694fd40f345a70d217306fc26086dc4bd70d0261ab986aa23b"
     },
     "driver_path": "references/external/sakana/novelty_precise_rung_lifecycle_driver.py",
     "driver_sha256": "b57dd3cad113204dae7b11da3ae049ed5f764450ef0993cae08fcdd41157f579",
