@@ -38,6 +38,9 @@ from co_scientist.agents.evolution.evolve_prompt import (
 from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation as _EvolutionOperation,
 )
+from co_scientist.agents.evolution.evolve_prompt import (
+    _OutcomeRefinement as _OutcomeRefinement,
+)
 from co_scientist.agents.evolution.evolve_results import (
     _apply_evolution_result as _apply_evolution_result,
 )
@@ -194,8 +197,48 @@ async def evolve_single_hypothesis(
         hypothesis_index,
         operation,
     )
+    validation_hypotheses = (
+        list(operation.outcome_refinement.validation_hypotheses)
+        if operation.outcome_refinement is not None
+        else other_hypotheses
+    )
     return _apply_evolution_result(
-        hypothesis, response, other_hypotheses, context, operation
+        hypothesis,
+        response,
+        validation_hypotheses,
+        context,
+        operation,
+    )
+
+
+async def evolve_single_hypothesis_from_outcome(
+    hypothesis: Hypothesis,
+    context: _EvolutionContext,
+    outcome_context: str,
+    validation_hypotheses: list[Hypothesis],
+) -> tuple[Hypothesis | None, dict[str, Any] | None]:
+    """Refine one parent with a recorded outcome and its sibling reject set.
+
+    Args:
+        hypothesis: The only parent this targeted action may evolve.
+        context: Run context with unrelated prompt content removed.
+        outcome_context: Bounded, untrusted outcome snapshot for the prompt.
+        validation_hypotheses: Siblings used only to reject duplicate children.
+
+    Returns:
+        The accepted child and detail, or ``(None, None)`` when rejected.
+    """
+    operation = _EvolutionOperation(
+        outcome_refinement=_OutcomeRefinement(
+            context=outcome_context,
+            validation_hypotheses=tuple(validation_hypotheses),
+        )
+    )
+    return await evolve_single_hypothesis(
+        hypothesis,
+        [],
+        context,
+        operation=operation,
     )
 
 
@@ -215,7 +258,11 @@ async def _evolve_llm_response(
     ):
         grounding = await enhancement_grounding_block(context.state, hypothesis)
     full_prompt, schema = _build_evolution_prompt(
-        hypothesis, other_hypotheses_texts, context, operation, grounding
+        hypothesis,
+        other_hypotheses_texts,
+        context,
+        operation,
+        grounding,
     )
     response = await _call_evolution_llm(
         full_prompt,

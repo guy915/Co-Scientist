@@ -362,6 +362,10 @@ async def _commit_ranking_finalize(
     # ``co_scientist`` is unfollowed by the app's mypy, so this arrives as
     # ``Any``; restate the engine's declared type on the binding.
     successor: str | None = next_task_type("ranking", committed)
+    if successor == "orchestrator" and _consume_outcome_refinement_gate(
+        commit.task.run_id, committed, db_path=commit.db_path
+    ):
+        successor = None
     checkpoint_seq, successor_id = _save_state_and_enqueue(
         commit, committed, successor
     )
@@ -376,6 +380,36 @@ async def _commit_ranking_finalize(
         "successor_task_id": successor_id,
         "matches_committed": len(update.get("tournament_matchups", [])),
     }
+
+
+def _consume_outcome_refinement_gate(
+    run_id: str, state: dict[str, Any], *, db_path: str | None
+) -> bool:
+    """End the targeted child's ordinary gate cycle before pool evolution."""
+    for hypothesis in state.get("hypotheses", []):
+        provenance = hypothesis.enrichments.get("outcome_refinement")
+        if not isinstance(provenance, dict):
+            continue
+        action_id = provenance.get("action_id")
+        action = (
+            store.get_outcome_refinement_action(
+                run_id, str(action_id), db_path=db_path
+            )
+            if action_id
+            else None
+        )
+        if (
+            action is None
+            or action.get("status") != "completed"
+            or action.get("child_hypothesis_id") != hypothesis.id
+            or provenance.get("outcome_id") != action.get("outcome_id")
+            or provenance.get("parent_hypothesis_id")
+            != action.get("hypothesis_id")
+        ):
+            continue
+        hypothesis.enrichments.pop("outcome_refinement", None)
+        return True
+    return False
 
 
 def _fold_ranking_telemetry(

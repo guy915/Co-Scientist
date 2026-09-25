@@ -193,6 +193,7 @@ function emptyIdeasNote(exploredCount: number): string {
  */
 export function IdeasTab({
   runId,
+  allowRefinement,
   isDemo,
   hypotheses,
   reviews,
@@ -204,6 +205,7 @@ export function IdeasTab({
   onRefreshOutcomes,
 }: {
   runId?: string;
+  allowRefinement?: boolean;
   isDemo?: boolean;
   hypotheses: Hypothesis[];
   reviews: Review[];
@@ -233,6 +235,7 @@ export function IdeasTab({
         matches={matches}
         claimEvidence={claimEvidence}
         runId={runId}
+        allowRefinement={allowRefinement}
         isDemo={isDemo}
         outcomes={outcomes}
         outcomesLoading={outcomesLoading}
@@ -252,6 +255,7 @@ interface IdeaViewProps {
   matches: MatchRow[];
   claimEvidence: ClaimEvidenceRow[];
   runId?: string;
+  allowRefinement?: boolean;
   isDemo?: boolean;
   outcomes?: HypothesisOutcome[];
   outcomesLoading?: boolean;
@@ -274,6 +278,7 @@ function MobileIdeaView({
   matches,
   claimEvidence,
   runId,
+  allowRefinement,
   isDemo,
   outcomes,
   outcomesLoading,
@@ -294,6 +299,7 @@ function MobileIdeaView({
             matches={matches}
             claimEvidence={claimEvidence}
             runId={runId}
+            allowRefinement={allowRefinement}
             isDemo={isDemo}
             outcomes={outcomes}
             outcomesLoading={outcomesLoading}
@@ -328,6 +334,7 @@ function DesktopIdeaSplit({
   matches,
   claimEvidence,
   runId,
+  allowRefinement,
   isDemo,
   outcomes,
   outcomesLoading,
@@ -356,6 +363,7 @@ function DesktopIdeaSplit({
           matches={matches}
           claimEvidence={claimEvidence}
           runId={runId}
+          allowRefinement={allowRefinement}
           isDemo={isDemo}
           outcomes={outcomes}
           outcomesLoading={outcomesLoading}

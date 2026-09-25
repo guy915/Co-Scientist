@@ -69,7 +69,7 @@ async def tools_case():
     answer, _ = await call_llm_with_tools(
         'You must call lookup_measurement with sample control-A, then report its numeric measurement. Do not guess.',
         CompletionSpec(model_name=MODEL,max_tokens=6000,temperature=0),
-        ToolLoop(tools=[definition],executor=execute,max_iterations=3),
+        ToolLoop(tools=[definition],executor=execute,max_iterations=1),
         LLMCallOptions(use_cache=False,enable_thinking=False))
     return {'passed': len(invocations) == 1 and all(x['arguments']=={'sample':'control-A'}
         and x['name']=='lookup_measurement' for x in invocations) and '137' in answer,

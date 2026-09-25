@@ -11,7 +11,12 @@ import {
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();
-  return {...actual, addHypothesisOutcome: vi.fn()};
+  return {
+    ...actual,
+    addHypothesisOutcome: vi.fn(),
+    getHypothesisOutcomeRefinement: vi.fn(),
+    requestHypothesisOutcomeRefinement: vi.fn(),
+  };
 });
 
 const savedOutcome: HypothesisOutcome = {
@@ -46,6 +51,9 @@ const savedOutcome: HypothesisOutcome = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
+    new runsApi.HttpError('404 run or outcome not found', 404),
+  );
   clearAccessToken();
 });
 
@@ -190,6 +198,174 @@ it('submits a labeled observation and announces success', async () => {
   expect(await screen.findByRole('status')).toHaveTextContent(
     'Observation recorded.',
   );
+});
+
+it('discloses and replays one explicitly requested outcome refinement', async () => {
+  setAccessToken('researcher-session');
+  const action = {
+    action_id: 'action-1',
+    run_id: 'run-1',
+    outcome_id: 'out-1',
+    hypothesis_id: 'h1',
+    task_idempotency_key: 'outcome-refinement:action-1',
+    checkpoint_seq: 3,
+    context_codepoints: 850,
+    status: 'queued',
+    child_hypothesis_id: null,
+    created_at: 1_700_000_000,
+    replayed: false,
+  };
+  vi.mocked(runsApi.requestHypothesisOutcomeRefinement)
+    .mockResolvedValueOnce(action)
+    .mockResolvedValueOnce({...action, replayed: true});
+  render(
+    <HypothesisOutcomeSection
+      runId="run-1"
+      hypothesis={makeHypothesis({id: 'h1'})}
+      outcomes={[savedOutcome]}
+      loading={false}
+      error={null}
+      allowRefinement
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByText(
+      'This sends the linked hypothesis and this recorded outcome, with up to three source metadata links, to the run’s configured AI model to draft one follow-up hypothesis. AI output may be wrong. This action does not verify the observation or change existing claims, reviews, safety decisions, or ranking.',
+    ),
+  ).toBeInTheDocument();
+  const actionButton = await screen.findByRole('button', {
+    name: 'Use outcome to refine this hypothesis',
+  });
+  fireEvent.click(actionButton);
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Refinement request is queued.',
+  );
+  expect(runsApi.requestHypothesisOutcomeRefinement).toHaveBeenNthCalledWith(
+    1,
+    'run-1',
+    'h1',
+    'out-1',
+  );
+
+  fireEvent.click(
+    screen.getByRole('button', {name: 'Check or retry refinement'}),
+  );
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'The saved refinement request was replayed; no second action was created.',
+  );
+  expect(runsApi.requestHypothesisOutcomeRefinement).toHaveBeenCalledTimes(2);
+});
+
+it('announces pending refinement work and prevents duplicate clicks', async () => {
+  setAccessToken('researcher-session');
+  const action = {
+    action_id: 'action-1',
+    run_id: 'run-1',
+    outcome_id: 'out-1',
+    hypothesis_id: 'h1',
+    task_idempotency_key: 'outcome-refinement:action-1',
+    checkpoint_seq: 3,
+    context_codepoints: 850,
+    status: 'queued',
+    child_hypothesis_id: null,
+    created_at: 1_700_000_000,
+    replayed: false,
+  };
+  let resolveRequest: ((value: typeof action) => void) | undefined;
+  vi.mocked(runsApi.requestHypothesisOutcomeRefinement).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        resolveRequest = resolve;
+      }),
+  );
+  render(
+    <HypothesisOutcomeSection
+      runId="run-1"
+      hypothesis={makeHypothesis({id: 'h1'})}
+      outcomes={[savedOutcome]}
+      loading={false}
+      error={null}
+      allowRefinement
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  const button = await screen.findByRole('button', {
+    name: 'Use outcome to refine this hypothesis',
+  });
+  fireEvent.click(button);
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Sending refinement request',
+  );
+  expect(button).toBeDisabled();
+
+  resolveRequest?.(action);
+  await waitFor(() =>
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Refinement request is queued.',
+    ),
+  );
+  expect(button).toBeEnabled();
+});
+
+it('announces a refinement error and leaves the same action retryable', async () => {
+  setAccessToken('researcher-session');
+  vi.mocked(runsApi.requestHypothesisOutcomeRefinement).mockRejectedValueOnce(
+    new Error('409 refinement is not eligible'),
+  );
+  render(
+    <HypothesisOutcomeSection
+      runId="run-1"
+      hypothesis={makeHypothesis({id: 'h1'})}
+      outcomes={[savedOutcome]}
+      loading={false}
+      error={null}
+      allowRefinement
+      onRefresh={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  );
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    '409 refinement is not eligible',
+  );
+  expect(
+    screen.getByRole('button', {name: 'Retry refinement request'}),
+  ).toBeEnabled();
+});
+
+it('hides refinement for read-only demos and when the run is not eligible', () => {
+  setAccessToken('researcher-session');
+  const props = {
+    runId: 'run-1',
+    hypothesis: makeHypothesis({id: 'h1'}),
+    outcomes: [savedOutcome],
+    loading: false,
+    error: null,
+    allowRefinement: false,
+    onRefresh: vi.fn(),
+  };
+  const {rerender} = render(<HypothesisOutcomeSection {...props} />);
+  expect(
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
+
+  rerender(<HypothesisOutcomeSection {...props} readOnly />);
+  expect(
+    screen.queryByRole('button', {
+      name: 'Use outcome to refine this hypothesis',
+    }),
+  ).not.toBeInTheDocument();
 });
 
 it('announces a server rejection and keeps the entered observation', async () => {

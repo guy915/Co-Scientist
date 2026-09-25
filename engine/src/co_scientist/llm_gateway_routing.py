@@ -198,12 +198,16 @@ class GatewayModel:
             gets it enabled at the smallest effort this gateway exposes
             (see ``llm_gateway_body._MINIMAL_REASONING_EFFORT``) -- never a
             bare resend of the rejected request.
+        verified_provider: Pin a provisional route to the one provider whose
+            current pricing and data-use terms were inspected. The request
+            also requires zero retention and denies data collection.
     """
 
     takes_reasoning_knob: bool
     spends_budget_thinking: bool
     fallbacks: tuple[str, ...] = ()
     reasoning_can_disable: bool = False
+    verified_provider: str | None = None
 
 
 # OpenRouter's own ceiling on the ``models`` fallback array: "'models'
@@ -242,6 +246,13 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     ),
     "openrouter/nex-agi/nex-n2.5-mini:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
+    ),
+    # Provisional successor, not a system default. The listed ModelRun host
+    # alone has been checked for exact-zero pricing and zero retention.
+    "openrouter/qwen/qwen3.8-27b:free": GatewayModel(
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        verified_provider="modelrun",
     ),
     # A non-default chain head kept for a deployment that opts into it. It
     # was the deployed primary from 2026-09-05 until a real express
@@ -353,6 +364,12 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
     order = _upstream_order()
     if order:
         provider["order"] = list(order)
+    declared = _GATEWAY_MODELS.get(model_name)
+    if declared is not None and declared.verified_provider:
+        provider.pop("order", None)
+        provider["only"] = [declared.verified_provider]
+        provider["zdr"] = True
+        provider["data_collection"] = "deny"
     price = MODEL_PRICING.get(model_name)
     if price is None:
         return provider

@@ -62,6 +62,7 @@ def test_field_tag_terms_leaves_explicit_boolean_queries_untouched() -> None:
     """
     assert field_tag_terms("kinase AND tumor", " AND ") == "kinase AND tumor"
     assert field_tag_terms("kinase OR tumor", " OR ") == "kinase OR tumor"
+    assert field_tag_terms("kinase NOT tumor", " AND ") == "kinase NOT tumor"
 
 
 # =============================================================================
@@ -84,6 +85,7 @@ def test_single_term_and_boolean_queries_are_not_relaxed() -> None:
     assert or_relaxed_query("kinase") is None
     assert or_relaxed_query("kinase OR tumor") is None
     assert or_relaxed_query("kinase AND tumor") is None
+    assert or_relaxed_query("kinase NOT tumor") is None
 
 
 # =============================================================================
@@ -163,14 +165,32 @@ def test_ladder_omits_redundant_rungs() -> None:
 
 def test_ladder_leaves_an_explicit_boolean_query_untagged() -> None:
     """A caller-supplied boolean query passes through every rung as-is."""
-    assert relaxation_ladder("kinase AND tumor", recency_years=0) == [
-        ("kinase AND tumor", 0)
-    ]
+    for operator in ("AND", "OR", "NOT"):
+        query = f"kinase {operator} tumor"
+        assert relaxation_ladder(query, recency_years=0) == [(query, 0)]
 
 
 # =============================================================================
 # search_with_relaxation
 # =============================================================================
+
+
+def test_lowercase_prose_operators_do_not_suppress_relaxation() -> None:
+    """Only PubMed's uppercase Boolean operators signal query structure."""
+    calls: list[str] = []
+
+    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
+        calls.append(term)
+        return []
+
+    query = "kinase and tumor or growth not drug"
+    ids = search_with_relaxation(query, 10, 0, _esearch)
+
+    assert ids == []
+    assert calls[0] == query
+    assert len(calls) == 3
+    assert " AND (" in calls[1]
+    assert calls[2].startswith("(kinase[tiab] OR kinase[mesh]) OR")
 
 
 def test_runner_returns_first_rung_when_it_has_enough() -> None:

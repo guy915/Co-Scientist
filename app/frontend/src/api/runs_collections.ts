@@ -26,6 +26,21 @@ import {
   parseJson,
 } from './runs_http';
 
+/** A durable owner-authorized request to refine one outcome's parent. */
+export interface OutcomeRefinementAction {
+  action_id: string;
+  run_id: string;
+  outcome_id: string;
+  hypothesis_id: string;
+  task_idempotency_key: string;
+  checkpoint_seq: number;
+  context_codepoints: number;
+  status: string;
+  child_hypothesis_id: string | null;
+  created_at: number;
+  replayed: boolean;
+}
+
 /** One saved Supervisor decision in the durable allocation ledger. */
 export interface SupervisorAllocation {
   id: number;
@@ -195,6 +210,37 @@ export function addHypothesisOutcome(
   return fetchJson(
     `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes`,
     jsonRequest(input, true),
+  );
+}
+
+/** Fetch one existing outcome refinement action for its owner. */
+export function getHypothesisOutcomeRefinement(
+  runId: string,
+  hypothesisId: string,
+  outcomeId: string,
+): Promise<OutcomeRefinementAction> {
+  return fetchJson(
+    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
+    {headers: clientHeaders()},
+  );
+}
+
+/** Request or replay one owner's outcome-to-parent refinement intent. */
+export function requestHypothesisOutcomeRefinement(
+  runId: string,
+  hypothesisId: string,
+  outcomeId: string,
+): Promise<OutcomeRefinementAction> {
+  const idempotencyKey = `outcome-refinement:${runId}:${hypothesisId}:${outcomeId}`;
+  return fetchJson(
+    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
+    {
+      method: 'POST',
+      headers: {
+        ...clientHeaders(),
+        'Idempotency-Key': idempotencyKey,
+      },
+    },
   );
 }
 

@@ -13,25 +13,45 @@ from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
-    File,
-    Form,
+    Header,
     HTTPException,
     Request,
-    UploadFile,
 )
+from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 
 from app import (
-    document_ingest,
-    engine_tasks,
     human_input,
-    run_corpus,
     store,
+    task_worker,
 )
 from app.auth import client_id, require_bearer_principal
+from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
+from app.outcome_refinement_action import (
+    OutcomeRefinementContextTooLargeError,
+    OutcomeRefinementIneligibleError,
+    OutcomeRefinementNotFoundError,
+    OutcomeRefinementRequest,
+    OutcomeRefinementRequestError,
+    get_owner_outcome_refinement_action,
+    request_outcome_refinement_action,
+)
+from app.runs_contrib_attachments import (
+    add_attachment as add_attachment,
+)
+from app.runs_contrib_attachments import (
+    router as attachments_router,
+)
+from app.runs_contrib_attachments import (
+    search_attachments as search_attachments,
+)
+from app.runs_contrib_attachments import (
+    upload_attachment as upload_attachment,
+)
+from app.runs_contrib_support import _steer_and_continue as _steer_and_continue
 from app.runs_models import (
-    HumanAttachmentRequest,
     HumanHypothesisRequest,
     HumanReviewRequest,
     HypothesisOutcomeRequest,
@@ -40,41 +60,28 @@ from app.runs_support import _require_run, _run_or_404
 from app.store import ScientificTask
 
 router = APIRouter()
+router.include_router(attachments_router)
 
 
-def _steer_and_continue(
-    run_id: str,
-    sender: str,
-    content: str,
-    meta: dict[str, Any],
-) -> ScientificTask | None:
-    """Queue a steering message and reopen the run so the agents read it.
-
-    Every scientist contribution -- a hypothesis, a review, an attachment --
-    reaches the run the same way: as a steering message the next cycle
-    reads, plus a continuation task so a run that already finished picks the
-    contribution up instead of stranding it.
-
-    Args:
-        run_id: Run the contribution belongs to.
-        sender: Author the steering message is attributed to.
-        content: The instruction the agents read on the next cycle.
-        meta: Contribution kind and the id of the row it refers to.
-
-    Returns:
-        The enqueued continuation task, or None when the run is not a
-        completed engine run with a checkpoint to continue from.
-    """
-    message = store.append_message(
-        store.NewMessage(
-            run_id=run_id,
-            sender=sender,
-            content=content,
-            kind="steering",
-            meta=meta,
+def _outcome_refinement_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, OutcomeRefinementNotFoundError):
+        return HTTPException(status_code=404, detail="run or outcome not found")
+    if isinstance(exc, OutcomeRefinementIneligibleError):
+        return HTTPException(
+            status_code=409,
+            detail="run or linked hypothesis is not eligible for refinement",
         )
+    if isinstance(exc, OutcomeRefinementContextTooLargeError):
+        return HTTPException(
+            status_code=422,
+            detail="complete outcome context exceeds the refinement limits",
+        )
+    if isinstance(exc, OutcomeRefinementRequestError):
+        return HTTPException(status_code=422, detail="invalid idempotency key")
+    return HTTPException(
+        status_code=409,
+        detail="outcome already has an action or idempotency key conflicts",
     )
-    return engine_tasks.enqueue_scientist_continuation(run_id, message.id)
 
 
 def _persist_manual_hypothesis(
@@ -200,6 +207,71 @@ async def record_hypothesis_outcome(
         ) from exc
 
 
+@router.post(
+    "/{run_id}/hypotheses/{hypothesis_id}/outcomes/{outcome_id}/refine",
+    status_code=202,
+)
+async def request_hypothesis_outcome_refinement(
+    run_id: str,
+    hypothesis_id: str,
+    outcome_id: str,
+    request: Request,
+    idempotency_key: Annotated[
+        str, Header(alias="Idempotency-Key", min_length=1, max_length=200)
+    ],
+) -> JSONResponse:
+    """Queue the owner's separate, targeted use of one recorded outcome."""
+    owner = require_bearer_principal(request).subject
+    try:
+        action = request_outcome_refinement_action(
+            OutcomeRefinementRequest(
+                run_id=run_id,
+                hypothesis_id=hypothesis_id,
+                outcome_id=outcome_id,
+                owner_id=owner,
+                request_idempotency_key=idempotency_key,
+            )
+        )
+        background_task = None
+        if (
+            settings.coscientist_embedded_worker
+            and action["status"] == "queued"
+        ):
+            background_task = BackgroundTask(
+                task_worker.run_run_worker_pool_sync,
+                run_id,
+                f"embedded-api:outcome-refinement:{action['action_id'][:8]}",
+            )
+        return JSONResponse(action, status_code=202, background=background_task)
+    except (
+        OutcomeRefinementNotFoundError,
+        OutcomeRefinementIneligibleError,
+        OutcomeRefinementContextTooLargeError,
+        OutcomeRefinementRequestError,
+        store.OutcomeRefinementConflictError,
+    ) as exc:
+        raise _outcome_refinement_http_error(exc) from exc
+
+
+@router.get("/{run_id}/hypotheses/{hypothesis_id}/outcomes/{outcome_id}/refine")
+async def get_hypothesis_outcome_refinement(
+    run_id: str,
+    hypothesis_id: str,
+    outcome_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Read this owner's existing refinement action without side effects."""
+    owner = require_bearer_principal(request).subject
+    try:
+        return get_owner_outcome_refinement_action(
+            run_id, hypothesis_id, outcome_id, owner
+        )
+    except OutcomeRefinementNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="run or outcome not found"
+        ) from exc
+
+
 def _build_human_review_or_422(
     req: HumanReviewRequest, author: str
 ) -> human_input.HumanReview:
@@ -275,160 +347,4 @@ async def add_human_review(
         "recorded": True,
         "continuation_task_id": continuation.id if continuation else None,
         **review.to_dict(),
-    }
-
-
-def _persist_and_notify_attachment(
-    run_id: str, req: HumanAttachmentRequest
-) -> tuple[str, ScientificTask | None]:
-    """Persist the pasted document as evidence and steer the run with it."""
-    ev_id = store.add_evidence(
-        store.NewEvidence(
-            run_id=run_id,
-            title=req.title,
-            source=run_corpus.ATTACHMENT_SOURCE,
-            abstract=req.text,
-        )
-    )
-    continuation = _steer_and_continue(
-        run_id,
-        "scientist",
-        (
-            f"Use the private research document '{req.title}' "
-            "in subsequent work."
-        ),
-        {"kind": "attachment", "evidence_id": ev_id},
-    )
-    store.append_event(
-        run_id,
-        "scientist.attachment",
-        {"evidence_id": ev_id, "title": req.title},
-    )
-    return ev_id, continuation
-
-
-@router.post("/{run_id}/attachments")
-async def add_attachment(
-    run_id: str, req: HumanAttachmentRequest
-) -> dict[str, Any]:
-    """Attach a scientist-provided text document to a run's corpus (M7).
-
-    Text-only and consent-gated: no binary or archive is accepted (so there is
-    no extraction/malware surface), the text is size-capped by the request
-    model, and ``consent`` must be true. The document is stored as run-scoped
-    evidence marked as an attachment and indexed into the private retrieval
-    corpus (``run_corpus``).
-    """
-    _require_run(run_id)
-    if not req.consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
-    ev_id, continuation = _persist_and_notify_attachment(run_id, req)
-    return {
-        "id": ev_id,
-        "indexed": True,
-        "continuation_task_id": continuation.id if continuation else None,
-    }
-
-
-async def _extract_uploaded_document(
-    file: UploadFile,
-) -> document_ingest.ExtractedDocument:
-    """Read and extract the upload, raising 422 on an invalid document."""
-    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
-    try:
-        return document_ingest.extract_document(
-            data, file.content_type or "application/octet-stream"
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-def _persist_and_notify_upload(
-    run_id: str,
-    title: str,
-    extracted: document_ingest.ExtractedDocument,
-    uploader: str,
-) -> tuple[str, ScientificTask | None]:
-    """Persist the extracted document as evidence and steer the run with it."""
-    evidence_id = store.add_evidence(
-        store.NewEvidence(
-            run_id=run_id,
-            title=title,
-            source=run_corpus.ATTACHMENT_SOURCE,
-            abstract=extracted.text,
-            mime_type=extracted.mime_type,
-            sha256=extracted.sha256,
-            byte_size=extracted.byte_size,
-            document_version=extracted.sha256,
-            extraction_tool=extracted.extraction_tool,
-        )
-    )
-    continuation = _steer_and_continue(
-        run_id,
-        uploader,
-        "Use the uploaded private research document "
-        f"'{title}' in subsequent work.",
-        {"kind": "attachment", "evidence_id": evidence_id},
-    )
-    store.append_event(
-        run_id,
-        "scientist.attachment",
-        {"evidence_id": evidence_id, "title": title},
-    )
-    return evidence_id, continuation
-
-
-@router.post("/{run_id}/attachments/upload")
-async def upload_attachment(
-    run_id: str,
-    request: Request,
-    file: Annotated[UploadFile, File()],
-    consent: Annotated[bool, Form()],
-) -> dict[str, Any]:
-    """Extract and index a real scientist-uploaded document with provenance."""
-    _require_run(run_id)
-    uploader = client_id(request)  # Requires the authenticated researcher.
-    if not consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
-    extracted = await _extract_uploaded_document(file)
-    title = (file.filename or "Uploaded document").strip()
-    evidence_id, continuation = _persist_and_notify_upload(
-        run_id, title, extracted, uploader
-    )
-    return {
-        "id": evidence_id,
-        "indexed": True,
-        "sha256": extracted.sha256,
-        "byte_size": extracted.byte_size,
-        "mime_type": extracted.mime_type,
-        "extraction_tool": extracted.extraction_tool,
-        "continuation_task_id": continuation.id if continuation else None,
-    }
-
-
-@router.get("/{run_id}/attachments/search")
-async def search_attachments(run_id: str, q: str) -> dict[str, Any]:
-    """Retrieve a run's attachment corpus by keyword (Milestone 7).
-
-    Proves the attachment path is a live retrieval corpus, not a dead
-    connector: the scientist's uploaded documents are searchable via the
-    run-scoped keyword retriever.
-    """
-    _require_run(run_id)
-    documents = run_corpus.corpus_from_evidence(store.list_evidence(run_id))
-    retriever = run_corpus.KeywordCorpusRetriever(documents)
-    hits = retriever.retrieve(q)
-    return {
-        "results": [
-            {
-                "id": h.document.doc_id,
-                "title": h.document.title,
-                "score": h.score,
-            }
-            for h in hits
-        ]
     }

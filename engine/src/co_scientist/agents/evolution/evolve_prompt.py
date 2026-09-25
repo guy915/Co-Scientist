@@ -5,16 +5,21 @@ import json
 import logging
 from typing import Any
 
-from co_scientist.agents.evolution.evolution_operators import (
-    EvolutionOperator,
-    operator_instruction,
-    operator_template,
-)
+from co_scientist.agents.evolution.evolution_operators import EvolutionOperator
 from co_scientist.agents.evolution.evolve_context import (
     _format_partner_context as _format_partner_context,
 )
 from co_scientist.agents.evolution.evolve_grounding import (
     not_applicable_block,
+)
+from co_scientist.agents.evolution.evolve_outcome_prompt import (
+    insert_recorded_outcome,
+)
+from co_scientist.agents.evolution.evolve_prompt_render import (
+    _format_operator_section as _format_operator_section,
+)
+from co_scientist.agents.evolution.evolve_prompt_render import (
+    render_operator_template,
 )
 
 # The state-derived prompt sections (lab constraints, research goal,
@@ -41,7 +46,6 @@ from co_scientist.prompts import (
     _format_run_guidance,
     _get_domain_variables,
     format_preferences,
-    load_prompt_with_schema,
 )
 from co_scientist.prompts._common import _csv_value
 from co_scientist.prompts.generation_formatting import (
@@ -86,6 +90,14 @@ class _EvolutionContext:
 
 
 @dataclasses.dataclass(frozen=True)
+class _OutcomeRefinement:
+    """The bounded outcome and duplicate set for one targeted action."""
+
+    context: str
+    validation_hypotheses: tuple[Hypothesis, ...]
+
+
+@dataclasses.dataclass(frozen=True)
 class _EvolutionOperation:
     """The per-hypothesis evolution operator and its inputs.
 
@@ -98,6 +110,7 @@ class _EvolutionOperation:
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT
     specialist_feedback: str = ""
     partners: tuple[Hypothesis, ...] = ()
+    outcome_refinement: _OutcomeRefinement | None = None
 
 
 def _log_debug_items(
@@ -423,17 +436,6 @@ def _base_evolution_variables(
     }
 
 
-def _format_operator_section(operator: EvolutionOperator) -> str:
-    """Format the required-evolution-operator section of the prompt."""
-    return (
-        "\n\n## Required Evolution Operator\n"
-        f"**Operator:** {operator.value}\n"
-        f"{operator_instruction(operator)}\n"
-        "Record how this operator changed the proposal in the refinement "
-        "summary.\n"
-    )
-
-
 def _build_evolution_prompt(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
@@ -467,16 +469,25 @@ def _build_evolution_prompt(
         context.removed_duplicates,
         operation.operator,
     )
-    template = operator_template(operation.operator)
-    if template != "evolution":
-        # A published template is a whole prompt: the operator's brief is
-        # its own role sentence, so no operator section is appended, and
-        # the diversity guard renders as a slot inside it rather than
-        # after it -- the published answer cue and the JSON contract have
-        # to stay last.
-        variables["diversity_section"] = diversity
-        return load_prompt_with_schema(template, variables)
-
-    prompt, schema = load_prompt_with_schema(template, variables)
-    operator_section = _format_operator_section(operation.operator)
-    return prompt + operator_section + diversity, schema
+    prompt, schema, operator_section, has_template_diversity_slot = (
+        render_operator_template(operation.operator, variables, diversity)
+    )
+    outcome_context = (
+        operation.outcome_refinement.context
+        if operation.outcome_refinement is not None
+        else None
+    )
+    if outcome_context is None:
+        # Preserve the ordinary evolution prompt byte-for-byte; the appended
+        # operator and diversity blocks are part of that established contract.
+        return prompt + operator_section + diversity, schema
+    return (
+        insert_recorded_outcome(
+            prompt,
+            outcome_context,
+            operator_section,
+            diversity,
+            has_template_diversity_slot=has_template_diversity_slot,
+        ),
+        schema,
+    )

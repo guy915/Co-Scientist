@@ -7,6 +7,7 @@ import {
 } from '@/api/runs';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
+import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
@@ -101,6 +102,12 @@ function runUsedOffline(run: RunWithSummary): boolean {
     return run.provider === 'mock';
   }
   return backend === 'offline';
+}
+
+function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
+  return Boolean(
+    run?.status === 'completed' && run.provider === 'engine' && !run.is_demo,
+  );
 }
 
 // A completed run whose literature retrieval returned nothing still reads
@@ -222,6 +229,7 @@ function RunDetailBody({
             onRetry={data.refreshSupervisorPlan}
           />
         </section>
+        <RunOutcomesStatusSection data={data} />
       </main>
     );
   }
@@ -250,6 +258,21 @@ function LiveRunSection({data}: {data: RunDetailData}) {
         error: data.supervisorPlan.error,
         onRetry: data.refreshSupervisorPlan,
       }}
+      outcomeStatus={<RunOutcomesStatusSection data={data} />}
+    />
+  );
+}
+
+function RunOutcomesStatusSection({data}: {data: RunDetailData}) {
+  return (
+    <RunOutcomesReport
+      outcomes={data.outcomes}
+      hypotheses={data.hypotheses}
+      loading={data.outcomesLoading}
+      error={data.outcomesError}
+      onRefresh={data.refreshOutcomes}
+      readOnly={data.run?.is_demo ?? false}
+      showRefinementStatus
     />
   );
 }
@@ -283,6 +306,7 @@ function IdeasSection({
       <IdeasTab
         key={ideasViewKey}
         runId={data.run?.id ?? ''}
+        allowRefinement={canRefineOutcomeForRun(data.run)}
         hypotheses={data.hypotheses}
         reviews={data.reviews}
         matches={data.matches}

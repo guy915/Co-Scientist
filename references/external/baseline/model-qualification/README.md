@@ -6,6 +6,19 @@ catalog. No automatic fallback is selected. The production default has not been
 switched. The user ended further M1 model benchmarks; unqualified alternatives
 below retain that label without new trials.
 
+**25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
+was still listed at $0 prompt/completion, with tools and structured outputs;
+the provider directory listed no training and zero retention. A bounded
+candidate-only route pins ModelRun, requires zero retention/no data collection,
+and caps prompt, completion and request prices at zero. Its first
+[`json_off` request](qwen-candidate-2026-09-25-json-off.json) received a routing
+404 because the generic gateway shim sent unsupported `json_object`. After an
+exact-endpoint native-schema correction, one
+[`json_off` retry](qwen-candidate-2026-09-25-native-json-off.json) reached
+ModelRun but received an upstream shared-pool 429. The runner stopped; no
+response, served-model identity or billing receipt was observed. Qwen remains
+unqualified and is not a default or fallback. No further Qwen panel is queued.
+
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were
   .967/.9, .933/.8 and .933/.8; baselines were .433/0, .367/0 and .433/0.

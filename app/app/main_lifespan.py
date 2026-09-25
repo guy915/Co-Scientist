@@ -94,6 +94,17 @@ def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
     queued/running was interrupted by a crash or restart and would
     otherwise be stuck forever.
     """
+    from app.outcome_refinement_action import (
+        materialize_pending_outcome_refinements,
+    )
+
+    try:
+        materialize_pending_outcome_refinements()
+    except Exception:
+        logger.warning(
+            "Could not materialize pending outcome-refinement intents",
+            exc_info=True,
+        )
     reconciled = store.reconcile_interrupted_runs()
     if reconciled["failed"]:
         logger.info(

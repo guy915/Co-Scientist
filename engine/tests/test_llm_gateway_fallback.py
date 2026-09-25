@@ -28,6 +28,7 @@ _FREE_PRIMARY = "openrouter/z-ai/glm-5.2:free"
 _GLM = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 _MINIMAX = "openrouter/minimax/minimax-m3:free"
 _NEX_PRO = "openrouter/nex-agi/nex-n2.5-pro:free"
+_QWEN_CANDIDATE = "openrouter/qwen/qwen3.8-27b:free"
 
 
 def test_the_primary_model_carries_its_fallback_chain() -> None:
@@ -131,6 +132,39 @@ def test_selected_nex_pro_default_has_no_model_fallback() -> None:
         "completion": 0,
         "request": 0,
     }
+
+
+def test_qwen_candidate_uses_only_its_verified_zero_retention_host() -> None:
+    """A provisional route must not drift to a provider with unknown terms."""
+    body = deepseek_thinking_extra_body(_QWEN_CANDIDATE, enabled=False)
+
+    assert "models" not in body
+    assert body["reasoning"] == {
+        "enabled": True,
+        "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
+    }
+    assert body["provider"]["only"] == ["modelrun"]
+    assert body["provider"]["zdr"] is True
+    assert body["provider"]["data_collection"] == "deny"
+    assert "order" not in body["provider"]
+    assert body["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+
+
+def test_qwen_candidate_uses_native_schema() -> None:
+    """Its sole endpoint advertises structured outputs, not JSON object mode."""
+    assert _supports_json_schema_response_format(_QWEN_CANDIDATE) is True
+    args = _build_completion_args(
+        "Return JSON",
+        _QWEN_CANDIDATE,
+        6000,
+        0,
+        CompletionShape(json_schema={"type": "object", "properties": {}}),
+    )
+    assert args["response_format"]["type"] == "json_schema"
 
 
 def test_a_reasoning_model_in_the_chain_still_gets_the_knob() -> None:
@@ -317,15 +351,17 @@ def test_a_direct_non_gateway_route_carries_no_provider_block() -> None:
     assert "provider" not in body
 
 
-def test_every_gateway_model_is_downgraded_to_json_object() -> None:
-    """Every declared gateway model gets the safe format, not just the primary.
+def test_gateway_models_without_native_schema_use_json_object() -> None:
+    """Declared routes use the format supported by their pinned endpoints.
 
     ``json_object`` is served by every host in this chain; ``json_schema``
     is not, and paired with ``require_parameters`` an unsupported format
     is a hard 404 rather than a soft degradation to an unconstrained
     answer.
 
-    This asserts the engine's own downgrade decision, not litellm's
+    Qwen's pinned endpoint supports native structured outputs, so it is
+    checked separately above. This asserts the other routes' downgrade
+    decision, not litellm's
     registry: every ``_GATEWAY_MODELS`` key is now declared explicitly in
     ``_supports_json_schema_response_format`` rather than falling through
     to ``litellm.supports_response_schema``. That fallback made the test
@@ -344,6 +380,8 @@ def test_every_gateway_model_is_downgraded_to_json_object() -> None:
     from co_scientist.llm_thinking import _GATEWAY_MODELS
 
     for model in _GATEWAY_MODELS:
+        if model == _QWEN_CANDIDATE:
+            continue
         assert _supports_json_schema_response_format(model) is False, model
 
 

@@ -1,0 +1,79 @@
+{
+  "name": "M11-NOV-00b single candidate-control recovery",
+  "status": "RECOVERY_CALL_SUCCEEDED",
+  "recovery_preregistration": "references/external/sakana/novelty-query-recovery-v1.json",
+  "original_results": "references/external/sakana/novelty-query-results-v1.json",
+  "original_results_sha256": "0fc7bcecbabd68e652a9e51b0b6de4cc1f45034e082c5a48f338eb4b469ad6da",
+  "endpoint": "http://127.0.0.1:8900/mcp",
+  "tool_calls_attempted": 1,
+  "tool_calls_returned": 1,
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "estimated_cost_usd": 0,
+  "started_at_utc": "2026-09-25T02:44:55.609907+00:00",
+  "frozen_control_calls_before_recovery": {
+    "baseline_successes": 3,
+    "candidate_successes": 2
+  },
+  "tool": "pubmed_search_with_fulltext",
+  "request": {
+    "query": "During murine cytomegalovirus infection Qa-1-restricted CD8 T cells",
+    "max_papers": 3,
+    "slug": "m11_nov_00b_qa1_cmv_effector_control",
+    "run_id": "m11_nov_00b_qa1_cmv_effector_control"
+  },
+  "recency_years_omitted": true,
+  "control_anchor_pmid": "41417899",
+  "paired_positive_pmid": "36151395",
+  "runtime_proof": {
+    "entrez_api_key_present": false,
+    "entrez_email_present": false,
+    "campaign_free_mode": true,
+    "qualified_single_loopback_endpoint": true,
+    "ephemeral_shared_secret_configured": true,
+    "secret_value_recorded": false,
+    "candidate_cache_root": "/var/folders/sn/2cg90mwd5fsdyrdzxp0t4rfc0000gn/T/cosci-m11-nov-00b-recovery-k7bmfc45/candidate",
+    "candidate_cache_empty_before_call": true,
+    "maintained_server_source": "/Users/guy/.codex/worktrees/external-m10-robin/co-scientist/engine/mcp_server/server.py",
+    "maintained_engine_source": "/Users/guy/.codex/worktrees/external-m10-robin/co-scientist/engine/src/co_scientist",
+    "interpreter": "/Users/guy/Code/co-scientist/.venv-mcp/bin/python"
+  },
+  "call": {
+    "case_id": "qa1-cmv-effector-control",
+    "arm": "candidate",
+    "returned_pmids": [
+      "42775084",
+      "42774404",
+      "42741542"
+    ],
+    "anchor_hit": false,
+    "paired_positive_hit": false,
+    "mcp_call_returned": true,
+    "started_at_utc": "2026-09-25T02:44:56.895623+00:00",
+    "ended_at_utc": "2026-09-25T02:45:06.912133+00:00",
+    "elapsed_ms": 10017
+  },
+  "completed_control_metrics": {
+    "control_anchor_hits_at_3": {
+      "baseline": "0/3",
+      "candidate": "1/3",
+      "non_regression": true
+    },
+    "control_paired_positive_cross_hits": {
+      "baseline": 0,
+      "candidate": 0,
+      "non_regression": true,
+      "interpretation": "An exact result ID is retrieval evidence only, not a semantic rejection verdict."
+    }
+  },
+  "primary_gate": {
+    "positive_target_recall_at_3": {
+      "baseline": "0/3",
+      "candidate": "0/3"
+    },
+    "strict_improvement": false,
+    "adoption_permitted": false,
+    "disposition": "INCONCLUSIVE_NO_PRIMARY_IMPROVEMENT"
+  },
+  "disposition": "INCONCLUSIVE_NO_PRIMARY_IMPROVEMENT"
+}

@@ -3,20 +3,24 @@ import {addHypothesisOutcome} from '@/api/runs';
 import type {Hypothesis, HypothesisOutcome} from '@/api/runs';
 import {getAccessToken} from '@/lib/client_id';
 import {
+  canUseOutcomeRefinement,
+  hasEmptyOutcomeCollection,
+  outcomeHypothesisTitle,
+  outcomeRefinementContext,
+} from './hypothesis_outcome_data';
+import {HypothesisOutcomeRefinement} from './hypothesis_outcome_refinement';
+import {
   ReportDocument,
   REPORT_H4_CLASSES,
 } from '@/workbench/pages/run_detail_document';
-
-const FIELD_CLASSES =
-  'w-full rounded-md border border-cosci-border bg-cosci-bg px-3 py-2 ' +
-  'text-sm text-cosci-fg focus-visible:outline-2 ' +
-  'focus-visible:outline-cosci-accent';
+import {TextField} from './hypothesis_outcome_text_field';
 
 interface OutcomeCollectionProps {
   outcomes?: HypothesisOutcome[];
   loading?: boolean;
   error?: string | null;
   onRefresh?: () => Promise<void> | void;
+  allowRefinement?: boolean;
 }
 
 type ReadyOutcomeCollectionProps = Omit<
@@ -51,6 +55,7 @@ export function HypothesisOutcomeSection({
   error,
   readOnly,
   onRefresh,
+  allowRefinement = false,
 }: OutcomeCollectionProps & {
   runId: string;
   hypothesis: Hypothesis;
@@ -80,6 +85,7 @@ export function HypothesisOutcomeSection({
         outcomes={matching}
         readOnly={Boolean(readOnly)}
         hasResearcherSession={hasResearcherSession}
+        allowRefinement={allowRefinement}
         runId={runId}
         hypothesisId={hypothesis.id}
         onRefresh={onRefresh}
@@ -93,6 +99,7 @@ function OutcomeAccessState({
   outcomes,
   readOnly,
   hasResearcherSession,
+  allowRefinement,
   runId,
   hypothesisId,
   onRefresh,
@@ -101,6 +108,7 @@ function OutcomeAccessState({
   outcomes: HypothesisOutcome[];
   readOnly: boolean;
   hasResearcherSession: boolean;
+  allowRefinement: boolean;
   runId: string;
   hypothesisId: string;
   onRefresh: () => Promise<void> | void;
@@ -115,6 +123,13 @@ function OutcomeAccessState({
         error={state.error}
         onRefresh={onRefresh}
         emptyText="No observations have been recorded for this hypothesis."
+        allowRefinement={canUseOutcomeRefinement(
+          allowRefinement,
+          readOnly,
+          hasResearcherSession,
+        )}
+        runId={runId}
+        hypothesisId={hypothesisId}
       />
       {readOnly ? (
         <p role="note" className="text-sm text-cosci-muted">
@@ -218,10 +233,20 @@ export function RunOutcomesReport({
   error,
   onRefresh,
   readOnly,
-}: OutcomeCollectionProps & {hypotheses: Hypothesis[]; readOnly?: boolean}) {
+  showRefinementStatus = false,
+}: OutcomeCollectionProps & {
+  hypotheses: Hypothesis[];
+  readOnly?: boolean;
+  showRefinementStatus?: boolean;
+}) {
   const state = resolvedCollectionState({outcomes, loading, error, onRefresh});
   const hasResearcherSession = Boolean(getAccessToken());
   const titleById = new Map(hypotheses.map(item => [item.id, item.title]));
+  const statusOnlyRefinement = shouldShowRefinementStatus(
+    showRefinementStatus,
+    readOnly,
+    hasResearcherSession,
+  );
   return (
     <ReportDocument title="Scientist-recorded empirical outcomes">
       <p className="text-sm text-cosci-muted">
@@ -237,12 +262,21 @@ export function RunOutcomesReport({
           onRefresh={onRefresh}
           emptyText="No scientist-recorded observations have been added to this run."
           titleById={titleById}
+          statusOnlyRefinement={statusOnlyRefinement}
         />
       ) : (
         <ResearcherAccessPrompt />
       )}
     </ReportDocument>
   );
+}
+
+function shouldShowRefinementStatus(
+  requested: boolean,
+  readOnly: boolean | undefined,
+  hasResearcherSession: boolean,
+): boolean {
+  return requested && !readOnly && hasResearcherSession;
 }
 
 function ResearcherAccessPrompt() {
@@ -263,9 +297,17 @@ function OutcomeCollectionState({
   onRefresh,
   emptyText,
   titleById,
+  allowRefinement = false,
+  runId,
+  hypothesisId,
+  statusOnlyRefinement = false,
 }: ReadyOutcomeCollectionProps & {
   emptyText: string;
   titleById?: Map<string, string>;
+  allowRefinement?: boolean;
+  statusOnlyRefinement?: boolean;
+  runId?: string;
+  hypothesisId?: string;
 }) {
   const newestFirst = [...outcomes].sort(
     (left, right) => right.recorded_at - left.recorded_at,
@@ -275,18 +317,20 @@ function OutcomeCollectionState({
       <OutcomeLoading loading={loading} />
       <OutcomeError error={error} />
       <OutcomeEmpty
-        visible={!loading && !error && newestFirst.length === 0}
+        visible={hasEmptyOutcomeCollection(loading, error, newestFirst.length)}
         text={emptyText}
       />
       {newestFirst.map(outcome => (
         <OutcomeCard
           key={outcome.id}
           outcome={outcome}
-          hypothesisTitle={
-            titleById?.get(outcome.hypothesis_id) ??
-            outcome.hypothesis_snapshot?.title ??
-            outcome.hypothesis_id
-          }
+          hypothesisTitle={outcomeHypothesisTitle(outcome, titleById)}
+          refinement={outcomeRefinementContext(
+            allowRefinement || statusOnlyRefinement,
+            runId ?? outcome.run_id,
+            hypothesisId ?? outcome.hypothesis_id,
+            statusOnlyRefinement,
+          )}
         />
       ))}
       <button
@@ -323,9 +367,15 @@ function OutcomeEmpty({visible, text}: {visible: boolean; text: string}) {
 function OutcomeCard({
   outcome,
   hypothesisTitle,
+  refinement,
 }: {
   outcome: HypothesisOutcome;
   hypothesisTitle?: string;
+  refinement?: {
+    runId: string;
+    hypothesisId: string;
+    statusOnly?: boolean;
+  };
 }) {
   const recordedDate = new Date(outcome.recorded_at * 1000);
   return (
@@ -353,6 +403,14 @@ function OutcomeCard({
         <OutcomeDetail label="Interpretation" value={outcome.interpretation} />
       </dl>
       <OutcomeReferences outcome={outcome} />
+      {refinement && (
+        <HypothesisOutcomeRefinement
+          runId={refinement.runId}
+          hypothesisId={refinement.hypothesisId}
+          outcomeId={outcome.id}
+          statusOnly={refinement.statusOnly}
+        />
+      )}
     </article>
   );
 }
@@ -424,40 +482,5 @@ function OutcomeDetail({label, value}: {label: string; value: string}) {
       <dt className="font-medium">{label}</dt>
       <dd className="whitespace-pre-wrap text-cosci-fg">{value}</dd>
     </div>
-  );
-}
-
-function TextField({
-  name,
-  label,
-  required = false,
-  hint,
-}: {
-  name: string;
-  label: string;
-  required?: boolean;
-  hint?: string;
-}) {
-  const isMultiline = name !== 'units';
-  return (
-    <label className="grid gap-1 text-sm font-medium">
-      {label}
-      {isMultiline ? (
-        <textarea
-          className={FIELD_CLASSES}
-          name={name}
-          rows={2}
-          required={required}
-          aria-describedby={hint ? `${name}-hint` : undefined}
-        />
-      ) : (
-        <input className={FIELD_CLASSES} name={name} required={required} />
-      )}
-      {hint && (
-        <span id={`${name}-hint`} className="font-normal text-cosci-muted">
-          {hint}
-        </span>
-      )}
-    </label>
   );
 }

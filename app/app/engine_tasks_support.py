@@ -92,6 +92,7 @@ GENERATION_STRATEGY_TASK = "engine.fanout.generation.strategy"
 GENERATION_AGGREGATE_TASK = "engine.fanout.generation.aggregate"
 MATURE_REFLECTION_ITEM_TASK = "engine.fanout.reflection.item"
 MATURE_REFLECTION_AGGREGATE_TASK = "engine.fanout.reflection.aggregate"
+OUTCOME_REFINEMENT_TASK = "engine.outcome.refinement"
 
 
 class SupersededTaskError(RuntimeError):

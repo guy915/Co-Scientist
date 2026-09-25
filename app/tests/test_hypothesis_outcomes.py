@@ -6,54 +6,23 @@ from typing import Any
 
 import pytest
 
-from app import auth, store
+from app import store
 from app.config import settings
 from app.store import RunStatus
 from tests._client import make_client
+from tests._outcome_refinement_api_support import (
+    _add_hypothesis,
+    _new_run,
+    _outcome_body,
+    _signed_headers,
+)
 
 
 @pytest.fixture(autouse=True)
 def _configure_outcome_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "auth_mode", "compatibility")
     monkeypatch.setattr(settings, "auth_secret", "outcome-test-secret")
-
-
-def _signed_headers(owner: str) -> dict[str, str]:
-    token = auth.create_session_token(owner)
-    return {"Authorization": f"Bearer {token}"}
-
-
-def _outcome_body(evidence_id: str | None = None) -> dict[str, Any]:
-    return {
-        "method_protocol": "24-hour viability assay",
-        "conditions": "10 micromolar treatment X, n=4",
-        "measured_observation": "Mean growth was 18% lower than vehicle.",
-        "units": "%",
-        "controls": "Vehicle-treated cells",
-        "interpretation": "The result is consistent with the proposed effect.",
-        "referenced_evidence_ids": [evidence_id] if evidence_id else [],
-    }
-
-
-def _add_hypothesis(run_id: str, db_path: str, title: str) -> str:
-    return store.add_hypothesis(
-        store.NewHypothesis(
-            run_id=run_id,
-            title=title,
-            statement=f"{title} by pathway Y.",
-        ),
-        db_path=db_path,
-    )
-
-
-def _new_run(client: Any, owner: str) -> str:
-    response = client.post(
-        "/api/runs",
-        headers=_signed_headers(owner),
-        json={"research_goal": "Measure the proposed effect"},
-    )
-    assert response.status_code == 200
-    return str(response.json()["id"])
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
 
 def test_researcher_records_outcome_and_reads_it_after_restart(
@@ -167,6 +136,7 @@ def test_researcher_records_outcome_and_reads_it_after_restart(
         assert second_body["measured_observation"] not in str(payload)
 
     client.close()
+
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)

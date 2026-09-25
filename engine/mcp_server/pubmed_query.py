@@ -59,8 +59,13 @@ EsearchFn = Callable[[str, int, int], list[str]]
 
 
 def _has_boolean_structure(query: str) -> bool:
-    """Whether the query already carries an explicit AND/OR/NOT operator."""
-    return any(t.upper() in _BOOLEAN_OPERATORS for t in query.split())
+    """Whether the query carries an explicit uppercase Boolean operator.
+
+    PubMed reserves uppercase AND, OR, and NOT for Boolean operators; their
+    lowercase forms are ordinary search terms (NCBI PubMed Help:
+    https://pubmed.ncbi.nlm.nih.gov/help/).
+    """
+    return any(token in _BOOLEAN_OPERATORS for token in query.split())
 
 
 def _field_tagged_term(term: str) -> str:

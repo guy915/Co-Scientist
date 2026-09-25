@@ -197,3 +197,23 @@ def list_hypothesis_outcomes(
             (run_id,),
         ).fetchall()
         return [_decode_outcome(row) for row in rows]
+
+
+def get_hypothesis_outcome(
+    run_id: str,
+    outcome_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any] | None:
+    """Return one immutable outcome only when it belongs to the given run."""
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT id, run_id, hypothesis_id, method_protocol, conditions, "
+            "measured_observation, units, controls, interpretation, "
+            "referenced_evidence_ids_json, hypothesis_snapshot_json, "
+            "referenced_evidence_snapshots_json, author, recorded_at "
+            "FROM hypothesis_outcomes WHERE run_id=? AND id=?",
+            (run_id, outcome_id),
+        ).fetchone()
+        return _decode_outcome(row) if row is not None else None
