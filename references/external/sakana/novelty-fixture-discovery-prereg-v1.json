@@ -1,0 +1,58 @@
+{
+  "name": "M11-NOV-01a1 maintained-path public prior-art fixture discovery",
+  "version": 1,
+  "registered_at_utc": "2026-09-25T03:58:29Z",
+  "status": "PREREGISTERED_BEFORE_DISCOVERY_CALLS",
+  "purpose": "Screen source-backed public draft/PMID pairs for a relevant first page in the current novelty retrieval path; these exploratory calls cannot establish candidate improvement.",
+  "source_scope": {
+    "public_fixture": "references/external/sakana/novelty-result-conditioned-fixture-v1.json",
+    "public_fixture_sha256": "e0f30c2be18b0b983bdf713efe3c251f065b41601a6d2c0b3a869599ea4eecbb",
+    "independent_abstract_label_note": "references/external/sakana/novelty-control-adjudication-v1.md",
+    "independent_abstract_label_note_sha256": "ef60fcb00154816684652335e6a74df0db600bc0bcc5161cf5ff6c4c865ec867",
+    "tool_config": "engine/src/co_scientist/config/tools.yaml",
+    "tool_config_sha256": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+    "pubmed_query_source_sha256": "e74056a437672bc404d661ea8670a957b7ce6fc9dabae6783beaad306dcf4406",
+    "mcp_tree_commit": "ee82142201d7e4217655cbb79cd10137626513bc"
+  },
+  "cases_in_call_order": [
+    {
+      "id": "stmn2-tdp43-recovery",
+      "target_pmid": "30643298",
+      "draft": "In motor neurons with TDP-43 dysfunction, use of a cryptic STMN2 polyadenylation signal produces truncated transcripts and limits axonal repair.",
+      "distinct_control_id": "unc13a-cognitive-control",
+      "distinct_control_anchor_pmid": "42596024"
+    },
+    {
+      "id": "sars-entry-recovery",
+      "target_pmid": "32142651",
+      "draft": "In airway epithelial cells, reducing TMPRSS2 activity should decrease ACE2-dependent infection by SARS-CoV-2 spike-bearing virus.",
+      "distinct_control_id": "sars-isg15-endothelium-control",
+      "distinct_control_anchor_pmid": "42150851"
+    },
+    {
+      "id": "qa1b-tumor-recovery",
+      "target_pmid": "36151395",
+      "draft": "Interferon-rich tumors increase Qa-1b ligand display, engaging inhibitory NKG2A/CD94 on cytotoxic CD8 cells and weakening antitumor killing.",
+      "distinct_control_id": "qa1-cmv-effector-control",
+      "distinct_control_anchor_pmid": "41417899"
+    }
+  ],
+  "request_contract": {
+    "path": "Current configured pubmed_fulltext ToolConfig mapped to the maintained pubmed_search_with_fulltext MCP tool and parsed with its ResponseParser; no direct Entrez substitute.",
+    "query": "exact draft[:200] for each case; no rewrite, extra term, date filter or retry",
+    "max_papers": 3,
+    "slug_and_run_id": "m11_nov_01a_{case_id_with_hyphens_replaced_by_underscores}",
+    "recency_years": "omitted; maintained tool default 0",
+    "maximum_calls": 3,
+    "minimum_seconds_between_calls": 1.2,
+    "on_first_error_or_rate_limit": "stop; retain partial results and upstream class without trying another provider or query"
+  },
+  "runtime_boundary": {
+    "model_inference": "none",
+    "credentials": "no inherited environment, no API keys, no paid plugins or metered tools; the maintained MCP source has no colocated .env at registration",
+    "cache": "new isolated /tmp/cosci-m11-nov-01a-discovery directory",
+    "estimated_additional_cost_usd": 0
+  },
+  "screening_rule": "A case is eligible for later freezing only if the target PMID appears among the first three parsed IDs and primary-source abstract review confirms the retrieved paper supports the draft's central mechanism. A nonempty but off-topic page fails. These target-conditioned discovery results may not be reported as an unbiased candidate-versus-baseline win.",
+  "later_acceptance": "After screening, separately freeze the final positive/control order, labels, target IDs, full-validator request/evaluation boundary, static-query control, exact-ID recall, control non-rejection, provenance, error handling and two-search/six-paper cap before any candidate implementation or paired comparison."
+}

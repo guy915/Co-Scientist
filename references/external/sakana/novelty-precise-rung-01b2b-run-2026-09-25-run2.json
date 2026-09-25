@@ -1,0 +1,67 @@
+{
+  "pilot": "M11-NOV-RUNG-01a",
+  "pilot_run_id": "f83b46931d0b",
+  "status": "STOPPED",
+  "started_at_utc": "2026-09-25T15:57:56.477047+00:00",
+  "prereg_sha256": "5b9d7a0ac076fb44574a2b357f6b7de2a5bc151140049ac478f6d3e96b69d08b",
+  "frozen_inputs_sha256": "cd61e74394735656b9a14f56eea219cd14af069359cb0e4b683a63881ede3a61",
+  "source_manifest_sha256": "79adb5adc0129939e3cfa55d7da38703753f52365d86ce9e8db843e13c3eb9af",
+  "protocol_amendment_sha256": "99661ea69abf898a225878c7805b813b026deb460f0e63970af8dbce7cbdfd68",
+  "runner_path": "references/external/sakana/novelty_precise_rung_runner.py",
+  "runner_sha256": "22c2d8b33917af03ab05155099c6382f134a7cdaad25839c44823d8149416a43",
+  "baseline_commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+  "candidate_commit": "8c91e5a9ed9661a37886c994f37083d75b41f8a5",
+  "candidate_changed_files": [
+    "engine/mcp_server/pubmed_query.py",
+    "engine/mcp_server/tests/test_pubmed_query.py"
+  ],
+  "build_hashes": {
+    "baseline_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+    "candidate_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
+    "candidate_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+    "frozen_inputs_sha256": "cd61e74394735656b9a14f56eea219cd14af069359cb0e4b683a63881ede3a61",
+    "source_manifest_sha256": "79adb5adc0129939e3cfa55d7da38703753f52365d86ce9e8db843e13c3eb9af"
+  },
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "max_outer_calls": 12,
+  "max_esearch_calls": 36,
+  "esearch_call_count": 0,
+  "calls": [
+    {
+      "order": 1,
+      "request_id": "R01",
+      "arm": "baseline",
+      "endpoint_url": "http://127.0.0.1:62837/mcp",
+      "sort": "pub_date",
+      "port": 62837,
+      "process_id": 76576,
+      "server_commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+      "server_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+      "candidate_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+      "cache": "/private/tmp/precise-rung-m11-nov-20260925-run2/cache-baseline",
+      "server_build_id": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+      "slug": "m11novrung_f83b46931d0b_r01_baseline",
+      "run_id": "f83b46931d0b_r01_baseline",
+      "query": "PML supports detached breast cancer cell survival by increasing fatty-acid oxidation, ATP production, and resistance to anoikis.",
+      "parameters": {
+        "query": "PML supports detached breast cancer cell survival by increasing fatty-acid oxidation, ATP production, and resistance to anoikis.",
+        "max_papers": 3,
+        "recency_years": 0,
+        "slug": "m11novrung_f83b46931d0b_r01_baseline",
+        "run_id": "f83b46931d0b_r01_baseline"
+      },
+      "status": "error",
+      "started_at_utc": "2026-09-25T15:57:56.519700+00:00",
+      "error_stage": "trace",
+      "error_class": "FileNotFoundError"
+    }
+  ],
+  "metadata_ids_submitted": 0,
+  "stopped_at_order": 1,
+  "error": {
+    "stage": "trace",
+    "class": "FileNotFoundError"
+  },
+  "ended_at_utc": "2026-09-25T15:58:09.138441+00:00"
+}

@@ -1,0 +1,56 @@
+{
+  "protocol": "M11-NOV-RUNG-01b2b first-error receipt",
+  "status": "stopped_first_trace_error",
+  "runner_commit": "dd058b4f7e963a7638a7fdb2281bf6e516739a35",
+  "runner_sha256": "22c2d8b33917af03ab05155099c6382f134a7cdaad25839c44823d8149416a43",
+  "run_artifact_path": "references/external/sakana/novelty-precise-rung-01b2b-run-2026-09-25-run2.json",
+  "run_artifact_sha256": "ceedf715f002d07c1e0bf08aacff43df664b2f757248947e8afe848ee6fa8c08",
+  "run_artifact_bytes": 3165,
+  "runner_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "runner_log_bytes": 0,
+  "blind_artifact_path": "references/external/sakana/novelty-precise-rung-01b2b-blind-2026-09-25-run2.json",
+  "blind_artifact_created": false,
+  "started_at_utc": "2026-09-25T15:57:56.477047+00:00",
+  "ended_at_utc": "2026-09-25T15:58:09.138441+00:00",
+  "runner_exit_code": 1,
+  "call_record_count": 1,
+  "first_call": {
+    "order": 1,
+    "request_id": "R01",
+    "arm": "baseline",
+    "status": "error",
+    "error_stage": "trace",
+    "error_class": "FileNotFoundError"
+  },
+  "mcp_tool_calls": 1,
+  "esearch_calls_recorded": 0,
+  "metadata_ids_recorded": 0,
+  "actual_external_pubmed_request_count": "unknown: trace lookup failed after the MCP tool call returned; the trace was required to establish ESearch count",
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "retry_or_substitution": "none; batch stopped on first outer-call error",
+  "cleanup": {
+    "server_pids": [
+      76576,
+      76577
+    ],
+    "loopback_ports": [
+      62837,
+      62838
+    ],
+    "listeners_after_cleanup": [],
+    "server_processes_after_cleanup": [],
+    "temporary_baseline_worktree_removed": true,
+    "temporary_cache_home_and_server_logs_removed": true,
+    "candidate_worktree_retained": true,
+    "temporary_server_logs": "removed; runner stdout/stderr capture was empty"
+  },
+  "interpretation_limit": "The runner returned one trace-stage FileNotFoundError and recorded zero ESearch calls. This does not establish that no external PubMed request occurred; the count is unknown because the trace file was unavailable.",
+  "next": "Do not retry this batch. Diagnose and fix trace capture offline, then require a separately reviewed, committed authorization before any new retrieval.",
+  "runner_log_capture": {
+    "captured_bytes": 0,
+    "sha256_of_empty_capture": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "retained_as_file": false,
+    "disposition": "empty stdout/stderr capture omitted; raw runner result and this receipt retain the failure evidence"
+  }
+}

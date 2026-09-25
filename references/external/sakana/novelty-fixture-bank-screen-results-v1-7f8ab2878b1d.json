@@ -1,0 +1,2342 @@
+{
+  "name": "M11-NOV-01a3b full-validator public prior-art fixture screen",
+  "status": "SCREEN_COMPLETE_LABELS_PENDING",
+  "prereg_sha256": "66e616e0b4e9089b4b8d971781ce0a15f81cf202c4a949a645a7bd8b13e810a1",
+  "tool": "pubmed_search_with_fulltext",
+  "model_inference_calls": 0,
+  "paid_calls": 0,
+  "raw_abstracts_in_result": false,
+  "calls": [
+    {
+      "order": 1,
+      "pair_id": "butyrate-foxp3",
+      "arm": "positive",
+      "target_pmid": "24226770",
+      "anchor_pmid": null,
+      "draft": "Microbial butyrate promotes colonic Foxp3+ regulatory T-cell differentiation by increasing histone acetylation at Foxp3 regulatory regions and limiting experimental colitis.",
+      "wire_query": "Microbial butyrate promotes colonic Foxp3+ regulatory T-cell differentiation by increasing histone acetylation at Foxp3 regulatory regions and limiting experimental colitis.",
+      "started_at_utc": "2026-09-25T08:43:54.084239+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42689867",
+          "title": "Gut microbiota and metabolic alterations in participants with flatulence identify Faecalibacterium prausnitzii as a key microbial target for clinical intervention.",
+          "authors": [
+            "Ruimin Chen",
+            "Chuan Zhang",
+            "Shikai Yan",
+            "Chengcheng Zhang",
+            "Yilin Ren",
+            "Gang Wang",
+            "Shumao Cui",
+            "Wenwei Lu",
+            "Bo Yang",
+            "Xiaomei Lyu",
+            "Peijun Tian",
+            "Jianxin Zhao",
+            "Fengwei Tian",
+            "Yuzheng Xue",
+            "Qixiao Zhai"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2728332",
+          "abstract_available": true,
+          "abstract_sha256": "babf58edbd589b49b28ecf198e5f00cb95b36fe29581dbe633b1ba3ceb5b4a66",
+          "fulltext_available": true,
+          "blind_id": "2cd34636b5ab44c3b4de32fa6feeb37d"
+        },
+        {
+          "rank": 2,
+          "pmid": "42635403",
+          "title": "Baseline gut microbiome ecology predicts long-term fat mass loss after bariatric surgery: evidence for a thrifty Bifidobacterium phenotype.",
+          "authors": [
+            "Enzamaría Fidilio",
+            "Marta Comas Martínez",
+            "Vanesa Flores",
+            "María Pilar Costa Forner",
+            "Xingpeng Xiao",
+            "José Raúl Herance",
+            "Ramón Vilallonga",
+            "Andreea Ciudin Mihai"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2719294",
+          "abstract_available": true,
+          "abstract_sha256": "ef36a10a0b6e4b0da27a92187d0596bdd7ab52875fd93b09fc49cf5c122bb60e",
+          "fulltext_available": true,
+          "blind_id": "8f5845070be744f5bc1e2ca53431966a"
+        },
+        {
+          "rank": 3,
+          "pmid": "42563439",
+          "title": "Mechanistic pathways linking gut microbial metabolites, microbial structural products, and host-microbe co-metabolites to mitochondrial function.",
+          "authors": [
+            "Richard E Frye",
+            "Daniel A Rossignol"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2694140",
+          "abstract_available": true,
+          "abstract_sha256": "7737f05f9822ad6f05efb5d915116a703e6fba320cf8b28d5c6bed93d171f3e6",
+          "fulltext_available": true,
+          "blind_id": "a11863e9e7ed496c8e21931114adbf67"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:44:10.164828+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Microbial butyrate promotes colonic Foxp3+ regulatory T-cell differentiation by increasing histone acetylation at Foxp3 regulatory regions and limiting experimental colitis.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_01",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_01"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_01",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42689867",
+              "42635403",
+              "42563439",
+              "42482368",
+              "42400257",
+              "42228352",
+              "41851065",
+              "41792608",
+              "42756901"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42689867",
+            "42635403",
+            "42563439",
+            "42482368",
+            "42400257",
+            "42228352",
+            "41851065",
+            "41792608",
+            "42756901"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42689867",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42635403",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42563439",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42482368",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42400257",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42228352",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41851065",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41792608",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42756901",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42689867",
+          "42635403",
+          "42563439"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 2,
+      "pair_id": "butyrate-foxp3",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "25586379",
+      "draft": "Microbial propionate promotes intestinal gluconeogenesis through enteric VIP-VPAC1 signaling and a gut-brain metabolic axis.",
+      "wire_query": "Microbial propionate promotes intestinal gluconeogenesis through enteric VIP-VPAC1 signaling and a gut-brain metabolic axis.",
+      "started_at_utc": "2026-09-25T08:44:10.165396+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42657534",
+          "title": "Latent tuberculosis infection shapes gut microbiome and immune-metabolic interactions in people living with HIV.",
+          "authors": [
+            "Pratik Devadiga",
+            "Jyoti Batgire",
+            "Kalyani Karandikar",
+            "Shilpa Bhowmick",
+            "Shantanu Birje",
+            "Shilpa Kerkar",
+            "Vidya Nagar",
+            "Priya Patil",
+            "Sachee Agrawal",
+            "Jayanthi Shastri",
+            "Sushma Gaikwad",
+            "Kiran Munne",
+            "Nupur Mukherjee",
+            "Taruna Madan",
+            "Vainav Patel",
+            "Vikrant M Bhor"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2721739",
+          "abstract_available": true,
+          "abstract_sha256": "2d1546425f776275d6507ef774517da21efa6930c28d55d90f45aa59bf270c1b",
+          "fulltext_available": true,
+          "blind_id": "a75e4ab9938c450dbda75620360027d5"
+        },
+        {
+          "rank": 2,
+          "pmid": "42615833",
+          "title": "Microbial metabolite-driven mechanisms linking the gut microbiome to atherosclerosis: multi-omic and translational perspectives.",
+          "authors": [
+            "Mar Masiá",
+            "Félix Gutiérrez"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2718621",
+          "abstract_available": true,
+          "abstract_sha256": "6e5c02696b126c3272d34da66b8958616cdc8a5826a65ef0219093afcdee146a",
+          "fulltext_available": true,
+          "blind_id": "de59665a65054f52ae32da4568da9d6b"
+        },
+        {
+          "rank": 3,
+          "pmid": "42563439",
+          "title": "Mechanistic pathways linking gut microbial metabolites, microbial structural products, and host-microbe co-metabolites to mitochondrial function.",
+          "authors": [
+            "Richard E Frye",
+            "Daniel A Rossignol"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2694140",
+          "abstract_available": true,
+          "abstract_sha256": "7737f05f9822ad6f05efb5d915116a703e6fba320cf8b28d5c6bed93d171f3e6",
+          "fulltext_available": true,
+          "blind_id": "ff066728920e44709b5b0221f05ae218"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:44:29.162893+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Microbial propionate promotes intestinal gluconeogenesis through enteric VIP-VPAC1 signaling and a gut-brain metabolic axis.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_02",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_02"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_02",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42657534",
+              "42615833",
+              "42563439",
+              "42296178",
+              "42033241",
+              "42133662",
+              "42607815",
+              "42425466",
+              "42413643"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42657534",
+            "42615833",
+            "42563439",
+            "42296178",
+            "42033241",
+            "42133662",
+            "42607815",
+            "42425466",
+            "42413643"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42657534",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42615833",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42563439",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42296178",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42033241",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42133662",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42607815",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42425466",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42413643",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42657534",
+          "42615833",
+          "42563439"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 3,
+      "pair_id": "gpx4-ferroptosis",
+      "arm": "positive",
+      "target_pmid": "24439385",
+      "anchor_pmid": null,
+      "draft": "GPX4 inactivation permits lipid peroxide accumulation and ferroptotic death in susceptible cancer cells.",
+      "wire_query": "GPX4 inactivation permits lipid peroxide accumulation and ferroptotic death in susceptible cancer cells.",
+      "started_at_utc": "2026-09-25T08:44:29.163648+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42454686",
+          "title": "Triple-Microenvironment Decoding Enables Logic-Unlocked Precision Photoimmunotherapy.",
+          "authors": [
+            "Chuangjun Liu",
+            "Yu Liu",
+            "Simin Liang",
+            "Yingchun Jiang",
+            "Hai Yi",
+            "Xueping Diao",
+            "Na Li",
+            "Bin Zhang",
+            "Miao Yu",
+            "Rongqiang Li",
+            "Michael N Okeke",
+            "Kun Qian",
+            "Qihang Ding",
+            "Ping Gong",
+            "Zhen Cheng",
+            "Chunbai Xiang"
+          ],
+          "year": 2026,
+          "doi": "10.1002/anie.3280921",
+          "abstract_available": true,
+          "abstract_sha256": "2d5004ce591e78500c276aa89261b108bad071772940197e4e6aa2111eb554d2",
+          "fulltext_available": true,
+          "blind_id": "1fe47e4846d44ead93778e82e9e36054"
+        },
+        {
+          "rank": 2,
+          "pmid": "42755568",
+          "title": "Ferroptosis-neuroinflammation interplay: mechanistic pathways and therapeutic opportunities in central nervous system disorders.",
+          "authors": [
+            "Khuzin Dinislam",
+            "Valeriy A Kataev",
+            "Mohammad Rehan Ajmal",
+            "Ayman S Amer",
+            "Pratibha Prasad",
+            "Azna Zuberi"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fnagi.2026.1874307",
+          "abstract_available": true,
+          "abstract_sha256": "ae9450df5ace436338b2ff0abc2da09f45e84dcb897dffb74013794d84bad4ba",
+          "fulltext_available": true,
+          "blind_id": "76faaaef329b43339f3dac507be30ad8"
+        },
+        {
+          "rank": 3,
+          "pmid": "42755505",
+          "title": "Iron-driven secondary injury after intracranial hemorrhage: mitochondrial dysfunction and ferroptosis.",
+          "authors": [
+            "Maryam Maghareh",
+            "Enrique M Carrera",
+            "Dominick Cicala",
+            "Asm Roknuzzaman",
+            "Rapty Sarker",
+            "Werner J Geldenhuys",
+            "Jason D Huber"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fnins.2026.1838011",
+          "abstract_available": true,
+          "abstract_sha256": "a0bfe7283c90217d9fc8c1f44fb5d2cd75f34a9192d75c7587e7de627a998425",
+          "fulltext_available": true,
+          "blind_id": "006430b522af41f89fa31d6d22bea7b7"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:44:45.610346+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "GPX4 inactivation permits lipid peroxide accumulation and ferroptotic death in susceptible cancer cells.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_03",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_03"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_03",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42470709",
+              "42556073",
+              "42048727",
+              "42735785",
+              "42454686",
+              "42726159",
+              "42755568",
+              "42755505",
+              "42750845"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42470709",
+            "42556073",
+            "42048727",
+            "42735785",
+            "42454686",
+            "42726159",
+            "42755568",
+            "42755505",
+            "42750845"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42470709",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42556073",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42048727",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42735785",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42454686",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42726159",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42755568",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42755505",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42750845",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42454686",
+          "42755568",
+          "42755505"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 4,
+      "pair_id": "gpx4-ferroptosis",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "24577084",
+      "draft": "Activated RIPK3 requires MLKL, but not Drp1, to execute necroptotic death in mouse embryonic fibroblasts.",
+      "wire_query": "Activated RIPK3 requires MLKL, but not Drp1, to execute necroptotic death in mouse embryonic fibroblasts.",
+      "started_at_utc": "2026-09-25T08:44:45.611169+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42520933",
+          "title": "Systematic genetic analysis of GSDMD, GSDME, and MLKL in PANoptosis.",
+          "authors": [
+            "Omkar Indari",
+            "Prashant Giri",
+            "Rebecca E Tweedell",
+            "Thirumala-Devi Kanneganti"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.jbc.2026.113370",
+          "abstract_available": true,
+          "abstract_sha256": "81f36090cdddd6d0c030469a72b87886ed6720f6109c4f332f691eded0451925",
+          "fulltext_available": true,
+          "blind_id": "e869afc303c34946973d6074e36b2ffc"
+        },
+        {
+          "rank": 2,
+          "pmid": "42552328",
+          "title": "Transcriptomic profiling of HBV transgenic mouse livers reveals ZBP1-associated necroptotic signaling.",
+          "authors": [
+            "Zean Wang",
+            "Mengyuan Zhao",
+            "Yun Fu",
+            "Lili Liu",
+            "Yong Hou",
+            "Mei Shi",
+            "Fei Gao",
+            "Guoliang Zhang"
+          ],
+          "year": 2026,
+          "doi": "10.1038/s41598-026-55138-z",
+          "abstract_available": true,
+          "abstract_sha256": "7217e5d8863dd16a1ef7075993bd86beb7a751b98e3822b173c430b1d6d759c9",
+          "fulltext_available": true,
+          "blind_id": "972393e63cbf46f7970ad3e80445ff2f"
+        },
+        {
+          "rank": 3,
+          "pmid": "42609461",
+          "title": "Spatial transcriptomic analysis identifies a necroptosis-prone thyroid follicular cell state in Hashimoto's thyroiditis.",
+          "authors": [
+            "Dongyu Yang",
+            "Cihang Lu",
+            "Weiping Teng",
+            "Lei Zhao",
+            "Xichang Wang",
+            "Ying Sun",
+            "Haonan Zhang",
+            "Shuting Fan",
+            "Xiaoguang Shi"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fimmu.2026.1902510",
+          "abstract_available": true,
+          "abstract_sha256": "d246509d3d7aea031617feb2d05d26ba3b102ebb8b9b1fcce33ce2e45fae95e5",
+          "fulltext_available": true,
+          "blind_id": "4c305f9f68804926a184a564b9cfccca"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:44:59.288317+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Activated RIPK3 requires MLKL, but not Drp1, to execute necroptotic death in mouse embryonic fibroblasts.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_04",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_04"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_04",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 9,
+            "first_ids": [
+              "42777444",
+              "42520933",
+              "42114789",
+              "42552328",
+              "42609461",
+              "42030446",
+              "41876502",
+              "41772303",
+              "41674095"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 9,
+          "ids": [
+            "42777444",
+            "42520933",
+            "42114789",
+            "42552328",
+            "42609461",
+            "42030446",
+            "41876502",
+            "41772303",
+            "41674095"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42777444",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42520933",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42114789",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42552328",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42609461",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42030446",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41876502",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41772303",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41674095",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42520933",
+          "42552328",
+          "42609461"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 5,
+      "pair_id": "cgas-beclin1",
+      "arm": "positive",
+      "target_pmid": "24528868",
+      "anchor_pmid": null,
+      "draft": "During cytosolic microbial-DNA sensing, cGAS binding to Beclin-1 releases Rubicon-mediated inhibition of autophagy, clears DNA, and limits persistent interferon signaling.",
+      "wire_query": "During cytosolic microbial-DNA sensing, cGAS binding to Beclin-1 releases Rubicon-mediated inhibition of autophagy, clears DNA, and limits persistent interferon signaling.",
+      "started_at_utc": "2026-09-25T08:44:59.290331+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42775084",
+          "title": "Artificial gene clusters designed for simultaneous multi-gene expression enable reconstruction of metabolite biosynthesis pathways in Trichoderma reesei.",
+          "authors": [
+            "Lei Wang",
+            "Yaqi Dang",
+            "Chentao Luan",
+            "Zitong Yan",
+            "Xianjun Wang",
+            "Zhizhi Ma",
+            "Xia Zhang",
+            "Ruifang Ao",
+            "Bin Liu",
+            "Zhizhen Liu",
+            "Peng Shi",
+            "Jun Xie"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.synbio.2026.09.001",
+          "abstract_available": true,
+          "abstract_sha256": "7d4be0bb50b6a76372883879ebd53ab3f616b096deac99b5b857afc893e695ac",
+          "fulltext_available": true,
+          "blind_id": "187ec18ec8f54631930995d9127cca0e"
+        },
+        {
+          "rank": 2,
+          "pmid": "42774404",
+          "title": "Genetic engineering of cyanophages for harmful cyanobacterial bloom treatment-A mini review.",
+          "authors": [
+            "Erin E Peters",
+            "Ping Gong"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.synbio.2026.08.011",
+          "abstract_available": true,
+          "abstract_sha256": "534df8298bbd42b241f7c2b5967d7515f44f40b46aaafa25bf36a8192b93e9dc",
+          "fulltext_available": true,
+          "blind_id": "e05b4737d77b41c09c985a90fa96d610"
+        },
+        {
+          "rank": 3,
+          "pmid": "42707595",
+          "title": "Cold Resection for Superficial Non-Ampullary Duodenal Epithelial Tumors: Current Evidence and Clinical Perspectives.",
+          "authors": [
+            "Yuichiro Mikuriya",
+            "Kohei Takizawa",
+            "Nobuhisa Minakata",
+            "Kazuo Shiotsuki"
+          ],
+          "year": 2026,
+          "doi": "10.1002/deo2.70429",
+          "abstract_available": true,
+          "abstract_sha256": "20e2698ddb33d84e9e6e848ee58f5355e59ac9ba8bcade49fe2d5b548161a60d",
+          "fulltext_available": true,
+          "blind_id": "063b55e2f8d34b53bdd174b6038cb8f0"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:45:14.923510+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "During cytosolic microbial-DNA sensing, cGAS binding to Beclin-1 releases Rubicon-mediated inhibition of autophagy, clears DNA, and limits persistent interferon signaling.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_05",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_05"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_05",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 3,
+            "rung_type": "or",
+            "count": 9,
+            "first_ids": [
+              "42526488",
+              "42775084",
+              "42774404",
+              "42707595",
+              "42701464",
+              "42699337",
+              "42662560",
+              "42643670",
+              "42548893"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 3,
+          "rung_type": "or",
+          "count": 9,
+          "ids": [
+            "42526488",
+            "42775084",
+            "42774404",
+            "42707595",
+            "42701464",
+            "42699337",
+            "42662560",
+            "42643670",
+            "42548893"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42526488",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42775084",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42774404",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42707595",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42701464",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42699337",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42662560",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42643670",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42548893",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42775084",
+          "42774404",
+          "42707595"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 6,
+      "pair_id": "cgas-beclin1",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "28289409",
+      "draft": "Mitochondrial DNA activates macrophage NLRP3 and caspase-1-dependent IL-1beta production, contributing to experimental type 1 diabetes.",
+      "wire_query": "Mitochondrial DNA activates macrophage NLRP3 and caspase-1-dependent IL-1beta production, contributing to experimental type 1 diabetes.",
+      "started_at_utc": "2026-09-25T08:45:14.924525+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "41855523",
+          "title": "Global analyses of genomic and epigenomic influences on gene expression reveal Serpina3n as a major regulator of cardiac gene expression in response to catecholamine challenge during heart failure.",
+          "authors": [
+            "Caitlin Lahue",
+            "Sriram Ravindran",
+            "Aryan Dalal",
+            "Rozeta Avetisyan",
+            "Christoph D Rau"
+          ],
+          "year": 2026,
+          "doi": "10.1080/15592294.2026.2643094",
+          "abstract_available": true,
+          "abstract_sha256": "4b24a2f068ba4250ba35f77864eebc53610b01bdccae5521d4cb661ed4bc0038",
+          "fulltext_available": true,
+          "blind_id": "9a3c620584cc49718b20cb3475e6d595"
+        },
+        {
+          "rank": 2,
+          "pmid": "42780631",
+          "title": "Ultrasound-activated piezoelectric patch enhances mitophagy and synergistic anti-inflammation to promote neurological repair after TBI.",
+          "authors": [
+            "Wei Li",
+            "Runzhe Huang",
+            "Qingyuan Wu",
+            "Pengbo Zhou",
+            "Dangli Ren",
+            "Jingjing Wang",
+            "Hanjie Niu",
+            "Zemeng Li",
+            "Hongtao Sun",
+            "Huiyu Liu"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.bioactmat.2026.08.035",
+          "abstract_available": true,
+          "abstract_sha256": "0384e924f11fb356bc54f95b4c0edd99bebbb2db96f5471c72f16b2fb54ab26b",
+          "fulltext_available": true,
+          "blind_id": "01e538dc270f4270ba80164e419117c0"
+        },
+        {
+          "rank": 3,
+          "pmid": "42771307",
+          "title": "Base Editing: Mechanisms and Therapeutic Applications.",
+          "authors": [
+            "Fabio Catalano"
+          ],
+          "year": 2026,
+          "doi": "10.1007/978-1-0716-5547-4_4",
+          "abstract_available": true,
+          "abstract_sha256": "f1e3deaa603b261d1e955fd8f315cf62f4e5de9830a54cc85fe2aadd5f97ed27",
+          "fulltext_available": true,
+          "blind_id": "d371701075a24dcba205dbb9a8753895"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:45:29.160007+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Mitochondrial DNA activates macrophage NLRP3 and caspase-1-dependent IL-1beta production, contributing to experimental type 1 diabetes.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_06",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_06"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_06",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42780631",
+              "42771307",
+              "42497773",
+              "42461411",
+              "41855523",
+              "42349767",
+              "42331195",
+              "42595147",
+              "42580030"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42780631",
+            "42771307",
+            "42497773",
+            "42461411",
+            "41855523",
+            "42349767",
+            "42331195",
+            "42595147",
+            "42580030"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42780631",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42771307",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42497773",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42461411",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41855523",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42349767",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42331195",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42595147",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42580030",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "41855523",
+          "42780631",
+          "42771307"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 7,
+      "pair_id": "indole-ahr-il22",
+      "arm": "positive",
+      "target_pmid": "23973224",
+      "anchor_pmid": null,
+      "draft": "Lactobacillus-derived indole-3-aldehyde activates AhR-dependent IL-22 transcription, improving murine mucosal resistance to Candida albicans.",
+      "wire_query": "Lactobacillus-derived indole-3-aldehyde activates AhR-dependent IL-22 transcription, improving murine mucosal resistance to Candida albicans.",
+      "started_at_utc": "2026-09-25T08:45:29.161222+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42502572",
+          "title": "New pulse sequence for improving cardiac black-blood and PSIR MRI quality in cases of arrhythmia.",
+          "authors": [
+            "Huan Tan",
+            "Dong Wang",
+            "Yuehua Li"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.mrl.2026.200303",
+          "abstract_available": true,
+          "abstract_sha256": "18910f1f236b19da0c48f9d10ba1414cacd89ca511b348e1ec18e9e19be2f921",
+          "fulltext_available": true,
+          "blind_id": "42cf303b7b89453cab255bd1b43d25b7"
+        },
+        {
+          "rank": 2,
+          "pmid": "42756938",
+          "title": "Metabolic Improvement and Weight Reduction After Large Endoscopic Submucosal Dissection Including the Papilla for Duodenal Adenoma: A Case Report.",
+          "authors": [
+            "Chi-Chu Lo",
+            "Chen-Shuan Chung",
+            "Wei-Wei Lee",
+            "Chien-Chen Tsai",
+            "Kurato Miyazaki",
+            "Motohiko Kato"
+          ],
+          "year": 2026,
+          "doi": "10.1002/deo2.70433",
+          "abstract_available": true,
+          "abstract_sha256": "a1047e30f828e75ce3cec7b8bf3f575f18b61248a8788b7df0f553ee799a8850",
+          "fulltext_available": true,
+          "blind_id": "57a82b00ad9a4652818c134f41e31c72"
+        },
+        {
+          "rank": 3,
+          "pmid": "42557168",
+          "title": "Effects of air pollution on disease activity in patients with rheumatoid arthritis.",
+          "authors": [
+            "Sung Cheol Jung",
+            "Jeffrey R Curtis",
+            "Seojin Yang",
+            "Yunhee Choi",
+            "Min Hyuk Lim",
+            "Saram Lee",
+            "Sung Ik Cho",
+            "Jin Kyun Park",
+            "Jun Won Park",
+            "Eun Bong Lee"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.ard.2026.06.018",
+          "abstract_available": true,
+          "abstract_sha256": "3185076afb07528ff66d2aea5b2956cbda11dad2ab366f73409473d853423c32",
+          "fulltext_available": true,
+          "blind_id": "a07ec8c1709d484181892930232bbf81"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:45:40.688721+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Lactobacillus-derived indole-3-aldehyde activates AhR-dependent IL-22 transcription, improving murine mucosal resistance to Candida albicans.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_07",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_07"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_07",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 3,
+            "rung_type": "or",
+            "count": 9,
+            "first_ids": [
+              "42557168",
+              "42542126",
+              "42575118",
+              "42502572",
+              "42526490",
+              "42526491",
+              "42615959",
+              "42781318",
+              "42756938"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 3,
+          "rung_type": "or",
+          "count": 9,
+          "ids": [
+            "42557168",
+            "42542126",
+            "42575118",
+            "42502572",
+            "42526490",
+            "42526491",
+            "42615959",
+            "42781318",
+            "42756938"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42557168",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42542126",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42575118",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42502572",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42526490",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42526491",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42615959",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42781318",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42756938",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42502572",
+          "42756938",
+          "42557168"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 8,
+      "pair_id": "indole-ahr-il22",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "19836068",
+      "draft": "Segmented filamentous bacteria induce murine intestinal lamina propria Th17 cells and enhance resistance to Citrobacter rodentium.",
+      "wire_query": "Segmented filamentous bacteria induce murine intestinal lamina propria Th17 cells and enhance resistance to Citrobacter rodentium.",
+      "started_at_utc": "2026-09-25T08:45:40.690313+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42461015",
+          "title": "β-Hydroxybutyrate precursor 1,3-butanediol modulates enteric pathogen susceptibility and Th17 responses via commensal bacteria.",
+          "authors": [
+            "Wenxuan Dong",
+            "Chi Yan",
+            "Bethany Korwin-Mihavics",
+            "Kate Stack",
+            "Gillian Hughes",
+            "Aidan Schmidt",
+            "Kevin J Schwartz",
+            "Gustavo Caballero-Flores",
+            "Margaret Alexander"
+          ],
+          "year": 2026,
+          "doi": "10.1128/msystems.00324-26",
+          "abstract_available": true,
+          "abstract_sha256": "ab6dd11b6041a06a6ec02e6cb89a087c884a8a3d299ecb1c2adfc0ac86b08e6c",
+          "fulltext_available": true,
+          "blind_id": "eeb7fcab5d0d41ee83dea72e6244682e"
+        },
+        {
+          "rank": 2,
+          "pmid": "42565114",
+          "title": "Gut microbiota and pathobiont exposure influences disease incidence in non-obese diabetic mice.",
+          "authors": [
+            "Amber L Russell",
+            "Benjamin Olthoff",
+            "Chunye Zhang",
+            "Cat Lutz",
+            "Craig L Franklin",
+            "Aaron C Ericsson"
+          ],
+          "year": 2026,
+          "doi": "10.3389/fmicb.2026.1844128",
+          "abstract_available": true,
+          "abstract_sha256": "936c5ca81efc4756b0164f8f1ee498f8bd5ae3b157e347d8a0f8692c00ecda02",
+          "fulltext_available": true,
+          "blind_id": "b1523f110315445a88b3b18eeeb83487"
+        },
+        {
+          "rank": 3,
+          "pmid": "42323327",
+          "title": "Structural basis of nonmuscle myosin-2 autoinhibition mechanisms.",
+          "authors": [
+            "Sarah M Heissler",
+            "Giovanna Grandinetti",
+            "James R Sellers",
+            "Krishna Chinthalapudi"
+          ],
+          "year": 2026,
+          "doi": "10.1038/s41467-026-74674-w",
+          "abstract_available": true,
+          "abstract_sha256": "1cffde5318a3a9b8712874379a4d19de28bda16cd5a8217ba5eaf583310faf2c",
+          "fulltext_available": true,
+          "blind_id": "81ecd4695c814bf387768116767b3f09"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:45:56.291960+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Segmented filamentous bacteria induce murine intestinal lamina propria Th17 cells and enhance resistance to Citrobacter rodentium.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_08",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_08"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_08",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "19836068"
+            ],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42780003",
+              "42461015",
+              "42565114",
+              "42431312",
+              "42323327",
+              "42327067",
+              "42146659",
+              "41929183",
+              "41953178"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42780003",
+            "42461015",
+            "42565114",
+            "42431312",
+            "42323327",
+            "42327067",
+            "42146659",
+            "41929183",
+            "41953178"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42780003",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42461015",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42565114",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42431312",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42323327",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42327067",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42146659",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41929183",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41953178",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42461015",
+          "42565114",
+          "42323327"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 9,
+      "pair_id": "bfragilis-psa-tlr2",
+      "arm": "positive",
+      "target_pmid": "21512004",
+      "anchor_pmid": null,
+      "draft": "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 on Foxp3+ regulatory T cells to promote mucosal tolerance and colonization.",
+      "wire_query": "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 on Foxp3+ regulatory T cells to promote mucosal tolerance and colonization.",
+      "started_at_utc": "2026-09-25T08:45:56.293226+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42415234",
+          "title": "A metabolite-dependent mechanism by which Bifidobacterium animalis subsp. lactis promotes Bacteroides colonization.",
+          "authors": [
+            "Khashayar Shahin",
+            "Liang Wang",
+            "Zihan He",
+            "Bomin Lv",
+            "Arya Van Alin",
+            "Richard Lo-Man",
+            "Hao Wu",
+            "Philippe Sansonetti",
+            "Jean-Marc Collard"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2026.2696647",
+          "abstract_available": true,
+          "abstract_sha256": "46a70ac3fe22d4208d26c0d83c7e625492cc895775ab6511ac1a0725f1f78e39",
+          "fulltext_available": true,
+          "blind_id": "4e88a16e45ab46febc9588e7c2df2e70"
+        },
+        {
+          "rank": 2,
+          "pmid": "42679821",
+          "title": "Oxygen-responsive bacterial glycosphingolipid links symbiont fitness and immune development in neonatal host.",
+          "authors": [
+            "Kyoo Heo",
+            "Da-Jung Jung",
+            "Ji-Sun Yoo",
+            "Byoungsook Goh",
+            "Dennis L Kasper",
+            "Sungwhan F Oh"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.cell.2026.08.011",
+          "abstract_available": true,
+          "abstract_sha256": "09cb5e453ff8a66efff9261e6757721f64858c921df6697964bfe463cf330838",
+          "fulltext_available": true,
+          "blind_id": "2e5abb7c538642e286acfae31c9c9db7"
+        },
+        {
+          "rank": 3,
+          "pmid": "42346964",
+          "title": "Bacterial Outer Membrane Vesicles: Research Advances from Biogenesis Mechanisms to Engineered Applications.",
+          "authors": [
+            "Mengyuan Zhang",
+            "Xin Zhao",
+            "Mingsheng Tang",
+            "Wei Zou"
+          ],
+          "year": 2026,
+          "doi": "10.3390/membranes16060208",
+          "abstract_available": true,
+          "abstract_sha256": "59aecac3c6c61480b167a37065201610d57ae133dc4b4634200df9bffab759e2",
+          "fulltext_available": true,
+          "blind_id": "85a49c2351f643d9b1831711abb5a6f7"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:46:11.603236+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 on Foxp3+ regulatory T cells to promote mucosal tolerance and colonization.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_09",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_09"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_09",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "21512004"
+            ],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42415234",
+              "42679821",
+              "42400638",
+              "42346964",
+              "42115921",
+              "40233891",
+              "40764272",
+              "41196415",
+              "41195911"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42415234",
+            "42679821",
+            "42400638",
+            "42346964",
+            "42115921",
+            "40233891",
+            "40764272",
+            "41196415",
+            "41195911"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42415234",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42679821",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42400638",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42346964",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42115921",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40233891",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "40764272",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41196415",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41195911",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42415234",
+          "42679821",
+          "42346964"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 10,
+      "pair_id": "bfragilis-psa-tlr2",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "19701202",
+      "draft": "Enterotoxigenic Bacteroides fragilis induces IL-17 and IL-23-linked inflammation, colitis, and colon tumorigenesis in mice.",
+      "wire_query": "Enterotoxigenic Bacteroides fragilis induces IL-17 and IL-23-linked inflammation, colitis, and colon tumorigenesis in mice.",
+      "started_at_utc": "2026-09-25T08:46:11.605137+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "39330861",
+          "title": "Caffeic Acid Phenethyl Ester Administration Reduces Enterotoxigenic Bacteroides fragilis-Induced Colitis and Tumorigenesis.",
+          "authors": [
+            "Soonjae Hwang",
+            "Minjeong Jo",
+            "Ju-Eun Hong",
+            "Woo-Seung Kim",
+            "Da-Hye Kang",
+            "Sang-Hyeon Yoo",
+            "Kyungsu Kang",
+            "Ki-Jong Rhee"
+          ],
+          "year": 2025,
+          "doi": "10.3390/toxins16090403",
+          "abstract_available": true,
+          "abstract_sha256": "4e9067c5eff455a60a7b18b255e3a1079db6d7e45d1784e087e4000ad87fe043",
+          "fulltext_available": true,
+          "blind_id": "803c7518136245dc8c6ce38a8205b007"
+        },
+        {
+          "rank": 2,
+          "pmid": "27141400",
+          "title": "Procarcinogenic regulatory T cells in microbial-induced colon cancer.",
+          "authors": [
+            "Abby L Geis",
+            "Franck Housseau"
+          ],
+          "year": 2026,
+          "doi": "10.1080/2162402X.2015.1118601",
+          "abstract_available": true,
+          "abstract_sha256": "094f3d8d8e94dc38fc6929198e63a4633d047b5c2bd4b90c343c303585a3d555",
+          "fulltext_available": true,
+          "blind_id": "999a4872df894add8ead0dedf5632aba"
+        },
+        {
+          "rank": 3,
+          "pmid": "26201900",
+          "title": "Regulatory T-cell Response to Enterotoxigenic Bacteroides fragilis Colonization Triggers IL17-Dependent Colon Carcinogenesis.",
+          "authors": [
+            "Abby L Geis",
+            "Hongni Fan",
+            "Xinqun Wu",
+            "Shaoguang Wu",
+            "David L Huso",
+            "Jaime L Wolfe",
+            "Cynthia L Sears",
+            "Drew M Pardoll",
+            "Franck Housseau"
+          ],
+          "year": 2021,
+          "doi": "10.1158/2159-8290.CD-15-0447",
+          "abstract_available": true,
+          "abstract_sha256": "fe6d5a507e1345abbb04cc65be514ee4e46c6addbb16b6c89216e7afb5d5245a",
+          "fulltext_available": true,
+          "blind_id": "cb8a26dabbc0482db94e49b7e8e5a956"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:46:20.988777+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Enterotoxigenic Bacteroides fragilis induces IL-17 and IL-23-linked inflammation, colitis, and colon tumorigenesis in mice.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_10",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_10"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_10",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 4,
+            "first_ids": [
+              "39330861",
+              "27141400",
+              "26201900",
+              "19701202"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 4,
+          "ids": [
+            "39330861",
+            "27141400",
+            "26201900",
+            "19701202"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "39330861",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "27141400",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "26201900",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "19701202",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "39330861",
+          "27141400",
+          "26201900"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 11,
+      "pair_id": "gpr81-lactate-survival",
+      "arm": "positive",
+      "target_pmid": "24928781",
+      "anchor_pmid": null,
+      "draft": "Pancreatic cancer-cell GPR81 senses lactate, induces lactate transport and metabolism genes, and supports survival under low-glucose conditions.",
+      "wire_query": "Pancreatic cancer-cell GPR81 senses lactate, induces lactate transport and metabolism genes, and supports survival under low-glucose conditions.",
+      "started_at_utc": "2026-09-25T08:46:20.990876+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42247927",
+          "title": "Towards the clinical translation of a novel autophagy inhibitor: Bisaminoquinoline derivative nanoparticles.",
+          "authors": [
+            "Sohaib Mahri",
+            "Menghuan Tang",
+            "Qiufang Zong",
+            "Edward Jae-Hoon Kim",
+            "Tzu-Yin Lin",
+            "Yuanpei Li"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.biomaterials.2026.124361",
+          "abstract_available": true,
+          "abstract_sha256": "a25666951acf37018500338fb7329592c2affc5a2265da3080e6d487f13cbe5f",
+          "fulltext_available": true,
+          "blind_id": "7fee76b100df415dbcbb52b8b8b876d6"
+        },
+        {
+          "rank": 2,
+          "pmid": "42157383",
+          "title": "UBE2C promotes pancreatic cancer progression through PI3K/Akt/mTOR signaling pathway.",
+          "authors": [
+            "Zhou Zhou",
+            "Yuhang Chen",
+            "Ping Li"
+          ],
+          "year": 2026,
+          "doi": "10.1080/15384101.2026.2668450",
+          "abstract_available": true,
+          "abstract_sha256": "e7faf911591e0ff219cb93ca849d0b831b16c796a551ddf9e172b45611823228",
+          "fulltext_available": true,
+          "blind_id": "249ffc8b0fb2421d841d3813ae1742cb"
+        },
+        {
+          "rank": 3,
+          "pmid": "42541494",
+          "title": "Neferine-Targeted Inhibition of TrxR1 Triggers Apoptosis Through Disrupting Redox Homeostasis in Pancreatic Cancer Cells.",
+          "authors": [
+            "Xiaoqing Yuan",
+            "Si Jiang",
+            "Guanqing Zhang",
+            "Yue Wang",
+            "Qiqiang Xie",
+            "Desheng Li",
+            "Tao Lu",
+            "Huan Liu",
+            "Xin Li",
+            "Jiayu Zhang",
+            "Maolei Xu",
+            "Ling Zhou"
+          ],
+          "year": 2026,
+          "doi": "10.1002/mc.70157",
+          "abstract_available": true,
+          "abstract_sha256": "8aadc2432648736c59baebe6a8349bc0d9d683bf0c090f9f4fa0b2b94517498d",
+          "fulltext_available": true,
+          "blind_id": "54a2d70e7c654d358f2511faf5b5c1a4"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:46:35.175966+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Pancreatic cancer-cell GPR81 senses lactate, induces lactate transport and metabolism genes, and supports survival under low-glucose conditions.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_11",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_11"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_11",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42430892",
+              "42517235",
+              "42247927",
+              "42157383",
+              "41867109",
+              "42480354",
+              "42497949",
+              "42541494",
+              "42778596"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42430892",
+            "42517235",
+            "42247927",
+            "42157383",
+            "41867109",
+            "42480354",
+            "42497949",
+            "42541494",
+            "42778596"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42430892",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42517235",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42247927",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42157383",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41867109",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42480354",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42497949",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42541494",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42778596",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42247927",
+          "42157383",
+          "42541494"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    },
+    {
+      "order": 12,
+      "pair_id": "gpr81-lactate-survival",
+      "arm": "distinct_control",
+      "target_pmid": null,
+      "anchor_pmid": "35820416",
+      "draft": "Tumor-derived lactate impairs CD8+ T-cell cytotoxicity by reducing pyruvate-carboxylase anaplerosis and succinate-receptor signaling.",
+      "wire_query": "Tumor-derived lactate impairs CD8+ T-cell cytotoxicity by reducing pyruvate-carboxylase anaplerosis and succinate-receptor signaling.",
+      "started_at_utc": "2026-09-25T08:46:35.178024+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42741245",
+          "title": "Premature immunosenescence in AYA gastrointestinal cancer: The metabolic-inflammatory-hormonal axis as an integrative framework: A systematic review.",
+          "authors": [
+            "Jie Wen",
+            "Haiyan Yu"
+          ],
+          "year": 2026,
+          "doi": "10.3892/mi.2026.338",
+          "abstract_available": true,
+          "abstract_sha256": "eb948795760294e488d220d8840c7f25350367269013480e6399f1ee142b90bf",
+          "fulltext_available": true,
+          "blind_id": "0ea67aa4528e4ea2b6ef6782b44b6a66"
+        },
+        {
+          "rank": 2,
+          "pmid": "42460645",
+          "title": "Stromal-Derived IL-8 Promotes M2 Macrophage Polarization via the RhoA/MRTF-A/SRF Transcriptional Axis to Impair CD8+ T Cell Cytotoxicity in Lung Cancer.",
+          "authors": [
+            "Xuyu Gu",
+            "Qiyu Fang",
+            "Jia Yu",
+            "Ting Yu",
+            "Huashan Shi",
+            "Kaiqi Jin",
+            "Lei Jiang",
+            "Wentian Zhang"
+          ],
+          "year": 2026,
+          "doi": "10.1002/advs.202508001",
+          "abstract_available": true,
+          "abstract_sha256": "e38dd3a62c3521aa1ef48dd10f057c31ea0193cf1f80f0b947e8ac4cfa55f06a",
+          "fulltext_available": true,
+          "blind_id": "a0da2eee40ae4597a6f868b31c14c680"
+        },
+        {
+          "rank": 3,
+          "pmid": "42092582",
+          "title": "Real-World, Evidence-Based, Retrospective Study of Patients Infused with Commercially Released Lifileucel for Advanced Melanoma.",
+          "authors": [
+            "Lilit Karapetyan",
+            "Justin Moser",
+            "Barbara T Ma",
+            "Christopher Otteni",
+            "Elizabeth Cathcart",
+            "Kimberly Loo",
+            "Jay Jacoby",
+            "Jamie K Chau",
+            "James W Smithy",
+            "Nikhil Nayee",
+            "Anna C Pavlick",
+            "Ahmed Tawashi",
+            "Amritha Seshaadri",
+            "Min Yi",
+            "Friedrich Graf Finckenstein",
+            "Brian Gastman",
+            "Alexander N Shoushtari"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.jtct.2026.04.044",
+          "abstract_available": true,
+          "abstract_sha256": "c04968d8ce40980939da05eb09ed7694989aadcbe5ff0fcb03bf4c7f39fd5b3a",
+          "fulltext_available": true,
+          "blind_id": "0e909d423fed44a0bf24bcc3a17d29e6"
+        }
+      ],
+      "ended_at_utc": "2026-09-25T08:46:50.212413+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Tumor-derived lactate impairs CD8+ T-cell cytotoxicity by reducing pyruvate-carboxylase anaplerosis and succinate-receptor signaling.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b2_8b7e904a60bd_12",
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_12"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b2_8b7e904a60bd_12",
+        "server_build_id": "6b5550f8e6abc1cee7a63c05511f9994b0a04258",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42741245",
+              "42612341",
+              "42595076",
+              "42184673",
+              "42735733",
+              "42721161",
+              "42460645",
+              "42092582",
+              "42724842"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42741245",
+            "42612341",
+            "42595076",
+            "42184673",
+            "42735733",
+            "42721161",
+            "42460645",
+            "42092582",
+            "42724842"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42741245",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42612341",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42595076",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42184673",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42735733",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42721161",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42460645",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42092582",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42724842",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42741245",
+          "42460645",
+          "42092582"
+        ],
+        "shared_pool_supplements": []
+      },
+      "target_in_first_three": false,
+      "classification": "success_nonempty"
+    }
+  ],
+  "ended_at_utc": "2026-09-25T08:46:50.214204+00:00",
+  "private_label_packet": "/tmp/cosci-m11-nov-01a3b2-labels-3fdecde6ad2445819b4efb7b40e40b92.json"
+}

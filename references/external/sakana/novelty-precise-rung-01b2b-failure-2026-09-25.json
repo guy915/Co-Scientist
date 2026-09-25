@@ -1,0 +1,33 @@
+{
+  "protocol": "M11-NOV-RUNG-01b2b single-run failure receipt",
+  "status": "stopped_before_mcp_client_creation",
+  "date_local": "2026-09-25",
+  "run_artifact_path": "references/external/sakana/novelty-precise-rung-01b2b-run-2026-09-25.json",
+  "run_artifact_bytes": 0,
+  "run_artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "run_artifact_valid_json": false,
+  "run_artifact_mtime_local": "2026-09-25T17:49:20+02:00",
+  "runner_invocations": 1,
+  "runner_exit_code_observed": null,
+  "blind_artifact_path": "references/external/sakana/novelty-precise-rung-01b2b-blind-2026-09-25.json",
+  "blind_artifact_created": false,
+  "recorded_completed_outer_calls": 0,
+  "pubmed_mcp_tool_calls": 0,
+  "pubmed_esearch_calls": 0,
+  "external_pubmed_requests": 0,
+  "model_inference_calls": 0,
+  "failure_class": "local runner defect before MCP client/tool initialization",
+  "failure_evidence": {
+    "manager_exception": "JSONDecodeError while parsing the zero-byte runner output after the runner subprocess returned.",
+    "runner_source_failure": "main() reserves the output, then reads hashes[\"candidate_changed_files\"] while constructing its initial report; _preflight() does not return that key. The resulting KeyError is caught before ToolRegistry/client setup and before _run().",
+    "runner_log": "The manager placed stdout/stderr in an ephemeral runner.log, then its finally cleanup deleted the temporary directory before the parse failure was diagnosed. Runner exit code was not retained."
+  },
+  "cleanup": {
+    "manager_and_loopback_servers": "terminated by manager finally block",
+    "temporary_baseline_worktree": "removed by manager finally block",
+    "candidate_worktree": "retained at its pinned candidate commit",
+    "temporary_manager_directory": "removed",
+    "post_run_process_check": "no mcp_server.server or live-manager process remained"
+  },
+  "retry_policy": "Do not rerun this batch until the red-first runner fix is committed and hashed, then separately authorized; this invocation made no PubMed requests."
+}

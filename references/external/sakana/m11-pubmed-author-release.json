@@ -1,0 +1,67 @@
+{
+  "purpose": "M11-NOV-PARSE-01b release evidence for PubMed records without AuthorList",
+  "classification": "local correctness and reliability change",
+  "pull_request": "https://github.com/guy915/Co-Scientist/pull/44",
+  "merge_commit": "efb02c20bb827814caf387836a9e7a13ae436c82",
+  "source_basis": "https://www.ncbi.nlm.nih.gov/books/NBK3828/table/publisherhelp.Td/",
+  "local_verification": {
+    "reviewed_release_head": "502b0b0da6c435cf2e8387b5925f49cd26401be3",
+    "red_first_regression": "engine/mcp_server/tests/test_pubmed_client.py tests direct parsing and the maintained public tool with an omitted AuthorList",
+    "engine": "3163 passed, 2 skipped",
+    "app": "2001 passed",
+    "mcp": "312 passed; strict mypy passed on 77 source files",
+    "parity": "passed",
+    "lint": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "eval_smoke": "passed",
+    "frontend": "803 passed",
+    "e2e": "17 passed",
+    "composite_test_all": "attempted; interrupted after transient concurrent-run failures, with every constituent subsequently passing in isolation",
+    "cleanup": "Scoped cleanup/deslop found no scratch, duplicate implementation, unused imports or variables, or unnecessary branches in the two-file change; Ruff F401/F841 and diff check passed",
+    "independent_review": "Luna 6 xhigh static review found no blocking defect"
+  },
+  "hosted_ci": "GitHub Actions affected-target jobs did not obtain a runner; user-authorized waiver used for merge, not counted as a passing check",
+  "production": {
+    "railway_api": {
+      "deployment_id": "d7cacfd6-46d2-4276-a3d9-2413f9ce8d02",
+      "status": "SUCCESS",
+      "commit": "efb02c20bb827814caf387836a9e7a13ae436c82"
+    },
+    "railway_mcp": {
+      "deployment_id": "f58478dd-eed8-4f56-b338-56721cd6cb4b",
+      "status": "SUCCESS",
+      "commit": "efb02c20bb827814caf387836a9e7a13ae436c82"
+    },
+    "vercel_frontend": {
+      "deployment_id": "dpl_7Kd7jpETHE2dCoFjJ9jcLLqwzxt1",
+      "status": "READY",
+      "commit": "efb02c20bb827814caf387836a9e7a13ae436c82",
+      "production_alias": "ai-co-scientist.com"
+    },
+    "api_volume_mount": "/app/data",
+    "api_configuration_keys_present": [
+      "RAILWAY_RUN_UID",
+      "COSCIENTIST_DB_PATH",
+      "COSCIENTIST_CACHE_DIR"
+    ],
+    "configuration_values": "not disclosed by the OAuth connector; no configuration changed in this release",
+    "prod_smoke": "passed: health, status probes, ownership isolation, untrusted-origin CORS, sanitized share 404",
+    "deployed_pubmed_probe": {
+      "service": "mcp",
+      "method": "one direct, keyless invocation inside the deployed image through Railway SSH",
+      "tool": "pubmed_search_with_fulltext",
+      "query": "22745249[PMID]",
+      "max_papers": 1,
+      "record_count": 1,
+      "paper_id": "22745249",
+      "authors_count": 6,
+      "model_inference": false,
+      "limit": "Normal live-record coverage only; absent AuthorList is covered by offline public-tool regression, not by this live record"
+    }
+  },
+  "rollback": {
+    "previous_verified_commit": "8dcb4280c268e2a7e86eb96b908e740802404d2d",
+    "condition": "Keep exact zero-cost model-route enforcement and never restore paid model settings"
+  }
+}
