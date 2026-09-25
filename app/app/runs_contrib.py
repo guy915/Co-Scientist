@@ -15,6 +15,7 @@ from fastapi import (
     APIRouter,
     File,
     Form,
+    Header,
     HTTPException,
     Request,
     UploadFile,
@@ -30,6 +31,14 @@ from app import (
 from app.auth import client_id, require_bearer_principal
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
+from app.outcome_refinement_action import (
+    OutcomeRefinementContextTooLargeError,
+    OutcomeRefinementIneligibleError,
+    OutcomeRefinementNotFoundError,
+    OutcomeRefinementRequest,
+    OutcomeRefinementRequestError,
+    request_outcome_refinement_action,
+)
 from app.runs_models import (
     HumanAttachmentRequest,
     HumanHypothesisRequest,
@@ -40,6 +49,27 @@ from app.runs_support import _require_run, _run_or_404
 from app.store import ScientificTask
 
 router = APIRouter()
+
+
+def _outcome_refinement_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, OutcomeRefinementNotFoundError):
+        return HTTPException(status_code=404, detail="run or outcome not found")
+    if isinstance(exc, OutcomeRefinementIneligibleError):
+        return HTTPException(
+            status_code=409,
+            detail="run or linked hypothesis is not eligible for refinement",
+        )
+    if isinstance(exc, OutcomeRefinementContextTooLargeError):
+        return HTTPException(
+            status_code=422,
+            detail="complete outcome context exceeds the refinement limits",
+        )
+    if isinstance(exc, OutcomeRefinementRequestError):
+        return HTTPException(status_code=422, detail="invalid idempotency key")
+    return HTTPException(
+        status_code=409,
+        detail="outcome already has an action or idempotency key conflicts",
+    )
 
 
 def _steer_and_continue(
@@ -198,6 +228,46 @@ async def record_hypothesis_outcome(
             status_code=404,
             detail="hypothesis or evidence not found in this run",
         ) from exc
+
+
+@router.post(
+    "/{run_id}/hypotheses/{hypothesis_id}/outcomes/{outcome_id}/refine",
+    status_code=202,
+)
+async def request_hypothesis_outcome_refinement(
+    run_id: str,
+    hypothesis_id: str,
+    outcome_id: str,
+    request: Request,
+    idempotency_key: Annotated[
+        str, Header(alias="Idempotency-Key", min_length=1, max_length=200)
+    ],
+) -> dict[str, Any]:
+    """Persist the owner's separate authorization to use one outcome.
+
+    This 01b endpoint creates a durable, non-claimable outbox intent. The
+    targeted executor arrives in 01c; recording or replaying an outcome does
+    not enqueue an engine task or call a model.
+    """
+    owner = require_bearer_principal(request).subject
+    try:
+        return request_outcome_refinement_action(
+            OutcomeRefinementRequest(
+                run_id=run_id,
+                hypothesis_id=hypothesis_id,
+                outcome_id=outcome_id,
+                owner_id=owner,
+                request_idempotency_key=idempotency_key,
+            )
+        )
+    except (
+        OutcomeRefinementNotFoundError,
+        OutcomeRefinementIneligibleError,
+        OutcomeRefinementContextTooLargeError,
+        OutcomeRefinementRequestError,
+        store.OutcomeRefinementConflictError,
+    ) as exc:
+        raise _outcome_refinement_http_error(exc) from exc
 
 
 def _build_human_review_or_422(

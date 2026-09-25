@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from co_scientist.checkpoint import serialize_workflow_state
+from co_scientist.models import Hypothesis
 
 from app import auth, store
 from app.config import settings
@@ -54,6 +56,28 @@ def _new_run(client: Any, owner: str) -> str:
     )
     assert response.status_code == 200
     return str(response.json()["id"])
+
+
+def _save_engine_checkpoint(
+    run_id: str,
+    hypothesis: Hypothesis,
+    db_path: str,
+) -> None:
+    event_seq = store.latest_event_seq(run_id, db_path=db_path)
+    envelope = serialize_workflow_state(
+        {"hypotheses": [hypothesis]},
+        last_event_seq=event_seq,
+    )
+    store.save_checkpoint(
+        run_id,
+        store.NewCheckpoint(
+            stage="completed",
+            schema_version=1,
+            last_event_seq=event_seq,
+            state={"provider": "engine", **envelope},
+        ),
+        db_path=db_path,
+    )
 
 
 def test_researcher_records_outcome_and_reads_it_after_restart(
@@ -167,6 +191,7 @@ def test_researcher_records_outcome_and_reads_it_after_restart(
         assert second_body["measured_observation"] not in str(payload)
 
     client.close()
+
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)
@@ -217,6 +242,537 @@ def test_researcher_records_outcome_and_reads_it_after_restart(
         == claims_before
     )
     reopened_client.close()
+
+
+def test_owner_can_create_one_durable_targeted_outcome_intent(
+    isolated_db: str,
+) -> None:
+    owner = "outcome-refinement-owner"
+    headers = {
+        **_signed_headers(owner),
+        "Idempotency-Key": "refine-meselson-1",
+    }
+    client = make_client()
+    run_id = _new_run(client, owner)
+    statement = "Treatment X by pathway Y."
+    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Treatment X")
+    evidence_id = store.add_evidence(
+        store.NewEvidence(
+            run_id=run_id,
+            title="Assay protocol",
+            source="pubmed",
+            url="https://example.test/protocol",
+            doi="10.5555/protocol",
+            abstract="This full text is not part of the refinement context.",
+        ),
+        db_path=isolated_db,
+    )
+    outcome_response = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=headers,
+        json=_outcome_body(evidence_id),
+    )
+    assert outcome_response.status_code == 201
+    outcome_id = outcome_response.json()["id"]
+    assert (
+        store.list_pending_outcome_refinement_actions(
+            run_id, db_path=isolated_db
+        )
+        == []
+    )
+    assert store.list_tasks(run_id, db_path=isolated_db) == []
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=hypothesis_id,
+            text=statement,
+            title="Treatment reduces growth",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+
+    action_path = (
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{outcome_id}/refine"
+    )
+    created = client.post(action_path, headers=headers)
+    assert created.status_code == 202
+    action = created.json()
+    assert action["status"] == "pending_executor"
+    assert action["outcome_id"] == outcome_id
+    assert action["hypothesis_id"] == hypothesis_id
+    assert action["action_id"]
+    assert action["task_idempotency_key"] == (
+        f"outcome-refinement:{action['action_id']}"
+    )
+
+    persisted = store.get_outcome_refinement_action(
+        run_id, action["action_id"], db_path=isolated_db
+    )
+    assert persisted is not None
+    context = persisted["context_snapshot"]
+    assert len(context) <= 6_000
+    assert statement in context
+    assert _outcome_body(evidence_id)["measured_observation"] in context
+    assert evidence_id in context
+    assert "This full text is not part" not in context
+    assert store.list_tasks(run_id, db_path=isolated_db) == []
+
+    replayed = client.post(action_path, headers=headers)
+    assert replayed.status_code == 202
+    assert replayed.json() == {**action, "replayed": True}
+    assert (
+        len(
+            store.list_pending_outcome_refinement_actions(
+                run_id, db_path=isolated_db
+            )
+        )
+        == 1
+    )
+    events = store.list_events(run_id, db_path=isolated_db)
+    action_events = [
+        event
+        for event in events
+        if event["type"] == "scientist.outcome_refinement_requested"
+    ]
+    assert len(action_events) == 1
+    assert action_events[0]["payload"]["action_id"] == action["action_id"]
+    assert _outcome_body(evidence_id)["measured_observation"] not in str(
+        action_events[0]["payload"]
+    )
+    client.close()
+    from app.store import db as store_db
+
+    store_db._initialized.discard(isolated_db)
+    reopened_client = make_client()
+    replay_after_restart = reopened_client.post(action_path, headers=headers)
+    assert replay_after_restart.status_code == 202
+    assert replay_after_restart.json() == {**action, "replayed": True}
+    assert (
+        len(
+            store.list_pending_outcome_refinement_actions(
+                run_id, db_path=isolated_db
+            )
+        )
+        == 1
+    )
+    assert len(store.list_events(run_id, db_path=isolated_db)) == len(events)
+    reopened_client.close()
+
+
+def test_refinement_action_is_owner_scoped_and_exactly_one_per_outcome(
+    isolated_db: str,
+) -> None:
+    owner = "outcome-refinement-owner"
+    other_owner = "different-outcome-owner"
+    client = make_client()
+    run_id = _new_run(client, owner)
+    parent_id = _add_hypothesis(run_id, isolated_db, "Target parent")
+    sibling_id = _add_hypothesis(run_id, isolated_db, "Different sibling")
+    body = _outcome_body()
+    outcome = store.add_hypothesis_outcome(
+        store.NewHypothesisOutcome(
+            run_id=run_id,
+            hypothesis_id=parent_id,
+            method_protocol=body["method_protocol"],
+            conditions=body["conditions"],
+            measured_observation=body["measured_observation"],
+            units=body["units"],
+            controls=body["controls"],
+            interpretation=body["interpretation"],
+            referenced_evidence_ids=[],
+            author=owner,
+        ),
+        db_path=isolated_db,
+    )
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=parent_id,
+            text="Target parent by pathway Y.",
+            title="Target parent",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    action_path = (
+        f"/api/runs/{run_id}/hypotheses/{parent_id}/"
+        f"outcomes/{outcome['id']}/refine"
+    )
+    owner_headers = {
+        **_signed_headers(owner),
+        "Idempotency-Key": "outcome-parent-action",
+    }
+
+    assert (
+        client.post(
+            action_path,
+            headers={
+                "X-Client-ID": owner,
+                "Idempotency-Key": "unauthenticated-action",
+            },
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            action_path,
+            headers={
+                **_signed_headers(other_owner),
+                "Idempotency-Key": "foreign-owner-action",
+            },
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            f"/api/runs/{run_id}/hypotheses/{sibling_id}/"
+            f"outcomes/{outcome['id']}/refine",
+            headers=owner_headers,
+        ).status_code
+        == 404
+    )
+
+    created = client.post(action_path, headers=owner_headers)
+    assert created.status_code == 202
+    second_outcome = client.post(
+        f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
+        headers=owner_headers,
+        json=body,
+    )
+    assert second_outcome.status_code == 201
+    assert (
+        client.post(
+            f"/api/runs/{run_id}/hypotheses/{parent_id}/"
+            f"outcomes/{second_outcome.json()['id']}/refine",
+            headers=owner_headers,
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            action_path,
+            headers={
+                **_signed_headers(owner),
+                "Idempotency-Key": "a-second-key-for-the-same-outcome",
+            },
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            f"/api/runs/{run_id}/hypotheses/{sibling_id}/"
+            f"outcomes/{outcome['id']}/refine",
+            headers=owner_headers,
+        ).status_code
+        == 404
+    )
+    assert (
+        len(
+            store.list_pending_outcome_refinement_actions(
+                run_id, db_path=isolated_db
+            )
+        )
+        == 1
+    )
+    client.close()
+
+
+def test_refinement_requires_completed_engine_checkpoint_and_eligible_parent(
+    isolated_db: str,
+) -> None:
+    owner = "outcome-refinement-eligibility"
+    client = make_client()
+    run_id = _new_run(client, owner)
+    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Ineligible parent")
+    body = _outcome_body()
+    outcome = store.add_hypothesis_outcome(
+        store.NewHypothesisOutcome(
+            run_id=run_id,
+            hypothesis_id=hypothesis_id,
+            method_protocol=body["method_protocol"],
+            conditions=body["conditions"],
+            measured_observation=body["measured_observation"],
+            units=body["units"],
+            controls=body["controls"],
+            interpretation=body["interpretation"],
+            referenced_evidence_ids=[],
+            author=owner,
+        ),
+        db_path=isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    action_path = (
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{outcome['id']}/refine"
+    )
+    headers = {
+        **_signed_headers(owner),
+        "Idempotency-Key": "missing-checkpoint-action",
+    }
+    assert client.post(action_path, headers=headers).status_code == 409
+
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=hypothesis_id,
+            text="Ineligible parent by pathway Y.",
+            title="Ineligible parent",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
+    assert (
+        client.post(
+            action_path,
+            headers={**headers, "Idempotency-Key": "running-run-action"},
+        ).status_code
+        == 409
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=hypothesis_id,
+            text="Ineligible parent by pathway Y.",
+            title="Ineligible parent",
+            review_disposition="unsafe",
+        ),
+        isolated_db,
+    )
+    rejected_parent = client.post(
+        action_path,
+        headers={**headers, "Idempotency-Key": "blocked-parent-action"},
+    )
+    assert rejected_parent.status_code == 409
+    assert (
+        store.list_pending_outcome_refinement_actions(
+            run_id, db_path=isolated_db
+        )
+        == []
+    )
+    client.close()
+
+
+def test_refinement_rejects_demo_and_non_engine_runs(
+    isolated_db: str,
+) -> None:
+    owner = "outcome-refinement-run-eligibility"
+    demo = store.create_run(
+        "Demo outcome refinement",
+        "standard",
+        "engine",
+        {},
+        options=store.RunCreateOptions(
+            client_id=store.DEMO_CLIENT_ID,
+            db_path=isolated_db,
+        ),
+    )
+    demo_hypothesis = _add_hypothesis(demo.id, isolated_db, "Demo parent")
+    demo_outcome = store.add_hypothesis_outcome(
+        store.NewHypothesisOutcome(
+            run_id=demo.id,
+            hypothesis_id=demo_hypothesis,
+            method_protocol="Protocol",
+            conditions="Conditions",
+            measured_observation="Observation",
+            units=None,
+            controls="Controls",
+            interpretation="Interpretation",
+            referenced_evidence_ids=[],
+            author=owner,
+        ),
+        db_path=isolated_db,
+    )
+    _save_engine_checkpoint(
+        demo.id,
+        Hypothesis(
+            id=demo_hypothesis,
+            text="Demo parent by pathway Y.",
+            title="Demo parent",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(demo.id, RunStatus.COMPLETED, db_path=isolated_db)
+
+    mock = store.create_run(
+        "Mock outcome refinement",
+        "standard",
+        "mock",
+        {},
+        options=store.RunCreateOptions(client_id=owner, db_path=isolated_db),
+    )
+    mock_hypothesis = _add_hypothesis(mock.id, isolated_db, "Mock parent")
+    mock_outcome = store.add_hypothesis_outcome(
+        store.NewHypothesisOutcome(
+            run_id=mock.id,
+            hypothesis_id=mock_hypothesis,
+            method_protocol="Protocol",
+            conditions="Conditions",
+            measured_observation="Observation",
+            units=None,
+            controls="Controls",
+            interpretation="Interpretation",
+            referenced_evidence_ids=[],
+            author=owner,
+        ),
+        db_path=isolated_db,
+    )
+    store.update_run_status(mock.id, RunStatus.COMPLETED, db_path=isolated_db)
+
+    client = make_client()
+    demo_action = client.post(
+        f"/api/runs/{demo.id}/hypotheses/{demo_hypothesis}/"
+        f"outcomes/{demo_outcome['id']}/refine",
+        headers={
+            **_signed_headers(owner),
+            "Idempotency-Key": "demo-action",
+        },
+    )
+    mock_action = client.post(
+        f"/api/runs/{mock.id}/hypotheses/{mock_hypothesis}/"
+        f"outcomes/{mock_outcome['id']}/refine",
+        headers={
+            **_signed_headers(owner),
+            "Idempotency-Key": "mock-action",
+        },
+    )
+    assert demo_action.status_code == 404
+    assert mock_action.status_code == 409
+    assert (
+        store.list_pending_outcome_refinement_actions(
+            demo.id, db_path=isolated_db
+        )
+        == []
+    )
+    assert (
+        store.list_pending_outcome_refinement_actions(
+            mock.id, db_path=isolated_db
+        )
+        == []
+    )
+    client.close()
+
+
+def test_refinement_rejects_more_than_three_source_metadata_links(
+    isolated_db: str,
+) -> None:
+    owner = "outcome-refinement-sources"
+    headers = _signed_headers(owner)
+    client = make_client()
+    run_id = _new_run(client, owner)
+    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Source-linked parent")
+    evidence_ids = [
+        store.add_evidence(
+            store.NewEvidence(run_id=run_id, title=f"Source {index}"),
+            db_path=isolated_db,
+        )
+        for index in range(4)
+    ]
+    outcome = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+        headers=headers,
+        json={**_outcome_body(), "referenced_evidence_ids": evidence_ids},
+    )
+    assert outcome.status_code == 201
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=hypothesis_id,
+            text="Source-linked parent by pathway Y.",
+            title="Source-linked parent",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    action = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{outcome.json()['id']}/refine",
+        headers={**headers, "Idempotency-Key": "too-many-sources"},
+    )
+    assert action.status_code == 422
+    assert (
+        store.list_pending_outcome_refinement_actions(
+            run_id, db_path=isolated_db
+        )
+        == []
+    )
+    client.close()
+
+
+def test_refinement_context_uses_unicode_codepoints_and_rejects_6001(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.store import outcomes as outcomes_module
+
+    monkeypatch.setattr(outcomes_module, "_now", lambda: 1_800_000_000.125)
+    owner = "outcome-refinement-context"
+    headers = _signed_headers(owner)
+    client = make_client()
+    run_id = _new_run(client, owner)
+    hypothesis_id = _add_hypothesis(run_id, isolated_db, "Bounded parent")
+    statement = "Bounded parent by pathway Y."
+    _save_engine_checkpoint(
+        run_id,
+        Hypothesis(
+            id=hypothesis_id,
+            text=statement,
+            title="Bounded parent",
+        ),
+        isolated_db,
+    )
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+
+    def record(observation: str) -> dict[str, Any]:
+        response = client.post(
+            f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+            headers=headers,
+            json={
+                **_outcome_body(),
+                "measured_observation": observation,
+                "referenced_evidence_ids": [],
+            },
+        )
+        assert response.status_code == 201
+        return cast(dict[str, Any], response.json())
+
+    calibration = record("🧬")
+    first_action = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{calibration['id']}/refine",
+        headers={**headers, "Idempotency-Key": "unicode-calibration"},
+    )
+    assert first_action.status_code == 202
+    baseline_length = first_action.json()["context_codepoints"]
+    exact_length_observation = "🧬" * (6_000 - baseline_length + 1)
+    exact_outcome = record(exact_length_observation)
+    exact = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{exact_outcome['id']}/refine",
+        headers={**headers, "Idempotency-Key": "unicode-exact-boundary"},
+    )
+    assert exact.status_code == 202
+    assert exact.json()["context_codepoints"] == 6_000
+
+    oversized_outcome = record(exact_length_observation + "🧬")
+    oversized = client.post(
+        f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
+        f"outcomes/{oversized_outcome['id']}/refine",
+        headers={**headers, "Idempotency-Key": "unicode-over-boundary"},
+    )
+    assert oversized.status_code == 422
+    assert (
+        len(
+            store.list_pending_outcome_refinement_actions(
+                run_id, db_path=isolated_db
+            )
+        )
+        == 2
+    )
+    client.close()
 
 
 def test_outcomes_hide_unowned_runs_and_hypotheses(isolated_db: str) -> None:

@@ -12,6 +12,9 @@ from app.store.schema_interviews import (
 from app.store.schema_knowledge_facts import (
     KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
 )
+from app.store.schema_outcome_refinements import (
+    OUTCOME_REFINEMENTS_SCHEMA as OUTCOME_REFINEMENTS_SCHEMA,
+)
 from app.store.schema_retrieval_calls import (
     RETRIEVAL_CALLS_SCHEMA as RETRIEVAL_CALLS_SCHEMA,
 )
@@ -483,6 +486,7 @@ SCHEMA = (
     _SCHEMA_HEAD
     + INTERVIEWS_SCHEMA
     + _SCHEMA_MID
+    + OUTCOME_REFINEMENTS_SCHEMA
     + KNOWLEDGE_FACTS_SCHEMA
     + SUPERVISOR_PLAN_SCHEMA
     + SCIENTIFIC_TASKS_SCHEMA
