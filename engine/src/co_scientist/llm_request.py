@@ -304,6 +304,15 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
     return temperature
 
 
+# Exact endpoint evidence, ahead of the generic gateway downgrade. Gemma's
+# endpoint has JSON object mode only; pinned Qwen has native structured output
+# but no JSON object mode (a JSON object request hard-404ed on 2026-09-25).
+_SCHEMA_ROUTE_OVERRIDES = {
+    "openrouter/google/gemma-4-26b-a4b-it:free": False,
+    "openrouter/qwen/qwen3.8-27b:free": True,
+}
+
+
 @functools.cache
 def _supports_json_schema_response_format(model_name: str) -> bool:
     """Checks whether a model accepts the json_schema response format.
@@ -317,7 +326,8 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
     Returns:
         False when the model belongs to a known json_object-only family,
         when it is an exact route with a known provider capability mismatch,
-        when it is one of the declared OpenRouter gateway models, or when
+        when it is one of the declared OpenRouter gateway models without a
+        proven native-schema endpoint, or when
         litellm's capability registry reports no json_schema support. True
         otherwise, including when the registry lookup itself raises, so the
         default json_schema path is preserved for unknown models.
@@ -325,12 +335,8 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
         return False
-    if lowered == "openrouter/google/gemma-4-26b-a4b-it:free":
-        # The endpoint advertises ``response_format`` but not the
-        # ``structured_outputs`` capability required by native JSON Schema.
-        # The exact route returned HTTP 404 for a native schema request, so
-        # reuse the json_object shim without broadening this to Gemma models.
-        return False
+    if lowered in _SCHEMA_ROUTE_OVERRIDES:
+        return _SCHEMA_ROUTE_OVERRIDES[lowered]
     if lowered in _GATEWAY_MODELS:
         # Declared rather than left to the registry lookup below: every
         # rung in a gateway chain is paired with ``require_parameters``
