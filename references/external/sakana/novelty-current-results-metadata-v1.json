@@ -1,0 +1,160 @@
+{
+  "name": "M11-NOV-01a maintained PubMed result metadata snapshot",
+  "captured_at_utc": "2026-09-25T02:10:07.601369+00:00",
+  "source_result": "references/external/sakana/novelty-query-results-v1.json",
+  "source_result_sha256": "0fc7bcecbabd68e652a9e51b0b6de4cc1f45034e082c5a48f338eb4b469ad6da",
+  "source": "keyless local MCP metadata cache from the 00b comparison; no additional retrieval",
+  "interpretation_limit": "Titles support triage only; no abstract-level relevance judgment is inferred from this artifact.",
+  "positive_searches": [
+    {
+      "case_id": "stmn2-tdp43",
+      "arm": "baseline",
+      "query": "In motor neurons, loss of nuclear TDP-43 may expose a cryptic polyadenylation site in STMN2 pre-mRNA, reducing functional stathmin-2 and impairing axonal regeneration.",
+      "returned": [
+        {
+          "pmid": "42666366",
+          "title": "Language reorganization in brain arteriovenous malformations with fiber-based regional functional connectivity.",
+          "doi": "10.1016/j.mrl.2026.200307",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42666366/"
+        },
+        {
+          "pmid": "42502572",
+          "title": "New pulse sequence for improving cardiac black-blood and PSIR MRI quality in cases of arrhythmia.",
+          "doi": "10.1016/j.mrl.2026.200303",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42502572/"
+        },
+        {
+          "pmid": "42635983",
+          "title": "Neural Organization of Episodic Memory and Navigation in Children and Adults.",
+          "doi": "10.1162/JOCN.a.2688",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42635983/"
+        }
+      ]
+    },
+    {
+      "case_id": "stmn2-tdp43",
+      "arm": "candidate",
+      "query": "motor neurons loss nuclear TDP-43 may expose cryptic",
+      "returned": [
+        {
+          "pmid": "42374626",
+          "title": "Microbiome and metabolites impact enteric and central nervous systems in ALS.",
+          "doi": "10.1080/19490976.2026.2692737",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42374626/"
+        },
+        {
+          "pmid": "42740795",
+          "title": "Base editing rescues a hereditary motor neuron disease in mouse and patient-derived iPSC organoid models.",
+          "doi": "10.1016/j.omta.2026.201835",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42740795/"
+        },
+        {
+          "pmid": "42518654",
+          "title": "Chitosan-based nerve guidance conduits functionalized with fibroblast-derived extracellular vesicles promote peripheral nerve regeneration via miR-143-3p delivery.",
+          "doi": "10.1016/j.bioactmat.2026.07.015",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42518654/"
+        }
+      ]
+    },
+    {
+      "case_id": "sarscov2-entry",
+      "arm": "baseline",
+      "query": "SARS-CoV-2 may require ACE2 engagement and TMPRSS2-mediated spike priming to enter susceptible human cells.",
+      "returned": [
+        {
+          "pmid": "42684387",
+          "title": "Pandemic research in a small island society-a narrative review of research contributions during the SARS-CoV-2 pandemic in the Faroe Islands.",
+          "doi": "10.1080/22423982.2026.2727219",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42684387/"
+        },
+        {
+          "pmid": "42615987",
+          "title": "Gut microbiome signatures during acute infection are associated with long COVID.",
+          "doi": "10.1080/19490976.2026.2718581",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42615987/"
+        },
+        {
+          "pmid": "42520140",
+          "title": "Effect of probiotics on humoral responses to COVID-19 vaccination in older adults: a randomized, placebo-controlled trial (PIRATES-COV study).",
+          "doi": "10.1080/19490976.2026.2699456",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42520140/"
+        }
+      ]
+    },
+    {
+      "case_id": "sarscov2-entry",
+      "arm": "candidate",
+      "query": "SARS-CoV-2 may require ACE2 engagement TMPRSS2-mediated spike priming",
+      "returned": [
+        {
+          "pmid": "42223472",
+          "title": "T-cell responses to primary SARS-CoV-2 vaccination in Down syndrome - From childhood to adulthood.",
+          "doi": "10.1080/21645515.2026.2670839",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42223472/"
+        },
+        {
+          "pmid": "42491141",
+          "title": "Systematic review of amino acid profiles among COVID-19 patients caused by SARS-CoV-2.",
+          "doi": "10.1007/s40200-026-02012-4",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42491141/"
+        },
+        {
+          "pmid": "42478348",
+          "title": "Social contact recovery and depressive symptoms after the pandemic lockdowns: the lasting impact of child neglect.",
+          "doi": "10.1080/20008066.2026.2694158",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42478348/"
+        }
+      ]
+    },
+    {
+      "case_id": "qa1b-immune-evasion",
+      "arm": "baseline",
+      "query": "In checkpoint-treated mouse tumors, interferon-gamma sensing may induce Qa-1b and restrain CD8 T cells through NKG2A/CD94.",
+      "returned": [
+        {
+          "pmid": "42502572",
+          "title": "New pulse sequence for improving cardiac black-blood and PSIR MRI quality in cases of arrhythmia.",
+          "doi": "10.1016/j.mrl.2026.200303",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42502572/"
+        },
+        {
+          "pmid": "42775084",
+          "title": "Artificial gene clusters designed for simultaneous multi-gene expression enable reconstruction of metabolite biosynthesis pathways in Trichoderma reesei.",
+          "doi": "10.1016/j.synbio.2026.09.001",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42775084/"
+        },
+        {
+          "pmid": "42774404",
+          "title": "Genetic engineering of cyanophages for harmful cyanobacterial bloom treatment-A mini review.",
+          "doi": "10.1016/j.synbio.2026.08.011",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42774404/"
+        }
+      ]
+    },
+    {
+      "case_id": "qa1b-immune-evasion",
+      "arm": "candidate",
+      "query": "checkpoint-treated mouse tumors interferon-gamma sensing may induce Qa-1b",
+      "returned": [
+        {
+          "pmid": "42502572",
+          "title": "New pulse sequence for improving cardiac black-blood and PSIR MRI quality in cases of arrhythmia.",
+          "doi": "10.1016/j.mrl.2026.200303",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42502572/"
+        },
+        {
+          "pmid": "42775084",
+          "title": "Artificial gene clusters designed for simultaneous multi-gene expression enable reconstruction of metabolite biosynthesis pathways in Trichoderma reesei.",
+          "doi": "10.1016/j.synbio.2026.09.001",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42775084/"
+        },
+        {
+          "pmid": "42774404",
+          "title": "Genetic engineering of cyanophages for harmful cyanobacterial bloom treatment-A mini review.",
+          "doi": "10.1016/j.synbio.2026.08.011",
+          "pubmed_url": "https://pubmed.ncbi.nlm.nih.gov/42774404/"
+        }
+      ]
+    }
+  ]
+}
