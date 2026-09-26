@@ -10,6 +10,9 @@ ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.jso
 Sakana's result-conditioned search and post-expiry free-model qualification
 remain open. Robin's owner-authorized outcome refinement is released; its
 campaign-owned live observation remains open.
+Sakana's separate precise-rung retention candidate was rejected after a
+completed, blinded, independently sourced confirmation; see the
+[dossier](sakana-ai-scientist.md#m11-precise-rung-disposition-26-september-2026).
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 [M11's follow-up register](m11-follow-up-register.md) records the remaining
 mechanism gaps and the additional-repository selection decision.

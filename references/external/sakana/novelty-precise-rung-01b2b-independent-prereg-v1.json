@@ -1,0 +1,242 @@
+{
+  "protocol_id": "M11-NOV-RUNG-01b2b-independent-v1",
+  "title": "Independent matched PubMed precise-rung comparison",
+  "version": 1,
+  "preregistered_date_utc": "2026-09-25",
+  "status": "fixtures_frozen_runner_and_trace_preflight_and_separate_authorization_required",
+  "purpose": "Run one separate, keyless, matched comparison of the frozen precise-rung candidate against the pinned baseline. This is an exact retrieval-behavior pilot on two source-backed pairs; it is not a novelty verdict, scientific-quality validation, or authorization to adopt or release the candidate.",
+  "registration_context": {
+    "prior_protocol": "references/external/sakana/novelty-precise-rung-prereg-v1.json",
+    "prior_protocol_sha256": "5b9d7a0ac076fb44574a2b357f6b7de2a5bc151140049ac478f6d3e96b69d08b",
+    "stopped_run": "references/external/sakana/novelty-precise-rung-01b2b-run-2026-09-25-run2.json",
+    "stopped_run_sha256": "ceedf715f002d07c1e0bf08aacff43df664b2f757248947e8afe848ee6fa8c08",
+    "failure_receipt": "references/external/sakana/novelty-precise-rung-01b2b-run2-failure-2026-09-25.json",
+    "failure_receipt_sha256": "f9545067685273e5f7bf5732b6f58d66fa57a2ce2eb3ac38c4dd4848538d0310",
+    "trace_diagnosis": "references/external/sakana/novelty-precise-rung-trace-diagnosis-2026-09-25.md",
+    "trace_diagnosis_sha256": "a5f5f42eea9a274eec20e67aaa9606e6f607e1442909ec0926ebdd9a9c33d923",
+    "reason_for_separate_registration": "The prior batch is permanently stopped. Its baseline R01 MCP call returned before trace verification, so the actual external PubMed request count is unknown. Replaying or scoring that batch is prohibited. This protocol retains that receipt and defines new artifact paths and a clean, untouched fixture subset."
+  },
+  "fixture_selection": {
+    "source_protocol_path": "references/external/sakana/novelty-precise-rung-prereg-v1.json",
+    "source_protocol_sha256": "5b9d7a0ac076fb44574a2b357f6b7de2a5bc151140049ac478f6d3e96b69d08b",
+    "selection_record_basis": "The source protocol states that all six drafts were selected from primary JCI article mechanisms before their exact queries were sent to the maintained PubMed tool, with no candidate retrieval outputs consulted, and that Bacteroides fragilis target PMID 21512004 was excluded. This follow-up takes the complete, untouched P2 and P3 pairs from that frozen set; it does not choose among them using observed retrieval outcomes.",
+    "selected_pair_ids": ["P2", "P3"],
+    "selected_request_ids": ["R03", "R04", "R05", "R06"],
+    "exclusion_rule": "Exclude the entire P1 pair (R01 and R02). R01 was the sole request in the stopped batch; its tool response arrived but its trace was missing, so its external request count and retrieval contents cannot be reconstructed. Do not reuse that response or promote R02 to an unpaired control. Exclude the B. fragilis case and every result or fixture selected from it.",
+    "outcome_independence": "P2 and P3 are retained as complete preselected pairs based on their original source-mechanism selection, not on any search result. The run receipt contains only R01 at order 1. A local inventory of references/external/sakana found the four selected anchor/target PMIDs in the frozen source preregistration and no prior run-result record for those IDs. No new fixture discovery, PubMed query, NCBI request, model inference, or paid call was used for this registration.",
+    "independence_limit": "The two pairs share oncology/metabolism context and come from one journal. Their inclusion supports only a small prospective check on these fixed queries; it does not create a representative or domain-independent sample.",
+    "selection_scan": {
+      "command": "rg -n \"24762438|19033663|31945018|30431439\" references/external/sakana",
+      "observed_scope_result": "The four IDs occur in the frozen precise-rung preregistration; no prior retrieval result or assessment artifact in this directory contains them.",
+      "exact_query_scan": "Exact R03-R06 query strings occur as frozen inputs in the preregistration and candidate runner. The only retained live run artifact has one R01 call and no R03-R06 calls.",
+      "limit": "This local artifact inventory corroborates the recorded run history; it is not an external database search."
+    }
+  },
+  "frozen_input_digest": {
+    "rule": "SHA-256 over UTF-8 JSON serialized with ensure_ascii=false, recursively sorted keys, and compact separators (comma and colon).",
+    "projection_rule": "request_inputs_sha256 hashes the four original request_inputs objects for R03-R06, preserving their original array order and fields. source_evidence_sha256 hashes original source_evidence S3-S6 in their original order. pair_definitions_sha256 hashes original pair_definitions P2-P3 in their original order.",
+    "request_inputs_sha256": "bd84f37e8a440177f78a042eaa4621d63fb098b193fee70ecbefff0009951116",
+    "source_evidence_sha256": "51cf59ca8282902c384ade0e4184bf17a25df2d6419e1422379c3fcf2758b1bf",
+    "pair_definitions_sha256": "6a1ec79848a07a0cd3088b6441a39fb03791d94e17eefee2bef6f34c2f62245d",
+    "request_input_ids": ["R03", "R04", "R05", "R06"],
+    "source_evidence_ids": ["S3", "S4", "S5", "S6"],
+    "change_rule": "Any input, source mapping, pair, query, order, or criterion change requires a new separately dated preregistration before retrieval. No substitution is permitted after a retrieval outcome or error."
+  },
+  "pairs": [
+    {
+      "pair_id": "P2",
+      "positive_request_id": "R03",
+      "control_request_id": "R04",
+      "distinction": "Both concern tumor bioenergetics. R03 is the folliculin-loss to AMPK, mitochondrial biogenesis, ROS/HIF, and metabolic-reprogramming path; R04 is lactate transfer from hypoxic to oxygenated tumor cells through MCT1 for oxidative metabolism. Shared tumor-metabolism vocabulary alone is not central-mechanism support.",
+      "control_definition": "R04 is a distinct source-backed hypothesis with its own anchor, not an empty-query or guaranteed-no-hit negative control."
+    },
+    {
+      "pair_id": "P3",
+      "positive_request_id": "R05",
+      "control_request_id": "R06",
+      "distinction": "Both concern lung-tumor macrophages. R05 is c-Maf transcriptional programming with TCA-cycle and UDP-GlcNAc metabolism; R06 is lactate/mTORC1 suppression of TFEB-dependent ATP6V0d2 with HIF-2α/VEGF signaling. Shared cell type and tumor context alone are not central-mechanism support.",
+      "control_definition": "R06 is a distinct source-backed hypothesis with its own anchor, not an empty-query or guaranteed-no-hit negative control."
+    }
+  ],
+  "request_inputs": [
+    {
+      "request_id": "R03",
+      "pair_id": "P2",
+      "draft": "Loss of folliculin activates AMPK–PGC-1α mitochondrial biogenesis and ROS-driven HIF transcription, promoting Warburg reprogramming and tumorigenesis.",
+      "exact_query": "Loss of folliculin activates AMPK–PGC-1α mitochondrial biogenesis and ROS-driven HIF transcription, promoting Warburg reprogramming and tumorigenesis.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R04",
+      "pair_id": "P2",
+      "draft": "Hypoxic tumor cells export lactate that oxygenated cancer cells import through MCT1 for oxidative metabolism, creating a metabolic symbiosis.",
+      "exact_query": "Hypoxic tumor cells export lactate that oxygenated cancer cells import through MCT1 for oxidative metabolism, creating a metabolic symbiosis.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R05",
+      "pair_id": "P3",
+      "draft": "In lung cancer, c-Maf programs immunosuppressive macrophages through TCA-cycle and UDP-GlcNAc metabolism, suppressing T-cell activity and promoting tumor progression.",
+      "exact_query": "In lung cancer, c-Maf programs immunosuppressive macrophages through TCA-cycle and UDP-GlcNAc metabolism, suppressing T-cell activity and promoting tumor progression.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "R06",
+      "pair_id": "P3",
+      "draft": "Tumor lactate activates macrophage mTORC1, suppresses TFEB-dependent ATP6V0d2, and supports HIF-2α-mediated VEGF production and tumor growth.",
+      "exact_query": "Tumor lactate activates macrophage mTORC1, suppresses TFEB-dependent ATP6V0d2, and supports HIF-2α-mediated VEGF production and tumor growth.",
+      "query_rule": "The current validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    }
+  ],
+  "scoring_key": {
+    "access_rule": "Do not expose this object or source_reference_manifest to the retrieval runner, server processes, tool arguments, or abstract-review packet. Keep it in the preregistration repository but have the runner load only the request_inputs array; unblind exact PMIDs only after complete traces/results and the blind review packet are hashed.",
+    "requests": [
+      {"request_id": "R03", "pair_id": "P2", "role": "positive", "target_pmid": "24762438", "source_id": "S3"},
+      {"request_id": "R04", "pair_id": "P2", "role": "distinct_control", "anchor_pmid": "19033663", "source_id": "S4"},
+      {"request_id": "R05", "pair_id": "P3", "role": "positive", "target_pmid": "31945018", "source_id": "S5"},
+      {"request_id": "R06", "pair_id": "P3", "role": "distinct_control", "anchor_pmid": "30431439", "source_id": "S6"}
+    ]
+  },
+  "source_reference_manifest": [
+    {"source_id": "S3", "request_id": "R03", "title": "The tumor suppressor folliculin regulates AMPK-dependent metabolic transformation", "doi": "10.1172/JCI71749", "publisher": "Journal of Clinical Investigation", "issue_date": "2014-06-02", "publisher_url": "https://www.jci.org/articles/view/71749", "publisher_response_sha256": "5aafc5a29cbfa3b5871045e3fd5146ed0773df56a31bc31d6fc703a3392d8314", "pmid_mapping_response_sha256": "f11565f1cef00db30c28c53eefe1b884190347d4997216c05cc2f0a12c8581df"},
+    {"source_id": "S4", "request_id": "R04", "title": "Targeting lactate-fueled respiration selectively kills hypoxic tumor cells in mice", "doi": "10.1172/JCI36843", "publisher": "Journal of Clinical Investigation", "issue_date": "2008-12-01", "publisher_url": "https://www.jci.org/articles/view/36843", "publisher_response_sha256": "8ab226519bd36be563c4838a8e700bc226f8f6553f7287577307e4c8b26ccf9b", "pmid_mapping_response_sha256": "a2b9d44dab643d34f4ac4ff3609c44504f583d3e010b37f15f12cdd5c501c1dc"},
+    {"source_id": "S5", "request_id": "R05", "title": "Transcription factor c-Maf is a checkpoint that programs macrophages in lung cancer", "doi": "10.1172/JCI131335", "publisher": "Journal of Clinical Investigation", "issue_date": "2020-04-01", "publisher_url": "https://www.jci.org/articles/view/131335", "publisher_response_sha256": "f54a9da6c99788778e884827d2393853a382e0d9e56579220ef566ea007c546d", "pmid_mapping_response_sha256": "2546dff9ff6892ff81bbda54b3e130ba895215147d6f0aa4dcd302b952e1e806"},
+    {"source_id": "S6", "request_id": "R06", "title": "Lactate inhibits ATP6V0d2 expression in tumor-associated macrophages to promote HIF-2α-mediated tumor progression", "doi": "10.1172/JCI123027", "publisher": "Journal of Clinical Investigation", "issue_date": "2019-02-01", "publisher_url": "https://www.jci.org/articles/view/123027", "publisher_response_sha256": "d6c6cd5a18ae60ecd9a7ecf381684a08b45998f9f4b6af3b23764832c2151681", "pmid_mapping_response_sha256": "1f068ec6056dc135ea9be3757cbd82f58e962e3c38711f1fd3e188324ba5583a"}
+  ],
+  "source_and_build_pins": {
+    "source_snapshot_origin": "The four records below are a frozen subset of source_evidence S3-S6 in the prior preregistration. Their original publisher and DOI-mapping response hashes are retained above; no source was fetched for this follow-up.",
+    "runner_input_artifact": {
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-input-v1.json",
+      "sha256_raw_bytes": "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0",
+      "hash_rule": "SHA-256 over the exact file bytes, including UTF-8 encoding and final newline.",
+      "runner_read_rule": "The retrieval runner may parse this key-free input artifact as JSON. It must not JSON-load this preregistration or the source preregistration; it may hash their raw bytes to verify amendment pins. The committed authorization amendment must pin this exact input artifact hash as well as the whole-byte preregistration hash."
+    },
+    "baseline": {
+      "commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+      "mcp_server_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726"
+    },
+    "candidate": {
+      "commit": "8c91e5a9ed9661a37886c994f37083d75b41f8a5",
+      "mcp_server_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
+      "runtime_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+      "allowed_runtime_change": "Selection-only retention of first-seen PMIDs from already-attempted relaxation rungs; query construction, sort, rung definitions/order, stop threshold, retmax, metadata fetching, PMC preference, configured parser, and max_papers remain fixed."
+    },
+    "candidate_build_evidence_path": "references/external/sakana/novelty-precise-rung-protocol-amendment-2026-09-25.json",
+    "candidate_build_evidence_sha256": "accd327940a1dbf2d8188006dc3b3972fcdb01b34088d1d136b16ca69cedd65c",
+    "runner_at_stopped_call": {
+      "commit": "dd058b4f7e963a7638a7fdb2281bf6e516739a35",
+      "sha256": "22c2d8b33917af03ab05155099c6382f134a7cdaad25839c44823d8149416a43"
+    },
+    "runner_after_offline_trace_diagnosis": {
+      "path": "references/external/sakana/novelty_precise_rung_runner.py",
+      "sha256": "47eb8c8cffc7970d5bf91806545890e16a49854937e47f403724c446da9e1fd3",
+      "test_path": "references/external/sakana/test_novelty_precise_rung_runner.py",
+      "test_sha256": "fb67db612d317e6db1171311805e849872c8b8e2e62d76122ad5288d4c25aa5f",
+      "limitation": "This runner remains pinned to the original six-request preregistration and does not authorize or implement this four-request follow-up. A follow-up-compatible runner and a dated, committed authorization amendment with its exact hash are required before any call."
+    },
+    "followup_runner_sha256": "UNPINNED; must be fixed in a dated committed amendment after implementation and offline verification",
+    "pilot_run_id": "m11novrung01b2bindependentv1",
+    "per_call_run_id_template": "m11novrung01b2bindependentv1_{request_id_lower}_{arm}",
+    "per_call_slug_template": "m11novrung01b2bindependentv1_{request_id_lower}_{arm}",
+    "followup_prereg_sha256": "computed from this exact file after it is committed; the authorization amendment must pin the resulting whole-file hash"
+  },
+  "comparison_protocol": {
+    "boundary": "Call the maintained pubmed_search_with_fulltext MCP tool through the pinned current validation ToolConfig mapping and ResponseParser. The runner receives only the four exact request inputs, not the scoring keys or source evidence.",
+    "baseline_arm": "Use the pinned baseline build and current first-rung-meeting-threshold selection. For each request, stop at the first existing relaxation rung with at least three IDs; if none reaches three, return the first nonempty rung IDs.",
+    "candidate_arm": "Use the pinned isolated candidate build. Issue the same existing rungs in the same order, then stable-deduplicate IDs in rung order and retain the first nine before unchanged metadata fetching, PMC preference, public-tool response, configured parser, and max_papers=3.",
+    "fixed_settings": {
+      "pubmed_sort": "pub_date",
+      "recency_years": 0,
+      "max_papers": 3,
+      "retmax_ids_per_rung": 9,
+      "minimum_ids_before_relaxation": 3,
+      "maximum_existing_rungs_per_outer_call": 3,
+      "rung_order": "exact pinned baseline relaxation_ladder",
+      "query_mutation": "forbidden",
+      "alternate_provider_or_fallback": "forbidden"
+    },
+    "paired_call_order": [
+      {"order": 1, "request_id": "R03", "arm": "baseline"},
+      {"order": 2, "request_id": "R03", "arm": "candidate"},
+      {"order": 3, "request_id": "R04", "arm": "baseline"},
+      {"order": 4, "request_id": "R04", "arm": "candidate"},
+      {"order": 5, "request_id": "R05", "arm": "baseline"},
+      {"order": 6, "request_id": "R05", "arm": "candidate"},
+      {"order": 7, "request_id": "R06", "arm": "baseline"},
+      {"order": 8, "request_id": "R06", "arm": "candidate"}
+    ],
+    "isolation": {
+      "cache": "One new empty, non-overlapping cache namespace per request_id × arm; no cache sharing across requests or arms.",
+      "shared_pool": "Use a per-call corpus and verify file_count=0, metadata_count=0, and first_ids=[] before every search. Record only same-call supplementation. Any preexisting or cross-case carry-over is a provenance failure.",
+      "processes": "Use separate isolated loopback baseline and candidate servers from the pinned source trees. Record each process PID, loopback port, module import path, commit/tree/build hash, cache root, and arm; verify the listener PID owns the stated port.",
+      "blinding": "The runner reads only request_inputs. It must not pass target/anchor PMIDs, source titles, source mappings, or scoring roles in any query, slug, run_id, or tool argument. Keep the exact-ID scoring map outside the runner until all result and trace artifacts are finalized and hashed. Before unblinding, produce a shuffled abstract-review packet without PMID, arm, rank, pair label, source title, or query, as specified by the original protocol."
+    }
+  },
+  "trace_capture_correction": {
+    "observed_failure": "The stopped call returned a maintained-MCP response and then failed when the runner read .search-trace.json. The temporary process cache and launch logs were removed. The trace diagnosis establishes the intended relative path but cannot distinguish disabled tracing from a server launch-time cache-root mismatch.",
+    "server_trace_path": "<COSCIENTIST_LIT_REVIEW_DIR>/pubmed/<slug>/runs/<run_id>/.search-trace.json",
+    "runner_expected_path": "<arm cache>/pubmed/<slug>/runs/<run_id>/.search-trace.json",
+    "required_launch_configuration": [
+      "Set COSCIENTIST_LIT_REVIEW_DIR explicitly to that arm's resolved absolute cache root; do not rely on the process working-directory default.",
+      "Set COSCIENTIST_PUBMED_PILOT_TRACE=1 and COSCIENTIST_PUBMED_PILOT_BUILD_ID to that arm's exact MCP server tree SHA-256 in each isolated server process.",
+      "Before the first public retrieval, capture and validate a per-process launch manifest showing the effective trace flag, normalized COSCIENTIST_LIT_REVIEW_DIR, build ID, server PID, imported source path, and loopback listener. Require the trace root to equal the runner's arm cache exactly.",
+      "Before public retrieval, run an offline fake-Entrez trace-readiness probe against each exact server build and launch configuration. Use unique synthetic probe slug/run IDs and assert that each process writes a trace at the expected path with matching PID, build ID, run_id, sort, rung order, selected/fetched/final ID lineage, and empty pre-search pool. The probe must make zero external requests; remove its temporary records before the trial.",
+      "For the live request, verify the trace after the MCP response and before scoring or persisting the call as complete. Validate actual process/build identity, exact query and sort, every attempted rung, IDs, fetch flags, selected list, final parsed order, and empty-pool evidence. Preserve the bounded expected missing path in an error receipt if reading fails.",
+      "Guarantee zero automatic retry at every network layer, including Biopython/Entrez handling, or capture every underlying ESearch/metadata request attempt and prove each is a single attempt. If the effective retry setting cannot be pinned or any request is retried, stop and leave the batch unscored."
+    ],
+    "failure_semantics": "If a public-tool response arrives without a valid matching trace, stop immediately. Record the external PubMed request count as unknown unless independent outbound-request instrumentation proves it; never convert a missing trace to zero requests or zero search results.",
+    "instrumentation_boundary": "Trace-only instrumentation and the follow-up runner may capture provenance but must not change query construction, sort, rung behavior, threshold, metadata fetch, PMC preference, parser, or returned-paper cap. Any behavioral difference outside the selection-only candidate invalidates the comparison."
+  },
+  "resource_and_retry_limits": {
+    "planned_outer_pubmed_mcp_calls": 8,
+    "absolute_outer_pubmed_mcp_call_cap": 12,
+    "unused_capacity": "The four-call difference is not permission for an extra pair, retry, recovery, resume, substitution, or repeat. The frozen schedule contains exactly eight outer calls.",
+    "retry_or_recovery_calls": 0,
+    "maximum_esearch_requests_for_frozen_schedule": 24,
+    "maximum_ids_submitted_for_metadata_per_outer_call": 9,
+    "maximum_total_ids_submitted_for_metadata": 72,
+    "maximum_returned_papers_per_outer_call": 3,
+    "maximum_blind_review_items": 24,
+    "call_spacing": "At least two seconds between outer MCP-call starts; retain maintained anonymous Entrez pacing.",
+    "credentials_and_cost": {
+      "provider_or_NCBI_API_keys": "absent",
+      "paid_fallbacks": "forbidden",
+      "model_inference_calls": 0,
+      "external_service": "Anonymous keyless public PubMed only through the maintained MCP tool.",
+      "local_MCP_auth": "If required, use a new random process-local shared secret for loopback MCP authentication only; never persist its value or use a user/provider credential.",
+      "cost": "No paid calls or paid retrieval fallback."
+    }
+  },
+  "primary_and_nonregression_criteria": {
+    "primary_metric": "Exact positive-target PMID recall@3 in the final parsed public-tool response, summed over R03 (PMID 24762438) and R05 (PMID 31945018), range 0-2 per arm.",
+    "strict_primary_gate": "The candidate must retrieve at least one more positive target at final recall@3 than baseline and must lose no positive target hit present in baseline.",
+    "control_anchor_gate": "For R04 (PMID 19033663) and R06 (PMID 30431439), report each distinct control's own-anchor recall@3. The candidate may not lose any own-anchor hit present in its matched baseline result. Report positive-target cross-hits in controls separately; an exact ID cross-hit is not by itself a semantic rejection.",
+    "unrelatedness_gate": "An independent reviewer labels anonymized final title/abstract items as supports_central_mechanism, related_without_mechanism_support, unrelated, or insufficient_abstract under the original protocol. Count only unrelated labels in the per-request unrelatedness count; do not count insufficient_abstract as unrelated. The candidate may not increase the per-request count of unrelated returned papers. If any final item is missing, disputed, or labeled insufficient_abstract, this gate is not evaluable and the whole comparison is inconclusive; do not adopt the candidate.",
+    "provenance_gate": "Every completed call must have matching request, arm, build, run ID, actual sort, ordered attempted-rung trace, selected/fetched/final PMID lineage, empty pre-search pool, and no carry-over. Any mismatch invalidates the comparison: stop, leave it unscored and inconclusive, and do not interpret it as evidence for or against retrieval quality.",
+    "scoring_order": "Finalize and hash all call records, actual request traces, final parsed outputs, and the blinded review packet; complete and lock the independent blinded relevance labels before revealing the exact-ID scoring map. Score only complete paired requests with valid traces.",
+    "interpretation": "A complete result that clears every gate supports only the fixed retrieval behavior on these two pairs. It does not establish broad PubMed recall, semantic contradiction, novelty, or scientific validity, and it does not authorize adoption or release.",
+    "no_signal_rule": "If, for each of R03 and R05, the target PMID is absent from every attempted rung in both arms, the retention mechanism was not testable on this set; report inconclusive rather than treating missing targets as proof of novelty or a candidate failure.",
+    "failure_disposition": "A complete run that fails the strict primary or a non-regression gate does not support candidate adoption on these cases. Any retrieval, trace, blinding, budget, or provenance error leaves the comparison stopped and unscored; incomplete calls are not misses. No post-hoc case substitution or threshold change is allowed."
+  },
+  "exact_stop_conditions": [
+    "Stop before call 1 if the follow-up runner does not pin this whole preregistration hash, the input/source hashes, baseline and candidate tree hashes, runner hash, trace instrumentation hashes, unique output paths, and exact process configuration in a dated committed amendment.",
+    "Stop before call 1 if offline fake-Entrez trace readiness fails for either build, if the effective trace root differs from the arm cache, if trace mode/build identity cannot be confirmed, or if any required artifact path already exists.",
+    "Stop before call 1 if ambient provider, NCBI, paid-service, or user credentials are detected; only a transient loopback MCP authentication secret is allowed.",
+    "Stop the whole batch on the first transport error, rate limit, HTTP/provider error, parse error, missing or malformed trace, wrong query/sort/build/run identity, nonempty pre-search pool, carry-over, hidden retry, cost ambiguity, or bound violation.",
+    "After any public MCP invocation, do not retry, restart, resume, rerun, score the incomplete pair, substitute a fixture, or reuse its artifacts. Preserve the completed prefix and first error only.",
+    "If a response is received but trace verification fails, mark actual external request count unknown unless outbound instrumentation independently resolves it; do not claim zero external requests.",
+    "Do not reveal the exact-ID scoring map until all complete output and trace artifacts are written, validated, and hashed. If the blind packet cannot be produced before unblinding, report inconclusive."
+  ],
+  "future_execution_artifacts": {
+    "result_path": "references/external/sakana/novelty-precise-rung-01b2b-independent-run-2026-09-25.json",
+    "blind_review_path": "references/external/sakana/novelty-precise-rung-01b2b-independent-blind-2026-09-25.json",
+    "collision_rule": "If either path exists, do not overwrite it or add a run suffix ad hoc; issue a new dated preregistration before any call.",
+    "authorization_state": "not_authorized_by_this_fixture_preregistration; requires a separate committed runner/hash/trace-readiness amendment before retrieval"
+  },
+  "limitations": [
+    "Only two complete, untouched pairs remain from the original frozen bank after excluding the whole partially called R01/R02 pair. The small sample has low power and is not representative.",
+    "Both pairs are oncology/metabolism cases from JCI and share vocabulary. The result cannot establish behavior in other scientific domains.",
+    "PubMed indexing and ranking can change between interleaved paired calls. Retain UTC timestamps and treat a material service change or any interrupted pair as inconclusive.",
+    "The original stopped call's actual external request count is unknown. It is retained as a failure, never reclassified as zero and never replayed."
+  ]
+}

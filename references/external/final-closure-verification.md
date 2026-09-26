@@ -32,3 +32,7 @@ reports its own `make test-all` function-length failure in two unaccepted PubMed
 instrumentation functions. It does not establish a pass for that experimental
 branch. No new model inference, public research goal, or production mutation
 was performed for this closeout; the eight deferred follow-ups remain unfinished.
+
+## 26 September M11 branch check
+
+The [current branch receipt](m11-branch-verification-2026-09-26.json) covers source commit `7df7ef34` after the provisional Ling Sante route was removed: `make test-all`, lint, typecheck, build, offline evaluation smoke, 803 frontend tests and 18 isolated Chromium E2E tests passed. The 153 generic-key scanner matches were classified as generated public fixture IDs or SHA-256 integrity digests, not credentials. This is local/offline verification, not a current-model qualification, a deployed-commit readback, or a public-goal result. M12's combined-system acceptance item remains open.

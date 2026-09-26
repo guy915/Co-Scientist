@@ -1,0 +1,41 @@
+{
+  "title": "Ling Sante batch trial 2 exact-zero ZDR admission",
+  "checked_at_utc": "2026-09-26T08:10:22.405263+00:00",
+  "source_commit": "a12bdd7a294a09551f589188e9c1a3d54a08a1fe",
+  "model_id": "inclusionai/ling-3.0-flash-sante:free",
+  "catalog_pricing": {
+    "prompt": "0",
+    "completion": "0"
+  },
+  "exact_endpoint": {
+    "name": "Novita | inclusionai/ling-3.0-flash-sante-20260904:free",
+    "tag": "novita",
+    "status": 0,
+    "pricing": {
+      "prompt": "0",
+      "completion": "0",
+      "discount": 0
+    }
+  },
+  "zdr_inventory_match": true,
+  "source_receipts": [
+    {
+      "name": "catalog",
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "c4fd9c71f70d5ecb291fc9ad0f11b6e7e8f4b9d5775774f8f97594ef5108c983",
+      "bytes": 750918
+    },
+    {
+      "name": "exact_endpoints",
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-sante%3Afree/endpoints",
+      "sha256": "3043149738f76c05a6135b956386565b7fb52a089bfe0c62ae954c1cb6ff7a35",
+      "bytes": 1435
+    },
+    {
+      "name": "zdr_endpoints",
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "sha256": "70eba9178e25e6fcfa977654bc99b5c98bc17b75e46651be65cafe04bd39edeb",
+      "bytes": 882367
+    }
+  ]
+}

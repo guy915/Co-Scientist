@@ -1,0 +1,455 @@
+{
+  "protocol_id": "M11-NOV-RUNG-01c1-confirmatory-v1",
+  "title": "Independent three-domain confirmatory PubMed precise-rung comparison",
+  "version": 1,
+  "preregistered_date_utc": "2026-09-25",
+  "status": "frozen_confirmatory_protocol_no_runner_or_retrieval_authorization",
+  "live_retrieval_authorized": false,
+  "purpose": "Prospectively confirm the narrow precise-rung retrieval signal on three independent primary-paper domains using six exact source-backed requests. This is a bounded retrieval-behavior comparison, not a novelty verdict, broad recall estimate, scientific-quality validation, or product-adoption authorization.",
+  "registration_context": {
+    "prior_exploratory_protocol_id": "M11-NOV-RUNG-01b2b-independent-v1",
+    "prior_exploratory_artifacts": [
+      {
+        "artifact_role": "protocol",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-prereg-v1.json",
+        "sha256_raw_bytes": "dec79fbe21bec82ee6535cc711cc66b2f37da61d5ef79a2eb4c0f7c2e8b8b3e8"
+      },
+      {
+        "artifact_role": "key_free_input",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-input-v1.json",
+        "sha256_raw_bytes": "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0"
+      },
+      {
+        "artifact_role": "run",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-run-2026-09-25.json",
+        "sha256_raw_bytes": "1876eeb29e98c57affb34f822b9c4cca8598e00e4719b073260cb6cd470fa204"
+      },
+      {
+        "artifact_role": "blind_packet",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-blind-2026-09-25.json",
+        "sha256_raw_bytes": "6d573dbd541ab7f782019036ebce790d50d70b92606fde397a7194439acc970d"
+      },
+      {
+        "artifact_role": "blind_labels",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-blind-labels-2026-09-25.json",
+        "sha256_raw_bytes": "bd2f5be469f467b96d0fe04fd26a5dd65bd12f5cce64a55faa8663c13512397f"
+      },
+      {
+        "artifact_role": "score",
+        "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-score-2026-09-25.json",
+        "sha256_raw_bytes": "2967c183ec1267ae99f49dd759365b8c30fef1811dac0b8ba9bca5f677b1c596"
+      }
+    ],
+    "prior_exploratory_recorded_result": {
+      "frozen_exploratory_gates_passed": true,
+      "product_adoption_authorized": false,
+      "primary_positive_target_recall_at_3": {
+        "baseline": 0,
+        "candidate": 1
+      },
+      "scope": "The prior result is exploratory and is eligible only if all pinned prior artifacts match their listed hashes, the run satisfies its original provenance gate, the blind labels were locked before unblinding, and the score records the frozen gates as passed. Its observed_underlying_http_request_total remains unknown and must not be reclassified as zero."
+    },
+    "reason_for_separate_confirmation": "The prior four-request exploratory comparison passed its narrow frozen gates but explicitly did not authorize adoption. This new fixture set is independently source-backed, spans three distinct domains, and uses new request identifiers and output paths.",
+    "joint_disposition_rule": "The candidate clears the combined evidence gate only if the prior exploratory record and this new confirmatory record each have valid provenance and each pass their frozen gates. A complete, provenance-valid failure of either gate rejects the candidate for this adoption decision. Any incomplete run, insufficient evidence, missing/invalid provenance, or inconclusive result leaves the decision open and does not count as a pass or rejection."
+  },
+  "fixture_selection": {
+    "domains": [
+      "neuroscience synapse refinement",
+      "plant chitin perception",
+      "bacterial type VI secretion"
+    ],
+    "selection_basis": "Three positive targets and three distinct source-backed controls were selected from the exact primary-paper claims and PMID mappings supplied by the independent PMC/publisher source audit for this task. Query text was frozen verbatim from those independently checked claims; all six queries are shorter than the maintained 200-character hypothesis-text limit.",
+    "outcome_independence": "No PubMed search/tool call, NCBI request, candidate retrieval result list, model inference, or paid call was made while selecting or drafting these fixtures. The provided primary-paper claim checks precede retrieval outcomes.",
+    "explicit_exclusions": {
+      "legacy_request_ids": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06"
+      ],
+      "other_prior_observed_cases": [
+        "Bacteroides fragilis (PMID 21512004)",
+        "all previously observed SARS/SARS-CoV-2 cases"
+      ],
+      "rule": "None of these requests or observed cases may be reused, substituted, or scored in this confirmation. New request IDs N01-N06 are independent identifiers and do not refer to the excluded legacy R01-R06."
+    },
+    "independence_limit": "This is one small confirmatory fixture set with one pair per domain. It provides a prospective check on these fixed requests, not a representative estimate across neuroscience, plant biology, bacterial competition, or PubMed generally."
+  },
+  "frozen_input_digest": {
+    "rule": "SHA-256 over UTF-8 JSON serialized with ensure_ascii=false, recursively sorted keys, and compact separators (comma and colon).",
+    "projection_rule": "request_inputs_sha256 hashes the six request_inputs objects exactly as represented in the separate key-free input artifact, preserving array order and every field. source_reference_manifest_sha256, pair_definitions_sha256, and scoring_key_sha256 hash their complete respective arrays/objects in this preregistration.",
+    "request_inputs_sha256": "0b784aa58028cd500c3b8af09660128b72d18d89172529345c6fc8f7a3dd9764",
+    "source_reference_manifest_sha256": "2809ff37cb6444650f11777da6a315bf76ec9a37e381dd9fe1276014ed34cbff",
+    "pair_definitions_sha256": "ae74be88ae3e282f28b39b50500410c57d1a0f459cb3923fe286cfdcb75b23f8",
+    "scoring_key_sha256": "5f08b3a1fcc99d91a52c306d24b316e293e2209e0cb03a8a6deb8be306c1faf4",
+    "request_input_ids": [
+      "N01",
+      "N02",
+      "N03",
+      "N04",
+      "N05",
+      "N06"
+    ],
+    "source_evidence_ids": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6"
+    ],
+    "change_rule": "Any request, claim, source mapping, pair, order, build, parser/configuration, or criterion change requires a new separately dated preregistration before retrieval. No substitution is permitted after a retrieval outcome or error.",
+    "input_artifact_sha256_raw_bytes": "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5",
+    "input_artifact_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-input-v1.json"
+  },
+  "pairs": [
+    {
+      "pair_id": "P1",
+      "positive_request_id": "N01",
+      "control_request_id": "N02",
+      "distinction": "The positive query concerns complement-mediated tagging of inappropriate retinogeniculate synapses by neuronal C1q and downstream C3. The control concerns astrocyte-mediated engulfment through MEGF10 and MERTK. Shared synapse-pruning context alone is not central-mechanism support.",
+      "control_definition": "N02 is a distinct source-backed hypothesis with its own anchor, not an empty-query or guaranteed-no-hit negative control."
+    },
+    {
+      "pair_id": "P2",
+      "positive_request_id": "N03",
+      "control_request_id": "N04",
+      "distinction": "The positive query concerns Arabidopsis CERK1-dependent chitin signaling and defense. The control concerns rice CEBiP chitin binding and chitin-triggered responses. Shared chitin elicitation alone is not central-mechanism support.",
+      "control_definition": "N04 is a distinct source-backed hypothesis with its own anchor, not an empty-query or guaranteed-no-hit negative control."
+    },
+    {
+      "pair_id": "P3",
+      "positive_request_id": "N05",
+      "control_request_id": "N06",
+      "distinction": "The positive query concerns Vibrio cholerae TseH, divalent-cation effects, and PhoPQ-mediated magnesium sensitivity. The control concerns Pseudomonas aeruginosa H1-T6SS Tse2 toxicity and Tsi2 immunity. Shared T6SS terminology alone is not central-mechanism support.",
+      "control_definition": "N06 is a distinct source-backed hypothesis with its own anchor, not an empty-query or guaranteed-no-hit negative control."
+    }
+  ],
+  "request_inputs": [
+    {
+      "request_id": "N01",
+      "draft": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs.",
+      "exact_query": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N02",
+      "draft": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses.",
+      "exact_query": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N03",
+      "draft": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola.",
+      "exact_query": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N04",
+      "draft": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact.",
+      "exact_query": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N05",
+      "draft": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity.",
+      "exact_query": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    },
+    {
+      "request_id": "N06",
+      "draft": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer.",
+      "exact_query": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer.",
+      "query_rule": "The maintained validation path sends hypothesis_text[:200]; this draft is shorter than 200 characters, so the full exact draft is the wire query."
+    }
+  ],
+  "scoring_key": {
+    "access_rule": "The retrieval runner, tool arguments, server processes, blind-review packet, and blinded reviewer must not receive this scoring map or source_reference_manifest. The preregistration may be hash-pinned but must not be parsed by the runner. Reveal the exact IDs and roles only after complete result/trace artifacts and blind labels have been committed and hashed.",
+    "requests": [
+      {
+        "request_id": "N01",
+        "pair_id": "P1",
+        "role": "positive_target",
+        "target_pmid": "18083105",
+        "source_id": "S1",
+        "source_supported_claim": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs."
+      },
+      {
+        "request_id": "N02",
+        "pair_id": "P1",
+        "role": "distinct_control_anchor",
+        "anchor_pmid": "24270812",
+        "source_id": "S2",
+        "source_supported_claim": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses."
+      },
+      {
+        "request_id": "N03",
+        "pair_id": "P2",
+        "role": "positive_target",
+        "target_pmid": "18042724",
+        "source_id": "S3",
+        "source_supported_claim": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola."
+      },
+      {
+        "request_id": "N04",
+        "pair_id": "P2",
+        "role": "distinct_control_anchor",
+        "anchor_pmid": "16829581",
+        "source_id": "S4",
+        "source_supported_claim": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact."
+      },
+      {
+        "request_id": "N05",
+        "pair_id": "P3",
+        "role": "positive_target",
+        "target_pmid": "35354946",
+        "source_id": "S5",
+        "source_supported_claim": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity."
+      },
+      {
+        "request_id": "N06",
+        "pair_id": "P3",
+        "role": "distinct_control_anchor",
+        "anchor_pmid": "20114026",
+        "source_id": "S6",
+        "source_supported_claim": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer."
+      }
+    ]
+  },
+  "source_reference_manifest": [
+    {
+      "source_id": "S1",
+      "request_id": "N01",
+      "pmid": "18083105",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/18083105/",
+      "source_supported_claim": "During postnatal development, neuronal C1q and downstream C3 mark inappropriate retinogeniculate synapses for elimination; C1q- or C3-deficient mice retain excess retinal ganglion cell inputs.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    },
+    {
+      "source_id": "S2",
+      "request_id": "N02",
+      "pmid": "24270812",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/24270812/",
+      "source_supported_claim": "Developing astrocytes engulf CNS synapses through MEGF10 and MERTK; mice lacking both pathways fail to refine retinogeniculate connections and retain excess functional synapses.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    },
+    {
+      "source_id": "S3",
+      "request_id": "N03",
+      "pmid": "18042724",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/18042724/",
+      "source_supported_claim": "Arabidopsis CERK1 is required for chitin-induced MAPK activation, reactive oxygen production and defense-gene expression, and contributes to resistance against Alternaria brassicicola.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    },
+    {
+      "source_id": "S4",
+      "request_id": "N04",
+      "pmid": "16829581",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/16829581/",
+      "source_supported_claim": "Rice CEBiP binds chitin oligosaccharides; CEBiP knockdown suppresses chitin-triggered oxidative burst and defense-gene responses while leaving lipopolysaccharide responses intact.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    },
+    {
+      "source_id": "S5",
+      "request_id": "N05",
+      "pmid": "35354946",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/35354946/",
+      "source_supported_claim": "Vibrio cholerae uses T6SS effector TseH to outcompete normally resistant Escherichia coli when magnesium or calcium is added, with PhoPQ mediating magnesium-dependent sensitivity.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    },
+    {
+      "source_id": "S6",
+      "request_id": "N06",
+      "pmid": "20114026",
+      "primary_article_url": "https://pubmed.ncbi.nlm.nih.gov/20114026/",
+      "source_supported_claim": "Pseudomonas aeruginosa H1-T6SS exports Tse2, suppressing susceptible bacterial competitors; cognate immunity protein Tsi2 protects the producer.",
+      "independent_source_check": "The source-to-claim mapping was independently checked against the primary PMC/publisher article record before this registration, as recorded by the source audit supplied for this task. No PubMed search/tool call or retrieval result list was used to draft this registration."
+    }
+  ],
+  "source_and_build_pins": {
+    "source_check_record": "Primary-paper source-to-claim mapping was independently checked in PMC/publisher material before this registration, according to the supplied source audit. The manifest provides direct PubMed article URLs by PMID for primary-source identification; this registration did not issue PubMed or NCBI requests.",
+    "runner_input_artifact": {
+      "path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-input-v1.json",
+      "sha256_raw_bytes": "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5",
+      "hash_rule": "SHA-256 over the exact file bytes, including UTF-8 encoding and final newline.",
+      "runner_read_rule": "The retrieval runner may parse only this key-free input artifact and a committed authorization amendment. It must not JSON-load this preregistration, its scoring_key, the source_reference_manifest, or any prior scoring artifact. The separate committed authorization amendment must pin the exact whole-file preregistration and input hashes."
+    },
+    "baseline": {
+      "commit": "1ce3992ce0950b45979f7325fd66f7383f41afa0",
+      "mcp_server_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726"
+    },
+    "candidate": {
+      "commit": "8c91e5a9ed9661a37886c994f37083d75b41f8a5",
+      "mcp_server_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
+      "runtime_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+      "allowed_runtime_change": "Selection-only retention of first-seen PMIDs from already-attempted relaxation rungs. The query, rung generation/order, threshold, sort, retrieval/fetch behavior, maintained ToolConfig and ResponseParser, and result cap stay fixed."
+    },
+    "authorization_amendment_required": {
+      "state": "not_created; no runner or live authorization exists",
+      "must_be_separately_committed_before_any_call": true,
+      "must_pin": [
+        "whole-byte SHA-256 of this preregistration and the key-free input",
+        "exact baseline and candidate build/tree/runtime hashes",
+        "runner and offline-test source hashes plus tested command receipts",
+        "maintained ToolConfig mapping and ResponseParser source/config hashes, identical across arms",
+        "per-process PID, loopback port/listener ownership, source import path, effective environment, cache root, trace flag, and build identity",
+        "verified zero-retry behavior at every network layer and the exact 12-call, 36-ESearch-rung, 108-metadata-ID ceilings",
+        "all result, trace, blind-packet, and blind-label output paths absent before launch",
+        "offline fake-Entrez trace readiness for both builds with zero external requests"
+      ],
+      "no_implicit_authority": "Committing these fixtures or implementing/testing a runner does not authorize retrieval. Only a distinct, dated committed amendment that pins all receipts and explicitly changes the live authorization state may authorize the one frozen execution."
+    },
+    "pilot_run_id": "m11novrung01c1confirmatoryv1",
+    "per_call_run_id_template": "m11novrung01c1confirmatoryv1_{request_id_lower}_{arm}",
+    "per_call_slug_template": "m11novrung01c1confirmatoryv1_{request_id_lower}_{arm}",
+    "whole_file_preregistration_sha256": "compute from committed exact bytes; the future authorization amendment must pin it"
+  },
+  "comparison_protocol": {
+    "boundary": "Call the maintained pubmed_search_with_fulltext MCP tool through the same exact maintained validation ToolConfig mapping and ResponseParser for both pinned arms. The runner receives only the six key-free request inputs, never the scoring map, source manifest, target/anchor PMIDs, roles, titles, or pair definitions.",
+    "baseline_arm": "Use the pinned baseline build and current first-rung-meeting-threshold selection. For each request, stop at the first existing relaxation rung with at least three IDs; if none reaches three, return the first nonempty rung IDs.",
+    "candidate_arm": "Use the pinned isolated candidate build. Issue the same existing rungs in the same order, then stable-deduplicate IDs in rung order and retain the first nine before unchanged metadata fetching, PMC preference, public-tool response, maintained parser, and max_papers=3.",
+    "fixed_settings": {
+      "pubmed_sort": "pub_date",
+      "recency_years": 0,
+      "max_papers": 3,
+      "retmax_ids_per_rung": 9,
+      "minimum_ids_before_relaxation": 3,
+      "maximum_existing_rungs_per_outer_call": 3,
+      "rung_order": "exact pinned baseline relaxation_ladder",
+      "maintained_tool_config_and_parser": "same exact maintained ToolConfig mapping and ResponseParser across both arms; amendment must pin their source/config hashes and prove identity before calls",
+      "query_mutation": "forbidden",
+      "alternate_provider_or_fallback": "forbidden"
+    },
+    "paired_call_order": [
+      {
+        "order": 1,
+        "request_id": "N01",
+        "arm": "baseline"
+      },
+      {
+        "order": 2,
+        "request_id": "N01",
+        "arm": "candidate"
+      },
+      {
+        "order": 3,
+        "request_id": "N02",
+        "arm": "baseline"
+      },
+      {
+        "order": 4,
+        "request_id": "N02",
+        "arm": "candidate"
+      },
+      {
+        "order": 5,
+        "request_id": "N03",
+        "arm": "baseline"
+      },
+      {
+        "order": 6,
+        "request_id": "N03",
+        "arm": "candidate"
+      },
+      {
+        "order": 7,
+        "request_id": "N04",
+        "arm": "baseline"
+      },
+      {
+        "order": 8,
+        "request_id": "N04",
+        "arm": "candidate"
+      },
+      {
+        "order": 9,
+        "request_id": "N05",
+        "arm": "baseline"
+      },
+      {
+        "order": 10,
+        "request_id": "N05",
+        "arm": "candidate"
+      },
+      {
+        "order": 11,
+        "request_id": "N06",
+        "arm": "baseline"
+      },
+      {
+        "order": 12,
+        "request_id": "N06",
+        "arm": "candidate"
+      }
+    ],
+    "isolation": {
+      "processes": "Run the exact pinned baseline and candidate MCP builds in separate isolated loopback child processes. The future amendment must record each PID, port, imported source path, commit/tree/build hash, effective tool configuration, parser hash, trace flag/build ID, and listener ownership.",
+      "caches": "Use an empty, non-overlapping cache namespace for every request_id × arm. Verify file_count=0, metadata_count=0, and first_ids=[] before every call; retain same-call supplementation only.",
+      "network_retries": "Pin zero retries at every transport layer and at Bio.Entrez. The offline amendment must inject one retryable transport failure per arm and prove exactly one attempted request before the runner stops.",
+      "tracing": "Require per-call trace at the expected arm cache path, matching request, arm, build, run ID, exact query, sort, every attempted rung, selected/fetched/final ID lineage, and empty pre-search pool."
+    },
+    "blinding": {
+      "runner_blinding": "Only the key-free request inputs may enter runner arguments, slugs, run IDs, logs, tool arguments, and server environments. Do not transmit scoring IDs, roles, source titles/IDs, pair mappings, or outcomes to either process.",
+      "blind_packet": "After all calls and traces are complete and hashed, create a shuffled packet with opaque item tokens and only the corresponding frozen query text plus title/abstract. Remove PMID, source title/ID, request ID, arm, rank, pair ID, positive/control role, and any scoring outcome.",
+      "reviewer_access": "The independent reviewer receives only that blind packet, not this preregistration, source manifest, score key, call result JSON, arm labels, or unblinded PMID list.",
+      "label_lock": "The reviewer must assign one label to every returned item — supports_central_mechanism, related_without_mechanism_support, unrelated, or insufficient_abstract — and the complete labels artifact must be committed and raw-hash recorded before the IDs, arms, or scoring map are unblinded."
+    }
+  },
+  "resource_and_retry_limits": {
+    "planned_outer_pubmed_mcp_calls": 12,
+    "absolute_outer_pubmed_mcp_call_cap": 12,
+    "retry_or_recovery_calls": 0,
+    "maximum_esearch_requests_for_frozen_schedule": 36,
+    "maximum_ids_submitted_for_metadata_per_outer_call": 9,
+    "maximum_total_ids_submitted_for_metadata": 108,
+    "maximum_returned_papers_per_outer_call": 3,
+    "call_spacing": "At least two seconds between outer MCP-call starts; retain maintained anonymous Entrez pacing.",
+    "credentials_and_cost": {
+      "provider_or_NCBI_API_keys": "absent",
+      "paid_fallbacks": "forbidden",
+      "model_inference_calls": 0,
+      "external_service": "Anonymous keyless public PubMed only through the maintained MCP tool.",
+      "local_MCP_auth": "If required, use a new random process-local loopback MCP secret only; never persist it or use a user/provider credential.",
+      "cost": "No model, paid inference, or paid retrieval fallback."
+    }
+  },
+  "primary_and_nonregression_criteria": {
+    "primary_metric": "Exact positive-target PMID recall@3 in the final parsed public-tool response, summed over N01, N03, and N05; range 0-3 per arm.",
+    "strict_primary_gate": "The candidate total must exceed baseline by at least 1 and must lose no positive target hit that is present in the matched baseline result for any of N01, N03, or N05.",
+    "control_anchor_gate": "For each distinct control N02, N04, and N06, report its own-anchor recall@3. The candidate may not lose any own-anchor hit present in that control’s matched baseline result. Report positive-target cross-hits in controls separately; an exact-ID cross-hit alone is not a semantic rejection.",
+    "unrelatedness_gate": "The blind reviewer labels every final title/abstract item. Count only unrelated labels per request; do not count insufficient_abstract as unrelated. For every request, the candidate unrelated count may not exceed the matched baseline count. If any final item is missing, disputed, or insufficient_abstract, this criterion is not evaluable and the confirmation is inconclusive.",
+    "provenance_gate": "Every completed call must have matching request, arm, build, run ID, actual sort, ordered attempted-rung trace, selected/fetched/final ID lineage, empty pre-search pool, and no cross-case carry-over. All 12 calls must complete exactly once for a complete comparison. Any mismatch, unverified retry, hidden carry-over, missing trace, or input leakage leaves the result inconclusive and unscored.",
+    "scoring_order": "Finalize and hash every call record, trace, final parsed output, and blind packet. Commit and hash the complete independent blind labels before revealing exact PMIDs, arm labels, source mapping, or scoring key. Score only after the label lock and only if all 12 calls have valid provenance.",
+    "interpretation": "A complete confirmatory result that clears every gate supports only this fixed precise-rung behavior on six queries from three domains, jointly with the valid passing prior exploratory record. It does not establish broad PubMed recall, novelty, semantic contradiction, scientific validity, or product adoption.",
+    "failure_disposition": "A complete provenance-valid run that fails the strict primary, control-anchor, or unrelatedness gate is a completed gate failure and rejects the candidate for this adoption decision. Incomplete or inconclusive work — including missing/insufficient abstracts, bad provenance, an interrupted pair, or failed blinding — remains open; it is neither a miss nor a pass. No post-hoc query/case substitution, retry, resume, or threshold change is allowed."
+  },
+  "joint_disposition": {
+    "prior_exploratory_required_pass": "Validate all six prior artifact raw hashes listed in registration_context, verify the prior run against its own frozen provenance gate, and confirm frozen_exploratory_gates_passed=true with product_adoption_authorized=false in its scoring record.",
+    "confirmatory_required_pass": "This complete six-query comparison must have valid provenance and clear every frozen primary and nonregression gate.",
+    "combined_rule": "Both the prior exploratory and new confirmatory records must independently have valid provenance and pass. A complete valid failure of either rejects the candidate for this gate; any incomplete or inconclusive record leaves the combined decision open.",
+    "release_authority": "Even a joint pass is evidence for a separate release/disposition review; it is not itself a deployment, merge, or product-release authorization."
+  },
+  "exact_stop_conditions": [
+    "Stop before call 1 unless a separate dated authorization amendment is committed and pins the exact hashes, builds, runner, offline tests, maintained ToolConfig/parser, child processes, trace paths, zero-retry receipts, and output paths.",
+    "Stop before call 1 if any expected result, trace, blind-review, or label path exists; if either offline zero-network trace-readiness probe fails; if process/build/config/parser identity or trace root is uncertain; or if any API/provider key or paid fallback is present.",
+    "Stop the entire batch on the first transport error, rate limit, HTTP error, parse error, missing/malformed trace, wrong query/sort/build/run identity, nonempty pre-search pool, carry-over, hidden retry, cost ambiguity, blinding breach, or resource-bound violation.",
+    "After any public MCP invocation, do not retry, restart, resume, rerun, score an incomplete pair, substitute a fixture, or reuse its artifacts. Preserve the completed prefix and first error only.",
+    "If a response arrives without a valid matching trace, mark underlying external request count unknown unless independent outbound instrumentation resolves it; never report zero by default.",
+    "Do not unblind exact IDs or arm labels until every complete output and trace is finalized and hashed and the blinded abstract-label artifact is committed and hash-pinned."
+  ],
+  "future_execution_artifacts": {
+    "result_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-run-2026-09-25.json",
+    "blind_review_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-2026-09-25.json",
+    "blind_labels_path": "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-labels-2026-09-25.json",
+    "collision_rule": "If any output path or run/slug identity already exists, stop before call 1 and issue a new dated preregistration; never overwrite or append an ad hoc suffix.",
+    "authorization_state": "not_authorized_by_this_preregistration; separate committed amendment required before runner launch or retrieval"
+  },
+  "limitations": [
+    "Three positive/control pairs provide one fixed case per domain and limited power; this is not a representative cross-field recall estimate.",
+    "The positive and control papers are intentionally mechanistically distinct but may share broad vocabulary; unrelatedness and exact-ID gates must be reported separately.",
+    "PubMed indexing and ranking may change between interleaved calls. Preserve UTC timestamps and classify material service change or an interrupted pair as inconclusive.",
+    "The prior exploratory run’s exact underlying HTTP-request total is unknown. Preserve that as unknown while validating its trace-based evidence; never claim it was zero."
+  ]
+}

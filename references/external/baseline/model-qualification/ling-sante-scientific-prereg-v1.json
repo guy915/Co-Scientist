@@ -1,0 +1,372 @@
+{
+  "title": "M11-OPS-02b3 Ling Sante scientific replacement preregistration",
+  "classification": "local design choice, not evidence of Google private behavior",
+  "registered_at_utc": "2026-09-26T07:42:18.429809+00:00",
+  "source_commit_before_prereg": "592ffb3b2bfe92b0d0c7cdbd7886deac027aecdf",
+  "status": "no scientific candidate trial launched",
+  "candidate": {
+    "model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+    "provider": "novita",
+    "request_controls": {
+      "only": [
+        "novita"
+      ],
+      "zdr": true,
+      "data_collection": "deny",
+      "require_parameters": true,
+      "max_price": {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0
+      }
+    },
+    "model_configuration": "existing production per-call temperature, token and reasoning options; unchanged for every trial",
+    "byok": "explicit user BYOK remains separate",
+    "accepted_response_model_ids": [
+      "openrouter/inclusionai/ling-3.0-flash-sante:free",
+      "inclusionai/ling-3.0-flash-sante:free"
+    ]
+  },
+  "baseline": {
+    "model": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "comparison": "candidate trial i against retained M1 trial i on byte-identical public inputs and unchanged assessor/evaluator rubric; historical matched-input pairs, not concurrent randomization",
+    "artifacts": {
+      "batch": {
+        "summary_path": "references/external/baseline/model-qualification/batch-context120-acceptance.json",
+        "summary_sha256": "48ae091b9c3ed96e024e60131c426a34deadffa62b4c490d1e70688debd51ab9",
+        "trials": [
+          {
+            "trial": 1,
+            "path": "references/external/baseline/model-qualification/nex-pro-batch-context120-1.json",
+            "sha256": "4c091aa9799f69d1a350583df6de48a46b48032b3f22398c7a25e270d344654a",
+            "recorded_metrics": {
+              "labels": [
+                "partial",
+                "supports",
+                "insufficient",
+                "contradicts"
+              ],
+              "passed": true
+            }
+          },
+          {
+            "trial": 2,
+            "path": "references/external/baseline/model-qualification/nex-pro-batch-context120-2.json",
+            "sha256": "21dfcb2fd88a316c6cc70459cebd7b8918765af11c11f894640e6de39777a9c4",
+            "recorded_metrics": {
+              "labels": [
+                "partial",
+                "supports",
+                "insufficient",
+                "contradicts"
+              ],
+              "passed": true
+            }
+          },
+          {
+            "trial": 3,
+            "path": "references/external/baseline/model-qualification/nex-pro-batch-context120-3.json",
+            "sha256": "459d8e69cf2dd4cbed24c19e099d6a8f5e7621e093d5fd07a818ac336aa4ed8c",
+            "recorded_metrics": {
+              "labels": [
+                "partial",
+                "supports",
+                "insufficient",
+                "contradicts"
+              ],
+              "passed": true
+            }
+          }
+        ]
+      },
+      "citation": {
+        "summary_path": "references/external/baseline/model-qualification/pro-challenge163-summary.json",
+        "summary_sha256": "18f9189b6bfdd3e4de492a7b7f84791ad4c77da6b2744336abd371592c8d2a7c",
+        "trials": [
+          {
+            "trial": 1,
+            "path": "references/external/baseline/model-qualification/pro-challenge163-1.json",
+            "sha256": "f15bb16cb2377466dfd34419c291f6fe1610468920e3fd2d204cb2c4e8a6fd98",
+            "recorded_metrics": {
+              "accuracy": 0.933,
+              "contradiction_recall": 0.8
+            }
+          },
+          {
+            "trial": 2,
+            "path": "references/external/baseline/model-qualification/pro-challenge163-2.json",
+            "sha256": "da2590512010548253fd94a9fe7b12f559a6c2db4cb26d3ccbcd8cf0d340b781",
+            "recorded_metrics": {
+              "accuracy": 0.933,
+              "contradiction_recall": 0.8
+            }
+          },
+          {
+            "trial": 3,
+            "path": "references/external/baseline/model-qualification/pro-challenge163-3.json",
+            "sha256": "c8e2c3ef4fd4663d77b69f2a4e0cf64cde9f623637664c72dbed4ae4b1052cf9",
+            "recorded_metrics": {
+              "accuracy": 0.933,
+              "contradiction_recall": 0.8
+            }
+          }
+        ]
+      },
+      "usefulness": {
+        "summary_path": "references/external/baseline/model-qualification/usefulness-series113-acceptance.json",
+        "summary_sha256": "9af61beaf3a7fb83a510e516b71f0e1ee66930404c4baaa469e4f44341c6eade",
+        "trials": [
+          {
+            "trial": 1,
+            "path": "references/external/baseline/model-qualification/nex-pro-usefulness-series113-1.json",
+            "sha256": "0055a3ec4ac0b5ef3a186d00be54b08034bffdead5893cab2612ecbb8c492d29",
+            "recorded_metrics": {
+              "metrics": {
+                "n": 16,
+                "accuracy": 0.8125,
+                "recall_by_label": {
+                  "useful": 0.8571,
+                  "partial": 1.0,
+                  "useless": 0.6667
+                },
+                "false_useful_rate": 0.0
+              },
+              "passed": true
+            }
+          },
+          {
+            "trial": 2,
+            "path": "references/external/baseline/model-qualification/nex-pro-usefulness-series113-2.json",
+            "sha256": "1cdf4dedb3661972c53e976d09914bdc880620f0d5082510b018b7b4af89c60e",
+            "recorded_metrics": {
+              "metrics": {
+                "n": 16,
+                "accuracy": 0.8125,
+                "recall_by_label": {
+                  "useful": 0.8571,
+                  "partial": 1.0,
+                  "useless": 0.6667
+                },
+                "false_useful_rate": 0.0
+              },
+              "passed": true
+            }
+          },
+          {
+            "trial": 3,
+            "path": "references/external/baseline/model-qualification/nex-pro-usefulness-series113-3.json",
+            "sha256": "0d65a4dd1d8cc274e474ece8f45a02a215299d8a5ea17618ae0e52aabcb693be",
+            "recorded_metrics": {
+              "metrics": {
+                "n": 16,
+                "accuracy": 0.8125,
+                "recall_by_label": {
+                  "useful": 0.8571,
+                  "partial": 1.0,
+                  "useless": 0.6667
+                },
+                "false_useful_rate": 0.0
+              },
+              "passed": true
+            }
+          }
+        ]
+      },
+      "ranking": {
+        "summary_path": "references/external/baseline/model-qualification/ranking-series114-acceptance.json",
+        "summary_sha256": "e405b82370a9f0c6aaa93822e2976e54a76b0d8cb93bedc5b91fe13199488e9b",
+        "trials": [
+          {
+            "trial": 1,
+            "path": "references/external/baseline/model-qualification/nex-pro-ranking-series114-1.json",
+            "sha256": "8f07e456689ea5ec3262f32d916208d6e1aac11bada1060584385a2653bab509",
+            "recorded_metrics": {
+              "top1_accuracy": 1.0,
+              "mean_tau_b": 0.7781,
+              "passed": true
+            }
+          },
+          {
+            "trial": 2,
+            "path": "references/external/baseline/model-qualification/nex-pro-ranking-series114-2.json",
+            "sha256": "1ddbb1a0cc1970655a1081fc5a28ef83a9cb49622f3977b90f5e4f44c7d5ba35",
+            "recorded_metrics": {
+              "top1_accuracy": 1.0,
+              "mean_tau_b": 0.8673,
+              "passed": true
+            }
+          },
+          {
+            "trial": 3,
+            "path": "references/external/baseline/model-qualification/nex-pro-ranking-series114-3.json",
+            "sha256": "9a903202f8a555c743bde85b7cf338b9e1379c4a9fef14cb70867d08e4c87dc7",
+            "recorded_metrics": {
+              "top1_accuracy": 1.0,
+              "mean_tau_b": 0.9129,
+              "passed": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "source_sha256": {
+    "app/app/claim_verifier.py": "aaa98c378e11aeb1d2be085b52fe1667f9004ab071d006a0b078e5c10419c1ef",
+    "app/app/claim_verifier_batch.py": "006782b1a048abff9bd2b7ee7d72a57339a18502129fa581185be2cf893acec6",
+    "app/app/claim_verifier_opposition.py": "53e087b2a0c5960a381a94a38aa50a1625df395d2e40df1993c50b6d2c4b1381",
+    "app/app/claims.py": "982cef956a9d4ddf69b42a448aea96b5ca7584d1a19c46c2b1a8b32905bd0627",
+    "app/app/claims_assessor.py": "331a96dab16dad29a09aef589ec346c686dfd620a4eec3252a4db2c17fe923fd",
+    "app/app/claims_batch.py": "afa984e486c77c946d4d8827eb4ea1abeb11d707f102013ea249a6f29d35f301",
+    "app/app/claims_gate.py": "0d09de7be5dbd67da0fb6c80e4e1232dc73fd6b2303d2f9aa7be9f3b41c7dd20",
+    "app/app/claims_span.py": "8e791f624be2403ac3d6f391205c274dc59de19bd136b72da8e34b25281bd911",
+    "app/app/config.py": "32d61a4f4f09a55cbc688c37d453f06db0f78ccde7fbc031052631219761c242",
+    "app/app/config_thinking.py": "38c38a07357d6263f29d29ba7b7565d0b2384114104197de0e2bd15823c105ac",
+    "app/app/hypothesis_safety.py": "8fbae56b33c0ff2186fb91b856c1c9c251c142dce3647c4b60a7dedfff37202f",
+    "app/app/safety_semantic.py": "9e3f2524aabbe9a14833386a161b3e8c8987a8d9f3466f2f4948833950b77b38",
+    "engine/src/co_scientist/agents/ranking/ranking_debate.py": "ad4e6bfec819d825d1e8de68b9a177e01581fef19e4f42584f02010eb486543d",
+    "engine/src/co_scientist/agents/ranking/ranking_debate_turns.py": "65cb6e4065a620a586f2fa255c19470b0cb10d28edd4a2a4c96b4687b6afc2ef",
+    "engine/src/co_scientist/agents/ranking/ranking_results.py": "ed557f72ce162891bfb7db65a8a9b07fec0eac1af64ade724d662cb1dca93d8e",
+    "engine/src/co_scientist/constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+    "engine/src/co_scientist/constants_pricing.py": "9ff2ffe948b54c0e0030332c33bba0aeae6ac3e2bfab45ad20307ab886addb4c",
+    "engine/src/co_scientist/constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+    "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+    "engine/src/co_scientist/llm_call_budget.py": "aa672c17336c94dfc33f18da089891d389f660e62aa43c6a71533bcca41d5973",
+    "engine/src/co_scientist/llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+    "engine/src/co_scientist/llm_gateway_routing.py": "4a8b7b13281f4a809b8dab4271041857a3efac430aa71d42b981fb73bd86fe2f",
+    "engine/src/co_scientist/llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229",
+    "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+    "engine/src/co_scientist/llm_request_schema.py": "0a556ab5d4ee1e766e858328524bb94bbec56b37ea264149c750248bcf7e977f",
+    "engine/src/co_scientist/llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+    "engine/src/co_scientist/llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+    "evaluations/_live_config.py": "c885985f2e79084e1e2948cc71200e3485f4c141e76c378862105522ddbae0a3",
+    "evaluations/_panel_identity.py": "8b152590bfc5db2a4970c040bbc7d90d75fc0771568eff7707f05ae9d535daef",
+    "evaluations/_usage_evidence.py": "805f5fc6210e4111d1f40fbe41317d6a0c87eae6e3ebd46531f483d473c5e37a",
+    "evaluations/citation_eval.py": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee",
+    "evaluations/citation_usefulness_eval.py": "7826d5f0de95e2d8fdc6935119a183521c63cfa1be606e71a39c2280e155f26e",
+    "evaluations/datasets/citation_entailment_challenge_v1.json": "1636ddcfb94084ccabe5f155fd5701c3270c7ffc751e1c16a6450cece61c39f2",
+    "evaluations/datasets/citation_usefulness_v1.json": "cb9f8de808a7e1aab829644865f68fbdbcb9b1d85215dc59fddfef8c25e00078",
+    "evaluations/datasets/hypothesis_correctness_concordance_v1.json": "9bdeccd280e65bcd4fdbc6a0a8c6dc592d480376e6c7ecabf12848e896c48c3d",
+    "evaluations/elo_concordance_eval.py": "a77b9de0355ac2ba6e0c65b805e099f7fe575bc62680e03f5ebdd0fb5beda784",
+    "evaluations/safety_eval.py": "e8366a196fb78b83ed1c5134eefa09ddcc57561c9c674ac7fa57f8fc8277314c",
+    "references/external/baseline/model-qualification/batch-schema-preflight109.json": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21",
+    "references/external/baseline/model-qualification/historical-negative-controls.json": "2c226b079f5337b76919a842245744b429fbb76d78cc4ff70661b94f1300ec3a",
+    "references/external/baseline/model-qualification/ling-sante-current-sources-v1.json": "d6241b02e528ce230d3b1df12a429e058b4db459b27d23eb91d38d18cc56974d",
+    "references/external/baseline/model-qualification/partial-support-scope-controls.json": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "references/external/baseline/model-qualification/pro-current-sources163.json": "06344a84e7696f4d7719a4569f7bca7ae90a182643701b18038b0fe4e487c740",
+    "references/external/baseline/model-qualification/probe_batch_schema.py": "4fdd6b86e92e8d0c892b3c3b7fda98e1a5be7498e2980b728cc4d1f570d2a2aa",
+    "references/external/baseline/model-qualification/probe_citation_panel.py": "a8c9b650837f71531b84ec3aaff2b63b53d01e7679f68d17d0adb941838d5b23",
+    "references/external/baseline/model-qualification/probe_remaining_panel.py": "3f263d7dd0101ab47ca789b3244f86b6611902888e2f7bfed40bb4f1940e3bed",
+    "references/external/baseline/model-qualification/remaining-panel-criteria.md": "36c63697c56cf9d852b3a2fabf10652a40ed67c7f906266c3682a278fd779fc8"
+  },
+  "stages": [
+    {
+      "id": "batch",
+      "trials": 3,
+      "runner": "references/external/baseline/model-qualification/probe_batch_schema.py",
+      "expected_physical_calls_per_trial": 1,
+      "hard_ceiling_per_trial": 1,
+      "criteria": "all four exact labels partial/supports/insufficient/contradicts; self-contained verbatim quotes where required; model-primary verdicts, no fallback, complete served-model/usage evidence"
+    },
+    {
+      "id": "citation",
+      "trials": 3,
+      "runner": "references/external/baseline/model-qualification/probe_citation_panel.py",
+      "expected_physical_calls_per_trial": 64,
+      "hard_ceiling_per_trial": 80,
+      "criteria": "at least 27/30 correct (at most one additional error versus M1 28/30), contradiction recall at least .80, no new false contradiction, historical and controlled-primary and single/batch scope controls pass, no fallback",
+      "manifest": "references/external/baseline/model-qualification/ling-sante-current-sources-v1.json"
+    },
+    {
+      "id": "usefulness",
+      "trials": 3,
+      "runner": "references/external/baseline/model-qualification/probe_remaining_panel.py",
+      "expected_physical_calls_per_trial": 16,
+      "hard_ceiling_per_trial": 20,
+      "criteria": "at least 13/16 correct, zero useless spans called useful, at least 6/7 useful and 2/3 partial correct, no fallback"
+    },
+    {
+      "id": "ranking",
+      "trials": 3,
+      "runner": "references/external/baseline/model-qualification/probe_remaining_panel.py",
+      "expected_physical_calls_per_trial": 48,
+      "hard_ceiling_per_trial": 60,
+      "criteria": "at least 7/8 correct top choices, mean Kendall tau-b at least .68, no top ties or fallback"
+    }
+  ],
+  "acceptance_rationale": "M1 Nex Pro: batch 4/4; citation 28/30 and .80 contradiction recall; usefulness 13/16 with zero false useful; ranking 8/8 and lowest tau-b .7781. Candidate may lose at most one citation or top-choice item and .0981 tau-b, with no contradiction-recall or usefulness loss. These are small public screens, not expert validation.",
+  "execution": {
+    "order": [
+      "batch",
+      "citation",
+      "usefulness",
+      "ranking"
+    ],
+    "fresh_process_per_trial": true,
+    "cache": "disabled and isolated",
+    "credential": "only OPENROUTER_API_KEY extracted in launcher memory; no dotenv or secret in arguments/artifacts",
+    "pre_batch_admission": "fresh official catalog, exact endpoint and ZDR inventory; exact zero prompt/completion and binding zero request cap; stop on unknown price/status",
+    "stop": "Stop on admission/privacy/budget error, terminal transport failure, or an unrecovered rate-limit response; retain every physical attempt and its error. An internally recovered transport or 429 retry within the hard physical-call ceiling is allowed by remaining-panel-criteria.md and is not a scientific error. Never selectively rerun a bad quality trial; after a terminal 429 pause this stage and work elsewhere until reset.",
+    "drift": "commit amendment before changed input/code/config/rubric; rerun both sides if matching is lost",
+    "usage": "Record every physical attempt and response/error. Require served-model and prompt/completion usage for every successful completion; retain failed attempts, zero-price request caps, fallback evidence and response cost if present. A static zero estimate is not a billing receipt.",
+    "release": "no default/deploy before all stages pass and M11-OPS-02c verifies a public workflow",
+    "artifact_patterns": {
+      "batch": "references/external/baseline/model-qualification/ling-sante-batch-v1-{trial}.json",
+      "citation": "references/external/baseline/model-qualification/ling-sante-citation-v1-{trial}.json",
+      "usefulness": "references/external/baseline/model-qualification/ling-sante-usefulness-v1-{trial}.json",
+      "ranking": "references/external/baseline/model-qualification/ling-sante-ranking-v1-{trial}.json"
+    },
+    "trial_launch": "Set QUALIFICATION_TRIAL=1..3, QUALIFICATION_REVISION to the committed current HEAD, MODEL_NAME to the exact candidate, QUALIFICATION_OUTPUT to a new exclusive-create artifact, and QUALIFICATION_PANEL for usefulness/ranking. Launch a fresh child with only PATH/HOME/LANG/TMPDIR, PYTHONPATH to this worktree engine/src:app:root, and OPENROUTER_API_KEY extracted in memory from the existing Railway API variable list. Never print or persist the key.",
+    "complete_evidence": "For each completed trial verify frozen input/rubric hashes, exact provider controls on every physical attempt, served model and prompt/completion usage on successful responses, zero-cost receipts where reported, no deterministic fallback, and declared per-item metrics before proceeding."
+  },
+  "limits": [
+    "retained M1 pairs are historical, not contemporaneous provider randomization",
+    "same model ID need not imply stable future quality",
+    "passing synthetic panels does not prove expert or wet-lab scientific validity"
+  ],
+  "baseline_match_audit": {
+    "byte_identical_assessor_evaluator_input_and_policy_files": [
+      "app/app/claim_verifier.py",
+      "app/app/claim_verifier_batch.py",
+      "app/app/claims.py",
+      "app/app/claims_assessor.py",
+      "app/app/claims_batch.py",
+      "app/app/claims_gate.py",
+      "app/app/claims_span.py",
+      "engine/src/co_scientist/constants.py",
+      "engine/src/co_scientist/constants_tokens.py",
+      "engine/src/co_scientist/llm.py",
+      "engine/src/co_scientist/llm_gateway_body.py",
+      "engine/src/co_scientist/llm_json_escalation.py",
+      "engine/src/co_scientist/llm_thinking.py",
+      "engine/src/co_scientist/llm_types.py",
+      "evaluations/citation_usefulness_eval.py",
+      "evaluations/datasets/citation_entailment_challenge_v1.json",
+      "evaluations/datasets/citation_usefulness_v1.json",
+      "evaluations/datasets/hypothesis_correctness_concordance_v1.json",
+      "evaluations/elo_concordance_eval.py"
+    ],
+    "changed_request_policy_files": [
+      "engine/src/co_scientist/llm_gateway_routing.py",
+      "engine/src/co_scientist/llm_request.py",
+      "engine/src/co_scientist/llm_request_schema.py"
+    ],
+    "interpretation": "Nex Pro routing is unchanged by the exact-route additions; timeout classification and two other candidate-specific schema overrides changed since M1. The candidate model and route policy are the intended intervention. Panel identity digests therefore differ and panel_comparison cannot certify this cross-model comparison; compare fixed public inputs and preregistered metrics directly."
+  },
+  "primary_metric": {
+    "name": "independently qualified exact-zero ZDR standby route count",
+    "baseline": 0,
+    "candidate_target": 1,
+    "interpretation": "operational resilience after the advertised Nex Pro retirement date; not a claim of improved scientific accuracy or authority to switch production while Nex Pro remains eligible"
+  },
+  "decision_rule": {
+    "qualify": "All three completed trials pass every staged gate with complete served-model/usage evidence on successful responses and zero-cost/privacy controls on all attempts; source/input/config hashes fixed.",
+    "inconclusive": "A mixed series, missing usage, unrecovered rate limit, terminal provider error, or changed setting leaves the candidate open for diagnosis, never silently promoted; an internally recovered retry is judged by the completed trial and full telemetry.",
+    "reject": "repeatable completed structural or scientific failure under the frozen configuration, with raw failures preserved and no post-hoc threshold change",
+    "production": "qualification only selects a standby candidate; M11-OPS-02c separately controls switch and release"
+  },
+  "candidate_source_manifest": {
+    "path": "references/external/baseline/model-qualification/ling-sante-current-sources-v1.json",
+    "sha256": "d6241b02e528ce230d3b1df12a429e058b4db459b27d23eb91d38d18cc56974d",
+    "scope": "all current app/app, engine/src/co_scientist, evaluations Python modules plus frozen scope inputs; consumed by citation runner imported_sources guard"
+  }
+}

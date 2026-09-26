@@ -1,0 +1,196 @@
+{
+  "title": "M11 26 September exact-zero ZDR route and bounded Qwen admission",
+  "checked_at_utc": "2026-09-26T06:59:41.718382+00:00",
+  "source_receipts": [
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "cb98e537611dd0eeb25930ba340a75efa4c5732c126e61c1f075f864e79f7d22",
+      "bytes": 750912,
+      "captured_file_mtime_utc": "2026-09-26T06:50:41.592335+00:00"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "sha256": "df39aac92f0f8cc32c9c37eab65f929b53af9207c1b4095c1a3c2aa05240bb06",
+      "bytes": 882815,
+      "captured_file_mtime_utc": "2026-09-26T06:50:41.739236+00:00"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/qwen/qwen3.8-27b%3Afree/endpoints",
+      "sha256": "6863e242d7017aa18386d59504f4445308adf300b6417a8802a2f6198ce42067",
+      "bytes": 1433,
+      "captured_file_mtime_utc": "2026-09-26T06:51:34.032602+00:00"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-sante%3Afree/endpoints",
+      "sha256": "78c3cec0f60770df219792358af32dcd64f056450c57e680cfbbb90ded651935",
+      "bytes": 1435,
+      "captured_file_mtime_utc": "2026-09-26T06:51:34.106694+00:00"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-fin%3Afree/endpoints",
+      "sha256": "a351b6f6fbfb4f53196c00e20d15d3c117228037db391f31495726285f84e0a8",
+      "bytes": 1433,
+      "captured_file_mtime_utc": "2026-09-26T06:51:34.173468+00:00"
+    }
+  ],
+  "screen": {
+    "catalog_exact_zero_model_count": 21,
+    "exact_zero_zdr_free_endpoints": [
+      {
+        "model_id": "inclusionai/ling-3.0-flash-fin:free",
+        "provider": "Novita",
+        "tag": "novita",
+        "prompt_price": "0",
+        "completion_price": "0",
+        "endpoint_status_at_listing": 0,
+        "endpoint_supported_parameters": [
+          "reasoning",
+          "include_reasoning",
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "stop",
+          "frequency_penalty",
+          "presence_penalty",
+          "seed",
+          "top_k",
+          "repetition_penalty",
+          "tools",
+          "tool_choice",
+          "logprobs",
+          "top_logprobs"
+        ],
+        "catalog_supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logprobs",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "repetition_penalty",
+          "seed",
+          "stop",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "inclusionai/ling-3.0-flash-sante:free",
+        "provider": "Novita",
+        "tag": "novita",
+        "prompt_price": "0",
+        "completion_price": "0",
+        "endpoint_status_at_listing": 0,
+        "endpoint_supported_parameters": [
+          "reasoning",
+          "include_reasoning",
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "stop",
+          "frequency_penalty",
+          "presence_penalty",
+          "seed",
+          "top_k",
+          "repetition_penalty",
+          "tools",
+          "tool_choice",
+          "logprobs",
+          "top_logprobs"
+        ],
+        "catalog_supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logprobs",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "repetition_penalty",
+          "seed",
+          "stop",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "qwen/qwen3.8-27b:free",
+        "provider": "ModelRun",
+        "tag": "modelrun/fp4",
+        "prompt_price": "0",
+        "completion_price": "0",
+        "endpoint_status_at_listing": 0,
+        "endpoint_supported_parameters": [
+          "reasoning",
+          "include_reasoning",
+          "max_tokens",
+          "temperature",
+          "presence_penalty",
+          "repetition_penalty",
+          "frequency_penalty",
+          "stop",
+          "top_p",
+          "structured_outputs",
+          "tools",
+          "tool_choice",
+          "reasoning_effort"
+        ],
+        "catalog_supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "reasoning_effort",
+          "repetition_penalty",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      }
+    ],
+    "interpretation": "Qwen/ModelRun is the only listed endpoint with structured_outputs and tools among exact-zero ZDR free routes. Ling Sante and Ling Fin list tools but not structured_outputs; metadata is not a live compatibility result."
+  },
+  "live_boundary": {
+    "requested_model": "openrouter/qwen/qwen3.8-27b:free",
+    "probe_file": "references/external/baseline/model-qualification/qwen-m11-capabilities-2026-09-26.json",
+    "probe_sha256": "2ffacc4871f4b4312c4871fd87f8355b28536445d335b7f2feee2a706b092a46",
+    "first_case": "json_off",
+    "error_type": "RateLimitError",
+    "physical_calls": 1,
+    "served_models": [],
+    "request_controls": {
+      "require_parameters": true,
+      "allow_fallbacks": true,
+      "preferred_min_throughput": 25,
+      "only": [
+        "modelrun"
+      ],
+      "zdr": true,
+      "data_collection": "deny",
+      "max_price": {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0
+      }
+    },
+    "outcome": "Upstream ModelRun shared-pool 429 on first request; runner stopped, no retries, no served model or reported usage. No qualification."
+  },
+  "decision": {
+    "M11-OPS-02b": "open",
+    "M11-OPS-02c": "open",
+    "default_switch": "none",
+    "next": "Do not retry Qwen on a timer. Investigate whether Ling Sante can meet the existing structured-output contract without weakening the workflow; no live call until a separate exact-zero admission and bounded test. Keep production defaults unchanged."
+  },
+  "privacy_note": "The 25 September retained provider directory/terms review still applies. This screen used only public metadata and a synthetic claim; no private documents or user runs were sent."
+}

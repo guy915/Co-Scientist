@@ -1,0 +1,14 @@
+{
+  "title": "Sanitized Railway API production model-role readback",
+  "checked_at_utc": "2026-09-26T08:36:05.932403+00:00",
+  "source": "railway variable list --project 74f2b037-0094-49d2-b645-4849991234af --environment production --service api --json",
+  "scope": "whitelisted non-secret model-role values only; no credential names or values retained",
+  "roles": {
+    "MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SUPERVISOR_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "CHAT_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SEMANTIC_SAFETY_MODEL": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "CLAIM_VERIFIER_MODEL": null,
+    "COSCIENTIST_REQUIRE_FREE_MODELS": null
+  }
+}

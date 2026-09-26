@@ -1,10 +1,39 @@
 # Free-model qualification
 
-Current status (22 September 2026): [Nex Pro is selected](../model-choice-2026-09-22.md)
+M1 selection (22 September 2026): [Nex Pro is selected](../model-choice-2026-09-22.md)
 for the next campaign release from existing evidence and the current public
-catalog. No automatic fallback is selected. The production default has not been
-switched. The user ended further M1 model benchmarks; unqualified alternatives
-below retain that label without new trials.
+catalog at that time. No automatic fallback was selected. The [production roles](m11-production-model-roles-2026-09-26.json)
+were switched to Nex Pro, but the [26 September post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
+no longer finds that route in the official catalog. The user ended further M1
+model benchmarks; M11's separately preregistered successor checks and their
+limits are recorded below.
+
+**26 September replacement check:** the [current public endpoint screen](m11-free-route-current-research-2026-09-26.json)
+finds three exact-zero free routes in OpenRouter's ZDR inventory. Only
+Qwen/ModelRun advertises structured output as well as tools. Its endpoint
+reported available before the single capped [actual-interface request](qwen-m11-capabilities-2026-09-26.json),
+but that request again returned an upstream shared-pool 429. The runner stopped
+after one call with no served model or usage receipt. Ling Sante and Ling Fin
+have no advertised structured-output support. At that initial screen neither
+had been qualified through this application's JSON boundary. No model or
+production default was selected. Do not retry Qwen on a timer.
+The [Ling Sante compatibility adapter](ling-sante-json-gap-2026-09-26.md) later
+passed a bounded synthetic interface panel but failed its [frozen scientific
+batch gate](ling-sante-batch-assessment-v1.md); it remains open/inconclusive and
+is not a default. Its provisional application route was removed before release;
+the pinned trial source and raw evidence remain historical. The [fresh post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
+still finds only Qwen, Ling Sante and Ling Fin at active exact-zero ZDR endpoints.
+The [Fin decision](m11-fin-candidate-decision-2026-09-26.md) records a bounded
+next candidate. Its exact-route request adapter passed offline boundary checks;
+the [Fin preregistration](ling-fin-qualification-prereg-v1.json) pins the
+interface and scientific gates before inference. The [bounded live interface
+panel](ling-fin-interface-assessment-v1.md) passed six cases in seven capped
+requests. Its [frozen four-claim scientific batch gate](ling-fin-batch-assessment-v1.md)
+then completed three fresh trials with the same wrong partial-support label
+in every trial. This exact configuration is rejected as a scientific standby;
+larger panels were stopped and no default or deployment changed. The provisional
+Fin application route was then removed; its frozen source commit and raw trial
+artifacts remain for audit, not as a current runnable route.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;
@@ -17,7 +46,8 @@ exact-endpoint native-schema correction, one
 [`json_off` retry](qwen-candidate-2026-09-25-native-json-off.json) reached
 ModelRun but received an upstream shared-pool 429. The runner stopped; no
 response, served-model identity or billing receipt was observed. Qwen remains
-unqualified and is not a default or fallback. No further Qwen panel is queued.
+unqualified and is not a default or fallback. No further Qwen panel was queued
+on 25 September.
 
 - **Contradiction candidate:** all three `opposition-magnitude-pro` pairs passed
   with the documented provenance correction. Candidate accuracy/recall were

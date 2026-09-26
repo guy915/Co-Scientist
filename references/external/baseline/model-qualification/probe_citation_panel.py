@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import litellm
+from co_scientist.llm_call_budget import scoped_llm_call_budget
 from evaluations import citation_eval
 from qualification_sources import imported_sources
 
@@ -77,7 +78,12 @@ async def observed_transport(**kwargs):
         json.dumps(kwargs.get("messages"), sort_keys=True).encode()
     ).hexdigest()
     _REQUESTS.append(record)
-    response = await _TRANSPORT(**kwargs)
+    try:
+        response = await _TRANSPORT(**kwargs)
+    except Exception as exc:
+        record["error_type"] = type(exc).__name__
+        record["error"] = sanitize_error(exc)
+        raise
     record["response_model"] = getattr(response, "model", None)
     record["content"] = response.choices[0].message.content
     usage = getattr(response, "usage", None)
@@ -196,6 +202,9 @@ def historical_controls(dataset):
 
 
 if __name__ == "__main__":
+    output = Path(os.environ["QUALIFICATION_OUTPUT"])
+    output.touch(exist_ok=False)
+    budget_run_id = f"qualification:{output.resolve()}"
     root = Path(
         os.environ.get("QUALIFICATION_ROOT", Path(__file__).resolve().parents[4])
     ).resolve()
@@ -242,18 +251,20 @@ if __name__ == "__main__":
             k: catalog[raw].get(k)
             for k in ("id", "pricing", "architecture", "supported_parameters")
         }
-        record["report"] = citation_eval.run(
-            use_llm=True,
-            dataset_path=root
-            / "evaluations/datasets/citation_entailment_challenge_v1.json",
-        )
+        with scoped_llm_call_budget(budget_run_id, 80):
+            record["report"] = citation_eval.run(
+                use_llm=True,
+                dataset_path=root
+                / "evaluations/datasets/citation_entailment_challenge_v1.json",
+            )
         if os.environ.get("QUALIFICATION_CONTROLS"):
             path = Path(os.environ["QUALIFICATION_CONTROLS"])
             controls = json.loads(path.read_text())
             record["controls_sha256"] = digest(path)
-            record["historical_controls"], record["controlled_primary"] = (
-                historical_controls(controls)
-            )
+            with scoped_llm_call_budget(budget_run_id, 80):
+                record["historical_controls"], record["controlled_primary"] = (
+                    historical_controls(controls)
+                )
         if os.environ.get("QUALIFICATION_SCOPE_CONTROLS"):
             from scope_controls import evaluate_model_scope_controls
 
@@ -272,11 +283,12 @@ if __name__ == "__main__":
                 global _PHASE
                 _PHASE = "scope_" + mode
 
-            record["scope_controls"] = evaluate_model_scope_controls(
-                json.loads(path.read_text()),
-                os.environ["MODEL_NAME"],
-                before_mode=scope_phase,
-            )
+            with scoped_llm_call_budget(budget_run_id, 80):
+                record["scope_controls"] = evaluate_model_scope_controls(
+                    json.loads(path.read_text()),
+                    os.environ["MODEL_NAME"],
+                    before_mode=scope_phase,
+                )
     except Exception as exc:
         record["error_type"] = type(exc).__name__
         record["error"] = sanitize_error(exc)
@@ -294,9 +306,7 @@ if __name__ == "__main__":
     record["physical_requests"] = _REQUESTS
     record["assessments"] = _ASSESSMENTS
     record["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    Path(os.environ["QUALIFICATION_OUTPUT"]).write_text(
-        json.dumps(record, indent=2) + "\n"
-    )
+    output.write_text(json.dumps(record, indent=2) + "\n")
     print(
         json.dumps(
             {

@@ -1,0 +1,411 @@
+{
+  "trial": 2,
+  "source_commit": "a12bdd7a294a09551f589188e9c1a3d54a08a1fe",
+  "requested_model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+  "probe_sha256": "4fdd6b86e92e8d0c892b3c3b7fda98e1a5be7498e2980b728cc4d1f570d2a2aa",
+  "preflight_sha256": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21",
+  "started_at": "2026-09-26T08:10:23.664026+00:00",
+  "batch_invocations": [
+    {
+      "claims": 4,
+      "passages": 4
+    }
+  ],
+  "frozen_inputs": {
+    "dataset": "partial-support-scope-controls.json",
+    "dataset_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "schema_sha256": "ac8755c394641e7e70310099bfde6dced4c9b7526790d4bf5c7ce94fc68c80df",
+    "selected_ids": [
+      "same_scope_part_of_result",
+      "matching_scope_full_support",
+      "changed_population",
+      "matching_scope_contradiction"
+    ],
+    "expected_labels": [
+      "partial",
+      "supports",
+      "insufficient",
+      "contradicts"
+    ]
+  },
+  "assessor_sources": {
+    "app.claim_verifier_batch": {
+      "path": "app/app/claim_verifier_batch.py",
+      "sha256": "006782b1a048abff9bd2b7ee7d72a57339a18502129fa581185be2cf893acec6"
+    },
+    "app.claims_batch": {
+      "path": "app/app/claims_batch.py",
+      "sha256": "afa984e486c77c946d4d8827eb4ea1abeb11d707f102013ea249a6f29d35f301"
+    },
+    "app.claim_verifier": {
+      "path": "app/app/claim_verifier.py",
+      "sha256": "aaa98c378e11aeb1d2be085b52fe1667f9004ab071d006a0b078e5c10419c1ef"
+    },
+    "app.claim_verifier_opposition": {
+      "path": "app/app/claim_verifier_opposition.py",
+      "sha256": "53e087b2a0c5960a381a94a38aa50a1625df395d2e40df1993c50b6d2c4b1381"
+    },
+    "app.claims_assessor": {
+      "path": "app/app/claims_assessor.py",
+      "sha256": "331a96dab16dad29a09aef589ec346c686dfd620a4eec3252a4db2c17fe923fd"
+    },
+    "app.claims_span": {
+      "path": "app/app/claims_span.py",
+      "sha256": "8e791f624be2403ac3d6f391205c274dc59de19bd136b72da8e34b25281bd911"
+    },
+    "app.claims_gate": {
+      "path": "app/app/claims_gate.py",
+      "sha256": "0d09de7be5dbd67da0fb6c80e4e1232dc73fd6b2303d2f9aa7be9f3b41c7dd20"
+    },
+    "co_scientist.llm": {
+      "path": "engine/src/co_scientist/llm.py",
+      "sha256": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40"
+    }
+  },
+  "eligibility": {
+    "id": "inclusionai/ling-3.0-flash-sante:free",
+    "canonical_slug": "inclusionai/ling-3.0-flash-sante-20260904",
+    "hugging_face_id": null,
+    "name": "inclusionAI: Ling 3.0 Flash Sante (free)",
+    "created": 1788545946,
+    "description": "Ling 3.0 Flash Sante is a health and medicine-focused mixture-of-experts model from InclusionAI, built on Ling 3.0 Flash with 5.1B active parameters out of 124B total. It is designed for...",
+    "context_length": 262144,
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 262144,
+      "max_completion_tokens": 32768,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logprobs",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "repetition_penalty",
+      "seed",
+      "stop",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/inclusionai/ling-3.0-flash-sante-20260904/endpoints"
+    },
+    "reasoning": {
+      "mandatory": false,
+      "default_enabled": true
+    }
+  },
+  "panel_evidence": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/inclusionai/ling-3.0-flash-sante:free": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/inclusionai/ling-3.0-flash-sante:free": 1
+          },
+          "prompt_tokens": 1651,
+          "completion_tokens": 1581,
+          "reasoning_tokens": 1552,
+          "cached_prompt_tokens": 1600,
+          "cost_usd": 0.0,
+          "latency_seconds": 8.499441458996444,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 1,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/inclusionai/ling-3.0-flash-sante:free": 1
+      },
+      "observed_models": [
+        "openrouter/inclusionai/ling-3.0-flash-sante:free"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "items": [
+          {
+            "id": "same_scope_part_of_result",
+            "claim": "In adult human hepatocytes, compound R reduces lipid accumulation and restores insulin sensitivity after seven days.",
+            "passages": [
+              "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured."
+            ],
+            "allowed_labels": [
+              "partial"
+            ]
+          },
+          {
+            "id": "matching_scope_full_support",
+            "claim": "Treatment S reduces migration of adult human fibroblasts after 24 hours.",
+            "passages": [
+              "Adult human fibroblasts migrated less after 24 hours of treatment S."
+            ],
+            "allowed_labels": [
+              "supports"
+            ]
+          },
+          {
+            "id": "changed_population",
+            "claim": "Intervention L lowers blood pressure in adults with chronic kidney disease.",
+            "passages": [
+              "Intervention L lowered blood pressure in healthy adults; people with chronic kidney disease were excluded."
+            ],
+            "allowed_labels": [
+              "insufficient"
+            ]
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "claim": "Treatment S increases migration of adult human fibroblasts after 24 hours.",
+            "passages": [
+              "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration."
+            ],
+            "allowed_labels": [
+              "contradicts"
+            ]
+          }
+        ]
+      },
+      "model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+        "llm_free_policy.py": "aa5ea5cacfaee9ff26e0ce6df2a0ec7fe3a8c9ebfbaf1568cfcf285db13b6964",
+        "llm_free_catalog.py": "0b09512e726d4424c1a1d74b2f7bd9d9b286f7df5b25838f54625a8910995ebc",
+        "llm_gateway_routing.py": "4a8b7b13281f4a809b8dab4271041857a3efac430aa71d42b981fb73bd86fe2f",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "0a556ab5d4ee1e766e858328524bb94bbec56b37ea264149c750248bcf7e977f",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "only": [
+              "novita"
+            ],
+            "zdr": true,
+            "data_collection": "deny",
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": true,
+            "preferred_min_throughput": 25,
+            "only": [
+              "novita"
+            ],
+            "zdr": true,
+            "data_collection": "deny",
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "12471b24452b31dc851b40dae359185b93a6473c633b323ef8b9889d7a04b54a"
+    }
+  },
+  "report": {
+    "checks": [
+      {
+        "id": "same_scope_part_of_result",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "same_scope_part_of_result",
+            "quote": "compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured",
+            "start": 28,
+            "end": 120,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_full_support",
+        "label": "supports",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "matching_scope_full_support",
+            "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S",
+            "start": 0,
+            "end": 67,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "changed_population",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "changed_population",
+            "quote": "Intervention L lowered blood pressure in healthy adults; people with chronic kidney disease were excluded",
+            "start": 0,
+            "end": 105,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_contradiction",
+        "label": "contradicts",
+        "verification_method": "lexical_founded",
+        "supporting_spans": [],
+        "contradicting_spans": [
+          {
+            "evidence_id": "matching_scope_contradiction",
+            "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration",
+            "start": 0,
+            "end": 104,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ]
+      }
+    ]
+  },
+  "physical_requests": [
+    {
+      "model": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": true,
+          "preferred_min_throughput": 25,
+          "only": [
+            "novita"
+          ],
+          "zdr": true,
+          "data_collection": "deny",
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": null,
+      "phase": "challenge",
+      "started_at": "2026-09-26T08:10:23.751914+00:00",
+      "prompt_sha256": "3d8f5159e94a09bb8f11940032b20e2ec4ef111e9de92e06f6d78d9461265218",
+      "response_model": "inclusionai/ling-3.0-flash-sante:free",
+      "content": "{\"verdicts\":[{\"index\":1,\"label\":\"insufficient\",\"supporting\":[{\"passage\":1,\"quote\":\"compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured\"}],\"contradicting\":[]},{\"index\":2,\"label\":\"supports\",\"supporting\":[{\"passage\":4,\"quote\":\"Adult human fibroblasts migrated less after 24 hours of treatment S\"}],\"contradicting\":[]},{\"index\":3,\"label\":\"insufficient\",\"supporting\":[{\"passage\":3,\"quote\":\"Intervention L lowered blood pressure in healthy adults; people with chronic kidney disease were excluded\"}],\"contradicting\":[]},{\"index\":4,\"label\":\"contradicts\",\"supporting\":[],\"contradicting\":[{\"passage\":2,\"quote\":\"Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration\"}]}]}",
+      "usage": {
+        "completion_tokens": 1581,
+        "prompt_tokens": 1651,
+        "total_tokens": 3232,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1552,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1600,
+          "text_tokens": null,
+          "image_tokens": null,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "physical_request_count": 1,
+  "finished_at": "2026-09-26T08:10:32.266141+00:00"
+}

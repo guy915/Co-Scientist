@@ -1,0 +1,37 @@
+a/m11-rung-hu940gs9/worktrees/baseline/engine/mcp_server/.env - using system environment only
+2026-09-25 22:41:31 - mcp_server.server - INFO - MCP server starting
+2026-09-25 22:41:31 - mcp_server.server - INFO - Registered 18 MCP tools: check_pubmed_available, search_pubmed, pubmed_search_with_fulltext, search_openalex, get_opencitations_citation_edges, search_chembl, search_uniprot, search_string_interactions, search_reactome_pathways, search_open_targets, search_europepmc, search_preprints, search_arxiv, search_biorxiv, search_ensembl_gene, search_gnomad_constraint, search_gwas_catalog_associations, search_clinical_trials
+2026-09-25 22:41:31 - mcp_server.server - INFO - PubMed: anonymous (ENTREZ_EMAIL unset; reachability not yet checked)
+2026-09-25 22:41:31 - mcp_server.server - INFO - MCP shared-secret auth: enabled
+2026-09-25 22:41:31 - mcp_server.tools.lit_review.pubmed_search_with_fulltext - INFO - Searching pubmed with query: offline launcher trace probe, slug: m11_launcher_probe_46124, run_id: m11_launcher_probe_46124, max_papers: 3, recency_years: 0
+2026-09-25 22:41:31 - mcp_server.shared_pool - INFO - Using shared pool with per-run tracking: run_id=m11_launcher_probe_46124
+2026-09-25 22:41:31 - mcp_server.literature_review - INFO - Requesting 9 papers from PubMed to find 3 with fulltext
+2026-09-25 22:41:31 - mcp_server.pubmed_query - INFO - PubMed search: rung_index=1 rung_type=exact result_count=3 threshold_met=True selected_query='offline launcher trace probe'
+2026-09-25 22:41:33 - mcp_server.literature_review - INFO - fulltext availability: 3/3 papers have PMC fulltexts
+2026-09-25 22:41:33 - mcp_server.literature_review - INFO - selecting 3/3 papers with fulltext (target: 3)
+2026-09-25 22:41:33 - mcp_server.fulltext_download - INFO - Downloading 3 fulltexts serially for PubMed pilot
+2026-09-25 22:41:34 - mcp_server.fulltext_download - INFO - Downloaded and saved fulltext PMC99000001 to shared pool
+2026-09-25 22:41:34 - mcp_server.fulltext_download - INFO - Downloaded and saved fulltext PMC99000002 to shared pool
+2026-09-25 22:41:35 - mcp_server.fulltext_download - INFO - Downloaded and saved fulltext PMC99000003 to shared pool
+2026-09-25 22:41:35 - mcp_server.shared_pool - INFO - Saved manifest for run m11_launcher_probe_46124: 3 papers
+2026-09-25 22:41:35 - mcp_server.literature_review - INFO - Returning 3 papers (0 with fulltext; target was 3)
+2026-09-25 22:41:35 - mcp_server.tools.lit_review.pubmed_search_with_fulltext - INFO - Pubmed search complete - found 3 papers
+2026-09-25 22:41:35 - mcp_server.tools.lit_review.pubmed_search_with_fulltext - INFO - Extracted fulltext for 3/3 papers
+/Users/guy/Code/co-scientist/.venv-mcp/lib/python3.12/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+  warnings.warn(  # deprecated in 14.0 - 2024-11-09
+/Users/guy/Code/co-scientist/.venv-mcp/lib/python3.12/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+  from websockets.server import WebSocketServerProtocol
+INFO:     Started server process [46124]
+INFO:     Waiting for application startup.
+2026-09-25 22:41:35 - docket.worker - INFO - Starting worker 'Guys-MacBook.local#46124' with the following tasks:
+2026-09-25 22:41:35 - docket.worker - INFO - * trace(message: str, ...)
+2026-09-25 22:41:35 - docket.worker - INFO - * fail(message: str, ...)
+2026-09-25 22:41:35 - docket.worker - INFO - * sleep(seconds: float, ...)
+2026-09-25 22:41:35 - mcp.server.streamable_http_manager - INFO - StreamableHTTP session manager started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:55865 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-09-25 22:42:58 - mcp.server.streamable_http_manager - INFO - StreamableHTTP session manager shutting down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [46124]

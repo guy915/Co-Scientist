@@ -1,0 +1,50 @@
+{
+  "title": "Ling Fin batch stage admission before trial series",
+  "checked_at_utc": "2026-09-26T10:01:34.158061+00:00",
+  "model_id": "inclusionai/ling-3.0-flash-fin:free",
+  "source_urls": {
+    "catalog": "https://openrouter.ai/api/v1/models",
+    "endpoints": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-fin:free/endpoints",
+    "zdr": "https://openrouter.ai/api/v1/endpoints/zdr"
+  },
+  "catalog_pricing": {
+    "prompt": "0",
+    "completion": "0",
+    "request": null
+  },
+  "exact_endpoint": {
+    "name": "Novita | inclusionai/ling-3.0-flash-fin-20260827:free",
+    "tag": "novita",
+    "status": 0,
+    "pricing": {
+      "prompt": "0",
+      "completion": "0",
+      "discount": 0
+    },
+    "supported_parameters": [
+      "reasoning",
+      "include_reasoning",
+      "max_tokens",
+      "temperature",
+      "top_p",
+      "stop",
+      "frequency_penalty",
+      "presence_penalty",
+      "seed",
+      "top_k",
+      "repetition_penalty",
+      "tools",
+      "tool_choice",
+      "logprobs",
+      "top_logprobs"
+    ]
+  },
+  "zdr_name_tag_matches": 1,
+  "request_price_publicly_verified": false,
+  "required_request_caps": {
+    "prompt": 0,
+    "completion": 0,
+    "request": 0
+  },
+  "scope": "credential-free metadata only; not a billing receipt or scientific result"
+}

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 import hashlib
 import os
 import subprocess
+from contextlib import nullcontext
 from urllib.parse import urlsplit
 from typing import Any
 
@@ -20,6 +22,18 @@ CORRECTED_INPUTS_SHA256 = (
 CORRECTED_SOURCES_SHA256 = (
     "79adb5adc0129939e3cfa55d7da38703753f52365d86ce9e8db843e13c3eb9af"
 )
+INDEPENDENT_PREREG_SHA256 = (
+    "dec79fbe21bec82ee6535cc711cc66b2f37da61d5ef79a2eb4c0f7c2e8b8b3e8"
+)
+INDEPENDENT_INPUT_SHA256 = (
+    "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0"
+)
+CONFIRMATORY_PREREG_SHA256 = (
+    "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3"
+)
+CONFIRMATORY_INPUT_SHA256 = (
+    "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5"
+)
 
 
 def _canonical_digest(value: Any) -> str:
@@ -27,6 +41,769 @@ def _canonical_digest(value: Any) -> str:
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def test_independent_protocol_is_explicitly_opt_in_and_stops_before_mcp(
+    monkeypatch, tmp_path, capsys
+):
+    prereg = runner.HERE / "novelty-precise-rung-01b2b-independent-prereg-v1.json"
+    assert hashlib.sha256(prereg.read_bytes()).hexdigest() == INDEPENDENT_PREREG_SHA256
+    monkeypatch.setattr(
+        runner,
+        "INDEPENDENT_AMENDMENT",
+        tmp_path / "missing-independent-amendment.json",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+    output = tmp_path / "result.json"
+    argv = [
+        "--protocol",
+        "independent",
+        "--baseline-url",
+        "http://127.0.0.1:8898/mcp",
+        "--candidate-url",
+        "http://127.0.0.1:8899/mcp",
+        "--baseline-root",
+        str(tmp_path / "baseline-root"),
+        "--candidate-root",
+        str(tmp_path / "candidate-root"),
+        "--baseline-cache",
+        str(tmp_path / "baseline-cache"),
+        "--candidate-cache",
+        str(tmp_path / "candidate-cache"),
+        "--baseline-pid",
+        "18898",
+        "--candidate-pid",
+        "18899",
+        "--baseline-launch-receipt",
+        str(tmp_path / "baseline-launch.json"),
+        "--candidate-launch-receipt",
+        str(tmp_path / "candidate-launch.json"),
+        "--output",
+        str(output),
+    ]
+
+    assert runner.main(argv) == 2
+    assert not output.exists()
+    assert "independent amendment is missing" in capsys.readouterr().err.lower()
+
+
+def test_authorized_independent_preflight_failure_is_durable_without_mcp(
+    monkeypatch, tmp_path
+):
+    amendment = tmp_path / "amendment.json"
+    amendment.write_text('{"status":"authorized_for_retrieval"}')
+    monkeypatch.setattr(runner, "INDEPENDENT_AMENDMENT", amendment)
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _args: (_ for _ in ()).throw(ValueError("pin mismatch")),
+    )
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+    output = tmp_path / "result.json"
+    argv = ["--protocol", "independent", "--output", str(output)]
+    for arm in ("baseline", "candidate"):
+        argv.extend(
+            [
+                f"--{arm}-url",
+                "http://127.0.0.1:8898/mcp",
+                f"--{arm}-root",
+                str(tmp_path / arm),
+                f"--{arm}-cache",
+                str(tmp_path / f"{arm}-cache"),
+                f"--{arm}-pid",
+                "18898",
+            ]
+        )
+
+    assert runner.main(argv) == 2
+    stopped = json.loads(output.read_text(encoding="utf-8"))
+    assert stopped["status"] == "STOPPED"
+    assert stopped["error"] == {"stage": "preflight", "class": "ValueError"}
+    assert stopped["calls"] == []
+    assert stopped["model_inference_calls"] == 0
+
+
+def test_independent_protocol_parses_only_key_free_runner_inputs(monkeypatch):
+    prereg_text = runner.INDEPENDENT_PREREG.read_text(encoding="utf-8")
+    source_text = runner.PREREG.read_text(encoding="utf-8")
+    real_loads = json.loads
+    loaded: list[str] = []
+
+    def guarded_loads(payload: str, *args: Any, **kwargs: Any):
+        assert payload not in {prereg_text, source_text}
+        loaded.append(payload)
+        return real_loads(payload, *args, **kwargs)
+
+    monkeypatch.setattr(runner.json, "loads", guarded_loads)
+    monkeypatch.setattr(
+        runner, "INDEPENDENT_AMENDMENT", runner.HERE / "missing-amendment.json"
+    )
+    with pytest.raises(ValueError, match="Independent amendment is missing"):
+        runner._independent_protocol(type("Args", (), {})())
+    assert len(loaded) == 1
+    assert hashlib.sha256(loaded[0].encode()).hexdigest() == INDEPENDENT_INPUT_SHA256
+
+
+def test_confirmatory_schedule_uses_the_six_frozen_requests_in_paired_order():
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+
+    assert tuple(requests) == ("N01", "N02", "N03", "N04", "N05", "N06")
+    assert len(call_order) == runner.CONFIRMATORY_MAX_OUTER_CALLS == 12
+    assert call_order == tuple(
+        (request_id, arm)
+        for request_id in requests
+        for arm in ("baseline", "candidate")
+    )
+    assert all(
+        request.query == runner_inputs["request_inputs"][index]["draft"]
+        for index, request in enumerate(requests.values())
+    )
+
+
+def test_confirmatory_schedule_rejects_changed_order_or_wire_query():
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    runner_inputs["paired_call_order"][1]["request_id"] = "N02"
+    with pytest.raises(ValueError, match="paired call order"):
+        runner._confirmatory_schedule(runner_inputs)
+
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    runner_inputs["request_inputs"][0]["exact_query"] += " changed"
+    with pytest.raises(ValueError, match="query"):
+        runner._confirmatory_schedule(runner_inputs)
+
+
+def test_confirmatory_protocol_reads_only_key_free_input_and_stays_closed(
+    monkeypatch,
+):
+    prereg_text = runner.CONFIRMATORY_PREREG.read_text(encoding="utf-8")
+    input_text = runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8")
+    real_loads = json.loads
+    loaded: list[str] = []
+
+    def guarded_loads(payload: str, *args: Any, **kwargs: Any):
+        assert payload != prereg_text
+        loaded.append(payload)
+        return real_loads(payload, *args, **kwargs)
+
+    monkeypatch.setattr(runner.json, "loads", guarded_loads)
+    monkeypatch.setattr(
+        runner,
+        "CONFIRMATORY_AMENDMENT",
+        runner.HERE / "missing-confirmatory-amendment.json",
+    )
+    with pytest.raises(
+        ValueError, match="Confirmatory authorization amendment is missing"
+    ):
+        runner._confirmatory_protocol(type("Args", (), {})())
+
+    assert loaded == [input_text]
+    assert hashlib.sha256(input_text.encode()).hexdigest() == CONFIRMATORY_INPUT_SHA256
+
+
+def test_confirmatory_cli_fails_closed_without_authorization_before_mcp(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        runner,
+        "CONFIRMATORY_AMENDMENT",
+        tmp_path / "missing-confirmatory-amendment.json",
+    )
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+    output = tmp_path / "result.json"
+    argv = ["--protocol", "confirmatory", "--output", str(output)]
+    for arm, port, pid in (("baseline", 8898, 18898), ("candidate", 8899, 18899)):
+        argv.extend(
+            [
+                f"--{arm}-url",
+                f"http://127.0.0.1:{port}/mcp",
+                f"--{arm}-root",
+                str(tmp_path / f"{arm}-root"),
+                f"--{arm}-cache",
+                str(tmp_path / f"{arm}-cache"),
+                f"--{arm}-pid",
+                str(pid),
+            ]
+        )
+
+    assert runner.main(argv) == 2
+    assert not output.exists()
+    assert (
+        "confirmatory authorization amendment is missing"
+        in capsys.readouterr().err.lower()
+    )
+
+
+def test_confirmatory_blind_items_keep_query_and_opaque_token_only(
+    monkeypatch, tmp_path
+):
+    request = runner.Request("N01", "exact frozen query")
+    runtime = runner.Runtime(
+        arms=_fake_arms(tmp_path),
+        tool=None,
+        pilot_id="m11novrung01c1confirmatoryv1",
+        parser=None,
+        protocol="confirmatory",
+    )
+    monkeypatch.setattr(runner.secrets, "token_urlsafe", lambda _size: "opaque-token")
+
+    papers, blind_items, locked_items = runner._confirmatory_case_artifacts(
+        runtime,
+        request,
+        runtime.arms["baseline"],
+        [{"pmid": "12345", "blind_item_id": "internal-item"}],
+        [
+            {
+                "item_id": "internal-item",
+                "title": "Private source title",
+                "abstract": "Abstract text",
+            }
+        ],
+    )
+
+    assert papers == [{"pmid": "12345", "item_token": "opaque-token"}]
+    assert blind_items == [
+        {
+            "item_token": "opaque-token",
+            "query": request.query,
+            "title": "Private source title",
+            "abstract": "Abstract text",
+        }
+    ]
+    assert locked_items == [
+        {
+            "item_token": "opaque-token",
+            "request_id": "N01",
+            "arm": "baseline",
+            "pmid": "12345",
+            "source_title": "Private source title",
+        }
+    ]
+    assert not any(
+        key in blind_items[0]
+        for key in ("request_id", "arm", "pmid", "pair_id", "role", "source_id")
+    )
+
+
+def test_confirmatory_run_stops_after_the_first_failed_call_without_retry(
+    monkeypatch, tmp_path
+):
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+    arms = _fake_arms(tmp_path)
+    runtime = runner.Runtime(
+        arms=arms,
+        tool=None,
+        pilot_id=runner.CONFIRMATORY_PILOT_ID,
+        parser=None,
+        request_by_id=requests,
+        call_order=call_order,
+        preregistered_slugs={
+            (request_id, arm): runner._call_slug(
+                "confirmatory", runner.CONFIRMATORY_PILOT_ID, request_id, arm
+            )
+            for request_id, arm in call_order
+        },
+        max_outer_calls=runner.CONFIRMATORY_MAX_OUTER_CALLS,
+        max_esearch_calls=runner.CONFIRMATORY_MAX_ESEARCH_CALLS,
+        max_metadata_ids=runner.CONFIRMATORY_MAX_OUTER_CALLS * runner.MAX_IDS_PER_CALL,
+        pilot_label=runner.CONFIRMATORY_PROTOCOL_ID,
+        protocol="confirmatory",
+    )
+    attempted: list[tuple[str, str]] = []
+
+    async def fail_second(_runtime, request, arm, order):
+        attempted.append((request.request_id, arm.name))
+        if order == 1:
+            return {
+                "order": order,
+                "request_id": request.request_id,
+                "arm": arm.name,
+                "status": "complete",
+                "papers": [],
+            }
+        return {
+            "order": order,
+            "request_id": request.request_id,
+            "arm": arm.name,
+            "status": "error",
+            "error_stage": "transport",
+            "error_class": "TimeoutError",
+            "external_request_count": "unknown",
+            "verified_esearch_rung_count": 0,
+        }
+
+    async def no_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(runner, "_execute", fail_second)
+    monkeypatch.setattr(runner.asyncio, "sleep", no_sleep)
+    report = {"calls": []}
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+
+    assert runner.asyncio.run(runner._run(runtime, report, output, blind)) == 1
+
+    assert attempted == [("N01", "baseline"), ("N01", "candidate")]
+    assert len(report["calls"]) == 2
+    assert report["status"] == "STOPPED"
+    assert report["stopped_at_order"] == 2
+    assert report["calls"][0]["status"] == "complete"
+    assert report["calls"][1]["external_request_count"] == "unknown"
+    assert not blind.exists()
+
+
+@pytest.mark.parametrize("collision", ["blind_labels", "run_slug"])
+def test_confirmatory_preflight_rejects_reserved_artifact_or_run_slug(
+    monkeypatch, tmp_path, collision
+):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    arms = _fake_arms(tmp_path)
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+    slugs = {
+        (request_id, arm): runner._call_slug(
+            "confirmatory", runner.CONFIRMATORY_PILOT_ID, request_id, arm
+        )
+        for request_id, arm in call_order
+    }
+    hashes = {
+        "protocol": "confirmatory",
+        "protocol_id": runner.CONFIRMATORY_PROTOCOL_ID,
+        "pilot_id": runner.CONFIRMATORY_PILOT_ID,
+        "baseline": arms["baseline"].tree_sha256,
+        "candidate": arms["candidate"].tree_sha256,
+        "candidate_diff_sha256": "c" * 64,
+        "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+        "frozen_inputs_sha256": "d" * 64,
+        "request_by_id": requests,
+        "call_order": call_order,
+        "max_outer_calls": 12,
+        "max_esearch_calls": 36,
+        "max_metadata_ids": 108,
+        "preregistered_slugs": slugs,
+        "result_path": "result.json",
+        "blind_review_path": "blind.json",
+        "blind_labels_path": "blind-labels.json",
+        "trace_preflight": {},
+    }
+    monkeypatch.setattr(runner, "ROOT", repo_root)
+    monkeypatch.setattr(runner, "_protocol", lambda _args: ({}, hashes))
+    monkeypatch.setattr(runner, "_check_environment", lambda _roots: None)
+    monkeypatch.setattr(runner, "_listening_pid", lambda port: port + 10000)
+    monkeypatch.setattr(
+        runner, "_commit", lambda root: arms[root.name.removesuffix("-root")].commit
+    )
+    monkeypatch.setattr(runner, "_cache", lambda path: Path(path).resolve())
+    monkeypatch.setattr(
+        runner,
+        "_validate_launcher_receipts",
+        lambda *_args, **_kwargs: {"baseline": "a" * 64, "candidate": "b" * 64},
+    )
+    args = type(
+        "Args",
+        (),
+        {
+            "protocol": "confirmatory",
+            "baseline_url": arms["baseline"].url,
+            "candidate_url": arms["candidate"].url,
+            "baseline_root": str(arms["baseline"].root),
+            "candidate_root": str(arms["candidate"].root),
+            "baseline_cache": str(arms["baseline"].cache),
+            "candidate_cache": str(arms["candidate"].cache),
+            "baseline_pid": arms["baseline"].pid,
+            "candidate_pid": arms["candidate"].pid,
+            "baseline_launch_receipt": str(repo_root / "baseline-receipt.json"),
+            "candidate_launch_receipt": str(repo_root / "candidate-receipt.json"),
+            "output": str(repo_root / "result.json"),
+            "blind_output": str(repo_root / "blind.json"),
+        },
+    )()
+    if collision == "blind_labels":
+        (repo_root / "blind-labels.json").write_text("locked\n", encoding="utf-8")
+        expected_message = "Result artifacts must use new unique paths"
+    else:
+        namespace = arms["baseline"].cache / "pubmed" / slugs[("N01", "baseline")]
+        namespace.mkdir(parents=True)
+        expected_message = "preregistered request/arm run or slug namespace"
+
+    with pytest.raises(ValueError, match=expected_message):
+        runner._preflight(args)
+
+
+def test_independent_runtime_support_must_match_committed_pins(monkeypatch, tmp_path):
+    support = tmp_path / "co_scientist"
+    support.mkdir()
+    (support / "mcp_client_session.py").write_text("# fixed client\n")
+    shared = tmp_path / "novelty_sort_pilot.py"
+    shared.write_text("# fixed helper\n")
+    project = tmp_path / "pyproject.toml"
+    project.write_text("[project]\nname = 'fixed'\n")
+    monkeypatch.setattr(runner, "RUNTIME_SUPPORT_TREE", support)
+    monkeypatch.setattr(runner, "SHARED_PILOT_SOURCE", shared)
+    monkeypatch.setattr(runner, "ENGINE_PROJECT_SOURCE", project)
+    checked: list[Path] = []
+    monkeypatch.setattr(
+        runner, "_require_committed_clean", lambda path, _label: checked.append(path)
+    )
+    pins = {
+        "engine_source_tree_sha256": runner._tree_sha256(runner._tree_files(support)),
+        "shared_pilot_sha256": runner._sha256_file(shared),
+        "engine_project_sha256": runner._sha256_file(project),
+    }
+    runner._validate_runtime_support(pins)
+    assert checked == [support, shared, project]
+
+    (support / "mcp_client_session.py").write_text("# changed client\n")
+    with pytest.raises(ValueError, match="runtime support"):
+        runner._validate_runtime_support(pins)
+
+
+def test_independent_call_slug_matches_the_single_preregistered_template():
+    assert (
+        runner._call_slug("independent", runner.INDEPENDENT_PILOT_ID, "R03", "baseline")
+        == "m11novrung01b2bindependentv1_r03_baseline"
+    )
+    assert runner._call_slug("original", "pilot", "R03", "baseline") == (
+        "m11novrung_pilot_r03_baseline"
+    )
+
+
+def test_independent_schedule_rejects_a_different_preregistered_slug_template():
+    runner_inputs = json.loads(runner.INDEPENDENT_INPUT.read_text(encoding="utf-8"))
+    runner_inputs["run_artifact_paths"]["per_call_slug_template"] = (
+        "different_{request_id_lower}_{arm}"
+    )
+    with pytest.raises(ValueError, match="slug template"):
+        runner._independent_schedule(runner_inputs)
+
+
+def test_independent_run_executes_the_eight_frozen_calls_in_order(
+    monkeypatch, tmp_path
+):
+    runner_inputs = json.loads(
+        (
+            runner.HERE / "novelty-precise-rung-01b2b-independent-input-v1.json"
+        ).read_text(encoding="utf-8")
+    )
+    requests, call_order = runner._independent_schedule(runner_inputs)
+    assert tuple(requests) == ("R03", "R04", "R05", "R06")
+    assert len(call_order) == runner.INDEPENDENT_MAX_OUTER_CALLS == 8
+    assert all(len(request.query) < 200 for request in requests.values())
+    runtime = runner.Runtime(
+        arms=_fake_arms(tmp_path),
+        tool=None,
+        pilot_id=runner.INDEPENDENT_PILOT_ID,
+        parser=None,
+        request_by_id=requests,
+        call_order=call_order,
+        max_outer_calls=runner.INDEPENDENT_MAX_OUTER_CALLS,
+        max_esearch_calls=runner.INDEPENDENT_MAX_ESEARCH_CALLS,
+        max_metadata_ids=runner.INDEPENDENT_MAX_OUTER_CALLS * runner.MAX_IDS_PER_CALL,
+        pilot_label="M11-NOV-RUNG-01b2b-independent-v1",
+        protocol="independent",
+    )
+    actual: list[tuple[str, str, int]] = []
+
+    async def complete_one(
+        _runtime: runner.Runtime, request: runner.Request, arm: runner.Arm, order: int
+    ):
+        actual.append((request.request_id, arm.name, order))
+        return {
+            "order": order,
+            "request_id": request.request_id,
+            "arm": arm.name,
+            "status": "complete",
+        }
+
+    monkeypatch.setattr(runner, "_execute", complete_one)
+    report = {"calls": []}
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+
+    context = tmp_path / "case-context.json"
+    assert (
+        runner.asyncio.run(
+            runner._run(runtime, report, output, blind, case_context_output=context)
+        )
+        == 0
+    )
+    assert actual == [
+        (request_id, arm, index)
+        for index, (request_id, arm) in enumerate(call_order, 1)
+    ]
+    assert len(report["calls"]) == 8
+    assert report["status"] == "COMPLETED"
+    assert json.loads(blind.read_text(encoding="utf-8"))["items"] == []
+    context_artifact = json.loads(context.read_text(encoding="utf-8"))
+    assert context_artifact["protocol"] == runner.CASE_CONTEXT_PROTOCOL
+    assert (
+        context_artifact["result_sha256"]
+        == hashlib.sha256(output.read_bytes()).hexdigest()
+    )
+    assert (
+        context_artifact["blind_review_sha256"]
+        == hashlib.sha256(blind.read_bytes()).hexdigest()
+    )
+    assert context_artifact["items"] == []
+
+
+def test_independent_cli_fails_closed_without_measured_retry_launcher(
+    monkeypatch, tmp_path, capsys
+):
+    roots = [tmp_path / "baseline-root", tmp_path / "candidate-root"]
+    caches = [tmp_path / "baseline-cache", tmp_path / "candidate-cache"]
+    for path in (*roots, *caches):
+        path.mkdir()
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    request_ids = ("R03", "R04", "R05", "R06")
+    call_order = tuple(
+        (request_id, arm)
+        for request_id in request_ids
+        for arm in ("baseline", "candidate")
+    )
+    hashes = {
+        "protocol": "independent",
+        "protocol_id": runner.INDEPENDENT_PROTOCOL_ID,
+        "pilot_id": runner.INDEPENDENT_PILOT_ID,
+        "baseline": "a" * 64,
+        "candidate": "b" * 64,
+        "candidate_diff_sha256": "c" * 64,
+        "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+        "frozen_inputs_sha256": "d" * 64,
+        "source_manifest_sha256": "e" * 64,
+        "result_path": str(output),
+        "blind_review_path": str(blind),
+        "case_context_path": runner.CASE_CONTEXT_RELPATH,
+        "case_context_protocol": runner.CASE_CONTEXT_PROTOCOL,
+        "request_by_id": {
+            request_id: runner.Request(request_id, "query")
+            for request_id in request_ids
+        },
+        "call_order": call_order,
+        "trace_preflight": {
+            "driver_path": runner.LIFECYCLE_DRIVER_RELPATH,
+            "driver_sha256": "e" * 64,
+            "launcher_path": runner.SERVER_LAUNCHER_RELPATH,
+            "launcher_sha256": "f" * 64,
+            "baseline": {},
+            "candidate": {},
+        },
+    }
+    monkeypatch.setattr(runner, "_protocol", lambda _args: ({}, hashes))
+    # The repository already contains the historical case-context artifact;
+    # isolate preflight so this test reaches the intended launcher-hash gate.
+    monkeypatch.setattr(runner, "ROOT", tmp_path / "repo")
+    monkeypatch.setattr(runner, "_check_environment", lambda _roots: None)
+    monkeypatch.setattr(runner, "_commit", lambda _root: "test-commit")
+    monkeypatch.setattr(
+        runner,
+        "_listening_pid",
+        lambda port: 18898 if port == 8898 else 18899,
+    )
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+    argv = [
+        "--protocol",
+        "independent",
+        "--baseline-url",
+        "http://127.0.0.1:8898/mcp",
+        "--candidate-url",
+        "http://127.0.0.1:8899/mcp",
+        "--baseline-root",
+        str(roots[0]),
+        "--candidate-root",
+        str(roots[1]),
+        "--baseline-cache",
+        str(caches[0]),
+        "--candidate-cache",
+        str(caches[1]),
+        "--baseline-pid",
+        "18898",
+        "--candidate-pid",
+        "18899",
+        "--output",
+        str(output),
+        "--blind-output",
+        str(blind),
+    ]
+
+    assert runner.main(argv) == 2
+    stopped = json.loads(output.read_text(encoding="utf-8"))
+    assert stopped["status"] == "STOPPED"
+    assert stopped["error"] == {"stage": "preflight", "class": "ValueError"}
+    assert stopped["calls"] == []
+    assert "launcher hash" in capsys.readouterr().err.lower()
+
+
+@pytest.mark.parametrize("failure_stage", ("parse", "trace"))
+def test_post_call_parse_or_trace_failure_reports_request_count_unknown(
+    monkeypatch, tmp_path, failure_stage
+):
+    arms = _fake_arms(tmp_path)
+    runtime = runner.Runtime(
+        arms=arms,
+        tool=type(
+            "Tool",
+            (),
+            {
+                "mcp_tool_name": "pubmed_search_with_fulltext",
+                "map_parameters": staticmethod(lambda params: params),
+            },
+        )(),
+        pilot_id=runner.INDEPENDENT_PILOT_ID,
+        parser=None,
+        protocol="independent",
+        preregistered_slugs={
+            ("R03", "baseline"): runner._call_slug(
+                "independent", runner.INDEPENDENT_PILOT_ID, "R03", "baseline"
+            )
+        },
+        request_by_id={"R03": runner.Request("R03", "query")},
+        call_order=(("R03", "baseline"),),
+        max_outer_calls=1,
+    )
+
+    monkeypatch.setattr(runner, "_endpoint", lambda _url: nullcontext())
+
+    class Client:
+        async def call_tool(self, *_args, **_kwargs):
+            return object()
+
+    async def get_client(_runtime, _name):
+        return Client()
+
+    monkeypatch.setattr(runner, "_client", get_client)
+    if failure_stage == "parse":
+        monkeypatch.setattr(
+            runner,
+            "_papers",
+            lambda *_: (_ for _ in ()).throw(ValueError("bad parse")),
+        )
+    else:
+        monkeypatch.setattr(runner, "_papers", lambda *_: ([], []))
+
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    report = {"calls": []}
+    assert runner.asyncio.run(runner._run(runtime, report, output, blind)) == 1
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    entry = saved["calls"][0]
+
+    assert entry["status"] == "error"
+    assert entry["external_request_count"] == "unknown"
+    assert entry["verified_esearch_rung_count"] == 0
+    assert entry["error_stage"] == failure_stage
+    assert entry["slug"] == "m11novrung01b2bindependentv1_r03_baseline"
+    assert entry["run_id"] == "m11novrung01b2bindependentv1_r03_baseline"
+    assert runtime.esearch_calls == 0
+    assert saved["esearch_call_count"] == 0
+    assert saved["esearch_call_count_scope"] == "verified_trace_only"
+    assert entry["external_request_count"] == "unknown"
+
+
+def test_independent_success_separates_blind_packet_query_context_and_locked_key(
+    monkeypatch, tmp_path
+):
+    arms = _fake_arms(tmp_path)
+    arm = arms["baseline"]
+    request = runner.Request("R03", "exact preregistered query")
+    runtime = runner.Runtime(
+        arms=arms,
+        tool=type(
+            "Tool",
+            (),
+            {
+                "mcp_tool_name": "pubmed_search_with_fulltext",
+                "map_parameters": staticmethod(lambda params: params),
+            },
+        )(),
+        pilot_id=runner.INDEPENDENT_PILOT_ID,
+        parser=None,
+        protocol="independent",
+        preregistered_slugs={
+            ("R03", "baseline"): runner._call_slug(
+                "independent", runner.INDEPENDENT_PILOT_ID, "R03", "baseline"
+            )
+        },
+    )
+
+    class Client:
+        async def call_tool(self, *_args, **_kwargs):
+            return object()
+
+    async def get_client(_runtime, _name):
+        return Client()
+
+    monkeypatch.setattr(runner, "_client", get_client)
+    monkeypatch.setattr(runner, "_endpoint", lambda _url: nullcontext())
+    monkeypatch.setattr(runner.secrets, "token_urlsafe", lambda _size: "opaque-case")
+    monkeypatch.setattr(
+        runner,
+        "_papers",
+        lambda *_: (
+            [{"pmid": "12345", "blind_item_id": "internal-item"}],
+            [
+                {
+                    "item_id": "internal-item",
+                    "title": "Private source title",
+                    "abstract": "Blinded abstract",
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_trace",
+        lambda *_: {"final_ids": ["12345"], "attempts": [], "fetched": []},
+    )
+    slug = runner._call_slug("independent", runtime.pilot_id, "R03", "baseline")
+    run_id = f"{runtime.pilot_id}_r03_baseline"
+
+    async def get_client(_runtime, _name):
+        class TraceClient:
+            async def call_tool(self, *_args, **_kwargs):
+                trace_path = (
+                    arm.cache / "pubmed" / slug / "runs" / run_id / ".search-trace.json"
+                )
+                trace_path.parent.mkdir(parents=True)
+                trace_path.write_text("{}", encoding="utf-8")
+                return object()
+
+        return TraceClient()
+
+    monkeypatch.setattr(runner, "_client", get_client)
+
+    entry = runner.asyncio.run(runner._execute(runtime, request, arm, 1))
+
+    assert entry["status"] == "complete"
+    assert entry["papers"] == [{"pmid": "12345", "case_id": "opaque-case"}]
+    assert entry["locked_case_map"] == [
+        {
+            "case_id": "opaque-case",
+            "request_id": "R03",
+            "arm": "baseline",
+            "pmid": "12345",
+            "source_title": "Private source title",
+        }
+    ]
+    assert runtime.blind_items == [
+        {"case_id": "opaque-case", "abstract": "Blinded abstract"}
+    ]
+    assert runtime.case_context_items == [
+        {"case_id": "opaque-case", "query": request.query}
+    ]
+    assert not any(
+        key in runtime.blind_items[0]
+        for key in ("query", "arm", "pmid", "title", "role")
+    )
 
 
 def test_frozen_runner_requests_match_only_the_preregistered_inputs():
@@ -278,7 +1055,7 @@ def test_protocol_requires_canonical_digest_amendment_fields(attested_trees, fie
     args, amendment, path = attested_trees
     amendment.pop(field)
     path.write_text(json.dumps(amendment), encoding="utf-8")
-    with pytest.raises(ValueError, match="Protocol amendment is incomplete"):
+    with pytest.raises(ValueError, match="Protocol amendment pins mismatch"):
         runner._protocol(args)
 
 
@@ -355,6 +1132,90 @@ def _fake_arms(tmp_path):
     return arms
 
 
+def _launcher_receipt_fixture(tmp_path, monkeypatch, attempts=1):
+    arms = _fake_arms(tmp_path)
+    launcher = tmp_path / "launcher.py"
+    launcher.write_text("# pinned launcher fixture\n", encoding="utf-8")
+    monkeypatch.setattr(runner, "SERVER_LAUNCHER", launcher)
+    launcher_sha256 = hashlib.sha256(launcher.read_bytes()).hexdigest()
+    pinned = {
+        "driver_path": runner.LIFECYCLE_DRIVER_RELPATH,
+        "driver_sha256": "e" * 64,
+        "launcher_path": runner.SERVER_LAUNCHER_RELPATH,
+        "launcher_sha256": launcher_sha256,
+    }
+    receipt_paths = {}
+    for name, arm in arms.items():
+        probe_id = f"m11_launcher_probe_{arm.pid}"
+        trace_path = (
+            arm.cache / "pubmed" / probe_id / "runs" / probe_id / ".search-trace.json"
+        )
+        ids = ["90000001", "90000002", "90000003"]
+        receipt = {
+            "schema_version": "novelty_precise_rung_launcher_receipt_v1",
+            "status": "passed",
+            "launcher_path": runner.SERVER_LAUNCHER_RELPATH,
+            "launcher_sha256": launcher_sha256,
+            "source_root": str(arm.root),
+            "source_tree_sha256": arm.tree_sha256,
+            "serving_pid": arm.pid,
+            "bind_host": "127.0.0.1",
+            "bind_port": arm.port,
+            "max_workers": 1,
+            "reload": False,
+            "cache_root": str(arm.cache),
+            "trace_enabled": True,
+            "credential_env_names": [runner.MCP_SECRET],
+            "secret_env_name": runner.MCP_SECRET,
+            "secret_length": 48,
+            "secret_free": True,
+            "entrez": {
+                "max_tries": 1,
+                "sleep_between_tries": 0,
+                "api_key_absent": True,
+            },
+            "maintained_trace": {
+                "enabled": True,
+                "run_id": probe_id,
+                "slug": probe_id,
+                "path": str(trace_path),
+                "sha256": "f" * 64,
+                "source_file_path": str(arm.source_file),
+                "server_build_id": arm.build_id,
+                "process_id": arm.pid,
+                "sort": arm.sort,
+                "selected_ids": ids,
+                "final_ids": ids,
+                "manifest_run_id": probe_id,
+                "manifest_ids": ids,
+                "validated": True,
+                "readiness_artifacts_removed": True,
+                "cache_empty_after_cleanup": True,
+                "fake_entrez_calls": {"esearch": 1, "efetch": 6, "elink": 3},
+            },
+            "transient_probe": {
+                "patch_target": "Bio.Entrez.urlopen",
+                "injected_status": 503,
+                "underlying_attempts": attempts,
+                "external_traffic": False,
+                "restored": True,
+            },
+        }
+        path = tmp_path / f"{name}-receipt.json"
+        path.write_text(json.dumps(receipt), encoding="utf-8")
+        receipt_paths[name] = path
+        pinned[name] = {
+            "receipt_path": str(path.resolve()),
+            "receipt_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    args = type(
+        "Args",
+        (),
+        {f"{name}_launch_receipt": str(path) for name, path in receipt_paths.items()},
+    )()
+    return arms, args, pinned, receipt_paths
+
+
 def _offline_environment(monkeypatch):
     for name in tuple(os.environ):
         if (
@@ -375,6 +1236,22 @@ def _offline_environment(monkeypatch):
         ):
             monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(runner.MCP_SECRET, "s" * 40)
+
+
+def test_independent_launcher_receipts_require_same_process_trace_and_one_attempt(
+    monkeypatch, tmp_path
+):
+    arms, args, pinned, _ = _launcher_receipt_fixture(tmp_path, monkeypatch)
+    hashes = runner._validate_launcher_receipts(args, arms, pinned)
+    assert set(hashes) == {"baseline", "candidate"}
+
+    attempts_root = tmp_path / "two-attempts"
+    attempts_root.mkdir()
+    arms, args, pinned, _ = _launcher_receipt_fixture(
+        attempts_root, monkeypatch, attempts=2
+    )
+    with pytest.raises(ValueError, match="exactly one offline transient attempt"):
+        runner._validate_launcher_receipts(args, arms, pinned)
 
 
 def test_missing_maintained_trace_records_expected_path_without_retry(
@@ -526,6 +1403,107 @@ def test_main_persists_report_from_actual_preflight_hashes(
     assert not blind.exists()
 
 
+def test_independent_actual_preflight_keeps_all_report_pins_before_mcp(
+    monkeypatch, tmp_path
+):
+    _offline_environment(monkeypatch)
+    arms = _fake_arms(tmp_path)
+    monkeypatch.setattr(runner, "ROOT", tmp_path)
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    hashes = {
+        "protocol": "independent",
+        "protocol_id": runner.INDEPENDENT_PROTOCOL_ID,
+        "pilot_id": runner.INDEPENDENT_PILOT_ID,
+        "baseline": arms["baseline"].build_id,
+        "candidate": arms["candidate"].build_id,
+        "candidate_diff_sha256": "c" * 64,
+        "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+        "frozen_inputs_sha256": CORRECTED_INPUTS_SHA256,
+        "source_manifest_sha256": CORRECTED_SOURCES_SHA256,
+        "runner_input_sha256": INDEPENDENT_INPUT_SHA256,
+        "source_prereg_sha256": INDEPENDENT_PREREG_SHA256,
+        "max_outer_calls": 8,
+        "max_esearch_calls": 24,
+        "max_metadata_ids": 72,
+        "request_by_id": {},
+        "call_order": (),
+        "preregistered_slugs": {},
+        "result_path": "result.json",
+        "blind_review_path": "blind.json",
+        "case_context_path": runner.CASE_CONTEXT_RELPATH,
+        "case_context_protocol": runner.CASE_CONTEXT_PROTOCOL,
+        "amendment_path": runner.INDEPENDENT_AMENDMENT,
+        "trace_preflight": {},
+    }
+    monkeypatch.setattr(runner, "_protocol", lambda _args: ({}, hashes))
+    monkeypatch.setattr(runner, "_check_environment", lambda _roots: None)
+    monkeypatch.setattr(runner, "_listening_pid", lambda port: port + 10000)
+    monkeypatch.setattr(
+        runner, "_commit", lambda root: arms[root.name.removesuffix("-root")].commit
+    )
+    monkeypatch.setattr(runner, "_cache", lambda path: Path(path).resolve())
+    monkeypatch.setattr(
+        runner,
+        "_validate_launcher_receipts",
+        lambda *_: {"baseline": "a" * 64, "candidate": "b" * 64},
+    )
+
+    tool = type("Tool", (), {"mcp_tool_name": "pubmed_search_with_fulltext"})()
+
+    class StubToolRegistry:
+        def __init__(self, **_kwargs: Any):
+            pass
+
+        def get_tool(self, _name: str):
+            return tool
+
+    monkeypatch.setattr(runner, "ToolRegistry", StubToolRegistry)
+    monkeypatch.setattr(runner, "ResponseParser", lambda _tool: None)
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+
+    async def finish_without_transport(_runtime, report, result_path, _blind_path, **_):
+        assert report["runner_input_sha256"] == INDEPENDENT_INPUT_SHA256
+        assert report["source_prereg_sha256"] == INDEPENDENT_PREREG_SHA256
+        report["status"] = "COMPLETED"
+        runner._save(result_path, report)
+        return 0
+
+    monkeypatch.setattr(runner, "_run", finish_without_transport)
+    argv = [
+        "--protocol",
+        "independent",
+        "--output",
+        str(output),
+        "--blind-output",
+        str(blind),
+    ]
+    for name, arm in arms.items():
+        argv.extend(
+            [
+                f"--{name}-url",
+                arm.url,
+                f"--{name}-root",
+                str(arm.root),
+                f"--{name}-cache",
+                str(arm.cache),
+                f"--{name}-pid",
+                str(arm.pid),
+                f"--{name}-launch-receipt",
+                str(tmp_path / f"{name}-receipt.json"),
+            ]
+        )
+
+    assert runner.main(argv) == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["status"] == "COMPLETED"
+    assert report["runner_input_sha256"] == INDEPENDENT_INPUT_SHA256
+    assert report["source_prereg_sha256"] == INDEPENDENT_PREREG_SHA256
+    assert report["calls"] == []
+    assert not blind.exists()
+
+
 def test_main_runs_twelve_offline_calls_in_order_and_writes_bounded_traces(
     monkeypatch, tmp_path
 ):
@@ -568,6 +1546,7 @@ def test_main_runs_twelve_offline_calls_in_order_and_writes_bounded_traces(
 
         async def call_tool(self, name: str, **params: Any):
             assert name == "pubmed_search_with_fulltext"
+            assert output.is_file() and blind_output.is_file()
             starts.append(clock[0])
             calls.append(params)
             ids_by_rung = [
@@ -676,6 +1655,7 @@ def test_main_runs_twelve_offline_calls_in_order_and_writes_bounded_traces(
     assert len({params["slug"] for params in calls}) == 12
     assert len({params["run_id"] for params in calls}) == 12
     assert report["esearch_call_count"] == runner.MAX_ESEARCH_CALLS == 36
+    assert report["esearch_call_count_scope"] == "verified_trace_only"
     assert report["metadata_ids_submitted"] == 108
     assert all(second - first >= 2.0 for first, second in zip(starts, starts[1:]))
     assert all(
@@ -771,4 +1751,267 @@ def test_main_stops_at_the_first_transport_error_without_retry(monkeypatch, tmp_
     assert len(report["calls"]) == 1
     assert report["calls"][0]["error_class"] == "TimeoutError"
     assert report["status"] == "STOPPED"
+    assert not blind.exists()
+
+
+def test_main_cleans_result_reservation_if_blind_reservation_collides(
+    monkeypatch, tmp_path
+):
+    arms = _fake_arms(tmp_path)
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    blind.write_text("owned by another run", encoding="utf-8")
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _args: (
+            arms,
+            output,
+            blind,
+            {
+                "baseline_tree_sha256": "a" * 64,
+                "candidate_tree_sha256": "b" * 64,
+                "candidate_diff_sha256": "c" * 64,
+                "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+                "frozen_inputs_sha256": CORRECTED_INPUTS_SHA256,
+                "source_manifest_sha256": CORRECTED_SOURCES_SHA256,
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        runner, "ToolRegistry", lambda **_: pytest.fail("setup must not begin")
+    )
+    argv = [
+        "--baseline-url",
+        arms["baseline"].url,
+        "--candidate-url",
+        arms["candidate"].url,
+        "--baseline-root",
+        str(arms["baseline"].root),
+        "--candidate-root",
+        str(arms["candidate"].root),
+        "--baseline-cache",
+        str(arms["baseline"].cache),
+        "--candidate-cache",
+        str(arms["candidate"].cache),
+        "--baseline-pid",
+        str(arms["baseline"].pid),
+        "--candidate-pid",
+        str(arms["candidate"].pid),
+        "--output",
+        str(output),
+        "--blind-output",
+        str(blind),
+    ]
+
+    assert runner.main(argv) == 2
+    assert not output.exists()
+    assert blind.read_text(encoding="utf-8") == "owned by another run"
+
+
+def test_main_does_not_rewrite_existing_result_on_reservation_collision(
+    monkeypatch, tmp_path
+):
+    arms = _fake_arms(tmp_path)
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    original = b'{"status":"COMPLETED","calls":[{"order":1}]}'
+    output.write_bytes(original)
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _args: (arms, output, blind, {"protocol": "original"}),
+    )
+    monkeypatch.setattr(
+        runner, "ToolRegistry", lambda **_: pytest.fail("setup must not begin")
+    )
+    argv = ["--output", str(output), "--blind-output", str(blind)]
+    for name, arm in arms.items():
+        argv.extend(
+            [
+                f"--{name}-url",
+                arm.url,
+                f"--{name}-root",
+                str(arm.root),
+                f"--{name}-cache",
+                str(arm.cache),
+                f"--{name}-pid",
+                str(arm.pid),
+            ]
+        )
+
+    assert runner.main(argv) == 2
+    assert output.read_bytes() == original
+    assert not blind.exists()
+
+
+def test_main_retains_zero_call_stop_after_report_reservation(monkeypatch, tmp_path):
+    arms = _fake_arms(tmp_path)
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    monkeypatch.setattr(
+        runner,
+        "_preflight",
+        lambda _args: (arms, output, blind, {"protocol": "original"}),
+    )
+    monkeypatch.setattr(
+        runner, "ToolRegistry", lambda **_: pytest.fail("MCP setup must not begin")
+    )
+    argv = ["--output", str(output), "--blind-output", str(blind)]
+    for name, arm in arms.items():
+        argv.extend(
+            [
+                f"--{name}-url",
+                arm.url,
+                f"--{name}-root",
+                str(arm.root),
+                f"--{name}-cache",
+                str(arm.cache),
+                f"--{name}-pid",
+                str(arm.pid),
+            ]
+        )
+
+    assert runner.main(argv) == 2
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["status"] == "STOPPED"
+    assert report["error"] == {"stage": "runner", "class": "KeyError"}
+    assert report["calls"] == []
+    assert report["model_inference_calls"] == 0
+    assert not blind.exists()
+
+
+@pytest.mark.parametrize("interruption", (asyncio.CancelledError, KeyboardInterrupt))
+def test_interruption_persists_stopped_active_request_with_unknown_count(
+    monkeypatch, tmp_path, interruption
+):
+    arms = _fake_arms(tmp_path)
+    runtime = runner.Runtime(
+        arms=arms,
+        tool=None,
+        pilot_id=runner.INDEPENDENT_PILOT_ID,
+        parser=None,
+        request_by_id={"R03": runner.Request("R03", "query")},
+        call_order=(("R03", "baseline"),),
+        max_outer_calls=1,
+        protocol="independent",
+    )
+
+    async def cancelled(*_args):
+        raise interruption
+
+    monkeypatch.setattr(runner, "_execute", cancelled)
+    report, output = {"calls": []}, tmp_path / "result.json"
+
+    result = runner.asyncio.run(
+        runner._run(runtime, report, output, tmp_path / "blind.json")
+    )
+
+    assert result == 1
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["status"] == "STOPPED"
+    assert saved["active_call"] == {
+        "order": 1,
+        "request_id": "R03",
+        "arm": "baseline",
+        "external_request_count": "unknown",
+    }
+    assert saved["calls"][0]["external_request_count"] == "unknown"
+
+
+@pytest.mark.parametrize("interruption", (asyncio.CancelledError, KeyboardInterrupt))
+def test_main_interrupt_during_call_writes_stopped_receipt_without_retry(
+    monkeypatch, tmp_path, interruption
+):
+    _offline_environment(monkeypatch)
+    arms = _fake_arms(tmp_path)
+    monkeypatch.setattr(runner, "ROOT", tmp_path)
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+    hashes = {
+        "protocol": "independent",
+        "protocol_id": runner.INDEPENDENT_PROTOCOL_ID,
+        "pilot_id": runner.INDEPENDENT_PILOT_ID,
+        "baseline_tree_sha256": "a" * 64,
+        "candidate_tree_sha256": "b" * 64,
+        "candidate_diff_sha256": "c" * 64,
+        "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+        "frozen_inputs_sha256": CORRECTED_INPUTS_SHA256,
+        "source_manifest_sha256": CORRECTED_SOURCES_SHA256,
+        "runner_input_sha256": INDEPENDENT_INPUT_SHA256,
+        "source_prereg_sha256": INDEPENDENT_PREREG_SHA256,
+        "max_outer_calls": 1,
+        "max_esearch_calls": 3,
+        "max_metadata_ids": 9,
+        "request_by_id": {"R03": runner.Request("R03", "query")},
+        "call_order": (("R03", "baseline"),),
+        "preregistered_slugs": {
+            ("R03", "baseline"): runner._call_slug(
+                "independent", runner.INDEPENDENT_PILOT_ID, "R03", "baseline"
+            )
+        },
+        "case_context_path": runner.CASE_CONTEXT_RELPATH,
+        "case_context_protocol": runner.CASE_CONTEXT_PROTOCOL,
+    }
+    monkeypatch.setattr(
+        runner, "_preflight", lambda _args: (arms, output, blind, hashes)
+    )
+
+    tool = type(
+        "Tool",
+        (),
+        {
+            "mcp_tool_name": "pubmed_search_with_fulltext",
+            "map_parameters": staticmethod(lambda params: params),
+        },
+    )()
+    monkeypatch.setattr(
+        runner,
+        "ToolRegistry",
+        lambda **_: type("Registry", (), {"get_tool": lambda _self, _name: tool})(),
+    )
+    monkeypatch.setattr(runner, "ResponseParser", lambda _tool: None)
+    attempts = []
+
+    class InterruptingClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def initialize(self):
+            return None
+
+        async def call_tool(self, *_args, **_kwargs):
+            attempts.append("call")
+            raise interruption
+
+    monkeypatch.setattr(runner, "MCPToolClient", InterruptingClient)
+    argv = [
+        "--protocol",
+        "independent",
+        "--baseline-url",
+        arms["baseline"].url,
+        "--candidate-url",
+        arms["candidate"].url,
+        "--baseline-root",
+        str(arms["baseline"].root),
+        "--candidate-root",
+        str(arms["candidate"].root),
+        "--baseline-cache",
+        str(arms["baseline"].cache),
+        "--candidate-cache",
+        str(arms["candidate"].cache),
+        "--baseline-pid",
+        str(arms["baseline"].pid),
+        "--candidate-pid",
+        str(arms["candidate"].pid),
+        "--output",
+        str(output),
+        "--blind-output",
+        str(blind),
+    ]
+
+    assert runner.main(argv) == 1
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert attempts == ["call"]
+    assert saved["status"] == "STOPPED"
+    assert saved["active_call"]["request_id"] == "R03"
+    assert saved["active_call"]["arm"] == "baseline"
+    assert saved["calls"][0]["external_request_count"] == "unknown"
+    assert saved["calls"][0]["verified_esearch_rung_count"] == 0
     assert not blind.exists()
