@@ -27,7 +27,10 @@ next candidate. Its exact-route request adapter passed offline boundary checks;
 the [Fin preregistration](ling-fin-qualification-prereg-v1.json) pins the
 interface and scientific gates before inference. The [bounded live interface
 panel](ling-fin-interface-assessment-v1.md) passed six cases in seven capped
-requests. Fin has not been enabled as a default; scientific gates are next.
+requests. Its [frozen four-claim scientific batch gate](ling-fin-batch-assessment-v1.md)
+then completed three fresh trials with the same wrong partial-support label
+in every trial. This exact configuration is rejected as a scientific standby;
+larger panels were stopped and no default or deployment changed.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;
