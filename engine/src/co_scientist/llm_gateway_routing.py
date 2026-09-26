@@ -201,6 +201,8 @@ class GatewayModel:
         verified_provider: Pin a provisional route to the one provider whose
             current pricing and data-use terms were inspected. The request
             also requires zero retention and denies data collection.
+        disable_provider_fallbacks: Whether a pinned route must fail closed
+            when its selected provider is unavailable.
     """
 
     takes_reasoning_knob: bool
@@ -208,6 +210,7 @@ class GatewayModel:
     fallbacks: tuple[str, ...] = ()
     reasoning_can_disable: bool = False
     verified_provider: str | None = None
+    disable_provider_fallbacks: bool = False
 
 
 # OpenRouter's own ceiling on the ``models`` fallback array: "'models'
@@ -259,6 +262,12 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
         verified_provider="novita",
+    ),
+    "openrouter/inclusionai/ling-3.0-flash-fin:free": GatewayModel(
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        verified_provider="novita",
+        disable_provider_fallbacks=True,
     ),
     # A non-default chain head kept for a deployment that opts into it. It
     # was the deployed primary from 2026-09-05 until a real express
@@ -376,6 +385,7 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
         provider["only"] = [declared.verified_provider]
         provider["zdr"] = True
         provider["data_collection"] = "deny"
+        provider["allow_fallbacks"] = not declared.disable_provider_fallbacks
     price = MODEL_PRICING.get(model_name)
     if price is None:
         return provider
