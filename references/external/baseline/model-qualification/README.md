@@ -23,7 +23,10 @@ batch gate](ling-sante-batch-assessment-v1.md); it remains open/inconclusive and
 is not a default. The [fresh post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
 still finds only Qwen, Ling Sante and Ling Fin at active exact-zero ZDR endpoints.
 The [Fin decision](m11-fin-candidate-decision-2026-09-26.md) records a bounded
-next candidate; it has not been enabled or queried through this application.
+next candidate. Its exact-route request adapter passed offline boundary checks;
+the [Fin preregistration](ling-fin-qualification-prereg-v1.json) pins the
+interface and scientific gates before any inference. It has not been enabled
+as a default or queried through this application.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;
