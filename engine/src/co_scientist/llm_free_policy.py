@@ -2,9 +2,12 @@
 
 import asyncio
 import contextlib
+import json
 import os
+import re
 from collections.abc import Iterator
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from typing import Any
 
 import litellm
@@ -14,6 +17,17 @@ from co_scientist.llm_free_catalog import current_catalog, verify_model
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
 _API_BASE = "https://openrouter.ai/api/v1"
+_CLOUDFLARE_MODEL_ID = "@cf/google/gemma-4-26b-a4b-it"
+_CLOUDFLARE_MODEL = f"openai/{_CLOUDFLARE_MODEL_ID}"
+_CLOUDFLARE_ACCOUNT_ID_ENV = "CLOUDFLARE_ACCOUNT_ID"
+_CLOUDFLARE_API_TOKEN_ENV = "CLOUDFLARE_API_TOKEN"
+_CLOUDFLARE_FREE_ATTESTATION_ENV = (
+    "COSCIENTIST_CLOUDFLARE_WORKERS_FREE_ATTESTATION"
+)
+# Provisional interface bound; 24k-output calls remain excluded until
+# later qualification.
+_CLOUDFLARE_MAX_TOKENS = 4096
+_CLOUDFLARE_MAX_SCHEMA_BYTES = 32_768
 _REQUEST_FIELDS = {
     "model",
     "messages",
@@ -32,6 +46,23 @@ _REQUEST_FIELDS = {
     "stream_options",
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
+# JSON formats are admitted only as bounded, exact interface probes; this
+# does not establish that the candidate supports either response mode.
+_CLOUDFLARE_REQUEST_FIELDS = {
+    "model",
+    "messages",
+    "max_tokens",
+    "temperature",
+    "drop_params",
+    "timeout",
+    "api_key",
+    "api_base",
+    "extra_body",
+    "response_format",
+    "tools",
+    "tool_choice",
+    "stream",
+}
 _campaign_mode: ContextVar[bool] = ContextVar("campaign_mode", default=False)
 
 
@@ -58,8 +89,9 @@ def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
 
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
+    model = str(args.get("model", ""))
     return campaign_free_mode() or (
-        not byok and ":free" in str(args.get("model", ""))
+        not byok and (":free" in model or _CLOUDFLARE_MODEL_ID in model)
     )
 
 
@@ -148,6 +180,8 @@ async def enforce_free_request(
     """
     if not _requires_free(args, byok):
         return False
+    if _CLOUDFLARE_MODEL_ID in str(args.get("model", "")):
+        return _enforce_cloudflare_free_request(args)
     body = _request_body(args)
     routes = _routes(args, body)
     catalog = await asyncio.to_thread(current_catalog)
@@ -170,3 +204,180 @@ async def enforce_free_request(
     # not send an OpenRouter-qualified route to a different billing service.
     args["api_base"] = _API_BASE
     return True
+
+
+def _enforce_cloudflare_free_request(args: dict[str, Any]) -> bool:
+    """Admit the one provisional Workers Free route behind a daily attestation.
+
+    The attestation is an operator assertion for today's account configuration;
+    it does not verify Cloudflare's plan or remaining daily Neurons.
+    """
+    account_id, token = _cloudflare_free_credentials()
+    api_base = (
+        f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
+    )
+    body = _verify_cloudflare_request(args, api_base)
+    args["api_key"] = token
+    args["api_base"] = api_base
+    # The engine normally drops unsupported parameters; qualification must
+    # observe a provider rejection instead of silently losing response_format.
+    args["drop_params"] = False
+    args["extra_body"] = {
+        **body,
+        "options": {**body.get("options", {}), "rejectIfBusy": True},
+    }
+    return True
+
+
+def _cloudflare_free_credentials() -> tuple[str, str]:
+    account_id = os.getenv(_CLOUDFLARE_ACCOUNT_ID_ENV, "")
+    token = os.getenv(_CLOUDFLARE_API_TOKEN_ENV, "")
+    today = datetime.now(timezone.utc).date().isoformat()
+    expected_attestation = f"{today}:{account_id}:workers-free"
+    if (
+        not re.fullmatch(r"[a-fA-F0-9]{32}", account_id)
+        or not token
+        or os.getenv(_CLOUDFLARE_FREE_ATTESTATION_ENV)
+        != expected_attestation
+    ):
+        raise FreeModelEligibilityError(
+            "Cloudflare Workers Free-plan attestation is missing or stale"
+        )
+    return account_id, token
+
+
+def _verify_cloudflare_request(
+    args: dict[str, Any], api_base: str
+) -> dict[str, Any]:
+    if args.get("model") != _CLOUDFLARE_MODEL:
+        raise FreeModelEligibilityError(
+            "zero-cost request requires the pinned Cloudflare candidate"
+        )
+    if litellm.model_fallbacks or litellm.model_alias_map:
+        raise FreeModelEligibilityError(
+            "zero-cost SDK routing overrides are unqualified"
+        )
+    _verify_cloudflare_request_fields(args, api_base)
+    _verify_cloudflare_limits(args)
+    _verify_messages(args.get("messages", []))
+    _verify_tools(args.get("tools", []))
+    _verify_cloudflare_tool_choice(args)
+    return _cloudflare_extra_body(args)
+
+
+def _verify_cloudflare_request_fields(
+    args: dict[str, Any], api_base: str
+) -> None:
+    _verify_cloudflare_response_format(args)
+    if args.keys() - _CLOUDFLARE_REQUEST_FIELDS:
+        raise FreeModelEligibilityError(
+            "zero-cost request contains unqualified options"
+        )
+    supplied_api_base = args.get("api_base")
+    if supplied_api_base is not None and supplied_api_base != api_base:
+        raise FreeModelEligibilityError(
+            "zero-cost request uses an unverified endpoint"
+        )
+
+
+def _verify_cloudflare_response_format(args: dict[str, Any]) -> None:
+    if "response_format" not in args:
+        return
+    response_format = args["response_format"]
+    if not isinstance(response_format, dict):
+        raise FreeModelEligibilityError(
+            "Cloudflare candidate has no qualified JSON response mode"
+        )
+    if response_format.get("type") == "json_object":
+        if response_format.keys() != {"type"}:
+            raise FreeModelEligibilityError(
+                "Cloudflare candidate has no qualified JSON response mode"
+            )
+        return
+    _verify_cloudflare_json_schema_format(response_format)
+
+
+def _verify_cloudflare_json_schema_format(
+    response_format: dict[str, Any],
+) -> None:
+    if response_format.get(
+        "type"
+    ) != "json_schema" or response_format.keys() != {"type", "json_schema"}:
+        raise FreeModelEligibilityError(
+            "Cloudflare candidate has no qualified JSON response mode"
+        )
+    definition = response_format["json_schema"]
+    allowed_definition_keys = {"name", "schema", "strict"}
+    if (
+        not isinstance(definition, dict)
+        or not {"name", "schema"} <= definition.keys()
+        or definition.keys() - allowed_definition_keys
+        or not isinstance(definition.get("name"), str)
+        or re.fullmatch(r"[A-Za-z0-9_-]{1,64}", definition["name"]) is None
+        or not isinstance(definition.get("schema"), dict)
+        or ("strict" in definition and definition["strict"] is not False)
+    ):
+        raise FreeModelEligibilityError(
+            "Cloudflare candidate has no qualified JSON response mode"
+        )
+    try:
+        schema_json = json.dumps(
+            definition["schema"], separators=(",", ":"), allow_nan=False
+        )
+    except (TypeError, ValueError) as exc:
+        raise FreeModelEligibilityError(
+            "Cloudflare candidate has an invalid JSON schema"
+        ) from exc
+    if len(schema_json.encode("utf-8")) > _CLOUDFLARE_MAX_SCHEMA_BYTES:
+        raise FreeModelEligibilityError(
+            "Cloudflare candidate JSON schema exceeds the request bound"
+        )
+
+
+def _verify_cloudflare_limits(args: dict[str, Any]) -> None:
+    max_tokens = args.get("max_tokens")
+    if (
+        type(max_tokens) is not int
+        or not 1 <= max_tokens <= _CLOUDFLARE_MAX_TOKENS
+    ):
+        raise FreeModelEligibilityError(
+            "zero-cost request exceeds the Cloudflare output bound"
+        )
+    if "stream" in args and type(args["stream"]) is not bool:
+        raise FreeModelEligibilityError(
+            "zero-cost request requires a boolean stream option"
+        )
+
+
+def _cloudflare_extra_body(args: dict[str, Any]) -> dict[str, Any]:
+    body = args.get("extra_body", {})
+    if body is None:
+        body = {}
+    if not isinstance(body, dict) or body.keys() - {"options"}:
+        raise FreeModelEligibilityError(
+            "zero-cost request contains plugins or unqualified routing"
+        )
+    _verify_cloudflare_busy_option(body.get("options", {}))
+    return body
+
+
+def _verify_cloudflare_busy_option(options: Any) -> None:
+    if not isinstance(options, dict) or options.keys() - {"rejectIfBusy"}:
+        raise FreeModelEligibilityError(
+            "zero-cost request contains plugins or unqualified routing"
+        )
+    if "rejectIfBusy" in options and options["rejectIfBusy"] is not True:
+        raise FreeModelEligibilityError(
+            "zero-cost request must reject busy Cloudflare capacity"
+        )
+
+
+def _verify_cloudflare_tool_choice(args: dict[str, Any]) -> None:
+    tool_choice = args.get("tool_choice")
+    if "tool_choice" in args and (
+        not isinstance(tool_choice, str)
+        or tool_choice not in {"auto", "none", "required"}
+    ):
+        raise FreeModelEligibilityError(
+            "zero-cost request contains an unqualified tool choice"
+        )

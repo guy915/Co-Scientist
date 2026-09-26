@@ -8,6 +8,12 @@ no longer finds that route in the official catalog. The user ended further M1
 model benchmarks; M11's separately preregistered successor checks and their
 limits are recorded below.
 
+**26 September Cloudflare candidate:** the owner’s existing account shows
+Workers Free. The [retained assessment](cloudflare-workers-free-candidate-2026-09-26.md)
+records a test-first, offline-only Gemma 4 request path and its unresolved JSON,
+output-size, scientific-quality and unattended-plan gates. No Workers AI token,
+live call, default switch or deployment has occurred.
+
 **26 September replacement check:** the [current public endpoint screen](m11-free-route-current-research-2026-09-26.json)
 finds three exact-zero free routes in OpenRouter's ZDR inventory. Only
 Qwen/ModelRun advertises structured output as well as tools. Its endpoint
