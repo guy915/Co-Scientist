@@ -570,3 +570,16 @@ The one-off runners and their tests were then removed from the active tree.
 Their exact sources remain in Git at `41c76bda` (interface) and `f1ce7584`
 (scientific trial); use `git show <commit>:<path>` to inspect them. The frozen
 protocol intentionally fails against later source revisions.
+
+## Distinct Groq Free 20B screen — 26 September 2026
+
+The [read-only candidate screen](groq-free-20b-screen-2026-09-26.md) and
+[frozen one-call protocol](groq20-scientific-prereg-v1.json) separated GPT-OSS
+20B from the failed 120B checkpoint. Current Free/ZDR and model limits were
+verified in the signed-in console. The [single completed scientific
+trial](groq20-science-2026-09-26-1.json) served 20B and used 2,027 tokens but
+returned `insufficient` for the fixed `partial` case and cited the contradiction
+control as support for another claim. The [assessment](groq20-scientific-assessment-2026-09-26.md)
+records the failed gate and why no further interface checks were run. The
+provisional adapter and one-off runner were removed; their sources remain at
+`c7d2cbac`, the frozen protocol at `7e0f50f2`.
