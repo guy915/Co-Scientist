@@ -17,7 +17,7 @@
   "source_commit_before_probe": "da2bf544",
   "source_hashes": {
     "references/external/baseline/model-qualification/probe_groq_free.py": "96dd2146a1c1b03d4d890ff08c35c788722fc8ab81cf27f9b12f670ec3933a29",
-    "references/external/baseline/model-qualification/probe_groq_batch.py": "e6adf00cae389c56ba0a15bd6258cebfa6a865ccd05ec2398782bd14f611f471",
+    "references/external/baseline/model-qualification/probe_groq_batch.py": "78b36951d4a0cc3008f03cc53fa9667c39253d29c226d85967895b5812044bb5",
     "engine/src/co_scientist/llm_free_policy.py": "a7274c755e68c6e6beb8fc472c1b3f079301caa307bff7d9c1702875c91a115b",
     "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
     "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
@@ -62,7 +62,13 @@
     "interface_evidence": "Require QUALIFICATION_INTERFACE_ARTIFACT at a retained path with status=passed, exact candidate, matching prereg digest, all four ordered cases and no more than five physical calls before launching any scientific trial.",
     "primary_metric": "Exact labels on all four fixed public claim/evidence pairs in each completed trial: partial, supports, insufficient, contradicts in manifest order.",
     "non_regression": "No unsupported claim promoted to support; no supported or partial claim withheld; self-contained cited spans; model-primary verdict, accepted served model and usage evidence; no fallback.",
-    "stop": "Launch only after the interface passes. Stop after first failed completed trial or any 429; retain partial attempts and do not substitute a model, input, cache or request configuration."
+    "stop": "Launch only after the interface passes. Stop after first failed completed trial or any 429; retain partial attempts and do not substitute a model, input, cache or request configuration.",
+    "interface_evidence_pin": {
+      "artifact_sha256": "86788695e0befbd70b31b9e0a00aa06e19ad534d7bf53de049d154346f8dcc3b",
+      "source_commit": "41c76bda6679f0de36e9abdd3c46d67d95011e33",
+      "prereg_sha256": "defa6f9d7701651b46ec388b237a1e9463282c8d7caeb160a10e29c48782576c"
+    },
+    "preflight_amendment": "After the five-call interface passed, the first science preflight made zero physical calls because successful interface records omit rate_limited. This amendment accepts an absent or explicit false marker, rejects every other marker, and pins the original immutable interface artifact by SHA-256, source commit and preregistration digest. Scientific inputs, metric, cap and stop rules are unchanged; no interface call is repeated."
   },
   "limitations": [
     "Free is an account state, not a per-request zero-price cap; current-day operator attestation cannot detect a same-day plan upgrade.",

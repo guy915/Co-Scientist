@@ -87,7 +87,7 @@ def _protocol() -> tuple[dict[str, Any], dict[str, Any]]:
     }
 
 
-def _interface_evidence(protocol: dict[str, Any], current_head: str) -> dict[str, Any]:
+def _interface_evidence(protocol: dict[str, Any]) -> dict[str, Any]:
     path = (
         Path(os.environ["QUALIFICATION_INTERFACE_ARTIFACT"])
         .expanduser()
@@ -96,6 +96,7 @@ def _interface_evidence(protocol: dict[str, Any], current_head: str) -> dict[str
     evidence = json.loads(path.read_text())
     cases = evidence.get("cases")
     interface = protocol["interface"]
+    pin = protocol["scientific_prerequisite"].get("interface_evidence_pin", {})
     runner_relative = interface["runner"]
     runner_path = (ROOT / runner_relative).resolve(strict=True)
     pinned_runner_sha256 = protocol["source_hashes"].get(runner_relative)
@@ -107,8 +108,10 @@ def _interface_evidence(protocol: dict[str, Any], current_head: str) -> dict[str
         or evidence.get("passed") is not True
         or evidence.get("requested_model") != MODEL
         or evidence.get("api_base") != API_BASE
-        or evidence.get("source_commit") != current_head
-        or evidence.get("prereg_sha256") != digest(PROTOCOL_PATH)
+        or not isinstance(pin, dict)
+        or digest(path) != pin.get("artifact_sha256")
+        or evidence.get("source_commit") != pin.get("source_commit")
+        or evidence.get("prereg_sha256") != pin.get("prereg_sha256")
         or not isinstance(pinned_runner_sha256, str)
         or digest(runner_path) != pinned_runner_sha256
         or evidence.get("runner_sha256") != pinned_runner_sha256
@@ -133,7 +136,10 @@ def _interface_evidence(protocol: dict[str, Any], current_head: str) -> dict[str
             call.get("requested_model") != MODEL
             or call.get("api_base") != API_BASE
             or call.get("status") != "completed"
-            or call.get("rate_limited") is not False
+            or (
+                call.get("rate_limited") is not None
+                and call.get("rate_limited") is not False
+            )
             or call.get("status_code") in (429, "429")
             or not isinstance(served_models, list)
             or not served_models
@@ -418,7 +424,7 @@ def main() -> int:
             raise ValueError("QUALIFICATION_REVISION differs from current git HEAD")
         protocol, identity = _protocol()
         record["preregistration"] = identity
-        record["interface_evidence"] = _interface_evidence(protocol, head)
+        record["interface_evidence"] = _interface_evidence(protocol)
         record["attested_utc_date"] = _attested_today()
         dataset, preflight = load_frozen_panel()
         record["frozen_inputs"] = {

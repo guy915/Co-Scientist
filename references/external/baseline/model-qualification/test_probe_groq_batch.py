@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -91,7 +92,28 @@ def _dynamic_protocol(probe):
     protocol = json.loads(probe.PROTOCOL_PATH.read_text())
     for relative in protocol["source_hashes"]:
         protocol["source_hashes"][relative] = probe.digest(probe.ROOT / relative)
+    interface_path = Path(os.environ["QUALIFICATION_INTERFACE_ARTIFACT"])
+    protocol["scientific_prerequisite"]["interface_evidence_pin"] = {
+        "artifact_sha256": probe.digest(interface_path),
+        "source_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True
+        ).strip(),
+        "prereg_sha256": probe.digest(probe.PROTOCOL_PATH),
+    }
     return protocol
+
+
+def test_interface_gate_accepts_absent_success_rate_marker(monkeypatch, tmp_path):
+    probe = _probe(monkeypatch)
+    _environment(monkeypatch, probe, tmp_path)
+    interface_path = tmp_path / "interface.json"
+    evidence = json.loads(interface_path.read_text())
+    for call in evidence["physical_calls"]:
+        del call["rate_limited"]
+    interface_path.write_text(json.dumps(evidence))
+    protocol = _dynamic_protocol(probe)
+
+    assert probe._interface_evidence(protocol)["sha256"] == probe.digest(interface_path)
 
 
 def test_protocol_digest_drift_fails_before_any_provider_call(

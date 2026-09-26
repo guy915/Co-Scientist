@@ -1,0 +1,183 @@
+{
+  "requested_model": "groq/openai/gpt-oss-120b",
+  "api_base": "https://api.groq.com/openai/v1",
+  "source_commit": "41c76bda6679f0de36e9abdd3c46d67d95011e33",
+  "prereg_sha256": "defa6f9d7701651b46ec388b237a1e9463282c8d7caeb160a10e29c48782576c",
+  "runner_sha256": "96dd2146a1c1b03d4d890ff08c35c788722fc8ab81cf27f9b12f670ec3933a29",
+  "started_at": "2026-09-26T15:36:15.909963+00:00",
+  "zero_cost_admission": "Groq Free/ZDR attestation enforced by project request policy",
+  "status": "passed",
+  "cases": [
+    {
+      "case": "schema",
+      "passed": true,
+      "response": {
+        "label": "supports",
+        "quote": "Treatment X reduced cell viability by 30% relative to vehicle."
+      },
+      "physical_call_indexes": [
+        0
+      ]
+    },
+    {
+      "case": "tools",
+      "passed": true,
+      "local_tool_invocations": [
+        {
+          "name": "read_control",
+          "arguments": {
+            "sample": "control-A"
+          }
+        }
+      ],
+      "answer": "The measurement for **control\u2011A** is **137 synthetic units**.",
+      "physical_call_indexes": [
+        1,
+        2
+      ]
+    },
+    {
+      "case": "streaming",
+      "passed": true,
+      "answer": "A cell\u2011based experiment by itself cannot demonstrate clinical benefit.",
+      "finish_reasons": [
+        "stop"
+      ],
+      "physical_call_indexes": [
+        3
+      ]
+    },
+    {
+      "case": "long_prompt",
+      "passed": true,
+      "prompt_characters": 8000,
+      "response": {
+        "label": "supports",
+        "quote": "The final control-A reading was 137 synthetic units."
+      },
+      "physical_call_indexes": [
+        4
+      ]
+    }
+  ],
+  "physical_calls": [
+    {
+      "case": "schema",
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 768,
+      "stream": false,
+      "prompt_characters": 159,
+      "tool_count": 0,
+      "status": "completed",
+      "served_models": [
+        "openai/gpt-oss-120b"
+      ],
+      "usage": [
+        {
+          "prompt_tokens": 207,
+          "completion_tokens": 157,
+          "total_tokens": 364
+        }
+      ]
+    },
+    {
+      "case": "tools",
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 768,
+      "stream": false,
+      "prompt_characters": 74,
+      "tool_count": 1,
+      "status": "completed",
+      "served_models": [
+        "openai/gpt-oss-120b"
+      ],
+      "usage": [
+        {
+          "prompt_tokens": 140,
+          "completion_tokens": 53,
+          "total_tokens": 193
+        }
+      ]
+    },
+    {
+      "case": "tools",
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 768,
+      "stream": false,
+      "prompt_characters": 144,
+      "tool_count": 1,
+      "status": "completed",
+      "served_models": [
+        "openai/gpt-oss-120b"
+      ],
+      "usage": [
+        {
+          "prompt_tokens": 187,
+          "completion_tokens": 56,
+          "total_tokens": 243
+        }
+      ]
+    },
+    {
+      "case": "streaming",
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 512,
+      "stream": true,
+      "prompt_characters": 83,
+      "tool_count": 0,
+      "status": "completed",
+      "served_models": [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-120b"
+      ],
+      "usage": [
+        {
+          "prompt_tokens": 23,
+          "completion_tokens": 12,
+          "total_tokens": 35
+        }
+      ]
+    },
+    {
+      "case": "long_prompt",
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 768,
+      "stream": false,
+      "prompt_characters": 8000,
+      "tool_count": 0,
+      "status": "completed",
+      "served_models": [
+        "openai/gpt-oss-120b"
+      ],
+      "usage": [
+        {
+          "prompt_tokens": 1566,
+          "completion_tokens": 147,
+          "total_tokens": 1713
+        }
+      ]
+    }
+  ],
+  "physical_call_count": 5,
+  "blocked_attempts": [],
+  "passed": true,
+  "finished_at": "2026-09-26T15:36:19.906424+00:00"
+}
