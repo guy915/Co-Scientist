@@ -1,11 +1,12 @@
 # M11-OPS-LING-01 — Ling Sante JSON compatibility
 
-**Disposition:** promising, unqualified. Parent: M11-OPS-02b. No runtime code,
-default, or deployment change is accepted.
+**Disposition:** interface-compatible candidate; scientific quality unqualified.
+Parent: M11-OPS-02b. The adapter remains provisional on the campaign branch.
+No default or deployment change is accepted.
 
 An isolated candidate now exists on the campaign branch: only the exact Ling
 route omits unsupported `response_format`, while the existing local parser and
-schema validator remain in charge. It has not passed a live interface check.
+schema validator remain in charge. It passed a bounded synthetic interface panel.
 Offline request-boundary and probe-runner tests passed. An independent Luna 6
 read-only review found no blocking code defect, but required one physical JSON
 request per case and stopping the panel on the first failed result; the bounded
@@ -22,6 +23,24 @@ to accept case variants for this unschemaed case only; schema validation is
 unchanged. The untested tool, stream and long-context cases remain for one
 bounded continuation. [Preflight](ling-sante-preflight-2026-09-26.json) pinned
 exact-zero Novita pricing and ZDR inventory immediately before the first panel.
+
+The [continuation](ling-sante-bounded-continuation-2026-09-26.json) used a
+second [fresh preflight](ling-sante-preflight-continuation-2026-09-26.json)
+and only the three untested cases. Tool use passed with one invocation of
+`lookup_measurement(control-A)` and a closing answer containing the returned
+137; the closing answer was verbose and described its tool limit, so this
+synthetic success is not a scientific-quality result. Streaming produced
+content, a `stop` finish, a model field identifying Ling Sante and reported
+token usage. Its engine telemetry row recorded zero because the app streaming
+boundary is outside that telemetry scope; the stream chunk itself supplies
+usage, so no billed amount is inferred. The 126,555-character long prompt
+returned schema-valid support with the verbatim quote. The two stages sent
+seven physical requests total, each with Novita-only, ZDR, data-collection
+denial and zero prompt/completion/request caps. Non-streaming usage reported
+the requested Ling Sante model and complete token counts; no provider billing
+receipt exists. No rate limit occurred. These observations clear the bounded
+interface panel, not scientific parity, expert validation, or production
+readiness. M11-OPS-02b3 remains open for frozen paired evaluation.
 
 **Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
 the single 26 September actual-interface request hit an upstream shared-pool
