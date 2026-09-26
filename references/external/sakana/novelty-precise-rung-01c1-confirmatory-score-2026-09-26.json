@@ -1,0 +1,340 @@
+{
+  "artifact_sha256": {
+    "blind": "bfc5a1a1ef1f3aad593d026ab29a99163b7d3a8aa2404e6b91ce98e04e06c5b7",
+    "input": "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5",
+    "labels": "fea6818d6a8fed4ac0ae3789ceb84367a1610930b096b3318f4d2839a2941207",
+    "lifecycle": "e77a9228be35ab2d5c87890059cff101f5b9b0b4eb872ae14b91e7f92650e5c4",
+    "prereg": "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3",
+    "run": "3e713dc3573c47f8ffed280dcee0cd817ee327eeaa0ce54691599c184a758c47",
+    "sealed": "adf235d0b9cb2299f60ee6ada06af2e89f3dc4c8767f28757db4e4932650e51c"
+  },
+  "gates": {
+    "all_blind_abstracts_evaluable": true,
+    "confirmatory_pass": false,
+    "no_increased_unrelated_by_request": true,
+    "no_lost_control_anchor": true,
+    "no_lost_positive_target": true,
+    "prior_exploratory_pass_and_no_adoption": true,
+    "provenance_valid": true,
+    "strict_primary_improvement": false
+  },
+  "interpretation": "This fixed comparison is limited to six queries from three domains. A completed gate failure rejects this isolated candidate for adoption; inconclusive provenance or abstracts keep it open. No broad scientific validity claim follows.",
+  "joint_disposition": "completed_gate_failure_reject_candidate",
+  "positive_target_cross_hits_in_controls": {
+    "N02": {
+      "baseline": {},
+      "candidate": {}
+    },
+    "N04": {
+      "baseline": {},
+      "candidate": {}
+    },
+    "N06": {
+      "baseline": {},
+      "candidate": {}
+    }
+  },
+  "primary_positive_target_recall_at_3": {
+    "baseline": 0,
+    "candidate": 0,
+    "delta": 0,
+    "maximum_per_arm": 3
+  },
+  "prior_exploratory_artifact_hashes": [
+    {
+      "artifact_role": "protocol",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-prereg-v1.json",
+      "sha256": "dec79fbe21bec82ee6535cc711cc66b2f37da61d5ef79a2eb4c0f7c2e8b8b3e8"
+    },
+    {
+      "artifact_role": "key_free_input",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-input-v1.json",
+      "sha256": "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0"
+    },
+    {
+      "artifact_role": "run",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-run-2026-09-25.json",
+      "sha256": "1876eeb29e98c57affb34f822b9c4cca8598e00e4719b073260cb6cd470fa204"
+    },
+    {
+      "artifact_role": "blind_packet",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-blind-2026-09-25.json",
+      "sha256": "6d573dbd541ab7f782019036ebce790d50d70b92606fde397a7194439acc970d"
+    },
+    {
+      "artifact_role": "blind_labels",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-blind-labels-2026-09-25.json",
+      "sha256": "bd2f5be469f467b96d0fe04fd26a5dd65bd12f5cce64a55faa8663c13512397f"
+    },
+    {
+      "artifact_role": "score",
+      "path": "references/external/sakana/novelty-precise-rung-01b2b-independent-score-2026-09-25.json",
+      "sha256": "2967c183ec1267ae99f49dd759365b8c30fef1811dac0b8ba9bca5f677b1c596"
+    }
+  ],
+  "protocol": "M11-NOV-RUNG-01c1-confirmatory-v1",
+  "request_accounting": {
+    "exact_underlying_wire_requests": "unknown",
+    "metadata_ids_submitted": 108,
+    "model_inference_calls": 0,
+    "outer_mcp_calls": 12,
+    "paid_calls": 0,
+    "retry_or_recovery_calls": 0,
+    "trace_verified_esearch_rungs": 26
+  },
+  "request_scores": [
+    {
+      "baseline": {
+        "final_pmids": [
+          "42635983",
+          "42680123",
+          "42557168"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 0,
+          "supports_central_mechanism": 0,
+          "unrelated": 3
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "18083105",
+        "unrelated_count": 3
+      },
+      "candidate": {
+        "final_pmids": [
+          "42635983",
+          "42680123",
+          "42557168"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 0,
+          "supports_central_mechanism": 0,
+          "unrelated": 3
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "18083105",
+        "unrelated_count": 3
+      },
+      "pair_id": "P1",
+      "request_id": "N01",
+      "role": "positive_target"
+    },
+    {
+      "baseline": {
+        "final_pmids": [
+          "41986248",
+          "42649352",
+          "41641772"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 2,
+          "supports_central_mechanism": 0,
+          "unrelated": 1
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "24270812",
+        "unrelated_count": 1
+      },
+      "candidate": {
+        "final_pmids": [
+          "41986248",
+          "42649352",
+          "41641772"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 2,
+          "supports_central_mechanism": 0,
+          "unrelated": 1
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "24270812",
+        "unrelated_count": 1
+      },
+      "pair_id": "P1",
+      "positive_target_cross_hits": {
+        "baseline": {},
+        "candidate": {}
+      },
+      "request_id": "N02",
+      "role": "distinct_control_anchor"
+    },
+    {
+      "baseline": {
+        "final_pmids": [
+          "41993501",
+          "41047864",
+          "41254470"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 3,
+          "supports_central_mechanism": 0,
+          "unrelated": 0
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "18042724",
+        "unrelated_count": 0
+      },
+      "candidate": {
+        "final_pmids": [
+          "41993501",
+          "41047864",
+          "41254470"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 3,
+          "supports_central_mechanism": 0,
+          "unrelated": 0
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "18042724",
+        "unrelated_count": 0
+      },
+      "pair_id": "P2",
+      "request_id": "N03",
+      "role": "positive_target"
+    },
+    {
+      "baseline": {
+        "final_pmids": [
+          "42516602",
+          "40508004",
+          "39579336"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 3,
+          "supports_central_mechanism": 0,
+          "unrelated": 0
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "16829581",
+        "unrelated_count": 0
+      },
+      "candidate": {
+        "final_pmids": [
+          "42516602",
+          "40508004",
+          "39579336"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 3,
+          "supports_central_mechanism": 0,
+          "unrelated": 0
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "16829581",
+        "unrelated_count": 0
+      },
+      "pair_id": "P2",
+      "positive_target_cross_hits": {
+        "baseline": {},
+        "candidate": {}
+      },
+      "request_id": "N04",
+      "role": "distinct_control_anchor"
+    },
+    {
+      "baseline": {
+        "final_pmids": [
+          "41414904",
+          "42642836",
+          "42434089"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 2,
+          "supports_central_mechanism": 0,
+          "unrelated": 1
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "35354946",
+        "unrelated_count": 1
+      },
+      "candidate": {
+        "final_pmids": [
+          "41414904",
+          "42642836",
+          "42434089"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 2,
+          "supports_central_mechanism": 0,
+          "unrelated": 1
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "35354946",
+        "unrelated_count": 1
+      },
+      "pair_id": "P3",
+      "request_id": "N05",
+      "role": "positive_target"
+    },
+    {
+      "baseline": {
+        "final_pmids": [
+          "42635401",
+          "42600037",
+          "42348853"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 1,
+          "supports_central_mechanism": 0,
+          "unrelated": 2
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "20114026",
+        "unrelated_count": 2
+      },
+      "candidate": {
+        "final_pmids": [
+          "42635401",
+          "42600037",
+          "42348853"
+        ],
+        "insufficient_abstract_count": 0,
+        "label_counts": {
+          "insufficient_abstract": 0,
+          "related_without_mechanism_support": 1,
+          "supports_central_mechanism": 0,
+          "unrelated": 2
+        },
+        "own_target_or_anchor_hit": false,
+        "own_target_or_anchor_pmid": "20114026",
+        "unrelated_count": 2
+      },
+      "pair_id": "P3",
+      "positive_target_cross_hits": {
+        "baseline": {},
+        "candidate": {}
+      },
+      "request_id": "N06",
+      "role": "distinct_control_anchor"
+    }
+  ],
+  "schema": "M11-NOV-RUNG-01c1-confirmatory-score-v1",
+  "scored_at_utc": "2026-09-26T06:42:23.150817+00:00",
+  "scoring_order": {
+    "blind_labels_commit": "37ac42b84c758af0d63550e61ed4ba28de912cc3",
+    "score_created_after_label_lock": true,
+    "sealed_output_commit": "a48125e7e59e070cc69c78b4c2bbbe07de87c23c"
+  }
+}
