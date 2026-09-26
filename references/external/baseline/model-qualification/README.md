@@ -25,8 +25,9 @@ still finds only Qwen, Ling Sante and Ling Fin at active exact-zero ZDR endpoint
 The [Fin decision](m11-fin-candidate-decision-2026-09-26.md) records a bounded
 next candidate. Its exact-route request adapter passed offline boundary checks;
 the [Fin preregistration](ling-fin-qualification-prereg-v1.json) pins the
-interface and scientific gates before any inference. It has not been enabled
-as a default or queried through this application.
+interface and scientific gates before inference. The [bounded live interface
+panel](ling-fin-interface-assessment-v1.md) passed six cases in seven capped
+requests. Fin has not been enabled as a default; scientific gates are next.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;

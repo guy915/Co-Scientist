@@ -1,0 +1,63 @@
+{
+  "title": "Ling Fin preflight before bounded interface panel",
+  "checked_at_utc": "2026-09-26T09:47:17.899144+00:00",
+  "source_commit": "531a53ec01fd7781312e0544034855874213ce62",
+  "model_id": "inclusionai/ling-3.0-flash-fin:free",
+  "catalog_policy": "verify_model passed",
+  "catalog_pricing": {
+    "prompt": "0",
+    "completion": "0",
+    "request": null
+  },
+  "exact_novita_eligible": [
+    {
+      "name": "Novita | inclusionai/ling-3.0-flash-fin-20260827:free",
+      "tag": "novita",
+      "status": 0,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "request": null
+      },
+      "supported_parameters": [
+        "reasoning",
+        "include_reasoning",
+        "max_tokens",
+        "temperature",
+        "top_p",
+        "stop",
+        "frequency_penalty",
+        "presence_penalty",
+        "seed",
+        "top_k",
+        "repetition_penalty",
+        "tools",
+        "tool_choice",
+        "logprobs",
+        "top_logprobs"
+      ]
+    }
+  ],
+  "zdr_name_tag_matches": 1,
+  "source_receipts": [
+    {
+      "name": "catalog",
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "2ca4460908f759ae4717fa9874e55e6d577aef0d64ba9905bfeb73affc20808c",
+      "bytes": 750927
+    },
+    {
+      "name": "exact",
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-fin%3Afree/endpoints",
+      "sha256": "07f52ae538c839099cd65cb081d1a7729bfc389324587de6ab8139a66bfa8a02",
+      "bytes": 1459
+    },
+    {
+      "name": "zdr",
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "sha256": "e067fb12dd906d3d7e8a995c8892e43ffe6f9a24f28ca0af06b8dea6dfc7fb69",
+      "bytes": 883424
+    }
+  ],
+  "scope": "credential-free metadata only; request price enforced separately by max_price.request=0; no inference or billing claim"
+}
