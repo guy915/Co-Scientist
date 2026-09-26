@@ -1,6 +1,9 @@
 # M11-OPS-LING-01 — Ling Sante JSON compatibility
 
-**Disposition:** interface-compatible candidate; scientific quality unqualified.
+**Disposition:** interface-compatible candidate; frozen scientific batch gate
+failed and selection remains open/inconclusive. See the
+[three-trial assessment](ling-sante-batch-assessment-v1.md). The current
+configuration cannot become a production default.
 Parent: M11-OPS-02b. The adapter remains provisional on the campaign branch.
 No default or deployment change is accepted.
 
@@ -50,6 +53,11 @@ and production-judge ranking, each in three fresh trials. It pairs candidate
 trial numbers with the historical M1 public inputs and states stricter
 non-regression floors than the original minimum gates. This is a comparison
 against retained evidence, not a contemporaneous randomized experiment.
+The first staged screen returned one pass, one completed partial-label miss,
+and one incomplete trial whose primary response repeated that miss; the local
+one-request ceiling stopped its verifier. The conditional larger panels were
+not run. This outcome is preserved as inconclusive under the frozen rule, not
+upgraded to a passing route or relabeled as a rejection.
 
 **Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
 the single 26 September actual-interface request hit an upstream shared-pool
