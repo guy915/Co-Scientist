@@ -51,13 +51,13 @@ for model in (settings.model_name, settings.supervisor_model_name,
     assert result.returncode == 0, result.stderr
 
 
-def test_live_runner_rejects_implicit_or_non_openrouter_models(
+def test_live_runner_rejects_implicit_or_unqualified_models(
     tmp_path: Path,
 ) -> None:
     script = """
 import os
 from evaluations._run_driver import configure_environment
-for model in ("", "deepseek/deepseek-chat"):
+for model in ("", "deepseek/deepseek-chat", "groq/other-model"):
     os.environ["MODEL_NAME"] = model
     try:
         configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
@@ -70,6 +70,41 @@ for model in ("", "deepseek/deepseek-chat"):
         [sys.executable, "-c", script],
         cwd=tmp_path,
         env={"PATH": os.environ["PATH"], "PYTHONPATH": str(_ROOT)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_live_runner_isolates_groq_free_route_from_paid_credentials(
+    tmp_path: Path,
+) -> None:
+    script = """
+import os
+from evaluations._run_driver import configure_environment
+configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+from app.config import settings
+assert os.environ["GROQ_API_KEY"] == "synthetic-groq"
+assert "OPENROUTER_API_KEY" not in os.environ
+assert "DEEPSEEK_API_KEY" not in os.environ
+assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
+for model in (settings.model_name, settings.supervisor_model_name,
+              settings.chat_model_name, settings.semantic_safety_model,
+              settings.claim_verifier_model):
+    assert model == "groq/openai/gpt-oss-120b", model
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env={
+            "PATH": os.environ["PATH"],
+            "PYTHONPATH": str(_ROOT),
+            "MODEL_NAME": "groq/openai/gpt-oss-120b",
+            "GROQ_API_KEY": "synthetic-groq",
+            "OPENROUTER_API_KEY": "synthetic-router",
+            "DEEPSEEK_API_KEY": "synthetic-paid",
+        },
         capture_output=True,
         text=True,
         timeout=30,

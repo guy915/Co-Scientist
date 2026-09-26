@@ -496,3 +496,324 @@ async def test_nex_requests_fund_and_control_observed_reasoning(
             "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
         }
     assert requests[0]["max_tokens"] >= THINKING_FLOOR_MAX_TOKENS
+
+
+async def test_groq_free_route_is_admitted_only_with_fresh_key_attestation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Campaign admission pins the exact direct route without price caps."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist import llm_free_policy
+    from co_scientist.llm_free_policy import enforce_free_request
+
+    key = "groq-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    monkeypatch.setattr(
+        llm_free_policy,
+        "current_catalog",
+        lambda: pytest.fail("Groq admission must not query price metadata"),
+    )
+    args: dict[str, Any] = {
+        "model": "groq/openai/gpt-oss-120b",
+        "messages": [{"role": "user", "content": "probe"}],
+    }
+
+    assert await enforce_free_request(args) is True
+    assert args["api_base"] == "https://api.groq.com/openai/v1"
+    assert "extra_body" not in args
+
+
+@pytest.mark.parametrize("stream", [True, False])
+async def test_groq_campaign_admits_boolean_stream_values(
+    monkeypatch: pytest.MonkeyPatch,
+    stream: bool,
+) -> None:
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist.llm_free_policy import enforce_free_request
+
+    key = "groq-stream-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    args: dict[str, Any] = {
+        "model": "groq/openai/gpt-oss-120b",
+        "messages": [{"role": "user", "content": "probe"}],
+        "stream": stream,
+    }
+
+    assert await enforce_free_request(args) is True
+    assert args["stream"] is stream
+    assert args["api_base"] == "https://api.groq.com/openai/v1"
+
+
+@pytest.mark.parametrize("stream", ["true", 1, None])
+async def test_groq_campaign_rejects_non_boolean_stream_values(
+    monkeypatch: pytest.MonkeyPatch,
+    stream: Any,
+) -> None:
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist.llm_free_policy import enforce_free_request
+
+    key = "groq-invalid-stream-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    args: dict[str, Any] = {
+        "model": "groq/openai/gpt-oss-120b",
+        "messages": [{"role": "user", "content": "probe"}],
+        "stream": stream,
+    }
+
+    with pytest.raises(RuntimeError, match="zero-cost request"):
+        await enforce_free_request(args)
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["groq/gpt-oss-120b", "groq/openai/gpt-oss-20b"],
+)
+async def test_public_system_default_groq_routes_reject_unqualified_models(
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+) -> None:
+    monkeypatch.delenv("COSCIENT_REQUIRE_FREE_MODELS", raising=False)
+    monkeypatch.delenv("COSCIENT_GROQ_FREE_ZDR_ATTESTATION", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "groq-default-key")
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch, [make_completion(make_message("unexpected"))], requests
+    )
+
+    with pytest.raises(RuntimeError, match="qualified Groq route"):
+        await call_llm("public probe", CompletionSpec(model), options=OPTIONS)
+    assert requests == []
+
+
+async def test_public_groq_request_uses_pinned_direct_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public wrapper sends the exact route after its admission gate."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist import llm_free_policy
+
+    key = "groq-public-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    monkeypatch.setattr(
+        llm_free_policy,
+        "current_catalog",
+        lambda: pytest.fail("Groq admission must not query price metadata"),
+    )
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch, [make_completion(make_message("ok"))], requests
+    )
+
+    assert (
+        await call_llm(
+            "public probe",
+            CompletionSpec("groq/openai/gpt-oss-120b"),
+            options=OPTIONS,
+        )
+        == "ok"
+    )
+    assert len(requests) == 1
+    assert requests[0]["model"] == "groq/openai/gpt-oss-120b"
+    assert requests[0]["api_base"] == "https://api.groq.com/openai/v1"
+    assert "extra_body" not in requests[0]
+    assert "api_key" not in requests[0]
+
+
+@pytest.mark.parametrize(
+    "attestation",
+    [
+        "",
+        "2000-01-01:" + "0" * 64,
+    ],
+)
+async def test_public_groq_request_fails_closed_without_fresh_key_attestation(
+    monkeypatch: pytest.MonkeyPatch,
+    attestation: str,
+) -> None:
+    monkeypatch.setenv("GROQ_API_KEY", "groq-public-test-key")
+    monkeypatch.setenv("COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION", attestation)
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(monkeypatch, [], requests)
+
+    with pytest.raises(RuntimeError, match="Groq Free/ZDR attestation"):
+        await call_llm(
+            "public probe",
+            CompletionSpec("groq/openai/gpt-oss-120b"),
+            options=OPTIONS,
+        )
+    assert requests == []
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"model": "groq/gpt-oss-120b"},
+        {"model": "groq/openai/gpt-oss-120b:free"},
+        {"api_base": "https://example.invalid/v1"},
+        {"extra_body": {}},
+        {"extra_body": {"plugins": [{"id": "web"}]}},
+        {"plugins": []},
+        {"service_tier": "priority"},
+        {"reasoning_effort": "high"},
+        {"stream": "true"},
+        {"stream": 1},
+        {"stream_options": {"include_usage": True}},
+        {"tool_choice": "auto"},
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "image_url", "image_url": "x"}],
+                }
+            ]
+        },
+        {"tools": [{"type": "web_search"}]},
+    ],
+)
+async def test_groq_route_rejects_aliases_and_unqualified_request_shapes(
+    monkeypatch: pytest.MonkeyPatch,
+    changes: dict[str, Any],
+) -> None:
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist import llm_free_policy
+    from co_scientist.llm_free_policy import enforce_free_request
+
+    key = "groq-shape-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    monkeypatch.setattr(
+        llm_free_policy,
+        "current_catalog",
+        lambda: pytest.fail("Groq admission must not query price metadata"),
+    )
+    args: dict[str, Any] = {
+        "model": "groq/openai/gpt-oss-120b",
+        "messages": [{"role": "user", "content": "probe"}],
+        **changes,
+    }
+    with pytest.raises(RuntimeError, match=r"zero-cost|Groq"):
+        await enforce_free_request(args)
+
+
+async def test_groq_campaign_keeps_local_function_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hashlib
+    from datetime import datetime, timezone
+
+    from co_scientist.llm import ToolLoop, call_llm_with_tools
+
+    key = "groq-tool-test-key"
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("GROQ_API_KEY", key)
+    monkeypatch.setenv(
+        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
+        f"{today}:{fingerprint}",
+    )
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup",
+                "description": "Local lookup",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            },
+        }
+    ]
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch, [make_completion(make_message("ok"))], requests
+    )
+
+    async def unused_tool(_call: Any) -> dict[str, Any]:
+        pytest.fail("the fixture does not request a tool call")
+
+    result, _ = await call_llm_with_tools(
+        "probe",
+        CompletionSpec("groq/openai/gpt-oss-120b"),
+        ToolLoop(tools=tools, executor=unused_tool),
+        options=OPTIONS,
+    )
+    assert result == "ok"
+    assert requests[0]["tools"] == tools
+    assert requests[0]["api_base"] == "https://api.groq.com/openai/v1"
+    assert "extra_body" not in requests[0]
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["groq/openai/gpt-oss-120b", "groq/openai/gpt-oss-20b"],
+)
+async def test_groq_byok_bypasses_system_default_free_attestation(
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+) -> None:
+    monkeypatch.delenv("COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch, [make_completion(make_message("ok"))], requests
+    )
+
+    assert (
+        await call_llm(
+            "public probe",
+            CompletionSpec(
+                model,
+                api_key="groq-explicit-byok-key",
+            ),
+            options=OPTIONS,
+        )
+        == "ok"
+    )
+    assert requests[0]["api_key"] == "groq-explicit-byok-key"
+    assert "api_base" not in requests[0]
