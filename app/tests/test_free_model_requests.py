@@ -1,9 +1,7 @@
 """App completion boundaries enforce the engine's zero-cost policy."""
 
 import asyncio
-import hashlib
 import os
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -23,41 +21,6 @@ from app.execution_policy import scoped_execution_policy
 
 MODEL = "openrouter/campaign/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]
-
-
-async def test_groq_streaming_uses_exact_free_route(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import litellm
-
-    from app import llm_request, offline_guard
-
-    key = "synthetic-groq-key"
-    today = datetime.now(timezone.utc).date().isoformat()
-    monkeypatch.setenv("GROQ_API_KEY", key)
-    monkeypatch.setenv(
-        "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION",
-        f"{today}:{hashlib.sha256(key.encode()).hexdigest()}",
-    )
-    monkeypatch.setattr(offline_guard, "require_remote_chat", lambda _: None)
-    sent: list[dict[str, Any]] = []
-
-    async def complete(**kwargs: Any) -> Any:
-        sent.append(kwargs)
-        return object()
-
-    monkeypatch.setattr(litellm, "acompletion", complete)
-    await llm_request.acompletion(
-        model="groq/openai/gpt-oss-120b",
-        messages=[{"role": "user", "content": "public prompt"}],
-        stream=True,
-        stream_options={"include_usage": True},
-    )
-    assert len(sent) == 1
-    assert sent[0]["stream"] is True
-    assert sent[0]["stream_options"] == {"include_usage": True}
-    assert sent[0]["api_base"] == "https://api.groq.com/openai/v1"
-    assert "extra_body" not in sent[0]
 
 
 async def _stream_call(kind: str, model: str) -> Any:

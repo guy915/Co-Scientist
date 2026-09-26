@@ -1,0 +1,185 @@
+{
+  "trial": 1,
+  "source_commit": "f1ce75843b2436a1cb9e4cabef69128956acda8b",
+  "requested_model": "groq/openai/gpt-oss-120b",
+  "probe_sha256": "78b36951d4a0cc3008f03cc53fa9667c39253d29c226d85967895b5812044bb5",
+  "started_at": "2026-09-26T15:40:35.068541+00:00",
+  "physical_attempts": [
+    {
+      "requested_model": "groq/openai/gpt-oss-120b",
+      "api_base": "https://api.groq.com/openai/v1",
+      "max_tokens": 12000,
+      "prompt_sha256": "297db1cabd79c5be3ff86b58e7b92072680e7e43e5da0a287e76c6648107fe85",
+      "transport_invoked": true,
+      "response_model": "openai/gpt-oss-120b",
+      "usage": {
+        "completion_tokens": 1080,
+        "prompt_tokens": 1193,
+        "total_tokens": 2273,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 934,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": null
+        },
+        "prompt_tokens_details": null,
+        "queue_time": 0.050553289,
+        "prompt_time": 0.053606476,
+        "completion_time": 2.25334682,
+        "total_time": 2.306953296
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "physical_attempt_count": 1,
+  "provider_request_budget_count": 1,
+  "batch_invocations": [
+    {
+      "claims": 4,
+      "passages": 4
+    }
+  ],
+  "raw_verdicts": [
+    {
+      "index": 1,
+      "label": "partial",
+      "supporting": [
+        {
+          "passage": 1,
+          "quote": "compound R reduced lipid accumulation after seven days"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "index": 2,
+      "label": "supports",
+      "supporting": [
+        {
+          "passage": 4,
+          "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "index": 3,
+      "label": "insufficient",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "index": 4,
+      "label": "contradicts",
+      "supporting": [],
+      "contradicting": [
+        {
+          "passage": 2,
+          "quote": "it decreased migration"
+        }
+      ]
+    }
+  ],
+  "report": {
+    "checks": [
+      {
+        "id": "same_scope_part_of_result",
+        "label": "partial",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "same_scope_part_of_result",
+            "quote": "compound R reduced lipid accumulation after seven days",
+            "start": 28,
+            "end": 82,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_full_support",
+        "label": "supports",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "matching_scope_full_support",
+            "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S",
+            "start": 0,
+            "end": 67,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "changed_population",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "supporting_spans": [],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_contradiction",
+        "label": "insufficient",
+        "verification_method": "contradiction_guard_rejected",
+        "supporting_spans": [],
+        "contradicting_spans": []
+      }
+    ]
+  },
+  "max_attempts": 1,
+  "physical_call_cap": 1,
+  "status": "failed",
+  "passed": false,
+  "preregistration": {
+    "sha256": "7a9d317bb6969c386a4a547f4b45330e21aa5cf1dcd002e610f9a3c0ac096548",
+    "preregistered_source_commit": "da2bf544",
+    "source_hashes": {
+      "references/external/baseline/model-qualification/probe_groq_free.py": "96dd2146a1c1b03d4d890ff08c35c788722fc8ab81cf27f9b12f670ec3933a29",
+      "references/external/baseline/model-qualification/probe_groq_batch.py": "78b36951d4a0cc3008f03cc53fa9667c39253d29c226d85967895b5812044bb5",
+      "engine/src/co_scientist/llm_free_policy.py": "a7274c755e68c6e6beb8fc472c1b3f079301caa307bff7d9c1702875c91a115b",
+      "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+      "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+      "engine/src/co_scientist/llm_tool_loop.py": "eaaaa161dd5c7db71639794a50336eedee4cc1e0c9bb053f1cbdb93f40b787a1",
+      "app/app/claim_verifier_batch.py": "006782b1a048abff9bd2b7ee7d72a57339a18502129fa581185be2cf893acec6",
+      "app/app/llm_request.py": "53dde70e9e28653813e86cae0b951a305d7fc2cc92df7822f1aaa2b5d18f58c5",
+      "app/app/interviews_model.py": "54666930d3fc4a0adb55646fe9fce8004b8bf205ba2b6db770e9d2654facf4f2",
+      "app/app/claims.py": "982cef956a9d4ddf69b42a448aea96b5ca7584d1a19c46c2b1a8b32905bd0627",
+      "references/external/baseline/model-qualification/partial-support-scope-controls.json": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+      "references/external/baseline/model-qualification/batch-schema-preflight109.json": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21"
+    }
+  },
+  "interface_evidence": {
+    "path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/baseline/model-qualification/groq-interface-2026-09-26-1.json",
+    "sha256": "86788695e0befbd70b31b9e0a00aa06e19ad534d7bf53de049d154346f8dcc3b"
+  },
+  "attested_utc_date": "2026-09-26",
+  "frozen_inputs": {
+    "dataset": "partial-support-scope-controls.json",
+    "dataset_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "schema_sha256": "ac8755c394641e7e70310099bfde6dced4c9b7526790d4bf5c7ce94fc68c80df",
+    "selected_ids": [
+      "same_scope_part_of_result",
+      "matching_scope_full_support",
+      "changed_population",
+      "matching_scope_contradiction"
+    ],
+    "expected_labels": [
+      "partial",
+      "supports",
+      "insufficient",
+      "contradicts"
+    ]
+  },
+  "assessor_id": "llm:groq/openai/gpt-oss-120b",
+  "acceptance_failures": [
+    "labels differ from the exact preregistered sequence",
+    "matching_scope_contradiction did not retain a model-primary verdict"
+  ],
+  "finished_at": "2026-09-26T15:40:37.673457+00:00"
+}

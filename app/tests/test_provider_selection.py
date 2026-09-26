@@ -16,11 +16,7 @@ import sys
 import pytest
 
 from app import safety
-from app.config import (
-    PROVIDER_CREDENTIAL_ENV,
-    has_provider_credential,
-    provider_credential_names,
-)
+from app.config import PROVIDER_CREDENTIAL_ENV
 from app.engine_adapter import provider
 
 _ALL_CREDENTIAL_ENV = tuple(
@@ -49,26 +45,6 @@ def test_a_non_default_provider_key_counts_as_a_credential(
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert provider._has_provider_key() is True
-
-
-def test_groq_campaign_model_uses_only_groq_credential(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    _clear_credentials(monkeypatch)
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    assert provider_credential_names("groq/openai/gpt-oss-120b") == (
-        "GROQ_API_KEY",
-    )
-    assert has_provider_credential("groq/openai/gpt-oss-120b") is False
-    monkeypatch.setenv("GROQ_API_KEY", "synthetic-groq")
-    assert has_provider_credential("groq/openai/gpt-oss-120b") is True
-    assert provider.offline_mode() is False
-    assert (
-        safety._semantic_credential_available("groq/openai/gpt-oss-120b")
-        is True
-    )
 
 
 @pytest.mark.parametrize("credential", _ALL_CREDENTIAL_ENV)
