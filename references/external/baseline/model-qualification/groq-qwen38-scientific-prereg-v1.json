@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "status": "draft",
+  "purpose": "One scientific-first public-input screen through the existing Co-Scientist batched claim assessor. This is not a full-run, expert-validity, or production-default qualification.",
+  "candidate": {
+    "model": "groq/qwen/qwen3.8-27b",
+    "api_base": "https://api.groq.com/openai/v1",
+    "provider_model_id": "qwen/qwen3.8-27b",
+    "accepted_response_model_ids": ["qwen/qwen3.8-27b"],
+    "current_admission": "Immediately before the call, read back the account's Free ($0) Current Plan, enabled Inference APIs ZDR, exact Qwen3.8-27B availability and 30 RPM/1000 RPD/8000 TPM/200000 TPD Free limits. Stop if the plan, privacy, model or limits cannot be verified. Developer token prices do not authorize this campaign to spend.",
+    "credential": "GROQ_API_KEY injected from a protected local file; dotenv disabled; do not record the key, fingerprint, account identifier, or raw provider error.",
+    "no_fallback": true,
+    "no_paid_tools": true
+  },
+  "request": {
+    "max_attempts": 1,
+    "sdk_retries": 0,
+    "physical_call_cap": 1,
+    "max_tokens": 12000,
+    "cache_enabled": false,
+    "temperature": 0,
+    "first_error_stop": true,
+    "fallback_or_alias_routing": false
+  },
+  "scientific_trial": {
+    "trial_count": 1,
+    "input_manifest": "references/external/baseline/model-qualification/batch-schema-preflight109.json",
+    "fixed_public_dataset": "references/external/baseline/model-qualification/partial-support-scope-controls.json",
+    "boundary": "app.claim_verifier_batch.make_llm_batch_assessor via app.claims.assess_claims_batch",
+    "expected_ids": [
+      "same_scope_part_of_result",
+      "matching_scope_full_support",
+      "changed_population",
+      "matching_scope_contradiction"
+    ],
+    "expected_labels": ["partial", "supports", "insufficient", "contradicts"],
+    "expected_verification_methods": [
+      "model_primary",
+      "model_primary",
+      "model_primary",
+      "lexical_founded"
+    ],
+    "physical_call_cap": 1,
+    "contradiction_method_rationale": "The fixed contradiction passage explicitly names the same intervention, outcome, population, and time and contains a negation cue. The existing local guard accepts this as lexical_founded without a second model request; model_primary cannot be the final method for a contradiction.",
+    "quote_rule": "Each non-insufficient result must retain exactly one quote in its matching polarity and no opposite-polarity span. The quote must be an exact substring of its fixed source passage with matching character offsets. Partial and support results may cite the relevant source clause. The contradiction quote must include the self-contained anchor 'Treatment S did not increase migration of adult human fibroblasts after 24 hours'. Insufficient must retain no support or contradiction span.",
+    "acceptance": "All four raw model labels and actual-interface labels exactly match the ordered sequence; all four claims are sent in one batch invocation; the contradiction retains lexical_founded; no deterministic fallback or secondary verification request occurs; exactly one physical request uses the pinned model and base and returns the accepted served-model ID and complete positive token-usage evidence.",
+    "stop": "Stop on the first transport/provider error, 429, wrong label or quote, missing served-model or usage evidence, unaccepted verification method, route change, retry, fallback, or extra request. Preserve the failure artifact and do not repeat or substitute the model, input, or request configuration."
+  },
+  "source_commit_before_probe": null,
+  "source_hashes": {},
+  "freeze_after": "Review the provider route, current Free/ZDR admission, and source dependencies; then pin the exact source commit, source hashes, preregistration digest, and current-day key attestation before any live call.",
+  "source_paths_to_pin_after_adapter_completion": [
+    "references/external/baseline/model-qualification/probe_groq_qwen38_batch.py",
+    "references/external/baseline/model-qualification/batch-schema-preflight109.json",
+    "references/external/baseline/model-qualification/partial-support-scope-controls.json",
+    "app/app/claim_verifier_batch.py",
+    "app/app/claims_batch.py",
+    "app/app/claim_verifier_opposition.py",
+    "app/app/claims_span.py",
+    "app/app/credentials.py",
+    "engine/src/co_scientist/cache.py",
+    "engine/src/co_scientist/llm.py",
+    "engine/src/co_scientist/llm_call.py",
+    "engine/src/co_scientist/llm_call_budget.py",
+    "engine/src/co_scientist/llm_json_retry.py",
+    "engine/src/co_scientist/llm_request.py"
+  ],
+  "artifact": {
+    "creation": "Exclusive create; fail if the path already exists; POSIX mode 0600.",
+    "contents": "Sanitized request observation, provider model and token usage, raw/public verdicts, final span results, errors, and pass/fail criteria only. Never retain credentials or account identifiers."
+  },
+  "limitations": [
+    "A one-call token cap limits request size but does not guarantee an exact maximum charge; review current pricing and account billing controls before any live request.",
+    "One fixed synthetic public panel screens one behavior only and does not establish broad scientific quality or expert validity.",
+    "This screen does not qualify tools, streaming, long input/output, reasoning, full-run spend, or production defaults."
+  ]
+}
