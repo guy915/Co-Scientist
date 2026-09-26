@@ -53,7 +53,10 @@ def _capability_modules(
             raise failure
         if low_quality:
             return {"label": "contradicts", "quote": "unrelated"}
-        return {"label": "supports", "quote": "Treatment X reduced cell viability by 30% relative to vehicle."}
+        return {
+            "label": "supports",
+            "quote": "Treatment X reduced cell viability by 30% relative to vehicle.",
+        }
 
     @contextlib.contextmanager
     def capture_usage(*_args, **_kwargs):
@@ -110,6 +113,65 @@ def test_capabilities_low_quality_is_recorded_and_exits_zero(monkeypatch, tmp_pa
     assert "error_type" not in record["cases"][0]
 
 
+def test_bounded_capabilities_stop_on_low_quality(monkeypatch, tmp_path):
+    output = tmp_path / "bounded-low-quality.json"
+    calls = []
+    _env(
+        monkeypatch,
+        output,
+        QUALIFICATION_CASES="json_off,json_on",
+        QUALIFICATION_BOUNDED_PANEL="1",
+    )
+
+    status = _run(
+        monkeypatch,
+        FOLDER / "probe_capabilities.py",
+        _capability_modules(monkeypatch, calls, low_quality=True),
+    )
+
+    record = json.loads(output.read_text())
+    assert status == 1
+    assert calls == ["json"]
+    assert len(record["cases"]) == 1
+    assert record["cases"][0]["passed"] is False
+
+
+def test_bounded_capabilities_allow_one_json_physical_call(monkeypatch, tmp_path):
+    output = tmp_path / "bounded-physical.json"
+    calls = []
+    _env(
+        monkeypatch,
+        output,
+        QUALIFICATION_CASES="json_off",
+        QUALIFICATION_BOUNDED_PANEL="1",
+    )
+    modules = _capability_modules(monkeypatch, calls)
+
+    async def transport(**_kwargs):
+        calls.append("transport")
+        return object()
+
+    async def double_call(*_args, **_kwargs):
+        import litellm
+
+        await litellm.acompletion(model="openrouter/test-model")
+        await litellm.acompletion(model="openrouter/test-model")
+        return {
+            "label": "supports",
+            "quote": "Treatment X reduced cell viability by 30% relative to vehicle.",
+        }
+
+    modules["litellm"].acompletion = transport
+    modules["co_scientist.llm"].call_llm_json = double_call
+    status = _run(monkeypatch, FOLDER / "probe_capabilities.py", modules)
+
+    record = json.loads(output.read_text())
+    assert status == 1
+    assert calls == ["transport"]
+    assert record["cases"][0]["error_type"] == "RuntimeError"
+    assert len(record["cases"][0]["physical_request_controls"]) == 1
+
+
 def test_capabilities_terminal_error_is_retained_and_stops_later_cases(
     monkeypatch, tmp_path
 ):
@@ -156,9 +218,7 @@ def test_capabilities_eligibility_error_is_retained_before_provider_call(
     assert "catalog route unavailable" in record["cases"][0]["error"]
 
 
-def test_capabilities_tool_probe_allows_only_one_tool_round_trip(
-    monkeypatch, tmp_path
-):
+def test_capabilities_tool_probe_allows_only_one_tool_round_trip(monkeypatch, tmp_path):
     output = tmp_path / "tool-probe.json"
     calls = []
     _env(monkeypatch, output, QUALIFICATION_CASES="tools")

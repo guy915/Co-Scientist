@@ -21,6 +21,8 @@ from typing import Any, Final
 # internal split must not move it.
 logger = logging.getLogger("co_scientist.llm_request")
 
+_LING_SANTE_FREE: Final = "openrouter/inclusionai/ling-3.0-flash-sante:free"
+
 
 # Goes ahead of the restated schema, never after it -- see reason 3 in
 # _inject_schema_into_prompt's docstring for the measurement, and note that
@@ -116,6 +118,15 @@ def _apply_schema_response_format(
     # original at import time and silently ignore every one of them.
     from co_scientist import llm_request
 
+    if model_name.lower() == _LING_SANTE_FREE:
+        completion_args["messages"] = [
+            {
+                "role": "user",
+                "content": _inject_schema_into_prompt(prompt, json_schema),
+            }
+        ]
+        return
+
     if llm_request._supports_json_schema_response_format(model_name):
         completion_args["response_format"] = {
             "type": "json_schema",
@@ -167,5 +178,13 @@ def _apply_response_format(
         _apply_schema_response_format(
             completion_args, prompt, model_name, json_schema
         )
+    elif force_json and model_name.lower() == _LING_SANTE_FREE:
+        completion_args["messages"] = [
+            {
+                "role": "user",
+                "content": prompt
+                + "\n\nRespond with a valid JSON object only.",
+            }
+        ]
     elif force_json:
         completion_args["response_format"] = {"type": "json_object"}

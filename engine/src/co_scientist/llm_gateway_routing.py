@@ -254,6 +254,12 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
         spends_budget_thinking=True,
         verified_provider="modelrun",
     ),
+    # Provisional prompt-only JSON candidate; not a system default.
+    "openrouter/inclusionai/ling-3.0-flash-sante:free": GatewayModel(
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        verified_provider="novita",
+    ),
     # A non-default chain head kept for a deployment that opts into it. It
     # was the deployed primary from 2026-09-05 until a real express
     # run measured its single host (Decart) answering only 7 of 85 calls --

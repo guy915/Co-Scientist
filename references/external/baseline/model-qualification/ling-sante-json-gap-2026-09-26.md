@@ -3,6 +3,15 @@
 **Disposition:** promising, unqualified. Parent: M11-OPS-02b. No runtime code,
 default, or deployment change is accepted.
 
+An isolated candidate now exists on the campaign branch: only the exact Ling
+route omits unsupported `response_format`, while the existing local parser and
+schema validator remain in charge. It has not passed a live interface check.
+Offline request-boundary and probe-runner tests passed. An independent Luna 6
+read-only review found no blocking code defect, but required one physical JSON
+request per case and stopping the panel on the first failed result; the bounded
+probe now enforces both. Tool use is allowed two physical requests because a
+successful call needs a tool request and a closing answer.
+
 **Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
 the single 26 September actual-interface request hit an upstream shared-pool
 429. Ling Sante is an exact-zero free route in the current ZDR
