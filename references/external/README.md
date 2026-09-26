@@ -16,6 +16,9 @@ completed, blinded, independently sourced confirmation; see the
 Each source gets a dossier and immutable commit permalinks when its milestone begins.
 [M11's follow-up register](m11-follow-up-register.md) records the remaining
 mechanism gaps and the additional-repository selection decision.
+[M11 evidence release](m11-evidence-release-2026-09-26.json) records the
+owner-directed route skip, PR #48, deployed commit and keyless smoke result;
+the nine dependent acceptance checks remain open.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
