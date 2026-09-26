@@ -22,7 +22,6 @@ from typing import Any, Final
 logger = logging.getLogger("co_scientist.llm_request")
 
 _LING_SANTE_FREE: Final = "openrouter/inclusionai/ling-3.0-flash-sante:free"
-_LING_FIN_FREE: Final = "openrouter/inclusionai/ling-3.0-flash-fin:free"
 
 
 # Goes ahead of the restated schema, never after it -- see reason 3 in
@@ -119,7 +118,7 @@ def _apply_schema_response_format(
     # original at import time and silently ignore every one of them.
     from co_scientist import llm_request
 
-    if model_name.lower() in (_LING_SANTE_FREE, _LING_FIN_FREE):
+    if model_name.lower() == _LING_SANTE_FREE:
         completion_args["messages"] = [
             {
                 "role": "user",
@@ -179,10 +178,7 @@ def _apply_response_format(
         _apply_schema_response_format(
             completion_args, prompt, model_name, json_schema
         )
-    elif force_json and model_name.lower() in (
-        _LING_SANTE_FREE,
-        _LING_FIN_FREE,
-    ):
+    elif force_json and model_name.lower() == _LING_SANTE_FREE:
         completion_args["messages"] = [
             {
                 "role": "user",

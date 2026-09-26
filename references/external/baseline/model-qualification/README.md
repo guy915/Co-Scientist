@@ -30,7 +30,9 @@ panel](ling-fin-interface-assessment-v1.md) passed six cases in seven capped
 requests. Its [frozen four-claim scientific batch gate](ling-fin-batch-assessment-v1.md)
 then completed three fresh trials with the same wrong partial-support label
 in every trial. This exact configuration is rejected as a scientific standby;
-larger panels were stopped and no default or deployment changed.
+larger panels were stopped and no default or deployment changed. The provisional
+Fin application route was then removed; its frozen source commit and raw trial
+artifacts remain for audit, not as a current runnable route.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;
