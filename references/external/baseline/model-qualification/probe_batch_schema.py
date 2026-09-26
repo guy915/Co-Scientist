@@ -18,6 +18,7 @@ from app.claim_verifier_batch import _BATCH_DRAFT_SCHEMA, make_llm_batch_assesso
 from app.claims import EvidencePassage, assess_claims_batch  # noqa: E402
 from evaluations._panel_identity import capture_panel  # noqa: E402
 from co_scientist.llm_free_catalog import current_catalog, verify_model  # noqa: E402
+from co_scientist.llm_call_budget import scoped_llm_call_budget  # noqa: E402
 import probe_citation_panel as observer  # noqa: E402
 
 
@@ -73,7 +74,12 @@ def load_frozen_panel() -> tuple[dict, dict]:
     dataset_path = FOLDER / preflight["source_dataset"]
     if digest(dataset_path) != preflight["source_sha256"]:
         raise ValueError("Frozen batch dataset differs from preflight")
-    if hashlib.sha256(json.dumps(_BATCH_DRAFT_SCHEMA, sort_keys=True).encode()).hexdigest() != preflight["schema_sha256"]:
+    if (
+        hashlib.sha256(
+            json.dumps(_BATCH_DRAFT_SCHEMA, sort_keys=True).encode()
+        ).hexdigest()
+        != preflight["schema_sha256"]
+    ):
         raise ValueError("Batch assessor schema differs from preflight")
     source = json.loads(dataset_path.read_text())
     by_id = {item["id"]: item for item in source["items"]}
@@ -106,7 +112,9 @@ def run_batch(dataset: dict, batch_assessor, assessor_id: str) -> dict:
                 "id": item["id"],
                 "label": assessment.label.value,
                 "verification_method": assessment.verification_method,
-                "supporting_spans": [span.to_dict() for span in assessment.supporting_passages],
+                "supporting_spans": [
+                    span.to_dict() for span in assessment.supporting_passages
+                ],
                 "contradicting_spans": [
                     span.to_dict() for span in assessment.contradicting_passages
                 ],
@@ -154,9 +162,14 @@ def main() -> int:
                 )
                 return assessor(claims, passages)
 
-            with capture_panel("citation_entailment", dataset, MODEL, live=True) as evidence:
-                record["panel_evidence"] = evidence
-                record["report"] = run_batch(dataset, observed_assessor, assessor_id)
+            with scoped_llm_call_budget(f"qualification:{output.resolve()}", 1):
+                with capture_panel(
+                    "citation_entailment", dataset, MODEL, live=True
+                ) as evidence:
+                    record["panel_evidence"] = evidence
+                    record["report"] = run_batch(
+                        dataset, observed_assessor, assessor_id
+                    )
         except Exception as exc:
             record["error_type"] = type(exc).__name__
             record["error"] = re.sub(
@@ -165,9 +178,13 @@ def main() -> int:
         finally:
             record["physical_requests"] = observer._REQUESTS
             record["physical_request_count"] = len(observer._REQUESTS)
-            record["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            record["finished_at"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
             artifact.write(json.dumps(record, indent=2) + "\n")
-    print(json.dumps({"trial": record["trial"], "error_type": record.get("error_type")}))
+    print(
+        json.dumps({"trial": record["trial"], "error_type": record.get("error_type")})
+    )
     return 1 if "error_type" in record else 0
 
 

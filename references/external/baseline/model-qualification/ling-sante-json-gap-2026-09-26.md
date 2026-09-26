@@ -42,6 +42,15 @@ receipt exists. No rate limit occurred. These observations clear the bounded
 interface panel, not scientific parity, expert validation, or production
 readiness. M11-OPS-02b3 remains open for frozen paired evaluation.
 
+The [scientific selection preregistration](ling-sante-scientific-prereg-v1.json)
+pins the candidate route, 46 code/config/input hashes and twelve retained M1
+trial artifacts before further inference. Its staged gates are the four-claim
+batch assessor, 30-item citation challenge with controls, citation usefulness,
+and production-judge ranking, each in three fresh trials. It pairs candidate
+trial numbers with the historical M1 public inputs and states stricter
+non-regression floors than the original minimum gates. This is a comparison
+against retained evidence, not a contemporaneous randomized experiment.
+
 **Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
 the single 26 September actual-interface request hit an upstream shared-pool
 429. Ling Sante is an exact-zero free route in the current ZDR

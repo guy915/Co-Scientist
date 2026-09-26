@@ -62,6 +62,30 @@ def test_run_batch_uses_one_shared_four_claim_invocation(monkeypatch) -> None:
     assert result["checks"][3]["contradicting_spans"][0]["quote"]
 
 
+def test_live_probe_refuses_a_second_provider_attempt(monkeypatch, tmp_path) -> None:
+    probe = _probe(monkeypatch)
+    output = tmp_path / "batch-qualification.json"
+    monkeypatch.setenv("QUALIFICATION_OUTPUT", str(output))
+    monkeypatch.setenv("QUALIFICATION_TRIAL", "1")
+    monkeypatch.setenv("QUALIFICATION_REVISION", probe.head_revision())
+    monkeypatch.setattr(probe, "current_catalog", lambda: {"test-model": {}})
+    monkeypatch.setattr(probe, "verify_model", lambda *_args: None)
+
+    from co_scientist.llm_call_budget import record_provider_request
+
+    def assessor(_claims, _passages):
+        record_provider_request()
+        record_provider_request()
+        raise RuntimeError("uncapped second request reached")
+
+    monkeypatch.setattr(
+        probe, "make_llm_batch_assessor", lambda _model: (assessor, "test-assessor")
+    )
+
+    assert probe.main() == 1
+    assert json.loads(output.read_text())["error_type"] == "LLMCallBudgetExceededError"
+
+
 @pytest.mark.parametrize(
     ("quote", "label", "method"),
     [

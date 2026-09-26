@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import asyncio
+import importlib
 import json
 import runpy
 import sys
@@ -37,6 +39,10 @@ def _env(monkeypatch, output: Path, **extra):
 
 
 def _run(monkeypatch, script: Path, modules: dict[str, types.ModuleType]):
+    importlib.import_module(
+        "co_scientist.llm_call_budget"
+    )  # Preload before fake LiteLLM.
+
     for name, module in modules.items():
         monkeypatch.setitem(sys.modules, name, module)
     with pytest.raises(SystemExit) as exc_info:
@@ -175,7 +181,12 @@ def test_bounded_capabilities_allow_one_json_physical_call(monkeypatch, tmp_path
 def test_plain_json_accepts_case_variant_when_prompt_has_no_enum(monkeypatch, tmp_path):
     output = tmp_path / "plain-json-case.json"
     calls = []
-    _env(monkeypatch, output, QUALIFICATION_CASES="plain_json", QUALIFICATION_BOUNDED_PANEL="1")
+    _env(
+        monkeypatch,
+        output,
+        QUALIFICATION_CASES="plain_json",
+        QUALIFICATION_BOUNDED_PANEL="1",
+    )
     modules = _capability_modules(monkeypatch, calls)
 
     async def case_variant(*_args, **_kwargs):
@@ -338,6 +349,95 @@ def test_citation_execution_error_is_retained_and_exits_nonzero(monkeypatch, tmp
     assert status == 1
     assert record["error_type"] == "RuntimeError"
     assert "provider route failed" in record["error"]
+
+
+def test_citation_refuses_existing_artifact_before_admission(monkeypatch, tmp_path):
+    output = tmp_path / "citation-existing.json"
+    output.write_text("original")
+    _env(monkeypatch, output, QUALIFICATION_ROOT=str(ROOT))
+    modules = _citation_modules(eligibility_failure=AssertionError("admission ran"))
+
+    with pytest.raises(FileExistsError):
+        _run(monkeypatch, FOLDER / "probe_citation_panel.py", modules)
+
+    assert output.read_text() == "original"
+
+
+def test_citation_stops_at_physical_request_ceiling(monkeypatch, tmp_path):
+    from co_scientist.llm_call_budget import record_provider_request
+
+    output = tmp_path / "citation-budget.json"
+    _env(monkeypatch, output, QUALIFICATION_ROOT=str(ROOT))
+    modules = _citation_modules()
+
+    def run(**_kwargs):
+        for _ in range(81):
+            record_provider_request()
+
+    modules["evaluations.citation_eval"].run = run
+    assert _run(monkeypatch, FOLDER / "probe_citation_panel.py", modules) == 1
+    assert json.loads(output.read_text())["error_type"] == "LLMCallBudgetExceededError"
+
+
+def test_citation_records_failed_physical_attempt_without_secret(monkeypatch):
+    importlib.import_module("co_scientist.llm_call_budget")
+    modules = _citation_modules()
+
+    async def failed_transport(**_kwargs):
+        raise RuntimeError("route failed with test-key")
+
+    modules["litellm"].acompletion = failed_transport
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    probe = runpy.run_path(
+        str(FOLDER / "probe_citation_panel.py"), run_name="probe_test"
+    )
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(probe["observed_transport"](model="test-model", messages=[]))
+
+    assert probe["_REQUESTS"][0]["error_type"] == "RuntimeError"
+    assert probe["_REQUESTS"][0]["error"] == "route failed with [redacted]"
+
+
+def test_usefulness_stops_at_physical_request_ceiling(monkeypatch, tmp_path):
+    from co_scientist.llm_call_budget import record_provider_request
+
+    output = tmp_path / "usefulness-budget.json"
+    _env(monkeypatch, output, QUALIFICATION_PANEL="usefulness")
+
+    def run_llm(*_args):
+        for _ in range(21):
+            record_provider_request()
+
+    observer = _module(
+        "probe_citation_panel",
+        digest=lambda _path: "test-sha",
+        litellm=types.SimpleNamespace(acompletion=None),
+        observed_transport=lambda **_kwargs: None,
+        _REQUESTS=[],
+    )
+    observer.__file__ = str(FOLDER / "probe_citation_panel.py")
+    modules = {
+        "evaluations._live_config": _module(
+            "evaluations._live_config",
+            configure_live_environment=lambda: "openrouter/test-model",
+        ),
+        "co_scientist.llm_free_catalog": _module(
+            "co_scientist.llm_free_catalog",
+            current_catalog=lambda: {"test-model": {}},
+            verify_model=lambda *_args: None,
+        ),
+        "probe_citation_panel": observer,
+        "evaluations.citation_usefulness_eval": _module(
+            "evaluations.citation_usefulness_eval",
+            load_dataset=lambda: {},
+            run_llm=run_llm,
+        ),
+    }
+    assert _run(monkeypatch, FOLDER / "probe_remaining_panel.py", modules) == 1
+    assert json.loads(output.read_text())["error_type"] == "LLMCallBudgetExceededError"
 
 
 def test_citation_eligibility_error_is_retained_without_a_key(monkeypatch, tmp_path):

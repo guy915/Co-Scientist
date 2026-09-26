@@ -12,6 +12,7 @@ from evaluations._live_config import configure_live_environment
 MODEL = configure_live_environment()
 
 from co_scientist.llm_free_catalog import current_catalog, verify_model  # noqa: E402
+from co_scientist.llm_call_budget import scoped_llm_call_budget  # noqa: E402
 import probe_citation_panel as observer  # noqa: E402
 
 panel = os.environ["QUALIFICATION_PANEL"]
@@ -34,14 +35,17 @@ with output.open("x") as artifact:
         verify_model(raw_model, catalog)
         record["eligibility"] = catalog[raw_model]
         observer.litellm.acompletion = observer.observed_transport
-        if panel == "usefulness":
-            from evaluations import citation_usefulness_eval as evaluator
+        with scoped_llm_call_budget(
+            f"qualification:{output.resolve()}", 20 if panel == "usefulness" else 60
+        ):
+            if panel == "usefulness":
+                from evaluations import citation_usefulness_eval as evaluator
 
-            record["report"] = evaluator.run_llm(evaluator.load_dataset(), MODEL)
-        else:
-            from evaluations import elo_concordance_eval as evaluator
+                record["report"] = evaluator.run_llm(evaluator.load_dataset(), MODEL)
+            else:
+                from evaluations import elo_concordance_eval as evaluator
 
-            record["report"] = evaluator.run(use_llm=True)
+                record["report"] = evaluator.run(use_llm=True)
     except Exception as exc:
         record["error_type"] = type(exc).__name__
         record["error"] = str(exc).replace(
