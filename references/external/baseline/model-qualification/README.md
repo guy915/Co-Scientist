@@ -15,6 +15,9 @@ after one call with no served model or usage receipt. Ling Sante and Ling Fin
 have no advertised structured-output support; neither has been qualified
 through this application's JSON boundary. No model or production default was
 selected. Do not retry Qwen on a timer.
+The [Ling Sante compatibility gap](ling-sante-json-gap-2026-09-26.md) retains a
+bounded prompt-only candidate for later test-first qualification; it has not
+been implemented or used in a live request.
 
 **25 September replacement check:** Qwen3.8 27B's sole free ModelRun endpoint
 was still listed at $0 prompt/completion, with tools and structured outputs;

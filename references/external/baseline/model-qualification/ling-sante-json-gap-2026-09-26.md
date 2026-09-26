@@ -1,0 +1,39 @@
+# M11-OPS-LING-01 — Ling Sante JSON compatibility
+
+**Disposition:** promising, unqualified. Parent: M11-OPS-02b. No runtime code,
+default, or deployment change is accepted.
+
+**Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
+the single 26 September actual-interface request hit an upstream shared-pool
+429. Ling Sante is an exact-zero free route in the current ZDR
+inventory, but its Novita endpoint advertises tools and reasoning without
+`structured_outputs` or `response_format`. The research engine needs validated
+JSON for generation, review, grounding, and other workflow nodes.
+
+**Evidence.** The [dated endpoint receipt](m11-free-route-current-research-2026-09-26.json)
+pins price, ZDR presence, endpoint parameters, and the Qwen stop. Locally,
+`engine/src/co_scientist/llm_request_schema.py:119-141` sends either
+`json_schema` or `json_object` even when it injects the schema into the prompt.
+`engine/src/co_scientist/llm_gateway_routing.py:350-381` requires advertised
+parameters and only pins/data-protects explicitly declared providers. An
+independent read-only Antigravity Gemini 3.8 Flash High review reached the same
+no-code-change verdict; its suggested tool-call shim would additionally require
+unpacking tool-call arguments at the response boundary. That suggestion is not
+an adopted design or live capability result.
+
+**Options and choice.** Try a prompt-only schema instruction using the existing
+JSON parser and schema validator in an isolated candidate first. This is smaller
+than translating every structured response into a forced tool call, and it keeps
+the existing validation contract. It is not equivalent to provider-enforced
+structured output. A red-first request-boundary test must show the current route
+sends an unsupported `response_format`; the candidate should omit that parameter
+only for the exact Ling route, pin Novita, and retain zero prompt/completion/request
+caps plus ZDR/data-collection controls. Then one bounded synthetic actual-interface
+JSON/tool/stream/long/reasoning panel may assess reliability, stopping on its first
+error or rate limit. A pass would still require the campaign's declared scientific
+quality comparison before default selection.
+
+**Reject if** the endpoint cannot produce valid schema-matching content through
+the project's parser, cannot reliably call tools, cannot fund an answer after
+reasoning, or violates zero-price/privacy admission. Metadata alone resolves none
+of those checks. No additional spending, private document, or user run is allowed.
