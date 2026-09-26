@@ -172,6 +172,27 @@ def test_bounded_capabilities_allow_one_json_physical_call(monkeypatch, tmp_path
     assert len(record["cases"][0]["physical_request_controls"]) == 1
 
 
+def test_plain_json_accepts_case_variant_when_prompt_has_no_enum(monkeypatch, tmp_path):
+    output = tmp_path / "plain-json-case.json"
+    calls = []
+    _env(monkeypatch, output, QUALIFICATION_CASES="plain_json", QUALIFICATION_BOUNDED_PANEL="1")
+    modules = _capability_modules(monkeypatch, calls)
+
+    async def case_variant(*_args, **_kwargs):
+        calls.append("json")
+        return {
+            "label": "Supports",
+            "quote": "Treatment X reduced cell viability by 30% relative to vehicle.",
+        }
+
+    modules["co_scientist.llm"].call_llm_json = case_variant
+    status = _run(monkeypatch, FOLDER / "probe_capabilities.py", modules)
+
+    assert status == 0
+    assert calls == ["json"]
+    assert json.loads(output.read_text())["cases"][0]["passed"] is True
+
+
 def test_capabilities_terminal_error_is_retained_and_stops_later_cases(
     monkeypatch, tmp_path
 ):

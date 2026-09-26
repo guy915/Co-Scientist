@@ -12,6 +12,17 @@ request per case and stopping the panel on the first failed result; the bounded
 probe now enforces both. Tool use is allowed two physical requests because a
 successful call needs a tool request and a closing answer.
 
+The [first bounded panel](ling-sante-bounded-panel-2026-09-26.json) sent three
+physical requests. Schema JSON with reasoning requested off and on both passed.
+The third, unschemaed JSON, returned valid JSON with the exact supporting quote
+and label `Supports`. The probe had silently required lowercase `supports`
+without asking for that casing, so it stopped on an invalid fixture criterion.
+The raw failed score remains untouched. A red-first test corrected the scorer
+to accept case variants for this unschemaed case only; schema validation is
+unchanged. The untested tool, stream and long-context cases remain for one
+bounded continuation. [Preflight](ling-sante-preflight-2026-09-26.json) pinned
+exact-zero Novita pricing and ZDR inventory immediately before the first panel.
+
 **Gap and behavior.** Qwen/ModelRun remains unavailable to campaign inference:
 the single 26 September actual-interface request hit an upstream shared-pool
 429. Ling Sante is an exact-zero free route in the current ZDR

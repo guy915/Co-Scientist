@@ -117,8 +117,10 @@ async def plain_json():
         options=LLMCallOptions(use_cache=False, enable_thinking=False),
     )
     quote = result.get("quote")
+    label = result.get("label")
     return {
-        "passed": result.get("label") == "supports"
+        "passed": isinstance(label, str)
+        and label.casefold() == "supports"
         and isinstance(quote, str)
         and quote in PASSAGE,
         "response": result,
