@@ -1,0 +1,46 @@
+{
+  "purpose": "M11 documentation-only release receipt for Qwen operational disqualification",
+  "pr": "https://github.com/guy915/Co-Scientist/pull/52",
+  "reviewed_head": "f1817f0e24f63887a3022dea9d8a8dbe47957db2",
+  "merge_commit": "0589ea9bb663ce9a62647c9a1c1bec53bda29984",
+  "changed_files": [
+    "PLAN.md",
+    "references/external/m11-follow-up-register.md"
+  ],
+  "local_verification": {
+    "git_diff_check": "passed",
+    "referenced_artifacts_exist": true,
+    "product_code_or_configuration_changed": false
+  },
+  "hosted_ci": {
+    "run": "https://github.com/guy915/Co-Scientist/actions/runs/36257657662",
+    "affected_targets": "failed before any step or runner assignment",
+    "dependent_jobs": "skipped",
+    "merge_gate": "owner-authorized hosted-CI waiver; no CI pass claimed"
+  },
+  "deployment": {
+    "railway_api": {
+      "id": "a1fb2ef8-fd56-4f52-ba2a-f30938a86dff",
+      "status": "SUCCESS",
+      "commit": "0589ea9bb663ce9a62647c9a1c1bec53bda29984",
+      "replicas": 1,
+      "volume": "/app/data READY"
+    },
+    "railway_mcp": {
+      "id": "9b363ef4-5765-4e99-9e64-48dfb3cbb42a",
+      "status": "SUCCESS",
+      "commit": "0589ea9bb663ce9a62647c9a1c1bec53bda29984"
+    },
+    "vercel_frontend": {
+      "id": "dpl_JDCpZKR9iNk8yUAf8B3XLLuN4fdL",
+      "status": "READY",
+      "commit": "0589ea9bb663ce9a62647c9a1c1bec53bda29984"
+    }
+  },
+  "production_smoke": {
+    "command": "python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com",
+    "result": "passed: health, status, ownership isolation, untrusted-origin CORS, sanitized-share 404",
+    "public_frontend_http_status": 200
+  },
+  "limits": "No inference, public research run, model-role readback, or qualified replacement is claimed. The nine M11/M12 acceptance items remain open."
+}
