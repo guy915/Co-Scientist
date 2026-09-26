@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "purpose": "One bounded direct Groq Free compatibility screen followed only on success by the retained public four-claim scientific prerequisite. This is not a full-run or expert-validity evaluation.",
+  "candidate": {
+    "model": "groq/openai/gpt-oss-120b",
+    "api_base": "https://api.groq.com/openai/v1",
+    "accepted_response_model_ids": [
+      "groq/openai/gpt-oss-120b",
+      "openai/gpt-oss-120b",
+      "gpt-oss-120b"
+    ],
+    "account_requirements": "Read back Free $0 plan, Inference APIs ZDR enabled, and exact GPT-OSS 120B 30 RPM / 1000 RPD / 8000 TPM / 200000 TPD limits immediately before each live batch; attest only the current UTC date and effective key. Stop if any control is unverified or changes.",
+    "credential": "GROQ_API_KEY from a protected local file, never from repository or dotenv",
+    "no_fallback": true,
+    "no_paid_tools": true
+  },
+  "source_commit_before_probe": "da2bf544",
+  "source_hashes": {
+    "references/external/baseline/model-qualification/probe_groq_free.py": "96dd2146a1c1b03d4d890ff08c35c788722fc8ab81cf27f9b12f670ec3933a29",
+    "references/external/baseline/model-qualification/probe_groq_batch.py": "e6adf00cae389c56ba0a15bd6258cebfa6a865ccd05ec2398782bd14f611f471",
+    "engine/src/co_scientist/llm_free_policy.py": "a7274c755e68c6e6beb8fc472c1b3f079301caa307bff7d9c1702875c91a115b",
+    "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+    "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+    "engine/src/co_scientist/llm_tool_loop.py": "eaaaa161dd5c7db71639794a50336eedee4cc1e0c9bb053f1cbdb93f40b787a1",
+    "app/app/claim_verifier_batch.py": "006782b1a048abff9bd2b7ee7d72a57339a18502129fa581185be2cf893acec6",
+    "app/app/llm_request.py": "53dde70e9e28653813e86cae0b951a305d7fc2cc92df7822f1aaa2b5d18f58c5",
+    "app/app/interviews_model.py": "54666930d3fc4a0adb55646fe9fce8004b8bf205ba2b6db770e9d2654facf4f2",
+    "app/app/claims.py": "982cef956a9d4ddf69b42a448aea96b5ca7584d1a19c46c2b1a8b32905bd0627",
+    "references/external/baseline/model-qualification/partial-support-scope-controls.json": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "references/external/baseline/model-qualification/batch-schema-preflight109.json": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21"
+  },
+  "interface": {
+    "runner": "references/external/baseline/model-qualification/probe_groq_free.py",
+    "cases_in_order": [
+      "schema",
+      "tools",
+      "streaming",
+      "long_prompt"
+    ],
+    "physical_call_caps": {
+      "schema": 1,
+      "tools": 2,
+      "streaming": 1,
+      "long_prompt": 1
+    },
+    "total_physical_call_cap": 5,
+    "max_completion_tokens_by_case": {
+      "schema": 768,
+      "tools": 768,
+      "streaming": 512,
+      "long_prompt": 768
+    },
+    "long_prompt_characters": 8000,
+    "criterion": "Each case succeeds through the actual project request boundary under its physical-call cap; model and usage evidence are recorded for every successful physical response; local tool executes once; a streamed answer arrives; no paid fallback, route change, unqualified option, retry, 429 or missing response evidence.",
+    "stop": "Stop the process immediately after the first failed case or 429; retain the attempt and do not repeat a case to manufacture a pass. A request-size or quota limit is a failed prerequisite, not permission to silently shrink input."
+  },
+  "scientific_prerequisite": {
+    "input_manifest": "references/external/baseline/model-qualification/batch-schema-preflight109.json",
+    "boundary": "app.claim_verifier_batch.make_llm_batch_assessor via app.claims.assess_claims_batch",
+    "trials": 3,
+    "physical_call_cap_per_trial": 1,
+    "interface_evidence": "Require QUALIFICATION_INTERFACE_ARTIFACT at a retained path with status=passed, exact candidate, matching prereg digest, all four ordered cases and no more than five physical calls before launching any scientific trial.",
+    "primary_metric": "Exact labels on all four fixed public claim/evidence pairs in each completed trial: partial, supports, insufficient, contradicts in manifest order.",
+    "non_regression": "No unsupported claim promoted to support; no supported or partial claim withheld; self-contained cited spans; model-primary verdict, accepted served model and usage evidence; no fallback.",
+    "stop": "Launch only after the interface passes. Stop after first failed completed trial or any 429; retain partial attempts and do not substitute a model, input, cache or request configuration."
+  },
+  "limitations": [
+    "Free is an account state, not a per-request zero-price cap; current-day operator attestation cannot detect a same-day plan upgrade.",
+    "The 8000 TPM Free quota precludes a full 131072-token context stress test. An 8000-character public synthetic prompt is only a bounded long-input compatibility check.",
+    "Passing these probes does not establish that a complete Express research run fits daily quota or reaches scientific/report acceptance.",
+    "No result is treated as expert or wet-lab validation."
+  ]
+}

@@ -51,9 +51,11 @@ async def test_groq_streaming_uses_exact_free_route(
         model="groq/openai/gpt-oss-120b",
         messages=[{"role": "user", "content": "public prompt"}],
         stream=True,
+        stream_options={"include_usage": True},
     )
     assert len(sent) == 1
     assert sent[0]["stream"] is True
+    assert sent[0]["stream_options"] == {"include_usage": True}
     assert sent[0]["api_base"] == "https://api.groq.com/openai/v1"
     assert "extra_body" not in sent[0]
 

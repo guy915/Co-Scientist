@@ -48,6 +48,7 @@ _GROQ_REQUEST_FIELDS = {
     "response_format",
     "tools",
     "stream",
+    "stream_options",
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
 _campaign_mode: ContextVar[bool] = ContextVar("campaign_mode", default=False)
@@ -115,13 +116,18 @@ def _request_body(
 
 
 def _verify_stream_option(args: dict[str, Any], api_base: str) -> None:
-    if (
-        api_base == _GROQ_API_BASE
-        and "stream" in args
-        and type(args["stream"]) is not bool
-    ):
+    if api_base != _GROQ_API_BASE:
+        return
+    if "stream" in args and type(args["stream"]) is not bool:
         raise FreeModelEligibilityError(
             "zero-cost request requires a boolean stream option"
+        )
+    if "stream_options" in args and (
+        args.get("stream") is not True
+        or args["stream_options"] != {"include_usage": True}
+    ):
+        raise FreeModelEligibilityError(
+            "zero-cost request requires usage-only stream options"
         )
 
 

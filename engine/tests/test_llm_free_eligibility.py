@@ -693,6 +693,8 @@ async def test_public_groq_request_fails_closed_without_fresh_key_attestation(
         {"stream": "true"},
         {"stream": 1},
         {"stream_options": {"include_usage": True}},
+        {"stream": True, "stream_options": {"include_usage": False}},
+        {"stream": True, "stream_options": {"include_usage": True, "other": 1}},
         {"tool_choice": "auto"},
         {
             "messages": [
