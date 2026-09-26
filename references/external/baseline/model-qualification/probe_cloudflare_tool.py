@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,8 @@ MAX_TOOL_ITERATIONS = 1
 MAX_PROMPT_TOKENS = 4096
 PHYSICAL_CALL_CAP = 2
 SDK_MAX_RETRIES = 0
+SDK_NUM_RETRIES = 0
+LITELLM_VERSION = version("litellm")
 TIMEOUT_SECONDS = 90
 TOOL_NAME = "lookup_public_measurement"
 TOOL_ARGUMENTS = {"sample_id": "control-A"}
@@ -43,8 +46,10 @@ TOOL_RESULT = {
 PROMPT = (
     "Use lookup_public_measurement with sample_id control-A. The tool is the "
     "only source of the measurement. After it returns, report the value and "
-    "unit in one sentence. Do not guess."
+    "unit with this exact sentence: 'The control-A measurement was 137 "
+    "arbitrary units.' Do not guess or alter its value."
 )
+EXPECTED_ANSWER = "The control-A measurement was 137 arbitrary units."
 TOOL_SCHEMA = {
     "type": "function",
     "function": {
@@ -61,7 +66,7 @@ TOOL_SCHEMA = {
 PASS_CRITERION = (
     "Exactly one tool invocation uses lookup_public_measurement with "
     "sample_id=control-A; the tool result is 137 arbitrary units; the final "
-    "answer states both the value and unit."
+    f"answer exactly matches: {EXPECTED_ANSWER!r}."
 )
 SOURCE_MODULES = (
     "co_scientist.cache",
@@ -105,7 +110,7 @@ def head_revision() -> str:
     ).strip()
 
 
-def source_hashes() -> dict[str, str]:
+def _source_paths() -> dict[str, Path]:
     names = {
         name: Path(importlib.import_module(name).__file__).resolve()
         for name in SOURCE_MODULES
@@ -121,6 +126,11 @@ def source_hashes() -> dict[str, str]:
         ).resolve(),
     }
     paths.update({str(path.relative_to(ROOT)): path for path in names.values()})
+    return paths
+
+
+def source_hashes() -> dict[str, str]:
+    paths = _source_paths()
     hashes: dict[str, str] = {}
     for relative, path in sorted(paths.items()):
         if not path.is_file() or not path.resolve().is_relative_to(ROOT):
@@ -129,6 +139,59 @@ def source_hashes() -> dict[str, str]:
             )
         hashes[relative] = sha256(path.read_bytes())
     return hashes
+
+
+def _dirty_source_paths(paths: dict[str, Path]) -> list[str]:
+    result = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            *sorted(paths),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ValueError("could not verify pinned source working-tree state")
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def _commit_source_hashes(source_commit: str, paths: dict[str, Path]) -> dict[str, str]:
+    try:
+        return {
+            relative: sha256(
+                subprocess.check_output(
+                    ["git", "show", f"{source_commit}:{relative}"],
+                    cwd=ROOT,
+                    stderr=subprocess.DEVNULL,
+                )
+            )
+            for relative in sorted(paths)
+        }
+    except subprocess.CalledProcessError as exc:
+        raise ValueError(
+            "preregistration source commit is missing a pinned source blob"
+        ) from exc
+
+
+def _verified_source_hashes(source_commit: str) -> dict[str, str]:
+    paths = _source_paths()
+    dirty = _dirty_source_paths(paths)
+    if dirty:
+        raise ValueError(
+            "pinned behavior-bearing source files have dirty or uncommitted changes"
+        )
+    working_hashes = source_hashes()
+    if _commit_source_hashes(source_commit, paths) != working_hashes:
+        raise ValueError(
+            "pinned source file hashes do not match the frozen source commit"
+        )
+    return working_hashes
 
 
 def input_hashes() -> dict[str, str]:
@@ -148,6 +211,8 @@ def request_config() -> dict[str, Any]:
         "max_prompt_tokens": MAX_PROMPT_TOKENS,
         "physical_call_cap": PHYSICAL_CALL_CAP,
         "sdk_max_retries": SDK_MAX_RETRIES,
+        "sdk_num_retries": SDK_NUM_RETRIES,
+        "litellm_version": LITELLM_VERSION,
         "timeout_seconds": TIMEOUT_SECONDS,
         "cache_enabled": False,
         "thinking_policy": "engine tool-loop default, pinned by source hashes",
@@ -172,6 +237,7 @@ def expected_prereg(
         account_id_sha256 = sha256(account_id.encode("ascii"))
     config = request_config()
     inputs = input_hashes()
+    frozen_source_commit = source_commit or head_revision()
     return {
         "version": 1,
         "status": "frozen",
@@ -189,8 +255,8 @@ def expected_prereg(
         "request_config": config,
         "request_config_sha256": sha256(canonical_json(config)),
         "fixed_input_sha256": inputs,
-        "source_commit": source_commit or head_revision(),
-        "source_sha256": source_hashes(),
+        "source_commit": frozen_source_commit,
+        "source_sha256": _verified_source_hashes(frozen_source_commit),
         "zero_spend_basis": (
             "Current-day operator attestation of Workers Free; Cloudflare's "
             "daily free Neurons ceiling is a hard-fail boundary. No remaining-"
@@ -198,7 +264,7 @@ def expected_prereg(
         ),
         "stop_rule": (
             "One tool round trip only, at most two physical requests, no SDK "
-            "retry or fallback. Stop on the first error, wrong tool call, wrong "
+            "max_retries or num_retries, and no fallback. Stop on the first error, wrong tool call, wrong "
             "served model, missing usage, or failed answer criterion."
         ),
         "scope_limit": (
@@ -286,6 +352,7 @@ def main() -> int:
         "pass_criterion": PASS_CRITERION,
         "physical_call_cap": PHYSICAL_CALL_CAP,
         "sdk_max_retries": SDK_MAX_RETRIES,
+        "sdk_num_retries": SDK_NUM_RETRIES,
         "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "passed": False,
         "physical_request_count": 0,
@@ -312,7 +379,7 @@ def main() -> int:
                 attestation_date=today,
                 account_id_sha256=prereg["candidate"]["account_id_sha256"],
                 python_version=sys.version.split()[0],
-                litellm_version=getattr(litellm, "__version__", "unknown"),
+                litellm_version=LITELLM_VERSION,
             )
             os.environ["PYTHON_DOTENV_DISABLED"] = "1"
             os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] = "1"
@@ -329,7 +396,8 @@ def main() -> int:
                     ),
                     "tool_count": len(kwargs.get("tools") or []),
                     "max_tokens": kwargs.get("max_tokens"),
-                    "max_retries": SDK_MAX_RETRIES,
+                    "max_retries": kwargs.get("max_retries"),
+                    "num_retries": kwargs.get("num_retries"),
                     "drop_params": kwargs.get("drop_params"),
                     "temperature": kwargs.get("temperature"),
                     "timeout": kwargs.get("timeout"),
@@ -371,6 +439,7 @@ def main() -> int:
                     or kwargs.get("max_tokens") != MAX_TOKENS
                     or not tool_shape_matches
                     or kwargs.get("max_retries") not in (None, SDK_MAX_RETRIES)
+                    or kwargs.get("num_retries") not in (None, SDK_NUM_RETRIES)
                     or kwargs.get("drop_params") is not False
                     or kwargs.get("temperature") != 0
                     or kwargs.get("timeout") != TIMEOUT_SECONDS
@@ -401,7 +470,12 @@ def main() -> int:
                     raise QualificationGuardError(
                         "physical request added unpinned provider options"
                     )
+                # LiteLLM consumes `num_retries` in its async wrapper, while
+                # `max_retries` controls the provider client's own retry loop.
                 kwargs["max_retries"] = SDK_MAX_RETRIES
+                kwargs["num_retries"] = SDK_NUM_RETRIES
+                item["max_retries"] = SDK_MAX_RETRIES
+                item["num_retries"] = SDK_NUM_RETRIES
                 item["dispatched"] = True
                 record["physical_request_count"] += 1
                 _write_artifact(artifact, record)
@@ -460,9 +534,7 @@ def main() -> int:
                     answer = _get(message, "content")
                     if (
                         _get(message, "tool_calls")
-                        or not isinstance(answer, str)
-                        or "137" not in answer
-                        or "arbitrary units" not in answer.casefold()
+                        or answer != EXPECTED_ANSWER
                         or _get(choice, "finish_reason") != "stop"
                     ):
                         roundtrip_state = "failed"
@@ -536,8 +608,7 @@ def main() -> int:
             if (
                 record["tool_invocations"]
                 != [{"name": TOOL_NAME, "arguments": TOOL_ARGUMENTS}]
-                or "137" not in answer
-                or "arbitrary units" not in answer.casefold()
+                or answer != EXPECTED_ANSWER
                 or record["physical_request_count"] != PHYSICAL_CALL_CAP
             ):
                 raise ValueError("completed tool round trip failed the fixed criterion")
