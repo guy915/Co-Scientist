@@ -531,3 +531,32 @@ manifests and results describe their original probe revisions.
 
 [Gemma26 diagnosis](gemma26-routing186.md) records the native-schema routing gap;
 JSON-object compatibility and scientific suitability remain unverified.
+
+## Direct Groq Free screen — 26 September 2026
+
+The [admission receipt](groq-free-admission-2026-09-26.json) records the Free
+($0) account, enabled Inference APIs ZDR, exact GPT-OSS 120B limits and a
+credentialed model-list response. The key is stored outside this repository.
+The [frozen protocol](groq-free-qualification-prereg-v1.json) capped the
+interface screen at five physical calls and each scientific trial at one.
+
+The [interface artifact](groq-interface-2026-09-26-1.json) passed schema, tool,
+streaming and bounded long-input cases. Each call reports the served model and
+usage. The first [scientific preflight](groq-batch-2026-09-26-trial-1.json)
+made zero calls: its evidence validator incorrectly required an explicit false
+rate-limit flag where a successful interface call leaves the field absent. A
+documented protocol amendment pins the unchanged interface artifact by hash.
+It changed no scientific input, criterion or call cap.
+
+The first [completed scientific trial](groq-batch-2026-09-26-trial-1-live.json)
+made one call. Its raw labels were correct, but the existing contradiction
+provenance guard rejected a short quoted span and downgraded the fourth result
+to `insufficient`. The current product therefore failed the frozen exact-label
+criterion. Trials two and three were not launched. This fixed configuration is
+unqualified; the result does not establish the model's general scientific
+quality. The provisional request adapter was removed before merge or deployment;
+the retained protocol and artifacts refer to qualification commit `41c76bda`.
+The one-off runners and their tests were then removed from the active tree.
+Their exact sources remain in Git at `41c76bda` (interface) and `f1ce7584`
+(scientific trial); use `git show <commit>:<path>` to inspect them. The frozen
+protocol intentionally fails against later source revisions.
