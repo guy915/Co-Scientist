@@ -1,0 +1,572 @@
+{
+  "title": "M11 post-Ling exact-zero ZDR route screen",
+  "checked_at_utc": "2026-09-26T08:26:59.448651+00:00",
+  "source_commit": "5bb0de26860fd56e23af97b806eb93a449ff0dea",
+  "method": "official catalog exact :free verify_model, exact endpoint availability and zero prompt/completion, name+tag match in official ZDR inventory; no inference, account credential or per-request billing claim",
+  "source_receipts": [
+    {
+      "name": "catalog",
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "c4fd9c71f70d5ecb291fc9ad0f11b6e7e8f4b9d5775774f8f97594ef5108c983",
+      "bytes": 750918
+    },
+    {
+      "name": "zdr",
+      "url": "https://openrouter.ai/api/v1/endpoints/zdr",
+      "sha256": "5f5e1cd9fcf2c6dff725a258aa5ee1db0f7089e9808f7cf774c0bf108e46592f",
+      "bytes": 882121
+    },
+    {
+      "name": "exact:inclusionai/ling-3.0-flash-sante:free",
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-sante%3Afree/endpoints",
+      "sha256": "39836b3536047e0c70c6a94df2bdf26d9943e6c440e4055bbe0f03849f24e4b8",
+      "bytes": 1434
+    },
+    {
+      "name": "exact:inclusionai/ling-3.0-flash-fin:free",
+      "url": "https://openrouter.ai/api/v1/models/inclusionai/ling-3.0-flash-fin%3Afree/endpoints",
+      "sha256": "b6d35a0ed8452a7ed7293311f220ffb911a492b8481fb569f0458dae7e4ec8fe",
+      "bytes": 1447
+    },
+    {
+      "name": "exact:qwen/qwen3.8-27b:free",
+      "url": "https://openrouter.ai/api/v1/models/qwen/qwen3.8-27b%3Afree/endpoints",
+      "sha256": "5a193214a1caf2d4843985cbcc51ac45460cf680e9ca2255d4fc4a5b8a59f2fc",
+      "bytes": 1433
+    },
+    {
+      "name": "exact:dots-studio/dots-3-note-preview:free",
+      "url": "https://openrouter.ai/api/v1/models/dots-studio/dots-3-note-preview%3Afree/endpoints",
+      "sha256": "ef9c3d2d362dc84f9724c1f75bf400b5386f61a873397b6f71d6a7dbaad18c4e",
+      "bytes": 1395
+    },
+    {
+      "name": "exact:liquid/lfm-2.5-2.6b:free",
+      "url": "https://openrouter.ai/api/v1/models/liquid/lfm-2.5-2.6b%3Afree/endpoints",
+      "sha256": "2bfcdff698e6499526912ae40a1da327532d18b54cd0c74bbda10774e88872be",
+      "bytes": 1479
+    },
+    {
+      "name": "exact:nvidia/nemotron-3.5-lightning:free",
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3.5-lightning%3Afree/endpoints",
+      "sha256": "0bcd54f1d38c2e523bf4c5b381dfc8320a029363d7541b963817f88baea64e96",
+      "bytes": 1351
+    },
+    {
+      "name": "exact:thinkingmachines/inkling-small:free",
+      "url": "https://openrouter.ai/api/v1/models/thinkingmachines/inkling-small%3Afree/endpoints",
+      "sha256": "f177ac3dcf30e4680bedd50120d9a19a1e54017896c5b3fbcc570f0c623da5f6",
+      "bytes": 1474
+    },
+    {
+      "name": "exact:poolside/laguna-s-2.1:free",
+      "url": "https://openrouter.ai/api/v1/models/poolside/laguna-s-2.1%3Afree/endpoints",
+      "sha256": "1360f388350f95989e60bf1b3d4277cef8604a7475f02c338e36e5467b8a0733",
+      "bytes": 1311
+    },
+    {
+      "name": "exact:thinkingmachines/inkling:free",
+      "url": "https://openrouter.ai/api/v1/models/thinkingmachines/inkling%3Afree/endpoints",
+      "sha256": "c3a5d9002dfea97b332458a4c1e44682816accc59bc08dc1341a6f24d0630f7f",
+      "bytes": 1478
+    },
+    {
+      "name": "exact:poolside/laguna-xs-2.1:free",
+      "url": "https://openrouter.ai/api/v1/models/poolside/laguna-xs-2.1%3Afree/endpoints",
+      "sha256": "9b1e1c61c88e744f2c8630bf0f3afa177aa9d0f06f4a7210d6759c54c4b600de",
+      "bytes": 1300
+    },
+    {
+      "name": "exact:cohere/north-mini-code:free",
+      "url": "https://openrouter.ai/api/v1/models/cohere/north-mini-code%3Afree/endpoints",
+      "sha256": "546b0381122bc29c589f3726ad890d0825fa7b378fca0e8109e88667fbb5f353",
+      "bytes": 1361
+    },
+    {
+      "name": "exact:nvidia/nemotron-3.5-content-safety:free",
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3.5-content-safety%3Afree/endpoints",
+      "sha256": "7b6a276d3387edd945ee7ce0a8403894de97a8b04b30922aeba3f753e4dc36c4",
+      "bytes": 1384
+    },
+    {
+      "name": "exact:nvidia/nemotron-3-ultra-550b-a55b:free",
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-ultra-550b-a55b%3Afree/endpoints",
+      "sha256": "83fe5903f703ed1169f1cc0c58bf06e33db080aeb0cfa150ed7e9bb15a2b8bed",
+      "bytes": 1394
+    },
+    {
+      "name": "exact:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning%3Afree/endpoints",
+      "sha256": "ca60bce30726046b0271c0bda6a4f8b3368a62189bb69f844239781b16c5eb23",
+      "bytes": 1440
+    },
+    {
+      "name": "exact:google/gemma-4-26b-a4b-it:free",
+      "url": "https://openrouter.ai/api/v1/models/google/gemma-4-26b-a4b-it%3Afree/endpoints",
+      "sha256": "2111cdd34bbae6a240eff0f28f23c223fee443ae60707cf767747e3c6fa481a2",
+      "bytes": 1393
+    },
+    {
+      "name": "exact:google/gemma-4-31b-it:free",
+      "url": "https://openrouter.ai/api/v1/models/google/gemma-4-31b-it%3Afree/endpoints",
+      "sha256": "a82c7836de30a0bdf000658e84eb1de497fc22a4325f8027265d126d4ce7abca",
+      "bytes": 1388
+    },
+    {
+      "name": "exact:nvidia/nemotron-3-super-120b-a12b:free",
+      "url": "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-super-120b-a12b%3Afree/endpoints",
+      "sha256": "4fc4261b3768093c29503409d87e3cd6beb083a0f84e0ee6bc764b03851e9706",
+      "bytes": 1435
+    }
+  ],
+  "catalog_free_eligible_count": 17,
+  "nex_pro_listed": false,
+  "routes": [
+    {
+      "model_id": "inclusionai/ling-3.0-flash-sante:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": [
+        {
+          "name": "Novita | inclusionai/ling-3.0-flash-sante-20260904:free",
+          "provider": "Novita",
+          "tag": "novita",
+          "status": 0,
+          "pricing": {
+            "prompt": "0",
+            "completion": "0"
+          },
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "stop",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "top_k",
+            "repetition_penalty",
+            "tools",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "inclusionai/ling-3.0-flash-fin:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logprobs",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": [
+        {
+          "name": "Novita | inclusionai/ling-3.0-flash-fin-20260827:free",
+          "provider": "Novita",
+          "tag": "novita",
+          "status": 0,
+          "pricing": {
+            "prompt": "0",
+            "completion": "0"
+          },
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "stop",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "top_k",
+            "repetition_penalty",
+            "tools",
+            "tool_choice",
+            "logprobs",
+            "top_logprobs"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "qwen/qwen3.8-27b:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": [
+        {
+          "name": "ModelRun | qwen/qwen3.8-27b-20260814:free",
+          "provider": "ModelRun",
+          "tag": "modelrun/fp4",
+          "status": 0,
+          "pricing": {
+            "prompt": "0",
+            "completion": "0"
+          },
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "presence_penalty",
+            "repetition_penalty",
+            "frequency_penalty",
+            "stop",
+            "top_p",
+            "structured_outputs",
+            "tools",
+            "tool_choice",
+            "reasoning_effort"
+          ]
+        }
+      ]
+    },
+    {
+      "model_id": "dots-studio/dots-3-note-preview:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 512000,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "liquid/lfm-2.5-2.6b:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 65536,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logprobs",
+        "max_completion_tokens",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "nvidia/nemotron-3.5-lightning:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 1000000,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "thinkingmachines/inkling-small:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 1048576,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "poolside/laguna-s-2.1:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "thinkingmachines/inkling:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 1048576,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "poolside/laguna-xs-2.1:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "cohere/north-mini-code:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 256000,
+      "catalog_supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "nvidia/nemotron-3.5-content-safety:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 128000,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 1000000,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 256000,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "google/gemma-4-26b-a4b-it:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "google/gemma-4-31b-it:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    },
+    {
+      "model_id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "catalog_pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "context_length": 262144,
+      "catalog_supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "eligible_zdr_endpoints": []
+    }
+  ]
+}
