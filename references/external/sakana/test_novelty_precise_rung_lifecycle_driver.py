@@ -23,6 +23,33 @@ ENGINE_TEST_PYTHON = Path(
 TEST_SECRET = "offline-test-secret-" + "x" * 44
 
 
+def test_confirmatory_build_pins_read_key_free_input_without_loading_prereg(
+    monkeypatch,
+):
+    prereg_text = driver.CONFIRMATORY_PREREG_PATH.read_text(encoding="utf-8")
+    input_text = driver.CONFIRMATORY_INPUT_PATH.read_text(encoding="utf-8")
+    real_loads = json.loads
+    loaded: list[str] = []
+
+    def guarded_loads(payload: str, *args: Any, **kwargs: Any):
+        assert payload != prereg_text
+        loaded.append(payload)
+        return real_loads(payload, *args, **kwargs)
+
+    monkeypatch.setattr(driver.json, "loads", guarded_loads)
+
+    pins = driver._read_build_pins("confirmatory")
+
+    assert loaded == [input_text]
+    assert pins["protocol"] == "confirmatory"
+    assert pins["baseline"]["commit"] == "1ce3992ce0950b45979f7325fd66f7383f41afa0"
+    assert pins["result_path"] == driver.CONFIRMATORY_RESULT_PATH
+    assert pins["blind_review_path"] == driver.CONFIRMATORY_BLIND_PATH
+    assert pins["blind_labels_path"] == driver.CONFIRMATORY_LABELS_PATH
+    assert pins["runner_input_sha256"] == driver.CONFIRMATORY_INPUT_SHA256
+    assert driver.CONFIRMATORY_AMENDMENT_PATH != driver.AMENDMENT_PATH
+
+
 class _Process:
     def __init__(
         self,
@@ -175,7 +202,7 @@ def _run_cli(
     monkeypatch.setattr(
         driver,
         "_read_build_pins",
-        lambda: {
+        lambda _protocol="independent": {
             "baseline": {"commit": "1" * 40, "mcp_server_tree_sha256": "a" * 64},
             "candidate": {"commit": "2" * 40, "mcp_server_tree_sha256": "b" * 64},
             "candidate_diff_sha256": "c" * 64,
@@ -478,7 +505,9 @@ def test_preflight_failure_writes_abort_receipt_without_starting_calls(
         monkeypatch.setattr(
             driver,
             "_read_build_pins",
-            lambda: (_ for _ in ()).throw(ValueError("pins unavailable")),
+            lambda _protocol="independent": (_ for _ in ()).throw(
+                ValueError("pins unavailable")
+            ),
         )
     monkeypatch.setattr(
         driver.subprocess,

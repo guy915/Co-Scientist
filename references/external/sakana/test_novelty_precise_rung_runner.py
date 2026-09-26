@@ -28,6 +28,12 @@ INDEPENDENT_PREREG_SHA256 = (
 INDEPENDENT_INPUT_SHA256 = (
     "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0"
 )
+CONFIRMATORY_PREREG_SHA256 = (
+    "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3"
+)
+CONFIRMATORY_INPUT_SHA256 = (
+    "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5"
+)
 
 
 def _canonical_digest(value: Any) -> str:
@@ -141,6 +147,296 @@ def test_independent_protocol_parses_only_key_free_runner_inputs(monkeypatch):
         runner._independent_protocol(type("Args", (), {})())
     assert len(loaded) == 1
     assert hashlib.sha256(loaded[0].encode()).hexdigest() == INDEPENDENT_INPUT_SHA256
+
+
+def test_confirmatory_schedule_uses_the_six_frozen_requests_in_paired_order():
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+
+    assert tuple(requests) == ("N01", "N02", "N03", "N04", "N05", "N06")
+    assert len(call_order) == runner.CONFIRMATORY_MAX_OUTER_CALLS == 12
+    assert call_order == tuple(
+        (request_id, arm)
+        for request_id in requests
+        for arm in ("baseline", "candidate")
+    )
+    assert all(
+        request.query == runner_inputs["request_inputs"][index]["draft"]
+        for index, request in enumerate(requests.values())
+    )
+
+
+def test_confirmatory_schedule_rejects_changed_order_or_wire_query():
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    runner_inputs["paired_call_order"][1]["request_id"] = "N02"
+    with pytest.raises(ValueError, match="paired call order"):
+        runner._confirmatory_schedule(runner_inputs)
+
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    runner_inputs["request_inputs"][0]["exact_query"] += " changed"
+    with pytest.raises(ValueError, match="query"):
+        runner._confirmatory_schedule(runner_inputs)
+
+
+def test_confirmatory_protocol_reads_only_key_free_input_and_stays_closed(
+    monkeypatch,
+):
+    prereg_text = runner.CONFIRMATORY_PREREG.read_text(encoding="utf-8")
+    input_text = runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8")
+    real_loads = json.loads
+    loaded: list[str] = []
+
+    def guarded_loads(payload: str, *args: Any, **kwargs: Any):
+        assert payload != prereg_text
+        loaded.append(payload)
+        return real_loads(payload, *args, **kwargs)
+
+    monkeypatch.setattr(runner.json, "loads", guarded_loads)
+    monkeypatch.setattr(
+        runner,
+        "CONFIRMATORY_AMENDMENT",
+        runner.HERE / "missing-confirmatory-amendment.json",
+    )
+    with pytest.raises(
+        ValueError, match="Confirmatory authorization amendment is missing"
+    ):
+        runner._confirmatory_protocol(type("Args", (), {})())
+
+    assert loaded == [input_text]
+    assert hashlib.sha256(input_text.encode()).hexdigest() == CONFIRMATORY_INPUT_SHA256
+
+
+def test_confirmatory_cli_fails_closed_without_authorization_before_mcp(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        runner,
+        "CONFIRMATORY_AMENDMENT",
+        tmp_path / "missing-confirmatory-amendment.json",
+    )
+    monkeypatch.setattr(
+        runner, "MCPToolClient", lambda **_: pytest.fail("MCP must not be contacted")
+    )
+    output = tmp_path / "result.json"
+    argv = ["--protocol", "confirmatory", "--output", str(output)]
+    for arm, port, pid in (("baseline", 8898, 18898), ("candidate", 8899, 18899)):
+        argv.extend(
+            [
+                f"--{arm}-url",
+                f"http://127.0.0.1:{port}/mcp",
+                f"--{arm}-root",
+                str(tmp_path / f"{arm}-root"),
+                f"--{arm}-cache",
+                str(tmp_path / f"{arm}-cache"),
+                f"--{arm}-pid",
+                str(pid),
+            ]
+        )
+
+    assert runner.main(argv) == 2
+    assert not output.exists()
+    assert (
+        "confirmatory authorization amendment is missing"
+        in capsys.readouterr().err.lower()
+    )
+
+
+def test_confirmatory_blind_items_keep_query_and_opaque_token_only(
+    monkeypatch, tmp_path
+):
+    request = runner.Request("N01", "exact frozen query")
+    runtime = runner.Runtime(
+        arms=_fake_arms(tmp_path),
+        tool=None,
+        pilot_id="m11novrung01c1confirmatoryv1",
+        parser=None,
+        protocol="confirmatory",
+    )
+    monkeypatch.setattr(runner.secrets, "token_urlsafe", lambda _size: "opaque-token")
+
+    papers, blind_items, locked_items = runner._confirmatory_case_artifacts(
+        runtime,
+        request,
+        runtime.arms["baseline"],
+        [{"pmid": "12345", "blind_item_id": "internal-item"}],
+        [
+            {
+                "item_id": "internal-item",
+                "title": "Private source title",
+                "abstract": "Abstract text",
+            }
+        ],
+    )
+
+    assert papers == [{"pmid": "12345", "item_token": "opaque-token"}]
+    assert blind_items == [
+        {
+            "item_token": "opaque-token",
+            "query": request.query,
+            "title": "Private source title",
+            "abstract": "Abstract text",
+        }
+    ]
+    assert locked_items == [
+        {
+            "item_token": "opaque-token",
+            "request_id": "N01",
+            "arm": "baseline",
+            "pmid": "12345",
+            "source_title": "Private source title",
+        }
+    ]
+    assert not any(
+        key in blind_items[0]
+        for key in ("request_id", "arm", "pmid", "pair_id", "role", "source_id")
+    )
+
+
+def test_confirmatory_run_stops_after_the_first_failed_call_without_retry(
+    monkeypatch, tmp_path
+):
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+    arms = _fake_arms(tmp_path)
+    runtime = runner.Runtime(
+        arms=arms,
+        tool=None,
+        pilot_id=runner.CONFIRMATORY_PILOT_ID,
+        parser=None,
+        request_by_id=requests,
+        call_order=call_order,
+        preregistered_slugs={
+            (request_id, arm): runner._call_slug(
+                "confirmatory", runner.CONFIRMATORY_PILOT_ID, request_id, arm
+            )
+            for request_id, arm in call_order
+        },
+        max_outer_calls=runner.CONFIRMATORY_MAX_OUTER_CALLS,
+        max_esearch_calls=runner.CONFIRMATORY_MAX_ESEARCH_CALLS,
+        max_metadata_ids=runner.CONFIRMATORY_MAX_OUTER_CALLS * runner.MAX_IDS_PER_CALL,
+        pilot_label=runner.CONFIRMATORY_PROTOCOL_ID,
+        protocol="confirmatory",
+    )
+    attempted: list[tuple[str, str]] = []
+
+    async def fail_second(_runtime, request, arm, order):
+        attempted.append((request.request_id, arm.name))
+        if order == 1:
+            return {
+                "order": order,
+                "request_id": request.request_id,
+                "arm": arm.name,
+                "status": "complete",
+                "papers": [],
+            }
+        return {
+            "order": order,
+            "request_id": request.request_id,
+            "arm": arm.name,
+            "status": "error",
+            "error_stage": "transport",
+            "error_class": "TimeoutError",
+            "external_request_count": "unknown",
+            "verified_esearch_rung_count": 0,
+        }
+
+    async def no_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(runner, "_execute", fail_second)
+    monkeypatch.setattr(runner.asyncio, "sleep", no_sleep)
+    report = {"calls": []}
+    output, blind = tmp_path / "result.json", tmp_path / "blind.json"
+
+    assert runner.asyncio.run(runner._run(runtime, report, output, blind)) == 1
+
+    assert attempted == [("N01", "baseline"), ("N01", "candidate")]
+    assert len(report["calls"]) == 2
+    assert report["status"] == "STOPPED"
+    assert report["stopped_at_order"] == 2
+    assert report["calls"][0]["status"] == "complete"
+    assert report["calls"][1]["external_request_count"] == "unknown"
+    assert not blind.exists()
+
+
+@pytest.mark.parametrize("collision", ["blind_labels", "run_slug"])
+def test_confirmatory_preflight_rejects_reserved_artifact_or_run_slug(
+    monkeypatch, tmp_path, collision
+):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    arms = _fake_arms(tmp_path)
+    runner_inputs = json.loads(runner.CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    requests, call_order = runner._confirmatory_schedule(runner_inputs)
+    slugs = {
+        (request_id, arm): runner._call_slug(
+            "confirmatory", runner.CONFIRMATORY_PILOT_ID, request_id, arm
+        )
+        for request_id, arm in call_order
+    }
+    hashes = {
+        "protocol": "confirmatory",
+        "protocol_id": runner.CONFIRMATORY_PROTOCOL_ID,
+        "pilot_id": runner.CONFIRMATORY_PILOT_ID,
+        "baseline": arms["baseline"].tree_sha256,
+        "candidate": arms["candidate"].tree_sha256,
+        "candidate_diff_sha256": "c" * 64,
+        "candidate_changed_files": list(runner.EXPECTED_DIFF_PATHS),
+        "frozen_inputs_sha256": "d" * 64,
+        "request_by_id": requests,
+        "call_order": call_order,
+        "max_outer_calls": 12,
+        "max_esearch_calls": 36,
+        "max_metadata_ids": 108,
+        "preregistered_slugs": slugs,
+        "result_path": "result.json",
+        "blind_review_path": "blind.json",
+        "blind_labels_path": "blind-labels.json",
+        "trace_preflight": {},
+    }
+    monkeypatch.setattr(runner, "ROOT", repo_root)
+    monkeypatch.setattr(runner, "_protocol", lambda _args: ({}, hashes))
+    monkeypatch.setattr(runner, "_check_environment", lambda _roots: None)
+    monkeypatch.setattr(runner, "_listening_pid", lambda port: port + 10000)
+    monkeypatch.setattr(
+        runner, "_commit", lambda root: arms[root.name.removesuffix("-root")].commit
+    )
+    monkeypatch.setattr(runner, "_cache", lambda path: Path(path).resolve())
+    monkeypatch.setattr(
+        runner,
+        "_validate_launcher_receipts",
+        lambda *_args, **_kwargs: {"baseline": "a" * 64, "candidate": "b" * 64},
+    )
+    args = type(
+        "Args",
+        (),
+        {
+            "protocol": "confirmatory",
+            "baseline_url": arms["baseline"].url,
+            "candidate_url": arms["candidate"].url,
+            "baseline_root": str(arms["baseline"].root),
+            "candidate_root": str(arms["candidate"].root),
+            "baseline_cache": str(arms["baseline"].cache),
+            "candidate_cache": str(arms["candidate"].cache),
+            "baseline_pid": arms["baseline"].pid,
+            "candidate_pid": arms["candidate"].pid,
+            "baseline_launch_receipt": str(repo_root / "baseline-receipt.json"),
+            "candidate_launch_receipt": str(repo_root / "candidate-receipt.json"),
+            "output": str(repo_root / "result.json"),
+            "blind_output": str(repo_root / "blind.json"),
+        },
+    )()
+    if collision == "blind_labels":
+        (repo_root / "blind-labels.json").write_text("locked\n", encoding="utf-8")
+        expected_message = "Result artifacts must use new unique paths"
+    else:
+        namespace = arms["baseline"].cache / "pubmed" / slugs[("N01", "baseline")]
+        namespace.mkdir(parents=True)
+        expected_message = "preregistered request/arm run or slug namespace"
+
+    with pytest.raises(ValueError, match=expected_message):
+        runner._preflight(args)
 
 
 def test_independent_runtime_support_must_match_committed_pins(monkeypatch, tmp_path):
@@ -302,6 +598,9 @@ def test_independent_cli_fails_closed_without_measured_retry_launcher(
         },
     }
     monkeypatch.setattr(runner, "_protocol", lambda _args: ({}, hashes))
+    # The repository already contains the historical case-context artifact;
+    # isolate preflight so this test reaches the intended launcher-hash gate.
+    monkeypatch.setattr(runner, "ROOT", tmp_path / "repo")
     monkeypatch.setattr(runner, "_check_environment", lambda _roots: None)
     monkeypatch.setattr(runner, "_commit", lambda _root: "test-commit")
     monkeypatch.setattr(

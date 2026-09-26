@@ -29,6 +29,24 @@ RUNNER_RELPATH = "references/external/sakana/novelty_precise_rung_runner.py"
 INPUT_PATH = HERE / "novelty-precise-rung-01b2b-independent-input-v1.json"
 INPUT_SHA256 = "a51c88afd45a81b84b614e730f0459f5e6bb567c3c37958982312106a50781c0"
 AMENDMENT_PATH = HERE / "novelty-precise-rung-01b2b-protocol-amendment-2026-09-25.json"
+CONFIRMATORY_PREREG_PATH = (
+    HERE / "novelty-precise-rung-01c1-confirmatory-prereg-v1.json"
+)
+CONFIRMATORY_PREREG_SHA256 = (
+    "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3"
+)
+CONFIRMATORY_INPUT_PATH = HERE / "novelty-precise-rung-01c1-confirmatory-input-v1.json"
+CONFIRMATORY_INPUT_SHA256 = (
+    "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5"
+)
+CONFIRMATORY_AMENDMENT_PATH = (
+    HERE
+    / "novelty-precise-rung-01c1-confirmatory-authorization-amendment-2026-09-26.json"
+)
+CONFIRMATORY_PROTOCOL_ID = "M11-NOV-RUNG-01c1-confirmatory-v1"
+CONFIRMATORY_RESULT_PATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-run-2026-09-25.json"
+CONFIRMATORY_BLIND_PATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-2026-09-25.json"
+CONFIRMATORY_LABELS_PATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-labels-2026-09-25.json"
 CASE_CONTEXT_PATH = "references/external/sakana/novelty-precise-rung-01b2b-independent-case-context-2026-09-25.json"
 CASE_CONTEXT_PROTOCOL = "novelty-precise-rung-independent-query-context-v1"
 MCP_SECRET_ENV = "COSCIENTIST_MCP_SHARED_SECRET"
@@ -53,20 +71,80 @@ def _require_absolute_script_invocation(invocation: Path) -> None:
         raise ValueError("Lifecycle driver requires its absolute pinned script path")
 
 
-def _read_build_pins() -> dict[str, Any]:
+def _read_build_pins(protocol: str = "independent") -> dict[str, Any]:
+    if protocol == "confirmatory":
+        if (
+            CONFIRMATORY_PREREG_PATH.is_symlink()
+            or not CONFIRMATORY_PREREG_PATH.is_file()
+            or _sha256(CONFIRMATORY_PREREG_PATH) != CONFIRMATORY_PREREG_SHA256
+        ):
+            raise ValueError("Confirmatory preregistration is missing or changed")
+        path, digest = CONFIRMATORY_INPUT_PATH, CONFIRMATORY_INPUT_SHA256
+        expected_id = "M11-NOV-RUNG-01c1-confirmatory-input-v1"
+        expected_status = "frozen_runner_inputs_only_not_execution_authorization"
+    elif protocol == "independent":
+        path, digest = INPUT_PATH, INPUT_SHA256
+        expected_id = "M11-NOV-RUNG-01b2b-independent-input-v1"
+        expected_status = "runner_inputs_only_not_execution_authorization"
+    else:
+        raise ValueError("Unknown precise-rung lifecycle protocol")
+    if path.is_symlink() or not path.is_file() or _sha256(path) != digest:
+        raise ValueError("Frozen runner inputs are missing or changed")
+    inputs = json.loads(path.read_text(encoding="utf-8"))
     if (
-        INPUT_PATH.is_symlink()
-        or not INPUT_PATH.is_file()
-        or _sha256(INPUT_PATH) != INPUT_SHA256
+        inputs.get("input_artifact_id") != expected_id
+        or inputs.get("status") != expected_status
+        or protocol == "confirmatory"
+        and inputs.get("live_retrieval_authorized") is not False
     ):
-        raise ValueError("Independent runner inputs are missing or changed")
-    inputs = json.loads(INPUT_PATH.read_text(encoding="utf-8"))
-    if (
-        inputs.get("input_artifact_id") != "M11-NOV-RUNG-01b2b-independent-input-v1"
-        or inputs.get("status") != "runner_inputs_only_not_execution_authorization"
-    ):
-        raise ValueError("Independent runner input identity or status changed")
-    return inputs["source_and_build_pins"] | inputs["run_artifact_paths"]
+        raise ValueError("Runner input identity, status, or authorization changed")
+    result = inputs["source_and_build_pins"] | inputs["run_artifact_paths"]
+    if protocol == "confirmatory":
+        request_ids = tuple(row["request_id"] for row in inputs["request_inputs"])
+        expected_ids = ("N01", "N02", "N03", "N04", "N05", "N06")
+        schedule = tuple(
+            (row.get("request_id"), row.get("arm"))
+            for row in inputs.get("paired_call_order", [])
+        )
+        expected_schedule = tuple(
+            (request_id, arm)
+            for request_id in expected_ids
+            for arm in ("baseline", "candidate")
+        )
+        limits = inputs.get("limits", {})
+        settings = inputs.get("fixed_settings", {})
+        run_id = result.get("pilot_run_id")
+        template = f"{run_id}_{{request_id_lower}}_{{arm}}"
+        if (
+            request_ids != expected_ids
+            or schedule != expected_schedule
+            or result.get("result_path") != CONFIRMATORY_RESULT_PATH
+            or result.get("blind_review_path") != CONFIRMATORY_BLIND_PATH
+            or result.get("blind_labels_path") != CONFIRMATORY_LABELS_PATH
+            or run_id != "m11novrung01c1confirmatoryv1"
+            or result.get("per_call_run_id_template") != template
+            or result.get("per_call_slug_template") != template
+            or limits.get("planned_outer_pubmed_mcp_calls") != 12
+            or limits.get("absolute_outer_pubmed_mcp_call_cap") != 12
+            or limits.get("retry_or_recovery_calls") != 0
+            or limits.get("maximum_esearch_requests_for_frozen_schedule") != 36
+            or limits.get("maximum_total_ids_submitted_for_metadata") != 108
+            or limits.get("stop_on_first_error") is not True
+            or settings.get("pubmed_sort") != "pub_date"
+            or settings.get("recency_years") != 0
+            or settings.get("max_papers") != 3
+        ):
+            raise ValueError("Confirmatory input schedule or artifact paths changed")
+        result.update(
+            protocol="confirmatory",
+            protocol_id=CONFIRMATORY_PROTOCOL_ID,
+            runner_input_sha256=digest,
+            prereg_sha256=CONFIRMATORY_PREREG_SHA256,
+            request_inputs_sha256=inputs["source_hash_pins"][
+                "request_inputs_canonical_sha256"
+            ],
+        )
+    return result
 
 
 def _create_worktrees(temporary_root: Path, pins: dict[str, Any]) -> dict[str, Path]:
@@ -249,6 +327,8 @@ def _amendment_ready(
     launcher_hash: str,
     runner_hash: str,
     driver_hash: str,
+    protocol: str = "independent",
+    pins: dict[str, Any] | None = None,
 ) -> str | None:
     if path.is_symlink() or not path.is_file() or not _committed_amendment(path):
         return None
@@ -258,18 +338,47 @@ def _amendment_ready(
     except json.JSONDecodeError:
         return None
     trace = amendment.get("trace_preflight", {})
-    if (
+    common_matches = not (
         amendment.get("status") != "authorized_for_retrieval"
         or amendment.get("live_retrieval_authorized") is not True
         or amendment.get("runner_path") != RUNNER_RELPATH
         or amendment.get("runner_sha256") != runner_hash
-        or amendment.get("case_context_path") != CASE_CONTEXT_PATH
-        or amendment.get("case_context_protocol") != CASE_CONTEXT_PROTOCOL
         or trace.get("driver_path") != DRIVER_RELPATH
         or trace.get("driver_sha256") != driver_hash
         or trace.get("launcher_path") != LAUNCHER_RELPATH
         or trace.get("launcher_sha256") != launcher_hash
-    ):
+    )
+    if protocol == "independent":
+        protocol_matches = (
+            amendment.get("case_context_path") == CASE_CONTEXT_PATH
+            and amendment.get("case_context_protocol") == CASE_CONTEXT_PROTOCOL
+        )
+    elif protocol == "confirmatory" and pins is not None:
+        protocol_matches = all(
+            amendment.get(field) == value
+            for field, value in {
+                "protocol_id": CONFIRMATORY_PROTOCOL_ID,
+                "prereg_sha256": pins["prereg_sha256"],
+                "runner_input_sha256": pins["runner_input_sha256"],
+                "request_inputs_sha256": pins["request_inputs_sha256"],
+                "baseline_commit": pins["baseline"]["commit"],
+                "baseline_tree_sha256": pins["baseline"]["mcp_server_tree_sha256"],
+                "candidate_commit": pins["candidate"]["commit"],
+                "candidate_tree_sha256": pins["candidate"]["mcp_server_tree_sha256"],
+                "candidate_diff_sha256": pins["candidate"]["runtime_diff_sha256"],
+                "planned_outer_pubmed_mcp_calls": 12,
+                "absolute_outer_pubmed_mcp_call_cap": 12,
+                "max_esearch_calls": 36,
+                "max_metadata_ids": 108,
+                "retry_or_recovery_calls": 0,
+                "result_path": CONFIRMATORY_RESULT_PATH,
+                "blind_review_path": CONFIRMATORY_BLIND_PATH,
+                "blind_labels_path": CONFIRMATORY_LABELS_PATH,
+            }.items()
+        )
+    else:
+        return None
+    if not common_matches or not protocol_matches:
         return None
     for name, record in records.items():
         if trace.get(name) != {
@@ -283,18 +392,29 @@ def _amendment_ready(
 
 
 def _wait_for_amendment(
-    path: Path, records: dict[str, dict[str, Any]], hashes: dict[str, str], timeout: int
+    path: Path,
+    records: dict[str, dict[str, Any]],
+    hashes: dict[str, str],
+    timeout: int,
+    protocol: str = "independent",
+    pins: dict[str, Any] | None = None,
 ) -> str:
     deadline = time.monotonic() + timeout
     while True:
         digest = _amendment_ready(
-            path, records, hashes["launcher"], hashes["runner"], hashes["driver"]
+            path,
+            records,
+            hashes["launcher"],
+            hashes["runner"],
+            hashes["driver"],
+            protocol,
+            pins,
         )
         if digest:
             return digest
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise TimeoutError("Independent amendment does not pin this launch")
+            raise TimeoutError(f"{protocol.title()} amendment does not pin this launch")
         time.sleep(min(0.25, remaining))
 
 
@@ -311,6 +431,7 @@ def _start_runner(
     result_path: Path,
     blind_path: Path,
     stderr_path: Path,
+    protocol: str = "independent",
 ) -> subprocess.Popen[bytes]:
     env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -326,7 +447,7 @@ def _start_runner(
         LIFECYCLE_DRIVER_PATH_ENV: str(DRIVER_PATH.resolve()),
         LIFECYCLE_NONCE_ENV: nonce,
     }
-    command = [str(python), str(RUNNER_PATH.resolve()), "--protocol", "independent"]
+    command = [str(python), str(RUNNER_PATH.resolve()), "--protocol", protocol]
     for name in ("baseline", "candidate"):
         command.extend(
             [
@@ -359,6 +480,20 @@ def _start_runner(
             stdout=subprocess.DEVNULL,
             stderr=stderr,
         )
+
+
+def _require_new_confirmatory_namespaces(
+    caches: dict[str, Path], pilot_id: str
+) -> None:
+    paths = [
+        caches[arm] / "pubmed" / f"{pilot_id}_{request_id.lower()}_{arm}"
+        for request_id in ("N01", "N02", "N03", "N04", "N05", "N06")
+        for arm in ("baseline", "candidate")
+    ]
+    if len(set(paths)) != 12 or any(
+        path.exists() or path.is_symlink() for path in paths
+    ):
+        raise FileExistsError("Confirmatory run or slug namespace already exists")
 
 
 def _stop(process: subprocess.Popen[bytes]) -> dict[str, Any]:
@@ -480,6 +615,9 @@ def _persist_child_stderr(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--protocol", choices=("independent", "confirmatory"), default="independent"
+    )
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--amendment", type=Path)
     parser.add_argument("--mcp-python", type=Path)
@@ -492,7 +630,12 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     output = args.receipt.expanduser().absolute()
-    amendment = (args.amendment or AMENDMENT_PATH).expanduser().resolve()
+    registered_amendment = (
+        CONFIRMATORY_AMENDMENT_PATH
+        if args.protocol == "confirmatory"
+        else AMENDMENT_PATH
+    )
+    amendment = (args.amendment or registered_amendment).expanduser().resolve()
     mcp_python = args.mcp_python.expanduser().absolute() if args.mcp_python else None
     engine_python = (
         args.engine_python.expanduser().absolute() if args.engine_python else None
@@ -500,7 +643,12 @@ def main(argv: list[str] | None = None) -> int:
     reserved = False
     receipt: dict[str, Any] = {
         "schema_version": "novelty_precise_rung_lifecycle_receipt_v1",
-        "pilot": "M11-NOV-RUNG-01b2b",
+        "pilot": (
+            CONFIRMATORY_PROTOCOL_ID
+            if args.protocol == "confirmatory"
+            else "M11-NOV-RUNG-01b2b"
+        ),
+        "protocol": args.protocol,
         "driver_path": DRIVER_RELPATH,
         "driver_sha256": _sha256(DRIVER_PATH),
         "model_inference_calls": 0,
@@ -542,8 +690,10 @@ def main(argv: list[str] | None = None) -> int:
         _require_absolute_script_invocation(Path(sys.argv[0]))
         if args.startup_timeout_seconds < 1 or args.amendment_wait_seconds < 0:
             raise ValueError("Timeouts must be positive; amendment wait may be zero")
-        if amendment != AMENDMENT_PATH.resolve():
-            raise ValueError("Only the registered independent amendment is accepted")
+        if amendment != registered_amendment.resolve():
+            raise ValueError(
+                f"Only the registered {args.protocol} amendment is accepted"
+            )
         if (
             mcp_python is None
             or not mcp_python.is_file()
@@ -570,11 +720,23 @@ def main(argv: list[str] | None = None) -> int:
             for path in (*receipt_paths.values(), *diagnostic_paths.values())
         ):
             raise FileExistsError("Launcher artifact paths must be new")
-        pins = _read_build_pins()
+        pins = _read_build_pins(args.protocol)
         result_path = ROOT / pins["result_path"]
         blind_path = ROOT / pins["blind_review_path"]
+        blind_labels_path = (
+            ROOT / pins["blind_labels_path"]
+            if args.protocol == "confirmatory"
+            else None
+        )
         runner_result_path = result_path.resolve()
-        if result_path.exists() or blind_path.exists() or result_path == blind_path:
+        artifact_paths = (
+            result_path,
+            blind_path,
+            *((blind_labels_path,) if blind_labels_path else ()),
+        )
+        if len({path.resolve() for path in artifact_paths}) != len(
+            artifact_paths
+        ) or any(path.exists() or path.is_symlink() for path in artifact_paths):
             raise FileExistsError("Preregistered result paths must be new")
 
         temporary_root = Path(tempfile.mkdtemp(prefix="m11-rung-", dir=output.parent))
@@ -627,7 +789,11 @@ def main(argv: list[str] | None = None) -> int:
             receipt["server_children"],
             hashes,
             args.amendment_wait_seconds,
+            args.protocol,
+            pins,
         )
+        if args.protocol == "confirmatory":
+            _require_new_confirmatory_namespaces(cache_roots, pins["pilot_run_id"])
         stage = "runner"
         runner_home = temporary_root / "runner-home"
         runner_home.mkdir()
@@ -644,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
             runner_result_path,
             blind_path.resolve(),
             runner_stderr,
+            args.protocol,
         )
         receipt["runner_pid"] = runner.pid
         receipt["runner_started"] = True

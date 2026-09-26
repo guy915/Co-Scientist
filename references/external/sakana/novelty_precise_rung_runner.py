@@ -41,6 +41,33 @@ INDEPENDENT_INPUT_SHA256 = (
 INDEPENDENT_AMENDMENT = (
     HERE / "novelty-precise-rung-01b2b-protocol-amendment-2026-09-25.json"
 )
+CONFIRMATORY_PREREG = HERE / "novelty-precise-rung-01c1-confirmatory-prereg-v1.json"
+CONFIRMATORY_PREREG_SHA256 = (
+    "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3"
+)
+CONFIRMATORY_INPUT = HERE / "novelty-precise-rung-01c1-confirmatory-input-v1.json"
+CONFIRMATORY_INPUT_SHA256 = (
+    "6385f765fae7f8336db173d84c27b02f01ba7fb6eae5cca868ab1be7b2b66bd5"
+)
+CONFIRMATORY_AMENDMENT = (
+    HERE
+    / "novelty-precise-rung-01c1-confirmatory-authorization-amendment-2026-09-26.json"
+)
+CONFIRMATORY_PILOT_ID = "m11novrung01c1confirmatoryv1"
+CONFIRMATORY_PROTOCOL_ID = "M11-NOV-RUNG-01c1-confirmatory-v1"
+CONFIRMATORY_TEST_RELPATH = (
+    "references/external/sakana/test_novelty_precise_rung_runner.py"
+)
+CONFIRMATORY_TEST_COMMAND = (
+    "PYTHONPATH=engine/src:references/external/sakana "
+    "engine/.venv/bin/pytest -q "
+    "references/external/sakana/test_novelty_precise_rung_runner.py"
+)
+CONFIRMATORY_MAX_OUTER_CALLS = 12
+CONFIRMATORY_MAX_ESEARCH_CALLS = 36
+CONFIRMATORY_RESULT_RELPATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-run-2026-09-25.json"
+CONFIRMATORY_BLIND_RELPATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-2026-09-25.json"
+CONFIRMATORY_LABELS_RELPATH = "references/external/sakana/novelty-precise-rung-01c1-confirmatory-blind-labels-2026-09-25.json"
 LIFECYCLE_DRIVER = HERE / "novelty_precise_rung_lifecycle_driver.py"
 LIFECYCLE_DRIVER_RELPATH = (
     "references/external/sakana/novelty_precise_rung_lifecycle_driver.py"
@@ -279,7 +306,7 @@ def _require_committed_clean(path: Path, label: str) -> None:
         check=False,
     )
     if tracked.returncode or changed.returncode or changed.stdout.strip():
-        raise ValueError(f"Independent {label} must be committed and clean")
+        raise ValueError(f"{label.title()} must be committed and clean")
 
 
 def _validate_runtime_support(pins: Any) -> None:
@@ -441,7 +468,75 @@ def _independent_schedule(
     return requests, call_order
 
 
-def _validate_lifecycle_driver(pinned: Any) -> str:
+def _confirmatory_schedule(
+    runner_inputs: dict[str, Any],
+) -> tuple[dict[str, Request], tuple[tuple[str, str], ...]]:
+    run_paths = runner_inputs.get("run_artifact_paths")
+    if not isinstance(run_paths, dict):
+        raise ValueError("Confirmatory run artifact paths are missing")
+    template = f"{CONFIRMATORY_PILOT_ID}_{{request_id_lower}}_{{arm}}"
+    if (
+        run_paths.get("pilot_run_id") != CONFIRMATORY_PILOT_ID
+        or run_paths.get("per_call_run_id_template") != template
+        or run_paths.get("per_call_slug_template") != template
+    ):
+        raise ValueError(
+            "Confirmatory run ID and slug template differ from preregistration"
+        )
+
+    expected_paths = {
+        "result_path": CONFIRMATORY_RESULT_RELPATH,
+        "blind_review_path": CONFIRMATORY_BLIND_RELPATH,
+        "blind_labels_path": CONFIRMATORY_LABELS_RELPATH,
+    }
+    if any(run_paths.get(key) != value for key, value in expected_paths.items()):
+        raise ValueError("Confirmatory artifact paths differ from preregistration")
+
+    inputs = runner_inputs.get("request_inputs")
+    expected_ids = ("N01", "N02", "N03", "N04", "N05", "N06")
+    if (
+        not isinstance(inputs, list)
+        or len(inputs) != len(expected_ids)
+        or tuple(row.get("request_id") for row in inputs if isinstance(row, dict))
+        != expected_ids
+    ):
+        raise ValueError("Confirmatory request inputs must contain exactly N01-N06")
+    requests: dict[str, Request] = {}
+    for row in inputs:
+        draft, query = row.get("draft"), row.get("exact_query")
+        if (
+            not isinstance(draft, str)
+            or not isinstance(query, str)
+            or not query
+            or len(query) >= 200
+            or query != draft
+        ):
+            raise ValueError("Confirmatory wire query differs from the frozen draft")
+        requests[row["request_id"]] = Request(row["request_id"], query)
+
+    schedule = runner_inputs.get("paired_call_order")
+    if not isinstance(schedule, list):
+        raise ValueError("Confirmatory paired call schedule is missing")
+    call_order = tuple(
+        (row.get("request_id"), row.get("arm"))
+        for row in schedule
+        if isinstance(row, dict)
+    )
+    expected_order = tuple(
+        (request_id, arm)
+        for request_id in expected_ids
+        for arm in ("baseline", "candidate")
+    )
+    if (
+        len(call_order) != len(schedule)
+        or call_order != expected_order
+        or any(row.get("order") != index for index, row in enumerate(schedule, 1))
+    ):
+        raise ValueError("Confirmatory paired call order must be exactly N01-N06")
+    return requests, call_order
+
+
+def _validate_lifecycle_driver(pinned: Any, protocol_label: str = "Independent") -> str:
     if not isinstance(pinned, dict) or set(pinned) != {
         "driver_path",
         "driver_sha256",
@@ -451,7 +546,7 @@ def _validate_lifecycle_driver(pinned: Any) -> str:
         "candidate",
     }:
         raise ValueError(
-            "Independent amendment must pin driver, launcher, and receipts"
+            f"{protocol_label} amendment must pin driver, launcher, and receipts"
         )
     driver = LIFECYCLE_DRIVER.resolve()
     digest = pinned.get("driver_sha256")
@@ -463,16 +558,22 @@ def _validate_lifecycle_driver(pinned: Any) -> str:
         or not re.fullmatch(r"[0-9a-f]{64}", digest)
         or _sha256_file(driver) != digest
     ):
-        raise ValueError("Independent lifecycle-driver hash does not match amendment")
+        raise ValueError(
+            f"{protocol_label} lifecycle-driver hash does not match amendment"
+        )
 
     parent_pid = os.getppid()
     if os.getenv("COSCIENTIST_M11_RUNG_LIFECYCLE_PARENT_PID") != str(parent_pid):
-        raise ValueError("Independent runner must be a direct lifecycle-driver child")
+        raise ValueError(
+            f"{protocol_label} runner must be a direct lifecycle-driver child"
+        )
     if os.getenv("COSCIENTIST_M11_RUNG_LIFECYCLE_DRIVER_PATH") != str(driver):
-        raise ValueError("Independent lifecycle-driver path environment is missing")
+        raise ValueError(
+            f"{protocol_label} lifecycle-driver path environment is missing"
+        )
     nonce = os.getenv("COSCIENTIST_M11_RUNG_LIFECYCLE_INVOCATION_NONCE", "")
     if not re.fullmatch(r"[A-Za-z0-9_-]{24,128}", nonce):
-        raise ValueError("Independent lifecycle invocation nonce is missing")
+        raise ValueError(f"{protocol_label} lifecycle invocation nonce is missing")
     process = subprocess.run(
         ["ps", "-p", str(parent_pid), "-o", "command="],
         capture_output=True,
@@ -481,7 +582,9 @@ def _validate_lifecycle_driver(pinned: Any) -> str:
         timeout=5,
     )
     if process.returncode or str(driver) not in shlex.split(process.stdout.strip()):
-        raise ValueError("Independent runner parent is not the pinned lifecycle driver")
+        raise ValueError(
+            f"{protocol_label} runner parent is not the pinned lifecycle driver"
+        )
     return digest
 
 
@@ -631,18 +734,251 @@ def _independent_protocol(
     }
 
 
+def _confirmatory_protocol(
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not CONFIRMATORY_PREREG.is_file() or CONFIRMATORY_PREREG.is_symlink():
+        raise ValueError("Confirmatory preregistration is missing")
+    prereg_digest = _sha256_file(CONFIRMATORY_PREREG)
+    if prereg_digest != CONFIRMATORY_PREREG_SHA256:
+        raise ValueError("Confirmatory preregistration changed")
+    if not CONFIRMATORY_INPUT.is_file() or CONFIRMATORY_INPUT.is_symlink():
+        raise ValueError("Key-free confirmatory runner-input artifact is missing")
+    runner_input_sha256 = _sha256_file(CONFIRMATORY_INPUT)
+    if runner_input_sha256 != CONFIRMATORY_INPUT_SHA256:
+        raise ValueError("Key-free confirmatory runner-input artifact changed")
+
+    runner_inputs = json.loads(CONFIRMATORY_INPUT.read_text(encoding="utf-8"))
+    if (
+        runner_inputs.get("input_artifact_id")
+        != "M11-NOV-RUNG-01c1-confirmatory-input-v1"
+        or runner_inputs.get("version") != 1
+        or runner_inputs.get("status")
+        != "frozen_runner_inputs_only_not_execution_authorization"
+        or runner_inputs.get("live_retrieval_authorized") is not False
+    ):
+        raise ValueError(
+            "Confirmatory input identity, status, or authorization changed"
+        )
+
+    requests, scheduled = _confirmatory_schedule(runner_inputs)
+    request_digest = _canonical_json_sha256(runner_inputs["request_inputs"])
+    source_hashes = runner_inputs.get("source_hash_pins")
+    if (
+        not isinstance(source_hashes, dict)
+        or source_hashes.get("protocol_path")
+        != "references/external/sakana/novelty-precise-rung-01c1-confirmatory-prereg-v1.json"
+        or source_hashes.get("request_inputs_canonical_sha256") != request_digest
+    ):
+        raise ValueError(
+            "Confirmatory request-input digest or preregistration path changed"
+        )
+
+    fixed = runner_inputs.get("fixed_settings")
+    if _field_mismatches(
+        fixed,
+        {
+            "pubmed_sort": "pub_date",
+            "recency_years": 0,
+            "max_papers": MAX_PAPERS,
+            "retmax_ids_per_rung": MAX_IDS_PER_CALL,
+            "minimum_ids_before_relaxation": 3,
+            "maximum_existing_rungs_per_outer_call": MAX_RUNG_CALLS,
+            "rung_order": "exact pinned baseline relaxation_ladder",
+            "query_mutation": "forbidden",
+            "alternate_provider_or_fallback": "forbidden",
+        },
+    ):
+        raise ValueError("Confirmatory fixed retrieval settings changed")
+    limits = runner_inputs.get("limits")
+    if _field_mismatches(
+        limits,
+        {
+            "planned_outer_pubmed_mcp_calls": CONFIRMATORY_MAX_OUTER_CALLS,
+            "absolute_outer_pubmed_mcp_call_cap": CONFIRMATORY_MAX_OUTER_CALLS,
+            "retry_or_recovery_calls": 0,
+            "maximum_esearch_requests_for_frozen_schedule": CONFIRMATORY_MAX_ESEARCH_CALLS,
+            "maximum_ids_submitted_for_metadata_per_outer_call": MAX_IDS_PER_CALL,
+            "maximum_total_ids_submitted_for_metadata": (
+                CONFIRMATORY_MAX_OUTER_CALLS * MAX_IDS_PER_CALL
+            ),
+            "maximum_returned_papers_per_outer_call": MAX_PAPERS,
+            "stop_on_first_error": True,
+            "model_inference_calls": 0,
+            "paid_fallbacks": "forbidden",
+        },
+    ):
+        raise ValueError("Confirmatory retry or resource limits changed")
+
+    build_pins = runner_inputs.get("source_and_build_pins")
+    if not isinstance(build_pins, dict):
+        raise ValueError("Confirmatory source and build pins are missing")
+    baseline_pin, candidate_pin = (
+        build_pins.get("baseline"),
+        build_pins.get("candidate"),
+    )
+    expected_baseline = {
+        "commit": BASELINE_COMMIT,
+        "mcp_server_tree_sha256": "fbbf32866cf3d196772aafe6a94c2c01bdcd6f7f3bd405ae13b27d24e8306726",
+    }
+    expected_candidate = {
+        "commit": "8c91e5a9ed9661a37886c994f37083d75b41f8a5",
+        "mcp_server_tree_sha256": "c22d34fa41daf7f06302731745bc761f51297eb0acb8ce8b8977fb20e2067673",
+        "runtime_diff_sha256": "955022ac1f5a88c9f5655c4d32b2d82f683340760be858ca5dfa5b1c616345e1",
+    }
+    if _field_mismatches(baseline_pin, expected_baseline) or _field_mismatches(
+        candidate_pin, expected_candidate
+    ):
+        raise ValueError("Confirmatory source/build pins differ from frozen input")
+
+    if not CONFIRMATORY_AMENDMENT.is_file() or CONFIRMATORY_AMENDMENT.is_symlink():
+        raise ValueError(
+            "Confirmatory authorization amendment is missing; retrieval is closed"
+        )
+    support_files = {
+        "tool_config": ROOT / "engine/src/co_scientist/config/tools.yaml",
+        "tool_registry": ROOT / "engine/src/co_scientist/config/registry.py",
+        "response_parser": ROOT / "engine/src/co_scientist/tools/response_parser.py",
+        "mcp_client": ROOT / "engine/src/co_scientist/mcp_client.py",
+        "shared_pilot": SHARED_PILOT_SOURCE,
+        "runner": Path(__file__).resolve(),
+        "offline_test": HERE / "test_novelty_precise_rung_runner.py",
+    }
+    prereg_input_files = (
+        (CONFIRMATORY_PREREG, "confirmatory preregistration"),
+        (CONFIRMATORY_INPUT, "confirmatory runner-input artifact"),
+        (SERVER_LAUNCHER, "launcher"),
+        (LIFECYCLE_DRIVER, "lifecycle driver"),
+        *tuple(
+            (path, f"{name.replace('_', ' ')} source")
+            for name, path in support_files.items()
+        ),
+        (CONFIRMATORY_AMENDMENT, "authorization amendment"),
+    )
+    for path, label in prereg_input_files:
+        _require_committed_clean(path, label)
+
+    amendment = json.loads(CONFIRMATORY_AMENDMENT.read_text(encoding="utf-8"))
+    source_support = {
+        name: {"path": path.relative_to(ROOT).as_posix(), "sha256": _sha256_file(path)}
+        for name, path in support_files.items()
+    }
+    test_receipt_pin = amendment.get("offline_test_receipt")
+    if not isinstance(test_receipt_pin, dict) or set(test_receipt_pin) != {
+        "path",
+        "sha256",
+        "command",
+    }:
+        raise ValueError("Confirmatory offline test receipt pin is missing")
+    test_receipt_path = ROOT / test_receipt_pin["path"]
+    if (
+        test_receipt_path.parent.resolve() != HERE.resolve()
+        or test_receipt_path.is_symlink()
+        or not test_receipt_path.is_file()
+        or _sha256_file(test_receipt_path) != test_receipt_pin["sha256"]
+        or test_receipt_pin["command"] != CONFIRMATORY_TEST_COMMAND
+    ):
+        raise ValueError("Confirmatory offline test receipt is missing or changed")
+    _require_committed_clean(test_receipt_path, "offline test receipt")
+    test_receipt = json.loads(test_receipt_path.read_text(encoding="utf-8"))
+    _require_pins(
+        test_receipt,
+        {
+            "status": "passed",
+            "test_path": CONFIRMATORY_TEST_RELPATH,
+            "test_sha256": source_support["offline_test"]["sha256"],
+            "command": CONFIRMATORY_TEST_COMMAND,
+            "external_network_calls": 0,
+            "model_inference_calls": 0,
+            "paid_calls": 0,
+        },
+        "Confirmatory offline test receipt",
+    )
+    expected_pins = {
+        "status": "authorized_for_retrieval",
+        "live_retrieval_authorized": True,
+        "protocol_id": CONFIRMATORY_PROTOCOL_ID,
+        "prereg_sha256": prereg_digest,
+        "runner_input_sha256": runner_input_sha256,
+        "request_inputs_sha256": request_digest,
+        "baseline_commit": baseline_pin["commit"],
+        "baseline_tree_sha256": baseline_pin["mcp_server_tree_sha256"],
+        "candidate_commit": candidate_pin["commit"],
+        "candidate_tree_sha256": candidate_pin["mcp_server_tree_sha256"],
+        "candidate_diff_sha256": candidate_pin["runtime_diff_sha256"],
+        "runner_path": RUNNER_RELPATH,
+        "runner_sha256": source_support["runner"]["sha256"],
+        "source_support": source_support,
+        "offline_test_receipt": test_receipt_pin,
+        "planned_outer_pubmed_mcp_calls": CONFIRMATORY_MAX_OUTER_CALLS,
+        "absolute_outer_pubmed_mcp_call_cap": CONFIRMATORY_MAX_OUTER_CALLS,
+        "max_esearch_calls": CONFIRMATORY_MAX_ESEARCH_CALLS,
+        "max_metadata_ids": CONFIRMATORY_MAX_OUTER_CALLS * MAX_IDS_PER_CALL,
+        "retry_or_recovery_calls": 0,
+        "result_path": CONFIRMATORY_RESULT_RELPATH,
+        "blind_review_path": CONFIRMATORY_BLIND_RELPATH,
+        "blind_labels_path": CONFIRMATORY_LABELS_RELPATH,
+    }
+    _require_pins(amendment, expected_pins, "Confirmatory authorization amendment")
+    _validate_lifecycle_driver(amendment.get("trace_preflight"), "Confirmatory")
+
+    builds = _attest_builds(
+        args,
+        {
+            "baseline": (
+                baseline_pin["commit"],
+                baseline_pin["mcp_server_tree_sha256"],
+            ),
+            "candidate": (
+                candidate_pin["commit"],
+                candidate_pin["mcp_server_tree_sha256"],
+            ),
+        },
+        candidate_diff_sha256=candidate_pin["runtime_diff_sha256"],
+    )
+    return amendment, {
+        "protocol": "confirmatory",
+        "protocol_id": CONFIRMATORY_PROTOCOL_ID,
+        "pilot_id": CONFIRMATORY_PILOT_ID,
+        "preregistered_slugs": {
+            (request_id, arm): _call_slug(
+                "confirmatory", CONFIRMATORY_PILOT_ID, request_id, arm
+            )
+            for request_id, arm in scheduled
+        },
+        "request_by_id": requests,
+        "call_order": scheduled,
+        "max_outer_calls": CONFIRMATORY_MAX_OUTER_CALLS,
+        "max_esearch_calls": CONFIRMATORY_MAX_ESEARCH_CALLS,
+        "max_metadata_ids": CONFIRMATORY_MAX_OUTER_CALLS * MAX_IDS_PER_CALL,
+        "prereg_sha256": prereg_digest,
+        "runner_input_sha256": runner_input_sha256,
+        "source_prereg_sha256": prereg_digest,
+        "frozen_inputs_sha256": request_digest,
+        "amendment_path": CONFIRMATORY_AMENDMENT,
+        "result_path": CONFIRMATORY_RESULT_RELPATH,
+        "blind_review_path": CONFIRMATORY_BLIND_RELPATH,
+        "blind_labels_path": CONFIRMATORY_LABELS_RELPATH,
+        "offline_test_receipt_sha256": test_receipt_pin["sha256"],
+        "trace_preflight": amendment["trace_preflight"],
+        **builds,
+    }
+
+
 def _protocol(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     protocol = getattr(args, "protocol", "original")
     if protocol == "original":
         return _original_protocol(args)
     if protocol == "independent":
         return _independent_protocol(args)
+    if protocol == "confirmatory":
+        return _confirmatory_protocol(args)
     raise ValueError("Unknown retrieval protocol")
 
 
 def _call_slug(protocol: str, pilot_id: str, request_id: str, arm: str) -> str:
     suffix = f"{request_id.lower()}_{arm}"
-    if protocol == "independent":
+    if protocol in {"independent", "confirmatory"}:
         return f"{pilot_id}_{suffix}"
     return f"m11novrung_{pilot_id}_{suffix}"
 
@@ -690,6 +1026,7 @@ def _validate_launcher_receipts(
     args: argparse.Namespace,
     arms: dict[str, Arm],
     pinned: Any,
+    protocol_label: str = "Independent",
 ) -> dict[str, str]:
     if not isinstance(pinned, dict) or set(pinned) != {
         "driver_path",
@@ -700,7 +1037,7 @@ def _validate_launcher_receipts(
         "candidate",
     }:
         raise ValueError(
-            "Independent amendment must pin the launcher and both receipts"
+            f"{protocol_label} amendment must pin the launcher and both receipts"
         )
     launcher = SERVER_LAUNCHER.resolve()
     if (
@@ -709,7 +1046,7 @@ def _validate_launcher_receipts(
         or launcher.is_symlink()
         or _sha256_file(launcher) != pinned["launcher_sha256"]
     ):
-        raise ValueError("Independent launcher hash does not match the amendment")
+        raise ValueError(f"{protocol_label} launcher hash does not match the amendment")
 
     receipt_hashes: dict[str, str] = {}
     for name, arm in arms.items():
@@ -859,6 +1196,7 @@ def _preflight(
         or candidate.cache in base.cache.parents
     ):
         raise ValueError("Pilot caches must be separate and non-nested")
+    protocol = getattr(args, "protocol", "original")
     output = Path(args.output).expanduser().resolve()
     blind = (
         Path(args.blind_output).expanduser().resolve()
@@ -867,12 +1205,22 @@ def _preflight(
     )
     context = (
         (ROOT / hashes["case_context_path"]).resolve()
-        if hashes.get("protocol") == "independent"
+        if protocol == "independent"
         else None
     )
-    artifact_paths = (output, blind, *((context,) if context is not None else ()))
+    blind_labels = (
+        (ROOT / hashes["blind_labels_path"]).resolve()
+        if protocol == "confirmatory"
+        else None
+    )
+    artifact_paths = (
+        output,
+        blind,
+        *((context,) if context is not None else ()),
+        *((blind_labels,) if blind_labels is not None else ()),
+    )
     if len(set(artifact_paths)) != len(artifact_paths) or any(
-        path.exists() for path in artifact_paths
+        path.exists() or path.is_symlink() for path in artifact_paths
     ):
         raise ValueError("Result artifacts must use new unique paths")
     if any(
@@ -882,18 +1230,32 @@ def _preflight(
     ):
         raise ValueError("Artifacts must be outside both server caches")
     trace_receipt_hashes: dict[str, str] = {}
-    if getattr(args, "protocol", "original") == "independent":
+    if protocol in {"independent", "confirmatory"}:
+        expected_labels = (
+            (ROOT / hashes["blind_labels_path"]).resolve()
+            if protocol == "confirmatory"
+            else None
+        )
         if (
             output != (ROOT / hashes["result_path"]).resolve()
             or blind != (ROOT / hashes["blind_review_path"]).resolve()
-            or context != (ROOT / CASE_CONTEXT_RELPATH).resolve()
-            or hashes.get("case_context_protocol") != CASE_CONTEXT_PROTOCOL
+            or (
+                protocol == "independent"
+                and (
+                    context != (ROOT / CASE_CONTEXT_RELPATH).resolve()
+                    or hashes.get("case_context_protocol") != CASE_CONTEXT_PROTOCOL
+                )
+            )
+            or (protocol == "confirmatory" and blind_labels != expected_labels)
         ):
             raise ValueError(
-                "Independent artifact paths/protocol differ from amendment"
+                f"{protocol.title()} artifact paths/protocol differ from amendment"
             )
         trace_receipt_hashes = _validate_launcher_receipts(
-            args, arms, hashes["trace_preflight"]
+            args,
+            arms,
+            hashes["trace_preflight"],
+            "Confirmatory" if protocol == "confirmatory" else "Independent",
         )
         receipt_paths = {
             Path(getattr(args, f"{name}_launch_receipt")).expanduser().resolve()
@@ -909,6 +1271,21 @@ def _preflight(
             raise ValueError("Launch receipts must be outside both server caches")
         if any(path in set(artifact_paths) for path in receipt_paths):
             raise ValueError("Launch receipts must not overlap result artifacts")
+    if protocol in {"independent", "confirmatory"}:
+        call_order = hashes["call_order"]
+        preregistered_slugs = hashes["preregistered_slugs"]
+        namespaces = [
+            arms[arm_name].cache
+            / "pubmed"
+            / preregistered_slugs[(request_id, arm_name)]
+            for request_id, arm_name in call_order
+        ]
+        if len(set(namespaces)) != len(namespaces) or any(
+            namespace.exists() or namespace.is_symlink() for namespace in namespaces
+        ):
+            raise ValueError(
+                "A preregistered request/arm run or slug namespace already exists"
+            )
         if any(any(arm.cache.iterdir()) for arm in arms.values()):
             raise ValueError("Launcher readiness artifacts remain in a server cache")
     return (
@@ -921,7 +1298,11 @@ def _preflight(
             "candidate_diff_sha256": candidate.diff_sha256,
             "candidate_changed_files": hashes["candidate_changed_files"],
             "frozen_inputs_sha256": hashes["frozen_inputs_sha256"],
-            "source_manifest_sha256": hashes["source_manifest_sha256"],
+            **(
+                {"source_manifest_sha256": hashes["source_manifest_sha256"]}
+                if "source_manifest_sha256" in hashes
+                else {}
+            ),
             **{
                 key: value
                 for key, value in hashes.items()
@@ -943,6 +1324,8 @@ def _preflight(
                     "amendment_path",
                     "case_context_path",
                     "case_context_protocol",
+                    "blind_labels_path",
+                    "offline_test_receipt_sha256",
                 }
             },
             **(
@@ -950,7 +1333,7 @@ def _preflight(
                     "trace_preflight_manifest_sha256": {},
                     "trace_preflight_receipt_sha256": trace_receipt_hashes,
                 }
-                if getattr(args, "protocol", "original") == "independent"
+                if protocol in {"independent", "confirmatory"}
                 else {}
             ),
         },
@@ -1186,18 +1569,61 @@ def _independent_case_artifacts(
     return public_papers, public_items, locked_items
 
 
+def _confirmatory_case_artifacts(
+    runtime: Runtime,
+    request: Request,
+    arm: Arm,
+    papers: list[dict[str, Any]],
+    blind_items: list[dict[str, str]],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[dict[str, str]]]:
+    review_by_item = {item.get("item_id"): item for item in blind_items}
+    if len(review_by_item) != len(blind_items) or len(papers) != len(blind_items):
+        raise ValueError("Confirmatory papers and blind abstracts do not align")
+    public_papers: list[dict[str, Any]] = []
+    public_items: list[dict[str, str]] = []
+    locked_items: list[dict[str, str]] = []
+    for paper in papers:
+        item_id = paper.get("blind_item_id")
+        review = review_by_item.get(item_id)
+        if not isinstance(review, dict) or not isinstance(review.get("abstract"), str):
+            raise ValueError("Confirmatory paper has no matching blind abstract")
+        item_token = secrets.token_urlsafe(18)
+        if not item_token or item_token in runtime.case_ids:
+            raise ValueError("Confirmatory opaque item token is empty or duplicated")
+        runtime.case_ids.add(item_token)
+        public_papers.append({"pmid": str(paper["pmid"]), "item_token": item_token})
+        public_items.append(
+            {
+                "item_token": item_token,
+                "query": request.query,
+                "title": str(review.get("title", "")),
+                "abstract": review["abstract"],
+            }
+        )
+        locked_items.append(
+            {
+                "item_token": item_token,
+                "request_id": request.request_id,
+                "arm": arm.name,
+                "pmid": str(paper["pmid"]),
+                "source_title": str(review.get("title", "")),
+            }
+        )
+    return public_papers, public_items, locked_items
+
+
 async def _execute(
     runtime: Runtime, request: Request, arm: Arm, order: int
 ) -> dict[str, Any]:
     suffix = f"{request.request_id.lower()}_{arm.name}"
     slug = _call_slug(runtime.protocol, runtime.pilot_id, request.request_id, arm.name)
-    if runtime.protocol == "independent":
+    if runtime.protocol in {"independent", "confirmatory"}:
         preregistered_slug = runtime.preregistered_slugs.get(
             (request.request_id, arm.name)
         )
         if preregistered_slug != slug:
             raise ValueError(
-                "Independent call slug differs from preflight preregistration"
+                f"{runtime.protocol.title()} call slug differs from preflight preregistration"
             )
         slug = preregistered_slug
     run_id = f"{runtime.pilot_id}_{suffix}"
@@ -1243,6 +1669,13 @@ async def _execute(
             )
             runtime.blind_items.extend(blind_items)
             entry["locked_case_map"] = locked_items
+        elif runtime.protocol == "confirmatory":
+            stage = "blind"
+            papers, blind_items, locked_items = _confirmatory_case_artifacts(
+                runtime, request, arm, papers, blind_items
+            )
+            runtime.blind_items.extend(blind_items)
+            entry["locked_case_map"] = locked_items
         entry.update(
             status="complete",
             papers=papers,
@@ -1251,7 +1684,7 @@ async def _execute(
             metadata_ids_submitted=len(trace["fetched"]),
             finished_at_utc=_utc_now(),
         )
-        if runtime.protocol == "independent":
+        if runtime.protocol in {"independent", "confirmatory"}:
             entry.update(
                 external_request_count="unknown",
                 verified_esearch_rung_count=verified_rung_count,
@@ -1264,7 +1697,7 @@ async def _execute(
             error_stage=stage,
             error_class=type(exc).__name__,
         )
-        if runtime.protocol == "independent" and tool_call_started:
+        if runtime.protocol in {"independent", "confirmatory"} and tool_call_started:
             entry.update(
                 external_request_count="unknown",
                 verified_esearch_rung_count=verified_rung_count,
@@ -1285,7 +1718,24 @@ async def _run(
     blind_output: Path,
     case_context_output: Path | None = None,
 ) -> int:
-    if len(runtime.call_order) != runtime.max_outer_calls:
+    confirmatory_order = tuple(
+        (request_id, arm)
+        for request_id in ("N01", "N02", "N03", "N04", "N05", "N06")
+        for arm in ("baseline", "candidate")
+    )
+    if (
+        len(runtime.call_order) != runtime.max_outer_calls
+        or runtime.protocol == "confirmatory"
+        and (
+            runtime.max_outer_calls != CONFIRMATORY_MAX_OUTER_CALLS
+            or runtime.max_esearch_calls != CONFIRMATORY_MAX_ESEARCH_CALLS
+            or runtime.max_metadata_ids
+            != CONFIRMATORY_MAX_OUTER_CALLS * MAX_IDS_PER_CALL
+            or runtime.call_order != confirmatory_order
+            or tuple(runtime.request_by_id)
+            != tuple(row[0] for row in confirmatory_order[::2])
+        )
+    ):
         raise ValueError("Preregistered call schedule differs from its hard call bound")
     report["esearch_call_count_scope"] = "verified_trace_only"
     for order, (request_id, arm_name) in enumerate(runtime.call_order, 1):
@@ -1320,7 +1770,7 @@ async def _run(
                 "error_stage": "interrupted",
                 "error_class": type(exc).__name__,
             }
-            if runtime.protocol == "independent":
+            if runtime.protocol in {"independent", "confirmatory"}:
                 entry["verified_esearch_rung_count"] = 0
         report["calls"].append(entry)
         report["esearch_call_count"] = runtime.esearch_calls
@@ -1372,7 +1822,9 @@ async def _run(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--protocol", choices=("original", "independent"), default="original"
+        "--protocol",
+        choices=("original", "independent", "confirmatory"),
+        default="original",
     )
     for name in EXPECTED_SORT:
         parser.add_argument(f"--{name}-url", required=True)
@@ -1421,7 +1873,7 @@ def _persist_stopped(
                     "error_stage": stage,
                     "error_class": type(exc).__name__,
                 }
-                if report.get("protocol") == "independent":
+                if report.get("protocol") in {"independent", "confirmatory"}:
                     interrupted.update(
                         external_request_count="unknown",
                         verified_esearch_rung_count=0,
@@ -1438,7 +1890,11 @@ def _persist_stopped(
 
 
 def _persist_preflight_failure(args: argparse.Namespace, exc: Exception) -> None:
-    if args.protocol != "independent" or not INDEPENDENT_AMENDMENT.is_file():
+    amendment = {
+        "independent": INDEPENDENT_AMENDMENT,
+        "confirmatory": CONFIRMATORY_AMENDMENT,
+    }.get(args.protocol)
+    if amendment is None or not amendment.is_file():
         return
     output = Path(args.output).expanduser().absolute()
     try:
@@ -1446,7 +1902,12 @@ def _persist_preflight_failure(args: argparse.Namespace, exc: Exception) -> None
         _save(
             output,
             {
-                "pilot": INDEPENDENT_PROTOCOL_ID,
+                "pilot": (
+                    CONFIRMATORY_PROTOCOL_ID
+                    if args.protocol == "confirmatory"
+                    else INDEPENDENT_PROTOCOL_ID
+                ),
+                "protocol": args.protocol,
                 "status": "STOPPED",
                 "error": {"stage": "preflight", "class": type(exc).__name__},
                 "ended_at_utc": _utc_now(),
@@ -1464,6 +1925,7 @@ def main(argv: list[str] | None = None) -> int:
     output: Path | None = None
     blind: Path | None = None
     context_output: Path | None = None
+    blind_labels_output: Path | None = None
     reserved_paths: list[Path] = []
     report_reservations_complete = False
     try:
@@ -1472,6 +1934,11 @@ def main(argv: list[str] | None = None) -> int:
         context_output = (
             (ROOT / hashes["case_context_path"]).resolve()
             if protocol == "independent"
+            else None
+        )
+        blind_labels_output = (
+            (ROOT / hashes["blind_labels_path"]).resolve()
+            if protocol == "confirmatory"
             else None
         )
         paths_to_reserve = [output, blind]
@@ -1493,7 +1960,6 @@ def main(argv: list[str] | None = None) -> int:
             "started_at_utc": _utc_now(),
             "prereg_sha256": hashes.get("prereg_sha256", PREREG_SHA256),
             "frozen_inputs_sha256": hashes["frozen_inputs_sha256"],
-            "source_manifest_sha256": hashes["source_manifest_sha256"],
             "protocol_amendment_sha256": _sha256_file(amendment_path),
             "runner_path": RUNNER_RELPATH,
             "runner_sha256": _sha256_file(Path(__file__).resolve()),
@@ -1513,6 +1979,8 @@ def main(argv: list[str] | None = None) -> int:
             "esearch_call_count_scope": "verified_trace_only",
             "calls": [],
         }
+        if "source_manifest_sha256" in hashes:
+            report["source_manifest_sha256"] = hashes["source_manifest_sha256"]
         if protocol == "independent":
             report.update(
                 protocol=protocol,
@@ -1523,6 +1991,17 @@ def main(argv: list[str] | None = None) -> int:
                 retry_or_recovery_calls=0,
                 runner_input_sha256=hashes["runner_input_sha256"],
                 source_prereg_sha256=hashes["source_prereg_sha256"],
+            )
+        elif protocol == "confirmatory":
+            report.update(
+                protocol=protocol,
+                blind_labels_path=str(blind_labels_output),
+                absolute_outer_pubmed_mcp_call_cap=CONFIRMATORY_MAX_OUTER_CALLS,
+                max_metadata_ids=hashes["max_metadata_ids"],
+                retry_or_recovery_calls=0,
+                runner_input_sha256=hashes["runner_input_sha256"],
+                source_prereg_sha256=hashes["source_prereg_sha256"],
+                offline_test_receipt_sha256=hashes["offline_test_receipt_sha256"],
             )
         if "pair_definitions_sha256" in hashes:
             report["pair_definitions_sha256"] = hashes["pair_definitions_sha256"]
@@ -1558,6 +2037,10 @@ def main(argv: list[str] | None = None) -> int:
             pilot_label=pilot_label,
             protocol=protocol,
         )
+        if blind_labels_output is not None and (
+            blind_labels_output.exists() or blind_labels_output.is_symlink()
+        ):
+            raise FileExistsError("Confirmatory blind-label path must remain unused")
         result = asyncio.run(
             _run(runtime, report, output, blind, case_context_output=context_output)
         )
