@@ -1,6 +1,6 @@
 # Deferred campaign follow-ups
 
-On 25 September 2026 the owner directed blocked work, including rate-limited work, to be skipped for the time being. PR #46 treated that as a narrower closeout, but the owner clarified that the original campaign should not be called finished on that basis. The entries in the table below remain **open, unfinished and unverified** in `PLAN.md`; this register records why they are paused, not a disposition. Two precise-rung entries were resolved on 26 September and are recorded below the table. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from the deferred entries.
+On 25 September 2026 the owner directed blocked work, including rate-limited work, to be skipped for the time being. PR #46 treated that as a narrower closeout, but the owner clarified that the original campaign should not be called finished on that basis. On 26 September the owner again directed us to skip the blocked model qualification and resume independent goal work. The entries in the table below remain **open, unfinished and unverified** in `PLAN.md`; this register records why they are paused, not a disposition. Two precise-rung entries were resolved on 26 September and are recorded below the table. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from the deferred entries.
 
 | Item | Status at deferral | Revisit only when |
 |---|---|---|

@@ -20,7 +20,8 @@ production default was selected. Do not retry Qwen on a timer.
 The [Ling Sante compatibility adapter](ling-sante-json-gap-2026-09-26.md) later
 passed a bounded synthetic interface panel but failed its [frozen scientific
 batch gate](ling-sante-batch-assessment-v1.md); it remains open/inconclusive and
-is not a default. The [fresh post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
+is not a default. Its provisional application route was removed before release;
+the pinned trial source and raw evidence remain historical. The [fresh post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
 still finds only Qwen, Ling Sante and Ling Fin at active exact-zero ZDR endpoints.
 The [Fin decision](m11-fin-candidate-decision-2026-09-26.md) records a bounded
 next candidate. Its exact-route request adapter passed offline boundary checks;
