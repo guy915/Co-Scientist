@@ -556,3 +556,7 @@ criterion. Trials two and three were not launched. This fixed configuration is
 unqualified; the result does not establish the model's general scientific
 quality. The provisional request adapter was removed before merge or deployment;
 the retained protocol and artifacts refer to qualification commit `41c76bda`.
+The one-off runners and their tests were then removed from the active tree.
+Their exact sources remain in Git at `41c76bda` (interface) and `f1ce7584`
+(scientific trial); use `git show <commit>:<path>` to inspect them. The frozen
+protocol intentionally fails against later source revisions.
