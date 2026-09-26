@@ -1,0 +1,47 @@
+{
+  "catalog_models": {
+    "nex-agi/nex-n2.5-mini:free": {
+      "present": false
+    },
+    "nex-agi/nex-n2.5-pro:free": {
+      "present": false
+    },
+    "qwen/qwen3.8-27b:free": {
+      "context_length": 262144,
+      "expiration_date": null,
+      "present": true,
+      "pricing": {
+        "completion": "0",
+        "prompt": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "repetition_penalty",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ]
+    }
+  },
+  "limits": "Catalog listing and role readback do not prove availability, scientific quality, privacy, or zero-cost Groq admission.",
+  "model_roles": {
+    "CHAT_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "CLAIM_VERIFIER_MODEL": null,
+    "COSCIENTIST_REQUIRE_FREE_MODELS": null,
+    "MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SEMANTIC_SAFETY_MODEL": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SUPERVISOR_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free"
+  },
+  "observed_utc": "2026-09-26T22:59:39.281971+00:00",
+  "openrouter_catalog_url": "https://openrouter.ai/api/v1/models",
+  "purpose": "Current read-only system-default eligibility and replacement screen; no inference or configuration mutation",
+  "railway_api_environment": "production"
+}
