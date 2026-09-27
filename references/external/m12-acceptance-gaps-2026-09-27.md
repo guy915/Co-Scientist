@@ -24,7 +24,7 @@ possible scientific input, but it is not an eligible run in production's
 separate persistent store. The production model-role read remains unavailable
 after automatic approval review rejected the Railway variable read.
 
-The resulting answer to M12-01b's acceptance question is **no**. M12-02b3,
+The resulting answer to M12-01b's acceptance question is **no**. M12-02b3b,
 M12-03b and M12-04b stay open; neither deferral nor the release of route code
 is evidence that their original checks passed. The [follow-up register](m11-follow-up-register.md)
 retains the distinct candidate dispositions and source links.

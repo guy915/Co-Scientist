@@ -23,7 +23,7 @@ recall and provenance gates. The route-specific protocol must be committed
 before calls. This is a dependency statement, **not** an authorization to
 resume the expensive screening loop now.
 
-**Current result:** M12-02b3's descriptive/offline audit is complete. Its
-selected-route scientific comparison remains **inconclusive and open**. No
+**Current result:** M12-02b3a's descriptive/offline audit is complete. The
+M12-02b3b selected-route scientific comparison remains **inconclusive and open**. No
 expert or wet-lab validation exists, and a report Elo score or its
 `verified_count=3` badge cannot fill that gap.
