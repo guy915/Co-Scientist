@@ -8,6 +8,8 @@ The integrated [M12 static reconciliation](m12-static-reconciliation-2026-09-27.
 
 The later [integrated-code offline receipt](m12-offline-verification-2026-09-27.json) verifies `make test-all` and the default frontend suite on the current product tree and reuses the remaining successful release checks only where the Git objects match PR #53. It does not establish a qualified post-expiry model, scientific novelty result, or completed production research run.
 
+The [latest read-only release receipt](m12-production-readonly-2026-09-27.json) confirms PR #57's existing-service deployments and 5/5 production smoke, but exact current model-role readback was blocked by automatic approval review. The previous healthy release is an availability rollback point only. No successful campaign-owned live research or Robin refinement is inferred.
+
 ## Reconciliation
 
 The [source inventory](README.md) and all nine [source dossiers](README.md#L17-L27) agree on the pinned 40-character revisions (9/9). A fresh static pass found no missing target paths among 186 relative links in the inventory, nine dossiers, and M11 register. This confirms repository-internal consistency only; it is not a live check of upstream branches. The [M12 audit](m12-reconciliation-audit.md) records the candidate-level evidence and corrections, including K-Dense's `KDS-*` ID exception and the distinction between Robin's released code and its still-open live observation.

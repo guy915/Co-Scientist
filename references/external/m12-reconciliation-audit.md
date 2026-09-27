@@ -80,3 +80,7 @@ The static subitem M12-01a is complete. Four M12 subitems remain open; the origi
 ## 27 September update — final-code offline boundary
 
 The [M12-02a receipt](m12-offline-verification-2026-09-27.json) and [retained logs](m12-verification/) show a clean sequential `make test-all` and default frontend test run on the product tree unchanged since PR #53. The earlier lint, typecheck, build, evaluation smoke and 18/18 offline browser E2E apply to identical Git objects. M12-02a is complete; M12-02b remains open because these offline checks cannot establish a qualified zero-cost model or a completed public research workflow.
+
+## 27 September update — deployed availability boundary
+
+The [M12-03a read-only receipt](m12-production-readonly-2026-09-27.json) confirms the PR #57 merge commit on Railway API/MCP and Vercel, successful health states, public frontend HTTP 200, and 5/5 keyless production smoke. PR #56 is the prior verified **availability** rollback point, not a proven research-route fallback. Automatic approval review rejected the requested Railway variable read, so exact current model-role values were not returned. M12-03b retains that readback and the campaign-owned live-goal/refinement checks; no provider inference or production mutation occurred.
