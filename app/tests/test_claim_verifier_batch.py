@@ -431,6 +431,34 @@ def test_batch_citation_by_passage_number_resolves_to_that_passage(
     assert results[0].supporting_passages[0].evidence_id == _PASSAGE.evidence_id
 
 
+def test_batch_support_quote_from_a_different_named_passage_is_unproven(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = EvidencePassage(
+        evidence_id="ev-0",
+        text="Kinase X inhibition reduces tumor growth in a different model.",
+    )
+    _install(
+        monkeypatch,
+        _fake_completion(
+            '{"verdicts": [{"index": 1, "label": "supports", '
+            '"supporting": [{"passage": 1, '
+            '"quote": "in AML cell lines"}], "contradicting": []}]}'
+        ),
+    )
+    batch_assessor, assessor_id = make_llm_batch_assessor(
+        "deepseek/deepseek-chat"
+    )
+    results = assess_claims_batch(
+        ["Kinase X inhibition reduces tumor growth."],
+        [other, _PASSAGE],
+        batch_assessor=batch_assessor,
+        assessor_id=assessor_id,
+    )
+    assert results[0].label is EntailmentLabel.INSUFFICIENT
+    assert results[0].supporting_passages == ()
+
+
 def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

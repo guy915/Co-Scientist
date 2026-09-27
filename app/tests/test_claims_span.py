@@ -95,18 +95,20 @@ def test_citation_dropping_the_chunk_suffix_resolves() -> None:
     assert [s.evidence_id for s in spans] == [_PASSAGES[0].evidence_id]
 
 
-def test_verbatim_quote_under_a_wrong_id_resolves_to_its_own_passage() -> None:
-    """A right quote under a wrong id is a bookkeeping slip, not a fiction.
-
-    The span is re-attributed to the passage that actually contains the
-    quote, so the recorded provenance stays exact.
-    """
+def test_verbatim_quote_under_a_different_known_id_is_dropped() -> None:
     spans = _locate_all(
         ((_PASSAGES[0].evidence_id, "inhibit YAP-TEAD function in vivo"),),
         _PASSAGES,
     )
+    assert spans == []
+
+
+def test_verbatim_quote_under_an_unknown_legacy_id_is_recovered() -> None:
+    spans = _locate_all(
+        (("unrecognized-legacy-id", "inhibit YAP-TEAD function in vivo"),),
+        _PASSAGES,
+    )
     assert [s.evidence_id for s in spans] == [_PASSAGES[1].evidence_id]
-    assert spans[0].url == "https://example.org/verteporfin"
 
 
 def test_quote_in_no_shown_passage_is_still_dropped() -> None:

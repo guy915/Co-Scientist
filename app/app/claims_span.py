@@ -146,20 +146,10 @@ def _resolve_span(
     passages: Sequence[EvidencePassage],
     lookup: dict[str, EvidencePassage],
 ) -> SupportSpan | None:
-    """Locate one cited quote, by its named passage or by the quote itself.
-
-    The named passage is tried first, so a correctly cited quote records
-    the provenance the assessor meant. Failing that the quote is searched
-    for across the passages the assessor was actually shown, which
-    re-attributes a verbatim quote filed under the wrong id instead of
-    discarding the verdict it justifies -- the id is the assessor's
-    bookkeeping, the quote is the evidence.
-    """
+    """Locate a quote in its cited passage; recover only unknown legacy keys."""
     named = lookup.get(_normalize_key(cited_key))
     if named is not None:
-        span = locate_span(named, quote)
-        if span is not None:
-            return span
+        return locate_span(named, quote)
     for passage in passages:
         span = locate_span(passage, quote)
         if span is not None:
@@ -173,11 +163,9 @@ def _locate_all(
 ) -> list[SupportSpan]:
     """Locate every ``(evidence_id, quote)`` pair, dropping unlocatable ones.
 
-    A pair survives only if its quote is verbatim (whitespace/case/curly-
-    quote tolerant) in one of the passages the assessor was shown -- the
-    anti-hallucination guarantee ``_downgrade_unproven_label`` rests on.
-    What is *not* required is that the assessor named that passage
-    correctly; see :func:`_resolve_span`.
+    A known cited key must match that passage's quote. Only an unknown
+    legacy key may recover by a verbatim quote elsewhere in the shown pool;
+    see :func:`_resolve_span`.
 
     Drops are logged because they are otherwise invisible: they surface
     only as an INSUFFICIENT verdict, indistinguishable from an assessor
@@ -195,8 +183,8 @@ def _locate_all(
             spans.append(span)
     if dropped:
         logger.warning(
-            "%d cited span(s) could not be located in any of the %d "
-            "passage(s) shown to the assessor; verdict unproven",
+            "%d cited span(s) could not be located in the cited or shown "
+            "%d passage(s); verdict unproven",
             dropped,
             len(passages),
         )
