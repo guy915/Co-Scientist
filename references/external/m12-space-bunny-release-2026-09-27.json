@@ -1,0 +1,71 @@
+{
+  "purpose": "Record the reviewed Space Bunny route and null-author fix release without treating the route as a proven scientific default.",
+  "pull_request": "https://github.com/guy915/Co-Scientist/pull/60",
+  "reviewed_head": "d2109550a2c0d9406288b5d5e13ee6eadbd6c5b7",
+  "merge_commit": "fd249c56d52bafdf516a57671ed5f6134a2ce9ab",
+  "merged_at_utc": "2026-09-27T11:44:17Z",
+  "hosted_ci": {
+    "status": "waived_by_owner",
+    "observed": "Affected targets failed before dependent jobs ran; dependent jobs were skipped. Hosted CI is not counted as passing.",
+    "github_review_decision_at_merge": "REVIEW_REQUIRED",
+    "merge_method": "GitHub PR merge with administrator override of both hosted CI and GitHub review branch policy; the owner requested merging despite the CI failure, and the exact diff had an internal thermo-nuclear maintainability review and local code checks"
+  },
+  "local_checks_on_reviewed_code": {
+    "passed": [
+      "make test-all",
+      "make lint",
+      "make typecheck",
+      "make eval-smoke",
+      "make e2e (18/18)"
+    ],
+    "reused_unchanged_frontend": [
+      "make build",
+      "app/frontend bun run test (803/803)"
+    ],
+    "evidence": "m12-space-bunny-full-run-assessment-2026-09-27.md"
+  },
+  "production": {
+    "railway_project": "74f2b037-0094-49d2-b645-4849991234af",
+    "environment": "production",
+    "api": {
+      "service_id": "f5949ec3-47e3-42d1-91a9-1002b87ab3b0",
+      "deployment_id": "b831734a-5c27-44c2-9a3f-58cd1811b274",
+      "commit": "fd249c56d52bafdf516a57671ed5f6134a2ce9ab",
+      "observed_status": "SUCCESS"
+    },
+    "mcp": {
+      "service_id": "0f81371a-98ed-49c7-9f2b-19ad0950e3c1",
+      "deployment_id": "63b03e7e-c424-441c-a470-1f099bd826a2",
+      "commit": "fd249c56d52bafdf516a57671ed5f6134a2ce9ab",
+      "observed_status": "SUCCESS"
+    },
+    "vercel": {
+      "project_id": "prj_Qtl1x8JU22tOhNcRrb53X9WAIXy8",
+      "deployment_id": "dpl_6ncnMTxp4B75a2vPhDpE6MfH9gEF",
+      "commit": "fd249c56d52bafdf516a57671ed5f6134a2ce9ab",
+      "target": "production",
+      "observed_status": "READY"
+    },
+    "keyless_smoke": {
+      "command": ".venv/bin/python -m evaluations.prod_smoke --base-url https://api-production-97eb.up.railway.app",
+      "passed": 5,
+      "total": 5,
+      "frontend_http_status": 200,
+      "api_health_http_status": 200,
+      "provider_inference_calls": 0
+    }
+  },
+  "prior_availability_rollback_point": {
+    "commit": "1af4204770b8b1081b00898b70c93fff71464d6e",
+    "railway_api_deployment_id": "7b7af2d6-f622-4d7e-9871-ff282165cead",
+    "railway_mcp_deployment_id": "2e04a469-e230-4044-9824-00c6a567f364",
+    "vercel_deployment_id": "dpl_3hjJDQJqZi8hmGKNdLuhAvYYvPBG",
+    "limit": "Availability rollback only; verify zero-cost model routing before any rollback."
+  },
+  "unverified": [
+    "exact production model-role configuration (the earlier Railway variable read was rejected by automatic approval review)",
+    "a campaign-owned research run through the deployed product",
+    "comparative scientific-quality improvement or repeat-run reliability"
+  ],
+  "configuration_change": "None was made by this PR."
+}

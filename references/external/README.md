@@ -7,9 +7,10 @@ records the starting system and baseline work.
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
 All nine required source investigations are closed. The OpenScience timeout and
 ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.json).
-Sakana's result-conditioned search, post-expiry free-model qualification and
-Robin's campaign-owned live refinement observation remain unverified. The owner
-deferred these five model-dependent M11 gates from the active campaign checklist
+Sakana's result-conditioned search, scientific qualification of the selected
+zero-price route and Robin's campaign-owned live refinement observation remain
+unverified. The owner deferred these five model-dependent M11 gates from the
+active campaign checklist
 on 27 September; their original criteria remain in [PLAN.md](../../PLAN.md)
 and the [deferred register](deferred-followups-2026-09-25.md).
 Sakana's separate precise-rung retention candidate was rejected after a
@@ -20,8 +21,11 @@ Each source gets a dossier and immutable commit permalinks when its milestone be
 mechanism gaps and the additional-repository selection decision.
 [M11 evidence release](m11-evidence-release-2026-09-26.json) records the
 owner-directed route skip, PR #48, deployed commit and keyless smoke result.
-That historical receipt predates the five-gate deferral; four M12 subitems remain
-active, and the original live acceptance evidence is still missing.
+That historical receipt predates the five-gate deferral. [PR #60's route release](m12-space-bunny-release-2026-09-27.json)
+and the [negative acceptance finding](m12-acceptance-gaps-2026-09-27.md)
+record one completed local public run and the remaining limits. Three M12
+subitems remain active; the original scientific and production live evidence
+is still missing.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
