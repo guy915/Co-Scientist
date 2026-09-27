@@ -6,6 +6,8 @@
 
 The integrated [M12 static reconciliation](m12-static-reconciliation-2026-09-27.json) rechecked all nine source pins and dossier licenses against `main` after PR #56, with no missing local documentation targets. The three assessment-time rows later superseded by M11 releases are now labeled as historical in their dossiers. This is an inventory result, not the unresolved candidate disposition or live acceptance result.
 
+The later [integrated-code offline receipt](m12-offline-verification-2026-09-27.json) verifies `make test-all` and the default frontend suite on the current product tree and reuses the remaining successful release checks only where the Git objects match PR #53. It does not establish a qualified post-expiry model, scientific novelty result, or completed production research run.
+
 ## Reconciliation
 
 The [source inventory](README.md) and all nine [source dossiers](README.md#L17-L27) agree on the pinned 40-character revisions (9/9). A fresh static pass found no missing target paths among 186 relative links in the inventory, nine dossiers, and M11 register. This confirms repository-internal consistency only; it is not a live check of upstream branches. The [M12 audit](m12-reconciliation-audit.md) records the candidate-level evidence and corrections, including K-Dense's `KDS-*` ID exception and the distinction between Robin's released code and its still-open live observation.

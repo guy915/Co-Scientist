@@ -76,3 +76,7 @@ The owner directed that the unavailable qualified-model route and its four depen
 The [fresh static receipt](m12-static-reconciliation-2026-09-27.json) checks the integrated `main` commit, all nine inventory pins against their dossiers, license discussion in all nine dossiers, and relative documentation links. The M8 timeout, M9 GWAS and M10 Robin source-time candidate rows now identify their subsequent M11 releases; the separate Robin live observation is still unverified. M12's original reconciliation item was split into static reconciliation and a remaining full-acceptance gate. This static result does not close the promising result-conditioned novelty candidate, qualify a model route or verify a completed public research run.
 
 The static subitem M12-01a is complete. Four M12 subitems remain open; the original full-campaign reconciliation gate stays open as M12-01b.
+
+## 27 September update — final-code offline boundary
+
+The [M12-02a receipt](m12-offline-verification-2026-09-27.json) and [retained logs](m12-verification/) show a clean sequential `make test-all` and default frontend test run on the product tree unchanged since PR #53. The earlier lint, typecheck, build, evaluation smoke and 18/18 offline browser E2E apply to identical Git objects. M12-02a is complete; M12-02b remains open because these offline checks cannot establish a qualified zero-cost model or a completed public research workflow.
