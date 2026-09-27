@@ -602,3 +602,7 @@ also removed from the active tree after their failed tool-loop screen. Their
 historical source remains at `2db00ba0`; the pinned protocols, sanitized
 results, and [candidate assessment](cloudflare-workers-free-candidate-2026-09-26.md)
 remain here. This cleanup leaves the existing OpenRouter free-policy path intact.
+
+The [Mistral Studio Free read-only screen](mistral-free-readonly-screen-2026-09-27.md)
+stopped before credentials or inference: its official ZDR documentation limits
+ZDR to paid plans, which does not satisfy this campaign's free privacy gate.
