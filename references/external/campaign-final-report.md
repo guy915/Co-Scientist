@@ -2,7 +2,9 @@
 
 **As of:** 25 September 2026. **Status:** Nine required source assessments and accepted product releases are reconciled. This is the PR #46 scoped evidence snapshot, not final acceptance of the original campaign: eight unfinished M11 follow-ups remain open in `PLAN.md` after the owner's status correction. None is completed, verified, or rejected by deferral.
 
-**Current status, 27 September:** the historical snapshot above remains intact. The owner subsequently removed five unverified live-model-dependent M11 gates from active campaign acceptance. Four M12 items remain open. The original qualified-model and live public-goal criteria have not been satisfied; the [deferred register](deferred-followups-2026-09-25.md) preserves them for any future campaign.
+**Current status, 27 September:** the historical snapshot above remains intact. The owner subsequently removed five unverified live-model-dependent M11 gates from active campaign acceptance. M12's original reconciliation item was split into a verifiable static audit and a remaining full-acceptance gate; the static audit is complete and four M12 subitems remain open. The original qualified-model and live public-goal criteria have not been satisfied; the [deferred register](deferred-followups-2026-09-25.md) preserves them for any future campaign.
+
+The integrated [M12 static reconciliation](m12-static-reconciliation-2026-09-27.json) rechecked all nine source pins and dossier licenses against `main` after PR #56, with no missing local documentation targets. The three assessment-time rows later superseded by M11 releases are now labeled as historical in their dossiers. This is an inventory result, not the unresolved candidate disposition or live acceptance result.
 
 ## Reconciliation
 
