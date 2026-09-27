@@ -9,8 +9,7 @@ All nine required source investigations are closed. The OpenScience timeout and
 ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.json).
 Sakana's result-conditioned search, scientific qualification of the selected
 zero-price route and Robin's campaign-owned live refinement observation remain
-unverified. The owner
-deferred these five model-dependent M11 gates from the active campaign checklist
+unverified. The owner deferred these five model-dependent M11 gates from the active campaign checklist
 on 27 September; their original criteria remain in [PLAN.md](../../PLAN.md)
 and the [deferred register](deferred-followups-2026-09-25.md).
 Sakana's separate precise-rung retention candidate was rejected after a
