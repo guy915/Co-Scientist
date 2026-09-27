@@ -68,3 +68,11 @@ The [citation-source candidate record](baseline/model-qualification/m11-ops-02c4
 ## 27 September update — owner-directed scope reduction
 
 The owner directed that the unavailable qualified-model route and its four dependent M11 live checks be skipped without pausing the goal. Their original criteria remain in the [PLAN.md owner-deferred section](../../PLAN.md) and [deferred register](deferred-followups-2026-09-25.md), explicitly unverified. The active checklist now contains the four M12 closure items. This narrows final campaign acceptance; it does not prove a free production default, a scientific novelty gain, or a successful public refinement run. The [read-only endpoint refresh](baseline/model-qualification/m11-free-route-readonly-2026-09-27.json) found no new exact-zero ZDR tool-capable text endpoint beyond the three already screened.
+
+## 27 September update — integrated static reconciliation
+
+[PR #56](https://github.com/guy915/Co-Scientist/pull/56) merged the M11 deferral record as `c4e16f5d50da1ef8212884db37b934f2f0a651a0`. Railway API `bc40c6bb-8e4c-4b7e-8068-b23cf537fd05` and MCP `3d6f12ff-6ef1-4968-846b-9406911950db` report SUCCESS at that commit; the Vercel production deployment for the same commit reports READY. Keyless production smoke passed 5/5. Hosted CI's affected-targets job failed without a runner log, and the owner-authorized waiver was used; this is not a CI pass.
+
+The [fresh static receipt](m12-static-reconciliation-2026-09-27.json) checks the integrated `main` commit, all nine inventory pins against their dossiers, license discussion in all nine dossiers, and relative documentation links. The M8 timeout, M9 GWAS and M10 Robin source-time candidate rows now identify their subsequent M11 releases; the separate Robin live observation is still unverified. M12's original reconciliation item was split into static reconciliation and a remaining full-acceptance gate. This static result does not close the promising result-conditioned novelty candidate, qualify a model route or verify a completed public research run.
+
+The static subitem M12-01a is complete. Four M12 subitems remain open; the original full-campaign reconciliation gate stays open as M12-01b.
