@@ -132,7 +132,13 @@ _BATCH_VERDICT_ITEM = obj(
 )
 
 _BATCH_DRAFT_SCHEMA = obj(
-    {"verdicts": {"type": "array", "items": _BATCH_VERDICT_ITEM}}
+    {
+        "verdicts": {
+            "type": "array",
+            "minItems": 1,
+            "items": _BATCH_VERDICT_ITEM,
+        }
+    }
 )
 
 
