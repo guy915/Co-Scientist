@@ -583,3 +583,16 @@ control as support for another claim. The [assessment](groq20-scientific-assessm
 records the failed gate and why no further interface checks were run. The
 provisional adapter and one-off runner were removed; their sources remain at
 `c7d2cbac`, the frozen protocol at `7e0f50f2`.
+
+## Groq Free Qwen3.8-27B scientific-first screen — 27 September 2026
+
+The [candidate screen](groq-free-qwen38-screen-2026-09-26.md) and
+[frozen protocol](groq-qwen38-scientific-prereg-v1.json) led to one request
+after current Free-plan, inference-ZDR, key, model and quota readbacks. The
+[sanitized artifact](groq-qwen38-science-2026-09-27-1.json) records a completed
+served-model response with correct ordered labels, but a support verdict cited
+the separate contradiction-control passage. The
+[assessment](groq-qwen38-scientific-assessment-2026-09-27.md) explains the
+failed provenance gate and limits. No repeat or interface continuation occurred.
+Provisional runtime code and one-off runner/tests were removed; their historical
+source remains at `c773eb0d` and the frozen protocol at `dc165f27`.

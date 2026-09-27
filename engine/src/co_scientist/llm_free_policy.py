@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import hashlib
 import json
 import os
 import re
@@ -18,9 +17,6 @@ from co_scientist.llm_free_catalog import current_catalog, verify_model
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
 _API_BASE = "https://openrouter.ai/api/v1"
-_GROQ_MODEL = "groq/qwen/qwen3.8-27b"
-_GROQ_API_BASE = "https://api.groq.com/openai/v1"
-_GROQ_ATTESTATION_ENV = "COSCIENTIST_GROQ_FREE_ZDR_ATTESTATION"
 _CLOUDFLARE_MODEL_ID = "@cf/google/gemma-4-26b-a4b-it"
 _CLOUDFLARE_MODEL = f"openai/{_CLOUDFLARE_MODEL_ID}"
 _CLOUDFLARE_ACCOUNT_ID_ENV = "CLOUDFLARE_ACCOUNT_ID"
@@ -50,20 +46,6 @@ _REQUEST_FIELDS = {
     "stream_options",
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
-_GROQ_REQUEST_FIELDS = {
-    "model",
-    "messages",
-    "max_tokens",
-    "temperature",
-    "drop_params",
-    "timeout",
-    "api_key",
-    "api_base",
-    "response_format",
-    "tools",
-    "stream",
-    "stream_options",
-}
 # JSON formats are admitted only as bounded, exact interface probes; this
 # does not establish that the candidate supports either response mode.
 _CLOUDFLARE_REQUEST_FIELDS = {
@@ -109,40 +91,20 @@ def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     model = str(args.get("model", ""))
     return campaign_free_mode() or (
-        not byok
-        and (
-            ":free" in model
-            or model.startswith("groq/")
-            or _CLOUDFLARE_MODEL_ID in model
-        )
+        not byok and (":free" in model or _CLOUDFLARE_MODEL_ID in model)
     )
 
 
-def _enforce_direct_free_route(args: dict[str, Any]) -> bool | None:
-    model = str(args.get("model", ""))
-    if model.startswith("groq/"):
-        return _enforce_groq_free_request(args)
-    if _CLOUDFLARE_MODEL_ID in model:
-        return _enforce_cloudflare_free_request(args)
-    return None
-
-
-def _request_body(
-    args: dict[str, Any], *, api_base: str = _API_BASE
-) -> dict[str, Any]:
+def _request_body(args: dict[str, Any]) -> dict[str, Any]:
     if litellm.model_fallbacks or litellm.model_alias_map:
         raise FreeModelEligibilityError(
             "zero-cost SDK routing overrides are unqualified"
         )
-    request_fields = (
-        _GROQ_REQUEST_FIELDS if api_base == _GROQ_API_BASE else _REQUEST_FIELDS
-    )
-    if args.keys() - request_fields:
+    if args.keys() - _REQUEST_FIELDS:
         raise FreeModelEligibilityError(
             "zero-cost request contains unqualified options"
         )
-    _verify_stream_option(args, api_base)
-    if args.get("api_base", api_base) != api_base:
+    if args.get("api_base", _API_BASE) != _API_BASE:
         raise FreeModelEligibilityError(
             "zero-cost request uses an unverified endpoint"
         )
@@ -154,40 +116,6 @@ def _request_body(
     _verify_messages(args.get("messages", []))
     _verify_tools(args.get("tools", []))
     return body
-
-
-def _verify_stream_option(args: dict[str, Any], api_base: str) -> None:
-    if api_base != _GROQ_API_BASE:
-        return
-    if "stream" in args and type(args["stream"]) is not bool:
-        raise FreeModelEligibilityError(
-            "zero-cost request requires a boolean stream option"
-        )
-    if "stream_options" in args and (
-        args.get("stream") is not True
-        or args["stream_options"] != {"include_usage": True}
-    ):
-        raise FreeModelEligibilityError(
-            "zero-cost request requires usage-only stream options"
-        )
-
-
-def _verify_groq_attestation(args: dict[str, Any]) -> None:
-    key = args.get("api_key")
-    if key is not None and not isinstance(key, str):
-        raise FreeModelEligibilityError(
-            "Groq Free/ZDR attestation is missing or stale"
-        )
-    key = key or os.getenv("GROQ_API_KEY", "")
-    today = datetime.now(timezone.utc).date().isoformat()
-    fingerprint = hashlib.sha256(key.encode("utf-8")).hexdigest() if key else ""
-    if (
-        not fingerprint
-        or os.getenv(_GROQ_ATTESTATION_ENV) != f"{today}:{fingerprint}"
-    ):
-        raise FreeModelEligibilityError(
-            "Groq Free/ZDR attestation is missing or stale"
-        )
 
 
 def _object_list(value: Any) -> list[dict[str, Any]]:
@@ -252,9 +180,8 @@ async def enforce_free_request(
     """
     if not _requires_free(args, byok):
         return False
-    direct_route_result = _enforce_direct_free_route(args)
-    if direct_route_result is not None:
-        return direct_route_result
+    if _CLOUDFLARE_MODEL_ID in str(args.get("model", "")):
+        return _enforce_cloudflare_free_request(args)
     body = _request_body(args)
     routes = _routes(args, body)
     catalog = await asyncio.to_thread(current_catalog)
@@ -276,17 +203,6 @@ async def enforce_free_request(
     # Pin the transport too: an environment-level proxy/base override must
     # not send an OpenRouter-qualified route to a different billing service.
     args["api_base"] = _API_BASE
-    return True
-
-
-def _enforce_groq_free_request(args: dict[str, Any]) -> bool:
-    if args.get("model") != _GROQ_MODEL:
-        raise FreeModelEligibilityError(
-            "zero-cost request requires the pinned Groq route"
-        )
-    _request_body(args, api_base=_GROQ_API_BASE)
-    _verify_groq_attestation(args)
-    args["api_base"] = _GROQ_API_BASE
     return True
 
 
