@@ -1,0 +1,53 @@
+{
+  "admitted": true,
+  "application_route": {
+    "allow_fallbacks": false,
+    "max_price": {
+      "completion": 0.0,
+      "prompt": 0.0,
+      "request": 0.0
+    },
+    "only": [
+      "Stealth"
+    ]
+  },
+  "catalog_endpoint_count": 1,
+  "catalog_endpoints": [
+    {
+      "host": "Stealth",
+      "host_field": "provider_name",
+      "nonzero_pricing_fields": [],
+      "pricing": {
+        "completion": "0",
+        "discount": "0",
+        "prompt": "0"
+      },
+      "pricing_parse_error": false
+    }
+  ],
+  "catalog_model_id": "stealth/space-bunny-alpha",
+  "checks": {
+    "all_listed_pricing_fields_zero": true,
+    "catalog_hosts_stealth_only": true,
+    "exact_catalog_model_id": true,
+    "prompt_and_completion_prices_zero": true,
+    "stealth_only_route_no_fallbacks": true
+  },
+  "deliberately_absent": [
+    "provider key or account identity",
+    "raw catalog response",
+    "unlisted model metadata"
+  ],
+  "purpose": "Single fresh OpenRouter endpoint-catalog admission check before resuming the saved run",
+  "request": {
+    "authorization": "none",
+    "count": 1,
+    "failure_type": null,
+    "http_status": 200,
+    "method": "GET"
+  },
+  "requested_model": "openrouter/stealth/space-bunny-alpha",
+  "retrieved_at_utc": "2026-09-27T11:06:09Z",
+  "schema": "m12-space-bunny-zero-price-admission/v1",
+  "source": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints"
+}

@@ -1,0 +1,20 @@
+{
+  "purpose": "Manual browser verification of the isolated local workbench after the campaign-owned run completed",
+  "date_utc": "2026-09-27",
+  "tool": "Codex in-app browser",
+  "origin": "http://127.0.0.1:5373",
+  "observed": {
+    "home_loaded": true,
+    "home_had_meaningful_content": true,
+    "error_overlay_seen": false,
+    "researcher_access_heading_and_labeled_field_visible": true,
+    "invalid_dummy_access_code_rejected": true,
+    "invalid_code_error_visible": "401 {\"detail\":\"invalid access code\"}",
+    "refresh_cleared_dummy_input_and_error": true
+  },
+  "limits": [
+    "No real local access code was entered into this browser session; it had no owned-run session, so the actual report was not inspected through the browser.",
+    "The offline Playwright report and refresh flows passed separately in the 18/18 e2e rerun; this receipt does not substitute for an authenticated live-report browser check."
+  ],
+  "provider_calls": 0
+}

@@ -1,0 +1,81 @@
+{
+  "actions_performed": [
+    ".remember/tmp/space-bunny-run/launch.py up",
+    ".remember/tmp/space-bunny-run/launch.py status"
+  ],
+  "captured_at_utc": "2026-09-27T11:03:35Z",
+  "database_path": ".remember/tmp/space-bunny-run/instances/20260927T090631Z-85c16b/coscientist.db",
+  "fresh_catalog_admission": "not checked in this restart step; still required immediately before resume",
+  "instance_id": "20260927T090631Z-85c16b",
+  "launcher_static_provider_pin": "passed for exact model openrouter/stealth/space-bunny-alpha, Stealth only, zero prompt/completion cap",
+  "launcher_up_result": "ready; launcher reported no model request or new research run",
+  "lifecycle_actions_not_performed": [
+    "resume",
+    "retry",
+    "new run",
+    "model completion request"
+  ],
+  "run_id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca",
+  "same_db_run_verification": {
+    "all_unchanged": true,
+    "checkpoint": {
+      "last_event_seq": 29,
+      "seq": 30,
+      "stage": "engine_task:7f8368da-8117-4b23-9306-ea95e8511103"
+    },
+    "comparisons_to_pre_restart": {
+      "checkpoint_unchanged": true,
+      "failed_task_unchanged": true,
+      "llm_telemetry_unchanged": true,
+      "run_events_unchanged": true,
+      "run_still_failed": true,
+      "same_instance_pointer": true,
+      "same_run_id": true,
+      "task_rows_unchanged": true
+    },
+    "failed_task_attempt": 3,
+    "failed_task_id": "e6170f9f-8395-46bd-9873-3e662b79b6eb",
+    "failed_task_max_attempts": 3,
+    "llm_telemetry_totals": {
+      "cached_prompt_tokens": 413915,
+      "calls": 144,
+      "completion_tokens": 436188,
+      "cost_usd": 0.0,
+      "logical_llm_calls": 131,
+      "observed_model_calls": 144,
+      "priced_usage_calls": 144,
+      "prompt_tokens": 1038864,
+      "reasoning_tokens": 0,
+      "reported_usage_calls": 144,
+      "retries": 1
+    },
+    "run_event_count": 31,
+    "task_counts": {
+      "cancelled": 0,
+      "completed": 73,
+      "failed": 1,
+      "leased": 0,
+      "paused": 0,
+      "queued": 0
+    },
+    "task_total": 74
+  },
+  "schema": "m12-space-bunny-isolated-stack-restart/v1",
+  "status": {
+    "backend": "real",
+    "email_notifications_enabled": false,
+    "execution_policy": "standard",
+    "listening_ports": [
+      "127.0.0.1:8988",
+      "127.0.0.1:8208",
+      "127.0.0.1:5373"
+    ],
+    "mcp_available": true,
+    "model": "openrouter/stealth/space-bunny-alpha",
+    "provider": "engine",
+    "public_literature_available": true,
+    "run_status": "failed",
+    "tier": "express",
+    "web_search_enabled": false
+  }
+}

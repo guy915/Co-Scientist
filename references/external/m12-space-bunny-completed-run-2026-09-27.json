@@ -1,0 +1,180 @@
+{
+  "captured_at_utc": "2026-09-27T11:17:15Z",
+  "deliberately_absent": [
+    "provider key and account identity",
+    "local auth secrets",
+    "raw OpenRouter response",
+    "raw checkpoint/model response content"
+  ],
+  "durable_tasks": {
+    "counts": {
+      "cancelled": 0,
+      "completed": 75,
+      "failed": 0,
+      "leased": 0,
+      "paused": 0,
+      "queued": 0
+    },
+    "total": 75
+  },
+  "final_openrouter_key_usage": {
+    "baseline": {
+      "is_free_tier": false,
+      "limit": 40.0,
+      "limit_remaining": 0.7595639170000013,
+      "usage": 39.240436083,
+      "usage_daily": 0.0,
+      "usage_monthly": 4.704300154,
+      "usage_weekly": 0.0
+    },
+    "baseline_at_utc": "2026-09-27T10:57:28Z",
+    "current": {
+      "is_free_tier": false,
+      "limit": 40.0,
+      "limit_remaining": 0.7595639170000013,
+      "usage": 39.240436083,
+      "usage_daily": 0.0,
+      "usage_monthly": 4.704300154,
+      "usage_weekly": 0.0
+    },
+    "delta_since_baseline": {
+      "limit": 0.0,
+      "limit_remaining": 0.0,
+      "usage": 0.0,
+      "usage_daily": 0.0,
+      "usage_monthly": 0.0,
+      "usage_weekly": 0.0
+    },
+    "http_status": 200,
+    "interpretation": "Account-level change between snapshots only; it cannot be attributed solely to this run, and provider usage may be delayed.",
+    "readback_at_utc": "2026-09-27T11:15:34Z",
+    "source": "https://openrouter.ai/api/v1/key"
+  },
+  "model_usage": {
+    "cached_prompt_tokens": 442361,
+    "calls": 155,
+    "completion_tokens": 465097,
+    "cost_usd": 0.0,
+    "errors": {
+      "APIError": 1
+    },
+    "logical_llm_calls": 141,
+    "observed_model_calls": 154,
+    "priced_usage_calls": 154,
+    "prompt_tokens": 1217827,
+    "reasoning_tokens": 0,
+    "reported_usage_calls": 154,
+    "requested_models": [
+      "openrouter/stealth/space-bunny-alpha"
+    ],
+    "retries": 2,
+    "served_models": [
+      "openrouter/stealth/space-bunny-alpha"
+    ]
+  },
+  "provenance": {
+    "citation_state_counts": {
+      "unsupported": 26
+    },
+    "claim_evidence_by_label_and_method": [
+      {
+        "label": "insufficient",
+        "n": 39,
+        "verification_method": "model_primary"
+      },
+      {
+        "label": "partial",
+        "n": 6,
+        "verification_method": "model_primary"
+      },
+      {
+        "label": "supports",
+        "n": 3,
+        "verification_method": "model_primary"
+      }
+    ],
+    "evidence_author_metadata": {
+      "empty": 1,
+      "evidence_rows": 61,
+      "nonempty": 60,
+      "null_or_invalid": 0
+    },
+    "evidence_sources": [
+      {
+        "doi_rows": 48,
+        "evidence_rows": 56,
+        "pmid_rows": 35,
+        "source_type": "peer_reviewed"
+      },
+      {
+        "doi_rows": 5,
+        "evidence_rows": 5,
+        "pmid_rows": 0,
+        "source_type": "preprint"
+      }
+    ],
+    "interpretation": "The report records three verified hypotheses from claim-evidence edges, while all 26 citation rows are classified unsupported; retain this distinction when assessing provenance.",
+    "normalized_record_counts": {
+      "citations": 26,
+      "claim_evidence": 48,
+      "evidence": 61,
+      "hypotheses": 8,
+      "reports": 1,
+      "retrieval_calls": 0
+    }
+  },
+  "purpose": "Sanitized terminal outcome, report provenance, served-model telemetry, and final account-level usage comparison",
+  "report": {
+    "citation_summary": {
+      "partial": 0,
+      "unavailable": 0,
+      "unsupported": 26,
+      "verified": 0
+    },
+    "degraded_sections": [],
+    "evidence_count": 61,
+    "high_potential_ideas": [
+      "ERBB2-MET Relay Drug-Tolerant Persistence",
+      "DUSP6-Gated MET-to-ERK Drug Tolerance",
+      "MET-Contractility-TEAD Mechanobypass"
+    ],
+    "id": "b7d6ea29-075c-42f0-a923-aa038676f312",
+    "idea_count": 8,
+    "markdown_chars": 355872,
+    "markdown_exists": true,
+    "markdown_path": ".remember/tmp/space-bunny-run/instances/20260927T090631Z-85c16b/reports/5edffdcc-aac9-4ea2-b722-a1986dce3cca.md",
+    "match_count": 9,
+    "released_hypothesis_count": 3,
+    "research_goal": "What testable mechanisms explain acquired resistance after osimertinib or a later-line TKI in EGFR-mutant lung cancer?",
+    "research_overview_contact_count": 4,
+    "title": "# Research Report \u2014 What testable mechanisms explain acquired resistance after osimertinib or a later-line TKI in EGFR-mutant lung cancer?",
+    "verified_count": 3
+  },
+  "run": {
+    "backend": "real",
+    "completed_at_utc": "2026-09-27T11:11:29Z",
+    "created_at_utc": "2026-09-27T09:07:33Z",
+    "execution_policy": "standard",
+    "id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca",
+    "prior_failure": "Task engine.node.research_overview exhausted its retry budget: 'NoneType' object is not iterable",
+    "provider": "engine",
+    "recovered_task_attempt": 4,
+    "recovered_task_final_state": {
+      "attempt": 4,
+      "id": "e6170f9f-8395-46bd-9873-3e662b79b6eb",
+      "idempotency_key": "engine.node.research_overview:after:7f8368da-8117-4b23-9306-ea95e8511103",
+      "max_attempts": 4,
+      "status": "completed"
+    },
+    "recovered_task_id": "e6170f9f-8395-46bd-9873-3e662b79b6eb",
+    "recovered_task_max_attempts": 4,
+    "status": "completed",
+    "tier": "express"
+  },
+  "schema": "m12-space-bunny-completed-run/v1",
+  "watcher": {
+    "command": ".remember/tmp/space-bunny-run/launch.py wait --interval 60 --timeout 21600",
+    "progress": "75/75 tasks",
+    "terminal_status": "completed"
+  }
+}

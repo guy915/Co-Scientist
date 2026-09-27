@@ -1,0 +1,14 @@
+{
+  "purpose": "Read-only account billing check during the isolated Space Bunny public-goal trial",
+  "retrieved_at_utc": "2026-09-27T09:54:32Z",
+  "source": "https://openrouter.ai/api/v1/key",
+  "scope": "The campaign key currently used by the isolated local API; key identity and value intentionally omitted",
+  "usage_usd": 39.240436083,
+  "usage_daily_usd": 0,
+  "usage_weekly_usd": 0,
+  "usage_monthly_usd": 4.704300154,
+  "limit_usd": 40,
+  "limit_remaining_usd": 0.7595639170000013,
+  "is_free_tier": false,
+  "interpretation": "A mid-run account snapshot, not a before/after proof. Compare with a fresh readback after the run; no charge is inferred from internal telemetry alone."
+}

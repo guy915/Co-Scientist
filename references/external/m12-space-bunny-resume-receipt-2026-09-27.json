@@ -1,0 +1,37 @@
+{
+  "captured_at_utc": "2026-09-27T11:07:05Z",
+  "catalog_admission_receipt": "references/external/m12-space-bunny-zero-price-admission-2026-09-27.json",
+  "interpretation": "The same failed durable-task row was revived with a one-attempt extension before the same-run resume enqueue; no new run was created.",
+  "latest_checkpoint": {
+    "last_event_seq": 29,
+    "seq": 30,
+    "stage": "engine_task:7f8368da-8117-4b23-9306-ea95e8511103"
+  },
+  "resume_endpoint_result": "launch.py resume returned queued",
+  "resume_target": {
+    "attempt_after_resume": 4,
+    "completed_at_epoch": null,
+    "error_present": false,
+    "existing_task_id": "e6170f9f-8395-46bd-9873-3e662b79b6eb",
+    "idempotency_key": "engine.node.research_overview:after:7f8368da-8117-4b23-9306-ea95e8511103",
+    "max_attempts_after_resume": 4,
+    "revived_existing_row": true,
+    "started_at_epoch": 1790505513.709776,
+    "status_after_resume": "leased",
+    "task_type": "engine.node.research_overview",
+    "updated_at_epoch": 1790507184.377964
+  },
+  "run_event_count": 32,
+  "run_id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca",
+  "run_status": "queued",
+  "run_task_counts": {
+    "cancelled": 0,
+    "completed": 73,
+    "failed": 0,
+    "leased": 1,
+    "paused": 0,
+    "queued": 0
+  },
+  "run_task_total": 74,
+  "schema": "m12-space-bunny-same-run-resume/v1"
+}
