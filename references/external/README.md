@@ -7,12 +7,13 @@ records the starting system and baseline work.
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
 All nine required source investigations are closed. The OpenScience timeout and
 ToolUniverse GWAS follow-ups were [released in M11](m11-release-verification.json).
-Sakana's result-conditioned search, scientific qualification of the selected
-zero-price route and Robin's campaign-owned live refinement observation remain
-unverified. The owner deferred these five model-dependent M11 gates from the
-active campaign checklist
-on 27 September; their original criteria remain in [PLAN.md](../../PLAN.md)
-and the [deferred register](deferred-followups-2026-09-25.md).
+Sakana's result-conditioned search and scientific qualification of the selected
+zero-price route remain unverified. The owner deferred five model-dependent M11
+gates from the active checklist on 27 September; their original criteria remain
+in [PLAN.md](../../PLAN.md) and the
+[deferred register](deferred-followups-2026-09-25.md). A later public Robin
+refinement now covers its outcome, lineage and served-model observation, while
+the separate UI refresh/gate-traversal criterion is not yet recorded there.
 Sakana's separate precise-rung retention candidate was rejected after a
 completed, blinded, independently sourced confirmation; see the
 [dossier](sakana-ai-scientist.md#m11-precise-rung-disposition-26-september-2026).
@@ -28,8 +29,10 @@ record one completed local public run and the remaining limits. The
 now records a completed campaign-owned goal and two terminal Robin
 `no_child` actions. [PR #65's Robin release](m12-robin-release-2026-09-27.md)
 created a live child, but the [post-release receipt](m12-robin-postrelease-2026-09-27.json)
-records a metrics-checkpoint regression. The fixed-input scientific comparison,
-Robin-specific served-model/cost readback and final acceptance remain open.
+records a metrics-checkpoint regression. Corrective [PR #66](m12-robin-release-2026-09-27.md)
+reached production, and a [new live refinement](m12-robin-corrective-observation-2026-09-27.json)
+retained its served-model/cost entry after successor review. The fixed-input
+scientific comparison and final zero-open acceptance remain open.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
