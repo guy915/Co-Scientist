@@ -1,0 +1,121 @@
+{
+  "captured_at_utc": "2026-09-27T11:00:28Z",
+  "deliberately_absent": [
+    "provider key or key identity",
+    "local auth secret and access code",
+    "idempotency key for run creation",
+    "raw prompts, checkpoint contents, literature cache, model responses, and service-log contents"
+  ],
+  "durable_tasks": {
+    "counts": {
+      "cancelled": 0,
+      "completed": 73,
+      "failed": 1,
+      "leased": 0,
+      "paused": 0,
+      "queued": 0
+    },
+    "failed_task": {
+      "attempt": 3,
+      "depends_on_task_id": "7f8368da-8117-4b23-9306-ea95e8511103",
+      "error_signature": "NoneType object is not iterable",
+      "id": "e6170f9f-8395-46bd-9873-3e662b79b6eb",
+      "idempotency_key": "engine.node.research_overview:after:7f8368da-8117-4b23-9306-ea95e8511103",
+      "max_attempts": 3,
+      "task_type": "engine.node.research_overview"
+    },
+    "total": 74
+  },
+  "latest_checkpoint": {
+    "last_event_seq": 29,
+    "predecessor": {
+      "id": "7f8368da-8117-4b23-9306-ea95e8511103",
+      "idempotency_key": "engine.node.orchestrator:after:7f8467e9-3e23-4275-bc75-45f348859396",
+      "status": "completed",
+      "task_type": "engine.node.orchestrator"
+    },
+    "resume_successor": "engine.node.research_overview",
+    "seq": 30,
+    "stage": "engine_task:7f8368da-8117-4b23-9306-ea95e8511103"
+  },
+  "llm_telemetry": {
+    "cached_prompt_tokens": 413915,
+    "calls": 144,
+    "completion_tokens": 436188,
+    "cost_usd": 0.0,
+    "logical_llm_calls": 131,
+    "observed_model_calls": 144,
+    "priced_usage_calls": 144,
+    "prompt_tokens": 1038864,
+    "reasoning_tokens": 0,
+    "reported_usage_calls": 144,
+    "retries": 1,
+    "served_models": [
+      "openrouter/stealth/space-bunny-alpha"
+    ]
+  },
+  "provider_account_readback": {
+    "baseline": {
+      "is_free_tier": false,
+      "limit": 40,
+      "limit_remaining": 0.7595639170000013,
+      "usage": 39.240436083,
+      "usage_daily": 0,
+      "usage_monthly": 4.704300154,
+      "usage_weekly": 0
+    },
+    "baseline_retrieved_at_utc": "2026-09-27T09:54:32Z",
+    "current": {
+      "is_free_tier": false,
+      "limit": 40.0,
+      "limit_remaining": 0.7595639170000013,
+      "usage": 39.240436083,
+      "usage_daily": 0.0,
+      "usage_monthly": 4.704300154,
+      "usage_weekly": 0.0
+    },
+    "delta_since_midrun": {
+      "limit": 0.0,
+      "limit_remaining": 0.0,
+      "usage": 0.0,
+      "usage_daily": 0.0,
+      "usage_monthly": 0.0,
+      "usage_weekly": 0.0
+    },
+    "http_status": 200,
+    "interpretation": "The key endpoint values match the mid-run baseline; no account-level increase is visible between snapshots. This does not attribute spend to this run, and provider usage may be delayed.",
+    "retrieved_at_utc": "2026-09-27T10:57:28Z"
+  },
+  "publication": {
+    "report_count": 0,
+    "report_published": false
+  },
+  "purpose": "Sanitized DB-backed failure snapshot for same-run recovery planning",
+  "run": {
+    "created_at_utc": "2026-09-27T09:07:33Z",
+    "error": "Task engine.node.research_overview exhausted its retry budget: 'NoneType' object is not iterable",
+    "execution_policy": "standard",
+    "failed_at_utc": "2026-09-27T10:38:33Z",
+    "id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca",
+    "model": "openrouter/stealth/space-bunny-alpha",
+    "provider": "engine",
+    "status": "failed",
+    "tier": "express"
+  },
+  "run_events": {
+    "count": 31,
+    "latest_seq": 31
+  },
+  "schema": "m12-space-bunny-terminal-failure/v1",
+  "service_state": {
+    "active_instance_pointer_matches": true,
+    "instance_id": "20260927T090631Z-85c16b",
+    "ports_listening": [],
+    "recorded_pids": {
+      "api": 18750,
+      "mcp": 18751,
+      "ui": 18752
+    },
+    "recorded_processes_alive": false
+  }
+}

@@ -155,3 +155,35 @@ async def test_research_contact_groups_default_to_empty(
     out = await ro.research_overview_node(state)
 
     assert out["research_overview"]["research_contact_groups"] == []
+
+
+async def test_research_overview_synthesizes_without_nullable_authors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An analyzed article with null authors cannot block the overview."""
+    fake = AsyncMock(return_value=_OVERVIEW_RESPONSE)
+    monkeypatch.setattr(ro, "call_llm_json", fake)
+
+    h = make_hypothesis(
+        text="HDAC inhibition reverses fibrosis", elo_rating=1700
+    )
+    state = make_state(
+        hypotheses=[h],
+        research_goal="g",
+        supervisor_model_name="test/model",
+        meta_review={},
+        articles=[
+            make_article(
+                title="Fibrosis mechanisms",
+                authors=None,
+                source_id="PMID:123",
+                url="https://pubmed.ncbi.nlm.nih.gov/123/",
+                used_in_analysis=True,
+            )
+        ],
+    )
+
+    out = await ro.research_overview_node(state)
+
+    assert fake.await_count > 0
+    assert out["research_overview"]["research_contacts"] == []

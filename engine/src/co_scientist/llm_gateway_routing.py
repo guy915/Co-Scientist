@@ -201,6 +201,8 @@ class GatewayModel:
         verified_provider: Pin a provisional route to the one provider whose
             current pricing and data-use terms were inspected. The request
             also requires zero retention and denies data collection.
+        provider_only: Pin an inspected provider without imposing a data-use
+            policy. Promotional free routes use this to avoid another host.
     """
 
     takes_reasoning_knob: bool
@@ -208,6 +210,7 @@ class GatewayModel:
     fallbacks: tuple[str, ...] = ()
     reasoning_can_disable: bool = False
     verified_provider: str | None = None
+    provider_only: str | None = None
 
 
 # OpenRouter's own ceiling on the ``models`` fallback array: "'models'
@@ -333,6 +336,11 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
+    "openrouter/stealth/space-bunny-alpha": GatewayModel(
+        takes_reasoning_knob=True,
+        spends_budget_thinking=True,
+        provider_only="Stealth",
+    ),
     # The paid alternative chain head, kept for a deployment that opts back
     # into it (``app.config`` no longer defaults here). Its own chain and
     # rationale are unchanged.
@@ -345,6 +353,22 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
         ),
     ),
 }
+
+
+def _apply_provider_pin(
+    provider: dict[str, Any], declared: GatewayModel | None
+) -> None:
+    if declared is None:
+        return
+    if declared.verified_provider:
+        provider.pop("order", None)
+        provider["only"] = [declared.verified_provider]
+        provider["zdr"] = True
+        provider["data_collection"] = "deny"
+    elif declared.provider_only:
+        provider.pop("order", None)
+        provider["only"] = [declared.provider_only]
+        provider["allow_fallbacks"] = False
 
 
 def _gateway_provider(model_name: str) -> dict[str, Any]:
@@ -365,11 +389,7 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
     if order:
         provider["order"] = list(order)
     declared = _GATEWAY_MODELS.get(model_name)
-    if declared is not None and declared.verified_provider:
-        provider.pop("order", None)
-        provider["only"] = [declared.verified_provider]
-        provider["zdr"] = True
-        provider["data_collection"] = "deny"
+    _apply_provider_pin(provider, declared)
     price = MODEL_PRICING.get(model_name)
     if price is None:
         return provider

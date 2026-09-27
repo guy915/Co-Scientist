@@ -1,0 +1,375 @@
+{
+  "claim_support": {
+    "claims_assessed": 48,
+    "claims_supported": 9,
+    "configured_backend": "real",
+    "evaluation_identity": null,
+    "ideas": 8,
+    "ideas_with_assessed_claims": 3,
+    "run_id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca",
+    "unsupported_claim_rate": 0.8125,
+    "unverified_idea_rate": 0.0,
+    "usage_evidence": {
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt",
+      "estimate_complete": false,
+      "estimated_total_usd": null,
+      "fallback_evidence": "recorded_events_only",
+      "has_usage_records": true,
+      "model_usage": {
+        "claim_gate::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 9634,
+          "calls": 21,
+          "completion_tokens": 12250,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {
+            "claim_batch": 11
+          },
+          "errors": {},
+          "latency_seconds": 131.50095649893046,
+          "observed_model_calls": 21,
+          "priced_usage_calls": 21,
+          "prompt_tokens": 120754,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 21,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 21
+          },
+          "retries": 1
+        },
+        "claim_grounding::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 450,
+          "calls": 3,
+          "completion_tokens": 2994,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 33.49737749899987,
+          "observed_model_calls": 3,
+          "priced_usage_calls": 3,
+          "prompt_tokens": 19438,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 3,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 3
+          },
+          "retries": 0
+        },
+        "comprehensive_reflection::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 63331,
+          "calls": 25,
+          "completion_tokens": 121723,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 1405.8113281250407,
+          "observed_model_calls": 25,
+          "priced_usage_calls": 25,
+          "prompt_tokens": 120860,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 25,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 25
+          },
+          "retries": 0
+        },
+        "deep_verification::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 21547,
+          "calls": 12,
+          "completion_tokens": 86808,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 949.0495670841192,
+          "observed_model_calls": 12,
+          "priced_usage_calls": 12,
+          "prompt_tokens": 73286,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 12,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 12
+          },
+          "retries": 0
+        },
+        "evolve::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 740,
+          "calls": 5,
+          "completion_tokens": 29217,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 383.7181664160162,
+          "observed_model_calls": 5,
+          "priced_usage_calls": 5,
+          "prompt_tokens": 66492,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 5,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 5
+          },
+          "retries": 0
+        },
+        "generate::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 90298,
+          "calls": 15,
+          "completion_tokens": 53746,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 808.0981817509892,
+          "observed_model_calls": 15,
+          "priced_usage_calls": 15,
+          "prompt_tokens": 139508,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 15,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 15
+          },
+          "retries": 0
+        },
+        "literature_review::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 1157,
+          "calls": 8,
+          "completion_tokens": 13794,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 206.17394458402123,
+          "observed_model_calls": 8,
+          "priced_usage_calls": 8,
+          "prompt_tokens": 23291,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 8,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 8
+          },
+          "retries": 0
+        },
+        "meta_review::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 148,
+          "calls": 1,
+          "completion_tokens": 7036,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 84.344742708985,
+          "observed_model_calls": 1,
+          "priced_usage_calls": 1,
+          "prompt_tokens": 21153,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "retries": 0
+        },
+        "orchestrator::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 300,
+          "calls": 2,
+          "completion_tokens": 935,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 15.438094708020799,
+          "observed_model_calls": 2,
+          "priced_usage_calls": 2,
+          "prompt_tokens": 12233,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 2,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 2
+          },
+          "retries": 0
+        },
+        "proximity::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 149,
+          "calls": 1,
+          "completion_tokens": 3057,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 39.24330766699859,
+          "observed_model_calls": 1,
+          "priced_usage_calls": 1,
+          "prompt_tokens": 4991,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "retries": 0
+        },
+        "ranking::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 216166,
+          "calls": 41,
+          "completion_tokens": 45055,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {
+            "ranking_tied_votes": 2
+          },
+          "errors": {},
+          "latency_seconds": 558.9447452080203,
+          "observed_model_calls": 41,
+          "priced_usage_calls": 41,
+          "prompt_tokens": 394687,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 41,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 41
+          },
+          "retries": 0
+        },
+        "reflection::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 592,
+          "calls": 4,
+          "completion_tokens": 15629,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 174.62231191700266,
+          "observed_model_calls": 4,
+          "priced_usage_calls": 4,
+          "prompt_tokens": 22793,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 4,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 4
+          },
+          "retries": 0
+        },
+        "research_overview.directions::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 904,
+          "calls": 6,
+          "completion_tokens": 14175,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 199.38062716500008,
+          "observed_model_calls": 6,
+          "priced_usage_calls": 6,
+          "prompt_tokens": 132431,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 6,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 6
+          },
+          "retries": 0
+        },
+        "research_overview::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 27092,
+          "calls": 2,
+          "completion_tokens": 11740,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {
+            "APIError": 1
+          },
+          "latency_seconds": 225.96547595800007,
+          "observed_model_calls": 1,
+          "priced_usage_calls": 1,
+          "prompt_tokens": 27094,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 2
+          },
+          "retries": 1
+        },
+        "review::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 9704,
+          "calls": 8,
+          "completion_tokens": 40167,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 512.4679502930376,
+          "observed_model_calls": 8,
+          "priced_usage_calls": 8,
+          "prompt_tokens": 34279,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 8,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 8
+          },
+          "retries": 0
+        },
+        "supervisor::openrouter/stealth/space-bunny-alpha": {
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "cached_prompt_tokens": 149,
+          "calls": 1,
+          "completion_tokens": 6771,
+          "cost_usd": 0.0,
+          "deterministic_fallbacks": {},
+          "errors": {},
+          "latency_seconds": 83.41680649999762,
+          "observed_model_calls": 1,
+          "priced_usage_calls": 1,
+          "prompt_tokens": 4537,
+          "reasoning_tokens": 0,
+          "reported_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "retries": 0
+        }
+      },
+      "observed_models": [
+        "openrouter/stealth/space-bunny-alpha"
+      ],
+      "partial_estimated_total_usd": 0.0,
+      "physical_calls": 155,
+      "recorded_deterministic_fallbacks": {
+        "claim_batch": 11,
+        "ranking_tied_votes": 2
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 155
+      },
+      "unobserved_model_calls": 1,
+      "unpriced_calls": 1,
+      "unreported_usage_calls": 1
+    }
+  },
+  "purpose": "Read-only persisted-run scientific and provenance checks after completed local public goal",
+  "retrieval_replay": {
+    "calls": 0,
+    "evidence_resolution": null,
+    "evidence_rows": 61,
+    "evidence_with_provenance": 0,
+    "id_reproduction": null,
+    "result_set_completeness": null,
+    "run_id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca"
+  },
+  "run_id": "5edffdcc-aac9-4ea2-b722-a1986dce3cca"
+}

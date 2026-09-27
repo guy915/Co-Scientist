@@ -10,7 +10,11 @@ from typing import Any
 import litellm
 
 from co_scientist.exceptions import FreeModelEligibilityError
-from co_scientist.llm_free_catalog import current_catalog, verify_model
+from co_scientist.llm_free_catalog import (
+    PROMOTIONAL_FREE_MODELS,
+    current_catalog,
+    verify_model,
+)
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
 _API_BASE = "https://openrouter.ai/api/v1"
@@ -58,8 +62,13 @@ def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
 
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
+    model = str(args.get("model", ""))
     return campaign_free_mode() or (
-        not byok and ":free" in str(args.get("model", ""))
+        not byok
+        and (
+            ":free" in model
+            or model.removeprefix("openrouter/") in PROMOTIONAL_FREE_MODELS
+        )
     )
 
 

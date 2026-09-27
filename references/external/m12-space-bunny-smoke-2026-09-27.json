@@ -1,0 +1,38 @@
+{
+  "model_requested": "openrouter/stealth/space-bunny-alpha",
+  "provider_price_admission": "fresh catalog check passed",
+  "published_prompt_completion_prices": {
+    "prompt": "0",
+    "completion": "0"
+  },
+  "wire_route": {
+    "model": "openrouter/stealth/space-bunny-alpha",
+    "provider_only": [
+      "Stealth"
+    ],
+    "allow_fallbacks": false,
+    "require_parameters": true,
+    "max_price_prompt": 0,
+    "max_price_completion": 0
+  },
+  "result": "passed",
+  "served_models": [
+    "openrouter/stealth/space-bunny-alpha"
+  ],
+  "calls": 1,
+  "retries": 0,
+  "errors": 0,
+  "usage": [
+    {
+      "prompt_tokens": 392,
+      "completion_tokens": 16,
+      "reasoning_tokens": 0,
+      "cost_usd": 0.0,
+      "observed_model_calls": 1,
+      "reported_usage_calls": 1,
+      "priced_usage_calls": 1
+    }
+  ],
+  "schema_result": "passed",
+  "finished_utc": "2026-09-27T09:06:34.725369+00:00"
+}
