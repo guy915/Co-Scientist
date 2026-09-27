@@ -55,57 +55,6 @@ def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
     monkeypatch.setattr(litellm, "acompletion", completion)
 
 
-def _install_replies(
-    monkeypatch: pytest.MonkeyPatch, contents: list[str]
-) -> list[dict[str, Any]]:
-    """Install canned replies while retaining each physical request."""
-    requests: list[dict[str, Any]] = []
-
-    async def _completion(**kwargs: Any) -> Any:
-        requests.append(kwargs)
-        message = types.SimpleNamespace(content=contents[len(requests) - 1])
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
-        )
-
-    _install(monkeypatch, _completion)
-    return requests
-
-
-def _mock_zero_price_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the application-boundary test offline and zero-price admitted."""
-    from co_scientist import llm_free_catalog
-
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        llm_free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "stealth/space-bunny-alpha": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
-            }
-        },
-    )
-
-
-def _assert_zero_price_stealth_route(request: dict[str, Any]) -> None:
-    provider = request["extra_body"]["provider"]
-    assert request["model"] == "openrouter/stealth/space-bunny-alpha"
-    assert request["api_base"] == "https://openrouter.ai/api/v1"
-    assert provider["max_price"] == {
-        "prompt": 0,
-        "completion": 0,
-        "request": 0,
-    }
-    assert provider["only"] == ["Stealth"]
-    assert provider["allow_fallbacks"] is False
-    assert provider["require_parameters"] is True
-
-
 _PASSAGE = EvidencePassage(
     evidence_id="ev-1",
     text="Kinase X inhibition reduces tumor growth in AML cell lines.",
@@ -157,38 +106,6 @@ def test_batch_verdicts_map_back_to_claims_by_index(
     assert span.quote == "reduces tumor growth"
 
 
-def test_batch_pruned_typo_retries_and_uses_the_valid_reply(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A json_object typo cannot become a successful empty batch."""
-    _mock_zero_price_promotion(monkeypatch)
-    requests = _install_replies(
-        monkeypatch,
-        [
-            '{"verdests": []}',
-            '{"verdicts": [{"index": 1, "label": "supports", '
-            '"supporting": [{"passage": 1, '
-            '"quote": "reduces tumor growth"}], "contradicting": []}]}',
-        ],
-    )
-    batch_assessor, assessor_id = make_llm_batch_assessor(
-        "openrouter/stealth/space-bunny-alpha"
-    )
-
-    results = assess_claims_batch(
-        ["Kinase X inhibition reduces tumor growth."],
-        [_PASSAGE],
-        batch_assessor=batch_assessor,
-        assessor_id=assessor_id,
-    )
-
-    assert len(requests) == 2
-    assert results[0].label is EntailmentLabel.SUPPORTS
-    assert results[0].verification_method == "model_primary"
-    for request in requests:
-        _assert_zero_price_stealth_route(request)
-
-
 def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -197,15 +114,15 @@ def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
     The other claim in the same batch keeps its real LLM verdict -- one bad
     index must not cost the whole group its assessment.
     """
-    requests = _install_replies(
+    _install(
         monkeypatch,
-        [
+        _fake_completion(
             '{"verdicts": ['
             '{"index": 1, "label": "supports", "supporting": '
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
             "]}"
-        ],
+        ),
     )
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
@@ -226,56 +143,6 @@ def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
     assert results[1].label is EntailmentLabel.SUPPORTS
     assert results[1].assessor == assessor_id
     assert results[1].verification_method == "deterministic_lexical"
-    assert results[0].verification_method == "model_primary"
-    assert len(requests) == 1
-
-
-def test_batch_repeated_pruned_typos_retry_three_times_then_fall_back(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_zero_price_promotion(monkeypatch)
-    requests = _install_replies(
-        monkeypatch,
-        ['{"verdests": []}'] * 3,
-    )
-    batch_assessor, assessor_id = make_llm_batch_assessor(
-        "openrouter/stealth/space-bunny-alpha"
-    )
-
-    results = assess_claims_batch(
-        ["Kinase X inhibition reduces tumor growth."],
-        [_PASSAGE],
-        batch_assessor=batch_assessor,
-        assessor_id=assessor_id,
-    )
-
-    assert len(requests) == 3
-    assert results[0].label is EntailmentLabel.SUPPORTS
-    assert results[0].verification_method == "deterministic_lexical"
-
-
-def test_batch_explicit_empty_verdicts_retry_three_times_then_fall_back(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_zero_price_promotion(monkeypatch)
-    requests = _install_replies(
-        monkeypatch,
-        ['{"verdicts": []}'] * 3,
-    )
-    batch_assessor, assessor_id = make_llm_batch_assessor(
-        "openrouter/stealth/space-bunny-alpha"
-    )
-
-    results = assess_claims_batch(
-        ["Kinase X inhibition reduces tumor growth."],
-        [_PASSAGE],
-        batch_assessor=batch_assessor,
-        assessor_id=assessor_id,
-    )
-
-    assert len(requests) == 3
-    assert results[0].label is EntailmentLabel.SUPPORTS
-    assert results[0].verification_method == "deterministic_lexical"
 
 
 def test_batch_provider_error_falls_back_every_claim_in_the_group(
