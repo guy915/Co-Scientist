@@ -7,10 +7,10 @@ from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from co_scientist.agents.evolution import evolve as evolution
-from co_scientist.agents.evolution.evolve import _build_evolution_context
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 
+from app import outcome_refinement_telemetry as refinement_telemetry
 from app import store
 from app.engine_adapter.checkpoints import (
     is_engine_checkpoint,
@@ -22,17 +22,15 @@ from app.engine_tasks_support import (
     SupersededTaskError,
     _assert_task_commit_allowed,
     _generator_for_restore,
+    _metrics_snapshot,
     _save_exact_checkpoint,
     _save_node_checkpoint,
 )
+from app.outcome_refinement_context import targeted_context
 from app.outcome_refinement_lineage import (
-    _checkpointed_child as _checkpointed_child,
-)
-from app.outcome_refinement_lineage import (
-    _child_row as _child_row,
-)
-from app.outcome_refinement_lineage import (
-    _result_checkpoint_state as _result_checkpoint_state,
+    _checkpointed_child,
+    _child_row,
+    _result_checkpoint_state,
 )
 from app.safety import screen_intake
 from app.store import RunStatus, ScientificTask
@@ -53,16 +51,6 @@ class _TargetedEvolution:
     siblings: list[Hypothesis]
     state: dict[str, Any]
     db_path: str | None
-
-
-def _targeted_prompt_state(request: _TargetedEvolution) -> dict[str, Any]:
-    """Retain run guidance while exposing only the selected hypothesis."""
-    return {
-        "research_goal": request.state.get("research_goal"),
-        "preferences": request.state.get("preferences"),
-        "lab_constraints": request.state.get("lab_constraints"),
-        "hypotheses": [request.parent],
-    }
 
 
 def _result(
@@ -194,6 +182,7 @@ def _checkpoint_result(
             )
         else:
             seq = _save_exact_checkpoint(task, envelope, expected_seq, conn)
+        store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
     return seq
 
 
@@ -383,36 +372,22 @@ async def _evolve_targeted_parent(
         store.update_outcome_refinement_action(
             request.action["action_id"], status="executing", conn=conn
         )
-    scoped_state = {
-        **request.state,
-        "hypotheses": [request.parent],
-        "meta_review": {},
-        "supervisor_guidance": None,
-    }
-    context = _build_evolution_context(scoped_state, [], None)
-    context = replace(
-        context,
-        state=_targeted_prompt_state(request),
-        ranked_hypotheses=(request.parent,),
-        meta_review={},
-        removed_duplicates=[],
-        supervisor_guidance=None,
-    )
+    context = targeted_context(request.state, request.parent)
     try:
-        child, _detail = await evolution.evolve_single_hypothesis_from_outcome(
-            request.parent,
-            context,
-            request.context_block,
-            request.siblings,
-        )
+        with refinement_telemetry.capture_refinement_usage(request.state):
+            return (
+                await evolution.evolve_single_hypothesis_from_outcome(
+                    request.parent,
+                    context,
+                    request.context_block,
+                    request.siblings,
+                )
+            )[0]
     except Exception:
-        with store.transaction(request.db_path) as conn:
-            _assert_task_commit_allowed(request.task, conn)
-            store.update_outcome_refinement_action(
-                request.action["action_id"], status="retryable", conn=conn
-            )
+        refinement_telemetry.mark_retryable_with_usage(
+            request.task, request.action, request.state, request.db_path
+        )
         raise
-    return child
 
 
 def _targeted_evolution_request(
@@ -460,6 +435,7 @@ async def _execute_loaded_refinement(
 ) -> dict[str, Any]:
     _require_expected_checkpoint(task, checkpoint)
     state, current_seq = _checkpoint_state(task, checkpoint, db_path=db_path)
+    refinement_telemetry.restore_retry_usage(state, task.run_id, db_path)
     parent, _snapshot = _validate_intent(task, action, state, db_path=db_path)
     context_block = action["context_snapshot"]
     if screen_intake(context_block).decision != "allow":
@@ -478,7 +454,13 @@ async def _execute_loaded_refinement(
         )
     )
     child = await _evolve_targeted_parent(request)
-    return _checkpoint_and_commit_refinement(request, child, current_seq)
+    try:
+        return _checkpoint_and_commit_refinement(request, child, current_seq)
+    except Exception:
+        refinement_telemetry.mark_retryable_with_usage(
+            task, action, state, db_path
+        )
+        raise
 
 
 async def execute_outcome_refinement(
