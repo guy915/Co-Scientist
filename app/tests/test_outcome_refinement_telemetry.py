@@ -7,6 +7,7 @@ import pytest
 from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.llm_telemetry import ModelCallStats, record_call
 from co_scientist.models import Hypothesis
+from co_scientist.models_metrics import ExecutionMetrics
 
 from app import store, task_worker
 from app.config import settings
@@ -74,6 +75,73 @@ def test_completed_refinement_retains_served_model_and_cost(
         ).json()["metrics"]
         == metrics
     )
+    client.close()
+
+
+def test_child_checkpoint_retains_refinement_model_usage(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "auth_mode", "compatibility")
+    monkeypatch.setattr(settings, "auth_secret", "outcome-executor-test")
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client = make_client()
+    run_id, _, _, _ = _setup_action(client, isolated_db)
+    store.save_run_metrics(
+        run_id,
+        ExecutionMetrics(
+            llm_calls=5,
+            model_usage={"prior::model": ModelCallStats(calls=5).as_dict()},
+        ).to_dict(),
+        db_path=isolated_db,
+    )
+    task = _claim_action(run_id, "child-metrics-worker", isolated_db)
+    model = "openrouter/stealth/space-bunny-alpha"
+
+    async def evolved_child(
+        parent: Hypothesis, *args: Any, **kwargs: Any
+    ) -> tuple[Hypothesis, dict[str, Any]]:
+        record_call(model, ModelCallStats(calls=1, observed_model_calls=1))
+        return Hypothesis(
+            text="SOS2-dependent HGF bypass",
+            parent_id=parent.id,
+            parent_ids=[parent.id],
+        ), {}
+
+    monkeypatch.setattr(
+        evolution, "evolve_single_hypothesis_from_outcome", evolved_child
+    )
+    result = asyncio.run(
+        task_worker._execute_task_payload(task, db_path=isolated_db)
+    )
+    assert result["child_hypothesis_id"] is not None
+    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    checkpoint_metrics = checkpoint["state"]["state"]["metrics"]
+    usage = checkpoint_metrics["model_usage"]
+    assert usage[f"outcome_refinement::{model}"]["calls"] == 1
+    assert usage["prior::model"]["calls"] == 5
+    assert checkpoint_metrics["llm_calls"] == 6
+    task_worker._record_success(
+        task, "child-metrics-worker", result, isolated_db
+    )
+    review_task = store.claim_task(
+        "review-worker", run_id=run_id, db_path=isolated_db
+    )
+    assert review_task is not None
+    assert review_task.task_type == "engine.node.review"
+    review_result = asyncio.run(
+        task_worker._execute_task_payload(review_task, db_path=isolated_db)
+    )
+    task_worker._record_success(
+        review_task, "review-worker", review_result, isolated_db
+    )
+    response = client.get(
+        f"/api/runs/{run_id}/metrics", headers=_headers("refinement-owner")
+    )
+    assert response.status_code == 200
+    reported = response.json()["metrics"]
+    assert reported["model_usage"][f"outcome_refinement::{model}"]["calls"] == 1
+    assert reported["model_usage"]["prior::model"]["calls"] == 5
     client.close()
 
 

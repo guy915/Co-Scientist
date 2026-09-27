@@ -26,8 +26,10 @@ and the [negative acceptance finding](m12-acceptance-gaps-2026-09-27.md)
 record one completed local public run and the remaining limits. The
 [authenticated production receipt](m12-production-public-run-2026-09-27.json)
 now records a completed campaign-owned goal and two terminal Robin
-`no_child` actions. The fixed-input scientific comparison, child-lineage
-observation, Robin-specific telemetry and final acceptance remain open.
+`no_child` actions. [PR #65's Robin release](m12-robin-release-2026-09-27.md)
+created a live child, but the [post-release receipt](m12-robin-postrelease-2026-09-27.json)
+records a metrics-checkpoint regression. The fixed-input scientific comparison,
+Robin-specific served-model/cost readback and final acceptance remain open.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
