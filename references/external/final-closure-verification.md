@@ -36,3 +36,9 @@ was performed for this closeout; the eight deferred follow-ups remain unfinished
 ## 26 September M11 branch check
 
 The [current branch receipt](m11-branch-verification-2026-09-26.json) covers source commit `7df7ef34` after the provisional Ling Sante route was removed: `make test-all`, lint, typecheck, build, offline evaluation smoke, 803 frontend tests and 18 isolated Chromium E2E tests passed. The 153 generic-key scanner matches were classified as generated public fixture IDs or SHA-256 integrity digests, not credentials. This is local/offline verification, not a current-model qualification, a deployed-commit readback, or a public-goal result. M12's combined-system acceptance item remains open.
+
+## 27 September integrated-code offline verification
+
+The [M12 offline receipt](m12-offline-verification-2026-09-27.json) pins integrated `main` `231f6540` after PR #57 and shows that app, engine, evaluations, E2E, vendor, build files, CI configuration and parity specification have identical Git objects to the last code-bearing release, PR #53. Fresh sequential `make test-all` passed 3,163 engine tests (2 skipped), 2,013 app tests, 312 MCP tests and parity. The exact default `(cd app/frontend && bun run test)` command passed 803/803 tests in 127 files. The [retained logs](m12-verification/) match the receipt's SHA-256 digests.
+
+The unchanged-tree PR #53 receipt supplies the already successful lint, typecheck, build, offline evaluation smoke and clean 18/18 browser E2E rerun. Its earlier timeout/concurrency failures remain disclosed there; hosted CI was waived, not passed. This completes M12-02a's offline boundary only. A qualified zero-cost configuration, completed public research goal, novelty comparison and deployed Robin refinement remain unverified under M12-02b and other open gates.
