@@ -435,6 +435,11 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
         ``(byok_model, byok_key)`` when a credential is scoped, else
         ``(model, None)``.
     """
+    from app.execution_policy import effective_execution_model
+
+    campaign_model = effective_execution_model(None)
+    if campaign_model is not None:
+        return campaign_model, None
     credential = current_byok()
     if credential is None:
         return model, None

@@ -21,7 +21,11 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from app import credentials, store
-from app.execution_policy import scoped_execution_policy
+from app.execution_policy import (
+    CAMPAIGN,
+    CAMPAIGN_MODEL_NAME,
+    scoped_execution_policy,
+)
 from app.interviews_model import ProseSink, ReasoningSink
 from app.sse import sse_frame
 
@@ -133,7 +137,12 @@ async def _advance_stream(
         yield sse_frame({"type": "error", "detail": "interview not found"})
         return
     with (
-        scoped_execution_policy(execution_policy),
+        scoped_execution_policy(
+            execution_policy,
+            campaign_model_name=(
+                CAMPAIGN_MODEL_NAME if execution_policy == CAMPAIGN else None
+            ),
+        ),
         credentials.scoped_byok(byok),
     ):
         queue, task = await _start_stream_advance(interview_id)

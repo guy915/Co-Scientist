@@ -252,7 +252,7 @@ async def execute_review_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit successful review results and preserve isolated failures."""
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     replay, checkpoint, current_seq = _replay_or_supersede(
         task, db_path, label="review aggregate"
@@ -429,7 +429,7 @@ async def execute_generation_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Combine independent generation strategies into one hypothesis append."""
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     replay, checkpoint, current_seq = _replay_or_supersede(
         task, db_path, label="generation aggregate"

@@ -367,13 +367,14 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
     return fallback
 
 
-async def stream_answer(
+async def stream_answer(  # noqa: PLR0913
     run_id: str,
     question: QaQuestion,
     inputs: QaAnswerInputs,
     byok: credentials.ByokCredential | None = None,
     *,
     execution_policy: str | None = None,
+    campaign_model_name: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the LLM answer as SSE frames and persist the exchange.
 
@@ -391,6 +392,7 @@ async def stream_answer(
             grounded in.
         byok: Optional credential the answer is generated on.
         execution_policy: Policy captured when the run was authorized.
+        campaign_model_name: Persisted model selected for campaign execution.
 
     Yields:
         SSE ``data:`` frames.
@@ -403,7 +405,9 @@ async def stream_answer(
         execution_policy = run.execution_policy
     try:
         with (
-            scoped_execution_policy(execution_policy),
+            scoped_execution_policy(
+                execution_policy, campaign_model_name=campaign_model_name
+            ),
             credentials.scoped_byok(byok),
         ):
             deltas = stream_llm_deltas(

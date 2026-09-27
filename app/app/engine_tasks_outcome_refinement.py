@@ -8,14 +8,14 @@ from typing import Any, cast
 
 from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.agents.evolution.evolve import _build_evolution_context
-from co_scientist.checkpoint import (
-    restore_workflow_state,
-    serialize_workflow_state,
-)
+from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 
 from app import store
-from app.engine_adapter.checkpoints import is_engine_checkpoint
+from app.engine_adapter.checkpoints import (
+    is_engine_checkpoint,
+    restore_workflow_state,
+)
 from app.engine_tasks_portfolio import _enqueue_after
 from app.engine_tasks_support import (
     NODE_TASK_PREFIX,

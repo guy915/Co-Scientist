@@ -30,7 +30,11 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from app.execution_policy import scoped_execution_policy
+from app.execution_policy import (
+    CAMPAIGN,
+    campaign_model_for_config,
+    scoped_execution_policy,
+)
 from app.llm_stream import stream_chunks
 from app.sse import sse_frame
 from app.store.models import RunRow
@@ -236,7 +240,14 @@ async def _announcement_attempts(
     the interview's own stream.
     """
     with (
-        scoped_execution_policy(run.execution_policy),
+        scoped_execution_policy(
+            run.execution_policy,
+            campaign_model_name=(
+                campaign_model_for_config(run.config)
+                if run.execution_policy == CAMPAIGN
+                else None
+            ),
+        ),
         credentials.scoped_byok(byok),
     ):
         async for frame in _relay_announcement(run, prose, reasoning):

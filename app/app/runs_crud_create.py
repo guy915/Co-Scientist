@@ -11,6 +11,11 @@ from typing import Any, Protocol
 from fastapi import BackgroundTasks, HTTPException, Request
 
 from app import credentials, documents, run_corpus, store
+from app.execution_policy import (
+    CAMPAIGN,
+    CAMPAIGN_MODEL_CONFIG_KEY,
+    CAMPAIGN_MODEL_NAME,
+)
 from app.runs_crud_resolve import _ResolvedRunSettings
 from app.runs_models import CreateRunRequest
 from app.store import receipts as run_creation_receipts
@@ -197,6 +202,13 @@ async def _resolve_setup(
         byok = await callbacks.resolve_byok(request, policy)
     staged = callbacks.run_setup_documents(resolved_request, interview, owner)
     settings = callbacks.resolve_run_settings(resolved_request, interview, byok)
+    if policy == CAMPAIGN:
+        settings = settings._replace(
+            config={
+                **settings.config,
+                CAMPAIGN_MODEL_CONFIG_KEY: CAMPAIGN_MODEL_NAME,
+            }
+        )
     return _ResolvedSetup(
         resolved_request, interview, policy, byok, staged, settings
     )

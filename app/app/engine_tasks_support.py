@@ -441,7 +441,7 @@ def _restore_item_checkpoint(
     Raises:
         SupersededTaskError: When the leased checkpoint was superseded.
     """
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
