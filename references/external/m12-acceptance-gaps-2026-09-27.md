@@ -28,3 +28,7 @@ The resulting answer to M12-01b's acceptance question is **no**. M12-02b3b,
 M12-03b and M12-04b stay open; neither deferral nor the release of route code
 is evidence that their original checks passed. The [follow-up register](m11-follow-up-register.md)
 retains the distinct candidate dispositions and source links.
+
+## Later evidence after this PR #60 snapshot
+
+The [production public-run receipt](m12-production-public-run-2026-09-27.json) and [corrective Robin observation](m12-robin-corrective-observation-2026-09-27.json) establish a completed campaign-owned production goal and one deployed source-linked Robin action with a one-parent child and persisted Space Bunny call. M12-03b is now checked in [PLAN.md](../../PLAN.md); only the fixed-input comparison and original zero-open closing item remain unchecked. This closes the older M12 operational absence described above, but it does not resolve scientific qualification, the owner-deferred M11 gates, or full Robin downstream traversal. The [post-action gate audit](m12-robin-post-action-gate-2026-09-27.json) records an ambiguous provider timeout in the subsequent verification fanout, which was not replayed. No missing comparison or post-action result is treated as a pass.
