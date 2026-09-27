@@ -12,8 +12,10 @@ zero-price route remain unverified. The owner deferred five model-dependent M11
 gates from the active checklist on 27 September; their original criteria remain
 in [PLAN.md](../../PLAN.md) and the
 [deferred register](deferred-followups-2026-09-25.md). A later public Robin
-refinement now covers its outcome, lineage and served-model observation, while
-the separate UI refresh/gate-traversal criterion is not yet recorded there.
+refinement now covers its outcome, lineage and served-model observation. A
+[live UI refresh](m12-robin-post-action-gate-2026-09-27.json) confirmed the
+saved outcome and child; full gate traversal failed at an ambiguous-provider
+verification task and remains unverified.
 Sakana's separate precise-rung retention candidate was rejected after a
 completed, blinded, independently sourced confirmation; see the
 [dossier](sakana-ai-scientist.md#m11-precise-rung-disposition-26-september-2026).
