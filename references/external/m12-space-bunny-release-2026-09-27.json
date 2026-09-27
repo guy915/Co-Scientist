@@ -7,7 +7,8 @@
   "hosted_ci": {
     "status": "waived_by_owner",
     "observed": "Affected targets failed before dependent jobs ran; dependent jobs were skipped. Hosted CI is not counted as passing.",
-    "merge_method": "GitHub PR merge with administrator override of the branch policy under the owner's prior hosted-CI waiver"
+    "github_review_decision_at_merge": "REVIEW_REQUIRED",
+    "merge_method": "GitHub PR merge with administrator override of both hosted CI and GitHub review branch policy; the owner requested merging despite the CI failure, and the exact diff had an internal thermo-nuclear maintainability review and local code checks"
   },
   "local_checks_on_reviewed_code": {
     "passed": [
