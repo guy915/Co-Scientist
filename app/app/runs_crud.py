@@ -32,6 +32,8 @@ from app import (
 )
 from app.auth import client_id, require_client_scope
 from app.execution_policy import (
+    CAMPAIGN,
+    campaign_model_for_config,
     resolve_execution_policy,
     scoped_execution_policy,
 )
@@ -109,13 +111,23 @@ async def _populate_run_title(
         byok: The run's credential, when it was created with one.
         execution_policy: Policy captured when the run was created.
     """
+    run: store.RunRow | None = None
     if execution_policy is None:
         run = store.get_run(run_id)
         if run is None:
             return
         execution_policy = run.execution_policy
+    elif execution_policy == CAMPAIGN:
+        run = store.get_run(run_id)
+    campaign_model = (
+        campaign_model_for_config(run.config)
+        if run is not None and execution_policy == CAMPAIGN
+        else None
+    )
     with (
-        scoped_execution_policy(execution_policy),
+        scoped_execution_policy(
+            execution_policy, campaign_model_name=campaign_model
+        ),
         credentials.scoped_byok(byok),
     ):
         title = await generate_run_title(goal)
@@ -147,13 +159,23 @@ async def _populate_goal_restatement(
         byok: The run's credential, when it was created with one.
         execution_policy: Policy captured when the run was created.
     """
+    run: store.RunRow | None = None
     if execution_policy is None:
         run = store.get_run(run_id)
         if run is None:
             return
         execution_policy = run.execution_policy
+    elif execution_policy == CAMPAIGN:
+        run = store.get_run(run_id)
+    campaign_model = (
+        campaign_model_for_config(run.config)
+        if run is not None and execution_policy == CAMPAIGN
+        else None
+    )
     with (
-        scoped_execution_policy(execution_policy),
+        scoped_execution_policy(
+            execution_policy, campaign_model_name=campaign_model
+        ),
         credentials.scoped_byok(byok),
     ):
         restatement = await generate_goal_restatement(goal)

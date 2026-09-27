@@ -83,6 +83,10 @@ def _dispatch_spy(outcomes: dict[str, str]) -> Any:
         task: store.ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         credential = credentials.current_byok()
+        if credential is None:
+            assert current_api_key() is None
+            outcomes[task.run_id] = "blocked"
+            return {"admission": "blocked"}
         assert credential is not None
         assert current_api_key() == credential.api_key
         try:
@@ -143,6 +147,11 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     assert campaign_response.status_code == 200, campaign_response.text
     campaign_id = campaign_response.json()["id"]
     assert campaign_response.json()["execution_policy"] == "campaign"
+    campaign_run = store.get_run(campaign_id, db_path=isolated_db)
+    assert campaign_run is not None
+    assert campaign_run.config["campaign_model_name"] == (
+        "openrouter/stealth/space-bunny-alpha"
+    )
 
     ordinary_response = make_client().post(
         "/api/runs",
@@ -196,3 +205,80 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     _assert_completed(ordinary_task, "sent", isolated_db)
     assert credentials.current_byok() is None
     assert current_api_key() is None
+
+
+async def test_recovered_new_campaign_sends_zero_price_stealth_request(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import litellm
+    from co_scientist import llm_free_catalog
+    from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
+
+    from app.execution_policy import effective_execution_model
+
+    monkeypatch.setattr(settings, "auth_secret", "campaign-test-secret")
+    monkeypatch.setattr(settings, "campaign_researcher_ids", {"campaign-user"})
+    monkeypatch.setattr(runs_crud, "_populate_run_title", _no_background_model)
+    monkeypatch.setattr(
+        runs_crud, "_populate_goal_restatement", _no_background_model
+    )
+    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(
+        llm_free_catalog,
+        "_fetch_catalog",
+        lambda: {
+            "stealth/space-bunny-alpha": {
+                "pricing": {"prompt": "0", "completion": "0"},
+                "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text"],
+                },
+            }
+        },
+    )
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(litellm, "acompletion", _transport_spy(sent))
+
+    token = auth.create_session_token("campaign-user")
+    response = make_client().post(
+        "/api/runs",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"research_goal": "Public campaign recovery"},
+    )
+    assert response.status_code == 200, response.text
+    run_id = response.json()["id"]
+    run = store.get_run(run_id, db_path=isolated_db)
+    assert run is not None
+    assert run.config["campaign_model_name"] == (
+        "openrouter/stealth/space-bunny-alpha"
+    )
+    task_id = _expire_claimed_task(run_id, isolated_db)
+
+    async def dispatch(
+        task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        model = effective_execution_model("configured/worker-role")
+        assert model == "openrouter/stealth/space-bunny-alpha"
+        await call_llm(
+            "Return a brief readiness acknowledgement.",
+            CompletionSpec(model_name=model, max_tokens=1),
+            options=LLMCallOptions(use_cache=False, enable_thinking=False),
+        )
+        return {"admission": "campaign recovery"}
+
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
+    monkeypatch.setattr(settings, "campaign_researcher_ids", set())
+    assert await task_worker.run_once(
+        "campaign-recovery", run_id=run_id, db_path=isolated_db
+    )
+
+    assert len(sent) == 1
+    assert sent[0]["model"] == "openrouter/stealth/space-bunny-alpha"
+    assert sent[0]["extra_body"]["provider"]["max_price"] == {
+        "prompt": 0,
+        "completion": 0,
+        "request": 0,
+    }
+    assert sent[0]["extra_body"]["provider"]["only"] == ["Stealth"]
+    assert sent[0]["extra_body"]["provider"]["allow_fallbacks"] is False
+    _assert_completed(task_id, "campaign recovery", isolated_db)

@@ -321,7 +321,7 @@ def _restore_finalize_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Restore the workflow state the run's last committed checkpoint holds."""
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     checkpoint, _ = _latest_task_checkpoint(task, db_path)
     generator = _generator_for_restore(task, db_path)

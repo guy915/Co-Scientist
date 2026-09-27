@@ -25,7 +25,7 @@ from app import (
     run_start_announcement,
     store,
 )
-from app.execution_policy import CAMPAIGN
+from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.runs_models import (
     AskRequest,
     SendMessageRequest,
@@ -202,6 +202,11 @@ def _live_qa_response(
             ),
             byok=byok,
             execution_policy=run.execution_policy,
+            campaign_model_name=(
+                campaign_model_for_config(run.config)
+                if run.execution_policy == CAMPAIGN
+                else None
+            ),
         ),
         media_type="text/event-stream",
     )

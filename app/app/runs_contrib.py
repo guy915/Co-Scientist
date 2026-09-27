@@ -27,7 +27,11 @@ from app import (
 )
 from app.auth import client_id, require_bearer_principal
 from app.config import settings
-from app.execution_policy import scoped_execution_policy
+from app.execution_policy import (
+    CAMPAIGN,
+    campaign_model_for_config,
+    scoped_execution_policy,
+)
 from app.hypothesis_screening import screen_hypotheses
 from app.outcome_refinement_action import (
     OutcomeRefinementContextTooLargeError,
@@ -143,7 +147,14 @@ async def add_human_hypothesis(
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
     author = client_id(request) or req.author
-    with scoped_execution_policy(run.execution_policy):
+    with scoped_execution_policy(
+        run.execution_policy,
+        campaign_model_name=(
+            campaign_model_for_config(run.config)
+            if run.execution_policy == CAMPAIGN
+            else None
+        ),
+    ):
         admission = await human_input.admit_human_hypothesis_with_escalation(
             text=req.statement, author=author, run_id=run_id, title=req.title
         )

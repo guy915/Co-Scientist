@@ -16,6 +16,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.config import settings
+from app.execution_policy import effective_execution_model
 
 logger = logging.getLogger(__name__)
 
@@ -401,7 +402,10 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     )
 
     passages = _build_evidence_passages(state)
-    model = settings.claim_verifier_model or settings.model_name
+    model = effective_execution_model(
+        settings.claim_verifier_model or settings.model_name
+    )
+    assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     entailment_calls = [0]
     batch_assessor = build_batch_assessor(

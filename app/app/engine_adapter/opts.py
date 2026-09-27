@@ -37,6 +37,7 @@ from app.engine_adapter.opts_capabilities import (
 from app.engine_adapter.opts_capabilities import (
     _resolve_tool_calling_generation_toggle as _resolve_tool_calling_generation_toggle,  # noqa: E501
 )
+from app.execution_policy import effective_execution_model
 from app.run_modes import (
     attribute_names,
     clean_string_list,
@@ -263,6 +264,7 @@ def _resolve_disabled_tools(cfg: dict[str, Any]) -> list[str]:
 
 def _resolve_generator_models(
     offline: bool,
+    campaign_model_name: str | None = None,
 ) -> tuple[str, str | None, bool | None]:
     """Return (model_name, supervisor_model_name, enable_cache) for a run.
 
@@ -276,7 +278,14 @@ def _resolve_generator_models(
     real-model call, since the cache key includes the model name.
     """
     if not offline:
-        return settings.model_name, settings.supervisor_model_name, None
+        if campaign_model_name is not None:
+            return campaign_model_name, campaign_model_name, None
+        return (
+            effective_execution_model(settings.model_name)
+            or settings.model_name,
+            effective_execution_model(settings.supervisor_model_name),
+            None,
+        )
     # Imported here rather than at module top so the app package does not
     # hard-depend on the engine at import time; the engine is on sys.path
     # by the time a run is built.
@@ -377,13 +386,22 @@ def _build_generator(
     Returns:
         A constructed generator instance.
     """
-    if byok is not None:
+    model_name: str
+    supervisor_model_name: str | None
+    enable_cache: bool | None
+    campaign_model = effective_execution_model(None)
+    if campaign_model is not None and not offline:
+        model_name, supervisor_model_name, enable_cache = (
+            _resolve_generator_models(offline, campaign_model)
+        )
+        byok = None
+    elif byok is not None:
         # One model for every tier (see the byok doc above); the cache
         # override stays unset and the engine forces caching off itself
         # once it sees the key (GeneratorOptions.api_key).
-        model_name: str = byok.model
-        supervisor_model_name: str | None = byok.model
-        enable_cache: bool | None = None
+        model_name = byok.model
+        supervisor_model_name = byok.model
+        enable_cache = None
     else:
         model_name, supervisor_model_name, enable_cache = (
             _resolve_generator_models(offline)

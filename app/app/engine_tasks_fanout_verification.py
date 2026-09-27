@@ -226,7 +226,7 @@ async def execute_verification_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit independent verification results and continue the tournament."""
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     replay, checkpoint, current_seq = _replay_or_supersede(
         task, db_path, label="verification aggregate"

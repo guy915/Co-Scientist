@@ -27,6 +27,7 @@ from app.claim_grounding import (
 )
 from app.claims import EvidencePassage
 from app.config import settings
+from app.execution_policy import effective_execution_model
 
 if TYPE_CHECKING:
     from app.engine_adapter.drain import _FinalStateInputs
@@ -67,7 +68,10 @@ async def _assess_claims(
 
     from app.async_bridge import run_off_loop
 
-    model = settings.claim_verifier_model or settings.model_name
+    model = effective_execution_model(
+        settings.claim_verifier_model or settings.model_name
+    )
+    assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     batch_assessor = build_batch_assessor(settings.claim_assessor, model)
     spec = AssessorSpec(assessor, assessor_id, batch_assessor)

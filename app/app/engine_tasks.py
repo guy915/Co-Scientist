@@ -269,7 +269,11 @@ from app.engine_tasks_support import (
 from app.engine_tasks_support import (
     _successor_task_type as _successor_task_type,
 )
-from app.execution_policy import scoped_execution_policy
+from app.execution_policy import (
+    CAMPAIGN,
+    campaign_model_for_config,
+    scoped_execution_policy,
+)
 from app.report_render import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import apply_safety_gate, screen_intake, screen_with_escalation
@@ -459,11 +463,21 @@ async def execute_engine_task(
     if run is None:
         raise LookupError(f"run not found for task dispatch: {task.run_id}")
     credential = get_run_credential(task.run_id, db_path=db_path)
+    if run.execution_policy == CAMPAIGN:
+        campaign_model = campaign_model_for_config(run.config)
+        if campaign_model is not None:
+            # New campaign runs use their persisted server route even if an
+            # older credential record was attached to the run.
+            credential = None
+    else:
+        campaign_model = None
     ceiling = _llm_call_ceiling_for_run(task.run_id, db_path)
     with (
         scoped_byok(credential),
         scoped_api_key(credential.api_key if credential else None),
         scoped_llm_call_budget(task.run_id, ceiling),
-        scoped_execution_policy(run.execution_policy),
+        scoped_execution_policy(
+            run.execution_policy, campaign_model_name=campaign_model
+        ),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

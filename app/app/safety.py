@@ -28,6 +28,7 @@ from co_scientist.safety import (
 
 from app import store
 from app.config import has_provider_credential, settings
+from app.execution_policy import effective_execution_model
 from app.safety_gate import apply_safety_gate as apply_safety_gate
 from app.safety_redaction import REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER
 from app.safety_redaction import redact_matched_spans as redact_matched_spans
@@ -232,11 +233,12 @@ async def screen_contextual(
     )
     if baseline.decision == "block":
         return baseline
-    model = (
+    model = effective_execution_model(
         settings.semantic_safety_model
         or settings.supervisor_model_name
         or settings.model_name
     )
+    assert model is not None
     if not settings.semantic_safety_enabled or _offline_pinned_process():
         return baseline
     if not _semantic_credential_available(model):
@@ -313,11 +315,12 @@ async def assess_hold_contextually(
         run_id, stage, "engine", db_path=db_path
     ):
         return None
-    model = (
+    model = effective_execution_model(
         settings.semantic_safety_model
         or settings.supervisor_model_name
         or settings.model_name
     )
+    assert model is not None
     if not settings.semantic_safety_enabled or _offline_pinned_process():
         return None
     if not _semantic_credential_available(model):

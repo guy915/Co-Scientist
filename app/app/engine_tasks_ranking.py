@@ -180,7 +180,7 @@ def _restore_ranking_state(
     task: ScientificTask, db_path: str | None, *, label: str
 ) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
     """Guard a ranking task against replay/supersession, then restore state."""
-    from co_scientist.checkpoint import restore_workflow_state
+    from app.engine_adapter.checkpoints import restore_workflow_state
 
     replay, checkpoint, current_seq = _replay_or_supersede(
         task, db_path, label=label
