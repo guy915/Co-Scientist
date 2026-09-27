@@ -12,6 +12,9 @@ from co_scientist.exceptions import FreeModelEligibilityError
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
 CATALOG_TTL_SECONDS = 60
+# The official model page calls this exact preview free despite its unsuffixed
+# ID. Fresh catalog prices and the request's zero ceiling still gate every call.
+PROMOTIONAL_FREE_MODELS = frozenset({"stealth/space-bunny-alpha"})
 _lock = threading.Lock()
 _snapshot: tuple[float, dict[str, Any]] | None = None
 
@@ -117,7 +120,9 @@ def _verify_pricing(model: str, pricing: Any) -> None:
         "input_cache_write",
     }
     required = {"prompt", "completion"} | (
-        set() if model.endswith(":free") else ancillary
+        set()
+        if model.endswith(":free") or model in PROMOTIONAL_FREE_MODELS
+        else ancillary
     )
     if not required <= pricing.keys():
         raise FreeModelEligibilityError("zero-cost pricing is incomplete")
