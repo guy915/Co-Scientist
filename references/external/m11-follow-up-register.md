@@ -8,7 +8,7 @@ replacement for the retired free route remain open. On 26 September the owner
 instructed us to skip the blocked route qualification and continue with independent
 campaign work. That skips requests, not the acceptance evidence: the route-dependent
 items below remain unverified, and no scientific candidate is rejected by deferral.
-`PLAN.md` owns completion.
+`PLAN.md` owns completion. On 27 September, the owner removed the five live-model-dependent gates from active campaign acceptance; the [deferred register](deferred-followups-2026-09-25.md) and the preserved original requirements in `PLAN.md` retain them as unverified. This is a scope decision, not model qualification or candidate rejection. A [keyless endpoint refresh](baseline/model-qualification/m11-free-route-readonly-2026-09-27.json) found the same three exact-zero ZDR tool-capable text endpoints; the newly listed free Space Bunny endpoint was absent from the ZDR inventory. No inference was sent.
 
 | ID | Gap or disposition | Existing evidence and local boundary | Next acceptance evidence |
 |---|---|---|---|
