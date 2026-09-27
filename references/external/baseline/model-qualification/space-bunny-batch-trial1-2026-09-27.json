@@ -1,0 +1,401 @@
+{
+  "trial": 1,
+  "source_commit": "aafb41df43a6bbb9e4de64ce6a6dc3cd2fb5acf0",
+  "requested_model": "openrouter/stealth/space-bunny-alpha",
+  "probe_sha256": "4fdd6b86e92e8d0c892b3c3b7fda98e1a5be7498e2980b728cc4d1f570d2a2aa",
+  "preflight_sha256": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21",
+  "started_at": "2026-09-27T18:29:48.728375+00:00",
+  "batch_invocations": [
+    {
+      "claims": 4,
+      "passages": 4
+    }
+  ],
+  "frozen_inputs": {
+    "dataset": "partial-support-scope-controls.json",
+    "dataset_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "schema_sha256": "ac8755c394641e7e70310099bfde6dced4c9b7526790d4bf5c7ce94fc68c80df",
+    "selected_ids": [
+      "same_scope_part_of_result",
+      "matching_scope_full_support",
+      "changed_population",
+      "matching_scope_contradiction"
+    ],
+    "expected_labels": [
+      "partial",
+      "supports",
+      "insufficient",
+      "contradicts"
+    ]
+  },
+  "assessor_sources": {
+    "app.claim_verifier_batch": {
+      "path": "app/app/claim_verifier_batch.py",
+      "sha256": "0f7b7acde875188d5fb87f9b5f97315814f4dd94332ce99cee7bd63891c52900"
+    },
+    "app.claims_batch": {
+      "path": "app/app/claims_batch.py",
+      "sha256": "296778b93db6a3445cf319ce519881e39ca12a4c3be079fb2742ae0b715e1b91"
+    },
+    "app.claim_verifier": {
+      "path": "app/app/claim_verifier.py",
+      "sha256": "a1f15992cf4e554e4876f5704dc7830a5b495862e20af9df08c692fe87cfc7de"
+    },
+    "app.claim_verifier_opposition": {
+      "path": "app/app/claim_verifier_opposition.py",
+      "sha256": "98bdf1d77452f7bf1288ae110423027b79e3bf1a965ab12ab76846d07fff7281"
+    },
+    "app.claims_assessor": {
+      "path": "app/app/claims_assessor.py",
+      "sha256": "4269496be5aecdedc017e8465729706d710d99e5df93393922f8b830ee4d56b5"
+    },
+    "app.claims_span": {
+      "path": "app/app/claims_span.py",
+      "sha256": "d464733cc5c90c2a3c296f1398a6790b982530f27ae797dfc83f202c7ad36ee0"
+    },
+    "app.claims_gate": {
+      "path": "app/app/claims_gate.py",
+      "sha256": "0d09de7be5dbd67da0fb6c80e4e1232dc73fd6b2303d2f9aa7be9f3b41c7dd20"
+    },
+    "co_scientist.llm": {
+      "path": "engine/src/co_scientist/llm.py",
+      "sha256": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40"
+    }
+  },
+  "eligibility": {
+    "id": "stealth/space-bunny-alpha",
+    "canonical_slug": "stealth/space-bunny-alpha",
+    "hugging_face_id": null,
+    "name": "Space Bunny Alpha",
+    "created": 1790174884,
+    "description": "Space Bunny Alpha is an anonymous large model with blazing-fast inference, strong coding capabilities and native multimodal input support. It delivers adjustable reasoning effort, and a 1M-token context window. Space...",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 524288,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/stealth/space-bunny-alpha/endpoints"
+    },
+    "reasoning": {
+      "mandatory": true,
+      "supported_efforts": [
+        "max",
+        "xhigh",
+        "high",
+        "medium",
+        "low"
+      ],
+      "default_effort": "max"
+    }
+  },
+  "panel_evidence": {
+    "execution_mode": "live_requested",
+    "usage_evidence": {
+      "model_usage": {
+        "citation_entailment::openrouter/stealth/space-bunny-alpha": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "prompt_tokens": 1626,
+          "completion_tokens": 294,
+          "reasoning_tokens": 0,
+          "cached_prompt_tokens": 152,
+          "cost_usd": 0.0,
+          "latency_seconds": 4.227141624996875,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "physical_calls": 1,
+      "recorded_deterministic_fallbacks": {},
+      "fallback_evidence": "recorded_events_only",
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 1
+      },
+      "observed_models": [
+        "openrouter/stealth/space-bunny-alpha"
+      ],
+      "unobserved_model_calls": 0,
+      "unreported_usage_calls": 0,
+      "unpriced_calls": 0,
+      "has_usage_records": true,
+      "estimate_complete": true,
+      "estimated_total_usd": 0.0,
+      "partial_estimated_total_usd": 0.0,
+      "billed_total_usd": null,
+      "cost_basis": "static_estimate_not_billing_receipt"
+    },
+    "evaluation_identity": {
+      "version": 1,
+      "kind": "panel",
+      "panel": "citation_entailment",
+      "dataset": {
+        "items": [
+          {
+            "id": "same_scope_part_of_result",
+            "claim": "In adult human hepatocytes, compound R reduces lipid accumulation and restores insulin sensitivity after seven days.",
+            "passages": [
+              "In adult human hepatocytes, compound R reduced lipid accumulation after seven days; insulin sensitivity was not measured."
+            ],
+            "allowed_labels": [
+              "partial"
+            ]
+          },
+          {
+            "id": "matching_scope_full_support",
+            "claim": "Treatment S reduces migration of adult human fibroblasts after 24 hours.",
+            "passages": [
+              "Adult human fibroblasts migrated less after 24 hours of treatment S."
+            ],
+            "allowed_labels": [
+              "supports"
+            ]
+          },
+          {
+            "id": "changed_population",
+            "claim": "Intervention L lowers blood pressure in adults with chronic kidney disease.",
+            "passages": [
+              "Intervention L lowered blood pressure in healthy adults; people with chronic kidney disease were excluded."
+            ],
+            "allowed_labels": [
+              "insufficient"
+            ]
+          },
+          {
+            "id": "matching_scope_contradiction",
+            "claim": "Treatment S increases migration of adult human fibroblasts after 24 hours.",
+            "passages": [
+              "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration."
+            ],
+            "allowed_labels": [
+              "contradicts"
+            ]
+          }
+        ]
+      },
+      "model": "openrouter/stealth/space-bunny-alpha",
+      "execution_mode": "live_requested",
+      "cache_policy": "disabled",
+      "evaluator_sha256": "da331d808fa75e7161a364814ead894c4978c724f5a0cebb44582449618fa8ee",
+      "request_policy_files": {
+        "constants.py": "167c6a04d31aece83e364452e8fdf1ec9aeded7598be3aa52212511b2c3d8b6e",
+        "constants_tokens.py": "999dcd6f3edf9c2b5a2242f5eff16dd01065c2d3f35e1dca44c88c9b64bad165",
+        "llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+        "llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+        "llm_free_policy.py": "c5ef287ba11261967b713f937763d15d7f962d4c10f53bcaf56c6e7eb4184445",
+        "llm_free_catalog.py": "c1a3dfe640d25e878151ea7ec60dfb045bf33b022df99ad39545cbe3b7efa6d0",
+        "llm_gateway_routing.py": "06cd89191b1590d61983efa215f604016fdbfcdef0d5f57c211d79795ba93e20",
+        "llm_gateway_body.py": "5b72faa4216af0d07aefc7fbbdb16257400e5532799dac7f0836b63a783d59fb",
+        "llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+        "llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+        "llm_json_escalation.py": "9070caa603bd8603bff2729a496b6ece20eb3bbd0b123ec9f7139e982b66b229"
+      },
+      "routing": {
+        "reasoning_enabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": false,
+            "preferred_min_throughput": 25,
+            "only": [
+              "Stealth"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "effort": "high"
+          }
+        },
+        "reasoning_disabled": {
+          "provider": {
+            "require_parameters": true,
+            "allow_fallbacks": false,
+            "preferred_min_throughput": 25,
+            "only": [
+              "Stealth"
+            ],
+            "max_price": {
+              "prompt": 0.0,
+              "completion": 0.0,
+              "request": 0.0
+            }
+          },
+          "reasoning": {
+            "enabled": true,
+            "max_tokens": 2048
+          }
+        }
+      },
+      "digest": "0db0da54babc52d8b981f9947946f0bc8e8c9a5c83d8655206377a833a34d892"
+    }
+  },
+  "report": {
+    "checks": [
+      {
+        "id": "same_scope_part_of_result",
+        "label": "partial",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "same_scope_part_of_result",
+            "quote": "In adult human hepatocytes, compound R reduced lipid accumulation after seven days",
+            "start": 0,
+            "end": 82,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_full_support",
+        "label": "supports",
+        "verification_method": "model_primary",
+        "supporting_spans": [
+          {
+            "evidence_id": "matching_scope_full_support",
+            "quote": "Adult human fibroblasts migrated less after 24 hours of treatment S.",
+            "start": 0,
+            "end": 68,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ],
+        "contradicting_spans": []
+      },
+      {
+        "id": "changed_population",
+        "label": "insufficient",
+        "verification_method": "model_primary",
+        "supporting_spans": [],
+        "contradicting_spans": []
+      },
+      {
+        "id": "matching_scope_contradiction",
+        "label": "contradicts",
+        "verification_method": "lexical_founded",
+        "supporting_spans": [],
+        "contradicting_spans": [
+          {
+            "evidence_id": "matching_scope_contradiction",
+            "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+            "start": 0,
+            "end": 105,
+            "source": "frozen_control",
+            "url": ""
+          }
+        ]
+      }
+    ]
+  },
+  "physical_requests": [
+    {
+      "model": "openrouter/stealth/space-bunny-alpha",
+      "max_tokens": 18000,
+      "extra_body": {
+        "provider": {
+          "require_parameters": true,
+          "allow_fallbacks": false,
+          "preferred_min_throughput": 25,
+          "only": [
+            "Stealth"
+          ],
+          "max_price": {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0
+          }
+        },
+        "reasoning": {
+          "enabled": true,
+          "max_tokens": 2048
+        }
+      },
+      "response_format": {
+        "type": "json_object"
+      },
+      "phase": "challenge",
+      "started_at": "2026-09-27T18:29:48.895348+00:00",
+      "prompt_sha256": "3d8f5159e94a09bb8f11940032b20e2ec4ef111e9de92e06f6d78d9461265218",
+      "response_model": "stealth/space-bunny-alpha",
+      "content": "{\"verdicts\":[{\"index\":1,\"label\":\"partial\",\"supporting\":[{\"passage\":1,\"quote\":\"In adult human hepatocytes, compound R reduced lipid accumulation after seven days\"}],\"contradicting\":[]},{\"index\":2,\"label\":\"supports\",\"supporting\":[{\"passage\":4,\"quote\":\"Adult human fibroblasts migrated less after 24 hours of treatment S.\"}],\"contradicting\":[]},{\"index\":3,\"label\":\"insufficient\",\"supporting\":[],\"contradicting\":[]},{\"index\":4,\"label\":\"contradicts\",\"supporting\":[],\"contradicting\":[{\"passage\":2,\"quote\":\"Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.\"}]}]}",
+      "usage": {
+        "completion_tokens": 294,
+        "prompt_tokens": 1626,
+        "total_tokens": 1920,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cache_write_tokens": 0,
+          "cached_tokens": 152,
+          "image_tokens": null,
+          "text_tokens": null,
+          "video_tokens": 0
+        },
+        "cost": 0.0,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        }
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "physical_request_count": 1,
+  "finished_at": "2026-09-27T18:29:53.134788+00:00"
+}
