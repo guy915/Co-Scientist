@@ -173,16 +173,18 @@ class AssessorDraft:
     """An assessor's raw verdict before spans are located and guarded.
 
     Assessors return the atomic claim's label and, for supporting/contradicting
-    evidence, ``(evidence_id, quote)`` pairs; ``assess_claim`` then locates each
+    evidence, ``(cited_key, quote)`` pairs; ``assess_claim`` then locates each
     quote in its cited passage to produce offset-bearing ``SupportSpan``
     objects and downgrades a verdict whose quotes cannot be located (an
-    anti-hallucination provenance guard).
+    anti-hallucination provenance guard). Internal assessors cite evidence
+    IDs directly; model parsers mark prompt-position citations explicitly.
     """
 
     label: EntailmentLabel
     supporting: tuple[tuple[str, str], ...] = ()
     contradicting: tuple[tuple[str, str], ...] = ()
     verification_method: str = "legacy_unknown"
+    cites_evidence_ids: bool = True
 
 
 # An assessor maps (claim, candidate passages) to a raw draft verdict.
@@ -478,4 +480,5 @@ def deterministic_assessor(
         verification_method="deterministic_lexical"
         if passages
         else "no_evidence",
+        cites_evidence_ids=True,
     )

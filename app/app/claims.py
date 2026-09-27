@@ -275,8 +275,16 @@ def assess_claim(
     """
     candidates = retrieve_passages(claim, passages, top_k=top_k)
     draft = assessor(claim, candidates)
-    supporting = _locate_all(draft.supporting, candidates)
-    contradicting = _locate_all(draft.contradicting, candidates)
+    supporting = _locate_all(
+        draft.supporting,
+        candidates,
+        cites_evidence_ids=draft.cites_evidence_ids,
+    )
+    contradicting = _locate_all(
+        draft.contradicting,
+        candidates,
+        cites_evidence_ids=draft.cites_evidence_ids,
+    )
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,

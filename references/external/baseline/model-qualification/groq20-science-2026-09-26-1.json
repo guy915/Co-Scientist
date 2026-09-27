@@ -1,0 +1,170 @@
+{
+  "acceptance_failures": [
+    "raw model verdicts do not contain the exact ordered labels",
+    "actual-interface labels differ from the exact ordered sequence",
+    "matching_scope_full_support quote is not an exact located source span"
+  ],
+  "assessor_id": "llm:groq/openai/gpt-oss-20b",
+  "attested_utc_date": "2026-09-26",
+  "batch_invocations": [
+    {
+      "claims": 4,
+      "passages": 4
+    }
+  ],
+  "fallback_blocked": false,
+  "finished_at": "2026-09-26T22:49:07.419303+00:00",
+  "frozen_inputs": {
+    "dataset_sha256": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+    "expected_labels": [
+      "partial",
+      "supports",
+      "insufficient",
+      "contradicts"
+    ],
+    "manifest": "references/external/baseline/model-qualification/batch-schema-preflight109.json",
+    "schema_sha256": "ac8755c394641e7e70310099bfde6dced4c9b7526790d4bf5c7ce94fc68c80df",
+    "selected_ids": [
+      "same_scope_part_of_result",
+      "matching_scope_full_support",
+      "changed_population",
+      "matching_scope_contradiction"
+    ]
+  },
+  "logical_call_count": 1,
+  "max_attempts": 1,
+  "passed": false,
+  "physical_attempts": [
+    {
+      "api_base": "https://api.groq.com/openai/v1",
+      "finish_reason": "stop",
+      "max_retries": 0,
+      "max_tokens": 12000,
+      "prompt_sha256": "297db1cabd79c5be3ff86b58e7b92072680e7e43e5da0a287e76c6648107fe85",
+      "provider_content": "{\"verdicts\":[{\"index\":1,\"label\":\"insufficient\",\"supporting\":[],\"contradicting\":[]},{\"index\":2,\"label\":\"supports\",\"supporting\":[{\"passage\":\"2\",\"quote\":\"Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.\"}],\"contradicting\":[]},{\"index\":3,\"label\":\"insufficient\",\"supporting\":[],\"contradicting\":[]},{\"index\":4,\"label\":\"contradicts\",\"supporting\":[],\"contradicting\":[{\"passage\":\"2\",\"quote\":\"Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.\"}]}]}",
+      "requested_model": "groq/openai/gpt-oss-20b",
+      "response_model": "openai/gpt-oss-20b",
+      "transport_invoked": true,
+      "usage": {
+        "completion_tokens": 834,
+        "prompt_tokens": 1193,
+        "total_tokens": 2027
+      }
+    }
+  ],
+  "physical_call_cap": 1,
+  "physical_call_count": 1,
+  "preregistration": {
+    "execution_commit": "91c04ee2311b37d34f40fd84b2f186b82a67c620",
+    "sha256": "f573af52b467a4ac96e0e859dbbbbaa2ffcb1c56ff901c1e28b021c0dbb5cee9",
+    "source_commit": "c7d2cbacf0aaff51bd36ddc4ccb3305dc91e8b9d",
+    "source_hashes": {
+      "app/app/claim_verifier_batch.py": "006782b1a048abff9bd2b7ee7d72a57339a18502129fa581185be2cf893acec6",
+      "app/app/claim_verifier_opposition.py": "53e087b2a0c5960a381a94a38aa50a1625df395d2e40df1993c50b6d2c4b1381",
+      "app/app/claims_batch.py": "afa984e486c77c946d4d8827eb4ea1abeb11d707f102013ea249a6f29d35f301",
+      "app/app/claims_span.py": "8e791f624be2403ac3d6f391205c274dc59de19bd136b72da8e34b25281bd911",
+      "app/app/credentials.py": "3487e12b925c231a27d0cafb61df5070e93751287815e33da7c0f539890b3c2a",
+      "engine/src/co_scientist/cache.py": "5d3a9829d42400a6d4d27ec1157302b022ed6fad26c341a9f2a50ee615fc2398",
+      "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+      "engine/src/co_scientist/llm_call.py": "ad9d2afaa34e102243e9bc8e7100109ebbea4b788db5b46ca60e8ed19ccc6f52",
+      "engine/src/co_scientist/llm_call_budget.py": "aa672c17336c94dfc33f18da089891d389f660e62aa43c6a71533bcca41d5973",
+      "engine/src/co_scientist/llm_free_policy.py": "70a26fc50f17c1804758b6bcd2eb96659efceae88f9c9b99c7ee11fba58f0b53",
+      "engine/src/co_scientist/llm_json_retry.py": "b246d0da9a0c3f50b849f2155261d4bceb4cb8aa6c4fe04fdb27537f13874eb2",
+      "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+      "references/external/baseline/model-qualification/batch-schema-preflight109.json": "455b6c7481fde3a7cda19d9a4bd39b5e5d810d7b8685bef1ac18b2f93fce3a21",
+      "references/external/baseline/model-qualification/partial-support-scope-controls.json": "f5e70ede3f73549e071e21579d3e7d41dac8afdf815443be51037a4b21696015",
+      "references/external/baseline/model-qualification/probe_groq20_batch.py": "a6dd7bde6859bc7ebc424e7093728920a88641a6543a1cbc079703a8b380121a"
+    }
+  },
+  "provider_request_budget_count": 1,
+  "raw_verdicts": [
+    {
+      "contradicting": [],
+      "index": 1,
+      "label": "insufficient",
+      "supporting": []
+    },
+    {
+      "contradicting": [],
+      "index": 2,
+      "label": "supports",
+      "supporting": [
+        {
+          "passage": "2",
+          "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration."
+        }
+      ]
+    },
+    {
+      "contradicting": [],
+      "index": 3,
+      "label": "insufficient",
+      "supporting": []
+    },
+    {
+      "contradicting": [
+        {
+          "passage": "2",
+          "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration."
+        }
+      ],
+      "index": 4,
+      "label": "contradicts",
+      "supporting": []
+    }
+  ],
+  "report": {
+    "checks": [
+      {
+        "contradicting_spans": [],
+        "id": "same_scope_part_of_result",
+        "label": "insufficient",
+        "supporting_spans": [],
+        "verification_method": "model_primary"
+      },
+      {
+        "contradicting_spans": [],
+        "id": "matching_scope_full_support",
+        "label": "supports",
+        "supporting_spans": [
+          {
+            "end": 105,
+            "evidence_id": "matching_scope_contradiction",
+            "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+            "source": "public_control",
+            "start": 0,
+            "url": ""
+          }
+        ],
+        "verification_method": "model_primary"
+      },
+      {
+        "contradicting_spans": [],
+        "id": "changed_population",
+        "label": "insufficient",
+        "supporting_spans": [],
+        "verification_method": "model_primary"
+      },
+      {
+        "contradicting_spans": [
+          {
+            "end": 105,
+            "evidence_id": "matching_scope_contradiction",
+            "quote": "Treatment S did not increase migration of adult human fibroblasts after 24 hours; it decreased migration.",
+            "source": "public_control",
+            "start": 0,
+            "url": ""
+          }
+        ],
+        "id": "matching_scope_contradiction",
+        "label": "contradicts",
+        "supporting_spans": [],
+        "verification_method": "lexical_founded"
+      }
+    ]
+  },
+  "requested_model": "groq/openai/gpt-oss-20b",
+  "sdk_retries": 0,
+  "started_at": "2026-09-26T22:49:06.293734+00:00",
+  "status": "failed"
+}

@@ -114,8 +114,16 @@ def _fallback_assessment(
     separately records the deterministic path that produced the verdict.
     """
     draft = deterministic_assessor(claim, candidates)
-    supporting = _locate_all(draft.supporting, candidates)
-    contradicting = _locate_all(draft.contradicting, candidates)
+    supporting = _locate_all(
+        draft.supporting,
+        candidates,
+        cites_evidence_ids=draft.cites_evidence_ids,
+    )
+    contradicting = _locate_all(
+        draft.contradicting,
+        candidates,
+        cites_evidence_ids=draft.cites_evidence_ids,
+    )
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,
@@ -225,8 +233,12 @@ def _assess_from_draft(
         if shown and assessor_id.startswith("llm:"):
             record_deterministic_fallback(assessor_id[4:], "claim_batch")
         return _fallback_assessment(claim, own_candidates, assessor_id)
-    supporting = _locate_all(draft.supporting, shown)
-    contradicting = _locate_all(draft.contradicting, shown)
+    supporting = _locate_all(
+        draft.supporting, shown, cites_evidence_ids=draft.cites_evidence_ids
+    )
+    contradicting = _locate_all(
+        draft.contradicting, shown, cites_evidence_ids=draft.cites_evidence_ids
+    )
     label = _downgrade_unproven_label(draft.label, supporting, contradicting)
     return ClaimAssessment(
         claim=claim,

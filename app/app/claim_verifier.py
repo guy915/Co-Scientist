@@ -222,6 +222,7 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
     draft = AssessorDraft(
         label=label,
         verification_method="model_primary",
+        cites_evidence_ids=False,
         supporting=_coerce_pairs(
             data.get("supporting"), "claim_verifier.supporting"
         ),

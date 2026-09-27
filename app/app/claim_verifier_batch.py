@@ -191,6 +191,7 @@ def _parse_batch_drafts(
         draft = AssessorDraft(
             label=label,
             verification_method="model_primary",
+            cites_evidence_ids=False,
             supporting=_coerce_pairs(
                 item.get("supporting"), "claim_verifier.batch_supporting"
             ),

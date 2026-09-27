@@ -8,6 +8,16 @@ no longer finds that route in the official catalog. The user ended further M1
 model benchmarks; M11's separately preregistered successor checks and their
 limits are recorded below.
 
+**26 September Cloudflare candidate:** the owner’s existing account showed
+Workers Free before and after the bounded public-input checks. The
+[retained assessment](cloudflare-workers-free-candidate-2026-09-26.md) records
+the owner-approved scoped token, a passing one-call Gemma 4 JSON case, and a
+[frozen tool round trip](cloudflare-c3-tool-2026-09-26.json) that called the
+correct synthetic tool but ended its closing response at the 1,024-token
+output limit without an answer. That exact configuration is unqualified;
+streaming, long input, science, privacy equivalence and unattended plan control
+remain unresolved. No default switch or deployment occurred.
+
 **26 September replacement check:** the [current public endpoint screen](m11-free-route-current-research-2026-09-26.json)
 finds three exact-zero free routes in OpenRouter's ZDR inventory. Only
 Qwen/ModelRun advertises structured output as well as tools. Its endpoint
@@ -560,3 +570,42 @@ The one-off runners and their tests were then removed from the active tree.
 Their exact sources remain in Git at `41c76bda` (interface) and `f1ce7584`
 (scientific trial); use `git show <commit>:<path>` to inspect them. The frozen
 protocol intentionally fails against later source revisions.
+
+## Distinct Groq Free 20B screen — 26 September 2026
+
+The [read-only candidate screen](groq-free-20b-screen-2026-09-26.md) and
+[frozen one-call protocol](groq20-scientific-prereg-v1.json) separated GPT-OSS
+20B from the failed 120B checkpoint. Current Free/ZDR and model limits were
+verified in the signed-in console. The [single completed scientific
+trial](groq20-science-2026-09-26-1.json) served 20B and used 2,027 tokens but
+returned `insufficient` for the fixed `partial` case and cited the contradiction
+control as support for another claim. The [assessment](groq20-scientific-assessment-2026-09-26.md)
+records the failed gate and why no further interface checks were run. The
+provisional adapter and one-off runner were removed; their sources remain at
+`c7d2cbac`, the frozen protocol at `7e0f50f2`.
+
+## Groq Free Qwen3.8-27B scientific-first screen — 27 September 2026
+
+The [candidate screen](groq-free-qwen38-screen-2026-09-26.md) and
+[frozen protocol](groq-qwen38-scientific-prereg-v1.json) led to one request
+after current Free-plan, inference-ZDR, key, model and quota readbacks. The
+[sanitized artifact](groq-qwen38-science-2026-09-27-1.json) records a completed
+served-model response with correct ordered labels, but a support verdict cited
+the separate contradiction-control passage. The
+[assessment](groq-qwen38-scientific-assessment-2026-09-27.md) explains the
+failed provenance gate and limits. No repeat or interface continuation occurred.
+Provisional runtime code and one-off runner/tests were removed; their historical
+source remains at `c773eb0d` and the frozen protocol at `dc165f27`.
+The wrong-source citation also prompted a separate
+[local provenance guard](m11-ops-02c4e4-citation-source-guard.md); correcting
+the product does not qualify the failed model.
+
+The unqualified Cloudflare Workers Free adapter and one-off JSON/tool probes were
+also removed from the active tree after their failed tool-loop screen. Their
+historical source remains at `2db00ba0`; the pinned protocols, sanitized
+results, and [candidate assessment](cloudflare-workers-free-candidate-2026-09-26.md)
+remain here. This cleanup leaves the existing OpenRouter free-policy path intact.
+
+The [Mistral Studio Free read-only screen](mistral-free-readonly-screen-2026-09-27.md)
+stopped before credentials or inference: its official ZDR documentation limits
+ZDR to paid plans, which does not satisfy this campaign's free privacy gate.

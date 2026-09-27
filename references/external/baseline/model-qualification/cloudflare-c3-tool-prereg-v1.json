@@ -1,0 +1,72 @@
+{
+  "candidate": {
+    "accepted_served_models": [
+      "openai/@cf/google/gemma-4-26b-a4b-it",
+      "@cf/google/gemma-4-26b-a4b-it"
+    ],
+    "account_id_sha256": "693da837c770d12d7fd6f16867ec9a8859deb6bf211bb01ded8bcd75ce201ed0",
+    "endpoint_template": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+    "model": "openai/@cf/google/gemma-4-26b-a4b-it",
+    "plan_attestation": "{utc_date}:{account_id}:workers-free"
+  },
+  "eligibility_checked_utc_date": "2026-09-26",
+  "fixed_input_sha256": {
+    "prompt_sha256": "1c2d1a63c7d563cbb947ffaf48639dbd095f09e3251305df3d91c5d36a15a175",
+    "tool_result_sha256": "7ce6e0dd8478e566de7e4c9010f76204676ac00b936616fa4dcd8fcd2130d9f9",
+    "tool_schema_sha256": "92632766c6090b373d542a430a3113420a02ee27bdbd87ec483c0d8fe2402c89"
+  },
+  "protocol": "M11-OPS-02c3 Cloudflare bounded tool round trip",
+  "request_config": {
+    "accepted_served_models": [
+      "openai/@cf/google/gemma-4-26b-a4b-it",
+      "@cf/google/gemma-4-26b-a4b-it"
+    ],
+    "aliases_allowed": false,
+    "cache_enabled": false,
+    "campaign_mode": true,
+    "drop_params": false,
+    "fallbacks_allowed": false,
+    "litellm_version": "1.80.17",
+    "max_prompt_tokens": 4096,
+    "max_tokens": 1024,
+    "max_tool_iterations": 1,
+    "model": "openai/@cf/google/gemma-4-26b-a4b-it",
+    "pass_criterion": "Exactly one tool invocation uses lookup_public_measurement with sample_id=control-A; the tool result is 137 arbitrary units; the final answer exactly matches: 'The control-A measurement was 137 arbitrary units.'.",
+    "physical_call_cap": 2,
+    "reject_if_busy": true,
+    "sdk_max_retries": 0,
+    "sdk_num_retries": 0,
+    "thinking_policy": "engine tool-loop default, pinned by source hashes",
+    "timeout_seconds": 90
+  },
+  "request_config_sha256": "dee6e30e98c39c1c8cfb37af960fd0b3bcfb69b5445606123972c5813635d704",
+  "scope_limit": "Public synthetic tool compatibility only; this does not qualify streaming, long-context/output, scientific quality, zero retention, full-run quota, or a production default.",
+  "source_commit": "f76228417d8002706d958664104054be5e8e9648",
+  "source_sha256": {
+    "app/pyproject.toml": "d35f3f0f3339f49eb5362be4c80630bb0939fd8df7cdfdcfa98b0d07063f6a54",
+    "engine/pyproject.toml": "e379d9a4332d01c1d7b4a6fa3769acae251dd10446eaf9b3c8a1f97394975c83",
+    "engine/src/co_scientist/cache.py": "5d3a9829d42400a6d4d27ec1157302b022ed6fad26c341a9f2a50ee615fc2398",
+    "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+    "engine/src/co_scientist/llm_call.py": "ad9d2afaa34e102243e9bc8e7100109ebbea4b788db5b46ca60e8ed19ccc6f52",
+    "engine/src/co_scientist/llm_call_budget.py": "aa672c17336c94dfc33f18da089891d389f660e62aa43c6a71533bcca41d5973",
+    "engine/src/co_scientist/llm_credentials.py": "9428be023de0fc433074744fd363f88f7339bdc91c97d9b0b26b8d41d1635834",
+    "engine/src/co_scientist/llm_free_policy.py": "581b94df9dd9a6ec056b1ea51cda58b68541af7a92988bcda7799d7e9d05617f",
+    "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+    "engine/src/co_scientist/llm_request_schema.py": "7e3d431b0b35a1f361d4b4c67d1985d455ac64933f51fd8e7d06bd5b2c9566c0",
+    "engine/src/co_scientist/llm_response.py": "87a13a119e6653bbcc8cbe7ace33ca475725e0c11ed076d1a8dd3fe06ae308d7",
+    "engine/src/co_scientist/llm_telemetry.py": "74e0cd5ad6b030047ec16bc97ff0c934d715f4f5239a38290878bf0d56a66bd9",
+    "engine/src/co_scientist/llm_thinking.py": "b5d89933c7c30c571815e51e864445b00c8a1c520c71203c754d384bb65250d5",
+    "engine/src/co_scientist/llm_tool_iteration.py": "21ce9b000e5f81f7c61c13beeec9985417423c6e29ad6ffbb7c8306fb9134b4b",
+    "engine/src/co_scientist/llm_tool_loop.py": "eaaaa161dd5c7db71639794a50336eedee4cc1e0c9bb053f1cbdb93f40b787a1",
+    "engine/src/co_scientist/llm_tool_loop_run.py": "a2368f5e6a6f8d2ec2003741c248f35f86b33aca0d07322dbee08b1fbb8adcce",
+    "engine/src/co_scientist/llm_tool_policy.py": "766b473a948222aa6aefbc66838fdad355da9ff5c6008f7aedce6c43723c42d4",
+    "engine/src/co_scientist/llm_tool_transcript.py": "e1a2ea5d5a0f7024a431c009122e42886ca20ca673a181472fcdc17465adfcb6",
+    "engine/src/co_scientist/llm_types.py": "9615b8447cbf2bf69ce658128d7386c39a45af63d8f370bf8a92581fd615d199",
+    "references/external/baseline/model-qualification/probe_cloudflare_json.py": "085d535ac878eb9b925de89edbef389cc228c667dba8049eb617e6c90d534984",
+    "references/external/baseline/model-qualification/probe_cloudflare_tool.py": "ac4989f46f1addee122dbf7d2e8605322cd129a8c261f9f20db8f0e55a21405a"
+  },
+  "status": "frozen",
+  "stop_rule": "One tool round trip only, at most two physical requests, no SDK max_retries or num_retries, and no fallback. Stop on the first error, wrong tool call, wrong served model, missing usage, or failed answer criterion.",
+  "version": 1,
+  "zero_spend_basis": "Current-day operator attestation of Workers Free; Cloudflare's daily free Neurons ceiling is a hard-fail boundary. No remaining-Neurons meter is asserted; stop on busy, quota, or ambiguous errors."
+}

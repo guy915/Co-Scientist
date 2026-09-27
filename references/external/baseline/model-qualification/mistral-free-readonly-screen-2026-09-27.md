@@ -1,0 +1,7 @@
+# Mistral Studio Free — read-only admission screen
+
+**Disposition: excluded before inference under the campaign's privacy gate.** This is a distinct provider route, not a scientific or reliability judgment about its models.
+
+Mistral's [Studio setup documentation](https://docs.mistral.ai/getting-started/quickstarts/studio/activate-and-generate-api-key) says Free mode enables API access without a credit card, subject to usage and rate limits. Its [usage documentation](https://docs.mistral.ai/admin/billing-usage/usage-limits) says the included monthly usage and model limits are account-specific and shown in the Admin Panel; pay-as-you-go can extend usage beyond that allocation. Critically, Mistral's [zero-data-retention documentation](https://docs.mistral.ai/admin/monitor-comply/zero-data-retention) states ZDR is available on paid plans for supported stateless API calls and requires approval. Training opt-out is a separate control. The campaign requires both zero additional spending and eligible retention controls, so Free API access alone does not meet admission.
+
+No account, credential, model request, benchmark, or local route was created. JSON, tools, streaming, long-input behavior, full-run quota and scientific quality remain unevaluated because the earlier privacy gate fails. Revisit only if official terms materially change to allow Free-plan ZDR and account-level zero-spend controls can be verified; do not start an interface trial from advertised model features alone.

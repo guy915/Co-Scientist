@@ -119,48 +119,46 @@ def _normalize_key(cited_key: str) -> str:
 
 def _passage_lookup(
     passages: Sequence[EvidencePassage],
-) -> dict[str, EvidencePassage]:
-    """Map every key a passage may plausibly be cited by to that passage.
+    *,
+    cites_evidence_ids: bool = False,
+) -> dict[str, list[EvidencePassage]]:
+    """Map cited keys to the shown passages they actually identify.
 
-    Three keys per passage: its own evidence id, that id stripped of its
-    ``#<chunk>`` suffix (a model citing the article rather than the chunk
-    it was shown), and its 1-based position in the prompt. Real ids are
-    registered first so a positional key can never shadow one, and the
-    first passage claiming a key keeps it.
+    Up to three keys per passage: its own evidence ID, that ID stripped of its
+    ``#<chunk>`` suffix, and its 1-based prompt position. Model citations
+    reserve numbers for positions because source IDs can also be numeric;
+    internal citations use evidence IDs directly.
+    A parent alias identifies all shown chunks of an article in either mode.
     """
-    lookup: dict[str, EvidencePassage] = {}
+    lookup: dict[str, list[EvidencePassage]] = (
+        {}
+        if cites_evidence_ids
+        else {
+            str(position): [passage]
+            for position, passage in enumerate(passages, start=1)
+        }
+    )
     for passage in passages:
-        for key in (
-            passage.evidence_id,
-            parent_evidence_id(passage.evidence_id),
-        ):
-            lookup.setdefault(_normalize_key(key), passage)
-    for position, passage in enumerate(passages, start=1):
-        lookup.setdefault(str(position), passage)
+        key = _normalize_key(passage.evidence_id)
+        if cites_evidence_ids or not key.isdigit():
+            lookup.setdefault(key, []).append(passage)
+    exact_keys = set(lookup)
+    for passage in passages:
+        parent = _normalize_key(parent_evidence_id(passage.evidence_id))
+        if (
+            cites_evidence_ids or not parent.isdigit()
+        ) and parent not in exact_keys:
+            lookup.setdefault(parent, []).append(passage)
     return lookup
 
 
 def _resolve_span(
     cited_key: str,
     quote: str,
-    passages: Sequence[EvidencePassage],
-    lookup: dict[str, EvidencePassage],
+    lookup: dict[str, list[EvidencePassage]],
 ) -> SupportSpan | None:
-    """Locate one cited quote, by its named passage or by the quote itself.
-
-    The named passage is tried first, so a correctly cited quote records
-    the provenance the assessor meant. Failing that the quote is searched
-    for across the passages the assessor was actually shown, which
-    re-attributes a verbatim quote filed under the wrong id instead of
-    discarding the verdict it justifies -- the id is the assessor's
-    bookkeeping, the quote is the evidence.
-    """
-    named = lookup.get(_normalize_key(cited_key))
-    if named is not None:
-        span = locate_span(named, quote)
-        if span is not None:
-            return span
-    for passage in passages:
+    """Locate a quote only in the cited passage or cited article's chunks."""
+    for passage in lookup.get(_normalize_key(cited_key), []):
         span = locate_span(passage, quote)
         if span is not None:
             return span
@@ -170,33 +168,32 @@ def _resolve_span(
 def _locate_all(
     cited: Sequence[tuple[str, str]],
     passages: Sequence[EvidencePassage],
+    *,
+    cites_evidence_ids: bool = False,
 ) -> list[SupportSpan]:
-    """Locate every ``(evidence_id, quote)`` pair, dropping unlocatable ones.
+    """Locate every ``(cited_key, quote)`` pair, dropping unlocatable ones.
 
-    A pair survives only if its quote is verbatim (whitespace/case/curly-
-    quote tolerant) in one of the passages the assessor was shown -- the
-    anti-hallucination guarantee ``_downgrade_unproven_label`` rests on.
-    What is *not* required is that the assessor named that passage
-    correctly; see :func:`_resolve_span`.
+    A cited key must name a shown passage or parent article in its declared
+    mode. Unknown keys cannot borrow another claim's passage in a batch.
 
     Drops are logged because they are otherwise invisible: they surface
     only as an INSUFFICIENT verdict, indistinguishable from an assessor
     that found nothing (production run bc77950f -- see the module
     docstring).
     """
-    lookup = _passage_lookup(passages)
+    lookup = _passage_lookup(passages, cites_evidence_ids=cites_evidence_ids)
     spans: list[SupportSpan] = []
     dropped = 0
     for evidence_id, quote in cited:
-        span = _resolve_span(evidence_id, quote, passages, lookup)
+        span = _resolve_span(evidence_id, quote, lookup)
         if span is None:
             dropped += 1
         else:
             spans.append(span)
     if dropped:
         logger.warning(
-            "%d cited span(s) could not be located in any of the %d "
-            "passage(s) shown to the assessor; verdict unproven",
+            "%d cited span(s) could not be located in their cited source "
+            "among %d shown passage(s); verdict unproven",
             dropped,
             len(passages),
         )
