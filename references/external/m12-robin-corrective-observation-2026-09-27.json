@@ -1,0 +1,61 @@
+{
+  "purpose": "Campaign-owned live Robin telemetry and lineage acceptance after the typed-metrics corrective release",
+  "observed_at_utc": "2026-09-27T17:09:00Z",
+  "release": {
+    "pr": "https://github.com/guy915/Co-Scientist/pull/66",
+    "merge_commit": "33f0d149038997470750980cfd18fccf83840e27",
+    "railway_api_deployment": "94f63ad1-0ce3-4f26-984e-3a96b7104ba5",
+    "railway_mcp_deployment": "5ba88f74-95dd-4296-9326-1d145a6cffaf",
+    "vercel_production_deployment": "dpl_2H5HAMV5u9hxUHqUDHzFVWvdWYRY",
+    "states": "Railway API and MCP SUCCESS; Vercel production READY; public frontend HTTP 200; keyless production smoke 5/5"
+  },
+  "public_source": {
+    "pmid": "40836278",
+    "doi": "10.1186/s12575-025-00295-0",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/40836278/",
+    "run_evidence_id": "da07e1b1-3591-405f-ba66-753c4297a164",
+    "character": "Retrospective extraction of authors' cell-cluster and mouse-model observations, not a new campaign experiment or clinical validation"
+  },
+  "run_id": "34b29088-7caf-462c-9ee0-87fae85941a0",
+  "ownership": "Authenticated campaign owner could read the run and action; prior anonymous run GET returned 404",
+  "robin": {
+    "parent_hypothesis_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+    "outcome_id": "7ca64d9e-4995-44a7-836e-01e34d88edb5",
+    "action_id": "0eb7d4cb-3c19-4f00-bd02-a5b33c80a335",
+    "action_status": "completed",
+    "checkpoint_seq": 37,
+    "child_hypothesis_id": "8fa28f3b-7b49-4e45-b57a-5c74732670d2",
+    "child_title": "CAF-HGF-MET Conditional Persister Niche",
+    "child_parent_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+    "child_parent_ids": ["b766069d-9956-453b-a6dd-007e920bb90f"],
+    "first_successor_review_status": "completed"
+  },
+  "metrics": {
+    "pre_action_llm_calls": 53,
+    "pre_action_role_count": 6,
+    "after_action_and_first_successor_llm_calls": 54,
+    "after_action_and_first_successor_role_count": 7,
+    "robin_role": "outcome_refinement::openrouter/stealth/space-bunny-alpha",
+    "robin_calls": 1,
+    "robin_observed_response_model_calls": 1,
+    "robin_prompt_tokens": 12381,
+    "robin_completion_tokens": 4097,
+    "robin_internal_cost_usd": 0.0,
+    "result": "Robin usage remained in the authenticated public metrics endpoint after the first successor review completed. Earlier six role entries also remained.",
+    "limit": "The first PR #65 child-follow-on had already overwritten the original run's 172-call snapshot; this action verifies forward persistence from the surviving 53-call state, not restoration of those historical metrics. Internal cost telemetry is not an independently audited invoice."
+  },
+  "free_route_admission": {
+    "official_endpoint": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+    "prompt_price_at_admission": "0",
+    "completion_price_at_admission": "0",
+    "provider": "Stealth",
+    "checked_before_action": true
+  },
+  "deliberately_absent": [
+    "bearer token and API credentials",
+    "private user documents",
+    "raw LLM messages or hidden reasoning",
+    "claim of new wet-lab or clinical validation",
+    "claim of repeat-run reliability or scientific superiority"
+  ]
+}

@@ -40,3 +40,39 @@ partial snapshot. The [post-release receipt](m12-robin-postrelease-2026-09-27.js
 records the production observation. This healthy deployment is therefore
 **not** accepted as Robin telemetry verification; a typed-checkpoint correction
 and new release are required.
+
+## Corrective typed-metrics release
+
+[PR #66](https://github.com/guy915/Co-Scientist/pull/66) merged reviewed head
+`387431540ec9828eb64f194169441902f9d7c104` as
+`33f0d149038997470750980cfd18fccf83840e27`. It preserves typed
+`ExecutionMetrics` in successful Robin child checkpoints and retry restoration.
+The new red-to-green behavioral test seeds five prior model calls, creates a
+Robin child, runs its first successor review and verifies both old and new
+usage through the public metrics endpoint. This fixes the observed checkpoint
+loss; actual production telemetry remains a separate live acceptance check.
+
+The exact head passed `make test-all` (3169 engine, 2028 app, 312 MCP,
+parity and evaluations), `make lint`, `make typecheck`, `make eval-smoke`
+and `make e2e` (18/18). Frontend build and 803 frontend tests were reused
+from PR #65 because relevant frontend code, dependencies and inputs were
+unchanged. Scoped cleanup found no scratch or duplicate logic; Ruff's
+unused-import and unused-variable checks passed. Codex Security diff scan
+`f1072593-bb2a-401b-bf3c-561bebee4dda` found no issue in the changed
+production file. Hosted CI's **Affected targets** job failed in two seconds
+and skipped downstream jobs; the existing owner waiver was applied only
+after local checks and review. Hosted CI is not counted as passing.
+
+| Existing production service | Deployment | Commit | Observed state |
+| --- | --- | --- | --- |
+| Railway API | `94f63ad1-0ce3-4f26-984e-3a96b7104ba5` | `33f0d149` | SUCCESS |
+| Railway MCP | `5ba88f74-95dd-4296-9326-1d145a6cffaf` | `33f0d149` | SUCCESS |
+| Vercel frontend | `dpl_2H5HAMV5u9hxUHqUDHzFVWvdWYRY` | `33f0d149` | READY, production |
+
+The public frontend returned HTTP 200 and keyless production smoke passed
+5/5 with no model call. There was no schema migration or role-setting change.
+The preceding `54d5a262` Railway API deployment
+`fd5088ae-c419-413d-8817-6a363e003b3c` is rollback-capable and carries
+the same campaign-only zero-price route. Its telemetry defect is known, so
+rollback would restore availability, not telemetry acceptance; this is why
+the post-release live refinement remains open separately.

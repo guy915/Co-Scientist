@@ -1,6 +1,6 @@
 # Deferred campaign follow-ups
 
-On 25 September 2026 the owner directed blocked work, including rate-limited work, to be skipped for the time being. PR #46 treated that as a narrower closeout, but the owner clarified that the original campaign should not be called finished on that basis. On 26 September the owner again directed us to skip the blocked model qualification and resume independent goal work. On 27 September the owner explicitly said this skip should not pause the goal. The five live-model-dependent M11 gates below have therefore moved from the active `PLAN.md` checklist into its owner-deferred section. They remain **unfinished and unverified**; this register records their revisit conditions, not passing results or scientific rejections. Two precise-rung entries were resolved on 26 September and are recorded below the table. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from the deferred entries.
+On 25 September 2026 the owner directed blocked work, including rate-limited work, to be skipped for the time being. PR #46 treated that as a narrower closeout, but the owner clarified that the original campaign should not be called finished on that basis. On 26 September the owner again directed us to skip the blocked model qualification and resume independent goal work. On 27 September the owner explicitly said this skip should not pause the goal. The five live-model-dependent M11 gates below have therefore moved from the active `PLAN.md` checklist into its owner-deferred section. At deferral they were **unfinished and unverified**; this register records their revisit conditions, not passing results or scientific rejections. The 27 September update below distinguishes later evidence from those historical statuses. Two precise-rung entries were resolved on 26 September and are recorded below the table. No paid route, fallback, model inference, public-run mutation, or scientific result may be inferred from the deferred entries.
 
 | Item | Status at deferral | Revisit only when |
 |---|---|---|
@@ -9,6 +9,19 @@ On 25 September 2026 the owner directed blocked work, including rate-limited wor
 | `M11-NOV-01a3b3c` | No exploratory model comparison ran. No efficacy or non-regression result exists. | The complete preregistration and zero-price route are available; its bounded first-error-stop pilot can run. |
 | `M11-NOV-01b` | No result-conditioned exploratory or independent confirmatory comparison passed; no product adaptation was adopted. | The exploratory pilot completes and passes, followed by a separately eligible confirmatory protocol and result. |
 | `M11-ROBIN-01d4` | The Robin-inspired owner action and UI were released and tested offline, but no campaign-owned public live refinement was observed. The retained run has zero hypotheses; existence of another eligible owned run is [unknown](robin/m11-01d4-eligibility-audit-2026-09-25.md). | Verified campaign-owner inventory yields an eligible run and an exact-zero route, or a newly qualified route permits the smallest bounded public run. |
+
+## 27 September later evidence
+
+The [authenticated public goal](m12-production-public-run-2026-09-27.json) and
+[corrected Robin refinement](m12-robin-corrective-observation-2026-09-27.json)
+now verify a completed public run, one-parent child lineage, and Robin-specific
+served-model and zero internal-cost telemetry after successor review. This
+resolves the availability and model-observation parts of `M11-OPS-02c4` and
+`M11-ROBIN-01d4`. The fixed-input scientific qualification and repeat-run
+reliability portions of `M11-OPS-02c4` remain unverified; the Robin-specific
+deployed UI refresh and full gate traversal have not yet been recorded as live
+observations. The three result-conditioned novelty entries remain deferred.
+The five original rows stay in the table so their criteria are not erased.
 
 `M11-OPS-02b` names the completed historical route investigations, not a sixth
 deferred live gate. Its Qwen 429 and later bounded provider screens remain in
