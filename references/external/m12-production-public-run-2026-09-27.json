@@ -1,0 +1,178 @@
+{
+  "captured_at_utc": "2026-09-27T16:00:54.513964+00:00",
+  "deliberately_absent": [
+    "bearer and access code",
+    "private account identity",
+    "raw checkpoint, model output, report and outcome text",
+    "other users\u2019 records"
+  ],
+  "durability": {
+    "refinement_task_type": "engine.outcome.refinement",
+    "refinement_tasks_completed": 2,
+    "task_status_counts": {
+      "completed": 74
+    },
+    "task_total": 74
+  },
+  "model_usage": {
+    "internal_cost_usd": 0.0,
+    "limitations": [
+      "Robin refinement model calls are not separately observable in these run-level role metrics; their actual served model and cost cannot be verified from this surface",
+      "Account-level OpenRouter usage readbacks before and after the run/refinements were unchanged at 39.240436083 USD; readback can lag and cannot attribute cost to one run"
+    ],
+    "observed_response_model_calls_in_role_metrics": 172,
+    "provider_calls_in_role_metrics": 172,
+    "reported_usage_calls_in_role_metrics": 172,
+    "role_count": 16,
+    "role_keys": [
+      "claim_gate::openrouter/stealth/space-bunny-alpha",
+      "claim_grounding::openrouter/stealth/space-bunny-alpha",
+      "comprehensive_reflection::openrouter/stealth/space-bunny-alpha",
+      "deep_verification::openrouter/stealth/space-bunny-alpha",
+      "evolve::openrouter/stealth/space-bunny-alpha",
+      "generate::openrouter/stealth/space-bunny-alpha",
+      "literature_review::openrouter/stealth/space-bunny-alpha",
+      "meta_review::openrouter/stealth/space-bunny-alpha",
+      "orchestrator::openrouter/stealth/space-bunny-alpha",
+      "proximity::openrouter/stealth/space-bunny-alpha",
+      "ranking::openrouter/stealth/space-bunny-alpha",
+      "reflection::openrouter/stealth/space-bunny-alpha",
+      "research_overview.directions::openrouter/stealth/space-bunny-alpha",
+      "research_overview::openrouter/stealth/space-bunny-alpha",
+      "review::openrouter/stealth/space-bunny-alpha",
+      "supervisor::openrouter/stealth/space-bunny-alpha"
+    ],
+    "served_model_names_in_role_keys": [
+      "openrouter/stealth/space-bunny-alpha"
+    ]
+  },
+  "ownership": {
+    "anonymous_get_http_status": 404,
+    "authenticated_get_http_status": 200,
+    "browser_authenticated_refresh": "observed 2026-09-27; goal details and report navigation remained accessible"
+  },
+  "purpose": "M12 authenticated campaign-owned production goal and Robin outcome-refinement acceptance evidence; negative child-lineage result",
+  "release_boundary": {
+    "last_verified_campaign-route_release": "PR #62 merge 29c5b0029783ec8ce455dbc78b2997eeb6f35860; Railway API/MCP SUCCESS, Vercel READY and keyless smoke 5/5 documented in m12-campaign-route-release-2026-09-27.md",
+    "rollback_candidate": "Prior availability release d92e5546e15f50c1dc6aaee08372125d387b780; verify zero-cost routing before any rollback",
+    "unverified": [
+      "Robin-created child lineage",
+      "Robin-specific served-model and cost telemetry",
+      "scientific superiority under frozen comparison protocol",
+      "latest deployment IDs after documentation merges"
+    ]
+  },
+  "robin": {
+    "accepted_refinement_actions": [
+      {
+        "action_id": "4550f4df-6250-4d98-b8cf-e1b72c29c4cc",
+        "checkpoint_seq": 27,
+        "child_hypothesis_id": null,
+        "context_codepoints": 3596,
+        "hypothesis_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+        "outcome_id": "6705e279-4ce3-4179-bc33-3ad7f9deec5f",
+        "status": "no_child"
+      },
+      {
+        "action_id": "b8feb52c-409a-450b-a8b5-98e6543a9395",
+        "checkpoint_seq": 28,
+        "child_hypothesis_id": null,
+        "context_codepoints": 3493,
+        "hypothesis_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+        "outcome_id": "eeed7033-7d16-4b56-9807-6c94635726d2",
+        "status": "no_child"
+      }
+    ],
+    "first_refinement_error": {
+      "action_created": false,
+      "detail": "complete outcome context exceeds the refinement limits",
+      "http_status": 422,
+      "outcome_id": "4d99acc0-bf99-443a-9959-2b6960322d42"
+    },
+    "lineage_acceptance": "unverified; both accepted actions ended no_child",
+    "new_child_from_refinement": false,
+    "outcomes": [
+      {
+        "hypothesis_id": "2e9021f6-7292-4bdb-a70f-7cdc09e0bf31",
+        "id": "4d99acc0-bf99-443a-9959-2b6960322d42",
+        "referenced_evidence_ids": [
+          "e6a6c3c1-93a0-4c92-995a-248247dc802a"
+        ],
+        "retrospective_literature_observation": true
+      },
+      {
+        "hypothesis_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+        "id": "6705e279-4ce3-4179-bc33-3ad7f9deec5f",
+        "referenced_evidence_ids": [
+          "e6a6c3c1-93a0-4c92-995a-248247dc802a"
+        ],
+        "retrospective_literature_observation": true
+      },
+      {
+        "hypothesis_id": "b766069d-9956-453b-a6dd-007e920bb90f",
+        "id": "eeed7033-7d16-4b56-9807-6c94635726d2",
+        "referenced_evidence_ids": [
+          "f70777e8-c3a3-4813-802a-48141a2367ae"
+        ],
+        "retrospective_literature_observation": true
+      }
+    ]
+  },
+  "run": {
+    "completed_at_epoch": 1790524402.8728962,
+    "execution_policy": "campaign",
+    "goal": "What testable mechanisms explain acquired resistance after osimertinib or a later-line TKI in EGFR-mutant lung cancer?",
+    "id": "34b29088-7caf-462c-9ee0-87fae85941a0",
+    "is_demo": false,
+    "llm_backend": "real",
+    "notifications_enabled": false,
+    "persisted_campaign_model": "openrouter/stealth/space-bunny-alpha",
+    "provider": "engine",
+    "public_input_only": true,
+    "status": "completed",
+    "summary": {
+      "events": 40,
+      "evidence": 56,
+      "hypotheses": 8,
+      "matches": 12,
+      "reviews": 30
+    },
+    "tier": "express"
+  },
+  "scientific_artifacts": {
+    "citation_state_counts": {
+      "partial": 10,
+      "unsupported": 21,
+      "verified": 1
+    },
+    "claim_evidence_label_counts": {
+      "insufficient": 46,
+      "partial": 28,
+      "supports": 3
+    },
+    "evidence_records": 56,
+    "hypotheses": 8,
+    "outcome_records": 3,
+    "published_report_get_http_status": 200
+  },
+  "source_papers": [
+    {
+      "doi": "10.1016/j.jtocrr.2024.100779",
+      "pmid": "40007550",
+      "role": "public retrospective observation, not new assay"
+    },
+    {
+      "doi": "10.1038/s41467-018-08074-0",
+      "pmid": "30651547",
+      "role": "public retrospective observation, not new assay"
+    }
+  ],
+  "zero_price_admission": {
+    "endpoint": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+    "limit": "No separate invoice; account-level readback may lag",
+    "observed_completion_price": "0",
+    "observed_prompt_price": "0",
+    "observed_provider": "Stealth",
+    "price_check_timing": "before original production inference and again before refinement batch on 2026-09-27"
+  }
+}

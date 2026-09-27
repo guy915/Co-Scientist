@@ -327,14 +327,19 @@ def _near_duplicate_similarity(
     a false duplicate silently and permanently drops a distinct idea, while
     a genuine duplicate that slips through is archived, labelled, and traced
     by the next proximity pass. Combination partners are exempt: a faithful
-    merge necessarily resembles the ideas it merges.
+    merge necessarily resembles the ideas it merges. A targeted outcome
+    child uses direct text coverage because a parent-peer graph edge does
+    not measure similarity between the new child and that peer.
 
     Returns:
         The max peer similarity on acceptance, None when rejected.
     """
     guarded_peers = [peer for peer in peers if peer.id not in excluded_ids]
     max_similarity, nearest = find_nearest_peer(
-        refined_text, hypothesis.id, guarded_peers, proximity_graph
+        refined_text,
+        hypothesis.id,
+        guarded_peers,
+        proximity_graph,
     )
     if max_similarity <= DUPLICATE_SIMILARITY_THRESHOLD:
         return max_similarity
@@ -383,7 +388,11 @@ def _apply_evolution_result(
         hypothesis,
         fields.refined_text,
         peers,
-        context.proximity_graph,
+        (
+            None
+            if operation.outcome_refinement is not None
+            else context.proximity_graph
+        ),
         frozenset(parent.id for parent in parents[1:]),
     )
     if max_similarity is None:

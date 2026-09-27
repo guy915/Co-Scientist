@@ -23,9 +23,11 @@ mechanism gaps and the additional-repository selection decision.
 owner-directed route skip, PR #48, deployed commit and keyless smoke result.
 That historical receipt predates the five-gate deferral. [PR #60's route release](m12-space-bunny-release-2026-09-27.json)
 and the [negative acceptance finding](m12-acceptance-gaps-2026-09-27.md)
-record one completed local public run and the remaining limits. Three M12
-subitems remain active; the original scientific and production live evidence
-is still missing.
+record one completed local public run and the remaining limits. The
+[authenticated production receipt](m12-production-public-run-2026-09-27.json)
+now records a completed campaign-owned goal and two terminal Robin
+`no_child` actions. The fixed-input scientific comparison, child-lineage
+observation, Robin-specific telemetry and final acceptance remain open.
 
 | Order | Repository | Pinned revision | Assessment |
 |---|---|---|---|
