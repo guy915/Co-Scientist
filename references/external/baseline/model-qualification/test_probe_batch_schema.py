@@ -112,7 +112,7 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(
     replies = []
 
     async def completion(**_kwargs):
-        prompt = json.dumps(_kwargs["messages"])
+        prompt = "\n".join(message["content"] for message in _kwargs["messages"])
         for requirement in (
             "shortest self-contained verbatim span",
             "explicitly named subject",
@@ -121,6 +121,9 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(
             "If no self-contained span fits within 200 characters, choose INSUFFICIENT",
         ):
             assert requirement in prompt
+        positions = [
+            next(i for i in range(1, 5) if f"[{i}] {text}" in prompt) for text in texts
+        ]
         replies.append(1)
         return SimpleNamespace(
             choices=[
@@ -133,7 +136,7 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(
                                         "index": 1,
                                         "label": "partial",
                                         "supporting": [
-                                            {"passage": 1, "quote": texts[0]}
+                                            {"passage": positions[0], "quote": texts[0]}
                                         ],
                                         "contradicting": [],
                                     },
@@ -141,7 +144,7 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(
                                         "index": 2,
                                         "label": "supports",
                                         "supporting": [
-                                            {"passage": 2, "quote": texts[1]}
+                                            {"passage": positions[1], "quote": texts[1]}
                                         ],
                                         "contradicting": [],
                                     },
@@ -156,7 +159,7 @@ def test_run_batch_exercises_the_real_batch_adapter_offline(
                                         "label": "contradicts",
                                         "supporting": [],
                                         "contradicting": [
-                                            {"passage": 4, "quote": quote}
+                                            {"passage": positions[3], "quote": quote}
                                         ],
                                     },
                                 ]
