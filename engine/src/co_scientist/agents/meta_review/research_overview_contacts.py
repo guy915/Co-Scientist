@@ -38,7 +38,7 @@ def _build_contact_candidates(
     for article_index, article in enumerate(articles or []):
         if not article.used_in_analysis:
             continue
-        for author_index, raw_name in enumerate(article.authors):
+        for author_index, raw_name in enumerate(article.authors or []):
             name = raw_name.strip()
             normalized = name.casefold()
             if (
