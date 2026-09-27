@@ -1,0 +1,28 @@
+{
+  "checked_at_utc": "2026-09-27T18:29:15.859936+00:00",
+  "model": "stealth/space-bunny-alpha",
+  "provider": "Stealth",
+  "pricing": {
+    "prompt": "0",
+    "completion": "0"
+  },
+  "source_commit": "aafb41df43a6bbb9e4de64ce6a6dc3cd2fb5acf0",
+  "output_path": "/tmp/m12-space-bunny-batch-trial1-20260927.json",
+  "trial_exit_code": 1,
+  "usage_before": {
+    "usage": 39.240436083,
+    "usage_daily": 0,
+    "usage_weekly": 0,
+    "usage_monthly": 4.704300154,
+    "limit_remaining": 0.7595639170000013
+  },
+  "usage_after": {
+    "usage": 39.240436083,
+    "usage_daily": 0,
+    "usage_weekly": 0,
+    "usage_monthly": 4.704300154,
+    "limit_remaining": 0.7595639170000013
+  },
+  "trial_stdout_tail": "",
+  "trial_stderr_tail": "t recent call last):\n  File \"/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/baseline/model-qualification/probe_batch_schema.py\", line 13, in <module>\n    from evaluations._live_config import configure_live_environment\nModuleNotFoundError: No module named 'evaluations'\n"
+}
