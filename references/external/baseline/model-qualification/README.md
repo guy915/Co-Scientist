@@ -596,3 +596,9 @@ the separate contradiction-control passage. The
 failed provenance gate and limits. No repeat or interface continuation occurred.
 Provisional runtime code and one-off runner/tests were removed; their historical
 source remains at `c773eb0d` and the frozen protocol at `dc165f27`.
+
+The unqualified Cloudflare Workers Free adapter and one-off JSON/tool probes were
+also removed from the active tree after their failed tool-loop screen. Their
+historical source remains at `2db00ba0`; the pinned protocols, sanitized
+results, and [candidate assessment](cloudflare-workers-free-candidate-2026-09-26.md)
+remain here. This cleanup leaves the existing OpenRouter free-policy path intact.
