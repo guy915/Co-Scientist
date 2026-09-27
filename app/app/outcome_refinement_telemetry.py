@@ -7,9 +7,14 @@ from contextlib import contextmanager
 from typing import Any
 
 from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.models import MetricDeltas
+from co_scientist.models_metrics import (
+    ExecutionMetrics,
+    create_metrics_update,
+    merge_metrics,
+)
 
 from app import store
-from app.engine_adapter.drain_telemetry import fold_grounding_telemetry
 from app.engine_tasks_support import (
     _assert_task_commit_allowed,
     _metrics_snapshot,
@@ -24,10 +29,16 @@ def capture_refinement_usage(state: dict[str, Any]) -> Iterator[None]:
         try:
             yield
         finally:
-            metrics = state.get("metrics")
-            if metrics is not None and hasattr(metrics, "to_dict"):
-                state["metrics"] = metrics.to_dict()
-            fold_grounding_telemetry(state, telemetry.snapshot())
+            usage = telemetry.snapshot()
+            if usage:
+                current = state.get("metrics")
+                if not isinstance(current, ExecutionMetrics):
+                    current = ExecutionMetrics.from_dict(current or {})
+                calls = sum(entry.get("calls", 0) for entry in usage.values())
+                delta = create_metrics_update(
+                    deltas=MetricDeltas(llm_calls=calls), model_usage=usage
+                )
+                state["metrics"] = merge_metrics(current, delta)
 
 
 def restore_retry_usage(
@@ -36,7 +47,7 @@ def restore_retry_usage(
     """Use metrics persisted by earlier attempts beyond the last checkpoint."""
     persisted = store.get_run_metrics(run_id, db_path=db_path)
     if persisted is not None:
-        state["metrics"] = persisted
+        state["metrics"] = ExecutionMetrics.from_dict(persisted)
 
 
 def mark_retryable_with_usage(
