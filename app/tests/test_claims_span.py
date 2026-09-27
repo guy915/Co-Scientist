@@ -18,10 +18,10 @@ INSUFFICIENT, and the resolution step required the assessor to echo a
 36-character ``evidence_id`` back exactly -- the very "schemas must not
 echo input back" anti-pattern ``claims_batch`` documents for claim text
 but not for the evidence id. These tests pin the resolution being
-tolerant of how a model actually cites (the prompt's own passage number,
-an id stripped of its chunk suffix, or a right quote against a wrong id)
+tolerant of how a model actually cites (the prompt's own passage number
+or an id stripped of its chunk suffix)
 while keeping the anti-hallucination guarantee that the quote itself must
-be verbatim in evidence that was actually shown.
+be verbatim in the cited evidence that was actually shown.
 """
 
 from __future__ import annotations
@@ -81,6 +81,82 @@ def test_citation_by_passage_number_resolves() -> None:
     assert spans[0].source == "pubmed"
 
 
+def test_numeric_evidence_id_cannot_shadow_a_passage_number() -> None:
+    passages = (
+        EvidencePassage("other", "The first passage has this claim quote."),
+        EvidencePassage("1", "The second passage is unrelated."),
+    )
+    spans = _locate_all((("1", "claim quote"),), passages)
+    assert [s.evidence_id for s in spans] == ["other"]
+
+
+def test_internal_numeric_evidence_id_is_not_a_passage_number() -> None:
+    passages = (
+        EvidencePassage("other", "The first passage is unrelated."),
+        EvidencePassage("1", "The second passage has this claim quote."),
+    )
+    spans = _locate_all(
+        (("1", "claim quote"),), passages, cites_evidence_ids=True
+    )
+    assert [s.evidence_id for s in spans] == ["1"]
+
+
+def test_out_of_range_number_cannot_resolve_as_an_evidence_id() -> None:
+    passages = (EvidencePassage("99", "This quote is from another article."),)
+    assert _locate_all((("99", "another article"),), passages) == []
+
+
+def test_deterministic_assessment_keeps_numeric_evidence_id() -> None:
+    passage = EvidencePassage(
+        "12345", "Fasudil reduces collagen I expression in cardiac fibroblasts."
+    )
+    result = assess_claim(_CLAIM, [passage])
+    assert result.label is EntailmentLabel.SUPPORTS
+    assert [s.evidence_id for s in result.supporting_passages] == ["12345"]
+
+
+def test_custom_assessor_keeps_numeric_evidence_id_by_default() -> None:
+    passage = EvidencePassage(
+        "12345", "Fasudil reduces collagen I expression in cardiac fibroblasts."
+    )
+    draft = AssessorDraft(
+        EntailmentLabel.SUPPORTS,
+        supporting=(("12345", "reduces collagen I expression"),),
+    )
+    result = assess_claim(
+        _CLAIM, [passage], assessor=lambda _claim, _shown: draft
+    )
+    assert result.label is EntailmentLabel.SUPPORTS
+    assert [s.evidence_id for s in result.supporting_passages] == ["12345"]
+
+
+def test_batch_fallback_keeps_numeric_evidence_id() -> None:
+    passage = EvidencePassage(
+        "12345", "Fasudil reduces collagen I expression in cardiac fibroblasts."
+    )
+    result = assess_claims_batch(
+        [_CLAIM],
+        [passage],
+        batch_assessor=lambda _claims, _shown: [None],
+        assessor_id="llm:test",
+    )[0]
+    assert result.label is EntailmentLabel.SUPPORTS
+    assert [s.evidence_id for s in result.supporting_passages] == ["12345"]
+
+
+def test_internal_numeric_parent_id_resolves_later_chunk() -> None:
+    passages = (
+        EvidencePassage("12345#0", "First article chunk."),
+        EvidencePassage("12345#1", "Later article chunk has the claim quote."),
+    )
+    spans = _locate_all(
+        (("12345", "claim quote"),),
+        passages,
+        cites_evidence_ids=True,
+    )
+    assert [s.evidence_id for s in spans] == ["12345#1"]
+
+
 def test_citation_dropping_the_chunk_suffix_resolves() -> None:
     """An id cited without its ``#<chunk>`` suffix still names its passage."""
     spans = _locate_all(
@@ -95,6 +171,23 @@ def test_citation_dropping_the_chunk_suffix_resolves() -> None:
     assert [s.evidence_id for s in spans] == [_PASSAGES[0].evidence_id]
 
 
+def test_parent_id_resolves_quote_in_later_chunk() -> None:
+    later = EvidencePassage(
+        evidence_id="7f1c9a20-1b2e-4f3a-9c8d-0a1b2c3d4e5f#1",
+        text="A later chunk describes a separate measured endpoint.",
+    )
+    spans = _locate_all(
+        (
+            (
+                "7f1c9a20-1b2e-4f3a-9c8d-0a1b2c3d4e5f",
+                "separate measured endpoint",
+            ),
+        ),
+        (*_PASSAGES, later),
+    )
+    assert [s.evidence_id for s in spans] == [later.evidence_id]
+
+
 def test_verbatim_quote_under_a_different_known_id_is_dropped() -> None:
     spans = _locate_all(
         ((_PASSAGES[0].evidence_id, "inhibit YAP-TEAD function in vivo"),),
@@ -103,12 +196,32 @@ def test_verbatim_quote_under_a_different_known_id_is_dropped() -> None:
     assert spans == []
 
 
-def test_verbatim_quote_under_an_unknown_legacy_id_is_recovered() -> None:
+def test_verbatim_quote_under_an_unknown_id_is_dropped() -> None:
     spans = _locate_all(
         (("unrecognized-legacy-id", "inhibit YAP-TEAD function in vivo"),),
         _PASSAGES,
     )
-    assert [s.evidence_id for s in spans] == [_PASSAGES[1].evidence_id]
+    assert spans == []
+
+
+def test_batch_unknown_key_cannot_borrow_another_shown_passage() -> None:
+    passages = (
+        EvidencePassage("ev-0", "Kinase X inhibition reduces tumor growth."),
+        EvidencePassage("ev-1", "The response occurred in AML cell lines."),
+    )
+    draft = AssessorDraft(
+        EntailmentLabel.SUPPORTS,
+        supporting=(("99", "in AML cell lines"),),
+        cites_evidence_ids=False,
+    )
+    results = assess_claims_batch(
+        ["Kinase X inhibition reduces tumor growth."],
+        passages,
+        batch_assessor=lambda _claims, _shown: [draft],
+        assessor_id="llm:test",
+    )
+    assert results[0].label is EntailmentLabel.INSUFFICIENT
+    assert results[0].supporting_passages == ()
 
 
 def test_quote_in_no_shown_passage_is_still_dropped() -> None:
@@ -152,6 +265,7 @@ def test_batched_verdict_citing_by_number_keeps_its_label() -> None:
             AssessorDraft(
                 label=EntailmentLabel.SUPPORTS,
                 supporting=(("[1]", "reduce Col I expression"),),
+                cites_evidence_ids=False,
             )
             for _ in claims
         ]
@@ -177,6 +291,7 @@ def test_single_claim_verdict_citing_by_number_keeps_its_label() -> None:
         return AssessorDraft(
             label=EntailmentLabel.PARTIAL,
             supporting=(("passage 1", "reduce Col I expression"),),
+            cites_evidence_ids=False,
         )
 
     result = assess_claim(

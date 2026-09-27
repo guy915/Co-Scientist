@@ -122,7 +122,11 @@ def _prepare_candidates(
     for position, draft in enumerate(results):
         if draft is None or draft.label is not EntailmentLabel.CONTRADICTS:
             continue
-        spans = _locate_all(draft.contradicting, passages)
+        spans = _locate_all(
+            draft.contradicting,
+            passages,
+            cites_evidence_ids=draft.cites_evidence_ids,
+        )
         founded = [
             s for s in spans if _quote_negates_claim(claims[position], s.quote)
         ]
@@ -131,6 +135,7 @@ def _prepare_candidates(
                 EntailmentLabel.CONTRADICTS,
                 contradicting=tuple((s.evidence_id, s.quote) for s in founded),
                 verification_method="lexical_founded",
+                cites_evidence_ids=True,
             )
         else:
             eligible = _eligible_spans(claims[position], spans)
@@ -247,6 +252,7 @@ def _apply_confirmations(
             EntailmentLabel.CONTRADICTS,
             contradicting=tuple(quotes),
             verification_method="model_opposition_verified",
+            cites_evidence_ids=True,
         )
     logger.info(
         "Opposition verification: %d pairs, %d valid answers, "

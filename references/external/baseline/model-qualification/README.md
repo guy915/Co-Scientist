@@ -596,6 +596,9 @@ the separate contradiction-control passage. The
 failed provenance gate and limits. No repeat or interface continuation occurred.
 Provisional runtime code and one-off runner/tests were removed; their historical
 source remains at `c773eb0d` and the frozen protocol at `dc165f27`.
+The wrong-source citation also prompted a separate
+[local provenance guard](m11-ops-02c4e4-citation-source-guard.md); correcting
+the product does not qualify the failed model.
 
 The unqualified Cloudflare Workers Free adapter and one-off JSON/tool probes were
 also removed from the active tree after their failed tool-loop screen. Their

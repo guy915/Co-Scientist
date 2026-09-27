@@ -465,9 +465,9 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
 ) -> None:
     """A batched citation naming a passage never shown is dropped.
 
-    Only one passage is sent, so "9" is out of range, and the quote is
-    nowhere in it either -- the fallback verbatim search cannot rescue
-    this one, so it is a genuine drop.
+    Only one passage is sent, so "9" is out of range. The quote is also
+    absent; another test verifies that an out-of-range key cannot borrow
+    a quote even when it appears elsewhere in the shown pool.
     """
     _install(
         monkeypatch,

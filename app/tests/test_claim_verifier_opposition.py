@@ -40,11 +40,11 @@ def install_replies(
     return requests
 
 
-def draft(quote: str = QUOTE) -> dict[str, Any]:
+def draft(quote: str = QUOTE, passage: int = 1) -> dict[str, Any]:
     return {
         "label": "contradicts",
         "supporting": [],
-        "contradicting": [{"passage": 1, "quote": quote}],
+        "contradicting": [{"passage": passage, "quote": quote}],
     }
 
 
@@ -76,6 +76,22 @@ def test_directional_opposition_is_verified_and_located(
     assert result.contradicting_passages[0].quote == QUOTE
     assert result.contradicting_passages[0].evidence_id == "ev-1"
     assert len(requests) == 2
+
+
+def test_verified_opposition_preserves_numeric_source_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_replies(monkeypatch, [draft(), {"verdicts": [confirmation()]}])
+    assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
+    with scoped_cache_override(False):
+        result = assess_claim(
+            CLAIM,
+            [EvidencePassage("12345", QUOTE)],
+            assessor=assessor,
+            assessor_id=assessor_id,
+        )
+    assert result.label is EntailmentLabel.CONTRADICTS
+    assert [s.evidence_id for s in result.contradicting_passages] == ["12345"]
 
 
 def test_empty_verification_envelope_retries_before_confirming_opposition(
@@ -114,7 +130,7 @@ def test_batch_verifies_multiple_oppositions_in_one_request(
             {
                 "verdicts": [
                     {"index": 1, **draft()},
-                    {"index": 2, **draft(second_quote)},
+                    {"index": 2, **draft(second_quote, passage=2)},
                 ]
             },
             {"verdicts": [confirmation(2), confirmation(1)]},
@@ -161,7 +177,7 @@ def test_batch_short_verification_envelope_retries_before_confirming(
             {
                 "verdicts": [
                     {"index": 1, **draft()},
-                    {"index": 2, **draft(second_quote)},
+                    {"index": 2, **draft(second_quote, passage=2)},
                 ]
             },
             {"verdicts": [confirmation(1)]},
