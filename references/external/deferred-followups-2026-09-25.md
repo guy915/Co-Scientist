@@ -18,9 +18,12 @@ now verify a completed public run, one-parent child lineage, and Robin-specific
 served-model and zero internal-cost telemetry after successor review. This
 resolves the availability and model-observation parts of `M11-OPS-02c4` and
 `M11-ROBIN-01d4`. The fixed-input scientific qualification and repeat-run
-reliability portions of `M11-OPS-02c4` remain unverified; the Robin-specific
-deployed UI refresh and full gate traversal have not yet been recorded as live
-observations. The three result-conditioned novelty entries remain deferred.
+reliability portions of `M11-OPS-02c4` remain unverified. A later
+[deployed UI refresh and durable-task audit](m12-robin-post-action-gate-2026-09-27.json)
+showed the outcome, source link and child persisted, but the post-action
+verification fanout ended in a terminal ambiguous-provider timeout; the full
+`M11-ROBIN-01d4` gate traversal remains unverified. The three
+result-conditioned novelty entries remain deferred.
 The five original rows stay in the table so their criteria are not erased.
 
 `M11-OPS-02b` names the completed historical route investigations, not a sixth

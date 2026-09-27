@@ -27,3 +27,17 @@ resume the expensive screening loop now.
 M12-02b3b selected-route scientific comparison remains **inconclusive and open**. No
 expert or wet-lab validation exists, and a report Elo score or its
 `verified_count=3` badge cannot fill that gap.
+
+## Later read-only audit
+
+The selected route's one-call schema smoke and completed public runs contain
+no Space Bunny responses on the frozen four-claim panel, no identical-input
+baseline/candidate pair, and no three paired trials. The retained Qwen panel
+result is a different model's single failed trial and cannot be reused as a
+Space Bunny output. An independent read-only artifact audit found no offline
+evaluator capable of producing the missing selected-route responses. Thus the
+comparison remains open without fresh inference; no route-specific scientific
+quality claim is made. The later [live Robin action](m12-robin-corrective-observation-2026-09-27.json)
+does not supply matched scientific comparison data, and its
+[post-action provider timeout](m12-robin-post-action-gate-2026-09-27.json)
+also leaves repeat reliability unverified.
