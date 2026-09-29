@@ -13,6 +13,7 @@ which is where the last eighteen months of a fast-moving field lives and
 where a novelty claim is most often wrong.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -34,6 +35,15 @@ _PREPRINT_FILTER = "SRC:PPR"
 # query with an unknown PUBLISHER value returns zero hits, so this is a
 # real filter Europe PMC applies, not an ignored, unrecognized field.
 _BIORXIV_FILTER = 'PUBLISHER:"bioRxiv"'
+
+# Waits before each retry of a request whose connection failed before any
+# response arrived. Europe PMC's load balancer drops a share of idle
+# keep-alive connections, which reaches us as RemoteProtocolError ("Server
+# disconnected without sending a response"); a fresh connection a moment
+# later almost always answers. Without the retry one dropped socket cost the
+# run the whole source for that query. A response with an HTTP error status
+# is not retried here: it is an answer, and the caller keeps its status.
+_TRANSPORT_RETRY_DELAYS_SECONDS = (0.5, 1.5)
 
 
 def _results(payload: Any) -> list[dict[str, Any]]:
@@ -95,6 +105,38 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _get_with_transport_retry(
+    params: dict[str, str | int],
+) -> httpx.Response:
+    """GET one search page, retrying a connection that failed mid-request.
+
+    Args:
+        params: The Europe PMC query parameters.
+
+    Returns:
+        The successful response.
+
+    Raises:
+        httpx.HTTPError: The last transport failure, or an HTTP error status.
+    """
+    for delay in (*_TRANSPORT_RETRY_DELAYS_SECONDS, None):
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(_EUROPEPMC_URL, params=params)
+                response.raise_for_status()
+            return response
+        except httpx.TransportError as exc:
+            if delay is None:
+                raise
+            logger.info(
+                "Europe PMC connection failed (%s); retrying in %.1fs",
+                type(exc).__name__,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    raise AssertionError("transport retry loop exited without a result")
+
+
 async def _search(
     query: str, max_results: int, source_label: str, echo: str | None = None
 ) -> dict[str, Any]:
@@ -129,9 +171,7 @@ async def _search(
         "sort": "",
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(_EUROPEPMC_URL, params=params)
-            response.raise_for_status()
+        response = await _get_with_transport_retry(params)
         records = [
             _record(result) for result in _results(response.json())[:limit]
         ]

@@ -15,6 +15,7 @@ from co_scientist.agents.generation.literature_review.outcomes import (
     _describe_exc,
 )
 from co_scientist.backoff import jittered_backoff_seconds
+from co_scientist.mcp_campaign import CampaignToolUnavailableError
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
@@ -111,7 +112,9 @@ async def _call_search_tool(
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
             return _decode_search_result(result)
-        except ToolException:
+        except (ToolException, CampaignToolUnavailableError):
+            # A tool-reported error or a policy refusal answers the same way
+            # on every attempt, so retrying only repeats it.
             raise
         except Exception as exc:
             if attempt == _SEARCH_ATTEMPTS:

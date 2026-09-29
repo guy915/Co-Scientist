@@ -17,8 +17,11 @@ on:
   # Lets nightly.yml run this exact pipeline as its scheduled full pass.
   workflow_call:
 
+# pull-requests: read lets dorny/paths-filter list a PR's changed files
+# through the pulls API, which a private repository refuses without it.
 permissions:
   contents: read
+  pull-requests: read
 
 # Cancel superseded presubmit runs (a new push to the same PR obsoletes the
 # in-flight result). Postsubmit runs on main are never cancelled so every

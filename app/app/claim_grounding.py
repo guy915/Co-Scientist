@@ -66,6 +66,7 @@ from app.claims import (
     Assessor,
     BatchAssessor,
     ClaimAssessment,
+    EntailmentLabel,
     EvidencePassage,
     GateDecision,
     GateResult,
@@ -74,6 +75,8 @@ from app.claims import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SUPPORTING_LABELS = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
 
 
 def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
@@ -295,19 +298,41 @@ def persist_grounding(
         allow_speculative=allow_speculative, conn=conn, db_path=db_path
     )
     blocked: set[str] = set()
+    unverified = 0
     reason_by_id: dict[str, str] = {}
     for hyp_id, assessments in assessed:
         gate = _ground_one_hypothesis(run_id, hyp_id, assessments, target)
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
-    _log_gate_outcome(len(blocked), len(reason_by_id))
+            if not _has_supported_claim(assessments):
+                unverified += 1
+    _log_gate_outcome(len(blocked), unverified, len(reason_by_id))
     return GroundingResult(
         blocked_ids=frozenset(blocked), reason_by_id=reason_by_id
     )
 
 
-def _log_gate_outcome(blocked_count: int, gated_count: int) -> None:
+def _has_supported_claim(
+    assessments: Sequence[tuple[ClaimAssessment, str]],
+) -> bool:
+    """Whether any claim has a ``supports`` or ``partial`` verdict.
+
+    The same rule the report's "Verified" count and "Unverified" badge use
+    (``report_content_gates._supported_hypothesis_ids``). The gate itself is
+    stricter -- it also fails a hypothesis that has support for some claims
+    but not for a categorical one -- so a gate failure alone does not mean
+    the idea is published unverified.
+    """
+    return any(
+        assessment.label in _SUPPORTING_LABELS
+        for assessment, _role in assessments
+    )
+
+
+def _log_gate_outcome(
+    blocked_count: int, unverified_count: int, gated_count: int
+) -> None:
     """Log the claim gate's tally for a pass, warning only when it took all.
 
     A pass that fails some hypotheses is the gate discriminating; a pass that
@@ -316,21 +341,26 @@ def _log_gate_outcome(blocked_count: int, gated_count: int) -> None:
     surfacing -- it means the run published nothing an evidence passage
     actually supports.
 
-    Both lines describe the badge, not a withholding: failing this gate does
+    Both lines describe the report, not a withholding: failing this gate does
     not remove an idea from the report (see ``_record_blocked_hypothesis``).
+    Only an idea with no supported claim at all is badged "Unverified"; the
+    line used to call every gate failure "published unverified", which
+    contradicted the report's own verified count for the same run.
     """
     if not gated_count:
         return
-    if blocked_count == gated_count:
+    if unverified_count == gated_count:
         logger.warning(
             "No hypothesis cleared the claim gate: all %s published unverified",
             gated_count,
         )
         return
     logger.info(
-        "Claim gate: %s of %s hypotheses published unverified",
+        "Claim gate: %s of %s hypotheses failed "
+        "(%s published unverified, the rest with unsupported claims flagged)",
         blocked_count,
         gated_count,
+        unverified_count,
     )
 
 
@@ -371,7 +401,27 @@ def _ground_one_hypothesis(
         _record_blocked_hypothesis(
             run_id, hyp_id, gate, conn=target.conn, db_path=target.db_path
         )
+        # Info, not warning: see _record_blocked_hypothesis.
+        logger.info(
+            "Hypothesis %s did not clear the claim gate (%s): %s",
+            hyp_id,
+            _publication_outcome(gate, assessments),
+            gate.reason,
+        )
     return gate
+
+
+def _publication_outcome(
+    gate: GateResult, assessments: Sequence[tuple[ClaimAssessment, str]]
+) -> str:
+    """Say what the report does with a hypothesis that failed the gate."""
+    if gate.failed_claims and set(gate.failed_claims) <= set(
+        gate.contradicted_claims
+    ):
+        return "withheld from the report"
+    if _has_supported_claim(assessments):
+        return "published with unsupported claims flagged"
+    return "published unverified"
 
 
 def _persist_claim_edges(
@@ -413,7 +463,7 @@ def _record_blocked_hypothesis(
     conn: sqlite3.Connection | None,
     db_path: str | None,
 ) -> None:
-    """Persist the block decision and log the quarantine of a hypothesis.
+    """Persist the block decision for a hypothesis that failed the gate.
 
     The recorded matches come from ``gate.failed_claims``: the gate already
     knows which of its rules fired and which claims that rule was about, so
@@ -430,20 +480,16 @@ def _record_blocked_hypothesis(
         db_path=db_path,
         conn=conn,
     )
-    # Says what actually happens. Under the rank-and-publish policy (see
+    # The quarantine line (logged by the caller) says what actually happens.
+    # Under the rank-and-publish policy (see
     # report_content_gates._unverified_hypothesis_ids) failing this gate does
     # not withhold an idea: only a *contradicted* claim does that. An
-    # unsupported one is published carrying the "Unverified" badge, and this
-    # line used to announce a quarantine "from ranking and publication" that
-    # nothing performs -- reading the log, a run looked like it had thrown
-    # away every idea it went on to publish.
+    # unsupported one is published, and it carries the "Unverified" badge only
+    # when it has no supported claim at all. This line used to announce a
+    # quarantine "from ranking and publication" that nothing performs, and
+    # then "published unverified" for ideas the report counted as verified.
     #
     # Info, not warning, for the same reason as the redaction line: one row
     # per assessed hypothesis is a per-item verdict, already persisted as the
     # claim_gate safety_decision above and counted in the run's
     # citation.grounding event.
-    logger.info(
-        "Hypothesis %s did not clear the claim gate (published unverified): %s",
-        hyp_id,
-        gate.reason,
-    )
