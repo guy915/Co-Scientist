@@ -218,6 +218,11 @@ class Settings(BaseSettings):
     # is disabled on this deployment and key-carrying requests are
     # rejected with a clear 503 at creation time.
     byok_encryption_key: str = ""
+    # Free usage: a run with no BYOK key runs on the deployment's free
+    # models, so it is limited to the express tier and to this many runs
+    # per client identity per UTC day (see app/free_usage.py). Zero or
+    # less removes the daily cap; the express-only rule still holds.
+    free_runs_per_day: int = 3
 
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.

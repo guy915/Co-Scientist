@@ -64,7 +64,7 @@ def _byok_redaction_filter() -> logging.Filter:
     behind a lazy import so this module never drags credentials (and its
     cryptography imports) into processes that only configure logging.
     """
-    from app.credentials import ByokRedactionFilter
+    from app.credentials_redaction import ByokRedactionFilter
 
     return ByokRedactionFilter()
 

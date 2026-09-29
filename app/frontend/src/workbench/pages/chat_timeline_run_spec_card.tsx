@@ -6,6 +6,7 @@ import {
   type InferredRunSpec,
   FOCUS_OPTIONS,
   TIER_OPTIONS,
+  availableTierOptions,
   isCompletionEmailValid,
   runOptionLabel,
 } from '../run_spec';
@@ -262,7 +263,7 @@ function SpecOptionGroups({
         label="Run type"
         name="tier"
         value={spec.tier}
-        options={TIER_OPTIONS}
+        options={availableTierOptions()}
         disabled={locked}
         onChange={value => onTierChange(value as RunTier)}
       />
@@ -415,6 +416,7 @@ interface RunOptionGroupOption {
   id: string;
   label: string;
   description: string;
+  disabled?: boolean;
 }
 
 // Props for OptionCard, named at module level per the destructured prop
@@ -488,7 +490,7 @@ function RunOptionGroup({
             option={option}
             name={name}
             selected={option.id === value}
-            disabled={disabled}
+            disabled={disabled || Boolean(option.disabled)}
             onChange={onChange}
           />
         ))}

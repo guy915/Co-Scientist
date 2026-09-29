@@ -38,10 +38,11 @@ export const PROVIDER_KEY_PAGES: Record<
 const TRIGGER_ID = 'cosci-settings-provider';
 const LABEL_ID = 'cosci-settings-provider-label';
 
-// Closes the menu on a pointerdown outside `container`. Registered only
+// Closes the menu on a pointerdown outside `container` (also used by the
+// model selects, settings_model_select.tsx). Registered only
 // while open, matching the shell's own popover dismissal
 // (layout_hooks.useDismissPanelOnOutsideClick).
-function useCloseOnOutsidePointer(
+export function useCloseOnOutsidePointer(
   open: boolean,
   container: React.RefObject<HTMLDivElement | null>,
   onClose: () => void,

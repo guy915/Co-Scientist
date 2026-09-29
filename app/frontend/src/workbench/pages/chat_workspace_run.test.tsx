@@ -220,7 +220,9 @@ it('infers a run spec in chat from the research goal', async () => {
   expect(screen.getByText('Cancel')).toBeInTheDocument();
   expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
   expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
-  expect(screen.getByLabelText(/Standard/i)).toBeChecked();
+  // No API key stored: free usage defaults to, and only allows, Express.
+  expect(screen.getByLabelText(/Express/i)).toBeChecked();
+  expect(screen.getByLabelText(/Standard/i)).toBeDisabled();
 });
 
 it('starts the durable run on confirmation', async () => {
