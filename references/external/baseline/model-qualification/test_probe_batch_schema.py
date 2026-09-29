@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import subprocess
@@ -25,6 +26,17 @@ def _probe(monkeypatch):
     return sys.modules.get("probe_batch_schema") or importlib.import_module(
         "probe_batch_schema"
     )
+
+
+def test_new_preflight_pins_the_current_batch_schema(monkeypatch) -> None:
+    probe = _probe(monkeypatch)
+    _, preflight = probe.load_frozen_panel()
+    schema_hash = hashlib.sha256(
+        json.dumps(probe._BATCH_DRAFT_SCHEMA, sort_keys=True).encode()
+    ).hexdigest()
+
+    assert probe.PREFLIGHT.name == "batch-schema-preflight110.json"
+    assert preflight["schema_sha256"] == schema_hash
 
 
 def test_run_batch_uses_one_shared_four_claim_invocation(monkeypatch) -> None:
@@ -62,7 +74,7 @@ def test_run_batch_uses_one_shared_four_claim_invocation(monkeypatch) -> None:
     assert result["checks"][3]["contradicting_spans"][0]["quote"]
 
 
-def test_live_probe_refuses_a_second_provider_attempt(monkeypatch, tmp_path) -> None:
+def test_live_probe_refuses_a_fourth_provider_attempt(monkeypatch, tmp_path) -> None:
     probe = _probe(monkeypatch)
     output = tmp_path / "batch-qualification.json"
     monkeypatch.setenv("QUALIFICATION_OUTPUT", str(output))
@@ -73,17 +85,77 @@ def test_live_probe_refuses_a_second_provider_attempt(monkeypatch, tmp_path) -> 
 
     from co_scientist.llm_call_budget import record_provider_request
 
+    admitted = []
+
     def assessor(_claims, _passages):
-        record_provider_request()
-        record_provider_request()
-        raise RuntimeError("uncapped second request reached")
+        for attempt in range(1, 5):
+            record_provider_request()
+            admitted.append(attempt)
 
     monkeypatch.setattr(
         probe, "make_llm_batch_assessor", lambda _model: (assessor, "test-assessor")
     )
 
     assert probe.main() == 1
-    assert json.loads(output.read_text())["error_type"] == "LLMCallBudgetExceededError"
+    assert admitted == [1, 2, 3]
+    record = json.loads(output.read_text())
+    assert record["error_type"] == "LLMCallBudgetExceededError"
+    assert record["batch_invocations"] == [{"claims": 4, "passages": 4}]
+    assert record["physical_requests"] == []
+    assert record["physical_request_count"] == 0
+
+
+def test_live_probe_rejects_assessor_hash_drift_before_catalog_or_provider(
+    monkeypatch, tmp_path
+) -> None:
+    probe = _probe(monkeypatch)
+    output = tmp_path / "drift.json"
+    monkeypatch.setenv("QUALIFICATION_OUTPUT", str(output))
+    monkeypatch.setenv("QUALIFICATION_TRIAL", "1")
+    monkeypatch.setenv("QUALIFICATION_REVISION", probe.head_revision())
+
+    actual_sources = probe.assessor_source_hashes()
+    drifted_sources = {
+        module: dict(source) for module, source in actual_sources.items()
+    }
+    first_module = next(iter(drifted_sources))
+    drifted_sources[first_module]["sha256"] = "0" * 64
+    monkeypatch.setattr(probe, "assessor_source_hashes", lambda: drifted_sources)
+
+    catalog_calls = []
+    assessor_factory_calls = []
+    monkeypatch.setattr(
+        probe,
+        "current_catalog",
+        lambda: catalog_calls.append("catalog") or {"test-model": {}},
+    )
+    monkeypatch.setattr(probe, "verify_model", lambda *_args: None)
+    monkeypatch.setattr(
+        probe,
+        "make_llm_batch_assessor",
+        lambda _model: (
+            assessor_factory_calls.append("factory") or (lambda *_args: []),
+            "test",
+        ),
+    )
+
+    @contextmanager
+    def capture(*_args, **_kwargs):
+        yield {"started": True}
+
+    monkeypatch.setattr(probe, "capture_panel", capture)
+    probe.observer._REQUESTS.clear()
+
+    assert probe.main() == 1
+    record = json.loads(output.read_text())
+    assert catalog_calls == []
+    assert assessor_factory_calls == []
+    assert record["assessor_sources"] == drifted_sources
+    assert record["error_type"] == "ValueError"
+    assert first_module in record["error"]
+    assert record["physical_requests"] == []
+    assert record["physical_request_count"] == 0
+    assert record["batch_invocations"] == []
 
 
 @pytest.mark.parametrize(

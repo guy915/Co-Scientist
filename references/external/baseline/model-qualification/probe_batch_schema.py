@@ -23,7 +23,8 @@ import probe_citation_panel as observer  # noqa: E402
 
 
 FOLDER = Path(__file__).resolve().parent
-PREFLIGHT = FOLDER / "batch-schema-preflight109.json"
+# Keep the prior frozen trial manifest immutable after the assessor schema change.
+PREFLIGHT = FOLDER / "batch-schema-preflight110.json"
 ROOT = Path(
     subprocess.check_output(
         ["git", "rev-parse", "--show-toplevel"], cwd=FOLDER, text=True
@@ -39,6 +40,16 @@ ASSESSOR_MODULES = (
     "app.claims_gate",
     "co_scientist.llm",
 )
+PINNED_ASSESSOR_SOURCE_HASHES = {
+    "app.claim_verifier_batch": "c5de81a34b3c9c378e8738dcf54f5bd6fd7cf01d72179afbb23c0dae8e2c1884",
+    "app.claims_batch": "296778b93db6a3445cf319ce519881e39ca12a4c3be079fb2742ae0b715e1b91",
+    "app.claim_verifier": "a1f15992cf4e554e4876f5704dc7830a5b495862e20af9df08c692fe87cfc7de",
+    "app.claim_verifier_opposition": "98bdf1d77452f7bf1288ae110423027b79e3bf1a965ab12ab76846d07fff7281",
+    "app.claims_assessor": "4269496be5aecdedc017e8465729706d710d99e5df93393922f8b830ee4d56b5",
+    "app.claims_span": "d464733cc5c90c2a3c296f1398a6790b982530f27ae797dfc83f202c7ad36ee0",
+    "app.claims_gate": "0d09de7be5dbd67da0fb6c80e4e1232dc73fd6b2303d2f9aa7be9f3b41c7dd20",
+    "co_scientist.llm": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+}
 
 
 def digest(path: Path) -> str:
@@ -60,6 +71,21 @@ def assessor_source_hashes() -> dict:
         relative = relative_to_root(path)
         sources[name] = {"path": str(relative), "sha256": digest(path)}
     return sources
+
+
+def validate_assessor_source_hashes(sources: dict) -> None:
+    """Reject product-source drift before looking up or calling a provider."""
+    mismatches = []
+    for module, expected_hash in PINNED_ASSESSOR_SOURCE_HASHES.items():
+        source = sources.get(module)
+        observed_hash = source.get("sha256") if source else None
+        if observed_hash != expected_hash:
+            mismatches.append(module)
+    unexpected = sorted(set(sources) - set(PINNED_ASSESSOR_SOURCE_HASHES))
+    if mismatches or unexpected:
+        details = [f"hash mismatch: {module}" for module in mismatches]
+        details.extend(f"unexpected module: {module}" for module in unexpected)
+        raise ValueError("Pinned assessor source drift (" + "; ".join(details) + ")")
 
 
 def head_revision() -> str:
@@ -148,6 +174,7 @@ def main() -> int:
             if record["source_commit"] != head_revision():
                 raise ValueError("QUALIFICATION_REVISION differs from git HEAD")
             record["assessor_sources"] = assessor_source_hashes()
+            validate_assessor_source_hashes(record["assessor_sources"])
             catalog = current_catalog()
             raw_model = MODEL.removeprefix("openrouter/")
             verify_model(raw_model, catalog)
@@ -162,7 +189,7 @@ def main() -> int:
                 )
                 return assessor(claims, passages)
 
-            with scoped_llm_call_budget(f"qualification:{output.resolve()}", 1):
+            with scoped_llm_call_budget(f"qualification:{output.resolve()}", 3):
                 with capture_panel(
                     "citation_entailment", dataset, MODEL, live=True
                 ) as evidence:
