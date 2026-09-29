@@ -1,0 +1,94 @@
+{
+  "purpose": "M12-04b2a browser-visible ownership/auth denial correction; local evidence only, deployment remains pending",
+  "observed_at_utc": "2026-09-29T23:18:20.858456+00:00",
+  "public_reproduction": {
+    "origin": "https://ai-co-scientist.com",
+    "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+    "health_get": {
+      "status": 200,
+      "allow_origin": true
+    },
+    "status_get": {
+      "status": 200,
+      "allow_origin": true
+    },
+    "run_preflight": {
+      "status": 200,
+      "allow_origin": true
+    },
+    "anonymous_run_get": {
+      "status": 404,
+      "allow_origin": false
+    },
+    "browser": {
+      "alert": "Failed to fetch",
+      "cdp_error": "MissingAllowOriginHeader",
+      "refresh_reproduced": true
+    }
+  },
+  "cause": "Ownership/auth middleware was outer to CORS, so early denial responses bypassed its headers.",
+  "correction": "Move the existing CORS registration after ownership registration; unchanged allowlist and 401/404 bodies.",
+  "test_first": {
+    "red_failed": 2,
+    "red_passed": 2,
+    "green_auth_passed": 16,
+    "adjacent_passed": 18
+  },
+  "integration": {
+    "api_tests_passed": 2055,
+    "e2e_passed": 18,
+    "lint": "passed",
+    "typecheck": "passed"
+  },
+  "independent_review": "Luna 6 xhigh found no production-code flaw; allowlist/credentials/Vary, bearer preflight and terminal SSE tests cover the changed boundary.",
+  "unchanged_check_reuse": "Prior engine/MCP/parity/build/offline scientific smoke/frontend tests remain applicable: their source, dependencies, model configuration and inputs are unchanged. Full API, lint/typecheck and E2E rerun for this correction.",
+  "release_status": "not_released",
+  "logs": [
+    {
+      "path": "/private/tmp/M12-04b2a-red.log",
+      "sha256": "7f46a315c84f0d2d1eff27f23a54e41c88c624c8795a96dc6e81ba16805d247d"
+    },
+    {
+      "path": "/private/tmp/M12-04b2a-green.log",
+      "sha256": "a1e273a73eb201f745d6c38b321f3f02f52968f578342d72d20202bc7194c4ac"
+    },
+    {
+      "path": "/private/tmp/M12-04b2a-adjacent.log",
+      "sha256": "dac2b1b544f3e57ca0615432f633914ba2f7f4edb3e505a61287aa4077b06094"
+    },
+    {
+      "path": "/private/tmp/M12-04b2a-ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "path": "/private/tmp/M12-04b2a-format.log",
+      "sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938"
+    },
+    {
+      "path": "/private/tmp/M12-04b2a-mypy.log",
+      "sha256": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8"
+    },
+    {
+      "path": "/private/tmp/cosci-cors-test-app-20260930.log",
+      "sha256": "f9ba3652253ee8ea88bbf1801857674982c93c0584adca27cf30a82c0a7f7e9b"
+    },
+    {
+      "path": "/private/tmp/cosci-cors-e2e-20260930.log",
+      "sha256": "6e6e0836beb3d406578984d7efce65a9c0f86bb7d5c20f8d5cee41adc67d74c7"
+    },
+    {
+      "path": "/private/tmp/cosci-cors-lint-20260930.log",
+      "sha256": "e0ba1507bb66abd9eceffc3e1440e695d23dbec6985dad32a0fe555e05cbddae"
+    },
+    {
+      "path": "/private/tmp/cosci-cors-typecheck-20260930.log",
+      "sha256": "8773f31ad68355efda32ef21a2fb4c58557fde5157e327cc1d0058e85339ee5f"
+    }
+  ],
+  "deliberately_absent": [
+    "credentials and tokens",
+    "private inputs",
+    "claim of production correction",
+    "claim of public research completion"
+  ]
+}

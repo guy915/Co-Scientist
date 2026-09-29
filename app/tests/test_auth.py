@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app import auth, store
@@ -42,7 +44,8 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
 ) -> None:
     """Only a verified owner can create and retrieve its private run."""
     _configure_auth(monkeypatch)
-    client = make_client()
+    app = _configure_allowlisted_cors(monkeypatch)
+    client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
     unauthenticated = client.get("/api/runs")
     assert unauthenticated.status_code == 401
 
@@ -63,9 +66,28 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     assert created.status_code == 200
     run_id = created.json()["id"]
 
-    assert (
-        client.get(f"/api/runs/{run_id}", headers=headers_a).status_code == 200
+    owned = client.get(
+        f"/api/runs/{run_id}",
+        headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
     )
+    assert owned.status_code == 200
+    assert owned.headers["access-control-allow-origin"] == (
+        "https://ai-co-scientist.com"
+    )
+
+    store.update_run_status(
+        run_id, store.RunStatus.COMPLETED, db_path=isolated_db
+    )
+    events = client.get(
+        f"/api/runs/{run_id}/events",
+        headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
+    )
+    assert events.status_code == 200
+    assert events.headers["content-type"].startswith("text/event-stream")
+    assert events.headers["access-control-allow-origin"] == (
+        "https://ai-co-scientist.com"
+    )
+
     assert (
         client.get(f"/api/runs/{run_id}", headers=headers_b).status_code == 404
     )
@@ -101,9 +123,97 @@ def test_invalid_bearer_returns_401_json(
     client.close()
 
 
-def test_run_ownership_allows_cors_preflight(isolated_db: str) -> None:
+def _configure_allowlisted_cors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> FastAPI:
+    """Give the live app a deterministic production-style CORS allowlist."""
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from app.main import app
+
+    cors = next(
+        middleware
+        for middleware in app.user_middleware
+        if cast(Any, middleware.cls) is CORSMiddleware
+    )
+    monkeypatch.setitem(
+        cors.kwargs, "allow_origins", ["https://ai-co-scientist.com"]
+    )
+    monkeypatch.setitem(cors.kwargs, "allow_credentials", True)
+    monkeypatch.setattr(app, "middleware_stack", None)
+    return app
+
+
+def test_allowed_origin_can_read_auth_denial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Required-auth 401 responses keep the allowed browser origin."""
+    _configure_auth(monkeypatch)
+    app = _configure_allowlisted_cors(monkeypatch)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get(
+        "/api/runs", headers={"Origin": "https://ai-co-scientist.com"}
+    )
+
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == (
+        "https://ai-co-scientist.com"
+    )
+    assert response.headers["access-control-allow-credentials"] == "true"
+    assert "origin" in response.headers["vary"].lower()
+    client.close()
+
+
+def test_allowed_origin_can_read_ownership_denial(
+    monkeypatch: pytest.MonkeyPatch, isolated_db: str
+) -> None:
+    """A non-owner still gets a browser-readable 404, never a 403."""
+    monkeypatch.setattr(settings, "auth_mode", "compatibility")
+    app = _configure_allowlisted_cors(monkeypatch)
+    client = TestClient(app, raise_server_exceptions=False)
+    created = client.post(
+        "/api/runs",
+        headers={"X-Client-ID": "run-owner"},
+        json={"research_goal": "Private run"},
+    )
+
+    run_path = f"/api/runs/{created.json()['id']}"
+    response = client.get(
+        run_path,
+        headers={
+            "X-Client-ID": "different-client",
+            "Origin": "https://ai-co-scientist.com",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "run not found"}
+    assert response.headers["access-control-allow-origin"] == (
+        "https://ai-co-scientist.com"
+    )
+    assert response.headers["access-control-allow-credentials"] == "true"
+    assert "origin" in response.headers["vary"].lower()
+
+    unlisted = client.get(
+        run_path,
+        headers={
+            "X-Client-ID": "different-client",
+            "Origin": "https://evil.example",
+        },
+    )
+
+    assert unlisted.status_code == 404
+    assert "access-control-allow-origin" not in unlisted.headers
+    client.close()
+
+
+def test_run_ownership_allows_cors_preflight(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A browser can preflight an owner-authenticated lifecycle mutation."""
-    client = make_client()
+    app = _configure_allowlisted_cors(monkeypatch)
+    client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
     created = client.post(
         "/api/runs",
         headers={"X-Client-ID": "browser-owner"},
@@ -114,25 +224,19 @@ def test_run_ownership_allows_cors_preflight(isolated_db: str) -> None:
     response = client.options(
         f"/api/runs/{created.json()['id']}/start",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": "https://ai-co-scientist.com",
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "content-type,x-client-id",
+            "Access-Control-Request-Headers": (
+                "authorization,content-type,x-client-id"
+            ),
         },
     )
 
     assert response.status_code == 200
-    # This process's CORS config depends on whether ALLOWED_ORIGINS is set
-    # in its environment (a real allowlist in CI/production; the wildcard
-    # fallback for a bare local checkout with no .env), so the header value
-    # itself is not pinned here -- see the two `_resolve_cors_config` unit
-    # tests below for that. What must hold in both cases is the invariant
-    # `_resolve_cors_config` exists to guarantee: an unreflected wildcard
-    # origin is never paired with an allow-credentials response, since that
-    # pairing is what let any origin on the internet ride compatibility
-    # auth's spoofable X-Client-ID header.
-    origin_header = response.headers["access-control-allow-origin"]
-    credentialed = "access-control-allow-credentials" in response.headers
-    assert (origin_header == "*") != credentialed
+    assert response.headers["access-control-allow-origin"] == (
+        "https://ai-co-scientist.com"
+    )
+    assert "authorization" in response.headers["access-control-allow-headers"]
 
 
 def test_wildcard_cors_never_reflects_a_credentialed_origin() -> None:
