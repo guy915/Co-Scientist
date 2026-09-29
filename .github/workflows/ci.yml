@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # Cancel superseded presubmit runs (a new push to the same PR obsoletes the
 # in-flight result). Postsubmit runs on main are never cancelled so every
