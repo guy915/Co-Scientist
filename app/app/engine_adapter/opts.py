@@ -379,9 +379,9 @@ def _build_generator(
             router; see ``_resolve_generator_models`` for what that pins.
         byok: The run's bring-your-own-key credential, when it has one.
             Forces the real backend (a validated user key must never be
-            shadowed by the offline router) and runs EVERY tier -- worker
-            and supervisor alike -- on the credential's model, since the
-            deployment cannot know what else the key may call.
+            shadowed by the offline router) and runs the worker tier on
+            the credential's model and the supervisor tier on its
+            supervisor model (the worker model when none was chosen).
 
     Returns:
         A constructed generator instance.
@@ -396,11 +396,11 @@ def _build_generator(
         )
         byok = None
     elif byok is not None:
-        # One model for every tier (see the byok doc above); the cache
-        # override stays unset and the engine forces caching off itself
-        # once it sees the key (GeneratorOptions.api_key).
+        # The scientist's worker and supervisor choices (see the byok doc
+        # above); the cache override stays unset and the engine forces
+        # caching off itself once it sees the key (GeneratorOptions.api_key).
         model_name = byok.model
-        supervisor_model_name = byok.model
+        supervisor_model_name = byok.supervisor_model or byok.model
         enable_cache = None
     else:
         model_name, supervisor_model_name, enable_cache = (

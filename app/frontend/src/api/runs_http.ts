@@ -3,7 +3,11 @@
 // keep importing them from '@/api/runs'.
 
 import {clearAccessToken, getAccessToken, getClientId} from '@/lib/client_id';
-import {getStoredApiKey, getStoredApiProvider} from '@/lib/api_key';
+import {
+  getStoredApiKey,
+  getStoredApiProvider,
+  getStoredModel,
+} from '@/lib/api_key';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
@@ -31,16 +35,22 @@ export function clientHeaders(): Record<string, string> {
 /**
  * Bring-your-own-key headers for run creation and the interview/Q&A paths.
  * Sent as request headers, never query parameters (URLs leak into history,
- * logs, and referrers). Empty when no key is stored, so spreading is a
+ * logs, and referrers). The chosen worker/supervisor models ride along
+ * when set. Empty when no key is stored, so spreading is a
  * no-op for runs that use the deployment credential. The backend validates
  * the pair live and stores the key encrypted for the run's lifetime.
  */
 export function byokHeaders(): Record<string, string> {
   const apiKey = getStoredApiKey();
   if (!apiKey) return {};
+  const worker = getStoredModel('worker');
+  const supervisor = getStoredModel('supervisor');
   return {
     'X-LLM-API-Key': apiKey,
     'X-LLM-Provider': getStoredApiProvider(),
+    // Omitted when unset: the backend then runs the provider's default.
+    ...(worker ? {'X-LLM-Model': worker} : {}),
+    ...(supervisor ? {'X-LLM-Supervisor-Model': supervisor} : {}),
   };
 }
 
@@ -63,6 +73,31 @@ export class HttpError extends Error {
 }
 
 /**
+ * The server's own sentence for a usage-limit refusal (403 or 429 with a
+ * JSON `detail` string, e.g. free usage's express-only rule or daily cap in
+ * app/free_usage.py), which is written for the reader and says what to do.
+ * Undefined for any other response.
+ */
+function usageLimitDetail(status: number, text: string): string | undefined {
+  if (status !== 403 && status !== 429) return undefined;
+  try {
+    const detail: unknown = (JSON.parse(text) as {detail?: unknown}).detail;
+    return typeof detail === 'string' ? detail : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A message that replaces the generic `<status> <body>` shape: 'API
+ * unavailable' for an empty-bodied 500, or a usage-limit refusal's own text.
+ */
+function fixedErrorMessage(status: number, text: string): string | undefined {
+  if (status === 500 && !text.trim()) return 'API unavailable';
+  return usageLimitDetail(status, text);
+}
+
+/**
  * Builds the error message for a non-ok response: a clearer message for an
  * empty-bodied 500 (the API process itself is typically unreachable, e.g.
  * cold start or a proxy with no upstream, rather than a handled application
@@ -74,7 +109,8 @@ function responseErrorMessage(
   text: string,
   errorPrefix?: string,
 ): string {
-  if (status === 500 && !text.trim()) return 'API unavailable';
+  const fixed = fixedErrorMessage(status, text);
+  if (fixed) return fixed;
   if (errorPrefix) return `${errorPrefix} ${status}`;
   return `${status} ${text || statusText}`;
 }

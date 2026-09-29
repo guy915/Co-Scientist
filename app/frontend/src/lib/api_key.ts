@@ -9,6 +9,18 @@ const STORAGE_KEY = 'cosci-api-key';
 const PROVIDER_KEY = 'cosci-api-provider';
 
 /**
+ * The two model tiers a BYOK user picks in Settings > Model: `worker` runs
+ * generation, review, ranking, and chat; `supervisor` runs planning,
+ * meta-review, and the final overview.
+ */
+export type ModelTier = 'worker' | 'supervisor';
+
+const MODEL_KEYS: Record<ModelTier, string> = {
+  worker: 'cosci-api-model',
+  supervisor: 'cosci-api-supervisor-model',
+};
+
+/**
  * Providers offered for BYOK runs. Must stay within the backend's
  * PROVIDER_CREDENTIAL_ENV set (app/app/config.py); the backend rejects
  * anything else. A subset is fine -- azure is deliberately not offered
@@ -76,5 +88,36 @@ export function setStoredApiProvider(provider: ByokProvider): void {
   const known = (BYOK_PROVIDERS as readonly string[]).includes(provider)
     ? provider
     : DEFAULT_BYOK_PROVIDER;
+  // Models are provider-specific, so a new provider starts on its defaults.
+  if (known !== getStoredApiProvider()) {
+    setStoredModel('worker', '');
+    setStoredModel('supervisor', '');
+  }
   window.localStorage.setItem(PROVIDER_KEY, known);
+}
+
+/**
+ * Reads the stored model choice for one tier.
+ *
+ * @param tier The model tier.
+ * @returns The stored litellm model id, or an empty string for the
+ *   provider's default.
+ */
+export function getStoredModel(tier: ModelTier): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(MODEL_KEYS[tier]) ?? '';
+}
+
+/**
+ * Persists one tier's model choice, or removes it when blank.
+ *
+ * @param tier The model tier.
+ * @param model The litellm model id; blank means the provider's default.
+ */
+export function setStoredModel(tier: ModelTier, model: string): void {
+  if (model) {
+    window.localStorage.setItem(MODEL_KEYS[tier], model);
+  } else {
+    window.localStorage.removeItem(MODEL_KEYS[tier]);
+  }
 }

@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     run_id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,
     provider TEXT NOT NULL,          -- one of config.PROVIDER_CREDENTIAL_ENV
-    model TEXT NOT NULL,             -- litellm model the credential runs
+    model TEXT NOT NULL,             -- litellm worker-tier model
+    supervisor_model TEXT,           -- supervisor tier; NULL = model
     encrypted_key TEXT NOT NULL,     -- Fernet token, never plaintext
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE

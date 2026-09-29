@@ -1,6 +1,7 @@
 import {Icon, type IconName} from '@/components/icon';
 import {type ByokProvider} from '@/lib/api_key';
 import {type Mode} from '../theme_context';
+import {ModelSelectors, useModelFields} from './settings_model_select';
 import {
   PROVIDER_KEY_PAGES,
   PROVIDER_LABELS,
@@ -68,9 +69,17 @@ const FAQ: {question: string; answer: string}[] = [
   {
     question: 'Which model does it use?',
     answer:
-      'Runs use the model configured for the deployment (DeepSeek by ' +
-      'default). When you add your own API key under Model, runs use your ' +
-      "provider's default model instead.",
+      'Without an API key, runs use the free model configured for the ' +
+      'deployment. When you add your own API key under Model, you choose a ' +
+      'supervisor model (planning and the final report) and a worker model ' +
+      '(generating, reviewing, and ranking ideas) from your provider.',
+  },
+  {
+    question: 'Do I need an API key?',
+    answer:
+      'No. Without a key you are on free usage: you can start Express runs ' +
+      'only, up to 3 per day on this device. Add your own key under Model ' +
+      'to use every run type without a daily limit.',
   },
 ];
 
@@ -135,8 +144,9 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
   );
 }
 
-// Model section: bring-your-own-key provider choice and key entry. The key
-// saves on blur or Enter; the provider persists on change.
+// Model section: bring-your-own-key provider choice and key entry, then the
+// supervisor and worker model selects side by side. The key saves on blur or
+// Enter; the provider and models persist on change.
 export function ModelSection({
   apiKey,
   onApiKeyChange,
@@ -150,6 +160,7 @@ export function ModelSection({
   onProviderChange: (value: ByokProvider) => void;
   onSave: () => void;
 }) {
+  const modelFields = useModelFields(provider);
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Model</h3>
@@ -175,6 +186,7 @@ export function ModelSection({
         }}
       />
       <ApiKeyHint provider={provider} />
+      <ModelSelectors hasKey={apiKey.trim() !== ''} fields={modelFields} />
     </section>
   );
 }

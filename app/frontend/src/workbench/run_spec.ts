@@ -1,4 +1,16 @@
 import type {Interview, RunFocus, RunTier} from '@/api/runs';
+import {getStoredApiKey} from '@/lib/api_key';
+
+/**
+ * The only run type free usage (no API key of one's own) may start; the
+ * backend refuses any other (app/free_usage.py).
+ */
+export const FREE_RUN_TIER: RunTier = 'express';
+
+/** The default run type: Standard with an API key, else the free tier. */
+export function defaultRunTier(): RunTier {
+  return getStoredApiKey() ? 'standard' : FREE_RUN_TIER;
+}
 
 /** Chat-inferred setup shown before a run is created. */
 export interface InferredRunSpec {
@@ -24,7 +36,7 @@ export function interviewToRunSpec(interview: Interview): InferredRunSpec {
     attributes: interview.fields.focus_area,
     criteria: [],
     focus: 'balance',
-    tier: 'standard',
+    tier: defaultRunTier(),
     notifyOnCompletion: false,
     completionEmail: '',
   };
@@ -85,6 +97,8 @@ export interface RunTierOption {
   id: RunTier;
   label: string;
   description: string;
+  /** Set when free usage cannot start this run type. */
+  disabled?: boolean;
 }
 
 /** One evidence-vs-novelty focus choice in the run-setup picker. */
@@ -124,6 +138,23 @@ export const TIER_OPTIONS: RunTierOption[] = [
       'insights.',
   },
 ];
+
+/**
+ * The run-type choices open to the current user: every tier with an API key;
+ * with none, the non-free tiers are disabled and say why.
+ */
+export function availableTierOptions(): RunTierOption[] {
+  if (getStoredApiKey()) return TIER_OPTIONS;
+  return TIER_OPTIONS.map(option =>
+    option.id === FREE_RUN_TIER
+      ? option
+      : {
+          ...option,
+          disabled: true,
+          description: 'Requires your own API key (Settings > Model).',
+        },
+  );
+}
 
 /**
  * Evidence-vs-novelty tradeoff choices shown in the run-setup picker; `id` is

@@ -129,6 +129,26 @@ def _migrate_execution_policy(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_byok_model_choice_and_free_usage(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add the BYOK supervisor model and the free-run ledger.
+
+    The ledger has no foreign key to ``runs`` on purpose: deleting a run
+    must not hand its free-usage slot back (see ``app.free_usage``).
+    """
+    _add_column_if_missing(conn, "run_credentials", "supervisor_model", "TEXT")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS free_run_usage ("
+        "run_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, "
+        "created_at REAL NOT NULL)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_free_run_usage_client "
+        "ON free_run_usage(client_id, created_at)"
+    )
+
+
 def _migrate_message_and_hypothesis_columns(
     conn: sqlite3.Connection,
 ) -> None:
@@ -450,6 +470,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_run_and_report_columns(conn)
     _migrate_interview_columns(conn)
     _migrate_execution_policy(conn)
+    _migrate_byok_model_choice_and_free_usage(conn)
     _migrate_message_and_hypothesis_columns(conn)
     _migrate_match_and_safety_columns(conn)
     _migrate_proximity_and_evidence_columns(conn)

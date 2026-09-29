@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from fastapi import BackgroundTasks, HTTPException, Request
 
-from app import credentials, documents, run_corpus, store
+from app import credentials, documents, free_usage, run_corpus, store
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_CONFIG_KEY,
@@ -154,6 +154,7 @@ class _ResolvedSetup:
     byok: credentials.ByokCredential | None
     staged_documents: list[dict[str, Any]]
     settings: _ResolvedRunSettings
+    free_usage: bool = False
 
 
 def _admit_request(
@@ -209,8 +210,19 @@ async def _resolve_setup(
                 CAMPAIGN_MODEL_CONFIG_KEY: CAMPAIGN_MODEL_NAME,
             }
         )
+    free = free_usage.applies(byok, policy, settings.llm_backend)
+    if free and resolved_request.tier is None:
+        # Free usage defaults to the one tier it may run.
+        resolved_request = resolved_request.model_copy(
+            update={"tier": free_usage.FREE_TIER}
+        )
+        settings = callbacks.resolve_run_settings(
+            resolved_request, interview, byok
+        )
+    if free:
+        free_usage.check_request(resolved_request, settings.run_mode)
     return _ResolvedSetup(
-        resolved_request, interview, policy, byok, staged, settings
+        resolved_request, interview, policy, byok, staged, settings, free
     )
 
 
@@ -226,7 +238,7 @@ def _persist_setup_transaction(
     """Write setup atomically, mapping a raced-away document to HTTP 404."""
 
     def persist_run(conn: sqlite3.Connection) -> store.RunRow:
-        return callbacks.persist_new_run(
+        run = callbacks.persist_new_run(
             setup.request,
             request,
             setup.interview,
@@ -234,6 +246,9 @@ def _persist_setup_transaction(
             setup.execution_policy,
             conn=conn,
         )
+        if setup.free_usage:
+            free_usage.claim_free_run(conn, admission.owner, run.id)
+        return run
 
     try:
         run, receipt = run_creation_receipts.commit_run_creation(
@@ -249,6 +264,8 @@ def _persist_setup_transaction(
         raise HTTPException(
             status_code=404, detail="attached document not found"
         ) from exc
+    except free_usage.FreeUsageExhaustedError as exc:
+        raise free_usage.exhausted_error() from exc
     return run, receipt
 
 

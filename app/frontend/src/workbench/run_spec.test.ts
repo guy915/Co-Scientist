@@ -1,13 +1,17 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it} from 'vitest';
 import type {Interview} from '@/api/runs';
+import {setStoredApiKey} from '@/lib/api_key';
 import {
   applyEditedInterviewFields,
+  availableTierOptions,
   buildInterviewFieldsPayload,
   isCompletionEmailValid,
   isValidCompletionEmail,
   interviewToRunSpec,
 } from './run_spec';
 import {makeSpec} from '@/test_fixtures';
+
+afterEach(() => setStoredApiKey(''));
 
 describe('interviewToRunSpec', () => {
   it('maps only the durable Agent derivation into run configuration', () => {
@@ -29,10 +33,27 @@ describe('interviewToRunSpec', () => {
       attributes: ['Tumor metabolism', 'Causal mechanisms'],
       criteria: [],
       focus: 'balance',
-      tier: 'standard',
+      tier: 'express',
       notifyOnCompletion: false,
       completionEmail: '',
     });
+  });
+
+  it('defaults to Standard once an API key is stored', () => {
+    setStoredApiKey('sk-test');
+    expect(interviewToRunSpec({fields: {}} as Interview).tier).toBe('standard');
+  });
+});
+
+describe('availableTierOptions', () => {
+  it('leaves only Express open to free usage', () => {
+    const open = availableTierOptions().filter(option => !option.disabled);
+    expect(open.map(option => option.id)).toEqual(['express']);
+  });
+
+  it('opens every run type with an API key', () => {
+    setStoredApiKey('sk-test');
+    expect(availableTierOptions().some(option => option.disabled)).toBe(false);
   });
 });
 

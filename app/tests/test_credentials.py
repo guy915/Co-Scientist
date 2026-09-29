@@ -7,7 +7,7 @@ import logging
 import pytest
 from starlette.datastructures import Headers
 
-from app import credentials, store
+from app import credentials, credentials_redaction, store
 from app.config import settings
 
 _SECRET = "unit-test-byok-secret"
@@ -200,7 +200,7 @@ def test_redaction_filter_scrubs_scoped_key(
     record = logging.LogRecord(
         "test", logging.ERROR, __file__, 1, f"call failed key={_KEY}", (), None
     )
-    redactor = credentials.ByokRedactionFilter()
+    redactor = credentials_redaction.ByokRedactionFilter()
     with credentials.scoped_byok(cred):
         assert redactor.filter(record)
     assert _KEY not in record.getMessage()
