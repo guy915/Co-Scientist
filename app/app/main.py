@@ -268,13 +268,6 @@ def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
 _allowed_origins, _allow_credentials = _resolve_cors_config(
     os.getenv("ALLOWED_ORIGINS", "")
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=_allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 def _auth_gate_response(
@@ -357,6 +350,17 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     if ownership_response is not None:
         return ownership_response
     return cast(Response, await call_next(request))
+
+
+# Register CORS after ownership so it can add headers to auth and ownership
+# denials as well as responses from the route handlers.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=_allow_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Mount the new run-lifecycle router (durable, persisted, SSE).

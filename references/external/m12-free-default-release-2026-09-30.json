@@ -140,13 +140,51 @@
     "scratch": "No new runtime harness or repository scratch files; logs retained outside repository"
   },
   "release": {
-    "status": "pending",
-    "hosted_ci_waiver": "Prior owner authorization retained; local checks must apply to final behavioral source"
+    "status": "healthy",
+    "pr": "https://github.com/guy915/Co-Scientist/pull/77",
+    "reviewed_head": "0855a164dd5d66c236f9e1cf9999529b6028cffe",
+    "merge_commit": "24e28bfe79da311f3f7c7074dc469b8b15cce62c",
+    "hosted_ci": "Affected targets FAILURE; downstream checks SKIPPED; prior owner waiver used with admin merge after local checks passed",
+    "api": {
+      "id": "b9d878a0-8924-47ac-8a42-282e508fe734",
+      "status": "SUCCESS"
+    },
+    "mcp": {
+      "id": "1f94b0c5-eefe-4e6d-9d30-57ebb154f4a0",
+      "status": "SUCCESS"
+    },
+    "frontend": {
+      "id": "dpl_A5YZEQqKGsqDHuP8Ki7yj7Nv3ryp",
+      "status": "READY",
+      "url": "co-scientist-9wdgu7ek7-guy915s-projects.vercel.app"
+    },
+    "non_secret_config_changes": {
+      "MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "SUPERVISOR_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "CHAT_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "SEMANTIC_SAFETY_MODEL": "openrouter/stealth/space-bunny-alpha"
+    },
+    "prod_smoke": {
+      "passed": 5,
+      "log": "/private/tmp/cosci-defaults-prod-smoke-20260930.log"
+    },
+    "invariants": "One API replica, UID 0, volume /app/data, cache off volume; no migration; global-free/verifier unset. BYOK encryption remains disabled as observed before/after, not enabled or claimed by this release.",
+    "rollback": "Keep four zero-price overrides; prior verified ef9684ab code supports this route. Never restore expired or paid model settings."
   },
   "public_flow": {
-    "status": "not_started",
-    "notification_rule": "disabled",
-    "inference_calls_this_cycle": 0
+    "status": "running",
+    "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+    "execution_policy": "campaign",
+    "selected_model": "openrouter/stealth/space-bunny-alpha",
+    "notify_on_completion": false,
+    "admission_receipt": "/private/tmp/cosci-defaults-public-admission-20260930.json",
+    "create_receipt": "/private/tmp/cosci-defaults-public-create-20260930.json",
+    "start_receipt": "/private/tmp/cosci-defaults-public-start-20260930.json",
+    "watch_session": 74105,
+    "watch_log": "/private/tmp/cosci-defaults-public-watch-20260930.log",
+    "watch_script": "/private/tmp/cosci_defaults_sse_watch_20260930.py",
+    "remaining": "Await terminal event, verify report/public provenance/ownership/tasks and served model/cost before checking M12-04b2. Do not duplicate create/start.",
+    "pre_launch_recovery": "Initial launcher stopped before create because managed .env has no OpenRouter key; use existing protected primary .env for account usage readback. No inference/create occurred in that attempt."
   },
   "deliberately_absent": [
     "secrets",
@@ -155,5 +193,27 @@
     "private user input",
     "other user records"
   ],
-  "check_reuse_basis": "After required suite passes, only example/doc/comment consistency edits; AST of gateway unchanged; no behavioral source, dependencies, inputs or config assumptions changed."
+  "check_reuse_basis": "After required suite passes, only example/doc/comment consistency edits; AST of gateway unchanged; no behavioral source, dependencies, inputs or config assumptions changed.",
+  "configuration_after": {
+    "MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+    "SUPERVISOR_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+    "CHAT_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+    "SEMANTIC_SAFETY_MODEL": "openrouter/stealth/space-bunny-alpha",
+    "CLAIM_VERIFIER_MODEL": null,
+    "COSCIENTIST_REQUIRE_FREE_MODELS": null,
+    "RAILWAY_RUN_UID": "0",
+    "COSCIENTIST_CACHE_DIR": "/tmp/coscientist-cache",
+    "COSCIENTIST_DB_PATH": "/app/data/coscientist.db"
+  },
+  "runtime_configuration": {
+    "commit": "24e28bfe79da311f3f7c7074dc469b8b15cce62c",
+    "model_name": "openrouter/stealth/space-bunny-alpha",
+    "supervisor_model_name": "openrouter/stealth/space-bunny-alpha",
+    "chat_model_name": "openrouter/stealth/space-bunny-alpha",
+    "semantic_safety_model": "openrouter/stealth/space-bunny-alpha",
+    "claim_verifier_model": null,
+    "global_free_mode": null,
+    "byok_enabled": false
+  },
+  "local_configuration": "Managed worktree worker override and all four pre-existing paid primary-workspace role overrides switched to Space Bunny. Effective managed Settings roles independently verified; unrelated config and provider keys preserved, protected backups retained."
 }

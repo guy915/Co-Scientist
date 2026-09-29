@@ -544,6 +544,7 @@ async def run_pilot(
         return result
 
     try:
+        await client.initialize()
         with scoped_campaign_mode(True):
             for pair in pairs:
                 pair_id = pair["id"]
@@ -911,7 +912,6 @@ async def _main() -> int:
     result_path, blind_path = _new_output_paths()
     registry = ToolRegistry(config_path=str(ROOT / TOOL_CONFIG), skip_user_config=True)
     client = MCPToolClient(server_url=endpoint)
-    await client.initialize()
     report = await run_pilot(
         fixture_prereg,
         registry,

@@ -48,6 +48,13 @@ class FakeMCPClient:
         self.response_override = response_override
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.last_response: str | None = None
+        self.initialize_calls = 0
+        self.admission_present_at_initialize: list[bool] = []
+
+    async def initialize(self) -> None:
+        self.initialize_calls += 1
+        admission_path = pilot.PILOT_PREREG.with_suffix(".admission.json")
+        self.admission_present_at_initialize.append(admission_path.is_file())
 
     async def call_tool(self, tool_name: str, **params: Any) -> str:
         self.calls.append((tool_name, params))
@@ -216,27 +223,22 @@ def test_pilot_pairs_one_shared_first_search_with_two_blind_followups(
         return next(queue)
 
     monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    prereg = screen._load_preregistration(1)
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
     result_path = tmp_path / "result.json"
     blind_path = tmp_path / "blind.json"
     client = FakeMCPClient(cache_root, events)
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+    monkeypatch.setattr("sys.argv", ["novelty_result_conditioned_pilot"])
+    monkeypatch.setattr(pilot, "_new_output_paths", lambda: (result_path, blind_path))
+    monkeypatch.setattr(pilot, "MCPToolClient", lambda *, server_url: client)
 
-    report = asyncio.run(
-        pilot.run_pilot(
-            prereg,
-            _registry(),
-            client,
-            cache_root,
-            result_path,
-            blind_path,
-            expected_build_id="offline-build",
-            model_name=MODEL,
-            model_api_key="offline-test-key",
-        )
-    )
+    exit_code = asyncio.run(pilot._main())
+    report = json.loads(result_path.read_text(encoding="utf-8"))
+    prereg = screen._load_preregistration(1)
 
+    assert exit_code == 0
     assert report["status"] == "PILOT_COMPLETE_LABELS_PENDING"
     assert report["model_call_count"] == 24
     assert report["outer_mcp_call_count"] == 36
@@ -312,6 +314,8 @@ def test_pilot_pairs_one_shared_first_search_with_two_blind_followups(
     assert "trace" in report["events"][1]
     assert report["events"][1]["trace"]["server_build_id"] == "offline-build"
     assert report["mcp_serving_process"] == offline_runtime["serving_process"]
+    assert client.initialize_calls == 1
+    assert client.admission_present_at_initialize == [True]
     assert all(
         "query" in event["wire_parameters"]
         and "trace" in event
@@ -739,6 +743,33 @@ def test_existing_admission_marker_blocks_a_crash_recovery_attempt(
             tmp_path / "new-blind.json",
         )
     assert client.calls == []
+    assert client.initialize_calls == 0
+
+
+def test_main_existing_admission_blocks_before_mcp_initialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline_runtime: dict[str, Any],
+) -> None:
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+    monkeypatch.setattr("sys.argv", ["novelty_result_conditioned_pilot"])
+    result_path = tmp_path / "result.json"
+    blind_path = tmp_path / "blind.json"
+    monkeypatch.setattr(pilot, "_new_output_paths", lambda: (result_path, blind_path))
+    client = FakeMCPClient(cache_root, [])
+    monkeypatch.setattr(pilot, "MCPToolClient", lambda *, server_url: client)
+    pilot.PILOT_PREREG.with_suffix(".admission.json").write_text(
+        '{"status":"CLAIMED"}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="campaign admission already exists"):
+        asyncio.run(pilot._main())
+
+    assert client.initialize_calls == 0
+    assert client.calls == []
 
 
 def test_server_restart_during_search_stops_before_followup(
@@ -808,6 +839,12 @@ def _runtime_inputs(
         }
     }
     protocol = {"mcp_tree": "server-tree", "mcp_build_id": "server-tree"}
+    repository = tmp_path / "repository"
+    engine_root = repository / "engine"
+    server_module = engine_root / "mcp_server/server.py"
+    server_module.parent.mkdir(parents=True)
+    server_module.touch()
+    monkeypatch.setattr(pilot, "ROOT", repository)
     monkeypatch.setattr(pilot.fixture, "_sha256", lambda _: "digest")
     monkeypatch.setattr(pilot.fixture, "_check_server_tree_clean", lambda: None)
     monkeypatch.setattr(pilot.fixture, "_git", lambda *_: "server-tree")
@@ -822,6 +859,17 @@ def test_runtime_requires_the_protocol_to_pin_the_current_mcp_tree(
     protocol["mcp_build_id"] = "older-server-tree"
 
     with pytest.raises(ValueError, match="differs from the pilot protocol"):
+        pilot._check_runtime(protocol, prereg, cache_root=cache_root)
+
+
+def test_runtime_rejects_repository_env_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, prereg, cache_root = _runtime_inputs(tmp_path, monkeypatch)
+    repository = tmp_path / "repository"
+    (repository / ".env").touch()
+
+    with pytest.raises(ValueError, match=r"Remove repository \.env files"):
         pilot._check_runtime(protocol, prereg, cache_root=cache_root)
 
 
