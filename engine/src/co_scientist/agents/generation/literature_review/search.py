@@ -60,6 +60,7 @@ from co_scientist.agents.generation.literature_review.search_retry import (
 from co_scientist.agents.generation.literature_review.search_retry import (
     _search_retry_delay as _search_retry_delay,
 )
+from co_scientist.mcp_campaign import campaign_serves_tool
 
 if TYPE_CHECKING:
     from co_scientist.config import SearchSourceConfig, ToolConfig, ToolRegistry
@@ -228,6 +229,37 @@ async def _merge_and_budget_multi_source(
     return all_paper_metadata, paper_source_map
 
 
+def _campaign_admitted_sources(
+    sources: list["SearchSourceConfig"], tool_registry: "ToolRegistry"
+) -> list["SearchSourceConfig"]:
+    """Drop the sources whose tool the campaign MCP policy refuses.
+
+    The registry is built before the campaign scope is known, so a source
+    such as web search stays enabled there. Every call to it is then
+    refused by the policy, which is a fixed answer, not a transient one.
+    Skipping it here saves the calls and keeps the refusals out of the
+    run's error log.
+
+    Args:
+        sources: The workflow's enabled search sources.
+        tool_registry: Registry used to resolve each source's MCP tool.
+
+    Returns:
+        The sources the current scope may search, in their original order.
+    """
+    admitted = []
+    for source in sources:
+        tool = tool_registry.get_tool(source.tool)
+        if tool is not None and not campaign_serves_tool(tool.mcp_tool_name):
+            logger.info(
+                "Skipping search source %s: not served under campaign policy",
+                source.tool,
+            )
+            continue
+        admitted.append(source)
+    return admitted
+
+
 async def _phase2_collect_papers_multi_source(
     queries: list[str],
     config: SearchConfig,
@@ -239,7 +271,9 @@ async def _phase2_collect_papers_multi_source(
     # (ToolRegistry._apply_disabled_tools), so enabled sources are exactly
     # the sources whose tools are live.
     assert config.workflow is not None and config.tool_registry is not None
-    enabled_sources = config.workflow.get_enabled_search_sources()
+    enabled_sources = _campaign_admitted_sources(
+        config.workflow.get_enabled_search_sources(), config.tool_registry
+    )
     logger.info(
         "Phase 2: collecting papers from %s sources", len(enabled_sources)
     )

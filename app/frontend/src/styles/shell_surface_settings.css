@@ -371,6 +371,46 @@
   font-size: 1.05rem;
 }
 
+/* Supervisor and worker model selects (settings_model_select.tsx): two
+   equal columns under the key field, stacking on a narrow dialog. */
+.ucs-settings-model-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+@media (max-width: 480px) {
+  .ucs-settings-model-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ucs-settings-model-field {
+  min-width: 0;
+}
+
+.ucs-settings-model-field .ucs-provider-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The right-hand select's menu opens leftward, inside the dialog. */
+.ucs-settings-model-field:last-child .ucs-provider-menu {
+  right: 0;
+  left: auto;
+}
+
+.ucs-provider-trigger:disabled {
+  color: var(--cosci-muted);
+  cursor: default;
+}
+
+.ucs-provider-trigger:disabled:hover {
+  background: var(--cosci-menu-bg);
+}
+
 .ucs-settings-field-hint {
   margin: 0.55rem 0 0;
   color: var(--cosci-muted);
@@ -461,4 +501,3 @@
   color: inherit;
   opacity: 0.85;
 }
-

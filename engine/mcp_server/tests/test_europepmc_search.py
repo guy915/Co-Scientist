@@ -2,8 +2,21 @@
 
 import httpx
 import pytest
-from mcp_server.tests._httpx import stub_failure, stub_responses
+from mcp_server.tests._httpx import (
+    StubClient,
+    StubResponse,
+    stub_failure,
+    stub_responses,
+)
 from mcp_server.tools.lit_review import europepmc_search
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the transport retry's waits out of the suite's wall clock."""
+    monkeypatch.setattr(
+        europepmc_search, "_TRANSPORT_RETRY_DELAYS_SECONDS", (0.0, 0.0)
+    )
 
 
 def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
@@ -246,3 +259,47 @@ async def test_rate_limit_retains_status_and_retry_hint(
     )
     with pytest.raises(RuntimeError, match="HTTP 429; Retry-After=60"):
         await europepmc_search.search_preprints("PKMYT1")
+
+
+async def test_a_dropped_connection_is_retried_on_a_fresh_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One dropped keep-alive socket must not cost the source the query.
+
+    Production logged "Server disconnected without sending a response" for
+    Europe PMC and bioRxiv in the same second, and each lost its query.
+    """
+    responses: list[object] = [
+        httpx.RemoteProtocolError("Server disconnected"),
+        _payload(),
+    ]
+
+    class _FlakyClient(StubClient):
+        def _serve(self, url: str, payload: object) -> StubResponse:
+            self.calls.append((url, payload))
+            outcome = responses.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return StubResponse(outcome)
+
+    client = _FlakyClient()
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+
+    result = await europepmc_search.search_biorxiv("PKMYT1")
+
+    assert len(client.calls) == 2
+    assert result["records"][0]["title"] == "PKMYT1 in Cancer"
+
+
+async def test_a_persistent_transport_failure_still_fails_the_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The retry is bounded, and its last failure keeps its diagnosis."""
+    client = stub_failure(
+        monkeypatch, httpx.RemoteProtocolError("Server disconnected")
+    )
+
+    with pytest.raises(RuntimeError, match="RemoteProtocolError"):
+        await europepmc_search.search_europepmc("PKMYT1")
+
+    assert len(client.calls) == 3

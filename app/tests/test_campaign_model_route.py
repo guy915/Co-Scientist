@@ -96,7 +96,9 @@ def _callbacks(policy: str) -> runs_crud_create.RunCreationCallbacks:
     def resolve_settings(*_args: Any) -> _ResolvedRunSettings:
         return _ResolvedRunSettings(
             config={"setup": {"goal": "study"}},
-            run_mode="standard",
+            # Express: a keyless real run outside it is refused as free
+            # usage before the campaign route is reached.
+            run_mode="express",
             provider="engine",
             focus="balance",
             llm_backend="real",

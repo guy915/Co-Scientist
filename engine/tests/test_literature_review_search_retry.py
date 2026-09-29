@@ -19,6 +19,7 @@ import pytest
 from langchain_core.tools import ToolException
 
 from co_scientist.agents.generation.literature_review import search
+from co_scientist.mcp_campaign import CampaignToolUnavailableError
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
@@ -201,4 +202,31 @@ async def test_sdk_tool_failure_preserves_provenance_without_retry() -> None:
         await search._call_search_tool(
             cast(MCPToolClient, client), "search_europepmc", {}
         )
+    assert client.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_a_campaign_policy_refusal_is_not_retried() -> None:
+    """The policy answers the same way on every attempt.
+
+    It used to read as a transient failure, so every refused call was
+    retried four times and logged a warning for each retry.
+    """
+
+    class _RefusingClient:
+        calls = 0
+
+        async def call_tool(self, _name: str, **_params: Any) -> Any:
+            self.calls += 1
+            raise CampaignToolUnavailableError(
+                "tool is unavailable under campaign MCP policy"
+            )
+
+    client = _RefusingClient()
+
+    with pytest.raises(CampaignToolUnavailableError):
+        await search._call_search_tool(
+            cast(MCPToolClient, client), "search_web", {}
+        )
+
     assert client.calls == 1

@@ -35,6 +35,7 @@ from app.auth import (
 from app.auth import (
     router as auth_router,
 )
+from app.byok_models import router as byok_models_router
 from app.config import settings
 from app.diagnostics_api import (
     ConfigResponse as ConfigResponse,
@@ -74,6 +75,7 @@ from app.diagnostics_api import (
     router as diagnostics_api_router,
 )
 from app.documents import router as documents_router
+from app.free_usage import router as free_usage_router
 from app.interviews import router as interviews_router
 from app.logging_setup import (
     configure_log_capture,
@@ -363,6 +365,8 @@ app.include_router(interviews_router)
 app.include_router(documents_router)
 app.include_router(shares_router)
 app.include_router(account_export_router)
+app.include_router(free_usage_router)
+app.include_router(byok_models_router)
 app.include_router(auth_router)
 app.include_router(logs_router)
 # Diagnostics endpoints (/, /health, /config, /status).

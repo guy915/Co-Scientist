@@ -22,7 +22,8 @@ referrers). This module owns the whole life of that key:
   every signature. Never a process global: each durable task scopes its
   own run's credential.
 
-The plaintext key is never logged (see ``ByokRedactionFilter``), never
+The plaintext key is never logged (see
+``credentials_redaction.ByokRedactionFilter``), never
 returned by any endpoint, and never placed in checkpointed state.
 """
 
@@ -40,6 +41,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app import byok_models
 from app.config import byok_default_model, settings
 
 if TYPE_CHECKING:
@@ -75,13 +77,24 @@ class ByokCredential:
     Attributes:
         provider: Provider id, one of ``config.PROVIDER_CREDENTIAL_ENV``.
         api_key: The provider API key (plaintext only in memory).
-        model: The litellm model this credential runs (the provider's
-            default-model table entry, recorded at validation time).
+        model: The litellm worker-tier model this credential runs (the
+            scientist's choice from ``byok_models``, else the provider's
+            default), recorded at validation time.
+        supervisor_model: The supervisor-tier model, or None to run the
+            supervisor on ``model`` as well.
     """
 
     provider: str
     api_key: str
     model: str
+    supervisor_model: str | None = None
+
+    @property
+    def models(self) -> tuple[str, ...]:
+        """Every distinct model this credential runs, worker first."""
+        if self.supervisor_model in (None, self.model):
+            return (self.model,)
+        return (self.model, str(self.supervisor_model))
 
 
 # ---------------------------------------------------------------------------
@@ -209,12 +222,14 @@ def credential_from_headers(
         headers: Request headers (case-insensitive mapping).
 
     Returns:
-        The credential with the provider's default model resolved, or
-        None when no key was sent.
+        The credential with its worker and supervisor models resolved
+        (the provider's default where no choice was sent), or None when
+        no key was sent.
 
     Raises:
-        ByokRequestError: A key without a provider, or a provider the
-            default-model table does not know.
+        ByokRequestError: A key without a provider, a provider the
+            default-model table does not know, or a model the provider
+            does not offer.
     """
     api_key = (headers.get(API_KEY_HEADER) or "").strip()
     if not api_key:
@@ -224,10 +239,23 @@ def credential_from_headers(
         raise ByokRequestError(
             f"the {API_KEY_HEADER} header requires {PROVIDER_HEADER}"
         )
-    model = byok_default_model(provider)
-    if model is None:
+    if byok_default_model(provider) is None:
         raise ByokRequestError(f"unsupported provider: {provider}")
-    return ByokCredential(provider=provider, api_key=api_key, model=model)
+    try:
+        model = byok_models.resolve_model_choice(
+            provider, headers.get(byok_models.WORKER_MODEL_HEADER)
+        )
+        supervisor = byok_models.resolve_model_choice(
+            provider, headers.get(byok_models.SUPERVISOR_MODEL_HEADER)
+        )
+    except byok_models.ByokModelError as exc:
+        raise ByokRequestError(str(exc)) from exc
+    return ByokCredential(
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        supervisor_model=supervisor,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,15 +285,19 @@ def store_run_credential(
     with _use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO run_credentials (run_id, client_id, provider, "
-            "model, encrypted_key, created_at) VALUES (?,?,?,?,?,?) "
+            "model, supervisor_model, encrypted_key, created_at) "
+            "VALUES (?,?,?,?,?,?,?) "
             "ON CONFLICT(run_id) DO UPDATE SET client_id=excluded."
             "client_id, provider=excluded.provider, "
-            "model=excluded.model, encrypted_key=excluded.encrypted_key",
+            "model=excluded.model, "
+            "supervisor_model=excluded.supervisor_model, "
+            "encrypted_key=excluded.encrypted_key",
             (
                 run_id,
                 client_id,
                 credential.provider,
                 credential.model,
+                credential.supervisor_model,
                 encrypt_api_key(credential.api_key),
                 _now(),
             ),
@@ -288,7 +320,8 @@ def get_run_credential(
 
     with connect(db_path) as conn:
         row = conn.execute(
-            "SELECT provider, model, encrypted_key FROM run_credentials "
+            "SELECT provider, model, supervisor_model, encrypted_key "
+            "FROM run_credentials "
             "WHERE run_id=?",
             (run_id,),
         ).fetchone()
@@ -298,6 +331,7 @@ def get_run_credential(
         provider=row["provider"],
         api_key=decrypt_api_key(row["encrypted_key"]),
         model=row["model"],
+        supervisor_model=row["supervisor_model"],
     )
 
 
@@ -353,15 +387,16 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
 
     try:
         with scoped_byok(credential):
-            await _acompletion(
-                model=credential.model,
-                api_key=credential.api_key,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1,
-                temperature=0,
-                timeout=_VALIDATION_TIMEOUT_SECONDS,
-                drop_params=True,
-            )
+            for model in credential.models:
+                await _acompletion(
+                    model=model,
+                    api_key=credential.api_key,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=1,
+                    temperature=0,
+                    timeout=_VALIDATION_TIMEOUT_SECONDS,
+                    drop_params=True,
+                )
     except AuthenticationError as exc:
         raise ByokValidationError(
             "the provider rejected the API key (invalid or expired)"
@@ -444,45 +479,3 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
     if credential is None:
         return model, None
     return credential.model, credential.api_key
-
-
-# ---------------------------------------------------------------------------
-# Log redaction
-# ---------------------------------------------------------------------------
-
-
-def _redact_log_details(record: logging.LogRecord) -> None:
-    """Redact formatted traceback and stack text on a log record."""
-    if record.exc_info:
-        record.exc_text = logging.Formatter().formatException(record.exc_info)
-    for field in ("exc_text", "stack_info"):
-        value = getattr(record, field)
-        if value:
-            setattr(record, field, redact_byok_text(value))
-
-
-class ByokRedactionFilter(logging.Filter):
-    """Scrubs a scoped BYOK key out of any record that carries it.
-
-    Defense in depth: no code path logs the key deliberately, but a
-    provider error message could embed it, and records from libraries
-    are not ours to control. Attached to both the stdout handler and the
-    persistent capture pipeline (see ``logging_setup``); when no
-    credential is scoped the filter is a cheap no-op.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Redact the scoped key from the record, keeping the record."""
-        if current_byok() is None:
-            return True
-        try:
-            message = record.getMessage()
-            redacted = redact_byok_text(message)
-            if redacted != message:
-                record.msg = redacted
-                record.args = None
-            _redact_log_details(record)
-        except Exception:
-            # Redaction must never break logging itself.
-            return True
-        return True

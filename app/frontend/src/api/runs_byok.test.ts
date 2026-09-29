@@ -45,9 +45,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.removeItem('cosci-api-key');
   localStorage.removeItem('cosci-api-provider');
+  localStorage.removeItem('cosci-api-model');
+  localStorage.removeItem('cosci-api-supervisor-model');
 });
 
 describe('createRun BYOK transport', () => {
+  it('sends the chosen worker and supervisor models with the key', async () => {
+    localStorage.setItem('cosci-api-key', 'sk-byok-1');
+    localStorage.setItem('cosci-api-provider', 'deepseek');
+    localStorage.setItem('cosci-api-model', 'deepseek/deepseek-v4-flash');
+    localStorage.setItem(
+      'cosci-api-supervisor-model',
+      'deepseek/deepseek-v4-pro',
+    );
+    fetchMock().mockResolvedValue(jsonResponse({id: 'r1'}));
+
+    await createRun({research_goal: 'g'});
+
+    const headers = firstCall()[1]?.headers as Record<string, string>;
+    expect(headers['X-LLM-Model']).toBe('deepseek/deepseek-v4-flash');
+    expect(headers['X-LLM-Supervisor-Model']).toBe('deepseek/deepseek-v4-pro');
+  });
+
+  it('surfaces a free-usage refusal as the server wrote it', async () => {
+    const detail = 'You have used your 3 free runs for today.';
+    fetchMock().mockResolvedValue(errorResponse(429, JSON.stringify({detail})));
+    await expect(createRun({research_goal: 'g'})).rejects.toThrow(
+      new RegExp(`^${detail}$`),
+    );
+  });
+
+  it('sends no model headers without a key', async () => {
+    localStorage.setItem('cosci-api-model', 'deepseek/deepseek-v4-pro');
+    fetchMock().mockResolvedValue(jsonResponse({id: 'r1'}));
+
+    await createRun({research_goal: 'g'});
+
+    const headers = firstCall()[1]?.headers as Record<string, string>;
+    expect(headers['X-LLM-Model']).toBeUndefined();
+  });
+
   it('sends stored BYOK credentials as request headers', async () => {
     localStorage.setItem('cosci-api-key', 'sk-byok-1');
     localStorage.setItem('cosci-api-provider', 'openai');

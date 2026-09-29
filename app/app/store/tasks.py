@@ -319,7 +319,9 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
     _fail_ambiguous_expired_leases(conn, now)
 
     # Engine leases have no durable request-time admission receipt, so they
-    # fail closed regardless of the current route configuration.
+    # fail closed regardless of the current route configuration -- except on
+    # a campaign run, whose persisted policy is that receipt (see
+    # tasks_recovery._PROVABLY_FREE_RUN); those fall through to this rescue.
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "
