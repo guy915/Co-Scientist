@@ -1,0 +1,159 @@
+{
+  "purpose": "M12-04b2 default release evidence; deployment/public flow remains unverified",
+  "recorded_at_utc": "2026-09-29T22:35:16.346524+00:00",
+  "starting_head": "f10041a219ac89c1cd33de5c6f0c88dc04743df4",
+  "product_base": "ef9684ab93bf92f49a8711cb34a5840dd76a7399",
+  "selected_model": "openrouter/stealth/space-bunny-alpha",
+  "qualification_record": "m12-space-bunny-corrected-result-2026-09-30.md",
+  "test_first": {
+    "red": "worker captured failing default-role test before config edit: four Nex defaults differed",
+    "focused_passed": {
+      "app_default_campaign_byok": 21,
+      "app_byok_free_usage_streams": 42,
+      "engine_promo_free_ceiling_fallback": 97
+    },
+    "limitation": "Focused worker logs were streamed, not saved to file; full suites retained by coordinator."
+  },
+  "checks": {
+    "test-all": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-test-all-20260930.log",
+      "log_sha256": "cf0602459eedc840f4b4e8e5eaaaa0ccb50d6fcf3ec543cbe7a051e14b233ab8"
+    },
+    "lint": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-lint-20260930.log",
+      "log_sha256": "e0ba1507bb66abd9eceffc3e1440e695d23dbec6985dad32a0fe555e05cbddae"
+    },
+    "typecheck": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-typecheck-20260930.log",
+      "log_sha256": "8773f31ad68355efda32ef21a2fb4c58557fde5157e327cc1d0058e85339ee5f"
+    },
+    "build": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-build-20260930.log",
+      "log_sha256": "d02412cf9be1e4bac77f61152a7f0ee96f5617d954f5b597860b53c540c4ea60"
+    },
+    "eval-smoke": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-eval-smoke-20260930.log",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6"
+    },
+    "frontend": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-frontend-20260930.log",
+      "log_sha256": "04183c58b0ec08b51f3f39278fb77427a0d7b896b21071ba9674dd019bdeeb77"
+    },
+    "e2e": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-defaults-e2e-20260930.log",
+      "log_sha256": "0868294abf23a7cebf468654c045ff47680b770a2c80fc14b0f4e62bad33a5b4"
+    }
+  },
+  "counts": {
+    "engine_passed": 3171,
+    "engine_existing_skips": 2,
+    "app_passed": 2053,
+    "mcp_passed": 314,
+    "frontend_passed": 813,
+    "e2e_passed": 18,
+    "parity_requirement_rows": 115,
+    "parity_verified": 100
+  },
+  "configuration_before": {
+    "MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SUPERVISOR_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "CHAT_MODEL_NAME": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "SEMANTIC_SAFETY_MODEL": "openrouter/nex-agi/nex-n2.5-pro:free",
+    "CLAIM_VERIFIER_MODEL": null,
+    "COSCIENTIST_REQUIRE_FREE_MODELS": null,
+    "RAILWAY_RUN_UID": "0",
+    "COSCIENTIST_CACHE_DIR": "/tmp/coscientist-cache",
+    "COSCIENTIST_DB_PATH": "/app/data/coscientist.db"
+  },
+  "official_endpoint_metadata": {
+    "captured_at_utc": "2026-09-29T22:32:39.125571+00:00",
+    "source": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+    "model": "stealth/space-bunny-alpha",
+    "endpoints": [
+      {
+        "name": "Stealth | stealth/space-bunny-alpha",
+        "model_id": "stealth/space-bunny-alpha",
+        "model_name": "Space Bunny Alpha",
+        "context_length": 1000000,
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "discount": 0
+        },
+        "provider_name": "Stealth",
+        "tag": "stealth",
+        "quantization": "unknown",
+        "max_completion_tokens": 524288,
+        "max_prompt_tokens": null,
+        "supported_parameters": [
+          "reasoning",
+          "include_reasoning",
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "tools",
+          "tool_choice",
+          "response_format",
+          "reasoning_effort"
+        ],
+        "supports_tool_choice": {
+          "none": false,
+          "auto": true,
+          "required": false,
+          "function": false
+        },
+        "status": 0,
+        "uptime_last_30m": 99.87723164708056,
+        "uptime_last_5m": 99.99756625120546,
+        "uptime_last_1d": 99.92884520031444,
+        "supports_implicit_caching": false,
+        "native_tools": {},
+        "supports_voice_cloning": false,
+        "supports_multiple_audio_references": false,
+        "supports_image_reference": false,
+        "latency_last_30m": null,
+        "throughput_last_30m": null
+      }
+    ],
+    "purpose": "Public zero-price/availability metadata before default release; no inference"
+  },
+  "security_scan": {
+    "id": "dc1ccfc4-86ad-491a-9bab-37afacdb8317",
+    "findings": 0,
+    "scope": "Sealed original default patch, one changed production module; subsequent example/documentation consistency and comment-only gateway changes inspected inline with canonical policy unchanged."
+  },
+  "independent_semantic_review": {
+    "worker": "Luna 6 xhigh",
+    "runtime_findings": 0,
+    "doc_findings": "Resolved: root/standalone examples, standalone role table and adjacent gateway comment match Space Bunny; parent inspected corrections."
+  },
+  "cleanup": {
+    "unused_check": "Ruff F401/F841 passed on changed Python code",
+    "ui_source_changes": false,
+    "scratch": "No new runtime harness or repository scratch files; logs retained outside repository"
+  },
+  "release": {
+    "status": "pending",
+    "hosted_ci_waiver": "Prior owner authorization retained; local checks must apply to final behavioral source"
+  },
+  "public_flow": {
+    "status": "not_started",
+    "notification_rule": "disabled",
+    "inference_calls_this_cycle": 0
+  },
+  "deliberately_absent": [
+    "secrets",
+    "access codes",
+    "bearer sessions",
+    "private user input",
+    "other user records"
+  ],
+  "check_reuse_basis": "After required suite passes, only example/doc/comment consistency edits; AST of gateway unchanged; no behavioral source, dependencies, inputs or config assumptions changed."
+}

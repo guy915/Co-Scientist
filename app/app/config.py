@@ -42,11 +42,11 @@ class Settings(BaseSettings):
     # LLM Configuration
     #
     # The system default for worker, supervisor, chat, and semantic safety
-    # is the selected zero-priced Nex Pro route. Its gateway declaration in
-    # ``llm_gateway_routing._GATEWAY_MODELS`` has no model-level fallback:
-    # no alternative model is qualified for this default. The request keeps
-    # the existing zero-price ceiling, and explicit environment/BYOK model
-    # choices remain supported.
+    # is the zero-priced Space Bunny route. Its gateway declaration pins
+    # calls to Stealth, disables provider fallback, and has no model-level
+    # fallback. The current listing is checked before calls and the request
+    # keeps a zero-price ceiling. Explicit environment/BYOK model choices
+    # remain supported.
     #
     # Production overrides all four settings below via explicit Railway
     # env vars (see ``docs/DEPLOYMENT.md``); changing prod is an env
@@ -55,16 +55,16 @@ class Settings(BaseSettings):
     # model_name: worker model -- generate, review, ranking, reflection,
     # evolve, proximity, literature_review, claim verification. High-volume,
     # runs many times per iteration.
-    model_name: str = "openrouter/nex-agi/nex-n2.5-pro:free"
+    model_name: str = "openrouter/stealth/space-bunny-alpha"
     # supervisor_model_name: strategic model -- supervisor (research
     # planning), meta_review and research_overview (final report synthesis).
     # Runs once or twice per iteration. The same model as the worker tier.
     # Falls back to model_name only if explicitly cleared.
-    supervisor_model_name: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
+    supervisor_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
     # chat_model_name: model for all user-facing communication -- the
     # research interview, Chat-tab Q&A, and session titling. Falls back to
     # model_name only if explicitly cleared.
-    chat_model_name: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
+    chat_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -103,7 +103,7 @@ class Settings(BaseSettings):
     semantic_safety_enabled: bool = True
     # Kept on the worker tier rather than falling back to the supervisor
     # model, so safety screening stays on the "everything else" tier.
-    semantic_safety_model: str | None = "openrouter/nex-agi/nex-n2.5-pro:free"
+    semantic_safety_model: str | None = "openrouter/stealth/space-bunny-alpha"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see

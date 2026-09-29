@@ -19,7 +19,8 @@ Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfil
 **Decided: production runs the worker embedded in the API process, not a separate worker service.** `COSCIENTIST_EMBEDDED_WORKER=1` is what the api service actually runs on today (see the env list below), and the three-service table above is the complete deployed shape — there is no fourth "worker" service. `python -m app.task_worker` with `COSCIENTIST_EMBEDDED_WORKER=0` on the api remains a supported code path (see `runs_lifecycle.py` / `task_worker.py`) for the day the single-writer SQLite ceiling (`worker_pool_size`, see the root AGENTS.md Gotchas and the Notable settings section of `app/AGENTS.md`) actually requires scaling workers independently of the api — it is not a recommendation to run that way today, and nothing in this deployment does.
 
 The Railway **api** service's non-secret routing and storage settings, read back
-on 23 September 2026 **before** the M2 release, are:
+on 23 September 2026 **before** the M2 release, are a historical snapshot, not
+a current production readback:
 
 ```
 MODEL_NAME=openrouter/minimax/minimax-m3:free
@@ -49,15 +50,17 @@ an `X-MCP-Shared-Secret` header or the server returns 401
 (`mcp_client_helpers.py::_resolve_server_configs`). Left unset, the check is a
 no-op. The CORS wildcard is gone regardless; MCP is server-to-server only.
 
-The planned M2 default is exact `openrouter/nex-agi/nex-n2.5-pro:free` on all
-four roles, with no automatic model fallback and current zero-price admission.
-It is **not yet the production setting**. The official listing marks that free
-route as expiring 25 September 2026; check its availability before live work
-and do not silently select a paid or unqualified replacement. In the shared
-API, keep the process-global `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so
-ordinary explicit BYOK remains available; a verified bearer-subject allowlist
-and persisted request policy activate the campaign restrictions. Record the
-post-release readback and deployment IDs in the campaign dossier.
+The desired default for the next release is exact
+`openrouter/stealth/space-bunny-alpha` on all four system roles. The gateway
+pins it to Stealth, disables provider and model fallback, checks the current
+zero-price listing before calls, and enforces a zero-price ceiling. This is the
+selected code default, not a current production readback: the values above are
+still the 23 September snapshot, and production must be read back after its
+environment update and deployment. `CLAIM_VERIFIER_MODEL` should remain unset
+so claim assessment inherits the worker model. Keep the process-global
+`COSCIENTIST_REQUIRE_FREE_MODELS` flag off so ordinary explicit BYOK remains
+available; campaign restrictions stay request-scoped. Record the verified
+post-release values and deployment IDs in the campaign dossier.
 
 Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
 

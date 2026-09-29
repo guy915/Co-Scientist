@@ -241,9 +241,9 @@ _GATEWAY_MAX_FALLBACKS: Final[int] = 3
 # Zero is now an explicit ceiling for free routes, including per-request
 # fees. Current model eligibility still needs verification before live use.
 _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    # Selected system default. Campaign probes observed reasoning on both Nex
-    # variants; until disabling is qualified, use bounded-minimal reasoning
-    # and fund its answer. No alternative model is qualified as a fallback.
+    # Former system default, retained for explicit deployment overrides.
+    # Campaign probes observed reasoning on both Nex variants; use bounded-
+    # minimal reasoning and fund its answer. No model fallback is declared.
     "openrouter/nex-agi/nex-n2.5-pro:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
@@ -336,6 +336,8 @@ _GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
     "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
         takes_reasoning_knob=True, spends_budget_thinking=True
     ),
+    # Selected zero-price system default; promotional admission rechecks the
+    # current listing, while this route pins Stealth with no fallbacks.
     "openrouter/stealth/space-bunny-alpha": GatewayModel(
         takes_reasoning_knob=True,
         spends_budget_thinking=True,
