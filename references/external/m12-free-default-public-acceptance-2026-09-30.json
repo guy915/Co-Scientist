@@ -2400,7 +2400,8 @@
   "scientific_limits": [
     "Completion is operational evidence, not wet-lab or expert validation.",
     "Report retains 21 unsupported and 4 unavailable citations; no verified-citation claim is inferred.",
-    "Three ranking tie-vote deterministic outcomes retained; no paid/model fallback observed."
+    "Three ranking tie-vote deterministic outcomes retained; no paid/model fallback observed.",
+    "207 total attempts include 29 recovered APIError attempts; full-flow completion does not establish a zero-error provider."
   ],
   "raw_snapshot_hashes": {
     "state": "11137df629243014832250258ea676b46c6f5edbbfe172b89331f97f9b8481ff",
@@ -2412,5 +2413,109 @@
     "claim-evidence": "5c99ec4c84184467ce1bc08acd8f06915cef264b7f3c270486c278a3c79acad8",
     "safety": "3bc370e06cd34f3e1d9eb4e2ffe38fdec95abec6760ae1f9a7e7157d6f52df00",
     "reviews": "708bb5d55e4074617f7dbb5d1dc3a5409a265c31c391ce40ecffe60a57b421b3"
-  }
+  },
+  "independent_acceptance_review": "Luna 6 xhigh independently accepted the terminal snapshots and checked claim-gate audit/publication semantics against maintained source; no run-level acceptance violation.",
+  "safety_and_gate_audit": [
+    {
+      "id": 519,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "stage": "intake",
+      "decision": "allow",
+      "reason": "This is a legitimate preclinical cancer-research question about mechanisms of acquired drug resistance and interpretation of public evidence, with no request for harmful operational detail or individualized care.",
+      "created_at": 1790721835.7835934,
+      "category": "allowed",
+      "policy_version": "coscientist-safety-v5",
+      "requires_review": false,
+      "assessor": "semantic:openrouter/stealth/space-bunny-alpha",
+      "resolution": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "matches": [],
+      "risk_domains": [
+        "precision oncology",
+        "EGFR-mutant lung cancer",
+        "osimertinib resistance",
+        "bypass signaling"
+      ]
+    },
+    {
+      "id": 520,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "stage": "claim_gate",
+      "decision": "block",
+      "reason": "hypothesis 6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb: 1 categorical claim(s) lack support",
+      "created_at": 1790725151.3065085,
+      "category": null,
+      "policy_version": null,
+      "requires_review": false,
+      "assessor": null,
+      "resolution": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "matches": [
+        "Paired-biopsy studies also identify off-target alterations and squamous transformation alongside EGFR alterations, showing that clinical MET amplification must be distinguished from mixed or transformation-associated resistance [C3]."
+      ],
+      "risk_domains": []
+    },
+    {
+      "id": 521,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "stage": "claim_gate",
+      "decision": "block",
+      "reason": "hypothesis 5caa764f-96c8-4b12-8b6b-3301a758c830: 1 categorical claim(s) lack support",
+      "created_at": 1790725151.3078425,
+      "category": null,
+      "policy_version": null,
+      "requires_review": false,
+      "assessor": null,
+      "resolution": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "matches": [
+        "Longitudinal clinical analyses separate off-target alterations from squamous transformation but also show that resistance events can be mixed, supporting explicit exclusion profiling rather than a single-mechanism interpretation [C3]."
+      ],
+      "risk_domains": []
+    },
+    {
+      "id": 522,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "stage": "claim_gate",
+      "decision": "block",
+      "reason": "hypothesis c7a0c074-eeb8-443f-a7d7-2087ede0e5f8: 1 categorical claim(s) lack support",
+      "created_at": 1790725151.3093426,
+      "category": null,
+      "policy_version": null,
+      "requires_review": false,
+      "assessor": null,
+      "resolution": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "matches": [
+        "The proposed evidence thresholds are intended to be evaluated against public reports of MET amplification, phospho-MET/AKT/ERK activation, genetic or pharmacologic MET rescue, and co-occurrence with EGFR C797S or other resistance lesions rather than being asserted from an unprovided citation."
+      ],
+      "risk_domains": []
+    },
+    {
+      "id": 523,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "stage": "final",
+      "decision": "allow",
+      "reason": "This is legitimate preclinical cancer research describing mechanisms and experimental approaches for studying acquired osimertinib resistance. It does not meaningfully enable weaponization, harmful pathogen enhancement, mass-casualty capability, non-consensual experimentation, or evasion.",
+      "created_at": 1790725154.745093,
+      "category": "allowed",
+      "policy_version": "coscientist-safety-v5",
+      "requires_review": false,
+      "assessor": "semantic:openrouter/stealth/space-bunny-alpha",
+      "resolution": null,
+      "resolved_by": null,
+      "resolved_at": null,
+      "matches": [],
+      "risk_domains": [
+        "biomedical_research",
+        "oncology",
+        "preclinical_experiment"
+      ]
+    }
+  ],
+  "gate_semantics": "Intake/final safety allow. Three unsupported categorical claim-gate audit blocks remain visible; maintained rank-and-publish policy withholds contradicted/unsafe ideas, while any supports/partial edge counts an idea as verified. Neither all claims supported nor verified citations is claimed."
 }
