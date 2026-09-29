@@ -1,0 +1,194 @@
+{
+  "purpose": "Offline release verification of corrected scientific-screen runner and frozen protocol; not a provider qualification or production result.",
+  "checked_at_utc": "2026-09-29T21:34:00.446021+00:00",
+  "product_base": "c8399332368d730ba367208db416f3e5797462cc",
+  "probe_revision": "1252bc3754833a6aa381e535edb527bfb409e950",
+  "protocol_revision": "b31b75c5d85910c2c5e10fb334e6cb7947df4f2d",
+  "reuse_basis": "All product Python sources match the deployed product base. The runner/test source did not change after 1252bc37. Subsequent commits changed only protocol/PLAN and source manifest; the completed engine result and static checks remain applicable. The interrupted make test-all was completed through the same remaining Makefile targets.",
+  "inference_performed": false,
+  "checks": [
+    {
+      "id": "engine",
+      "command": "make test-engine (completed component of interrupted make test-all)",
+      "result": "3169 passed, 2 existing skips",
+      "status": "passed",
+      "log_sha256": "d3ad028156394694fd314b5cc6d706111e51c883338ae36ae43a216a8f9bd133",
+      "log_tail": [
+        "........................................................................ [ 21%]",
+        "........................................................................ [ 24%]",
+        "........................................................................ [ 28%]",
+        "........................................................................ [ 31%]",
+        "........................................................................ [ 35%]",
+        "........................................................................ [ 38%]",
+        "........................................................................ [ 42%]",
+        ".............................................................."
+      ]
+    },
+    {
+      "id": "app",
+      "command": "make test-app",
+      "result": "2032 passed",
+      "status": "passed",
+      "log_sha256": "e87b703839f77dd108a4c53a0100e1c81376dd4ed1c126ec2bdbf7f4f59cfad2",
+      "log_tail": [
+        "tests/test_interviews_fallback.py: 3 warnings",
+        "tests/test_interviews_revision.py: 6 warnings",
+        "tests/test_run_title_from_interview.py: 2 warnings",
+        "  /Users/guy/.codex/worktrees/external-m11-ops/co-scientist/.venv/lib/python3.12/site-packages/aiohttp/connector.py:988: DeprecationWarning: enable_cleanup_closed ignored because https://github.com/python/cpython/pull/118960 is fixed in Python version sys.version_info(major=3, minor=12, micro=12, releaselevel='final', serial=0)",
+        "    super().__init__(",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "2032 passed, 25 warnings in 296.62s (0:04:56)"
+      ]
+    },
+    {
+      "id": "mcp",
+      "command": "make test-mcp",
+      "result": "312 passed; strict mypy passed",
+      "status": "passed",
+      "log_sha256": "76f5dbd8371c4361b84012784c05e578d2c23fc19248e94e4fadb23c969a3430",
+      "log_tail": [
+        "              In case of excessive usage of the E-utilities, NCBI will attempt to contact",
+        "              a user at the email address provided before blocking access to the",
+        "              E-utilities.",
+        "    warnings.warn(",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "312 passed, 5 warnings in 5.12s",
+        "Success: no issues found in 77 source files"
+      ]
+    },
+    {
+      "id": "parity",
+      "command": "make parity",
+      "result": "115 rows; parity and evaluator tests passed",
+      "status": "passed",
+      "log_sha256": "aa762612249a08d7997500672f0aa8b4c7c259c1918eee4d7fef5220c3e46fc6",
+      "log_tail": [
+        "parity: 115 requirement rows (divergent=8, external=3, partial=4, verified=100)",
+        "parity: OK \u2014 every 'verified' row cites test/eval evidence that exists on disk",
+        "........................................................................ [ 33%]",
+        "........................................................................ [ 67%]",
+        "....................................................................     [100%]"
+      ]
+    },
+    {
+      "id": "lint",
+      "command": "make lint",
+      "result": "passed",
+      "status": "passed",
+      "log_sha256": "bf9211ee67e7169b6837146ab4f5352bbdc94912ef764acbf9d55386bdd18103",
+      "log_tail": [
+        "547 files already formatted",
+        "60 files already formatted",
+        "All checks passed!",
+        "All checks passed!",
+        "All checks passed!",
+        ">> Linting frontend (gts)",
+        "$ gts lint",
+        "version: 25"
+      ]
+    },
+    {
+      "id": "typecheck",
+      "command": "make typecheck",
+      "result": "passed",
+      "status": "passed",
+      "log_sha256": "ea1caa881f5b582bf543dd79b003563c15500d380b14a5c954117c7659d8e85a",
+      "log_tail": [
+        "Success: no issues found in 547 source files",
+        "Success: no issues found in 567 source files",
+        "Success: no issues found in 60 source files"
+      ]
+    },
+    {
+      "id": "build",
+      "command": "make build",
+      "result": "passed",
+      "status": "passed",
+      "log_sha256": "65cec6975d91d86de9ac02ad2af7fb2c95dc312174c1d915b8aaf954d875cd85",
+      "log_tail": [
+        "dist/assets/index-COyX2iJN.js                            916.30 kB \u2502 gzip: 279.09 kB",
+        "",
+        "(!) Some chunks are larger than 500 kB after minification. Consider:",
+        "- Using dynamic import() to code-split the application",
+        "- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks",
+        "- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.",
+        "\u2713 built in 11.79s",
+        "Pre-rendered 1 public routes and 404.html."
+      ]
+    },
+    {
+      "id": "eval_smoke",
+      "command": "make eval-smoke",
+      "result": "passed",
+      "status": "passed",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6",
+      "log_tail": [
+        "evaluations smoke: OK (safety + citation offline evals passed)"
+      ]
+    },
+    {
+      "id": "frontend",
+      "command": "(cd app/frontend && bun run test)",
+      "result": "803 passed",
+      "status": "passed",
+      "log_sha256": "e7c852979cacfbd6ebd2f5121059b59967deb1af7d2e1c645f341c4596556dda",
+      "log_tail": [
+        " RUN  v4.1.9 /Users/guy/.codex/worktrees/external-m11-ops/co-scientist/app/frontend",
+        "",
+        "",
+        " Test Files  127 passed (127)",
+        "      Tests  803 passed (803)",
+        "   Start at  23:23:45",
+        "   Duration  20.86s (transform 5.29s, setup 21.20s, import 21.53s, tests 26.30s, environment 89.06s)",
+        ""
+      ]
+    },
+    {
+      "id": "e2e",
+      "command": "make e2e",
+      "result": "18 passed",
+      "status": "passed",
+      "log_sha256": "7d14b01c58ef6c8c5e5175acfc2f3dc39f2fe0a78990b660a53e5bf0f3176737",
+      "log_tail": [
+        "[WebServer] INFO:     127.0.0.1:65295 - \"GET /api/runs/542cdff2-5263-4563-98ca-549e0bf4d072/reviews HTTP/1.1\" 200 OK",
+        "[WebServer] INFO:     127.0.0.1:65296 - \"GET /api/runs/542cdff2-5263-4563-98ca-549e0bf4d072/claim-evidence HTTP/1.1\" 200 OK",
+        "[WebServer] INFO:     127.0.0.1:65294 - \"GET /api/runs/542cdff2-5263-4563-98ca-549e0bf4d072/safety HTTP/1.1\" 200 OK",
+        "[WebServer] INFO:     127.0.0.1:65293 - \"GET /api/runs/542cdff2-5263-4563-98ca-549e0bf4d072/report HTTP/1.1\" 200 OK",
+        "[WebServer] INFO:     127.0.0.1:65297 - \"GET /api/runs/542cdff2-5263-4563-98ca-549e0bf4d072/supervisor-plan HTTP/1.1\" 200 OK",
+        "  \u2713  18 [chromium] \u203a tests/10_outcome_refinement_status.spec.ts:168:1 \u203a saved refinement stays visible in active and failed runs (6.9s)",
+        "",
+        "  18 passed (1.5m)"
+      ]
+    },
+    {
+      "id": "probe",
+      "command": "pytest test_probe_batch_schema.py test_probe_terminal_errors.py",
+      "result": "42 passed",
+      "status": "passed",
+      "log_sha256": "41bee6c2dbaebcefcebe11530f038183e83df16a50ca5be59a72287cd4f0e18c",
+      "log_tail": [
+        "..........................................                               [100%]",
+        "42 passed in 2.26s"
+      ]
+    }
+  ],
+  "initial_concurrent_failures": {
+    "frontend": "11 failed, 792 passed; UI waits and missing rendered elements",
+    "e2e": "4 failed, 14 passed; completion waits expired",
+    "resolution": "Same source passed isolated frontend and E2E reruns; no assertion, timeout or code change was used to obtain green tests."
+  },
+  "source_preflight": {
+    "manifest_sha256": "fea49dcea703b62f0dd8f7e80f23f7a107f092eeb55a600658673f67b945975f",
+    "pinned_python_files": 608,
+    "verified_loaded_modules": 305,
+    "provider_calls": 0
+  },
+  "review": {
+    "security_scan": "ebbe4e4c-f191-495c-bf50-ed0f6e64f2f8",
+    "findings": 0,
+    "limitation": "Plugin inventory returned zero reference-file items; parent manually reviewed all six files in its exact range. Later protocol and manifest additions were reviewed inline. No scan workers were launched.",
+    "cleanup": "Scoped Ruff unused-code, diff and source-size checks passed; retained immutable manifests and prior failed artifacts; no UI changes."
+  }
+}
