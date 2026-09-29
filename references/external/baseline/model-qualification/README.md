@@ -1,5 +1,10 @@
 # Free-model qualification
 
+**30 September corrected screen:** [Space Bunny passed the fixed scientific screen](../../m12-space-bunny-corrected-result-2026-09-30.md)
+with three four-claim and three citation trials, no deterministic fallback,
+and $0 observed cost. Production defaults and the complete deployed workflow
+remain separate pending checks. Earlier failed screens remain historical.
+
 M1 selection (22 September 2026): [Nex Pro is selected](../model-choice-2026-09-22.md)
 for the next campaign release from existing evidence and the current public
 catalog at that time. No automatic fallback was selected. The [production roles](m11-production-model-roles-2026-09-26.json)
@@ -29,8 +34,9 @@ had been qualified through this application's JSON boundary. No model or
 production default was selected. Do not retry Qwen on a timer.
 The [Ling Sante compatibility adapter](ling-sante-json-gap-2026-09-26.md) later
 passed a bounded synthetic interface panel but failed its [frozen scientific
-batch gate](ling-sante-batch-assessment-v1.md); it remains open/inconclusive and
-is not a default. Its provisional application route was removed before release;
+batch gate](ling-sante-batch-assessment-v1.md). The [30 September follow-up](ling-sante-disposition-2026-09-30.md)
+rejects that fixed configuration under its original repeated scientific-failure
+rule while preserving trial 3 as incomplete overall. It is not a default. Its provisional application route was removed before release;
 the pinned trial source and raw evidence remain historical. The [fresh post-Ling screen](m11-free-route-post-ling-screen-2026-09-26.json)
 still finds only Qwen, Ling Sante and Ling Fin at active exact-zero ZDR endpoints.
 The [Fin decision](m11-fin-candidate-decision-2026-09-26.md) records a bounded

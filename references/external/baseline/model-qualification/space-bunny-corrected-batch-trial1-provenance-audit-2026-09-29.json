@@ -1,0 +1,63 @@
+{
+  "purpose": "Offline audit of trial1 source-provenance checker false failure; original raw response and launch receipt remain immutable",
+  "timestamp_utc": "2026-09-29T21:50:04.712319+00:00",
+  "raw_sha256": "a818059d22c0675070dc21d63ab6a59ca0197dcbdc497f46c43f67b078f8aedf",
+  "original_launch_sha256": "ebee6e5322e49dd670960be165c01008b3e5812e51f0f2205c67c55e5b01f4c4",
+  "defect": "Launcher incorrectly required cited source ID to equal claim ID. Production batch assessor unions retrieved passages and permits any applicable cited source. Protocol requires actual source provenance and valid offsets, not claim-ID equality.",
+  "evidence": [
+    "app/app/claims_batch.py:148-154",
+    "references/external/m12-space-bunny-corrected-screen-2026-09-27.md:43"
+  ],
+  "checks": [
+    {
+      "claim_id": "same_scope_part_of_result",
+      "label": "partial",
+      "method": "model_primary",
+      "spans": [
+        {
+          "source_id": "same_scope_part_of_result",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "claim_id": "matching_scope_full_support",
+      "label": "supports",
+      "method": "model_primary",
+      "spans": [
+        {
+          "source_id": "matching_scope_full_support",
+          "valid": true
+        }
+      ]
+    },
+    {
+      "claim_id": "changed_population",
+      "label": "insufficient",
+      "method": "model_primary",
+      "spans": []
+    },
+    {
+      "claim_id": "matching_scope_contradiction",
+      "label": "contradicts",
+      "method": "model_opposition_verified",
+      "spans": [
+        {
+          "source_id": "matching_scope_full_support",
+          "valid": true
+        }
+      ]
+    }
+  ],
+  "negative_checks": [
+    "invented source rejected",
+    "invented quote rejected",
+    "out-of-range offset rejected"
+  ],
+  "gold_agreement": "4/4",
+  "live_inference_performed": false,
+  "new_requests": 0,
+  "passed_unchanged_declared_trial_gates": true,
+  "route_qualified": false,
+  "note": "Contradiction quote states decreased migration under identical treatment S, adult human fibroblast and24-hour conditions; the frozen claim asserts increase. Source is another supplied batch passage, its exact quote offsets are0..68. Opposition verifier confirmed same conditions and mutually exclusive outcomes. Costs0 and accountunchanged in original receipt; no transport errors or deterministic fallback."
+}

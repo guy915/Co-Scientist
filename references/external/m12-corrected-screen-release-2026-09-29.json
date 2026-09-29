@@ -1,0 +1,45 @@
+{
+  "purpose": "PR76 comparison-protocol publication and existing-service verification",
+  "verified_at_utc": "2026-09-29T21:53:10.518986+00:00",
+  "pr": "https://github.com/guy915/Co-Scientist/pull/76",
+  "reviewed_head": "6100fd0a3f7311213d0db0d890cf039aced0f06b",
+  "merge_commit": "ef9684ab93bf92f49a8711cb34a5840dd76a7399",
+  "hosted_ci": {
+    "affected_targets": "FAILURE",
+    "downstream": "SKIPPED",
+    "owner_waiver_applied": true,
+    "local_checks": "references/external/m12-corrected-screen-release-checks-2026-09-29.json",
+    "scope": "Localchecks apply reviewed6100 productc839; concurrentPR74/75 changes are distinct and not covered by that receipt."
+  },
+  "deployments": [
+    {
+      "service": "api",
+      "id": "28eb350c-2b69-4a89-8a7e-718b8fd18749",
+      "status": "SUCCESS",
+      "commit": "ef9684ab93bf92f49a8711cb34a5840dd76a7399"
+    },
+    {
+      "service": "mcp",
+      "id": "771ab2a9-e48c-46b5-9fea-4dfa03743875",
+      "status": "SUCCESS",
+      "commit": "ef9684ab93bf92f49a8711cb34a5840dd76a7399"
+    },
+    {
+      "service": "frontend",
+      "id": "dpl_34BpbasgrTa6vZcoMsPc6FzPxzed",
+      "status": "READY",
+      "url": "co-scientist-irsbcg3qi-guy915s-projects.vercel.app",
+      "commit": "ef9684ab93bf92f49a8711cb34a5840dd76a7399"
+    }
+  ],
+  "smoke": {
+    "result": "PASS",
+    "checks": 5,
+    "output": "[OK  ] health: reported status='healthy'\n[OK  ] status_probes: mcp_available=True email_notifications_available=True llm_backend='real'\n[OK  ] ownership_isolation: status 404 (want 404)\n[OK  ] cors_untrusted_origin: Access-Control-Allow-Origin=None for an untrusted origin\n[OK  ] sanitized_share_404: clean 404\nprod_smoke: OK\n"
+  },
+  "configuration_changes": [],
+  "data_migrations": [],
+  "inference_performed": false,
+  "frozen_screen_revision": "6100fd0a3f7311213d0db0d890cf039aced0f06b",
+  "independent_review": "Luna6/xhigh confirms concurrent bare-dict citation wrapper only avoids coercion warning; existingcanonicalhelper alreadywraps sameinput. Claimgroundingdelta onlylogtallies, assessorsemanticsunchanged. Runfrozen6100 and reportlatestproductionseparately."
+}
