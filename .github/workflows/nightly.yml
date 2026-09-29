@@ -12,8 +12,11 @@ on:
   # Manual trigger for re-running the full pass on demand.
   workflow_dispatch:
 
+# pull-requests: read is what ci.yml's `changes` job asks for; a called
+# workflow cannot exceed its caller's grant, so it must be granted here too.
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   full-suite:
