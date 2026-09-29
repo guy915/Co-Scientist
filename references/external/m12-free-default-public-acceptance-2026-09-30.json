@@ -1,0 +1,2416 @@
+{
+  "purpose": "M12-04b2 completed campaign-owned public flow and M12-04b2a released browser denial correction",
+  "included": "Public scientific goal, terminal lifecycle, model/cost/provenance records, honest report limits, release and browser checks",
+  "deliberately_absent": [
+    "Authentication tokens",
+    "API keys",
+    "Invite codes",
+    "Other researchers\u2019 runs or documents",
+    "Unobserved private model implementation"
+  ],
+  "run": {
+    "id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+    "research_goal": "What testable preclinical mechanisms link MET amplification to acquired osimertinib resistance in EGFR-mutant lung cancer, and which public evidence distinguishes bypass signaling from other resistance mechanisms?",
+    "status": "completed",
+    "created_at": 1790721832.2825627,
+    "completed_at": 1790725154.87993,
+    "is_demo": false,
+    "provider": "engine",
+    "llm_backend": "real",
+    "execution_policy": "campaign",
+    "config": {
+      "initial_hypotheses_count": 4,
+      "max_iterations": 1,
+      "evolution_max_count": 4,
+      "tournament_pairs": 6,
+      "evidence_count": 4,
+      "max_llm_calls": 1200,
+      "max_ideas": 12,
+      "max_matches_per_idea": 4,
+      "focus": "prefer_evidence",
+      "setup": {
+        "goal": "What testable preclinical mechanisms link MET amplification to acquired osimertinib resistance in EGFR-mutant lung cancer, and which public evidence distinguishes bypass signaling from other resistance mechanisms?",
+        "requirements": [
+          "Use public literature only; distinguish established evidence from testable hypotheses.",
+          "Keep proposed work preclinical and attach source provenance."
+        ],
+        "attributes": [
+          {
+            "name": "Mechanistic specificity",
+            "scale": {
+              "1": "Vague or hand-wavy mechanism",
+              "3": "Plausible mechanism with some unexplained steps",
+              "5": "Precise, causally complete mechanism"
+            }
+          },
+          {
+            "name": "Evidence grounding",
+            "scale": {
+              "1": "Speculative, no literature support",
+              "3": "Partially supported by existing evidence",
+              "5": "Strongly grounded in established literature"
+            }
+          },
+          {
+            "name": "Experimental readiness",
+            "scale": {
+              "1": "No clear path to testing",
+              "3": "Testable with significant additional groundwork",
+              "5": "Directly testable with a well-defined validation plan"
+            }
+          }
+        ],
+        "criteria": [
+          {
+            "name": "Idea correctness",
+            "value": "Required"
+          },
+          {
+            "name": "Idea novelty",
+            "value": "Required"
+          },
+          {
+            "name": "Maximize impact",
+            "value": "Yes"
+          }
+        ],
+        "focus": "prefer_evidence",
+        "tier": "express"
+      },
+      "tier": "express",
+      "k_factor": 24,
+      "enable_literature_review": true,
+      "llm_backend": null,
+      "enable_web_search": true,
+      "enable_meta_review": true,
+      "campaign_model_name": "openrouter/stealth/space-bunny-alpha"
+    }
+  },
+  "task_states": {
+    "completed": 71
+  },
+  "tasks": [
+    {
+      "id": "ed30a1db-b73d-4c5f-94fc-6e3cf4c893f9",
+      "task_type": "engine.bootstrap",
+      "status": "completed",
+      "created_at": 1790721832.5118196,
+      "updated_at": null
+    },
+    {
+      "id": "7f8a339a-1409-4963-8594-bf09e7fdea2f",
+      "task_type": "engine.node.supervisor",
+      "status": "completed",
+      "created_at": 1790721836.3301985,
+      "updated_at": null
+    },
+    {
+      "id": "5b7d83f5-13f2-4b16-939d-c6e9e0fb2daa",
+      "task_type": "engine.node.literature_review",
+      "status": "completed",
+      "created_at": 1790721836.3339987,
+      "updated_at": null
+    },
+    {
+      "id": "888323e2-7461-4d27-8b42-38f8bb6c4373",
+      "task_type": "engine.node.generate",
+      "status": "completed",
+      "created_at": 1790721836.3350966,
+      "updated_at": null
+    },
+    {
+      "id": "6c6b6af9-d90f-4352-8557-7e9b31e490c9",
+      "task_type": "engine.fanout.generation.strategy",
+      "status": "completed",
+      "created_at": 1790722241.3138745,
+      "updated_at": null
+    },
+    {
+      "id": "8429807c-9b5e-4d66-a549-6abbe325c1ec",
+      "task_type": "engine.fanout.generation.strategy",
+      "status": "completed",
+      "created_at": 1790722241.3153586,
+      "updated_at": null
+    },
+    {
+      "id": "96f50780-36e8-4ecd-b5a8-add1c960ab5e",
+      "task_type": "engine.fanout.generation.strategy",
+      "status": "completed",
+      "created_at": 1790722241.3158157,
+      "updated_at": null
+    },
+    {
+      "id": "040940da-0846-4782-90e7-e69b6ef50de9",
+      "task_type": "engine.fanout.generation.strategy",
+      "status": "completed",
+      "created_at": 1790722241.317036,
+      "updated_at": null
+    },
+    {
+      "id": "16e170a4-3d7b-41fe-8283-381368fac7f8",
+      "task_type": "engine.fanout.generation.aggregate",
+      "status": "completed",
+      "created_at": 1790722241.3179915,
+      "updated_at": null
+    },
+    {
+      "id": "1f3244f9-4ae6-42b2-8dd3-f900291d4064",
+      "task_type": "engine.node.reflection",
+      "status": "completed",
+      "created_at": 1790722569.9473474,
+      "updated_at": null
+    },
+    {
+      "id": "4ba59fdc-d333-48c3-9006-6ad881a5a365",
+      "task_type": "engine.node.review",
+      "status": "completed",
+      "created_at": 1790722569.9481406,
+      "updated_at": null
+    },
+    {
+      "id": "46c889f7-80ec-4335-bb83-f52ed40d9928",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790722718.6882286,
+      "updated_at": null
+    },
+    {
+      "id": "bb6ea3f0-cb42-4dbd-8d28-ee836dfa455f",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790722718.6890302,
+      "updated_at": null
+    },
+    {
+      "id": "7b02cfbf-cd83-43d9-b550-b98df86eb939",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790722718.6899292,
+      "updated_at": null
+    },
+    {
+      "id": "5901ee71-da4c-457e-a2d5-c26a018016d4",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790722718.690435,
+      "updated_at": null
+    },
+    {
+      "id": "837408de-9045-4686-b97b-e07f6a90f7c4",
+      "task_type": "engine.fanout.review.aggregate",
+      "status": "completed",
+      "created_at": 1790722718.6913612,
+      "updated_at": null
+    },
+    {
+      "id": "e7d1e508-d793-4e56-8cf7-8d0078a1e863",
+      "task_type": "engine.node.comprehensive_reflection",
+      "status": "completed",
+      "created_at": 1790722947.7106946,
+      "updated_at": null
+    },
+    {
+      "id": "da95f51c-5eb3-4712-a398-496c3d3bfbef",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.8518384,
+      "updated_at": null
+    },
+    {
+      "id": "43646561-10a9-49dc-bed4-529e77c68841",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.854349,
+      "updated_at": null
+    },
+    {
+      "id": "aeed9275-28b5-4d04-97a1-8138ee71ed5a",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.8555822,
+      "updated_at": null
+    },
+    {
+      "id": "918dfaa1-0bc8-4314-a8df-7ba47935ccb8",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.8576765,
+      "updated_at": null
+    },
+    {
+      "id": "82140706-cded-405c-aab4-bf5130936a6b",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.8590689,
+      "updated_at": null
+    },
+    {
+      "id": "f3a575d0-c824-440c-8dd5-017d44c6d7b1",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790722947.8591485,
+      "updated_at": null
+    },
+    {
+      "id": "29f83687-b813-43ee-a85f-671da9cf7028",
+      "task_type": "engine.fanout.reflection.aggregate",
+      "status": "completed",
+      "created_at": 1790722947.8615842,
+      "updated_at": null
+    },
+    {
+      "id": "a10fb787-2621-485d-8138-84b0f806a717",
+      "task_type": "engine.node.safety_screen",
+      "status": "completed",
+      "created_at": 1790723159.5603254,
+      "updated_at": null
+    },
+    {
+      "id": "54b0e5fe-3368-45de-8aa1-50aea4d9ca9f",
+      "task_type": "engine.node.deep_verification",
+      "status": "completed",
+      "created_at": 1790723159.5623,
+      "updated_at": null
+    },
+    {
+      "id": "9000b035-fb54-4b34-9d74-d1eb3beb7504",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790723159.8698347,
+      "updated_at": null
+    },
+    {
+      "id": "10e0e0f7-ca8e-4067-8020-003abcb3e915",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790723159.869992,
+      "updated_at": null
+    },
+    {
+      "id": "9d3864a9-03a8-43a8-96e2-a87660540663",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790723159.8716764,
+      "updated_at": null
+    },
+    {
+      "id": "080d3bb9-8f81-4946-8886-aeca286fb54b",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790723159.872344,
+      "updated_at": null
+    },
+    {
+      "id": "747b8b0d-73c8-4332-abaf-421faf343af3",
+      "task_type": "engine.fanout.verification.aggregate",
+      "status": "completed",
+      "created_at": 1790723159.87323,
+      "updated_at": null
+    },
+    {
+      "id": "4ed352d4-d825-4c9d-9c85-1d34f947ad4b",
+      "task_type": "engine.node.ranking",
+      "status": "completed",
+      "created_at": 1790723455.3903737,
+      "updated_at": null
+    },
+    {
+      "id": "4be4dbf8-f8bb-4054-8773-1bc5e663680d",
+      "task_type": "engine.ranking.match",
+      "status": "completed",
+      "created_at": 1790723554.4529943,
+      "updated_at": null
+    },
+    {
+      "id": "51f0f2c2-548f-44f3-b715-6d36982c8589",
+      "task_type": "engine.ranking.finalize",
+      "status": "completed",
+      "created_at": 1790723800.7762055,
+      "updated_at": null
+    },
+    {
+      "id": "b9f1d659-52f5-4973-8204-0c501a2eedb9",
+      "task_type": "engine.node.orchestrator",
+      "status": "completed",
+      "created_at": 1790723800.999204,
+      "updated_at": null
+    },
+    {
+      "id": "31a1b784-2529-40cf-8e2b-096695af3e08",
+      "task_type": "engine.node.safety_screen",
+      "status": "completed",
+      "created_at": 1790723823.388605,
+      "updated_at": null
+    },
+    {
+      "id": "8fc97869-bd9b-46cd-ab14-0c64909329eb",
+      "task_type": "engine.node.deep_verification",
+      "status": "completed",
+      "created_at": 1790723823.3902302,
+      "updated_at": null
+    },
+    {
+      "id": "f2f41c2c-74e4-4cc2-9540-ce7b1641f226",
+      "task_type": "engine.fanout.verification.aggregate",
+      "status": "completed",
+      "created_at": 1790723823.764497,
+      "updated_at": null
+    },
+    {
+      "id": "c94dbcc1-9208-4225-9e55-a3ec4d30c9ef",
+      "task_type": "engine.node.ranking",
+      "status": "completed",
+      "created_at": 1790723823.8703582,
+      "updated_at": null
+    },
+    {
+      "id": "9d9c46b0-68d5-4448-b0a2-df42995ba678",
+      "task_type": "engine.node.orchestrator",
+      "status": "completed",
+      "created_at": 1790723824.1247482,
+      "updated_at": null
+    },
+    {
+      "id": "1d912e48-78c4-447e-a725-df80654c88bd",
+      "task_type": "engine.node.meta_review",
+      "status": "completed",
+      "created_at": 1790723833.3178375,
+      "updated_at": null
+    },
+    {
+      "id": "25fb5650-dcd9-4050-9af9-4dffb4a47706",
+      "task_type": "engine.node.evolve",
+      "status": "completed",
+      "created_at": 1790723833.3186555,
+      "updated_at": null
+    },
+    {
+      "id": "0533f9ae-2c97-4040-b368-6902ac373892",
+      "task_type": "engine.node.review",
+      "status": "completed",
+      "created_at": 1790723833.318792,
+      "updated_at": null
+    },
+    {
+      "id": "c1c81d66-1284-44b8-a6a3-da42432366a7",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790724029.7714727,
+      "updated_at": null
+    },
+    {
+      "id": "cf4cac9f-2db4-4b58-bc1c-09c351988573",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790724029.7727046,
+      "updated_at": null
+    },
+    {
+      "id": "fc19ae9b-100d-40b1-b1fb-45658a8aee4b",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790724029.7738137,
+      "updated_at": null
+    },
+    {
+      "id": "d0231613-dd58-4f35-bc74-24e882ff6c67",
+      "task_type": "engine.fanout.review.item",
+      "status": "completed",
+      "created_at": 1790724029.7746742,
+      "updated_at": null
+    },
+    {
+      "id": "13887477-cf89-4116-b232-7cbb65bab7bb",
+      "task_type": "engine.fanout.review.aggregate",
+      "status": "completed",
+      "created_at": 1790724029.7747598,
+      "updated_at": null
+    },
+    {
+      "id": "0902a08f-0613-4bc1-b1dd-e3328d417b7b",
+      "task_type": "engine.node.comprehensive_reflection",
+      "status": "completed",
+      "created_at": 1790724135.6396236,
+      "updated_at": null
+    },
+    {
+      "id": "cb23280e-4f6a-4cc4-9344-85e32fb080ca",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8269494,
+      "updated_at": null
+    },
+    {
+      "id": "9e9a0f27-21ee-4331-a0fb-d9342f3fcc7f",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8271396,
+      "updated_at": null
+    },
+    {
+      "id": "9eeb8f37-1cbd-4602-991d-47a1c280cb29",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8271918,
+      "updated_at": null
+    },
+    {
+      "id": "b52c93a9-1361-431a-80f4-10b89f939f65",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8272433,
+      "updated_at": null
+    },
+    {
+      "id": "2f4449f2-a578-4e31-857a-a28de78984ff",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8272986,
+      "updated_at": null
+    },
+    {
+      "id": "3bbd5ee1-8eeb-4117-8aa5-2b38a47b64d2",
+      "task_type": "engine.fanout.reflection.item",
+      "status": "completed",
+      "created_at": 1790724135.8273706,
+      "updated_at": null
+    },
+    {
+      "id": "396d37b6-fc33-439b-b63c-cde4764bdb90",
+      "task_type": "engine.fanout.reflection.aggregate",
+      "status": "completed",
+      "created_at": 1790724135.828069,
+      "updated_at": null
+    },
+    {
+      "id": "d054465a-2c4c-444f-a184-2f1fb538ce89",
+      "task_type": "engine.node.safety_screen",
+      "status": "completed",
+      "created_at": 1790724355.3099716,
+      "updated_at": null
+    },
+    {
+      "id": "b03a01c8-03f5-4194-a1df-2e2ef324dce8",
+      "task_type": "engine.node.deep_verification",
+      "status": "completed",
+      "created_at": 1790724355.311561,
+      "updated_at": null
+    },
+    {
+      "id": "7b3f2cd0-7b4e-4a48-bee5-a7e02a2de135",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790724355.695447,
+      "updated_at": null
+    },
+    {
+      "id": "bf5cb0d4-658f-4bfa-8422-bb82c6ee8e7c",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790724355.6956103,
+      "updated_at": null
+    },
+    {
+      "id": "ec17e645-707c-4c53-9907-ff7cec02244b",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790724355.6956575,
+      "updated_at": null
+    },
+    {
+      "id": "c926aaa3-2ad4-4e79-85f5-be2d79c7d1e2",
+      "task_type": "engine.fanout.verification.item",
+      "status": "completed",
+      "created_at": 1790724355.695707,
+      "updated_at": null
+    },
+    {
+      "id": "6d05cbe2-b6db-4146-82ac-f71cfd199b71",
+      "task_type": "engine.fanout.verification.aggregate",
+      "status": "completed",
+      "created_at": 1790724355.6957464,
+      "updated_at": null
+    },
+    {
+      "id": "22e5abe6-562a-41ba-a244-9f6efb450784",
+      "task_type": "engine.node.ranking",
+      "status": "completed",
+      "created_at": 1790724595.6324956,
+      "updated_at": null
+    },
+    {
+      "id": "1b19e617-bb89-4a62-92fe-a5718dca4f32",
+      "task_type": "engine.ranking.match",
+      "status": "completed",
+      "created_at": 1790724629.963138,
+      "updated_at": null
+    },
+    {
+      "id": "fa40ef89-ca18-49a4-8502-d1825a45bf17",
+      "task_type": "engine.ranking.finalize",
+      "status": "completed",
+      "created_at": 1790724837.7982414,
+      "updated_at": null
+    },
+    {
+      "id": "62eb0ce2-b937-49b7-a02f-2d6bdb48e96a",
+      "task_type": "engine.node.orchestrator",
+      "status": "completed",
+      "created_at": 1790724838.0510643,
+      "updated_at": null
+    },
+    {
+      "id": "7b7cd31a-8276-4ee6-956c-fa8b87e39d26",
+      "task_type": "engine.node.proximity",
+      "status": "completed",
+      "created_at": 1790724838.3283794,
+      "updated_at": null
+    },
+    {
+      "id": "453f914a-75cc-4756-981a-6701aa651e40",
+      "task_type": "engine.node.orchestrator",
+      "status": "completed",
+      "created_at": 1790724838.3287253,
+      "updated_at": null
+    },
+    {
+      "id": "aac4b0ee-dba9-47c6-87c4-8a155f19996d",
+      "task_type": "engine.node.research_overview",
+      "status": "completed",
+      "created_at": 1790724892.1286287,
+      "updated_at": null
+    },
+    {
+      "id": "dec579ed-f9a6-4851-901f-32ba368e85f5",
+      "task_type": "engine.finalize",
+      "status": "completed",
+      "created_at": 1790725123.1064105,
+      "updated_at": null
+    }
+  ],
+  "reported_model_usage": {
+    "supervisor::openrouter/stealth/space-bunny-alpha": {
+      "calls": 3,
+      "observed_model_calls": 1,
+      "reported_usage_calls": 1,
+      "priced_usage_calls": 1,
+      "prompt_tokens": 4813,
+      "completion_tokens": 6089,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 128,
+      "cost_usd": 0.0,
+      "latency_seconds": 103.59542252495885,
+      "retries": 2,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 2
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 3
+      },
+      "deterministic_fallbacks": {}
+    },
+    "literature_review::openrouter/stealth/space-bunny-alpha": {
+      "calls": 14,
+      "observed_model_calls": 8,
+      "reported_usage_calls": 8,
+      "priced_usage_calls": 8,
+      "prompt_tokens": 24805,
+      "completion_tokens": 12286,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 1133,
+      "cost_usd": 0.0,
+      "latency_seconds": 226.1469902843237,
+      "retries": 6,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 6
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 14
+      },
+      "deterministic_fallbacks": {}
+    },
+    "generate::openrouter/stealth/space-bunny-alpha": {
+      "calls": 15,
+      "observed_model_calls": 15,
+      "reported_usage_calls": 15,
+      "priced_usage_calls": 15,
+      "prompt_tokens": 143780,
+      "completion_tokens": 51184,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 50182,
+      "cost_usd": 0.0,
+      "latency_seconds": 1019.37799542211,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 15
+      },
+      "deterministic_fallbacks": {}
+    },
+    "reflection::openrouter/stealth/space-bunny-alpha": {
+      "calls": 4,
+      "observed_model_calls": 4,
+      "reported_usage_calls": 4,
+      "priced_usage_calls": 4,
+      "prompt_tokens": 20444,
+      "completion_tokens": 17082,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 4756,
+      "cost_usd": 0.0,
+      "latency_seconds": 422.47772484086454,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 4
+      },
+      "deterministic_fallbacks": {}
+    },
+    "review::openrouter/stealth/space-bunny-alpha": {
+      "calls": 9,
+      "observed_model_calls": 8,
+      "reported_usage_calls": 8,
+      "priced_usage_calls": 8,
+      "prompt_tokens": 35978,
+      "completion_tokens": 60014,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 1149,
+      "cost_usd": 0.0,
+      "latency_seconds": 1072.1101608276367,
+      "retries": 1,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 1
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 9
+      },
+      "deterministic_fallbacks": {}
+    },
+    "comprehensive_reflection::openrouter/stealth/space-bunny-alpha": {
+      "calls": 21,
+      "observed_model_calls": 18,
+      "reported_usage_calls": 18,
+      "priced_usage_calls": 18,
+      "prompt_tokens": 85597,
+      "completion_tokens": 71256,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 23886,
+      "cost_usd": 0.0,
+      "latency_seconds": 1118.190796509385,
+      "retries": 4,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 3
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 21
+      },
+      "deterministic_fallbacks": {}
+    },
+    "deep_verification::openrouter/stealth/space-bunny-alpha": {
+      "calls": 23,
+      "observed_model_calls": 16,
+      "reported_usage_calls": 16,
+      "priced_usage_calls": 16,
+      "prompt_tokens": 102249,
+      "completion_tokens": 100697,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 19716,
+      "cost_usd": 0.0,
+      "latency_seconds": 1144.547063447535,
+      "retries": 7,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 7
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 23
+      },
+      "deterministic_fallbacks": {}
+    },
+    "claim_gate::openrouter/stealth/space-bunny-alpha": {
+      "calls": 33,
+      "observed_model_calls": 31,
+      "reported_usage_calls": 31,
+      "priced_usage_calls": 31,
+      "prompt_tokens": 184328,
+      "completion_tokens": 19239,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 17690,
+      "cost_usd": 0.0,
+      "latency_seconds": 254.85336252860725,
+      "retries": 7,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 2
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 33
+      },
+      "deterministic_fallbacks": {}
+    },
+    "ranking::openrouter/stealth/space-bunny-alpha": {
+      "calls": 65,
+      "observed_model_calls": 58,
+      "reported_usage_calls": 58,
+      "priced_usage_calls": 58,
+      "prompt_tokens": 545295,
+      "completion_tokens": 65813,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 230251,
+      "cost_usd": 0.0,
+      "latency_seconds": 1048.357536982745,
+      "retries": 7,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 7
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 65
+      },
+      "deterministic_fallbacks": {
+        "ranking_tied_votes": 3
+      }
+    },
+    "orchestrator::openrouter/stealth/space-bunny-alpha": {
+      "calls": 3,
+      "observed_model_calls": 2,
+      "reported_usage_calls": 2,
+      "priced_usage_calls": 2,
+      "prompt_tokens": 13030,
+      "completion_tokens": 724,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 277,
+      "cost_usd": 0.0,
+      "latency_seconds": 13.953373342752457,
+      "retries": 1,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {
+        "APIError": 1
+      },
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 3
+      },
+      "deterministic_fallbacks": {}
+    },
+    "meta_review::openrouter/stealth/space-bunny-alpha": {
+      "calls": 1,
+      "observed_model_calls": 1,
+      "reported_usage_calls": 1,
+      "priced_usage_calls": 1,
+      "prompt_tokens": 22398,
+      "completion_tokens": 7624,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 148,
+      "cost_usd": 0.0,
+      "latency_seconds": 92.89450903609395,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 1
+      },
+      "deterministic_fallbacks": {}
+    },
+    "evolve::openrouter/stealth/space-bunny-alpha": {
+      "calls": 4,
+      "observed_model_calls": 4,
+      "reported_usage_calls": 4,
+      "priced_usage_calls": 4,
+      "prompt_tokens": 64348,
+      "completion_tokens": 22698,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 597,
+      "cost_usd": 0.0,
+      "latency_seconds": 339.08064490556717,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 4
+      },
+      "deterministic_fallbacks": {}
+    },
+    "proximity::openrouter/stealth/space-bunny-alpha": {
+      "calls": 1,
+      "observed_model_calls": 1,
+      "reported_usage_calls": 1,
+      "priced_usage_calls": 1,
+      "prompt_tokens": 4965,
+      "completion_tokens": 3111,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 149,
+      "cost_usd": 0.0,
+      "latency_seconds": 53.20631345734,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 1
+      },
+      "deterministic_fallbacks": {}
+    },
+    "research_overview::openrouter/stealth/space-bunny-alpha": {
+      "calls": 1,
+      "observed_model_calls": 1,
+      "reported_usage_calls": 1,
+      "priced_usage_calls": 1,
+      "prompt_tokens": 22234,
+      "completion_tokens": 14308,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 149,
+      "cost_usd": 0.0,
+      "latency_seconds": 173.46221753023565,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 1
+      },
+      "deterministic_fallbacks": {}
+    },
+    "research_overview.directions::openrouter/stealth/space-bunny-alpha": {
+      "calls": 7,
+      "observed_model_calls": 7,
+      "reported_usage_calls": 7,
+      "priced_usage_calls": 7,
+      "prompt_tokens": 120203,
+      "completion_tokens": 17503,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 17497,
+      "cost_usd": 0.0,
+      "latency_seconds": 247.3031703941524,
+      "retries": 1,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 7
+      },
+      "deterministic_fallbacks": {}
+    },
+    "claim_grounding::openrouter/stealth/space-bunny-alpha": {
+      "calls": 3,
+      "observed_model_calls": 3,
+      "reported_usage_calls": 3,
+      "priced_usage_calls": 3,
+      "prompt_tokens": 20957,
+      "completion_tokens": 2974,
+      "reasoning_tokens": 0,
+      "cached_prompt_tokens": 1524,
+      "cost_usd": 0.0,
+      "latency_seconds": 43.97409043647349,
+      "retries": 0,
+      "cache_hits": 0,
+      "cache_misses": 0,
+      "errors": {},
+      "requested_models": {
+        "openrouter/stealth/space-bunny-alpha": 3
+      },
+      "deterministic_fallbacks": {}
+    }
+  },
+  "account_usage": {
+    "before": {
+      "usage": 39.240436083,
+      "usage_daily": 0,
+      "usage_weekly": 0,
+      "usage_monthly": 4.704300154
+    },
+    "after": {
+      "usage": 39.240436083,
+      "usage_daily": 0,
+      "usage_weekly": 0,
+      "usage_monthly": 4.704300154
+    },
+    "unchanged": true,
+    "limitation": "Provider billing readbacks may lag and are account-wide; internal zero cost is recorded separately."
+  },
+  "report": {
+    "idea_count": 8,
+    "hypothesis_count": 3,
+    "verified_count": 3,
+    "evidence_count": 44,
+    "match_count": 12,
+    "degraded_sections": [],
+    "retrieval_degradation": null,
+    "citation_summary": {
+      "verified": 0,
+      "partial": 10,
+      "unsupported": 21,
+      "unavailable": 4
+    }
+  },
+  "publication": {
+    "id": "82adbd22-0e62-4602-9b28-fb570f4b1e5c",
+    "created_at": 1790725154.7537625,
+    "markdown_length": 330028,
+    "markdown_sha256": "de65917036ca60fd481b363cf959296ab9f2daa702ad655c7eaf600dcf5516f7"
+  },
+  "evidence_provenance": [
+    {
+      "id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+      "title": "Mechanisms of acquired resistance to osimertinib in EGFR T790M-Positive lung adenocarcinoma.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/",
+      "doi": "10.3389/fgene.2026.1827187",
+      "pmid": "42757013",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722241.1627834,
+      "sha256": null,
+      "retriever_version": "hybrid-lexical-semantic/2",
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "1b1b904b-4e1a-4bf3-85e1-551821b36138",
+      "title": "Resistance mechanisms to osimertinib in EGFR-mutated non-small cell lung cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1038/s41416-019-0573-8",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722241.162805,
+      "sha256": null,
+      "retriever_version": "hybrid-lexical-semantic/2",
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "f6b0f917-9667-4cc7-8649-433172927a8d",
+      "title": "Tumor Analyses Reveal Squamous Transformation and Off-Target Alterations As Early Resistance Mechanisms to First-line Osimertinib in EGFR -Mutant Lung Cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1158/1078-0432.ccr-19-3563",
+      "doi": null,
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722241.1628144,
+      "sha256": null,
+      "retriever_version": "hybrid-lexical-semantic/2",
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "7c717aa6-0a60-45c1-ad8c-d450b45d236a",
+      "title": "Resistance to third-generation EGFR TKIs - what can be expected from the fourth-generation?",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42729980/",
+      "doi": "10.20517/cdr.2026.79",
+      "pmid": "42729980",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722241.1628234,
+      "sha256": null,
+      "retriever_version": "hybrid-lexical-semantic/2",
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "bf57ed72-4c41-4564-81d7-214de88e71e1",
+      "title": "MET-Aberrant non-small cell lung cancer: from kinase dependence to cell-surface targetability-mechanistic basis and biomarker framework for bispecific antibodies and antibody-drug conjugates.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42526383/",
+      "doi": "10.1016/j.tranon.2026.102947",
+      "pmid": "42526383",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.5386455,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "baddf072-e339-44d6-aed5-baf87cd0a712",
+      "title": "Phlegmasia Cerulea Dolens and Pulmonary Embolism in a Patient With NSCLC Receiving Dual EGFR/MET Targeted Therapy: A Case Report.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42755976/",
+      "doi": "10.1016/j.jtocrr.2026.100996",
+      "pmid": "42755976",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.5386517,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "d78b669b-bf76-4774-b1a7-4757416c43fe",
+      "title": "Therapeutic strategies for EGFR-mutated non-small cell lung cancer patients with osimertinib resistance",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1186/s13045-022-01391-4",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.5386574,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "4e76d260-9224-4fb2-a241-d6c1a55e6e61",
+      "title": "EGFR in Cancer: Signaling Mechanisms, Drugs, and Acquired Resistance",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3390/cancers13112748",
+      "doi": null,
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.5386631,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "b6bd540a-3ab9-4a80-8805-e612a731bbd2",
+      "title": "OncoTraj: a public benchmark for longitudinal resistance prediction in EGFR-mutant non-small-cell lung cancer on osimertinib",
+      "source": "arxiv",
+      "source_type": "preprint",
+      "url": "http://arxiv.org/abs/2606.11144v1",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.5386684,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "8d5d5a91-f15c-4432-8a1b-ffd36d4a8537",
+      "title": "Deciphering the Role of Acetate in Metabolic Adaptation and Osimertinib Resistance in Non-Small Cell Lung Cancer",
+      "source": "arxiv",
+      "source_type": "preprint",
+      "url": "http://arxiv.org/abs/2510.05920v1",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722989.2135644,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "7480c358-a85b-461f-9e46-a2e3415de340",
+      "title": "Recurrent Escape from Osimertinib-Induced Senescence Promotes Genomic Instability Associated with Therapeutic Resistance",
+      "source": "biorxiv",
+      "source_type": "preprint",
+      "url": "https://doi.org/10.64898/2026.02.07.704600",
+      "doi": "10.64898/2026.02.07.704600",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790722989.2135718,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "ec9c3d55-172e-4938-899e-e3c2938b6b50",
+      "title": "Candidate mechanisms of acquired resistance to first-line osimertinib in EGFR-mutated advanced non-small cell lung cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1038/s41467-023-35961-y",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.743683,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "0543b120-3dda-4787-9d1b-4a3b93706d7d",
+      "title": "Long-Term Impact of First-Line Amivantamab Plus Lazertinib Versus Osimertinib on Mechanisms of Acquired Resistance in MARIPOSA: A Brief Report.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42061572/",
+      "doi": "10.1016/j.jtho.2026.103894",
+      "pmid": "42061572",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723006.7436914,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "191a1c05-32e3-477a-96b4-d84f342c44e6",
+      "title": "Predictive value of EGFR amplification and EGFRvIII mutation in EGFR-targeted therapy for recurrent glioblastoma: a systematic review.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42283227/",
+      "doi": "10.1080/20450907.2026.2685339",
+      "pmid": "42283227",
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723295.5628352,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "d385974f-1885-4fb5-97f8-3b9964366844",
+      "title": "Optimizing Osimertinib for NSCLC: Targeting Resistance and Exploring Combination Therapeutics",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3390/cancers17030459",
+      "doi": null,
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723295.5628486,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "2c481dce-8bef-4792-a854-a522b5147651",
+      "title": "Targeting Classical EGFR Mutations in Lung Cancer: Twenty Years of Progress and Beyond.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3390/cancers18152401",
+      "doi": "10.3390/cancers18152401",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723295.5628603,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "c9c78ce4-e638-4d81-9565-41545ed5f709",
+      "title": "Longitudinal Circulating Tumor DNA-Guided Resistance Analysis During Second-Line Osimertinib Treatment.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40792215/",
+      "doi": "10.1016/j.jtocrr.2025.100853",
+      "pmid": "40792215",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723239.8053286,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "df5406d4-e377-4f2a-b5bf-1a30aea10310",
+      "title": "Longitudinal Circulating Tumor DNA Analysis in Blood and Saliva for Prediction of Response to Osimertinib and Disease Progression in EGFR-Mutant Lung Adenocarcinoma.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34283064/",
+      "doi": "10.3390/cancers13133342",
+      "pmid": "34283064",
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723239.8053553,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "0b60eb8b-7f8e-441a-9f7a-900edebd9a86",
+      "title": "Mechanisms of acquired resistance to osimertinib in EGFR T790M-Positive lung adenocarcinoma.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3389/fgene.2026.1827187",
+      "doi": "10.3389/fgene.2026.1827187",
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723239.805363,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "efe2571c-e93d-4cc9-b728-452dccd26685",
+      "title": "Clinical analysis by next-generation sequencing for NSCLC patients with MET amplification resistant to osimertinib.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/29571987/",
+      "doi": "10.1016/j.lungcan.2018.02.007",
+      "pmid": "29571987",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723239.8053696,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "0096c75d-7c00-498f-9796-d748c5546e3d",
+      "title": "Dissecting signaling regulators driving AXL-mediated bypass resistance and associated phenotypes by phosphosite perturbations",
+      "source": "biorxiv",
+      "source_type": "preprint",
+      "url": "https://doi.org/10.1101/2023.10.20.563266",
+      "doi": "10.1101/2023.10.20.563266",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723237.1811392,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "cfd78729-52b2-4c6c-a18a-ac97b726eec5",
+      "title": "Exploring the potential value of aloe active components in inhibiting non-small cell lung cancer through network pharmacology",
+      "source": "biorxiv",
+      "source_type": "preprint",
+      "url": "https://doi.org/10.64898/2025.12.02.691806",
+      "doi": "10.64898/2025.12.02.691806",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790723228.4388406,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "bc8a72e2-d7ca-4915-9f9b-ad759bdd441b",
+      "title": "Osimertinib Resistance in EGFR-Mutated Non-Small Cell Lung Cancer: Mechanisms and Therapeutic Strategies.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1002/mco2.70823",
+      "doi": "10.1002/mco2.70823",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724163.2087462,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "5c7d44c2-1672-4480-b0ae-d0d84ae58f23",
+      "title": "Comprehensive Genomic Profiling Beyond Driver Testing in Non-Squamous Non-Small Cell Lung Cancer With Known Drivers.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42770652/",
+      "doi": "10.1111/cas.70538",
+      "pmid": "42770652",
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724163.2087526,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "50ee26d7-0c9b-471e-ad26-8f29f18eb1e5",
+      "title": "The PI3K-AKT-mTOR Pathway and Prostate Cancer: At the Crossroads of AR, MAPK, and WNT Signaling",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3390/ijms21124507",
+      "doi": null,
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724165.4396787,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "bf0e4903-2884-43e8-a6c8-06cc433cef6f",
+      "title": "C-MET tyrosine kinase receptor: mechanisms, clinical applications and future perspectives in cancer therapy.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1038/s41392-026-02682-9",
+      "doi": "10.1038/s41392-026-02682-9",
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724165.4396856,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "13fba553-081a-4501-85d9-67b4ee1aca7d",
+      "title": "Chemical proteomics decrypts the kinases that shape the dynamic human phosphoproteome",
+      "source": "biorxiv",
+      "source_type": "preprint",
+      "url": "https://doi.org/10.1101/2025.11.18.689017",
+      "doi": "10.1101/2025.11.18.689017",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724165.4396992,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "dffc9c81-4677-42d2-8d03-a7358daa9300",
+      "title": "IFITM3-MET interaction drives osimertinib resistance through AKT pathway activation in EGFR-mutant non-small cell lung cancer.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41152910/",
+      "doi": "10.1186/s12943-025-02493-6",
+      "pmid": "41152910",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724496.5360122,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "eccf2930-57bf-46f2-8663-0e43dc0b82db",
+      "title": "MET inhibitors for targeted therapy of EGFR TKI-resistant lung cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1186/s13045-019-0759-9",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724496.5360248,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "3353d263-6ed6-40e4-a66a-2de45c0e8372",
+      "title": "Emergence of Resistance to MTI-101 Selects for a MET Genotype and Phenotype in EGFR Driven PC-9 and PTEN Deleted H446 Lung Cancer Cell Lines.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35804837/",
+      "doi": "10.3390/cancers14133062",
+      "pmid": "35804837",
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724496.5360312,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "edc781f2-236c-48d2-b35b-1c173710d9e6",
+      "title": "Traditional Chinese medicine reprograms the tumor microenvironment to overcome EGFR-TKI resistance: mechanisms and therapeutic perspectives.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.3389/fphar.2026.1901815",
+      "doi": "10.3389/fphar.2026.1901815",
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724496.5360374,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "0d6cfc68-e8c9-4b8c-b50c-a3450e57cc2d",
+      "title": "Glioma targeted therapy: insight into future of molecular approaches",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1186/s12943-022-01513-z",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724496.5360458,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "788a0c06-9bc7-4c54-99c6-34940953ebb2",
+      "title": "Clonal Evolution and Heterogeneity of Osimertinib Acquired Resistance Mechanisms in EGFR Mutant Lung Cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1016/j.xcrm.2020.100007",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724499.7026012,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "150be78c-4e67-4c4b-a97d-3c1bd6f1c070",
+      "title": "A prospective, multicenter, comprehensive genomic profile signature study in patients with EGFR-mutant advanced non-small cell lung cancer at the first-line treatment failure of osimertinib.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41326340/",
+      "doi": "10.1038/s41392-025-02481-8",
+      "pmid": "41326340",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724475.921254,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "a399f905-4ebe-43ae-8e80-05ca58ac814b",
+      "title": "Exclusive photoproduction of $\u03c0^0$ up to large values of Mandelstam variables $s, t$ and $u$ with CLAS",
+      "source": "arxiv",
+      "source_type": "preprint",
+      "url": "http://arxiv.org/abs/1712.10314v1",
+      "doi": "10.1103/PhysRevC.98.015207",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724475.9212582,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "236e3b4c-2aaf-4ecf-8799-bbcc74d47708",
+      "title": "Genomic and local microenvironment effects shaping epithelial-to-mesenchymal trajectories in cancer",
+      "source": "biorxiv",
+      "source_type": "preprint",
+      "url": "https://doi.org/10.1101/2021.07.23.453584",
+      "doi": "10.1101/2021.07.23.453584",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724475.9212623,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "6f367081-10ed-4530-9627-31086f6c8ed3",
+      "title": "Landscape of Chinese Lung Cancer Patients With Compound Mutations and Acquired Resistance Alterations: A Retrospective Study.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42237450/",
+      "doi": "10.1002/ijc.70545",
+      "pmid": "42237450",
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724475.9212663,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "86463798-24d0-4995-a598-100f5b9bcfe4",
+      "title": "Modeling acquired TKI resistance and effective combination therapeutic strategies in murine RET+ lung adenocarcinoma.",
+      "source": "pubmed",
+      "source_type": "peer_reviewed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41921856/",
+      "doi": "10.1016/j.canlet.2026.218467",
+      "pmid": "41921856",
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724469.1910505,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "85632536-178d-4990-8246-66624db11420",
+      "title": "AXL/CDCP1/SRC axis confers acquired resistance to osimertinib in lung cancer",
+      "source": "openalex",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1038/s41598-022-12995-8",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724469.191056,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "c14f8dec-3043-47cc-bd0c-0924b02e59e3",
+      "title": "Towards better outcomes for epidermal growth factor receptor L858R+ lung cancer patients: mutant-selective allosteric inhibitors and the potential for double-drugging.",
+      "source": "europepmc",
+      "source_type": "peer_reviewed",
+      "url": "https://doi.org/10.1098/rstb.2024.0505",
+      "doi": "10.1098/rstb.2024.0505",
+      "pmid": null,
+      "available": false,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": 1790724469.1910837,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "aa98d3b4-4324-471a-9627-488be70e9e15",
+      "title": "{'source': 'Ensembl', 'query': 'MET', 'records': [{'ensembl_id': 'ENSG00000105976', 'symbol': 'MET', 'biotype': 'protein_coding', 'description': 'MET proto-oncogene, receptor tyrosine kinase [Source:HGNC Symbol;Acc:HGNC:7029]', 'locus': '7:116672051-116798391', 'strand': 1, 'url': 'https://www.ensem",
+      "source": "knowledge_graph",
+      "source_type": null,
+      "url": "",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "b78d4f22-c2d9-451d-8426-b7969f237f3c",
+      "title": "{'source': 'Ensembl', 'query': 'EGFR', 'records': [{'ensembl_id': 'ENSG00000146648', 'symbol': 'EGFR', 'biotype': 'protein_coding', 'description': 'epidermal growth factor receptor [Source:HGNC Symbol;Acc:HGNC:3236]', 'locus': '7:55018820-55211628', 'strand': 1, 'url': 'https://www.ensembl.org/Homo_",
+      "source": "knowledge_graph",
+      "source_type": null,
+      "url": "",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "4a886a6c-ee06-4fba-885c-21fda87dfe5b",
+      "title": "{'source': 'UniProtKB/Swiss-Prot', 'query': 'MET', 'records': [{'accession': 'Q2IBA6', 'gene': 'MET', 'protein_name': 'Hepatocyte growth factor receptor', 'organism': 'Chlorocebus aethiops', 'functions': ['Receptor tyrosine kinase that transduces signals from the extracellular matrix into the cytopl",
+      "source": "knowledge_graph",
+      "source_type": null,
+      "url": "",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    },
+    {
+      "id": "6e174708-f48b-463e-9639-f1da74c26320",
+      "title": "{'source': 'STRING', 'query': 'MET', 'records': [{'partner': 'HGF', 'combined_score': 0.999, 'experimental_score': 0.999, 'database_score': 0.9, 'coexpression_score': 0, 'textmining_score': 0.941, 'url': 'https://string-db.org/network/9606.ENSP00000222390'}, {'partner': 'CBL', 'combined_score': 0.99",
+      "source": "knowledge_graph",
+      "source_type": null,
+      "url": "",
+      "doi": null,
+      "pmid": null,
+      "available": true,
+      "retracted": false,
+      "retrieval_call_id": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "retriever_version": null,
+      "document_version": null,
+      "extraction_tool": null
+    }
+  ],
+  "claim_evidence": [
+    {
+      "id": 6167,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "In an initially osimertinib-sensitive EGFR-mutant lung adenocarcinoma model, a bounded focal high-copy MET amplification that emerges or is selected during continuous osimertinib exposure causes acquired resistance by increasing the concentration and surface availability of kinase-active MET, allowing MET-dependent survival signaling despite EGFR inhibition.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3016825,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6168,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "MET catalytic activity, rather than receptor abundance or scaffolding alone, is required: acute MET degradation or selective MET kinase inhibition should reduce the survival-pathway output and restore osimertinib sensitivity, whereas CRISPR-resistant wild-type MET should restore resistance and a trafficking- and abundance-matched kinase-dead MET construct should not.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3047903,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6169,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "MET amplification may produce RAS-MEK-ERK, PI3K-AKT, or combined output, with ERBB3-PI3K-AKT as a conditional rather than universally required mediator.",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3062065,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "Laboratory validation established that MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1762,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6170,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "Broad chromosome 7 gain should not be classified as the same mechanism unless it recreates the MET-dependent signaling state and its resistance is reversed by loss of MET catalytic activity.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3062341,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6171,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "The prediction is falsified if MET amplification does not precede or accompany resistance, if confirmed MET loss does not reverse resistance while preserving drug-free viability, or if resistance is instead explained by EGFR-intrinsic lesions, another receptor bypass pathway, lineage transformation, or reversible drug tolerance.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.30625,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6172,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "The reviewed evidence supports MET amplification or overexpression as an off-target osimertinib-resistance category, with persistent ERK/AKT signaling and functional sensitivity to MET-directed treatment, but much of the mechanistic evidence is based on engineered MET overexpression rather than authentic focal amplification [C1] [C2].",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.306272,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "dffc9c81-4677-42d2-8d03-a7358daa9300",
+          "quote": "Furthermore, combined treatment with a MET inhibitor suppressed the development of osimertinib resistance in a mouse xenograft tumor model.",
+          "start": 1791,
+          "end": 1930,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/41152910/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6173,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "Paired-biopsy studies also identify off-target alterations and squamous transformation alongside EGFR alterations, showing that clinical MET amplification must be distinguished from mixed or transformation-associated resistance [C3].",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.306285,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6174,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "The proposed sequence begins with a genomic event that raises MET copy number in a bounded region, rather than merely increasing MET transcript or protein transiently.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3063078,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6175,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "If that event raises surface MET sufficiently, receptor concentration and ligand responsiveness can produce persistent MET phosphorylation during osimertinib-mediated EGFR inhibition.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3063188,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6176,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "MET then supplies an alternative survival input through downstream ERK and/or AKT signaling, allowing cells to survive when EGFR kinase signaling is suppressed.",
+      "label": "supports",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.306337,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "Laboratory validation established that MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1762,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6177,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "The proposed causal test is to interrupt this input after resistance has emerged: removing MET protein or inhibiting its kinase should lower the relevant phosphoproteomic signal and sensitize cells to osimertinib.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3063564,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6178,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "Wild-type MET rescue demonstrates that the phenotype is specifically due to MET dosage and activity, while a kinase-dead rescue controls for the possibility that increased receptor abundance works through noncatalytic scaffolding.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3063686,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6179,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "Downstream perturbations then determine which branch is required in a given context: MEK or ERK disruption tests ERK dependence, PI3K or AKT disruption tests AKT dependence, and ERBB3 disruption tests whether the MET state is gated through an ERBB-family adaptor.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3063793,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6180,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "These alternatives are deliberately separated because MET amplification, MET phosphorylation, ERK activation, AKT activation, and ERBB3 association are not interchangeable.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.30639,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6181,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "The proposed mechanism is consistent with established observations of MET-associated bypass and mixed resistance, but the focal-amplicon-to-resistance link, catalytic necessity, and temporal ordering remain hypotheses requiring direct perturbation.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3064015,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6182,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "Causal interpretation is limited to a model that lacks C797S or other EGFR-intrinsic lesions, independent ERBB2/ERBB3, FGFR, or other bypass lesions, and transformation, because resistance in a mixed clone cannot be attributed to MET alone.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3064125,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6183,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "6b5a245d-417e-4aa4-a1e3-4c7de8ef69cb",
+      "claim": "A focal amplicon may be chromosomal or extrachromosomal, but either must demonstrate a localized, functionally consequential MET dosage state rather than broad polysomy-associated passenger gain.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.306429,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6184,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "In an initially osimertinib-sensitive EGFR-mutant adenocarcinoma without a secondary EGFR kinase lesion or established lineage transformation, a focal MET high-copy gain will create a gain-controlled bypass state rather than a simple linear increase in signaling flux: increased MET receptor reserve will shift the relationship between HGF input and downstream ERBB3-PI3K-AKT and RAS-MEK-ERK output, allowing disproportionate survival signaling under EGFR blockade.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3067904,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6185,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The prediction is that MET-amplified cells will show a left-shifted, steeper HGF-to-pMET transfer function, with increased survival per unit of receptor-normalized pathway output under osimertinib, while either MET loss or combined EGFR-MET blockade will collapse the state.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.306811,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6186,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "MET kinase activity is expected to be required for the primary bypass output, but the ERBB3-PI3K-AKT branch is the primary candidate mediator and the MAPK branch is conditional; active inhibitor-resistant MET should restore both signaling and clonogenic survival, whereas a kinase-dead receptor should not.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3069491,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6187,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "This is distinct from claims that MET is merely a passenger, that resistance is selected from a rare pre-existing clone, or that any MET-high cell is dependent on weakened EGFR signaling: the decisive novelty is the nonlinear, receptor-reserve-dependent transfer function under osimertinib.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.307571,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6188,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The mechanism is rejected if verified MET depletion produces no selective combination effect, if active rescue fails, or if MET-amplified cells lack a reproducible gain-control signature after receptor normalization.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.30763,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6189,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The retrieved resistance literature reports that MET-associated osimertinib escape can involve bypass activation of ERK and AKT signaling, while also documenting heterogeneity with EGFR lesions, other bypass mechanisms, and transformation [C1][C2].",
+      "label": "supports",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3076727,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "Laboratory validation established that MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1762,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        },
+        {
+          "evidence_id": "1b1b904b-4e1a-4bf3-85e1-551821b36138",
+          "quote": "the acquired osimertinib resistance is highly heterogeneous, encompassing EGFR-dependent as well as EGFR-independent mechanisms.",
+          "start": 738,
+          "end": 866,
+          "source": "openalex",
+          "url": "https://doi.org/10.1038/s41416-019-0573-8"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6190,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "Longitudinal clinical analyses separate off-target alterations from squamous transformation but also show that resistance events can be mixed, supporting explicit exclusion profiling rather than a single-mechanism interpretation [C3].",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.307693,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6191,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The supplied MET-focused literature supports measuring receptor abundance, surface localization, kinase dependence, and pathway output, but the proposed HGF-titrated gain-control architecture and its quantitative interaction criteria remain new preclinical predictions rather than established clinical conclusions [C5].",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3077285,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "bf57ed72-4c41-4564-81d7-214de88e71e1",
+          "quote": "Cell-surface targetability is approximated by drug-specific IHC assessment of assay-defined c-MET protein expression",
+          "start": 1269,
+          "end": 1385,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42526383/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6192,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The proposed mechanism is not simply that more MET protein makes a cell resistant.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3077419,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6193,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The analogy is to a signal amplifier: a larger receptor reserve can make the same small amount of HGF produce a much larger downstream response, especially when the usual EGFR input is blocked.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3077545,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6194,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "The model predicts that this amplified response will be nonlinear and will preferentially support the ERBB3-PI3K-AKT survival branch, with MAPK activation used only when that branch is demonstrably required.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3077657,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6195,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "Researchers will compare parental and MET-amplified cells using MET depletion, a selective MET inhibitor, osimertinib alone, and the combination, then attempt to restore the phenotype with inhibitor-resistant MET.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.307778,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6196,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "5caa764f-96c8-4b12-8b6b-3301a758c830",
+      "claim": "If resistance disappears without a receptor-normalized signaling gain, or if MET perturbation has the same effect in matched MET-low cells, the proposed bypass explanation will be rejected rather than rescued by additional pathway association.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3077896,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6197,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "In EGFR-mutant lung-cancer cells, MET amplification will cause a durable, MET-dependent bypass phenotype under osimertinib primarily when it occurs in a clone whose EGFR kinase signaling is already weakened or altered by a resistance mutation such as C797S.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.307986,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6198,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "In that setting, increased MET copy number or expression will promote ligand-independent or ligand-enhanced MET dimerization, leading to GAB1\u2013PI3K\u2013AKT and RAS\u2013ERK activation that sustains proliferation despite osimertinib.",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092237,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "Laboratory validation established that MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1762,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6199,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "In cells with intact osimertinib-sensitive EGFR signaling, MET amplification may increase p-MET without producing comparable durable resistance, because EGFR inhibition remains a dominant constraint.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092427,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6200,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "Thus, the prediction is not simply that MET amplification correlates with resistance, but that the combination of MET amplification and reduced EGFR dependence produces the strongest MET-inhibitor-sensitive rescue and the greatest persistence of AKT/ERK signaling.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092506,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6201,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "The proposed evidence thresholds are intended to be evaluated against public reports of MET amplification, phospho-MET/AKT/ERK activation, genetic or pharmacologic MET rescue, and co-occurrence with EGFR C797S or other resistance lesions rather than being asserted from an unprovided citation.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092582,
+      "claim_role": "categorical",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6202,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "The mechanism has four linked steps.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092659,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6203,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "First, MET amplification increases total and activated MET, measured most directly by MET copy number together with phospho-MET, including the activation-loop sites Y1230/Y1235.",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.309278,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1801,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6204,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "Second, amplified MET can signal through GAB1 and downstream PI3K\u2013AKT and RAS\u2013ERK independently of continued mutant-EGFR kinase activity, allowing cells to bypass osimertinib-mediated EGFR blockade.",
+      "label": "partial",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3092897,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [
+        {
+          "evidence_id": "9d31f6b4-d110-4ccd-b1a6-6ffa47f45881",
+          "quote": "Laboratory validation established that MET amplification confers resistance via bypass activation of both ERK and AKT signaling cascades.",
+          "start": 1762,
+          "end": 1899,
+          "source": "pubmed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42757013/"
+        }
+      ],
+      "contradicting": []
+    },
+    {
+      "id": 6205,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "Third, if the clone also carries C797S or another lesion that weakens osimertinib-sensitive EGFR signaling, MET signaling becomes exposed as the remaining survival pathway, so combined MET amplification and EGFR alteration should produce stronger resistance than either alteration alone.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.309298,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6206,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "Fourth, genetic MET disruption or a selective MET inhibitor should preferentially reduce viability and restore osimertinib sensitivity in the combination condition, whereas p-MET reduction without a growth or signaling rescue would indicate that MET activation is a marker rather than a functional dependency.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.3093069,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    },
+    {
+      "id": 6207,
+      "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+      "hypothesis_id": "c7a0c074-eeb8-443f-a7d7-2087ede0e5f8",
+      "claim": "Comparison with KRAS- or PI3K-driven resistant controls and with MET-amplified cells lacking C797S will distinguish MET bypass from parallel resistance mechanisms.",
+      "label": "insufficient",
+      "assessor": "llm:openrouter/stealth/space-bunny-alpha",
+      "created_at": 1790725151.309314,
+      "claim_role": "speculative",
+      "verification_method": "model_primary",
+      "supporting": [],
+      "contradicting": []
+    }
+  ],
+  "ownership": {
+    "authenticated_read": 200,
+    "anonymous_read": 404
+  },
+  "release": {
+    "default_model_commit": "24e28bfe79da311f3f7c7074dc469b8b15cce62c",
+    "correction_commit": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
+    "pr": "https://github.com/guy915/Co-Scientist/pull/78",
+    "api": {
+      "id": "527fbba8-30a2-4f98-a171-4ce306fe5ab1",
+      "status": "SUCCESS"
+    },
+    "mcp": {
+      "id": "cfb3ffeb-5c62-43e5-94f3-2784d3167b18",
+      "status": "SUCCESS"
+    },
+    "frontend": {
+      "id": "dpl_5wkgV8nd4appMrzFqYbHUh8nCaPY",
+      "status": "READY"
+    },
+    "security_scan": {
+      "id": "6756b4c2-954d-4e8e-babd-36b567433643",
+      "status": "completed",
+      "findings": 0
+    },
+    "hosted_ci": "Affected targets failed before downstream checks; existing owner waiver used after applicable local checks",
+    "production_smoke": {
+      "checks": 5,
+      "passed": 5,
+      "log_sha256": "931a7948eaa5cf843d6d23843bb83a22041a7cf8b4441474a38bcddd782a7c7d"
+    }
+  },
+  "browser": {
+    "before": "Failed to fetch / MissingAllowOriginHeader",
+    "after": "404 {\"detail\":\"run not found\"}",
+    "refresh_after": "404 {\"detail\":\"run not found\"}",
+    "authenticated_refinement": "Not claimed; M12-04b6 remains open"
+  },
+  "deployed_http": [
+    {
+      "origin": "https://ai-co-scientist.com",
+      "invalid_bearer": false,
+      "status": 404,
+      "allow_origin": "https://ai-co-scientist.com",
+      "allow_credentials": "true",
+      "vary": "Origin",
+      "body": "{\"detail\":\"run not found\"}"
+    },
+    {
+      "origin": "https://ai-co-scientist.com",
+      "invalid_bearer": true,
+      "status": 401,
+      "allow_origin": "https://ai-co-scientist.com",
+      "allow_credentials": "true",
+      "vary": "Origin",
+      "body": "{\"detail\":\"invalid session\"}"
+    },
+    {
+      "origin": "https://evil.example",
+      "invalid_bearer": false,
+      "status": 404,
+      "allow_origin": null,
+      "allow_credentials": "true",
+      "vary": "Origin",
+      "body": "{\"detail\":\"run not found\"}"
+    }
+  ],
+  "scientific_limits": [
+    "Completion is operational evidence, not wet-lab or expert validation.",
+    "Report retains 21 unsupported and 4 unavailable citations; no verified-citation claim is inferred.",
+    "Three ranking tie-vote deterministic outcomes retained; no paid/model fallback observed."
+  ],
+  "raw_snapshot_hashes": {
+    "state": "11137df629243014832250258ea676b46c6f5edbbfe172b89331f97f9b8481ff",
+    "tasks": "1db92c1cdfa3d44782c8708abb9beb3f5270c02b0e3e07ec494b522d05c17db2",
+    "metrics": "968962913d0c291e99c730df51416610dee9b5db83fda8ab406dd1a190ef30b2",
+    "report": "a29f86fa9c419bcf86aa66254a60584d92076302320bd053dd6366454ec08d2b",
+    "evidence": "607bff4ab187186d6bceae041482280c2d404ea32dc43fb73bd26d3bfdf7b13b",
+    "hypotheses": "f049562ae098c0c1ac17418e22b9d91daffde6ef8cad001f55e0636b43b59378",
+    "claim-evidence": "5c99ec4c84184467ce1bc08acd8f06915cef264b7f3c270486c278a3c79acad8",
+    "safety": "3bc370e06cd34f3e1d9eb4e2ffe38fdec95abec6760ae1f9a7e7157d6f52df00",
+    "reviews": "708bb5d55e4074617f7dbb5d1dc3a5409a265c31c391ce40ecffe60a57b421b3"
+  }
+}
