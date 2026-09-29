@@ -43,6 +43,7 @@ from co_scientist.agents.generation.literature_review.search_retry import (
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.workflow_schema import WorkflowConfig
 from co_scientist.constants import corpus_slug
+from co_scientist.mcp_campaign import campaign_serves_tool
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.research import RetrievalError, SourceHit
 
@@ -119,8 +120,12 @@ class McpRetrieval:
         self._workflow = workflow
         self._run = run
         self._records: dict[str, tuple[str, dict[str, Any]]] = {}
+        # A source the campaign MCP policy refuses would fail every call it
+        # is given, so it is not offered to the loop at all.
         self.sources: tuple[str, ...] = tuple(
-            source.tool for source in workflow.get_enabled_search_sources()
+            source.tool
+            for source in workflow.get_enabled_search_sources()
+            if _campaign_admits(registry, source.tool)
         )
 
     async def search(
@@ -248,6 +253,12 @@ class McpRetrieval:
                 )
             )
         return hits
+
+
+def _campaign_admits(registry: ToolRegistry, source: str) -> bool:
+    """Whether the campaign MCP policy lets this run search ``source``."""
+    tool = registry.get_tool(source)
+    return tool is None or campaign_serves_tool(tool.mcp_tool_name)
 
 
 def _as_score(value: Any) -> float | None:

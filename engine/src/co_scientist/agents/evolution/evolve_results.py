@@ -304,7 +304,9 @@ def _rejected_as_unchanged(hypothesis: Hypothesis, refined_text: str) -> bool:
     """
     if refined_text != hypothesis.text:
         return False
-    logger.warning("Evolution returned unchanged hypothesis; no child")
+    # Info, not warning: the guard doing its job is a per-item verdict,
+    # and the caller already records the attempt as producing no child.
+    logger.info("Evolution returned the hypothesis unchanged; no child")
     return True
 
 
@@ -343,9 +345,9 @@ def _near_duplicate_similarity(
     )
     if max_similarity <= DUPLICATE_SIMILARITY_THRESHOLD:
         return max_similarity
-    logger.warning(
-        "Evolution created near-duplicate! Similarity: %.2f. Creating no"
-        " child.",
+    logger.info(
+        "Evolution result duplicates an existing hypothesis "
+        "(similarity %.2f); no child",
         max_similarity,
     )
     logger.debug("original: %s...", hypothesis.text[:100])

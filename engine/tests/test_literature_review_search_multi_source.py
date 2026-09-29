@@ -30,6 +30,7 @@ from co_scientist.config import (
     ToolRegistry,
     WorkflowConfig,
 )
+from co_scientist.llm_free_policy import scoped_campaign_mode
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
 from tests._offline_helpers import isolate_offline_router
 from tests._retrieval_config import make_tool_config
@@ -442,3 +443,38 @@ async def test_source_error_preserves_healthy_sibling_and_diagnostics() -> None:
     assert len(errors) == 1
     assert "search_europepmc" in errors[0] and "Europe PMC" in errors[0]
     assert "HTTP 503" in errors[0]
+
+
+async def test_campaign_scope_skips_a_source_its_policy_refuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A source the campaign MCP policy refuses is never called.
+
+    The registry is built before the campaign scope is known, so web search
+    stays enabled there; every call to it was refused, retried four times,
+    and logged at ERROR on each literature pass.
+    """
+    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    registry = make_tool_lookup_registry(
+        {
+            "src_a": make_tool_config(mcp_tool_name="search_pubmed"),
+            "src_b": make_tool_config(mcp_tool_name="search_web"),
+        }
+    )
+    config = _multi_source_config(
+        registry,
+        make_two_source_workflow(2),
+        source_name="pubmed",
+        papers_to_read_count=10,
+    )
+    client = _SequencedMCPClient([{"P1": {"title": "Only PubMed"}}])
+    errors: list[str] = []
+
+    with scoped_campaign_mode(True):
+        metadata, _ = await _collect_multi_source(
+            ["q1"], make_state(run_id="run-campaign"), config, client, errors
+        )
+
+    assert [name for name, _ in client.calls] == ["search_pubmed"]
+    assert set(metadata) == {"P1"}
+    assert errors == []

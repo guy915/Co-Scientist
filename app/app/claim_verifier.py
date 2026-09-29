@@ -197,6 +197,10 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
     a one-element list; ``coerce_json_list`` recovers that shape before
     the per-item dict fields are read.
     """
+    if isinstance(items, dict):
+        # One citation as a bare object is the expected shape above and loses
+        # nothing, so it is wrapped here rather than logged as a coercion.
+        items = [items]
     pairs: list[tuple[str, str]] = []
     for item in coerce_json_list(items, element="dict", site=site):
         cited = str(item.get("passage") or "")

@@ -44,6 +44,24 @@ _PRE_CITATION_ROLLBACK_TOOLS = _M10_PUBLIC_TOOLS - {
 }
 
 
+class CampaignToolUnavailableError(RuntimeError):
+    """A tool outside the campaign policy was asked for.
+
+    Permanent for the whole run: the policy is fixed while the campaign
+    scope is active, so retrying the call cannot admit it.
+    """
+
+
+def campaign_serves_tool(name: str) -> bool:
+    """Whether the current scope may call MCP tool ``name`` at all.
+
+    Outside campaign mode every tool may be called. Inside it only the
+    reviewed public tools are admitted, so a caller can skip the rest
+    instead of issuing a call that is refused every time.
+    """
+    return not campaign_free_mode() or name in PUBLIC_TOOLS
+
+
 def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
     expected = os.getenv("COSCIENTIST_CAMPAIGN_MCP_URL", "")
     if not expected or len(configs) != 1:
@@ -148,7 +166,9 @@ class CampaignAdmission:
     ) -> None:
         """Admit only reviewed tools on the qualified serving deployment."""
         if name not in PUBLIC_TOOLS:
-            raise RuntimeError("tool is unavailable under campaign MCP policy")
+            raise CampaignToolUnavailableError(
+                "tool is unavailable under campaign MCP policy"
+            )
         await self.verify(configs)
 
     def transport_configs(self) -> dict[str, dict[str, Any]]:
