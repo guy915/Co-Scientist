@@ -16,6 +16,15 @@
   display: block;
   overflow-x: hidden;
   overflow-y: auto;
+  /* At either end, a scroll must not chain out to the document: on macOS
+     the root then rubber-bands and drags the whole shell with it, showing
+     the page background under the rounded workspace. */
+  overscroll-behavior-y: contain;
+}
+
+html:has(.ucs-landing),
+html:has(.ucs-landing) body {
+  overscroll-behavior-y: none;
 }
 
 .ucs-page--home:has(.ucs-landing) .reference-workspace,

@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import {useLocation} from 'react-router-dom';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import helixArt from '../../assets/landing/helix.webp';
 import {joinClasses} from '../classes';
 import {LANDING_SECTIONS} from './home_landing_content';
@@ -43,11 +44,22 @@ function scrollBehavior(reduceMotion: boolean): ScrollBehavior {
   return reduceMotion ? 'auto' : 'smooth';
 }
 
-/** Scrolls the landing section with `id` into view. */
+// The home page's own scroll pane. Scrolling it directly (never with
+// scrollIntoView, which also scrolls the shell's clipped ancestors and
+// leaves the whole app shifted up) keeps the shell in place.
+const HOME_SCROLLER = '.ucs-page--home';
+
+// Room left above a section for the sticky rail.
+const RAIL_OFFSET = 72;
+
+/** Scrolls the landing section with `id` to just under the rail. */
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
-  document
-    .getElementById(id)
-    ?.scrollIntoView({behavior: scrollBehavior(reduceMotion), block: 'start'});
+  smoothScrollToSection(
+    id,
+    RAIL_OFFSET,
+    HOME_SCROLLER,
+    scrollBehavior(reduceMotion),
+  );
 }
 
 // Scrolls back up to the home stage and puts the caret in the composer.
