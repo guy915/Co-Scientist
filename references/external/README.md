@@ -20,6 +20,8 @@ Sakana's result-conditioned search remains unresolved. The separately registered
 after one model response and one retrieval call at reported $0. All three study
 admissions are consumed and incomplete; none may be replayed. No scientific
 adoption or rejection follows from an interrupted comparison.
+[PR #80](m12-reference-evidence-release-2026-09-30.json) preserves the reference
+repair and study evidence; its unchanged product is healthy in existing services.
 Four M12 items remain open in [PLAN.md](../../PLAN.md). The
 [deferred register](deferred-followups-2026-09-25.md) preserves earlier decisions,
 and [current release reconciliation](m12-current-release-reconciliation-2026-09-30.json)

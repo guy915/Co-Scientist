@@ -11,12 +11,15 @@ remaining M12 checks concern result-conditioned novelty, its disposition,
 candidate reconciliation and final acceptance. No further model qualification
 is authorized. The third novelty study has its own
 [frozen registration](sakana/novelty-result-conditioned-pilot-prereg-v3.json);
-its result must be recorded before resolving that candidate.
+its [recorded result](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
+stopped on an upstream metadata-fetch error. All three admissions are consumed;
+no replay, fourth study or scientific disposition follows from those interruptions.
 
-The current verified release is [PR #79](https://github.com/guy915/Co-Scientist/pull/79),
-`a4a06abd723f8af8392a307457301837b15dc244`, with healthy existing-service
-deployments and 5/5 keyless smoke. See the
-[release receipt](m12-pubmed-trace-release-2026-09-30.json) and
+The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
+`73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
+deployments and 5/5 keyless smoke. Its reference-only changes preserve PR #79
+product content. See the
+[release receipt](m12-reference-evidence-release-2026-09-30.json) and
 [rollback reconciliation](m12-current-release-reconciliation-2026-09-30.json).
 
 ### Historical M1/M2 decisions
