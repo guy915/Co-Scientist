@@ -2,11 +2,10 @@
 // in "Towards an AI co-scientist" (Gottweis et al., 2025): the scientist's
 // goal flows through configuration to the Supervisor, which assigns the six
 // specialist agents to workers, and the run returns a research overview.
-// A highlight walks through the agents; hover
-// or focus an agent to hold it and read what it does. Phones get the same
-// flow as a stacked list.
+// Nothing moves on its own: hover, focus, or tap an agent to highlight it
+// and read what it does. Phones get the same flow as a stacked list.
 
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import {joinClasses} from '../classes';
 import {LANDING_AGENTS, type LandingAgent} from './home_landing_content';
 
@@ -21,27 +20,9 @@ const COLUMN_X = [280, 560];
 const ROW_Y = [214, 314, 414];
 const CELL_W = 240;
 const CELL_H = 56;
-const STEP_MS = 1800;
 
 function agentByName(name: string): LandingAgent {
   return SPECIALISTS.find(agent => agent.name === name) ?? SPECIALISTS[0];
-}
-
-// Walks the highlight through the specialists unless one is held.
-function useWalkingHighlight(
-  held: string | null,
-  reduceMotion: boolean,
-): string {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (held || reduceMotion) return;
-    const timer = window.setInterval(
-      () => setIndex(i => (i + 1) % SPECIALISTS.length),
-      STEP_MS,
-    );
-    return () => window.clearInterval(timer);
-  }, [held, reduceMotion]);
-  return held ?? SPECIALISTS[index].name;
 }
 
 interface NodeProps {
@@ -252,7 +233,7 @@ function DiagramSvg({
   active,
   onHold,
 }: {
-  active: string;
+  active: string | null;
   onHold: (name: string | null) => void;
 }) {
   return (
@@ -283,9 +264,15 @@ function DiagramSvg({
 }
 
 // The phone layout: the same flow, top to bottom.
-function DiagramList({active}: {active: string}) {
+function DiagramList({
+  active,
+  onHold,
+}: {
+  active: string | null;
+  onHold: (name: string | null) => void;
+}) {
   return (
-    <ol className="ucs-landing-flow" aria-hidden="true">
+    <ol className="ucs-landing-flow">
       <li className="is-you">
         <b>You</b>set the research goal and configuration
       </li>
@@ -294,15 +281,18 @@ function DiagramList({active}: {active: string}) {
       </li>
       <li className="ucs-landing-flow-ring">
         {SPECIALISTS.map(agent => (
-          <span
+          <button
             key={agent.name}
+            type="button"
+            aria-pressed={active === agent.name}
             className={joinClasses(
               `tone-${agent.tone}`,
               active === agent.name && 'is-active',
             )}
+            onClick={() => onHold(agent.name)}
           >
             {agent.name}
-          </span>
+          </button>
         ))}
         <em>Repeats until the rankings settle</em>
       </li>
@@ -313,19 +303,40 @@ function DiagramList({active}: {active: string}) {
   );
 }
 
-/** The system diagram with its live caption. */
-export function LandingDiagram({reduceMotion}: {reduceMotion: boolean}) {
-  const [held, setHeld] = useState<string | null>(null);
-  const active = useWalkingHighlight(held, reduceMotion);
+// The caption under the diagram: the chosen agent's job, or a prompt to
+// choose one.
+function DiagramCaption({active}: {active: string | null}) {
+  if (!active) {
+    return (
+      <figcaption className="ucs-landing-diagram-caption">
+        <span>Hover or tap an agent to see what it does.</span>
+      </figcaption>
+    );
+  }
   const agent = agentByName(active);
   return (
+    <figcaption className="ucs-landing-diagram-caption">
+      <b>{agent.name} agent</b>
+      <span>{agent.summary}</span>
+    </figcaption>
+  );
+}
+
+/**
+ * The system diagram with its caption. Nothing moves on its own: the
+ * highlight follows the agent last hovered, focused, or tapped, and stays
+ * there so the caption can be read.
+ */
+export function LandingDiagram() {
+  const [active, setActive] = useState<string | null>(null);
+  const choose = (name: string | null) => {
+    if (name) setActive(name);
+  };
+  return (
     <figure className="ucs-landing-diagram">
-      <DiagramSvg active={active} onHold={setHeld} />
-      <DiagramList active={active} />
-      <figcaption className="ucs-landing-diagram-caption">
-        <b>{agent.name} agent</b>
-        <span>{agent.summary}</span>
-      </figcaption>
+      <DiagramSvg active={active} onHold={choose} />
+      <DiagramList active={active} onHold={choose} />
+      <DiagramCaption active={active} />
     </figure>
   );
 }

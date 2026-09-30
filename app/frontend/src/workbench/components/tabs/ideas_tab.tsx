@@ -75,10 +75,12 @@ const IDEA_RANK_ROW_CLASSES =
   'hover:bg-cosci-idea-row-hover-bg ' +
   'motion-reduce:transition-none';
 
-// Wraps, so a card with every chip drops the extras to a second line rather
-// than widening past its column.
+// One line, always: the head carries at most one caution chip (see
+// IdeaRankHead), and anything that still would not fit is clipped rather
+// than wrapped onto a second row.
 const IDEA_RANK_HEAD_CLASSES =
-  'idea-rank-head flex flex-wrap items-center gap-[0.6rem]';
+  'idea-rank-head flex min-w-0 flex-nowrap items-center gap-[0.6rem] ' +
+  'overflow-hidden';
 
 const IDEA_RANK_SELECTED_CLASSES =
   'selected !border-cosci-idea-row-selected-border ' +
@@ -403,10 +405,11 @@ function ideaRowClassName(selected: boolean): string {
 // "Unranked" are different enough facts that one shared label for both
 // misleads (see ratingLabel).
 //
-// The two caution chips can both appear, and say different things:
-// "Undermined" is evidence found against the idea, "Unverified" is no
-// supporting evidence found for it. Undermined comes first because it is
-// the stronger claim.
+// The two cautions say different things: "Undermined" is evidence found
+// against the idea, "Unverified" is no supporting evidence found for it.
+// The row shows only the more important one, Undermined, when both apply,
+// so the chips never wrap onto a second line; the detail pane still carries
+// the full picture.
 function IdeaRankHead({
   rank,
   hypothesis,
@@ -424,7 +427,8 @@ function IdeaRankHead({
           Undermined
         </span>
       ) : null}
-      {hypothesis.unverified ? (
+      {hypothesis.unverified &&
+      hypothesis.verification_verdict !== UNDERMINED_VERDICT ? (
         <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
           <Icon aria-hidden="true" name="warning" />
           Unverified

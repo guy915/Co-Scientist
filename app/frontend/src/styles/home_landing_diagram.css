@@ -85,8 +85,23 @@
   fill: none;
   marker-end: url(#ucs-landing-arrow);
   stroke: var(--l-muted);
+  stroke-dasharray: 6 5;
   stroke-linejoin: round;
   stroke-width: 1.5;
+}
+
+/* The dashes march toward each arrowhead, so every wire reads in the
+   direction work flows. */
+@media (prefers-reduced-motion: no-preference) {
+  .ucs-landing-wire {
+    animation: ucs-landing-flow 0.9s linear infinite;
+  }
+}
+
+@keyframes ucs-landing-flow {
+  to {
+    stroke-dashoffset: -11;
+  }
 }
 
 .ucs-landing-wire.is-two-way {
@@ -208,7 +223,10 @@
   border: 1.5px solid var(--l-line);
 }
 
-.ucs-landing-flow-ring span {
+.ucs-landing-flow-ring button {
+  cursor: pointer;
+  font: inherit;
+  text-align: start;
   padding: 10px 14px;
   border: 2px solid transparent;
   border-radius: 9999px;
@@ -217,7 +235,7 @@
   transition: border-color 0.3s;
 }
 
-.ucs-landing-flow-ring span.is-active {
+.ucs-landing-flow-ring button.is-active {
   border-color: var(--tone-o);
 }
 

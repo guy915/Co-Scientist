@@ -10,12 +10,15 @@
  * @param preferredSelector CSS selector for caller-known scroll panes to
  *   prefer over generic overflow detection (e.g. an app's report pane). When
  *   omitted, only the generic ancestor walk is used.
+ * @param behavior 'smooth' by default; pass 'auto' to jump, e.g. under
+ *   prefers-reduced-motion.
  * @returns True when the target element exists and a scroll was initiated.
  */
 export function smoothScrollToSection(
   sectionId: string,
   offset = 0,
   preferredSelector?: string,
+  behavior: ScrollBehavior = 'smooth',
 ): boolean {
   const target = document.getElementById(sectionId);
   if (!target) return false;
@@ -28,14 +31,14 @@ export function smoothScrollToSection(
     const containerRect = container.getBoundingClientRect();
     container.scrollTo({
       top: container.scrollTop + targetRect.top - containerRect.top - offset,
-      behavior: 'smooth',
+      behavior,
     });
     return true;
   }
 
   // No scrollable ancestor found; fall back to native document scrolling
   // (offset is not applied on this path).
-  target.scrollIntoView({behavior: 'smooth', block: 'start'});
+  target.scrollIntoView({behavior, block: 'start'});
   return true;
 }
 

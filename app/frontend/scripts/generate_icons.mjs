@@ -61,8 +61,6 @@ const ICONS = {
   forum: 'forum',
   // Double helix -- the landing page's Evolution agent card.
   genetics: 'genetics',
-  // Question-mark-in-a-circle — the reference settings menu's "Get help" row.
-  help: 'help',
   // The recents clock-rewind glyph (clock face + counterclockwise arrow), not
   // the plain 'schedule' clock.
   history: 'history',

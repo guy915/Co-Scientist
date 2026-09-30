@@ -3,14 +3,15 @@
 // evolution cycle each idea could arrive in. The numbers are the product's
 // own RUN_TIER_DEFAULTS (see home_landing_content.ts).
 
-import {useState} from 'react';
+import {useRef, useState} from 'react';
 import {
   DEFAULT_TIER,
   LANDING_TIERS,
   type LandingTier,
   MAX_POOL,
 } from './home_landing_content';
-import {type MotionProps} from './home_landing_hooks';
+import {type MotionProps, useSlidingIndicator} from './home_landing_hooks';
+import {SlidingPill} from './home_landing_slider';
 
 // Seed ideas first, then each cycle's share of the remaining headroom.
 function dotGeneration(tier: LandingTier, index: number): number | null {
@@ -79,9 +80,17 @@ function TierStats({tier}: {tier: LandingTier}) {
 export function LandingTiers({reduceMotion}: MotionProps) {
   const [name, setName] = useState(DEFAULT_TIER);
   const tier = LANDING_TIERS.find(t => t.name === name) ?? LANDING_TIERS[1];
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', name);
   return (
     <>
-      <div className="ucs-landing-seg" role="group" aria-label="Run tier">
+      <div
+        ref={trackRef}
+        className="ucs-landing-seg"
+        role="group"
+        aria-label="Run tier"
+      >
+        <SlidingPill box={pill} />
         {LANDING_TIERS.map(t => (
           <button
             key={t.name}

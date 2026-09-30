@@ -55,10 +55,7 @@ export function LandingEloChart({reduceMotion}: MotionProps) {
         (seen || reduceMotion) && 'is-drawn',
       )}
     >
-      <span className="ucs-landing-cap">
-        Simulated tournament · 8 ideas · {chart.matches} matches · computed live
-        in this page
-      </span>
+      <h3 className="ucs-landing-panel-title">Ratings over one tournament</h3>
       <svg
         viewBox="0 0 560 320"
         role="img"

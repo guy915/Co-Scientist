@@ -33,6 +33,7 @@ import {
 import {HomeSuggestionRow} from './chat_home_suggestion_row';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {Icon} from '@/components/icon';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 export {SUGGESTIONS, type Suggestion} from './chat_home_suggestions';
 
@@ -130,9 +131,14 @@ function HomeScrollHint() {
     const reduce = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
     ).matches;
-    document
-      .getElementById('landing')
-      ?.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'start'});
+    // Scroll the home page pane itself: scrollIntoView would also scroll
+    // the shell's clipped ancestors and shift the whole app up.
+    smoothScrollToSection(
+      'landing',
+      0,
+      '.ucs-page--home',
+      reduce ? 'auto' : 'smooth',
+    );
   };
   return (
     <button
