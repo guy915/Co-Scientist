@@ -85,7 +85,7 @@
   fill: none;
   marker-end: url(#ucs-landing-arrow);
   stroke: var(--l-muted);
-  stroke-dasharray: 6 6;
+  stroke-linejoin: round;
   stroke-width: 1.5;
 }
 
@@ -95,18 +95,6 @@
 
 #ucs-landing-arrow path {
   fill: var(--l-muted);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .ucs-landing-wire {
-    animation: ucs-landing-flow 1.2s linear infinite;
-  }
-}
-
-@keyframes ucs-landing-flow {
-  to {
-    stroke-dashoffset: -12;
-  }
 }
 
 .ucs-landing-agent-cell {
@@ -180,7 +168,7 @@
   top: -22px;
   left: 50%;
   height: 22px;
-  border-left: 1.5px dashed var(--l-muted);
+  border-left: 1.5px solid var(--l-line);
   content: '';
 }
 
@@ -217,7 +205,7 @@
 .ucs-landing-flow-ring {
   grid-template-columns: 1fr 1fr;
   gap: 8px !important;
-  border: 1.5px dashed var(--l-line);
+  border: 1.5px solid var(--l-line);
 }
 
 .ucs-landing-flow-ring span {

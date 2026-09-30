@@ -1,27 +1,25 @@
 // The landing page's content sections, top to bottom after the hero and the
-// tab rail: overview, how it works, tournament, evidence, safety, tiers, FAQ,
-// and the closing call to action. See home_landing.tsx for the frame.
+// tab rail: how it works, tournament, evidence, safety, tiers, the closing
+// call to action, and the FAQ. The overview is home_landing_overview.tsx. See home_landing.tsx for the frame.
 
-import {type ReactNode, type Ref, useRef} from 'react';
+import {type ReactNode, type Ref} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from '../classes';
 import moleculeArt from '../../assets/landing/molecule.webp';
 import podiumArt from '../../assets/landing/podium.webp';
-import shapesArt from '../../assets/landing/shapes.webp';
-import {LandingArena} from './home_landing_arena';
+import flaskArt from '../../assets/landing/flask.webp';
+import {LandingBracket} from './home_landing_bracket';
 import {
   FAQ,
-  INITIAL_ELO,
   LANDING_AGENTS,
   LANDING_SAFETY,
   LANDING_SOURCES,
   LANDING_VERDICTS,
   type LandingTone,
-  MAX_POOL,
 } from './home_landing_content';
 import {LandingDiagram} from './home_landing_diagram';
 import {LandingEloChart} from './home_landing_elo_chart';
-import {type MotionProps, useCountUp, useInView} from './home_landing_hooks';
+import {type MotionProps} from './home_landing_hooks';
 import {type ShapeName, shapePath, useShapeMorph} from './home_landing_shapes';
 import {LandingTiers} from './home_landing_tiers';
 
@@ -53,68 +51,6 @@ function ShapeBadge({
       </svg>
       <Icon aria-hidden="true" name={icon} />
     </span>
-  );
-}
-
-function Fact({
-  value,
-  label,
-  start,
-  reduceMotion,
-}: {
-  value: number;
-  label: string;
-  start: boolean;
-  reduceMotion: boolean;
-}) {
-  const shown = useCountUp(value, start, reduceMotion);
-  return (
-    <div>
-      <b>{start ? shown : value}</b>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-export function OverviewSection({reduceMotion}: MotionProps) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const seen = useInView(ref);
-  return (
-    <section className="ucs-landing-sec" id="landing-overview">
-      <div className="ucs-landing-overview" ref={ref}>
-        <div>
-          <p className="ucs-landing-label">Overview</p>
-          <p className="ucs-landing-statement">
-            You bring a research goal.{' '}
-            <span>
-              <span className="ucs-landing-nowrap">Co-Scientist</span> brings a
-              team of agents that generate, critique, rank, and evolve
-              hypotheses.
-            </span>
-          </p>
-        </div>
-        <div className="ucs-landing-facts">
-          <Fact
-            value={7}
-            label="specialist agents, coordinated by a Supervisor"
-            start={seen}
-            reduceMotion={reduceMotion}
-          />
-          <Fact
-            value={INITIAL_ELO}
-            label="starting Elo for every idea in the tournament"
-            start={seen}
-            reduceMotion={reduceMotion}
-          />
-          <Fact
-            value={MAX_POOL}
-            label="ideas explored in the largest run"
-            start={seen}
-            reduceMotion={reduceMotion}
-          />
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -180,7 +116,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
         title="Tournament"
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
-      <LandingArena reduceMotion={reduceMotion} />
+      <LandingBracket reduceMotion={reduceMotion} />
       <div className="ucs-landing-duo">
         <LandingEloChart reduceMotion={reduceMotion} />
         <div className="ucs-landing-panel ucs-landing-podium">
@@ -345,10 +281,10 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           </button>
         </div>
         <img
-          src={shapesArt}
+          src={flaskArt}
           loading="lazy"
           decoding="async"
-          alt="3D render of glossy Material shapes: a teal scalloped cookie, green clover, yellow flower, blue sunny shape and a red sphere."
+          alt="3D render of a glass Erlenmeyer flask holding a glowing teal liquid."
         />
       </div>
     </section>

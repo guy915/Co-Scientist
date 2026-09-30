@@ -58,26 +58,6 @@
   src: url('./assets/fonts/google-sans-text-latin-500.woff2') format('woff2');
 }
 
-/* Google Sans Flex (variable: weight and optical size) and Google Sans Code,
-   both SIL OFL 1.1 from Google Fonts, latin subset. Used only by the landing
-   page under the chat home (styles/home_landing*.css), so browsers fetch
-   them only once that page renders. */
-@font-face {
-  font-family: 'Google Sans Flex';
-  font-display: swap;
-  font-style: normal;
-  font-weight: 1 1000;
-  src: url('./assets/fonts/google-sans-flex-latin.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Google Sans Code';
-  font-display: swap;
-  font-style: normal;
-  font-weight: 300 800;
-  src: url('./assets/fonts/google-sans-code-latin.woff2') format('woff2');
-}
-
 @font-face {
   font-family: 'Google Sans Text';
   font-display: swap;
