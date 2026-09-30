@@ -27,7 +27,8 @@
     "security_coverage": "Seven maintained runtime files plus supplemental reference runner/tests/docs. No new source after reviewed head; evidence-only records inspected inline for exposure/claims.",
     "secret_pattern_check": "No credential-like key/token literals in changed files; semantic review excludes secret values from trace/results.",
     "limitations": "No external penetration test or hostile-local-OS sandbox claim.",
-    "final_delta": "After reviewed17d9522e, only test organization and retained evidence changed; all14test bodies/78assertions preserved. Runtime source unchanged."
+    "final_delta": "After reviewed17d9522e, only test organization and retained evidence changed; all14test bodies/78assertions preserved. Runtime source unchanged.",
+    "fresh_final_luna_semantic": "Accepted source/test/evidence semantics; identified one stale pending-check field, corrected to reference the recorded passing final named commands."
   },
   "cleanup": {
     "runtime_pid15056": "Termination sent after matchingsoleownedprocess command/port; forensic cache/logs retained privately.",
@@ -118,7 +119,7 @@
     "file_length_gate": "PASS existing500line ceiling unchanged",
     "runtime_source_changed": false,
     "typing_note": "One scoped import-not-found annotation for pytest-local shared test helpers, no behavioral assertion or threshold waiver.",
-    "release_check": "Named make test-all rerun still pending"
+    "release_check": "PASS: named make test-all exit0 and affected make lint exit0 at a63e29ca; exact final checks are under required_checks. Initial failure retained under initial_required_checks."
   },
   "required_checks": {
     "source_head": "a63e29ca9b4a24648cdd441f173d51ad329e388a",
