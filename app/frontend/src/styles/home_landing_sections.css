@@ -7,17 +7,6 @@
   margin-top: 48px;
 }
 
-.ucs-landing-tree-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 24px;
-  color: var(--l-muted);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
 .ucs-landing-tree svg {
   display: block;
   width: 100%;
@@ -108,12 +97,6 @@
   fill: var(--l-o-blue);
   font-size: 16px;
   font-weight: 500;
-}
-
-.ucs-landing-tree-play {
-  height: 40px;
-  padding-inline: 20px;
-  font-size: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {

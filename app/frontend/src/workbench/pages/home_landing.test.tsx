@@ -132,25 +132,6 @@ it('ends with the call to action before the FAQ, and no footer', () => {
   expect(container.querySelector('footer')).toBeNull();
 });
 
-it('plays the tournament tree only when asked, one round per click', () => {
-  vi.useFakeTimers();
-  renderLanding();
-  const tree = document.querySelector('.ucs-landing-tree')!;
-  const leader = () =>
-    tree.querySelector('.ucs-landing-tree-leaf .ucs-landing-tree-elo')!
-      .textContent;
-  vi.advanceTimersByTime(10000);
-  expect(leader()).toBe(String(INITIAL_ELO));
-  fireEvent.click(
-    within(tree as HTMLElement).getByRole('button', {name: 'Play round 1'}),
-  );
-  expect(Number(leader())).toBeGreaterThan(INITIAL_ELO);
-  expect(
-    within(tree as HTMLElement).getByRole('button', {name: 'Play round 2'}),
-  ).toBeInTheDocument();
-  vi.useRealTimers();
-});
-
 it('keeps every FAQ answer closed until opened', () => {
   renderLanding();
   const faq = document.getElementById('faq')!;
