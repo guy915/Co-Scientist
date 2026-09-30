@@ -1,3 +1,4 @@
+import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {type ByokProvider} from '@/lib/api_key';
 import {type Mode} from '../theme_context';
@@ -36,51 +37,6 @@ export const SETTINGS_SECTIONS: {
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
   {section: 'help', icon: 'help', label: 'Help'},
-];
-
-// Static question/answer copy rendered as collapsible <details> in the Help
-// section.
-const FAQ: {question: string; answer: string}[] = [
-  {
-    question: 'What is Co-Scientist?',
-    answer:
-      'A multi-agent workspace that generates, debates, and ranks research ' +
-      'hypotheses for a goal you set. A team of agents proposes ideas, ' +
-      'reviews them, and runs a tournament so the strongest directions rise ' +
-      'to the top.',
-  },
-  {
-    question: 'How do I start a run?',
-    answer:
-      'From the home screen, describe your research goal in the composer and ' +
-      'send it. Co-Scientist confirms the setup, then the agents generate ' +
-      'and ' +
-      'evaluate ideas. Follow progress and results in the run view.',
-  },
-  {
-    question: 'Where does my API key go?',
-    answer:
-      'The key you enter under Model is stored in this browser and sent to ' +
-      'the server when you start a run or chat with the Agent. The server ' +
-      'checks it with the provider, then stores it encrypted for that run ' +
-      'only and never returns it. Clearing your browser storage removes the ' +
-      'local copy.',
-  },
-  {
-    question: 'Which model does it use?',
-    answer:
-      'Without an API key, runs use the free model configured for the ' +
-      'deployment. When you add your own API key under Model, you choose a ' +
-      'supervisor model (planning and the final report) and a worker model ' +
-      '(generating, reviewing, and ranking ideas) from your provider.',
-  },
-  {
-    question: 'Do I need an API key?',
-    answer:
-      'No. Without a key you are on free usage: you can start Express runs ' +
-      'only, up to 3 per day on this device. Add your own key under Model ' +
-      'to use every run type without a daily limit.',
-  },
 ];
 
 // Appearance section: theme mode segmented control (system/light/dark).
@@ -230,8 +186,10 @@ export function SettingsNav({
   );
 }
 
-// Help section: static product blurb plus a collapsible FAQ list.
-export function HelpSection() {
+// Help section: a short product blurb and a link to the FAQ, which lives on
+// the landing page under the chat home (home_landing_content.ts). Following
+// the link closes the dialog so the FAQ is not hidden behind it.
+export function HelpSection({onNavigate}: {onNavigate?: () => void}) {
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Help</h3>
@@ -241,21 +199,10 @@ export function HelpSection() {
         agents proposes ideas, reviews them, and ranks the strongest directions
         tournament-style.
       </p>
-      <div className="ucs-faq">
-        {FAQ.map(item => (
-          <details key={item.question} className="ucs-faq-item">
-            <summary className="ucs-faq-question">
-              <span>{item.question}</span>
-              <Icon
-                aria-hidden="true"
-                className="ucs-faq-chevron"
-                name="expand_more"
-              />
-            </summary>
-            <p className="ucs-faq-answer">{item.answer}</p>
-          </details>
-        ))}
-      </div>
+      <Link className="ucs-help-faq-link" to="/#faq" onClick={onNavigate}>
+        <span>Read the FAQ</span>
+        <Icon aria-hidden="true" name="arrow_forward" />
+      </Link>
     </section>
   );
 }

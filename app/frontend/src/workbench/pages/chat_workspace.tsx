@@ -1,4 +1,11 @@
-import {type RefObject, useCallback, useEffect, useState} from 'react';
+import {
+  lazy,
+  type RefObject,
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {createPortal} from 'react-dom';
 import {
   type NavigateFunction,
@@ -23,6 +30,10 @@ import {
 } from './chat_home_classes';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {HomeStage} from './chat_home_stage';
+
+// The landing page under the home stage, split into its own chunk so the
+// chat home's first paint does not wait on it.
+const HomeLanding = lazy(() => import('./home_landing'));
 import {type StartedSession} from './chat_timeline_cards';
 import {type TimelineItem} from './chat_workspace_timeline';
 import {
@@ -296,11 +307,16 @@ function WorkspaceMain({
 }) {
   if (!hasConversation) {
     return (
-      <HomeStageSection
-        session={session}
-        connectors={connectors}
-        recents={recents}
-      />
+      <>
+        <HomeStageSection
+          session={session}
+          connectors={connectors}
+          recents={recents}
+        />
+        <Suspense fallback={null}>
+          <HomeLanding />
+        </Suspense>
+      </>
     );
   }
   return (
