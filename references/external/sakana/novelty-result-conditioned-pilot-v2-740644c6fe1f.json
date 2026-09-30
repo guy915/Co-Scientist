@@ -1,0 +1,1022 @@
+{
+  "name": "M12-NOV-04b4c result-conditioned prospective paired study",
+  "status": "INCOMPLETE_ERROR",
+  "fixture_bank_sha256": "b938e6fb30e3a3f913204742b28c1c03df203a52fb54e82d1d512badef415fb2",
+  "selected_model": "openrouter/stealth/space-bunny-alpha",
+  "model_call_count": 3,
+  "provider_call_count": 3,
+  "outer_mcp_call_count": 4,
+  "paid_calls": 0,
+  "max_model_calls": 24,
+  "max_outer_mcp_calls": 36,
+  "max_papers_per_search": 3,
+  "model_request_config": {
+    "max_attempts": 1,
+    "max_tokens": 1200,
+    "temperature": 0.0,
+    "enable_thinking": false,
+    "use_cache": false,
+    "max_price": {
+      "prompt": 0,
+      "completion": 0,
+      "request": 0
+    }
+  },
+  "campaign_admission": "/private/tmp/cosci-novelty-v2-isolated-20260930/references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.admission.json",
+  "mcp_serving_process": {
+    "pid": 15056,
+    "listener_address": "127.0.0.1:55275",
+    "source_path": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/server.py",
+    "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81"
+  },
+  "events": [
+    {
+      "event_id": 1,
+      "kind": "model",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:positive",
+      "draft": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+      "arm": "positive",
+      "stage": "static_query",
+      "started_at_utc": "2026-09-30T02:28:43.090978+00:00",
+      "request_config": {
+        "max_attempts": 1,
+        "max_tokens": 1200,
+        "temperature": 0.0,
+        "enable_thinking": false,
+        "use_cache": false,
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "telemetry": {
+        "m11_nov_01a3b3_query::openrouter/stealth/space-bunny-alpha": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "prompt_tokens": 447,
+          "completion_tokens": 50,
+          "reasoning_tokens": 0,
+          "cached_prompt_tokens": 149,
+          "cost_usd": 0.0,
+          "latency_seconds": 1.365015499992296,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "served_model": "openrouter/stealth/space-bunny-alpha",
+      "provider_calls": 1,
+      "observed_model_calls": 1,
+      "retries": 0,
+      "cache_hits": 0,
+      "ended_at_utc": "2026-09-30T02:28:44.529763+00:00",
+      "query": "(\"Vibrio cholerae\"[Title/Abstract]) AND (Csx23[Title/Abstract]) AND (cA4[Title/Abstract]) AND (\"type III CRISPR\"[Title/Abstract])",
+      "status": "complete"
+    },
+    {
+      "event_id": 2,
+      "kind": "mcp",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:positive",
+      "draft": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+      "arm": "shared",
+      "stage": "first_search",
+      "started_at_utc": "2026-09-30T02:28:44.530582+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "41414904",
+          "title": "Attenuating ETEC virulence using a heat-labile enterotoxin-blocking binding protein.",
+          "authors": [
+            "Marcus Petersson",
+            "Jens Sivkær Pettersen",
+            "Helena Bay Henriksen",
+            "Ágnes Duzs",
+            "Monica L Fernández-Quintero",
+            "Nick Jean Burlet",
+            "Natalia Mojica",
+            "Ute Krengel",
+            "Timothy P Jenkins",
+            "Andrew B Ward",
+            "Thomas Emil Andersen",
+            "Jakob Møller-Jensen",
+            "Lone Gram",
+            "Andreas Hougaard Laustsen",
+            "Sandra Wingaard Thrane"
+          ],
+          "year": 2026,
+          "doi": "10.1080/19490976.2025.2597567",
+          "abstract_available": true,
+          "abstract_sha256": "3eafa1088cfd83756e49c8e0fb8d664e02f94e506d0f53fa2d0af24cdb243ad4",
+          "fulltext_available": true,
+          "blind_id": "64a7206f553e4a19be46f17c3a7ce5b8"
+        },
+        {
+          "rank": 2,
+          "pmid": "42774850",
+          "title": "A nutrient-sensing protease DegS suppresses biofilm formation in Vibrio cholerae via the CdgH-c-di-GMP-VpsR axis under nutrient limitation.",
+          "authors": [
+            "Xiaoyu Huang",
+            "Tao Chen",
+            "Qiqi Linghu",
+            "Hui Wang",
+            "Shilu Luo",
+            "Huan Zhou",
+            "Xun Min",
+            "Jian Huang"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.bioflm.2026.100398",
+          "abstract_available": true,
+          "abstract_sha256": "df4e6a044b11adf21cd7e92a884ae9d1c707faa15cb11323aae87ee82a8c5a8a",
+          "fulltext_available": true,
+          "blind_id": "75d3b6b2c9f8442ba0c8ae3ec7080ab0"
+        },
+        {
+          "rank": 3,
+          "pmid": "42747286",
+          "title": "Enterocloster citroniae and related gut microbiome species modulate Vibrio cholerae biofilm formation through the production of bioactive small molecules.",
+          "authors": [
+            "Heidi Pauer",
+            "Saeideh Nasiri",
+            "Nathalia Santos Magalhães",
+            "Vivian T Nguyen",
+            "Nicole Victor Ferreira",
+            "Larissa D Silva Ferreira",
+            "Athena Brianne Bradshaw",
+            "Katherine E Kirby",
+            "Tyler Sabapathy",
+            "Chukwuma Great Udensi",
+            "Viktoriia Feofanova",
+            "Daniel Andrade Moreira",
+            "Thiago Estevam Parente",
+            "Jacob Wilde",
+            "David T Pride",
+            "Emma Allen-Vercoe",
+            "L Caetano M Antunes"
+          ],
+          "year": 2026,
+          "doi": "10.1080/21505594.2026.2712696",
+          "abstract_available": true,
+          "abstract_sha256": "512a8b36d185771a037e09c4b8567254c7280f23f5cff4f241231966781e0ef1",
+          "fulltext_available": true,
+          "blind_id": "1e884ec6b81b4e55ac3fda34fed0a312"
+        }
+      ],
+      "ended_at_utc": "2026-09-30T02:28:54.671052+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b3_1dd736f755a2_01",
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_01"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_01",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 9,
+            "first_ids": [
+              "42628611",
+              "41414904",
+              "42774850",
+              "42747286",
+              "42642836",
+              "42594636",
+              "42434089",
+              "41914786",
+              "41399136"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42628611",
+            "41414904",
+            "42774850",
+            "42747286",
+            "42642836",
+            "42594636",
+            "42434089",
+            "41914786",
+            "41399136"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42628611",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41414904",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42774850",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42747286",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42642836",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42594636",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42434089",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41914786",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "41399136",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "41414904",
+          "42774850",
+          "42747286"
+        ],
+        "shared_pool_supplements": [],
+        "serving_process": {
+          "pid": 15056,
+          "listener_address": "127.0.0.1:55275",
+          "source_path": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/server.py",
+          "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81"
+        }
+      },
+      "trace_attestation": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_01",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "process_id": 15056,
+        "source_file": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/pubmed_client.py",
+        "sort": "pub_date",
+        "entrez_retry_policy": {
+          "max_tries": 1,
+          "sleep_between_tries": 0
+        },
+        "entrez_calls": {
+          "esearch": 2,
+          "efetch": 12,
+          "elink": 9
+        },
+        "incomplete_fetch_count": 0,
+        "fetch_errors": [],
+        "metadata_origins": {
+          "42628611": "entrez_fetch",
+          "41414904": "entrez_fetch",
+          "42774850": "entrez_fetch",
+          "42642836": "entrez_fetch",
+          "42747286": "entrez_fetch",
+          "42594636": "entrez_fetch",
+          "42434089": "entrez_fetch",
+          "41914786": "entrez_fetch",
+          "41399136": "entrez_fetch"
+        },
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 0,
+            "first_ids": []
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 9,
+            "first_ids": [
+              "42628611",
+              "41414904",
+              "42774850",
+              "42747286",
+              "42642836",
+              "42594636",
+              "42434089",
+              "41914786",
+              "41399136"
+            ]
+          }
+        ],
+        "selected": {
+          "rung_index": 2,
+          "rung_type": "anchored",
+          "count": 9,
+          "ids": [
+            "42628611",
+            "41414904",
+            "42774850",
+            "42747286",
+            "42642836",
+            "42594636",
+            "42434089",
+            "41914786",
+            "41399136"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42628611",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": false,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "41414904",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42774850",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42747286",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42642836",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42594636",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": false,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42434089",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "41914786",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "41399136",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          }
+        ],
+        "final_ids": [
+          "41414904",
+          "42774850",
+          "42747286"
+        ],
+        "shared_pool_supplements": [],
+        "error": null,
+        "outcome": "nonempty",
+        "count_semantics": {
+          "attempts": "application-level ESearch rungs",
+          "entrez_calls": "maintained Entrez entrypoint invocations; PMC fulltext EFetch may paginate; not physical HTTP requests"
+        }
+      },
+      "classification": "success_nonempty"
+    },
+    {
+      "event_id": 3,
+      "kind": "model",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:positive",
+      "draft": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+      "arm": "positive",
+      "stage": "conditioned_query",
+      "started_at_utc": "2026-09-30T02:28:54.673748+00:00",
+      "first_search_event_id": 2,
+      "request_config": {
+        "max_attempts": 1,
+        "max_tokens": 1200,
+        "temperature": 0.0,
+        "enable_thinking": false,
+        "use_cache": false,
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "telemetry": {
+        "m11_nov_01a3b3_query::openrouter/stealth/space-bunny-alpha": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "prompt_tokens": 1330,
+          "completion_tokens": 102,
+          "reasoning_tokens": 0,
+          "cached_prompt_tokens": 139,
+          "cost_usd": 0.0,
+          "latency_seconds": 2.564765957999043,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "served_model": "openrouter/stealth/space-bunny-alpha",
+      "provider_calls": 1,
+      "observed_model_calls": 1,
+      "retries": 0,
+      "cache_hits": 0,
+      "ended_at_utc": "2026-09-30T02:28:57.241497+00:00",
+      "query": "(\"Vibrio cholerae\"[Title/Abstract]) AND (Csx23 OR cA4) AND (\"type III CRISPR\" OR transmembrane OR immunity)",
+      "status": "complete"
+    },
+    {
+      "event_id": 4,
+      "kind": "mcp",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:positive",
+      "draft": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+      "arm": "static",
+      "stage": "follow_up",
+      "started_at_utc": "2026-09-30T02:28:57.243022+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "38471818",
+          "title": "CRISPR antiphage defence mediated by the cyclic nucleotide-binding membrane protein Csx23.",
+          "authors": [
+            "Sabine Grüschow",
+            "Stuart McQuarrie",
+            "Katrin Ackermann",
+            "Stephen McMahon",
+            "Bela E Bode",
+            "Tracey M Gloster",
+            "Malcolm F White"
+          ],
+          "year": 2026,
+          "doi": "10.1093/nar/gkae167",
+          "abstract_available": true,
+          "abstract_sha256": "b25eaca97d22b78e1ac5f04978314ce4d8d255db1b2ffdbd84d7f016f38cc560",
+          "fulltext_available": true,
+          "blind_id": "a278c13789eb4d4eaf838cbf6403a22d"
+        }
+      ],
+      "first_search_event_id": 2,
+      "ended_at_utc": "2026-09-30T02:28:59.364970+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "(\"Vibrio cholerae\"[Title/Abstract]) AND (Csx23[Title/Abstract]) AND (cA4[Title/Abstract]) AND (\"type III CRISPR\"[Title/Abstract])",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b3_1dd736f755a2_02",
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_02"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_02",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "38471818"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 1,
+          "ids": [
+            "38471818"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "38471818",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "38471818"
+        ],
+        "shared_pool_supplements": [],
+        "serving_process": {
+          "pid": 15056,
+          "listener_address": "127.0.0.1:55275",
+          "source_path": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/server.py",
+          "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81"
+        }
+      },
+      "trace_attestation": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_02",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "process_id": 15056,
+        "source_file": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/pubmed_client.py",
+        "sort": "pub_date",
+        "entrez_retry_policy": {
+          "max_tries": 1,
+          "sleep_between_tries": 0
+        },
+        "entrez_calls": {
+          "esearch": 1,
+          "efetch": 2,
+          "elink": 1
+        },
+        "incomplete_fetch_count": 0,
+        "fetch_errors": [],
+        "metadata_origins": {
+          "38471818": "entrez_fetch"
+        },
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 1,
+            "first_ids": [
+              "38471818"
+            ]
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 1,
+          "ids": [
+            "38471818"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "38471818",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          }
+        ],
+        "final_ids": [
+          "38471818"
+        ],
+        "shared_pool_supplements": [],
+        "error": null,
+        "outcome": "nonempty",
+        "count_semantics": {
+          "attempts": "application-level ESearch rungs",
+          "entrez_calls": "maintained Entrez entrypoint invocations; PMC fulltext EFetch may paginate; not physical HTTP requests"
+        }
+      },
+      "classification": "success_nonempty"
+    },
+    {
+      "event_id": 5,
+      "kind": "mcp",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:positive",
+      "draft": "Vibrio cholerae Csx23 binds cA4, perturbing its transmembrane domain and providing immunity with its cognate type III CRISPR system in E. coli.",
+      "arm": "candidate",
+      "stage": "follow_up",
+      "started_at_utc": "2026-09-30T02:28:59.366022+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "38471818",
+          "title": "CRISPR antiphage defence mediated by the cyclic nucleotide-binding membrane protein Csx23.",
+          "authors": [
+            "Sabine Grüschow",
+            "Stuart McQuarrie",
+            "Katrin Ackermann",
+            "Stephen McMahon",
+            "Bela E Bode",
+            "Tracey M Gloster",
+            "Malcolm F White"
+          ],
+          "year": 2026,
+          "doi": "10.1093/nar/gkae167",
+          "abstract_available": true,
+          "abstract_sha256": "b25eaca97d22b78e1ac5f04978314ce4d8d255db1b2ffdbd84d7f016f38cc560",
+          "fulltext_available": true,
+          "blind_id": "2b9a2f8cafd74e7b8bec880d5d08ef54"
+        }
+      ],
+      "first_search_event_id": 2,
+      "ended_at_utc": "2026-09-30T02:29:01.902466+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "(\"Vibrio cholerae\"[Title/Abstract]) AND (Csx23 OR cA4) AND (\"type III CRISPR\" OR transmembrane OR immunity)",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b3_1dd736f755a2_03",
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_03"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_03",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "38471818"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 1,
+          "ids": [
+            "38471818"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "38471818",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "38471818"
+        ],
+        "shared_pool_supplements": [],
+        "serving_process": {
+          "pid": 15056,
+          "listener_address": "127.0.0.1:55275",
+          "source_path": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/server.py",
+          "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81"
+        }
+      },
+      "trace_attestation": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_03",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "process_id": 15056,
+        "source_file": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/pubmed_client.py",
+        "sort": "pub_date",
+        "entrez_retry_policy": {
+          "max_tries": 1,
+          "sleep_between_tries": 0
+        },
+        "entrez_calls": {
+          "esearch": 1,
+          "efetch": 2,
+          "elink": 1
+        },
+        "incomplete_fetch_count": 0,
+        "fetch_errors": [],
+        "metadata_origins": {
+          "38471818": "entrez_fetch"
+        },
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 1,
+            "first_ids": [
+              "38471818"
+            ]
+          }
+        ],
+        "selected": {
+          "rung_index": 1,
+          "rung_type": "exact",
+          "count": 1,
+          "ids": [
+            "38471818"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "38471818",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          }
+        ],
+        "final_ids": [
+          "38471818"
+        ],
+        "shared_pool_supplements": [],
+        "error": null,
+        "outcome": "nonempty",
+        "count_semantics": {
+          "attempts": "application-level ESearch rungs",
+          "entrez_calls": "maintained Entrez entrypoint invocations; PMC fulltext EFetch may paginate; not physical HTTP requests"
+        }
+      },
+      "classification": "success_nonempty"
+    },
+    {
+      "event_id": 6,
+      "kind": "model",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:distinct_control",
+      "draft": "In the Vibrio PomAB flagellar stator, sodium-binding sites support ion selectivity, while a dynamic PomA helical motif regulates stator activation and torque transmission.",
+      "arm": "distinct_control",
+      "stage": "static_query",
+      "started_at_utc": "2026-09-30T02:29:01.904025+00:00",
+      "request_config": {
+        "max_attempts": 1,
+        "max_tokens": 1200,
+        "temperature": 0.0,
+        "enable_thinking": false,
+        "use_cache": false,
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "telemetry": {
+        "m11_nov_01a3b3_query::openrouter/stealth/space-bunny-alpha": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "prompt_tokens": 444,
+          "completion_tokens": 88,
+          "reasoning_tokens": 0,
+          "cached_prompt_tokens": 149,
+          "cost_usd": 0.0,
+          "latency_seconds": 1.3973185830109287,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "served_model": "openrouter/stealth/space-bunny-alpha",
+      "provider_calls": 1,
+      "observed_model_calls": 1,
+      "retries": 0,
+      "cache_hits": 0,
+      "ended_at_utc": "2026-09-30T02:29:03.304106+00:00",
+      "query": "Vibrio AND (PomAB OR flagellar stator) AND (sodium binding OR ion selectivity) AND (PomA helical motif OR torque transmission OR stator activation)",
+      "status": "complete"
+    },
+    {
+      "event_id": 7,
+      "kind": "mcp",
+      "pair_id": "csx23-pomab",
+      "draft_id": "csx23-pomab:distinct_control",
+      "draft": "In the Vibrio PomAB flagellar stator, sodium-binding sites support ion selectivity, while a dynamic PomA helical motif regulates stator activation and torque transmission.",
+      "arm": "shared",
+      "stage": "first_search",
+      "started_at_utc": "2026-09-30T02:29:03.306226+00:00",
+      "papers": [],
+      "ended_at_utc": "2026-09-30T02:29:04.480092+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "In the Vibrio PomAB flagellar stator, sodium-binding sites support ion selectivity, while a dynamic PomA helical motif regulates stator activation and torque transmission.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b3_1dd736f755a2_04",
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_04"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_04",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "37500658"
+            ],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": null,
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [],
+        "final_ids": [],
+        "shared_pool_supplements": [],
+        "serving_process": {
+          "pid": 15056,
+          "listener_address": "127.0.0.1:55275",
+          "source_path": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/server.py",
+          "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81"
+        }
+      },
+      "trace_attestation": {
+        "run_id": "m11_nov_01a3b3_1dd736f755a2_04",
+        "server_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "process_id": 15056,
+        "source_file": "/private/tmp/cosci-novelty-v2-isolated-20260930/engine/mcp_server/pubmed_client.py",
+        "sort": "pub_date",
+        "entrez_retry_policy": {
+          "max_tries": 1,
+          "sleep_between_tries": 0
+        },
+        "entrez_calls": {
+          "esearch": 2,
+          "efetch": 0,
+          "elink": 0
+        },
+        "incomplete_fetch_count": 0,
+        "fetch_errors": [],
+        "metadata_origins": {},
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 1,
+            "first_ids": [
+              "37500658"
+            ]
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 0,
+            "first_ids": [],
+            "error_type": "HTTPError"
+          }
+        ],
+        "selected": null,
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [],
+        "final_ids": [],
+        "shared_pool_supplements": [],
+        "error": {
+          "stage": "esearch",
+          "type": "HTTPError"
+        },
+        "outcome": "error"
+      },
+      "trace_error": "ValueError",
+      "classification": "retrieval_error",
+      "exception_type": "ValueError",
+      "upstream_http_status": null,
+      "retry_after": null
+    }
+  ],
+  "study_version": 2,
+  "fixture_bank_version": 3,
+  "protocol_version": 2
+}
