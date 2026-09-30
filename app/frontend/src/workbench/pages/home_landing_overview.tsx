@@ -22,6 +22,20 @@ const STAGES: readonly {icon: IconName; label: string}[] = [
 
 const STAGE_MS = 700;
 
+// The first home suggestion's full prompt: its title line and the first
+// paragraph of what it asks for.
+const [GOAL_TITLE, GOAL_BODY] = SUGGESTIONS[0].prompt.split('\n\n');
+
+// Example output for that goal: the top three ideas of a finished run.
+const RANKED: readonly {title: string; elo: number}[] = [
+  {
+    title: 'Metformin sensitizes glioblastoma stem cells to temozolomide',
+    elo: 1287,
+  },
+  {title: 'Statins trigger ferroptosis in GBM', elo: 1241},
+  {title: 'Disulfiram–copper targets ALDH+ cells', elo: 1226},
+];
+
 // Lights the stages one by one once the section is seen.
 function useLitStages(seen: boolean, reduceMotion: boolean): number {
   const [lit, setLit] = useState(0);
@@ -45,8 +59,13 @@ function InputCard() {
         sources to search if you like.
       </p>
       <div className="ucs-landing-ov-goal">
-        <Icon aria-hidden="true" name="search" />
-        <span>{SUGGESTIONS[0].preview}</span>
+        <b>{GOAL_TITLE}</b>
+        <p>{GOAL_BODY}</p>
+        <div className="ucs-landing-ov-chips">
+          <span className="tone-blue">PubMed</span>
+          <span className="tone-blue">Europe PMC</span>
+          <span className="tone-teal">Standard tier</span>
+        </div>
       </div>
     </div>
   );
@@ -82,14 +101,23 @@ function OutputCard() {
       <div className="ucs-landing-ov-idea">
         <div className="ucs-landing-ov-idea-meta">
           <span>#1</span>
-          <span>Elo 1287</span>
+          <span>Elo {RANKED[0].elo}</span>
         </div>
-        <b>Metformin sensitizes glioblastoma stem cells to temozolomide</b>
+        <b>{RANKED[0].title}</b>
         <div className="ucs-landing-ov-chips">
           <span className="tone-green">Supports 3</span>
           <span className="tone-yellow">Partial 1</span>
         </div>
       </div>
+      <ol className="ucs-landing-ov-rest" start={2}>
+        {RANKED.slice(1).map((idea, i) => (
+          <li key={idea.title}>
+            <span>#{i + 2}</span>
+            <span>{idea.title}</span>
+            <span>{idea.elo}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

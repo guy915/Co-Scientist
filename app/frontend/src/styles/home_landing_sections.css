@@ -9,8 +9,9 @@
 
 .ucs-landing-tree-head {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px 24px;
   color: var(--l-muted);
   font-size: 14px;
@@ -109,12 +110,10 @@
   font-weight: 500;
 }
 
-.ucs-landing-tree-note {
-  max-width: 52rem;
-  margin: 0;
-  color: var(--l-muted);
+.ucs-landing-tree-play {
+  height: 40px;
+  padding-inline: 20px;
   font-size: 14px;
-  line-height: 1.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -210,7 +209,8 @@
   color: var(--l-o-blue);
 }
 
-.ucs-landing-podium h3 {
+.ucs-landing-podium h3,
+.ucs-landing-panel-title {
   margin: 0;
   font-family: var(--l-display);
   font-size: 28px;
@@ -274,7 +274,7 @@
   font-weight: 500;
 }
 
-/* The sources the agents read, sliding past in outlined display type. */
+/* The sources the agents read, sliding past in display type. */
 .ucs-landing-marquee {
   margin-top: 64px;
 }
@@ -300,17 +300,11 @@
 }
 
 .ucs-landing-marquee-track span {
-  color: transparent;
+  color: var(--l-ink);
   font-family: var(--l-display);
   font-size: clamp(2.4rem, 5.6vw, 4.8rem);
   letter-spacing: -0.01em;
-  -webkit-text-stroke: 1.2px var(--l-muted);
   white-space: nowrap;
-}
-
-.ucs-landing-marquee-track span.is-solid {
-  color: var(--l-ink);
-  -webkit-text-stroke: 0;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -337,7 +331,7 @@
   margin-top: 48px;
 }
 
-.ucs-landing-safety > div {
+.ucs-landing-safety > article {
   display: grid;
   align-content: start;
   gap: 12px;
@@ -370,6 +364,7 @@
 
 /* ---- Tiers ---- */
 .ucs-landing-seg {
+  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   max-width: 100%;
@@ -383,6 +378,8 @@
 }
 
 .ucs-landing-seg button {
+  position: relative;
+  z-index: 1;
   flex: none;
   height: 40px;
   border: 0;
@@ -394,8 +391,11 @@
   padding-inline: 20px;
 }
 
+.ucs-landing-seg button {
+  transition: color 0.25s;
+}
+
 .ucs-landing-seg button[aria-pressed='true'] {
-  background: var(--l-ink);
   color: var(--l-bg);
 }
 

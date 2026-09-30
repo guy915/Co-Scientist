@@ -1,13 +1,11 @@
 // The Tournament section's tree: eight example ideas debate in pairs, round
 // by round, and each result moves both ratings by the real Elo rule. The
-// tree plays itself round by round while it is on screen, then starts over;
-// under reduced motion it shows the finished tree.
+// reader plays each round with a button; nothing advances on its own.
 
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useMemo, useState} from 'react';
 import {joinClasses} from '../classes';
 import {INITIAL_ELO} from './home_landing_content';
 import {expectedScore} from './home_landing_elo';
-import {type MotionProps, useInView} from './home_landing_hooks';
 
 // Example hypotheses for a glioblastoma drug-repurposing goal, with the
 // hidden strength that decides their debates.
@@ -24,7 +22,6 @@ const IDEAS: readonly {title: string; strength: number}[] = [
 
 const K = 32;
 const ROUNDS = 3;
-const STEP_MS = 1600;
 const LEAF_W = 400;
 const ROW_H = 48;
 const TOP = 26;
@@ -76,21 +73,6 @@ function pairUp<T>(items: T[]): [T, T][] {
   for (let i = 0; i < items.length; i += 2)
     pairs.push([items[i], items[i + 1]]);
   return pairs;
-}
-
-// Advances the tree a round at a time while on screen, holding the finished
-// tree for two beats before replaying.
-function useBracketStep(visible: boolean, reduceMotion: boolean): number {
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    if (!visible || reduceMotion) return;
-    const timer = window.setInterval(
-      () => setStep(s => (s + 1) % (ROUNDS + 3)),
-      STEP_MS,
-    );
-    return () => window.clearInterval(timer);
-  }, [visible, reduceMotion]);
-  return reduceMotion ? ROUNDS : Math.min(step, ROUNDS);
 }
 
 function xOfRound(round: number): number {
@@ -176,7 +158,12 @@ function RoundNodes({
           )}
         >
           <circle cx={xOfRound(round)} cy={match.y} r="14" />
-          <text x={xOfRound(round)} y={match.y + 5} textAnchor="middle">
+          <text
+            x={xOfRound(round)}
+            y={match.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
             {step > round ? '' : 'vs'}
           </text>
         </g>
@@ -246,22 +233,30 @@ function Champion({bracket, step}: {bracket: Bracket; step: number}) {
   );
 }
 
-/** The tournament tree panel. */
-export function LandingBracket({reduceMotion}: MotionProps) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const visible = useInView(ref, {once: false, threshold: 0.3});
+// The label of the button that plays the next round, or starts over.
+function stepLabel(step: number): string {
+  if (step === 0) return 'Play round 1';
+  return step < ROUNDS ? `Play round ${step + 1}` : 'Start over';
+}
+
+/**
+ * The tournament tree panel. It never advances on its own: the reader plays
+ * each round with the button and watches the ratings move.
+ */
+export function LandingBracket() {
   const bracket = useMemo(playBracket, []);
-  const step = useBracketStep(visible, reduceMotion);
+  const [step, setStep] = useState(0);
   const rounds = Array.from({length: ROUNDS}, (_, r) => r);
   return (
-    <div ref={ref} className="ucs-landing-panel ucs-landing-tree">
+    <div className="ucs-landing-panel ucs-landing-tree">
       <div className="ucs-landing-tree-head">
-        <span>Example · glioblastoma drug repurposing</span>
-        <span>
-          {step === 0
-            ? 'Every idea starts at Elo 1200'
-            : `Round ${step} of ${ROUNDS}`}
-        </span>
+        <button
+          type="button"
+          className="ucs-landing-pill is-line ucs-landing-tree-play"
+          onClick={() => setStep(s => (s + 1) % (ROUNDS + 1))}
+        >
+          {stepLabel(step)}
+        </button>
       </div>
       <div className="ucs-landing-tree-scroll">
         <svg
@@ -279,11 +274,6 @@ export function LandingBracket({reduceMotion}: MotionProps) {
           <Leaves bracket={bracket} step={step} />
         </svg>
       </div>
-      <p className="ucs-landing-tree-note">
-        A simplified picture. In a real run no idea is knocked out: ideas are
-        paired many times, mostly with rivals of similar rating, and every
-        debate moves both Elo ratings. The ranking is where the ratings settle.
-      </p>
     </div>
   );
 }

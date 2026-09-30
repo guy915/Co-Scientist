@@ -1,6 +1,6 @@
 // Small DOM hooks shared by the landing page's sections.
 
-import {type RefObject, useEffect, useState} from 'react';
+import {type RefObject, useEffect, useLayoutEffect, useState} from 'react';
 
 /** Props every animated landing section takes. */
 export interface MotionProps {
@@ -70,4 +70,44 @@ export function scrollParent(el: Element | null): HTMLElement | Window {
     if (overflowY === 'auto' || overflowY === 'scroll') return node;
   }
   return window;
+}
+
+/** Where a sliding selection pill sits inside its track, in pixels. */
+export interface IndicatorBox {
+  left: number;
+  width: number;
+  /** False on the first placement, so the pill appears without sliding in. */
+  animate: boolean;
+}
+
+/**
+ * Measures the selected item (`selector`) inside the referenced track so a
+ * single pill can slide between items instead of each item painting its own
+ * background. Re-measures when the selection (`selected`) or the track's
+ * size changes.
+ */
+export function useSlidingIndicator(
+  trackRef: RefObject<HTMLElement | null>,
+  selector: string,
+  selected: string,
+): IndicatorBox | null {
+  const [box, setBox] = useState<IndicatorBox | null>(null);
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const measure = () => {
+      const item = track.querySelector<HTMLElement>(selector);
+      if (!item) return;
+      setBox(prev => ({
+        left: item.offsetLeft,
+        width: item.offsetWidth,
+        animate: prev !== null,
+      }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [trackRef, selector, selected]);
+  return box;
 }

@@ -261,7 +261,6 @@
 /* ---- Hero ---- */
 .ucs-landing-hero {
   padding-block: 72px 40px;
-  border-top: 1px solid var(--l-line);
 }
 
 .ucs-landing-word {
@@ -333,11 +332,11 @@
   display: flex;
   justify-content: center;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--l-line);
   background: var(--l-bg);
 }
 
 .ucs-landing-rail nav {
+  position: relative;
   display: flex;
   max-width: 100%;
   gap: 4px;
@@ -353,6 +352,8 @@
 }
 
 .ucs-landing-rail a {
+  position: relative;
+  z-index: 1;
   display: grid;
   flex: none;
   height: 38px;
@@ -363,14 +364,36 @@
   font-weight: 500;
   padding-inline: 16px;
   text-decoration: none;
-  transition:
-    background-color 0.25s,
-    color 0.25s;
+  transition: color 0.25s;
 }
 
 .ucs-landing-rail a.is-active {
-  background: var(--l-ink);
   color: var(--l-bg);
+}
+
+/* The one pill that slides between the selected items of the rail and the
+   tier picker (home_landing_slider.tsx); the items themselves stay clear
+   and sit above it. */
+.ucs-landing-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--l-ink);
+  pointer-events: none;
+}
+
+.ucs-landing-slider.is-animated {
+  transition:
+    transform 0.4s var(--l-ease),
+    width 0.4s var(--l-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-landing-slider.is-animated {
+    transition: none;
+  }
 }
 
 /* ---- Overview: one run, end to end ---- */
@@ -383,7 +406,7 @@
 
 .ucs-landing-ov-card {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  align-content: start;
   gap: 8px;
   padding: 28px;
   border-radius: 32px;
@@ -405,23 +428,50 @@
 }
 
 .ucs-landing-ov-goal {
-  display: flex;
-  align-self: end;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px 20px;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
   border-radius: 24px;
   background: var(--l-bg);
-  font-size: 16px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-.ucs-landing-ov-goal svg {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
-  fill: var(--l-muted);
+.ucs-landing-ov-goal b {
+  font-weight: 500;
+}
+
+.ucs-landing-ov-goal p {
+  margin: 0;
+  color: var(--l-muted);
+}
+
+.ucs-landing-ov-rest {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ucs-landing-ov-rest li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  background: var(--l-bg);
+  color: var(--l-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ucs-landing-ov-rest li span:nth-child(2) {
+  overflow: hidden;
+  color: var(--l-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ucs-landing-ov-stages {
@@ -463,7 +513,6 @@
 
 .ucs-landing-ov-idea {
   display: grid;
-  align-self: end;
   gap: 10px;
   padding: 20px;
   border-radius: 24px;

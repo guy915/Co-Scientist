@@ -94,7 +94,7 @@ export function HowSection({reduceMotion}: MotionProps) {
         title="How it works"
         lede="A Supervisor plans the run and hands work to six specialist agents. The loop repeats until the rankings settle, then you get a research overview back."
       />
-      <LandingDiagram reduceMotion={reduceMotion} />
+      <LandingDiagram />
       <div className="ucs-landing-agents">
         {LANDING_AGENTS.map((agent, i) => (
           <AgentCard
@@ -116,7 +116,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
         title="Tournament"
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
-      <LandingBracket reduceMotion={reduceMotion} />
+      <LandingBracket />
       <div className="ucs-landing-duo">
         <LandingEloChart reduceMotion={reduceMotion} />
         <div className="ucs-landing-panel ucs-landing-podium">
@@ -139,7 +139,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
   );
 }
 
-// The sources the agents read, sliding past as outlined display type.
+// The sources the agents read, sliding past in display type.
 function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
@@ -148,9 +148,7 @@ function SourcesMarquee() {
       <div className="ucs-landing-marquee-window" aria-hidden="true">
         <div className="ucs-landing-marquee-track">
           {items.map((source, i) => (
-            <span key={i} className={i % 3 === 0 ? 'is-solid' : undefined}>
-              {source}
-            </span>
+            <span key={i}>{source}</span>
           ))}
         </div>
       </div>
@@ -209,21 +207,47 @@ export function EvidenceSection() {
   );
 }
 
-export function SafetySection() {
+// A safety layer's card; its shape morphs to a circle on hover or focus,
+// the same response as the agent cards.
+function SafetyCard({
+  layer,
+  reduceMotion,
+}: {
+  layer: (typeof LANDING_SAFETY)[number];
+  reduceMotion: boolean;
+}) {
+  const morph = useShapeMorph(layer.shape, reduceMotion);
+  return (
+    <article
+      tabIndex={0}
+      onPointerEnter={morph.toCircle}
+      onPointerLeave={morph.toRest}
+      onFocus={morph.toCircle}
+      onBlur={morph.toRest}
+    >
+      <ShapeBadge
+        shape={layer.shape}
+        tone={layer.tone}
+        icon={layer.icon}
+        pathRef={morph.pathRef}
+      />
+      <h3>{layer.title}</h3>
+      <p>{layer.body}</p>
+    </article>
+  );
+}
+
+export function SafetySection({reduceMotion}: MotionProps) {
   return (
     <section className="ucs-landing-sec" id="landing-safety">
       <SectionHeading title="Safety" />
       <div className="ucs-landing-safety">
         {LANDING_SAFETY.map(layer => (
-          <div key={layer.title}>
-            <ShapeBadge
-              shape={layer.shape}
-              tone={layer.tone}
-              icon={layer.icon}
-            />
-            <h3>{layer.title}</h3>
-            <p>{layer.body}</p>
-          </div>
+          <SafetyCard
+            key={layer.title}
+            layer={layer}
+            reduceMotion={reduceMotion}
+          />
         ))}
       </div>
     </section>
@@ -247,8 +271,8 @@ export function FaqSection() {
     <section className="ucs-landing-sec" id="faq">
       <SectionHeading title="Questions" />
       <div className="ucs-landing-faq">
-        {FAQ.map((entry, i) => (
-          <details key={entry.question} open={i === 0}>
+        {FAQ.map(entry => (
+          <details key={entry.question}>
             <summary>
               <span>{entry.question}</span>
               <Icon aria-hidden="true" name="expand_more" />

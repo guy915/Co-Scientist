@@ -16,7 +16,12 @@ import {useLocation} from 'react-router-dom';
 import helixArt from '../../assets/landing/helix.webp';
 import {joinClasses} from '../classes';
 import {LANDING_SECTIONS} from './home_landing_content';
-import {scrollParent, useReducedMotion} from './home_landing_hooks';
+import {
+  scrollParent,
+  useReducedMotion,
+  useSlidingIndicator,
+} from './home_landing_hooks';
+import {SlidingPill} from './home_landing_slider';
 import {
   ClosingSection,
   EvidenceSection,
@@ -187,6 +192,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   const active = useActiveSection();
   const navRef = useRef<HTMLElement | null>(null);
   const more = useRailScroll(navRef, active, reduceMotion);
+  const pill = useSlidingIndicator(navRef, '.is-active', active);
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     scrollToLandingSection(id, reduceMotion);
@@ -198,6 +204,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
         aria-label="Landing sections"
         className={joinClasses(more && 'has-more')}
       >
+        <SlidingPill box={pill} />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
@@ -244,7 +251,7 @@ export default function HomeLanding() {
         <HowSection reduceMotion={reduceMotion} />
         <TournamentSection reduceMotion={reduceMotion} />
         <EvidenceSection />
-        <SafetySection />
+        <SafetySection reduceMotion={reduceMotion} />
         <TiersSection reduceMotion={reduceMotion} />
         <ClosingSection onStart={onStart} />
         <FaqSection />

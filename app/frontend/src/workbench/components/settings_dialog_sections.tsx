@@ -1,4 +1,3 @@
-import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {type ByokProvider} from '@/lib/api_key';
 import {type Mode} from '../theme_context';
@@ -15,7 +14,7 @@ import {
  * section, controlled by the parent (see the `section`/`onSectionChange`
  * props on SettingsDialog in settings_dialog.tsx).
  */
-export type SettingsSection = 'appearance' | 'model' | 'help';
+export type SettingsSection = 'appearance' | 'model';
 
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
@@ -36,7 +35,6 @@ export const SETTINGS_SECTIONS: {
 }[] = [
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
-  {section: 'help', icon: 'help', label: 'Help'},
 ];
 
 // Appearance section: theme mode segmented control (system/light/dark).
@@ -183,26 +181,5 @@ export function SettingsNav({
         );
       })}
     </nav>
-  );
-}
-
-// Help section: a short product blurb and a link to the FAQ, which lives on
-// the landing page under the chat home (home_landing_content.ts). Following
-// the link closes the dialog so the FAQ is not hidden behind it.
-export function HelpSection({onNavigate}: {onNavigate?: () => void}) {
-  return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Help</h3>
-      <p className="ucs-settings-card-copy">
-        Co-Scientist is a multi-agent workspace for generating and
-        pressure-testing research hypotheses. Set a research goal and a team of
-        agents proposes ideas, reviews them, and ranks the strongest directions
-        tournament-style.
-      </p>
-      <Link className="ucs-help-faq-link" to="/#faq" onClick={onNavigate}>
-        <span>Read the FAQ</span>
-        <Icon aria-hidden="true" name="arrow_forward" />
-      </Link>
-    </section>
   );
 }

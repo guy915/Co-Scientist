@@ -15,7 +15,6 @@ import {useRestoreFocusOnClose} from '../hooks/use_restore_focus_on_close';
 import {type Mode, useTheme} from '../theme_context';
 import {
   AppearanceSection,
-  HelpSection,
   ModelSection,
   SettingsNav,
   type SettingsSection,
@@ -106,12 +105,10 @@ function SettingsPanel({
   section,
   theme,
   apiKeyField,
-  onClose,
 }: {
   section: SettingsSection;
   theme: {mode: Mode; setMode: (mode: Mode) => void};
   apiKeyField: ReturnType<typeof useApiKeyField>;
-  onClose: () => void;
 }) {
   return (
     <div className="ucs-settings-dialog-panel">
@@ -127,7 +124,6 @@ function SettingsPanel({
           onSave={apiKeyField.onSave}
         />
       )}
-      {section === 'help' && <HelpSection onNavigate={onClose} />}
     </div>
   );
 }
@@ -172,13 +168,11 @@ interface SettingsDialogWindowProps {
 function SettingsDialogBody({
   section,
   onSectionChange,
-  onClose,
   theme,
   apiKeyField,
 }: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
-  onClose: () => void;
   theme: {mode: Mode; setMode: (mode: Mode) => void};
   apiKeyField: ReturnType<typeof useApiKeyField>;
 }) {
@@ -189,7 +183,6 @@ function SettingsDialogBody({
         section={section}
         theme={theme}
         apiKeyField={apiKeyField}
-        onClose={onClose}
       />
     </div>
   );
@@ -216,7 +209,6 @@ function SettingsDialogWindow({
       <SettingsDialogBody
         section={section}
         onSectionChange={onSectionChange}
-        onClose={onClose}
         theme={theme}
         apiKeyField={apiKeyField}
       />
