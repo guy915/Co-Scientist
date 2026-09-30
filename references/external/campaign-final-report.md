@@ -2,14 +2,16 @@
 
 Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
 [strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
-[prospective workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
-close PLAN f1–f4. Independent verification passed 88 runner and 26 reader tests;
-new test files pass strict typing, while inherited reference-runner diagnostics
-remain documented. The [maintained release checks](m12-batching-release-checks-2026-09-30.json)
-remain applicable; batching is unreleased. Preparing the distinct comparison is
-next. Four original scientific/final gates remain open; historical studies are
-immutable and unscored. No new source bank, registration, admission or model
-qualification has started.
+[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+closes f5: six exploratory pairs, twelve independently verified primary sources,
+exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
+The normal loader accepted the committed bytes; no admission or scientific call occurred.
+The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
+Next is the sole f6 comparison after fresh free-route and serving-process checks,
+with the unchanged 24-model/36-outer-call caps and scientific gates. All four
+historical admissions remain consumed, immutable and unscored. Four original
+scientific/final gates remain open; no further model qualification is authorized.
 
 ## Current update — 30 September 2026
 

@@ -27,8 +27,8 @@ and [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-202
 support a default-off, bounded metadata/PMC-link batching path. PLAN f1/f2 are
 closed by [offline implementation and independent verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json):
 371 MCP tests, strict typing and preserved legacy studies/full-text downloads.
-The code remains unreleased. No fifth registration, additional source bank or
-model qualification is underway.
+The code remains unreleased. The separately prepared fifth comparison is now
+registered; no admission or model qualification has occurred.
 
 The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.json)
 now passes 26 offline tests, including the maintained public-tool producer with
@@ -38,14 +38,18 @@ claim. [PLAN f4 integration](sakana/novelty-batch-pilot-integration-verification
 now routes prospective v5 traces through that reader and validates a non-executing
 outside-repo draft preflight; 88 runner tests pass. Actual execution still requires
 an unchanged committed bank6/protocol5 with a distinct exclusive admission, and
-actual isolated process readiness remains f5. Historical records and assertions
+[f5 preparation and committed loaders](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+now pass with the real isolated CLI/MCP preflight. Source review verifies all twelve
+primary records and finite-set disjointness against 644 prior IDs; selection is exploratory.
+The preflight process is stopped; f6 needs fresh route/account and process checks
+before its sole admission. Historical records and assertions
 are unchanged; their exact original runner is retained in Git. Strict typing of
 new tests passes, with inherited whole-reference diagnostics explicitly retained.
 The [required maintained-code checks](m12-batching-release-checks-2026-09-30.json)
 passed on pinned product trees; they do not establish live scientific acceptance.
 
-Before a distinct comparison can use batching, a separately registered reader must
-validate records rather than reuse the historical per-ID call-count assertions:
+The registered v5 comparison uses the strict batch reader to validate records
+instead of historical per-ID call-count assertions:
 
 - Pin the opted-in producer and versioned reader before admission; retain all four historical registrations and consumed markers unchanged.
 - Require every selected PMID to have resolved metadata and an unambiguous `pubmed_pmc` link outcome, or a digest-verified cache origin; reject fetch errors, missing mappings and truncated proof.
@@ -53,8 +57,11 @@ validate records rather than reuse the historical per-ID call-count assertions:
 - Verify that logical request counts and separately counted client attempts cover actual batches, search and unchanged full-text downloads. Never describe these as wire-level HTTP counts or infer scientific reliability from request-volume savings.
 - Preserve the scientific metrics, model settings, zero-cost checks, isolation, blind labels and outer/model call caps. Any retrieval recovery policy needs prospective bounds; batching adds no retries. A new comparison needs its own source preparation and exclusive admission, without replaying exposed studies.
 
-These are preparation requirements, not a fifth study registration or permission to
-score partial results. Offline batching acceptance cannot close the scientific gates.
+The [protocol5](sakana/novelty-result-conditioned-pilot-prereg-v5.json) and
+[bank6](sakana/novelty-fixture-bank-prereg-v6.json) are committed together before
+admission. Their metadata-only preparation does not authorize scoring partial results
+or close scientific gates. The f4-v5 registry labels are the fixed workflow-integration
+anchor; f5 prepares and f6 executes study_version5. No historical replay follows.
 
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
