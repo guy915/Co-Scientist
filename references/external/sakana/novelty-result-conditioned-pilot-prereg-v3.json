@@ -17,7 +17,7 @@
   "fixture_bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v4.json",
   "fixture_bank_sha256": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
   "runner_path": "references/external/sakana/novelty_result_conditioned_pilot.py",
-  "runner_sha256": "16d3dc9c8bdba70efda53c7bb367c721fe9b3857dca6fe20e9ee9c095c58a352",
+  "runner_sha256": "169d1b04245fe9deb47c7320c557b1b9bc59afc5752ba2741a6eb6b61a776ba6",
   "validation_boundary": {
     "code_commit_before_registration": "d476a3f65a6155d22559f99c88c83c6a80634f4d",
     "validator_path": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
@@ -367,17 +367,17 @@
   "preparation_verification": {
     "offline_runner_tests": {
       "command": ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned_pilot.py -q",
-      "result": "34 passed",
+      "result": "42 passed",
       "independently_rerun_by_coordinator": true,
-      "runner_sha256": "16d3dc9c8bdba70efda53c7bb367c721fe9b3857dca6fe20e9ee9c095c58a352",
-      "test_sha256": "8cf1671f6d79d7772b9c8ad0725b46387fae2125946d0c1b344d4caf950717e2",
+      "runner_sha256": "169d1b04245fe9deb47c7320c557b1b9bc59afc5752ba2741a6eb6b61a776ba6",
+      "test_sha256": "ae8676be7f92e9c1b073af768740112ee4482303719aa05d8c382c1faef4cc3d",
       "ruff_check_format_diff_check": "PASS"
     },
     "independent_semantic_review": {
-      "code": "ACCEPT by fresh-context Luna6/xhigh for pinned runner/test diff",
+      "code": "ACCEPT by fresh-context Luna6/xhigh for exact runtime boundary correction and regression tests; coordinator independently reran42/42.",
       "source_bank": "ACCEPT by same independent reviewer as purposive exploratory input set; root also independently checked metadata/abstracts",
       "final_protocol_review": "Exact final protocol and source-hash acceptance must be recorded separately before admission; no self-referential review hash in this protocol",
-      "record_path": "references/external/sakana/novelty-pilot-v3-preparation-2026-09-30.json"
+      "record_path": "references/external/sakana/novelty-pilot-v3-runtime-amendment-2026-09-30.json"
     },
     "maintained_producer_to_exact_v3_raw_validator": {
       "status": "VERIFIED_OFFLINE_MAINTAINED_PRODUCER_TO_STUDY3_RAW_GATE",
@@ -404,6 +404,17 @@
     }
   },
   "stop_rule_scope": "The first error stops scientific requests in this admitted study permanently. It does not turn unrelated authorized documentation into a scientific pass or authorize replay.",
-  "prepared_at_utc": "2026-09-30T04:27:30.870221+00:00",
-  "registration_boundary": "Effective only when these exact protocol bytes are committed unchanged, before any scientific request. The actual commit and commit timestamp are recorded in the separate preparation receipt; preparation time is not represented as commit time."
+  "prepared_at_utc": "2026-09-30T06:05:59.593799+00:00",
+  "registration_boundary": "Effective only when these exact protocol bytes are committed unchanged, before any scientific request. The actual commit and commit timestamp are recorded in the separate preparation receipt; preparation time is not represented as commit time.",
+  "pre_admission_source_pin_amendment": {
+    "original_protocol_sha256": "293af3a713f4670aeb22a87ff81215cbb37008bcf4f6699f8815fc0bf89419f8",
+    "original_registration_commit": "33cba115fd8b4d2d8b75754797dcf2cf3688ce97",
+    "corrected_runner_source_commit": "a4d124cd18d08b62ef62f725aa03a714e7f415cd",
+    "reason": "Actual CLI runtime check indexed fresh bank4 with legacy bank3 validator keys before admission. Current canonical protocol paths/hashes are now enforced against bank4 direct path declarations; legacy gates unchanged.",
+    "evidence": "references/external/sakana/novelty-pilot-v3-pre-admission-failure-2026-09-30.json",
+    "admission_existed_at_amendment": false,
+    "scientific_calls_before_amendment": 0,
+    "source_pin_only": true,
+    "scientific_inputs_metrics_prompts_limits_routes_stop_rules_unchanged": true
+  }
 }
