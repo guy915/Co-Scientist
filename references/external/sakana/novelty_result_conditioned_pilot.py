@@ -1207,14 +1207,50 @@ def _check_runtime(
         )
     if os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1":
         raise ValueError("Maintained PubMed run tracing must be enabled")
-    boundary = fixture_prereg["validation_boundary"]
-    for path_key, hash_key in (
-        ("validator", "validator_sha256"),
-        ("parser", "parser_sha256"),
-        ("tool_config", "tool_config_sha256"),
-    ):
-        if fixture._sha256(ROOT / boundary[path_key]) != boundary[hash_key]:
-            raise ValueError(f"Frozen validator source changed: {boundary[path_key]}")
+    boundary = fixture_prereg.get("validation_boundary")
+    if protocol.get("study_version") == 3 or fixture_prereg.get("version") == 4:
+        protocol_boundary = protocol.get("validation_boundary")
+        if (
+            protocol.get("study_version") != 3
+            or fixture_prereg.get("version") != 4
+            or not isinstance(protocol_boundary, dict)
+            or not isinstance(boundary, dict)
+        ):
+            raise ValueError("Study 3 must bind the current v4 validation boundary")
+        for path_key, hash_key, bank_path_key in (
+            ("validator_path", "validator_sha256", "maintained_validator"),
+            ("response_parser_path", "response_parser_sha256", "parser"),
+            ("tool_config_path", "tool_config_sha256", "tool_config"),
+        ):
+            relative_path = protocol_boundary.get(path_key)
+            if (
+                not isinstance(relative_path, str)
+                or not relative_path
+                or boundary.get(bank_path_key) != relative_path
+            ):
+                raise ValueError(
+                    f"Study 3 validation source path differs from fixture bank: {path_key}"
+                )
+            expected_hash = protocol_boundary.get(hash_key)
+            if not isinstance(expected_hash, str) or not re.fullmatch(
+                r"[0-9a-f]{64}", expected_hash
+            ):
+                raise ValueError(
+                    f"Study 3 validation source hash is missing or malformed: {path_key}"
+                )
+            if fixture._sha256(ROOT / relative_path) != expected_hash:
+                raise ValueError(f"Frozen validation source changed: {relative_path}")
+    else:
+        # v1/v2 preregistrations carry these hashes on the fixture bank itself.
+        for path_key, hash_key in (
+            ("validator", "validator_sha256"),
+            ("parser", "parser_sha256"),
+            ("tool_config", "tool_config_sha256"),
+        ):
+            if fixture._sha256(ROOT / boundary[path_key]) != boundary[hash_key]:
+                raise ValueError(
+                    f"Frozen validator source changed: {boundary[path_key]}"
+                )
     fixture._check_server_tree_clean()
     current_mcp_tree = fixture._git("rev-parse", "HEAD:engine/mcp_server")
     if protocol.get("mcp_tree") != current_mcp_tree:

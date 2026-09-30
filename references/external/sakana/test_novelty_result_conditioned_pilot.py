@@ -1373,6 +1373,146 @@ def _runtime_inputs(
     return protocol, prereg, cache_root
 
 
+def _study3_runtime_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    original_root = pilot.ROOT
+    protocol_path = pilot.PILOT_PREREG_V3
+    protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    protocol["runner_sha256"] = hashlib.sha256(
+        Path(pilot.__file__).read_bytes()
+    ).hexdigest()
+    test_protocol_path = tmp_path / "study3-protocol.json"
+    test_protocol_path.write_text(
+        json.dumps(protocol, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+
+    test_root = tmp_path / "repository"
+    test_root.mkdir()
+    (test_root / "engine").symlink_to(
+        original_root / "engine", target_is_directory=True
+    )
+    bank_relative = pilot._study_registration(3).fixture_bank_path
+    assert bank_relative is not None
+    bank_path = test_root / bank_relative
+    bank_path.parent.mkdir(parents=True)
+    bank_path.write_bytes((original_root / bank_relative).read_bytes())
+
+    monkeypatch.setattr(pilot, "ROOT", test_root)
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V3", test_protocol_path)
+    committed_file_bytes = pilot._committed_file_bytes
+
+    def read_test_registration(path: Path, label: str) -> bytes:
+        if path in {test_protocol_path, bank_path}:
+            return path.read_bytes()
+        return committed_file_bytes(path, label)
+
+    monkeypatch.setattr(pilot, "_committed_file_bytes", read_test_registration)
+    monkeypatch.setattr(pilot.fixture, "_check_server_tree_clean", lambda: None)
+    monkeypatch.setattr(pilot.fixture, "_git", lambda *_: protocol["mcp_tree"])
+    serving_process = {
+        "pid": 123,
+        "listener_address": "127.0.0.1:8123",
+        "source_path": str(test_root / "engine/mcp_server/server.py"),
+        "mcp_tree": protocol["mcp_tree"],
+    }
+    monkeypatch.setattr(
+        pilot, "_check_mcp_process", lambda *_args, **_kwargs: serving_process
+    )
+    endpoint = "http://127.0.0.1:8123/mcp"
+    monkeypatch.setenv("COSCIENTIST_CAMPAIGN_MCP_URL", endpoint)
+    monkeypatch.setenv("MCP_SERVER_URL", endpoint)
+    monkeypatch.setenv(pilot.fixture.MCP_SECRET_ENV, "offline-loopback-secret" * 2)
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_TRACE", "1")
+    monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_BUILD_ID", protocol["mcp_build_id"])
+    cache_root = tmp_path / "study3-cache"
+    cache_root.mkdir()
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+
+    return (
+        pilot._load_pilot_protocol(3),
+        pilot._load_fixture_bank(protocol, 3),
+        cache_root,
+    )
+
+
+def test_study3_cli_reaches_science_boundary_with_current_v4_bank(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, bank, _ = _study3_runtime_inputs(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "sys.argv", ["novelty_result_conditioned_pilot", "--study-version", "3"]
+    )
+
+    class RuntimeGateReached(Exception):
+        pass
+
+    async def stop_before_science(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeGateReached
+
+    monkeypatch.setattr(pilot, "run_pilot", stop_before_science)
+    with pytest.raises(RuntimeGateReached):
+        asyncio.run(pilot._main())
+
+    assert protocol["study_version"] == 3
+    assert bank["version"] == 4
+
+
+@pytest.mark.parametrize(
+    ("bank_path_key"), ["maintained_validator", "parser", "tool_config"]
+)
+def test_study3_runtime_rejects_a_fixture_source_path_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bank_path_key: str,
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    bank["validation_boundary"][bank_path_key] = "engine/unexpected.py"
+
+    with pytest.raises(ValueError, match="validation source path differs"):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+@pytest.mark.parametrize(
+    ("protocol_hash_key"),
+    [
+        "validator_sha256",
+        "response_parser_sha256",
+        "tool_config_sha256",
+    ],
+)
+def test_study3_runtime_rejects_a_current_source_hash_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    protocol_hash_key: str,
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    protocol["validation_boundary"][protocol_hash_key] = "0" * 64
+
+    with pytest.raises(ValueError, match="Frozen validation source changed"):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+def test_study3_runtime_uses_current_protocol_hashes_not_historical_bank_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    for hash_key in ("validator_sha256", "parser_sha256", "tool_config_sha256"):
+        bank["validation_boundary"]["v3_reference_hashes"][hash_key] = "0" * 64
+
+    endpoint, checked_cache, build_id, _ = pilot._check_runtime(
+        protocol, bank, cache_root=cache_root
+    )
+
+    assert (endpoint, checked_cache, build_id) == (
+        "http://127.0.0.1:8123/mcp",
+        cache_root,
+        protocol["mcp_build_id"],
+    )
+
+
 def test_runtime_requires_the_protocol_to_pin_the_current_mcp_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
