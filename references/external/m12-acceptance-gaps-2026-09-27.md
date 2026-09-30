@@ -10,6 +10,10 @@ This update supersedes the dated snapshots below; `PLAN.md` remains authoritativ
 - **Novelty:** the sole admitted v1 pilot stopped on missing maintained PubMed tracing and remains inconclusive; its consumed marker prevents replay. Offline trace repair and a separately registered fresh-input study precede any further scientific calls. The prior precise-rung rejection is a separate mechanism.
 - **Robin:** [the distinct public continuation](m12-robin-continuation-acceptance-2026-09-30.json) completed all 17 new tasks, produced a source-linked single-parent child, traversed ordinary review/reflection/safety/verification/claims/ranking/report gates, and survived browser refresh. Its 30 observed/priced responses reported $0; deep verification weakened the child, so operational acceptance does not establish experimental validity. The old ambiguous action was not replayed. Final campaign acceptance remains open.
 
+## Historical PR #60 assessment — 27 September 2026
+
+The following assessment records that release-time state; the 30 September update above supersedes its current-status wording.
+
 **Finding:** The nine required repository assessments and accepted releases are
 reconciled, but the original campaign acceptance criteria do **not** yet hold.
 This is a negative acceptance finding, not a declaration that the campaign is
@@ -43,6 +47,6 @@ retains the distinct candidate dispositions and source links.
 
 The [production public-run receipt](m12-production-public-run-2026-09-27.json) and [corrective Robin observation](m12-robin-corrective-observation-2026-09-27.json) establish a completed campaign-owned production goal and one deployed source-linked Robin action with a one-parent child and persisted Space Bunny call. M12-03b is now checked in [PLAN.md](../../PLAN.md); only the fixed-input comparison and original zero-open closing item remain unchecked. This closes the older M12 operational absence described above, but it does not resolve scientific qualification, the owner-deferred M11 gates, or full Robin downstream traversal. The [post-action gate audit](m12-robin-post-action-gate-2026-09-27.json) records an ambiguous provider timeout in the subsequent verification fanout, which was not replayed. No missing comparison or post-action result is treated as a pass.
 
-## Authorized comparison and current disposition
+## Historical authorized-comparison disposition — 27 September 2026
 
 The owner later authorized the bounded comparison and the original five live gates. The [Space Bunny frozen result](m12-space-bunny-scientific-result-2026-09-27.md) has a passing first four-claim trial followed by a failed second trial: the served JSON used `verdests` rather than `verdicts`, so all four product labels used deterministic fallback and three missed gold. The frozen stop rule prevented further calls. Space Bunny is scientifically unqualified on this screen; its prior completed public runs remain valid operational observations. The five original gates are now active M12 acceptance items in [PLAN.md](../../PLAN.md), and Ling Sante plus the Cloudflare variant still require evidence-backed dispositions. The earlier PR #60 and PR #71 sections above are historical snapshots, not current completion counts.
