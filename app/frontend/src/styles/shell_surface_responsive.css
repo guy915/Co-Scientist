@@ -358,14 +358,21 @@
   }
 
   /* Vertical phone layout: the section options stack above the panel
-     and sit top-right (justify-content: flex-end) rather than
-     spanning from the left. */
+     and sit top-right rather than spanning from the left. The right push is
+     an auto margin on the first pill, not justify-content: flex-end -- an
+     overflowing flex-end row spills past the left edge where overflow-x
+     cannot scroll to it, which clipped "Appearance" on 320px phones. An auto
+     margin collapses to zero once the row overflows, so it scrolls instead. */
   .ucs-settings-dialog-nav {
     display: flex;
-    justify-content: flex-end;
     gap: 0.35rem;
     overflow-x: auto;
     padding-bottom: 0.15rem;
+    scrollbar-width: none;
+  }
+
+  .ucs-settings-dialog-nav > :first-child {
+    margin-left: auto;
   }
 
   /* Tighter pills on mobile so the three cluster at the right with clear slack
@@ -376,5 +383,17 @@
     gap: 0.4rem;
     padding-inline: 0.7rem;
     font-size: 0.82rem;
+  }
+}
+
+/* The narrowest phones drop the pill icons so all three sections fit
+   without scrolling the row. */
+@media (max-width: 360px) {
+  .ucs-settings-nav-item {
+    padding-inline: 0.75rem;
+  }
+
+  .ucs-settings-nav-icon {
+    display: none;
   }
 }

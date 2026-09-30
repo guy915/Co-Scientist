@@ -131,7 +131,13 @@ export const MESSAGE_ACTIONS_END_CLASSES =
   '[right:calc(100%+0.4rem)] ' +
   'group-hover/user:pointer-events-auto group-hover/user:scale-100 ' +
   'group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto ' +
-  'group-focus-within/user:scale-100 group-focus-within/user:opacity-100';
+  'group-focus-within/user:scale-100 group-focus-within/user:opacity-100 ' +
+  // Touch has no hover, and the floating slot left of a near-full-width
+  // phone bubble sits off-screen, so touch shows the row under the bubble.
+  'pointer-coarse:pointer-events-auto pointer-coarse:static ' +
+  'pointer-coarse:mt-[0.2rem] pointer-coarse:translate-y-0 ' +
+  'pointer-coarse:justify-end pointer-coarse:scale-100 ' +
+  'pointer-coarse:opacity-100';
 
 export const MESSAGE_ACTION_BUTTON_CLASSES = `size-8 ${MUTED_ICON_BUTTON}`;
 
@@ -315,7 +321,8 @@ export const QUESTION_OPTION_DESCRIPTION_CLASSES =
 
 // Cancel/Start research button row at the bottom of the plan document card.
 export const SETUP_ACTIONS_CLASSES =
-  'reference-setup-actions flex justify-end gap-[0.7rem] pt-[0.3rem]';
+  'reference-setup-actions flex flex-wrap justify-end gap-[0.7rem] ' +
+  'pt-[0.3rem] [&>button]:whitespace-nowrap';
 
 export const SETUP_SECONDARY_BUTTON_CLASSES =
   `${PILL_BUTTON} border-cosci-btn-secondary-border bg-transparent ` +

@@ -204,6 +204,17 @@
   }
 }
 
+/* iOS Safari zooms the page on focus into any field under 16px and leaves it
+   zoomed, which shoves the layout sideways on a phone. Touch devices get a
+   16px floor on text fields; desktop keeps the designed sizes. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range']),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 *,
 ::before,
 ::after {

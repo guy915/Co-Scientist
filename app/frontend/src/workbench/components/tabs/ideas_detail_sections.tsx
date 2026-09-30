@@ -179,7 +179,7 @@ function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
                 href={span.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="not-italic underline"
+                className="not-italic underline pointer-coarse:inline-block pointer-coarse:py-2"
               >
                 open source
               </a>
