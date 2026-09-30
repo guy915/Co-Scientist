@@ -1,0 +1,126 @@
+{
+  "purpose": "Committed fourth-study preparation and existing offline behavioral evidence; not process readiness, scientific admission or completed comparison.",
+  "status": "VERIFIED_REGISTERED_PREPARATION_NOT_ADMITTED",
+  "recorded_at_utc": "2026-09-30T13:48:19.981555+00:00",
+  "study_version": 4,
+  "protocol_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.json",
+  "protocol_sha256": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc",
+  "runner_sha256": "e1901d069cddc3593d8520efd59fa1a3a4b5e5fe13f528d99139c31ea3c325b3",
+  "test_sha256": "9c6e0bb0c8739b3d3a51a05d4c70cda4cb3b249a05d9f853f1ef98aa599231a8",
+  "fixture_bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v5.json",
+  "fixture_bank_sha256": "bde8d60addb56d5e8d85ffc423eec1d8beb7f9bf35e5dc723040977dee41c2d9",
+  "source_review_path": "references/external/sakana/novelty-fixture-bank-v5-source-review-2026-09-30.json",
+  "source_review_sha256": "6da74ec3e7f76f9237d19234d5f3ab4523d1eda2d3cf6941e703351da8b2468f",
+  "registration_commit": "1bdc99ba65b3088b1aa9b223db724ee3038eca4d",
+  "registration_commit_time": "2026-09-30T15:43:17+02:00",
+  "mcp_tree": "b9be2e8af56575544d7b97bb99b816595027affd",
+  "required_checks": {
+    "existing_affected_offline_verification": {
+      "record_path": "references/external/sakana/novelty-study4-recovery-verification-2026-09-30.json",
+      "record_sha256": "47645ebe3d42a0ae4e4b8bef49efaf2ee61a4b487a2c1b5a41907de010dfd40d",
+      "verification": {
+        "mcp_tests": 350,
+        "strict_mcp_mypy_source_files": 83,
+        "reference_tests": 68,
+        "parity_and_full_evaluation_suite": "PASS after unweakened file/function-length gates; split test modules under500 lines",
+        "root_rerun_commands": [
+          "make test-mcp",
+          ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned_pilot.py -q",
+          "make parity",
+          "make lint"
+        ],
+        "final_log_sha256": {
+          "mcp": "cd8373bc929c9217a0bfcf90c74163f8864a1dbb6f2f5627a9144d78e6af3558",
+          "reference": "64ec1caa225303ebd4a8899b9ff12b6b14a07bd46a272bed6edc1dcdb1d4c9db",
+          "parity": "aa762612249a08d7997500672f0aa8b4c7c259c1918eee4d7fef5220c3e46fc6",
+          "lint": "cc2a87993c8209ce84306f0af021d477dc516d41a22bbe8fe4193377dd858aed"
+        },
+        "unchanged_component_evidence": {
+          "engine_tests": 3171,
+          "existing_engine_skips": 2,
+          "app_tests": 2055,
+          "build": "PASS",
+          "frontend_tests": 813,
+          "typecheck": "PASS",
+          "eval_smoke": "PASS/offline",
+          "browser_tests": 18,
+          "reuse_boundary": "app, engine core/tests, evaluations, e2e, build/container/dependency configuration unchanged from starting commit; final affected MCP/reference/parity/lint rerun separately. The initial make test-all exit2 from file length is retained, not relabeled as an exit0 invocation."
+        }
+      },
+      "reuse_scope": "No runtime/test/prompt/model-boundary changes after recovery commit04d3e5f6; new protocol documentation and actual committed loader checks only. Initial test-all failure remains recorded, not relabeled."
+    },
+    "real_committed_protocol_bank_loader": {
+      "status": "ACTUAL_COMMITTED_V4_LOADER_PASS",
+      "source_commit": "1bdc99ba65b3088b1aa9b223db724ee3038eca4d",
+      "protocol_sha256": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc",
+      "fixture_bank_sha256": "bde8d60addb56d5e8d85ffc423eec1d8beb7f9bf35e5dc723040977dee41c2d9",
+      "source_review_sha256": "6da74ec3e7f76f9237d19234d5f3ab4523d1eda2d3cf6941e703351da8b2468f",
+      "pairs": 6,
+      "model_calls": 0,
+      "retrieval_calls": 0,
+      "exclusive_marker_absent": true,
+      "mcp_tree": "b9be2e8af56575544d7b97bb99b816595027affd",
+      "limits": [
+        24,
+        36
+      ],
+      "scope": "Real committed protocol/bank/source-review loader only; serving-process proof and admission not claimed."
+    },
+    "offline_cli_admission_source_pin_boundaries": {
+      "test_file": "references/external/sakana/test_novelty_result_conditioned_pilot.py",
+      "test_file_sha256": "9c6e0bb0c8739b3d3a51a05d4c70cda4cb3b249a05d9f853f1ef98aa599231a8",
+      "passed_suite_count": 68,
+      "test_names": [
+        "test_main_cli_selects_prospective_protocol_and_passes_it_to_runner",
+        "test_versioned_admission_uses_a_distinct_exclusive_marker",
+        "test_main_existing_admission_blocks_before_mcp_initialization",
+        "test_study4_loader_accepts_only_committed_actual_bank5",
+        "test_study4_runtime_rejects_validation_source_mismatch",
+        "test_runtime_rejects_repository_env_files",
+        "test_runtime_rejects_credentials_in_the_loopback_mcp_process"
+      ],
+      "scope": "Deterministic behavioral evidence in already-passing unchanged suite; actual real process proof remains pending."
+    }
+  },
+  "independent_review": {
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "reviewer": "study4_registration_gate_review",
+    "final_exact_protocol": "ACCEPT",
+    "accepted_protocol_sha256": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc",
+    "scope": "Exact protocol/source/current hashes, unchanged scientific fields, private launcher ordering and reviewed endpoint identity correction. Final filled launcher constants and real process not yet observed."
+  },
+  "source_verification": {
+    "pairs": 6,
+    "selected_sources": 12,
+    "retained_xml_sha256": "210d3f5f39a2393bd5e4bbe960a0761ae1276407e583014e0e65d26d5d480e29",
+    "source_review_status": "ACCEPT_SOURCE_VALIDATION_ONLY",
+    "scope": "ACCEPT applies only to corrected source identity, abstract-level claim support, excerpt substrings after Unicode-whitespace normalization (27/28 are literal XML-decoded substrings; the remaining 1 differs only by NBSP versus SPACE), draft limits, and checked-set source disjointness. Registration/freezing and any scientific or validator claims remain the coordinator\u2019s responsibility."
+  },
+  "activation_still_required": [
+    "Fresh current exact-zero official catalog and sole Stealth endpoint identity/eligibility and safe account-usage projection; no model qualification.",
+    "Actual isolated credential-free MCP process attestation and empty cache proof; pending until separate real-process preflight receipt.",
+    "Fill and verify launcher immutable pins against committed protocol, bank, source-review, receipt and source tree.",
+    "One exclusive study4 admission before MCP initialize; no model/outer-call retry, substitution or replay. Only exact registered Entrez-entry recovery allowed."
+  ],
+  "cost": {
+    "preparation_model_requests": 0,
+    "preparation_scientific_retrieval_calls": 0,
+    "new_source_fetches_for_this_receipt": 0,
+    "paid_calls": 0
+  },
+  "scientific_gate": {
+    "primary": "Across the six positive drafts, compare exact target-PMID coverage in shared-first-search union candidate-follow-up results against the matched shared-first-search union static-follow-up results. Candidate must cover at least one additional positive target in aggregate and lose none of the positive target coverage in static. A target already present in shared-first search cannot earn incremental credit by reappearing in either follow-up.",
+    "non_regression": [
+      "Candidate loses none of the six distinct-control own-anchor coverage in matched shared-first-search union static-follow-up results, evaluated against shared-first-search union candidate-follow-up results.",
+      "Candidate does not increase cross-pair positive-target coverage among distinct controls; deduplicate each shared-first-search union follow-up PMID set identically for both arms.",
+      "Candidate does not increase the blinded unrelated-paper fraction among returned follow-up papers; incomplete blind labels make the outcome inconclusive.",
+      "Every returned paper has complete query, selected relaxation rung, selected/fetched/final PMID, source/tool, and actual server-process provenance."
+    ],
+    "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+    "failure_interpretation": "A primary or non-regression failure rejects this exact frozen adaptation only. It does not establish that every iterative search method fails.",
+    "pass_interpretation": "A pass retains the mechanism as promising only; no product adoption or release until the separately preregistered independent three-pair confirmatory comparison passes.",
+    "prospective_clarification": "Independent review before any study3 scientific call found that counting a follow-up re-retrieval of a seed target could fabricate incremental prior-art discovery. Union/dedup prevents this, retaining original at-least-one improvement/no-loss/control/provenance thresholds. v1/v2 remain interrupted and are not retrospectively rescored."
+  },
+  "cleanup": "Documentation-only registration; source hashes unchanged. Protocol includes actual producer field names and preserves original criteria/history. No UI or product configuration change."
+}
