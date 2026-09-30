@@ -18,8 +18,8 @@ The separately registered fourth study completed its operational preparation:
 [protocol4](sakana/novelty-result-conditioned-pilot-prereg-v4.json), fresh bank5,
 independent review, committed loaders and actual credential-free MCP/CLI preflight.
 Its [sole admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json)
-after13model responses and19outer searches. Both permitted EFetch429 recoveries
-succeeded; a later ELink429 exhausted the two-retry study ceiling. All four
+after 13 model responses and 19 outer searches. Both permitted EFetch 429 recoveries
+succeeded; a later ELink 429 exhausted the two-retry study ceiling. All four
 admissions are consumed, with no scientific scoring, replay, adoption or rejection.
 Original scientific thresholds and four acceptance gates remain unchanged.
 The next bounded step is a read-only maintained-request-volume/pacing audit;

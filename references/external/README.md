@@ -25,8 +25,8 @@ repair and study evidence; its unchanged product is healthy in existing services
 Four original M12 gates remain open in [PLAN.md](../../PLAN.md). The prospective
 fourth-study preparation passed actual isolated process/CLI gates, then its
 [sole admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json)
-after13model responses and19outer searches at reported$0. Two EFetch429 recoveries
-succeeded; a later ELink429 exhausted the registered budget. All four admissions
+after 13 model responses and 19 outer searches at reported $0. Two EFetch 429 recoveries
+succeeded; a later ELink 429 exhausted the registered budget. All four admissions
 are now consumed and unscored; no replay or scientific disposition follows. The
 [deferred register](deferred-followups-2026-09-25.md) preserves earlier decisions,
 and [current release reconciliation](m12-current-release-reconciliation-2026-09-30.json)
