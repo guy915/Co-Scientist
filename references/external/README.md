@@ -15,8 +15,11 @@ completed 17 further tasks with lineage, ownership, model/cost telemetry and
 browser refresh. Its weakened and blocked scientific dispositions are retained;
 these workflow results do not establish expert or experimental validation.
 Sakana's result-conditioned search remains unresolved. The separately registered
-[third study](sakana/novelty-result-conditioned-pilot-prereg-v3.json) follows two
-consumed, incomplete admissions; neither earlier study may be replayed.
+[third study](sakana/novelty-result-conditioned-pilot-prereg-v3.json)
+[stopped on a PubMed metadata-fetch error](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
+after one model response and one retrieval call at reported $0. All three study
+admissions are consumed and incomplete; none may be replayed. No scientific
+adoption or rejection follows from an interrupted comparison.
 Four M12 items remain open in [PLAN.md](../../PLAN.md). The
 [deferred register](deferred-followups-2026-09-25.md) preserves earlier decisions,
 and [current release reconciliation](m12-current-release-reconciliation-2026-09-30.json)
