@@ -1,10 +1,10 @@
 # SakanaAI/AI-Scientist — pinned source assessment
 
-Current retrieval work: the [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
-supports default-off metadata/PMC-link batching through the existing maintained tool.
-Implementation and independent offline proof are scoped in PLAN f1/f2; neither is
-verified yet. Four original scientific/final gates remain open. Historical studies
-are immutable and unscored; no new comparison or source bank has started.
+Current retrieval work: [offline batching verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json)
+closes PLAN f1/f2. The default-off metadata/PMC-link path passes 371 MCP tests,
+strict typing and independent review; it remains unreleased. Four original
+scientific/final gates remain open. Historical studies are immutable and unscored;
+no new comparison, source bank or model qualification has started.
 
 **Source:** https://github.com/SakanaAI/AI-Scientist at [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) (committed 2025-12-19). The ignored checkout at `references/work/sakana-ai-scientist/` was removed after release; it was never a runtime dependency. This is an external technique source, not evidence of Google's Co-Scientist implementation.
 

@@ -24,10 +24,23 @@ admissions are consumed, with no scientific scoring, replay, adoption or rejecti
 Original scientific thresholds and four acceptance gates remain unchanged.
 The [request-volume audit](sakana/novelty-study4-retrieval-audit-2026-09-30.json)
 and [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
-support a default-off, bounded metadata/PMC-link batching path. PLAN items f1/f2
-require offline implementation and independent public-tool/cache/trace proof,
-while preserving legacy studies and full-text downloads. No fifth registration,
-additional source bank or model qualification is underway.
+support a default-off, bounded metadata/PMC-link batching path. PLAN f1/f2 are
+closed by [offline implementation and independent verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json):
+371 MCP tests, strict typing and preserved legacy studies/full-text downloads.
+The code remains unreleased. No fifth registration, additional source bank or
+model qualification is underway.
+
+Before a distinct comparison can use batching, a separately registered reader must
+validate records rather than reuse the historical per-ID call-count assertions:
+
+- Pin the opted-in producer and versioned reader before admission; retain all four historical registrations and consumed markers unchanged.
+- Require every selected PMID to have resolved metadata and an unambiguous `pubmed_pmc` link outcome, or a digest-verified cache origin; reject fetch errors, missing mappings and truncated proof.
+- Reconcile each batch's inputs, cache hits, EFetch requested/returned IDs and actual ELink subset with per-record provenance, search order and retained artifacts. The batch bound is nine; sampled traces cannot prove an unsampled record.
+- Verify that logical request counts and separately counted client attempts cover actual batches, search and unchanged full-text downloads. Never describe these as wire-level HTTP counts or infer scientific reliability from request-volume savings.
+- Preserve the scientific metrics, model settings, zero-cost checks, isolation, blind labels and outer/model call caps. Any retrieval recovery policy needs prospective bounds; batching adds no retries. A new comparison needs its own source preparation and exclusive admission, without replaying exposed studies.
+
+These are preparation requirements, not a fifth study registration or permission to
+score partial results. Offline batching acceptance cannot close the scientific gates.
 
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service

@@ -1,10 +1,10 @@
 # External reference campaign
 
-Current retrieval work: the [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
-supports default-off metadata/PMC-link batching through the existing maintained tool.
-Implementation and independent offline proof are scoped in PLAN f1/f2; neither is
-verified yet. Four original scientific/final gates remain open. Historical studies
-are immutable and unscored; no new comparison or source bank has started.
+Current retrieval work: [offline batching verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json)
+closes PLAN f1/f2. The default-off metadata/PMC-link path passes 371 MCP tests,
+strict typing and independent review; it remains unreleased. Four original
+scientific/final gates remain open. Historical studies are immutable and unscored;
+no new comparison, source bank or model qualification has started.
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)
