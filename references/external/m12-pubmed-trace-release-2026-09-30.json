@@ -1,6 +1,6 @@
 {
   "purpose": "M12-04b8a release of verified opt-in maintained PubMed trace and archived versioned study runner",
-  "status": "PRE_RELEASE_CORRECTION",
+  "status": "LOCAL_CHECKS_PASSED_RELEASE_PENDING",
   "reviewed_source_head": "17d9522ec673fa5f4a50b1f25a55b0e4676bbfe0",
   "base": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
   "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
@@ -26,16 +26,18 @@
     "security_exact_range": "8bb80e28..17d9522e",
     "security_coverage": "Seven maintained runtime files plus supplemental reference runner/tests/docs. No new source after reviewed head; evidence-only records inspected inline for exposure/claims.",
     "secret_pattern_check": "No credential-like key/token literals in changed files; semantic review excludes secret values from trace/results.",
-    "limitations": "No external penetration test or hostile-local-OS sandbox claim."
+    "limitations": "No external penetration test or hostile-local-OS sandbox claim.",
+    "final_delta": "After reviewed17d9522e, only test organization and retained evidence changed; all14test bodies/78assertions preserved. Runtime source unchanged."
   },
   "cleanup": {
     "runtime_pid15056": "Termination sent after matchingsoleownedprocess command/port; forensic cache/logs retained privately.",
     "historical_studies": "v1/v2 admission/result/protocol retained immutable; no retries or comparison pass claimed.",
     "ui_source_changed": false,
-    "user_primary_agents": "Preserved user changes in primary checkout."
+    "user_primary_agents": "Preserved user changes in primary checkout.",
+    "final_pass": "Scoped cleanup/deslop found no abandoned runtime code or duplicate implementation; test helpers are reused. Existing Ruff unused checks, typechecks and parity passed. Forensic artifacts remain private; no UI source changed."
   },
   "release": {
-    "status": "PENDING_TEST_ORGANIZATION_CORRECTION_AND_REQUIRED_RERUN",
+    "status": "PENDING_EXACT_DIFF_PR_MERGE_DEPLOYMENT_SMOKE",
     "production_source_before": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
     "configuration_changes": {},
     "invariants": "Retain API single replica/UID0, persistent DB /app/data, cache off volume, existing free model defaults and BYOK isolation. No schema migration, no trace flag enabled in production.",
@@ -117,5 +119,223 @@
     "runtime_source_changed": false,
     "typing_note": "One scoped import-not-found annotation for pytest-local shared test helpers, no behavioral assertion or threshold waiver.",
     "release_check": "Named make test-all rerun still pending"
-  }
+  },
+  "required_checks": {
+    "source_head": "a63e29ca9b4a24648cdd441f173d51ad329e388a",
+    "commands": [
+      {
+        "name": "make-test-all",
+        "command": [
+          "make",
+          "test-all"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-final-15d1c5316b364cf7b8648e96cc8725d6/make-test-all.log",
+        "timeout_seconds": 900,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 489.05,
+        "summary_lines": [
+          "3171 passed, 2 skipped in 137.51s (0:02:17)",
+          "2055 passed, 31 warnings in 261.03s (0:04:21)",
+          "328 passed, 5 warnings in 4.54s",
+          "Success: no issues found in 80 source files",
+          "parity: 115 requirement rows (divergent=8, external=3, partial=4, verified=100)",
+          "parity: OK \u2014 every 'verified' row cites test/eval evidence that exists on disk"
+        ]
+      },
+      {
+        "name": "make-lint",
+        "command": [
+          "make",
+          "lint"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-final-15d1c5316b364cf7b8648e96cc8725d6/make-lint.log",
+        "timeout_seconds": 600,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 4.79,
+        "summary_lines": [
+          "653 files already formatted",
+          "554 files already formatted",
+          "60 files already formatted",
+          "All checks passed!",
+          "All checks passed!",
+          "All checks passed!"
+        ]
+      },
+      {
+        "name": "make-typecheck",
+        "command": [
+          "make",
+          "typecheck"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-typecheck.log",
+        "timeout_seconds": 600,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 29.2,
+        "summary_lines": [
+          "Success: no issues found in 554 source files",
+          "Success: no issues found in 567 source files",
+          "Success: no issues found in 60 source files"
+        ]
+      },
+      {
+        "name": "make-build",
+        "command": [
+          "make",
+          "build"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-build.log",
+        "timeout_seconds": 600,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 3.34,
+        "summary_lines": [
+          "\u2713 built in 1.13s",
+          "Pre-rendered 1 public routes and 404.html."
+        ]
+      },
+      {
+        "name": "make-eval-smoke",
+        "command": [
+          "make",
+          "eval-smoke"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-eval-smoke.log",
+        "timeout_seconds": 600,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 3.35,
+        "summary_lines": []
+      },
+      {
+        "name": "frontend-bun-test",
+        "command": [
+          "bun",
+          "run",
+          "test"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/app/frontend",
+        "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/frontend-bun-test.log",
+        "timeout_seconds": 600,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 17.27,
+        "summary_lines": [
+          "Test Files  128 passed (128)",
+          "Tests  813 passed (813)"
+        ]
+      },
+      {
+        "name": "make-e2e",
+        "command": [
+          "make",
+          "e2e"
+        ],
+        "cwd": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist",
+        "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-e2e.log",
+        "timeout_seconds": 900,
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 61.78,
+        "summary_lines": [
+          "18 passed (1.0m)"
+        ]
+      }
+    ],
+    "fingerprints": {
+      "baseline_17d9522e": {
+        "revision": "17d9522ec673fa5f4a50b1f25a55b0e4676bbfe0",
+        "tree_ids": {
+          "app": "ef1ae5aa5c790c7fb2b9ca8fda8a248979d907c7",
+          "engine": "7be53699fe1957c7ac6c3624f6cb8569a7adfc26",
+          "engine/src/co_scientist": "12b1703578f1e11e185d26ecaf821e3e5bbbb7ed",
+          "app/frontend": "bd961465dbc3484e9786796d10c87ec8ff33edfa",
+          "evaluations": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+          "e2e": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+          "vendor": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d",
+          "Makefile": "4e4f8566d90f3ecc908dc872e340746345e3081b",
+          ".ruff.toml": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b"
+        },
+        "mcp_release_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+        "mcp_runtime_excluding_tests_sha256": "f8c0883a56cfe310fa3d0e4782b6749fd215cb7ce469b1cb710761bf8cec6eff",
+        "trace_test_files": [
+          {
+            "path": "engine/mcp_server/tests/test_pubmed_pilot_trace.py",
+            "blob_oid": "a224f7822821b1d0d730f2540cf70b048b52c8be",
+            "sha256": "7339ec91abcb6ac807609e600b08af823d6b230921ad330a6393c6918bea96c2",
+            "lines": 819
+          }
+        ]
+      },
+      "final_split_check_start": {
+        "revision": "a63e29ca9b4a24648cdd441f173d51ad329e388a",
+        "tree_ids": {
+          "app": "ef1ae5aa5c790c7fb2b9ca8fda8a248979d907c7",
+          "engine": "d26f52fde05c05e4c415f4cac127243d3beb395e",
+          "engine/src/co_scientist": "12b1703578f1e11e185d26ecaf821e3e5bbbb7ed",
+          "app/frontend": "bd961465dbc3484e9786796d10c87ec8ff33edfa",
+          "evaluations": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+          "e2e": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+          "vendor": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d",
+          "Makefile": "4e4f8566d90f3ecc908dc872e340746345e3081b",
+          ".ruff.toml": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b"
+        },
+        "mcp_release_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+        "mcp_runtime_excluding_tests_sha256": "f8c0883a56cfe310fa3d0e4782b6749fd215cb7ce469b1cb710761bf8cec6eff",
+        "trace_test_files": [
+          {
+            "path": "engine/mcp_server/tests/test_pubmed_pilot_trace.py",
+            "blob_oid": "ae3335790002c80efe53a35a47d18c55b75a1489",
+            "sha256": "6ab44b35b8ff3a5a91f102c5f2265ee7f5e2804ac19241416921234898156827",
+            "lines": 426
+          },
+          {
+            "path": "engine/mcp_server/tests/test_pubmed_pilot_trace_outcomes.py",
+            "blob_oid": "961912a0840f02591c23a040bbfc9c7b80a82bda",
+            "sha256": "22553ce54246cd8edcba50884a23b45cb8ce667afd6791e126e1111340f7ef5c",
+            "lines": 413
+          }
+        ]
+      },
+      "final_split_check_end": {
+        "revision": "a63e29ca9b4a24648cdd441f173d51ad329e388a",
+        "tree_ids": {
+          "app": "ef1ae5aa5c790c7fb2b9ca8fda8a248979d907c7",
+          "engine": "d26f52fde05c05e4c415f4cac127243d3beb395e",
+          "engine/src/co_scientist": "12b1703578f1e11e185d26ecaf821e3e5bbbb7ed",
+          "app/frontend": "bd961465dbc3484e9786796d10c87ec8ff33edfa",
+          "evaluations": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+          "e2e": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+          "vendor": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d",
+          "Makefile": "4e4f8566d90f3ecc908dc872e340746345e3081b",
+          ".ruff.toml": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b"
+        },
+        "mcp_release_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+        "mcp_runtime_excluding_tests_sha256": "f8c0883a56cfe310fa3d0e4782b6749fd215cb7ce469b1cb710761bf8cec6eff",
+        "trace_test_files": [
+          {
+            "path": "engine/mcp_server/tests/test_pubmed_pilot_trace.py",
+            "blob_oid": "ae3335790002c80efe53a35a47d18c55b75a1489",
+            "sha256": "6ab44b35b8ff3a5a91f102c5f2265ee7f5e2804ac19241416921234898156827",
+            "lines": 426
+          },
+          {
+            "path": "engine/mcp_server/tests/test_pubmed_pilot_trace_outcomes.py",
+            "blob_oid": "961912a0840f02591c23a040bbfc9c7b80a82bda",
+            "sha256": "22553ce54246cd8edcba50884a23b45cb8ce667afd6791e126e1111340f7ef5c",
+            "lines": 413
+          }
+        ]
+      }
+    },
+    "reuse_basis": "Six original checks passed; test-only organization changed MCP tests. Named make test-all and lint rerun passed; strict MCP mypy includes both split files. Runtime, other test inputs, dependencies and configuration unchanged."
+  },
+  "release_mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312"
 }
