@@ -1,5 +1,11 @@
 # External source campaign — evidence and acceptance status
 
+Current retrieval work: the [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
+supports default-off metadata/PMC-link batching through the existing maintained tool.
+Implementation and independent offline proof are scoped in PLAN f1/f2; neither is
+verified yet. Four original scientific/final gates remain open. Historical studies
+are immutable and unscored; no new comparison or source bank has started.
+
 ## Current update — 30 September 2026
 
 All nine source assessments and accepted releases are retained; the dated sections below preserve their original evidence. The campaign is **not complete**.

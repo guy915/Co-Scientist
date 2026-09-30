@@ -1,0 +1,107 @@
+{
+  "status": "OFFLINE_FEASIBILITY_ACCEPTED_IMPLEMENTATION_UNVERIFIED",
+  "recorded_at_utc": "2026-09-30T14:47:23.629059+00:00",
+  "source_commit": "9577e5a12a3cef41cd8d3db0cc81c56440bdea0f",
+  "classification": "local design choice informed by official transport documentation; not Google-backed behavior",
+  "reviewers": [
+    {
+      "agent": "pubmed_batch_feasibility",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "scope": "maintained cache, parsing, order, provenance and legacy validation compatibility"
+    },
+    {
+      "agent": "entrez_batch_contract",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "scope": "installed Biopython1.88, DTD and official request/response contracts"
+    },
+    {
+      "peer": "Antigravity",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "conversation_id": "a3f35d35-437d-49ab-802e-9c7bceac41f7",
+      "scope": "fresh-context read-only semantic review",
+      "limits": "initial print timeout was partial, not accepted review; bounded follow-up requested stop and returned substantive findings; no recursive delegation requested"
+    }
+  ],
+  "primary_sources": [
+    {
+      "url": "https://biopython.org/docs/1.88/api/Bio.Entrez.html",
+      "claim": "EFetch joins ID lists; ELink keeps repeated IDs to preserve source groups."
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/",
+      "claim": "multi-record EFetch and ELink request/response contracts"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/tools/xref-ids/",
+      "claim": "pubmed_pmc maps PubMed source IDs to numeric PMC destination IDs"
+    }
+  ],
+  "findings": [
+    "Existing _gather_paper_metadata is the narrow cache-miss batching seam; existing parsing helpers and per-PMID files can be reused.",
+    "ELink id must be a list, not comma-joined; map LinkSet IdList and pubmed_pmc destinations by source PMID, never response position.",
+    "Valid no-link groups differ from absent, malformed or ambiguous groups; failures must remain incomplete per PMID.",
+    "Current legacy path caches usable metadata after failed ELink as pmc_full_text_id=None. Batch path must avoid persisting this incomplete lookup as successful absence. Legacy behavior remains unchanged.",
+    "Legacy runner demands ELink wrapper entries equal fresh metadata count and EFetch entries at least that count. Genuine batching needs separate prospective record-level proof, not weaker historical assertions.",
+    "Keep PMC full-text downloads, selected-paper logic and existing pagination intact. All transport stays on existing pacer; no new per-ID fallback or retry.",
+    "Per-ID trace context requires explicit expansion of batch failures and outcomes; aggregate batch counts alone cannot prove record completeness."
+  ],
+  "decision": {
+    "scope_items": [
+      "M12-04b4f1",
+      "M12-04b4f2"
+    ],
+    "activation": "explicit default-off COSCIENTIST_PUBMED_METADATA_BATCH=1",
+    "batch_bound": 9,
+    "public_boundary": "existing PubmedSource/public MCP retrieval, cache files and optional trace",
+    "cache_policy": "only fully resolved metadata/link results enter shared cache; usable partial metadata may return in current search",
+    "historical_policy": "v1-v4 registrations, exact runner assertions and consumed admissions unchanged"
+  },
+  "conditional_arithmetic": {
+    "input": "N fresh IDs, batch bound B",
+    "before": "2N metadata/link wrapper entries",
+    "after": "2ceil(N/B)",
+    "example": {
+      "N": 9,
+      "B": 9,
+      "before": 18,
+      "after": 2
+    },
+    "excluded": [
+      "ESearch",
+      "PMC full-text page fetches",
+      "cache hits",
+      "recovery entries"
+    ],
+    "limit": "not measured wire HTTP traffic, aggregate reduction, reliability guarantee or scientific improvement"
+  },
+  "acceptance_cases": [
+    "intercept actual Biopython request builder without network: comma-separated EFetch versus repeated-id ELink",
+    "shuffled record and link response mapping with different PMC IDs",
+    "mixed cache hits/misses, first-seen order, per-PMID files and run links, slug isolation",
+    "missing, malformed and duplicate source groups recorded incomplete; valid no-link succeeds",
+    "batch transport failure affects all relevant IDs and failed ELink cannot turn into cached absence",
+    "unchanged selected full-text download/pagination and exact historical trace assertions"
+  ],
+  "evidence_source_hashes": {
+    "engine/mcp_server/shared_pool.py": "0ba9108d481cf1ac70f2b8d6ebc1332bcac7d398d94de96dee7baf076188fcd6",
+    "engine/mcp_server/pubmed_client.py": "41a811b273a01fa1aa1fab3e33a86b218ff0d215e016a75f91515eb7f39c388c",
+    "engine/mcp_server/fulltext_download.py": "a5e6e649f93890b5b4e51f0f8202942ce7e42dd84c74341f27a7ccaceae16e41",
+    "engine/mcp_server/entrez_rate_limit.py": "6f263d534105a2274475feeceecae17d94216c0289502edae11f89ba7cd0deab",
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "e1901d069cddc3593d8520efd59fa1a3a4b5e5fe13f528d99139c31ea3c325b3"
+  },
+  "executed_in_this_feasibility_slice": {
+    "live_retrieval": false,
+    "model_qualification": false,
+    "scientific_comparison": false,
+    "new_source_bank": false,
+    "deployment": false
+  },
+  "limits": [
+    "No live Entrez response fetched for feasibility. Installed encoding and primary docs support design, not all server shapes.",
+    "Four historical attempts remain incomplete, unscored and non-replayable.",
+    "Newly registered batch comparison requires independent readiness and prospective protocol; current work is not admission."
+  ]
+}

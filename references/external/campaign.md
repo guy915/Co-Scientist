@@ -22,8 +22,12 @@ after 13 model responses and 19 outer searches. Both permitted EFetch 429 recove
 succeeded; a later ELink 429 exhausted the two-retry study ceiling. All four
 admissions are consumed, with no scientific scoring, replay, adoption or rejection.
 Original scientific thresholds and four acceptance gates remain unchanged.
-The next bounded step is a read-only maintained-request-volume/pacing audit;
-no fifth registration, additional source bank or model qualification is underway.
+The [request-volume audit](sakana/novelty-study4-retrieval-audit-2026-09-30.json)
+and [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
+support a default-off, bounded metadata/PMC-link batching path. PLAN items f1/f2
+require offline implementation and independent public-tool/cache/trace proof,
+while preserving legacy studies and full-text downloads. No fifth registration,
+additional source bank or model qualification is underway.
 
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
