@@ -46,7 +46,9 @@
       "ruff_format_check": "PASS, three files",
       "diff_check": "PASS",
       "exact_source_hashes": "Match worker and independent review",
-      "maintained_code_vs_pinned_release_checks": "git diff --quiet 852ac4 HEAD -- app engine evaluations e2e vendor pyproject.toml uv.lock exit0; no uncommitted maintained-code changes."
+      "maintained_code_vs_pinned_release_checks": "git diff --quiet 852ac4 HEAD -- app engine evaluations e2e vendor pyproject.toml uv.lock exit0; no uncommitted maintained-code changes.",
+      "committed_hermetic_bank_path_case": "1 passed against02b176e1",
+      "code_commit": "02b176e1"
     },
     "independent": {
       "agent": "empty_guard_semantic_review",
