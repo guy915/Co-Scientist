@@ -116,7 +116,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
         title="Tournament"
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
-      <LandingBracket />
+      <LandingBracket reduceMotion={reduceMotion} />
       <div className="ucs-landing-duo">
         <LandingEloChart reduceMotion={reduceMotion} />
         <div className="ucs-landing-panel ucs-landing-podium">

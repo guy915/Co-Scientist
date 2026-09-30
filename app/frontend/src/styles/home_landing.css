@@ -270,6 +270,7 @@ html:has(.ucs-landing) body {
 /* ---- Hero ---- */
 .ucs-landing-hero {
   padding-block: 72px 40px;
+  border-top: 1px solid var(--l-line);
 }
 
 .ucs-landing-word {
@@ -341,6 +342,7 @@ html:has(.ucs-landing) body {
   display: flex;
   justify-content: center;
   padding: 10px 16px;
+  border-bottom: 1px solid var(--l-line);
   background: var(--l-bg);
 }
 

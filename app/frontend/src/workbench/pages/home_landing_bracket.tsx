@@ -1,11 +1,12 @@
 // The Tournament section's tree: eight example ideas debate in pairs, round
 // by round, and each result moves both ratings by the real Elo rule. The
-// reader plays each round with a button; nothing advances on its own.
+// tree plays itself while it is on screen.
 
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {joinClasses} from '../classes';
 import {INITIAL_ELO} from './home_landing_content';
 import {expectedScore} from './home_landing_elo';
+import {type MotionProps, useInView} from './home_landing_hooks';
 
 // Example hypotheses for a glioblastoma drug-repurposing goal, with the
 // hidden strength that decides their debates.
@@ -233,31 +234,33 @@ function Champion({bracket, step}: {bracket: Bracket; step: number}) {
   );
 }
 
-// The label of the button that plays the next round, or starts over.
-function stepLabel(step: number): string {
-  if (step === 0) return 'Play round 1';
-  return step < ROUNDS ? `Play round ${step + 1}` : 'Start over';
+const STEP_MS = 1600;
+
+// Plays the tree a round at a time while it is on screen, holds the
+// finished tree for two beats, then starts over. Off screen it pauses;
+// under reduced motion it shows the finished tree.
+function useBracketStep(visible: boolean, reduceMotion: boolean): number {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (!visible || reduceMotion) return;
+    const timer = window.setInterval(
+      () => setStep(s => (s + 1) % (ROUNDS + 3)),
+      STEP_MS,
+    );
+    return () => window.clearInterval(timer);
+  }, [visible, reduceMotion]);
+  return reduceMotion ? ROUNDS : Math.min(step, ROUNDS);
 }
 
-/**
- * The tournament tree panel. It never advances on its own: the reader plays
- * each round with the button and watches the ratings move.
- */
-export function LandingBracket() {
+/** The tournament tree panel, which plays itself while on screen. */
+export function LandingBracket({reduceMotion}: MotionProps) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const visible = useInView(ref, {once: false, threshold: 0.3});
   const bracket = useMemo(playBracket, []);
-  const [step, setStep] = useState(0);
+  const step = useBracketStep(visible, reduceMotion);
   const rounds = Array.from({length: ROUNDS}, (_, r) => r);
   return (
-    <div className="ucs-landing-panel ucs-landing-tree">
-      <div className="ucs-landing-tree-head">
-        <button
-          type="button"
-          className="ucs-landing-pill is-line ucs-landing-tree-play"
-          onClick={() => setStep(s => (s + 1) % (ROUNDS + 1))}
-        >
-          {stepLabel(step)}
-        </button>
-      </div>
+    <div ref={ref} className="ucs-landing-panel ucs-landing-tree">
       <div className="ucs-landing-tree-scroll">
         <svg
           viewBox={`0 0 ${CHAMP_X + 200} ${TOP * 2 + IDEAS.length * ROW_H}`}
