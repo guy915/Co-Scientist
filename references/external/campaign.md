@@ -34,8 +34,9 @@ zero-cost model responses and 21 outer searches. The last search was empty with
 no recorded upstream error; strict raw-trace validation passed, but returned-link
 validation falsely demanded batching metadata despite zero returned papers.
 No arm scoring, scientific disposition, confirmation or replay is authorized.
-All five admissions are consumed. Next f7 is only an offline behavioral repair of
-that local guard, retaining all nonempty-link and upstream-error proof requirements.
+All five admissions are consumed. The [offline empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json)
+passes 89 runner and 26 reader tests and independent review, retaining all nonempty
+link and upstream-error proof requirements. It does not authorize another bank or run.
 
 The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.json)
 now passes 26 offline tests, including the maintained public-tool producer with

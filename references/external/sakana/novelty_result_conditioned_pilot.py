@@ -358,6 +358,9 @@ def _validate_batch_returned_links(
     records: dict[str, Any],
     returned_ids: list[str],
 ) -> None:
+    # _search_once strictly attests the empty trace before checking returned links.
+    if not returned_ids:
+        return
     batching = raw_trace.get("metadata_batching")
     batches = batching.get("batches") if isinstance(batching, dict) else None
     if not isinstance(batches, list):

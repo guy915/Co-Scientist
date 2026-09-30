@@ -27,6 +27,7 @@ def test_batch_study_version_has_distinct_cli_and_record_paths(
     assert pilot._protocol_path(5) != pilot._protocol_path(4)
     assert pilot.V5_FIXTURE_BANK_PATH != pilot.V4_FIXTURE_BANK_PATH
     assert pilot._study_registration(5).fixture_bank_version == 6
+    monkeypatch.setattr(pilot, "ROOT", tmp_path)
     assert not (pilot.ROOT / pilot.V5_FIXTURE_BANK_PATH).exists()
 
     monkeypatch.setattr(pilot, "RESULT_DIR", tmp_path)

@@ -10,8 +10,9 @@ closes f5. The [sole fifth-study launch](sakana/novelty-pilot-v5-launch-2026-09-
 strict attestation but a later guard incorrectly required per-paper link proof.
 Its actual result, consumed admission, unscored blind packet and raw cache are retained;
 account usage did not increase. No scientific adoption/rejection follows.
-Next f7 reproduces and repairs only that empty-result guard offline. It authorizes
-no replay, continuation, new bank or live run. Batching remains unreleased; the four
+[The empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json)
+passes offline behavioral and independent review; it authorizes no replay,
+continuation, new bank or live run. Batching remains unreleased; the four
 original scientific/final gates stay open. No further model qualification is authorized.
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
