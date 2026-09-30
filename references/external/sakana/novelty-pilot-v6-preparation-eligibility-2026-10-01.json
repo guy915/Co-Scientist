@@ -1,0 +1,40 @@
+{
+  "observed_at_utc": "2026-09-30T22:57:36.598989+00:00",
+  "scope": "Read-only public eligibility preparation; no authentication, provider/model request or scientific admission. Fresh launch recheck is still mandatory.",
+  "model_id": "stealth/space-bunny-alpha",
+  "catalog_matches": [
+    {
+      "id": "stealth/space-bunny-alpha",
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      }
+    }
+  ],
+  "endpoints": [
+    {
+      "provider_name": "Stealth",
+      "status": 0,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "discount": 0
+      }
+    }
+  ],
+  "raw_evidence": [
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "http_status": 200,
+      "raw_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/preparation/catalog.json",
+      "raw_sha256": "846e3ed552542dba9e02004bf165c7e4e61fc82c370fb8b474678f0d67234a73"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+      "http_status": 200,
+      "raw_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/preparation/endpoints.json",
+      "raw_sha256": "0c16887816606607703af7f39020befca20963aff3df4a0cc2109e12ae056a16"
+    }
+  ],
+  "preparation_eligible": true
+}

@@ -143,6 +143,7 @@ def _call_search(
     response_pmc_id: str | None = PMC_ID,
     malformed_trace: bool = False,
     changed_process: bool = False,
+    study_version: int = 5,
 ) -> tuple[
     list[dict[str, Any]] | None,
     dict[str, Any],
@@ -206,7 +207,7 @@ def _call_search(
             draft_id="synthetic-pair:positive",
             source_ids=set(),
             first_search_event_id=None,
-            study_version=5,
+            study_version=study_version,
             blind_items=blind_items,
             event=event,
         )

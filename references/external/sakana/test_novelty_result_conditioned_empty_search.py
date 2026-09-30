@@ -48,12 +48,15 @@ class EmptySearchClient(batch_tests.BatchTraceClient):
         return response
 
 
-def test_study5_accepts_attested_empty_search_without_elink_batches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("study_version", [5, 6])
+def test_batch_studies_accept_attested_empty_search_without_elink_batches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, study_version: int
 ) -> None:
     monkeypatch.setattr(batch_tests, "BatchTraceClient", EmptySearchClient)
 
-    result, event, blind_items, _ = batch_tests._call_search(tmp_path, monkeypatch)
+    result, event, blind_items, _ = batch_tests._call_search(
+        tmp_path, monkeypatch, study_version=study_version
+    )
 
     assert result == []
     assert event["classification"] == "success_empty"

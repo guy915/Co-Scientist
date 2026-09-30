@@ -36,6 +36,7 @@ PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
 PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
 PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
 PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
+PILOT_PREREG_V6 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v6.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
@@ -44,6 +45,8 @@ V4_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v
 V4_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS"
 V5_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v6.json"
 V5_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_FIFTH_STUDY_INPUTS"
+V6_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v7.json"
+V6_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SIXTH_STUDY_INPUTS"
 OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
 STUDY4_IDENTITY = "M12-04b4-study4-20260930"
 STUDY4_RECOVERY_ENV = "COSCIENTIST_PUBMED_STUDY4_RECOVERY"
@@ -129,6 +132,7 @@ class _StudyRegistration(NamedTuple):
     report_name: str
     result_prefix: str
     blind_prefix: str
+    requires_batch_metadata: bool
 
 
 _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
@@ -142,6 +146,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
             "novelty-result-conditioned-pilot-v1",
             "cosci-m11-nov-01a3b3-v1-blind",
+            False,
         ),
         2: _StudyRegistration(
             2,
@@ -152,6 +157,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4c result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v2",
             "cosci-m12-nov-04b4c-v2-blind",
+            False,
         ),
         3: _StudyRegistration(
             3,
@@ -162,6 +168,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4d2 result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v3",
             "cosci-m12-nov-04b4d2-v3-blind",
+            False,
         ),
         4: _StudyRegistration(
             4,
@@ -172,6 +179,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4e3 result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v4",
             "cosci-m12-nov-04b4e3-v4-blind",
+            False,
         ),
         5: _StudyRegistration(
             5,
@@ -182,6 +190,18 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4f4 batch-aware result-conditioned prospective study",
             "novelty-result-conditioned-pilot-v5",
             "cosci-m12-nov-04b4f4-v5-blind",
+            True,
+        ),
+        6: _StudyRegistration(
+            6,
+            7,
+            V6_FIXTURE_BANK_PATH,
+            V6_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4g1 batch-aware result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v6",
+            "cosci-m12-nov-04b4g1-v6-blind",
+            True,
         ),
     }
 )
@@ -408,6 +428,7 @@ async def _search_once(
     event: dict[str, Any],
     study4_recovery_accounting: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]] | None:
+    registration = _study_registration(study_version)
     slug = f"m11_nov_01a3b3_{nonce}_{outer_call_number:02d}"
     event.update(
         {
@@ -438,7 +459,7 @@ async def _search_once(
             cache_root,
             expected_build_id,
             expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
-            expected_metadata_batch=study_version == 5,
+            expected_metadata_batch=registration.requires_batch_metadata,
         )
         papers = await fixture._search_papers_for_hypothesis(
             query, context, max_papers=MAX_PAPERS
@@ -449,7 +470,7 @@ async def _search_once(
             cache_root,
             expected_build_id,
             expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
-            expected_metadata_batch=study_version == 5,
+            expected_metadata_batch=registration.requires_batch_metadata,
         )
         payload_error = fixture._payload_error(recorder.last_response)
         if payload_error is not None:
@@ -481,7 +502,7 @@ async def _search_once(
     batch_raw_trace: dict[str, Any] | None = None
     batch_trace_attestation: dict[str, Any] | None = None
     batch_trace_error: Exception | None = None
-    if study_version == 5 and error is None:
+    if registration.requires_batch_metadata and error is None:
         try:
             trace_path = fixture._trace_path(cache_root, slug, slug)
             batch_raw_trace = json.loads(trace_path.read_text(encoding="utf-8"))
@@ -499,7 +520,7 @@ async def _search_once(
         except Exception as exc:
             batch_trace_error = exc
             error = error or exc
-    if study_version == 5 and error is not None:
+    if registration.requires_batch_metadata and error is not None:
         papers = {}
     private_papers: list[dict[str, Any]] = []
     for rank, (paper_id, metadata) in enumerate(papers.items(), start=1):
@@ -583,7 +604,7 @@ async def _search_once(
                     "recovered_transient_attempts",
                     "entrez_recovery_call_outcomes",
                 )
-            if study_version == 5:
+            if registration.requires_batch_metadata:
                 raw_fields += ("metadata_batching",)
                 if batch_trace_error is not None:
                     raise batch_trace_error
@@ -593,9 +614,11 @@ async def _search_once(
             returned_ids: list[str] | None = (
                 [str(pmid) for pmid in payload] if isinstance(payload, dict) else None
             )
-            if study_version == 5:
+            if registration.requires_batch_metadata:
                 if batch_trace_attestation is None:
-                    raise ValueError("Study 5 batch trace attestation is unavailable")
+                    raise ValueError(
+                        f"Study {study_version} batch trace attestation is unavailable"
+                    )
                 event["trace_attestation"].update(batch_trace_attestation)
             else:
                 event["trace_attestation"].update(
@@ -1290,7 +1313,7 @@ async def run_pilot(
             prompt = _prompt(variant, draft, papers)
             if _contains_source_id(prompt, source_ids):
                 raise ValueError("Model prompt contains a frozen target or anchor PMID")
-            if study_version == 5:
+            if registration.requires_batch_metadata:
                 _require_same_serving_process(
                     endpoint,
                     serving_process,
@@ -1310,7 +1333,7 @@ async def run_pilot(
                 expected_source_ids=source_ids,
                 event=event,
             )
-            if study_version == 5:
+            if registration.requires_batch_metadata:
                 _require_same_serving_process(
                     endpoint,
                     serving_process,
@@ -1392,7 +1415,7 @@ async def run_pilot(
         return result
 
     try:
-        if study_version == 5:
+        if registration.requires_batch_metadata:
             _require_same_serving_process(
                 endpoint,
                 serving_process,
@@ -1401,7 +1424,7 @@ async def run_pilot(
                 expected_metadata_batch=True,
             )
         await client.initialize()
-        if study_version == 5:
+        if registration.requires_batch_metadata:
             _require_same_serving_process(
                 endpoint,
                 serving_process,
@@ -1545,6 +1568,7 @@ def _protocol_path(study_version: int) -> Path:
         3: PILOT_PREREG_V3,
         4: PILOT_PREREG_V4,
         5: PILOT_PREREG_V5,
+        6: PILOT_PREREG_V6,
     }[study_version]
 
 
@@ -1578,9 +1602,9 @@ def _load_fixture_bank(
     assert registration.fixture_bank_path is not None
     assert registration.fixture_bank_status is not None
     if preflight_bank_path is not None:
-        if study_version != 5:
+        if not registration.requires_batch_metadata:
             raise ValueError(
-                "Temporary fixture preflight is available only for study 5"
+                "Temporary fixture preflight is available only for batch-aware studies"
             )
         path = preflight_bank_path.expanduser().resolve()
         if path.is_relative_to(ROOT.resolve()):
@@ -1637,9 +1661,9 @@ def _load_pilot_protocol(
     if (preflight_protocol_path is None) != (preflight_bank_path is None):
         raise ValueError("Temporary preflight requires both protocol and fixture paths")
     if preflight_protocol_path is not None:
-        if study_version != 5:
+        if not registration.requires_batch_metadata:
             raise ValueError(
-                "Temporary protocol preflight is available only for study 5"
+                "Temporary protocol preflight is available only for batch-aware studies"
             )
         prereg_path = preflight_protocol_path.expanduser().resolve()
         if prereg_path.is_relative_to(ROOT.resolve()):
@@ -1699,11 +1723,11 @@ def _load_pilot_protocol(
             "Pilot model admission/dispatch sources changed or are unpinned"
         )
     if (
-        study_version == 5
+        registration.requires_batch_metadata
         and protocol.get("batch_trace_source_sha256") != _batch_trace_source_hashes()
     ):
         raise ValueError(
-            "Study 5 batch reader or producer sources changed or are unpinned"
+            f"Study {study_version} batch reader or producer sources changed or are unpinned"
         )
     if (
         protocol.get("max_outer_mcp_calls") != OUTER_MCP_CALL_LIMIT
@@ -1727,6 +1751,9 @@ def _study5_batch_environment_matches(environment: Mapping[str, str]) -> bool:
         and environment.get(STUDY4_RECOVERY_ENV) in {None, "0"}
         and STUDY_ID_ENV not in environment
     )
+
+
+_batch_metadata_environment_matches = _study5_batch_environment_matches
 
 
 def _check_mcp_process(
@@ -1823,9 +1850,9 @@ def _check_mcp_process(
         != cache_root.resolve()
     ):
         raise ValueError("MCP process settings differ from the frozen pilot")
-    if expected_metadata_batch and not _study5_batch_environment_matches(environment):
+    if expected_metadata_batch and not _batch_metadata_environment_matches(environment):
         raise ValueError(
-            "MCP process batching or recovery settings differ from study 5"
+            "MCP process batching or recovery settings differ from the study protocol"
         )
     process = {
         "pid": int(pid),
@@ -1880,7 +1907,7 @@ def _check_runtime(
     cache_root: Path,
 ) -> tuple[str, Path, str, dict[str, Any]]:
     study_version = protocol.get("study_version", 1)
-    _study_registration(study_version)
+    registration = _study_registration(study_version)
     expected_study_id: str | None = None
     if study_version == 4:
         if protocol.get("entrez_recovery_policy") != dict(STUDY4_RECOVERY_PROTOCOL):
@@ -1896,9 +1923,11 @@ def _check_runtime(
                 "Study 4 recovery activation differs from the committed protocol"
             )
         expected_study_id = STUDY4_IDENTITY
-    expected_metadata_batch = study_version == 5
-    if expected_metadata_batch and not _study5_batch_environment_matches(os.environ):
-        raise ValueError("Study 5 requires batching and disables Study 4 recovery")
+    expected_metadata_batch = registration.requires_batch_metadata
+    if expected_metadata_batch and not _batch_metadata_environment_matches(os.environ):
+        raise ValueError(
+            f"Study {study_version} requires batching and disables Study 4 recovery"
+        )
     if os.environ.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
         raise ValueError("Set COSCIENTIST_REQUIRE_FREE_MODELS=1")
     endpoint = os.environ.get("COSCIENTIST_CAMPAIGN_MCP_URL", "")
@@ -1922,7 +1951,6 @@ def _check_runtime(
         )
     if os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1":
         raise ValueError("Maintained PubMed run tracing must be enabled")
-    registration = _study_registration(study_version)
     boundary = fixture_prereg.get("validation_boundary")
     bank_version = fixture_prereg.get("version")
     uses_current_boundary = (
@@ -2026,13 +2054,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     if has_temporary_input and not args.preflight_only:
         parser.error("temporary protocol and fixture inputs require --preflight-only")
-    if args.preflight_only and args.study_version != 5:
-        parser.error("--preflight-only is available only for study version 5")
+    if (
+        args.preflight_only
+        and not _study_registration(args.study_version).requires_batch_metadata
+    ):
+        parser.error("--preflight-only is available only for batch-aware studies")
     if args.preflight_only and (
         args.preflight_protocol is None or args.preflight_bank is None
     ):
         parser.error(
-            "study 5 preflight requires --preflight-protocol and --preflight-bank"
+            "batch-aware study preflight requires --preflight-protocol and --preflight-bank"
         )
     return args
 
@@ -2052,11 +2083,20 @@ async def _main(
         preflight_bank = args.preflight_bank
     has_temporary_input = preflight_protocol is not None or preflight_bank is not None
     if has_temporary_input and not preflight_only:
-        raise ValueError("Temporary inputs are permitted only for study 5 preflight")
+        raise ValueError(
+            "Temporary inputs are permitted only for batch-aware preflight"
+        )
     if preflight_only and (preflight_protocol is None or preflight_bank is None):
-        raise ValueError("Temporary inputs are permitted only for study 5 preflight")
-    if preflight_only and study_version != 5:
-        raise ValueError("Temporary protocol preflight is available only for study 5")
+        raise ValueError(
+            "Temporary inputs are permitted only for batch-aware preflight"
+        )
+    if (
+        preflight_only
+        and not _study_registration(study_version).requires_batch_metadata
+    ):
+        raise ValueError(
+            "Temporary protocol preflight is available only for batch-aware studies"
+        )
     _study_registration(study_version)
     if preflight_only:
         protocol = _load_pilot_protocol(
