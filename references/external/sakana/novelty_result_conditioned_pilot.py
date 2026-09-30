@@ -12,7 +12,8 @@ import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping, NamedTuple
 from urllib.parse import urlsplit
 
 import novelty_fixture_bank_screen as fixture
@@ -27,8 +28,11 @@ ROOT = fixture.ROOT
 RESULT_DIR = ROOT / "references/external/sakana"
 PILOT_PREREG = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v1.json"
 PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
+PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
+V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
+V3_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN"
 TOOL_CONFIG = fixture.TOOL_CONFIG
 
 PAIR_COUNT = 6
@@ -57,6 +61,53 @@ MODEL_BOUNDARY_FILES = (
     "engine/src/co_scientist/llm.py",
     "engine/src/co_scientist/llm_telemetry.py",
     "engine/src/co_scientist/llm_gateway_routing.py",
+)
+
+
+class _StudyRegistration(NamedTuple):
+    protocol_version: int
+    fixture_bank_version: int | None
+    fixture_bank_path: str | None
+    fixture_bank_status: str | None
+    requires_raw_trace: bool
+    report_name: str
+    result_prefix: str
+    blind_prefix: str
+
+
+_STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
+    {
+        1: _StudyRegistration(
+            1,
+            None,
+            None,
+            None,
+            False,
+            "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
+            "novelty-result-conditioned-pilot-v1",
+            "cosci-m11-nov-01a3b3-v1-blind",
+        ),
+        2: _StudyRegistration(
+            2,
+            3,
+            V2_FIXTURE_BANK_PATH,
+            V2_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4c result-conditioned prospective paired study",
+            "novelty-result-conditioned-pilot-v2",
+            "cosci-m12-nov-04b4c-v2-blind",
+        ),
+        3: _StudyRegistration(
+            3,
+            4,
+            V3_FIXTURE_BANK_PATH,
+            V3_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4d2 result-conditioned prospective paired study",
+            "novelty-result-conditioned-pilot-v3",
+            "cosci-m12-nov-04b4d2-v3-blind",
+        ),
+    }
 )
 
 QUERY_SCHEMA = {
@@ -329,7 +380,7 @@ async def _search_once(
             fixture._trace_path(cache_root, slug, slug), slug, expected_build_id
         )
         event["trace"]["serving_process"] = serving_process
-        if study_version == 2:
+        if _study_registration(study_version).requires_raw_trace:
             raw_trace = json.loads(
                 fixture._trace_path(cache_root, slug, slug).read_text(encoding="utf-8")
             )
@@ -567,10 +618,11 @@ async def run_pilot(
     study_version: int = 1,
 ) -> dict[str, Any]:
     """Run all six frozen pairs using the maintained search and LLM seams."""
+    registration = _study_registration(study_version)
     protocol = (
-        _load_pilot_protocol(study_version)
-        if study_version == 2
-        else _load_pilot_protocol()
+        _load_pilot_protocol()
+        if study_version == 1
+        else _load_pilot_protocol(study_version)
     )
     if model_name != protocol["model_name"]:
         raise ValueError("Selected model differs from the committed pilot protocol")
@@ -591,8 +643,6 @@ async def run_pilot(
         raise ValueError("Pilot cache must be absolute and not a symlink")
     if not cache_root.is_dir() or any(cache_root.iterdir()):
         raise ValueError("Pilot cache must exist and start empty")
-    if study_version not in (1, 2):
-        raise ValueError("Unsupported result-conditioned pilot study version")
     if fixture_prereg != _load_fixture_bank(protocol, study_version):
         raise ValueError(
             "Pilot must use the complete frozen v1 fixture bank"
@@ -631,11 +681,11 @@ async def run_pilot(
     nonce = uuid.uuid4().hex[:12]
     bank_hash = (
         protocol["fixture_bank_sha256"]
-        if study_version == 2
+        if registration.fixture_bank_version is not None
         else fixture._bank_config(1)["sha256"]
     )
     report: dict[str, Any] = {
-        "name": "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
+        "name": registration.report_name,
         "status": "RUNNING",
         "fixture_bank_sha256": bank_hash,
         "selected_model": model_name,
@@ -651,13 +701,12 @@ async def run_pilot(
         "mcp_serving_process": serving_process,
         "events": [],
     }
-    if study_version == 2:
+    if registration.fixture_bank_version is not None:
         report.update(
             {
-                "name": "M12-NOV-04b4c result-conditioned prospective paired study",
-                "study_version": 2,
-                "fixture_bank_version": 3,
-                "protocol_version": 2,
+                "study_version": study_version,
+                "fixture_bank_version": registration.fixture_bank_version,
+                "protocol_version": registration.protocol_version,
             }
         )
     blind_packet: dict[str, Any] = {"status": "BLIND_LABELS_PENDING", "items": []}
@@ -701,7 +750,7 @@ async def run_pilot(
                 run_id=(
                     f"m11_nov_01a3b3_{nonce}_{report['model_call_count']:02d}"
                     if study_version == 1
-                    else f"m12_nov_v2_{nonce}_{report['model_call_count']:02d}"
+                    else f"m12_nov_v{study_version}_{nonce}_{report['model_call_count']:02d}"
                 ),
                 expected_source_ids=source_ids,
                 event=event,
@@ -860,6 +909,7 @@ def _error_status(exc: Exception) -> str:
 
 def _claim_campaign_admission(protocol: dict[str, Any], study_version: int = 1) -> Path:
     """Persist the campaign's one-shot claim before its first external call."""
+    _study_registration(study_version)
     path = _protocol_path(study_version).with_suffix(".admission.json")
     receipt = {
         "status": "CLAIMED",
@@ -871,8 +921,8 @@ def _claim_campaign_admission(protocol: dict[str, Any], study_version: int = 1) 
         "max_model_calls": MODEL_CALL_LIMIT,
         "max_outer_mcp_calls": OUTER_MCP_CALL_LIMIT,
     }
-    if study_version == 2:
-        receipt["study_version"] = 2
+    if study_version != 1:
+        receipt["study_version"] = study_version
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError as exc:
@@ -906,26 +956,39 @@ def _committed_protocol_bytes(path: Path) -> bytes:
 
 
 def _protocol_path(study_version: int) -> Path:
-    if study_version == 1:
-        return PILOT_PREREG
-    if study_version == 2:
-        return PILOT_PREREG_V2
-    raise ValueError(
-        f"Unsupported result-conditioned pilot study version: {study_version}"
-    )
+    _study_registration(study_version)
+    return {
+        1: PILOT_PREREG,
+        2: PILOT_PREREG_V2,
+        3: PILOT_PREREG_V3,
+    }[study_version]
+
+
+def _study_registration(study_version: int) -> _StudyRegistration:
+    try:
+        return _STUDY_REGISTRATIONS[study_version]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported result-conditioned pilot study version: {study_version}"
+        ) from exc
 
 
 def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str, Any]:
-    if study_version == 1:
+    registration = _study_registration(study_version)
+    if registration.fixture_bank_version is None:
         return fixture._load_preregistration(1)
     if (
-        protocol.get("study_version") != 2
-        or protocol.get("protocol_version") != 2
-        or protocol.get("fixture_bank_version") != 3
-        or protocol.get("fixture_bank_path") != V2_FIXTURE_BANK_PATH
+        protocol.get("study_version") != study_version
+        or protocol.get("protocol_version") != registration.protocol_version
+        or protocol.get("fixture_bank_version") != registration.fixture_bank_version
+        or protocol.get("fixture_bank_path") != registration.fixture_bank_path
     ):
-        raise ValueError("Prospective protocol must bind fixture bank version 3")
-    path = ROOT / V2_FIXTURE_BANK_PATH
+        raise ValueError(
+            f"Prospective protocol must bind fixture bank version {registration.fixture_bank_version}"
+        )
+    assert registration.fixture_bank_path is not None
+    assert registration.fixture_bank_status is not None
+    path = ROOT / registration.fixture_bank_path
     bank_bytes = path.read_bytes()
     if _committed_file_bytes(path, "Fixture bank") != bank_bytes:
         raise ValueError("Fixture bank must be committed unchanged")
@@ -933,8 +996,13 @@ def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str
     if protocol.get("fixture_bank_sha256") != bank_hash:
         raise ValueError("Prospective protocol names a different fixture bank")
     bank = json.loads(bank_bytes)
-    if bank.get("version") != 3 or bank.get("status") != V2_FIXTURE_BANK_STATUS:
-        raise ValueError("Fixture bank version 3 is not preregistered")
+    if (
+        bank.get("version") != registration.fixture_bank_version
+        or bank.get("status") != registration.fixture_bank_status
+    ):
+        raise ValueError(
+            f"Fixture bank version {registration.fixture_bank_version} is not preregistered"
+        )
     return bank
 
 
@@ -945,6 +1013,7 @@ def _model_boundary_hashes() -> dict[str, str]:
 
 
 def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
+    registration = _study_registration(study_version)
     prereg_path = _protocol_path(study_version)
     if not prereg_path.is_file():
         raise ValueError("Pilot is disabled until its protocol is preregistered")
@@ -954,13 +1023,13 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
     protocol = json.loads(protocol_bytes)
     if protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
         raise ValueError("Pilot protocol is not preregistered")
-    if study_version == 1:
+    if registration.fixture_bank_version is None:
         if protocol.get("fixture_bank_sha256") != fixture._bank_config(1)["sha256"]:
             raise ValueError("Pilot protocol names a different frozen fixture bank")
     elif (
-        protocol.get("study_version") != 2
-        or protocol.get("protocol_version") != 2
-        or protocol.get("fixture_bank_version") != 3
+        protocol.get("study_version") != study_version
+        or protocol.get("protocol_version") != registration.protocol_version
+        or protocol.get("fixture_bank_version") != registration.fixture_bank_version
     ):
         raise ValueError("Pilot protocol does not select the prospective study version")
     if (
@@ -991,7 +1060,7 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
         raise ValueError("Pilot call bounds differ from preregistration")
     if not isinstance(protocol.get("model_name"), str) or not protocol["model_name"]:
         raise ValueError("Pilot protocol does not select a model")
-    if study_version == 2:
+    if registration.fixture_bank_version is not None:
         _load_fixture_bank(protocol, study_version)
     return protocol
 
@@ -1172,25 +1241,19 @@ def _check_runtime(
 
 
 def _new_output_paths(study_version: int = 1) -> tuple[Path, Path]:
-    if study_version not in (1, 2):
-        raise ValueError(
-            f"Unsupported result-conditioned pilot study version: {study_version}"
-        )
+    registration = _study_registration(study_version)
     nonce = uuid.uuid4().hex
-    if study_version == 2:
-        return (
-            RESULT_DIR / f"novelty-result-conditioned-pilot-v2-{nonce[:12]}.json",
-            Path("/tmp") / f"cosci-m12-nov-04b4c-v2-blind-{nonce}.json",
-        )
     return (
-        RESULT_DIR / f"novelty-result-conditioned-pilot-v1-{nonce[:12]}.json",
-        Path("/tmp") / f"cosci-m11-nov-01a3b3-v1-blind-{nonce}.json",
+        RESULT_DIR / f"{registration.result_prefix}-{nonce[:12]}.json",
+        Path("/tmp") / f"{registration.blind_prefix}-{nonce}.json",
     )
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--study-version", type=int, choices=(1, 2), default=1)
+    parser.add_argument(
+        "--study-version", type=int, choices=tuple(_STUDY_REGISTRATIONS), default=1
+    )
     return parser.parse_args(argv)
 
 
@@ -1198,10 +1261,11 @@ async def _main(study_version: int | None = None) -> int:
     study_version = (
         _parse_args().study_version if study_version is None else study_version
     )
+    _study_registration(study_version)
     protocol = (
-        _load_pilot_protocol(study_version)
-        if study_version == 2
-        else _load_pilot_protocol()
+        _load_pilot_protocol()
+        if study_version == 1
+        else _load_pilot_protocol(study_version)
     )
     fixture_prereg = _load_fixture_bank(protocol, study_version)
     cache_root = Path(os.environ.get("COSCIENTIST_LIT_REVIEW_DIR", ""))
@@ -1212,7 +1276,7 @@ async def _main(study_version: int | None = None) -> int:
     if not model_api_key:
         raise ValueError("Pass the OpenRouter model key to the runner explicitly")
     result_path, blind_path = (
-        _new_output_paths(study_version) if study_version == 2 else _new_output_paths()
+        _new_output_paths() if study_version == 1 else _new_output_paths(study_version)
     )
     registry = ToolRegistry(config_path=str(ROOT / TOOL_CONFIG), skip_user_config=True)
     client = MCPToolClient(server_url=endpoint)
