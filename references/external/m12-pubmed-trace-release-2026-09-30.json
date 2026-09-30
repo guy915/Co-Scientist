@@ -1,6 +1,6 @@
 {
   "purpose": "M12-04b8a release of verified opt-in maintained PubMed trace and archived versioned study runner",
-  "status": "LOCAL_CHECKS_PASSED_RELEASE_PENDING",
+  "status": "VERIFIED_SUPPORT_RELEASE",
   "reviewed_source_head": "17d9522ec673fa5f4a50b1f25a55b0e4676bbfe0",
   "base": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
   "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
@@ -28,7 +28,7 @@
     "secret_pattern_check": "No credential-like key/token literals in changed files; semantic review excludes secret values from trace/results.",
     "limitations": "No external penetration test or hostile-local-OS sandbox claim.",
     "final_delta": "After reviewed17d9522e, only test organization and retained evidence changed; all14test bodies/78assertions preserved. Runtime source unchanged.",
-    "fresh_final_luna_semantic": "Accepted source/test/evidence semantics; identified one stale pending-check field, corrected to reference the recorded passing final named commands."
+    "fresh_final_luna_semantic": "ACCEPT exact head9fd5061e after correcting stale pending-check sentence; runtime unchanged and all14test bodies/78assertions preserved."
   },
   "cleanup": {
     "runtime_pid15056": "Termination sent after matchingsoleownedprocess command/port; forensic cache/logs retained privately.",
@@ -38,11 +38,68 @@
     "final_pass": "Scoped cleanup/deslop found no abandoned runtime code or duplicate implementation; test helpers are reused. Existing Ruff unused checks, typechecks and parity passed. Forensic artifacts remain private; no UI source changed."
   },
   "release": {
-    "status": "PENDING_EXACT_DIFF_PR_MERGE_DEPLOYMENT_SMOKE",
+    "status": "VERIFIED",
     "production_source_before": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
     "configuration_changes": {},
     "invariants": "Retain API single replica/UID0, persistent DB /app/data, cache off volume, existing free model defaults and BYOK isolation. No schema migration, no trace flag enabled in production.",
-    "scientific_acceptance": "Novelty interruption remains inconclusive; b4/b5/b7/b8 not satisfied by this release."
+    "scientific_acceptance": "Novelty interruption remains inconclusive; b4/b5/b7/b8 not satisfied by this release.",
+    "pull_request": "https://github.com/guy915/Co-Scientist/pull/79",
+    "reviewed_pr_head": "9fd5061e0b093dfbd3e373ffb5e2fcc09ed7c5a1",
+    "merge_commit": "a4a06abd723f8af8392a307457301837b15dc244",
+    "merged_at": "2026-09-30T03:14:19Z",
+    "hosted_ci": {
+      "waived_by_owner": true,
+      "passed": false,
+      "run_id": 36663215683,
+      "observed": "Affected targets failed with no executed job steps; remaining check jobs skipped."
+    },
+    "deployments": {
+      "api": {
+        "id": "52908394-14aa-4e1d-8b86-b22635fda162",
+        "status": "SUCCESS",
+        "commit": "a4a06abd723f8af8392a307457301837b15dc244"
+      },
+      "mcp": {
+        "id": "605b8265-0c9f-47de-a22f-50fc8a701698",
+        "status": "SUCCESS",
+        "commit": "a4a06abd723f8af8392a307457301837b15dc244"
+      },
+      "frontend": {
+        "id": "dpl_BmYTebrymKzvUcrme3D3Pa1hzydV",
+        "status": "READY",
+        "commit": "a4a06abd723f8af8392a307457301837b15dc244"
+      }
+    },
+    "observed_at_utc": "2026-09-30T03:19:03.214925+00:00",
+    "production_smoke": {
+      "command": ".venv/bin/python evaluations/prod_smoke.py --base-url https://api.ai-co-scientist.com",
+      "exit_code": 0,
+      "passed": 5,
+      "keyless": true,
+      "model_calls": 0,
+      "checks": [
+        "[OK  ] health: reported status='healthy'",
+        "[OK  ] status_probes: mcp_available=True email_notifications_available=True llm_backend='real'",
+        "[OK  ] ownership_isolation: status 404 (want 404)",
+        "[OK  ] cors_untrusted_origin: Access-Control-Allow-Origin=None for an untrusted origin",
+        "[OK  ] sanitized_share_404: clean 404",
+        "prod_smoke: OK"
+      ],
+      "private_log": "/private/tmp/cosci-pubmed-trace-production-smoke-20260930.log"
+    },
+    "configuration_observation": {
+      "api_replicas": 1,
+      "api_volume_mount": "/app/data",
+      "production_trace_flag_present": false,
+      "staged_config_changes": false,
+      "configuration_changes": {},
+      "variable_values_not_read": true
+    },
+    "behavior_evidence": "Optional trace produced actual live retrieval records for three completed first-pair searches before the distinct-control upstream502. Offline public-tool tests verify trace-off behavior, error/cache/origin/reservation/concurrency paths. Production MCP status is available; existing complete public71-task/178-response run remains applicable to unchanged API/model/UI behavior. No second scientific or Robin run launched for this support release.",
+    "known_good_rollback": {
+      "commit": "a4a06abd723f8af8392a307457301837b15dc244",
+      "preserve": "Existing zero-cost role settings and BYOK isolation; trace flag remains off. Previous verified source8bb80e28 also uses zero-cost defaults."
+    }
   },
   "initial_required_checks": {
     "make-test-all": {
