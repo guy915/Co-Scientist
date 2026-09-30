@@ -1,0 +1,213 @@
+{
+  "admission": {
+    "isolated_path": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json",
+    "managed_and_isolated_bytes_equal": true,
+    "managed_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json",
+    "sha256": "0def3646965379face286c101c8c0e7b2e1807c47063841046a1560d50d20b60"
+  },
+  "execution": {
+    "application_cache_hits": 0,
+    "application_cache_misses": 0,
+    "completed_pair_count": 0,
+    "completion_tokens": 58,
+    "expected_model": "openrouter/stealth/space-bunny-alpha",
+    "first_shared_search_stopped_the_run": true,
+    "model_calls": 1,
+    "model_reported_cost_usd": 0.0,
+    "model_retries": 0,
+    "outer_mcp_calls": 1,
+    "paid_calls": 0,
+    "priced_usage_calls": 1,
+    "prompt_tokens": 431,
+    "provider_calls": 1,
+    "provider_prefix_cached_prompt_tokens": 149,
+    "reasoning_tokens": 0,
+    "reported_usage_calls": 1,
+    "request_config": {
+      "enable_thinking": false,
+      "max_attempts": 1,
+      "max_price": {
+        "completion": 0,
+        "prompt": 0,
+        "request": 0
+      },
+      "max_tokens": 1200,
+      "temperature": 0.0,
+      "use_cache": false
+    },
+    "required_pair_count": 6,
+    "served_model": "openrouter/stealth/space-bunny-alpha"
+  },
+  "interpretation_boundary": "The study is consumed but incomplete. One static model call and the first shared retrieval call occurred. No second model call, full six-pair run, scoring, label review, adoption, or replay occurred.",
+  "outputs": {
+    "blind_packet_mode": "0o600",
+    "blind_packet_opened_or_scored": false,
+    "blind_packet_private_path": "/tmp/cosci-m12-nov-04b4d2-v3-blind-b1d8d2b4455241aa8f25b32e81d60bd9.json",
+    "blind_packet_sha256": "54fe53a27507009131def533feffefad07d8ac31430992d0a20ac40b858eac42",
+    "blind_packet_status": "BLIND_LABELS_PENDING",
+    "managed_result_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-result-conditioned-pilot-v3-b1d8d2b44552.json",
+    "result_basename": "novelty-result-conditioned-pilot-v3-b1d8d2b44552.json",
+    "result_bytes_match_isolated_source": true,
+    "result_sha256": "d374d2fcc7a10c9fa1d6723de6ddb77a54b5c25c71853aac600c197f10a7a716"
+  },
+  "preflight": {
+    "account_key_was_not_printed_or_saved": true,
+    "account_usage_after": {
+      "limit": 40,
+      "limit_remaining": 0.7595639170000013,
+      "rate_limit": {
+        "interval": "10s",
+        "note": "This field is deprecated and safe to ignore.",
+        "requests": -1
+      },
+      "usage": 39.240436083
+    },
+    "account_usage_before": {
+      "limit": 40,
+      "limit_remaining": 0.7595639170000013,
+      "rate_limit": {
+        "interval": "10s",
+        "note": "This field is deprecated and safe to ignore.",
+        "requests": -1
+      },
+      "usage": 39.240436083
+    },
+    "account_usage_compared_fields": [
+      "usage",
+      "limit",
+      "limit_remaining",
+      "rate_limit"
+    ],
+    "account_usage_exactly_unchanged_on_compared_fields": true,
+    "account_usage_http_status_after": 200,
+    "account_usage_http_status_before": 200,
+    "checks": {
+      "account_usage_http_200": true,
+      "catalog_all_pricing_fields_exact_zero": true,
+      "catalog_http_200": true,
+      "catalog_model_exactly_once": true,
+      "endpoint_all_pricing_fields_exact_zero": true,
+      "endpoint_count_exactly_one": true,
+      "endpoint_http_200": true,
+      "sole_endpoint_is_stealth": true
+    },
+    "completed_at_utc": "2026-09-30T06:41:52.906213+00:00",
+    "fetched_at_utc": "2026-09-30T06:41:52.365680+00:00",
+    "official_catalog": {
+      "exact_model_matches": 1,
+      "http_status": 200,
+      "model_count": 464,
+      "model_pricing": {
+        "completion": "0",
+        "prompt": "0"
+      },
+      "path": "/private/tmp/cosci-m12-study3-amended-official-catalog-20260930.json",
+      "sha256": "5205f4f81f98c866acaa1e936a1b84a5c81bc3cc14c93adec5efeb60862019c7",
+      "url": "https://openrouter.ai/api/v1/models"
+    },
+    "official_endpoint": {
+      "endpoint_count": 1,
+      "http_status": 200,
+      "path": "/private/tmp/cosci-m12-study3-amended-official-endpoint-20260930.json",
+      "pricing": {
+        "completion": "0",
+        "discount": 0,
+        "prompt": "0"
+      },
+      "provider": "Stealth",
+      "provider_status": 0,
+      "sha256": "a8fa261f8b8e68bd2e90c96082eac01f80558869b3d709bd05d473029e44de64",
+      "url": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints"
+    },
+    "status": "ELIGIBLE_ZERO_PRICE_CURRENT",
+    "summary_path": "/private/tmp/cosci-m12-study3-amended-price-usage-preflight-20260930.json",
+    "summary_sha256": "ef610c8baa4e2ed5dfbb907640d9a94c788b79482137526f55f3375782ffa9af"
+  },
+  "purpose": "Sanitized evidence for the one admitted study3 run; no paper identifiers, prompts, drafts, full responses, blind labels, or key material are included.",
+  "registered_pins": {
+    "fixture_bank_sha256": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
+    "maintained_mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+    "original_preparation_receipt_sha256": "9087b349915614053c230397cc193ed1d2a8398e185b7fc89b8daa7e9bef99b9",
+    "protocol_sha256": "948381f74ef0582946872b457e79df9c612ced5b85808d5da54cf4321f404f66",
+    "runner_sha256": "169d1b04245fe9deb47c7320c557b1b9bc59afc5752ba2741a6eb6b61a776ba6",
+    "runtime_amendment_receipt_sha256": "ad883452b9c12292f30300192b28792d84d8ceeb66463979f260cd0c4b8d222d",
+    "source_commit": "885f4655a85f76c863f4bba7f92431712d9c0a87",
+    "source_review_sha256": "b8778dd68f51e3ab5bc720cc89e1f85fc9773187e98919fc23320ad0219bbc40",
+    "test_sha256": "ae8676be7f92e9c1b073af768740112ee4482303719aa05d8c382c1faef4cc3d"
+  },
+  "retrieval_stop": {
+    "classification": "retrieval_error",
+    "exception_type": "ValueError",
+    "maintained_entrez_counters": {
+      "efetch": 12,
+      "elink": 8,
+      "esearch": 3
+    },
+    "maintained_entrez_retry_policy": {
+      "max_tries": 1,
+      "sleep_between_tries": 0
+    },
+    "maintained_fetch_error_count": 1,
+    "maintained_fetch_error_stages": [
+      "metadata_fetch"
+    ],
+    "maintained_fetched_count": 9,
+    "maintained_final_id_count": 3,
+    "maintained_incomplete_fetch_count": 1,
+    "maintained_metadata_origin_count": 8,
+    "maintained_selected_count": 9,
+    "maintained_trace_attempt_record_count": 3,
+    "maintained_trace_outcome": "nonempty",
+    "no_pmids_or_paper_content_copied": true,
+    "observed_mcp_log_error": "Failed to read paper [identifier redacted]: HTTP Error 429: Too Many Requests",
+    "observed_mcp_log_http_status": 429,
+    "observed_mcp_log_source": "mcp_server.shared_pool WARNING",
+    "pre_search_shared_pool_file_count": 0,
+    "pre_search_shared_pool_metadata_count": 0,
+    "result_status": "INCOMPLETE_ERROR",
+    "returned_paper_record_count": 3,
+    "runner_event_upstream_http_status": null,
+    "separate_mcp_warning": "ENTREZ_EMAIL not set - PubMed may have stricter rate limits; causality is not asserted.",
+    "shared_pool_supplement_count": 0,
+    "stage": "first_search",
+    "tool": "pubmed_search_with_fulltext",
+    "trace_error_value": "ValueError"
+  },
+  "runtime": {
+    "cache_empty_at_admission": true,
+    "cache_file_count_after_run": 25,
+    "controller_session_id": 14374,
+    "fresh_cache_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt6/fresh-cache",
+    "mcp_build_id": "a647af97e1a00234ebd16b1d88904230bdef6312",
+    "mcp_exit_code_after_intentional_stop": -15,
+    "mcp_listener": "127.0.0.1:53289",
+    "mcp_log_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt6/mcp-server.log",
+    "mcp_log_sha256": "c803eb44226a7cf24a771c97c71175ac81d87cb5be1fc7bb822d51948f75dfdc",
+    "mcp_pid": 24416,
+    "mcp_post_run_attestation": {
+      "listener_address": "127.0.0.1:53289",
+      "mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+      "pid": 24416,
+      "source_path": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/engine/mcp_server/server.py"
+    },
+    "mcp_post_run_attestation_passed": true,
+    "mcp_pre_post_attestation_equal": true,
+    "mcp_pre_run_attestation": {
+      "listener_address": "127.0.0.1:53289",
+      "mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+      "pid": 24416,
+      "source_path": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/engine/mcp_server/server.py"
+    },
+    "mcp_stopped_after_attestation": true,
+    "readiness_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt6/readiness.json",
+    "readiness_sha256": "904360a7d3d1cf4081157a2cef58217b93afaf0b1f94cb42d9b35d2b0662e8b7",
+    "runner_exit_code": 1,
+    "runner_log_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt6/runner.log",
+    "runner_log_sha256": "eca830f082a9894d5f96ab4a1292614664117ed0cecf73c28cc82f2fc0d6b2d5",
+    "runner_pid": 25774,
+    "terminal_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt6/terminal.json",
+    "terminal_sha256": "e911896c686ecdd8d5fce309d9155925abd6e533809d9cddda4702863886a32f"
+  },
+  "schema": "novelty-pilot-v3-interruption-receipt/v1",
+  "status": "TERMINAL_INCOMPLETE_ERROR_CONSUMED_NO_RETRY_OR_REPLAY"
+}

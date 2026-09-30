@@ -1,0 +1,53 @@
+{
+  "admission_exists_isolated": false,
+  "admission_exists_managed": false,
+  "bank_validation_boundary_keys": [
+    "inheritance_note",
+    "maintained_validator",
+    "parser",
+    "tool_config",
+    "v3_reference_hashes"
+  ],
+  "blind_packet_count": 0,
+  "cache_file_count_after_run": 0,
+  "failure_stage": "versioned runtime boundary lookup, before run_pilot, model dispatch, or MCP tool calls",
+  "fixture_bank_sha256": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
+  "mcp_process_post_attested_same_pid": true,
+  "mcp_stopped_after_attestation": true,
+  "mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312",
+  "missing_boundary_key": "validator",
+  "no_retry_or_relaunch": true,
+  "openrouter_usage_changed_safe_field_names": [
+    "rate_limit"
+  ],
+  "openrouter_usage_fields_compared": [
+    "limit",
+    "limit_remaining",
+    "rate_limit",
+    "usage"
+  ],
+  "openrouter_usage_http_after": 200,
+  "openrouter_usage_http_before": 200,
+  "openrouter_usage_unchanged_on_compared_safe_fields": false,
+  "protocol_sha256": "293af3a713f4670aeb22a87ff81215cbb37008bcf4f6699f8815fc0bf89419f8",
+  "readiness_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt5/readiness.json",
+  "readiness_sha256": "be545c1d7373932d171ba3a2d2171313e813d1b3ec4e2da2d15c68c4c3a102e7",
+  "result_count_isolated": 0,
+  "result_count_managed": 0,
+  "runner_exit_code": 1,
+  "runner_invocation_count": 1,
+  "runner_log_path": "/private/tmp/cosci-m12-04b4d2-study3-run-artifacts-20260930-attempt5/runner.log",
+  "runner_log_sha256": "b097c18c6275fc50a71e18039a2c6f85f7e7bfea771d52c6719715931777f5ae",
+  "runner_pid": 92283,
+  "runner_sha256": "16d3dc9c8bdba70efda53c7bb367c721fe9b3857dca6fe20e9ee9c095c58a352",
+  "sanitized_error": {
+    "file": "novelty_result_conditioned_pilot.py",
+    "function": "_check_runtime",
+    "line": 1216,
+    "message": "'validator'",
+    "type": "KeyError"
+  },
+  "status": "FAILED_PRE_ADMISSION_NO_SCIENTIFIC_CALLS",
+  "study_version": 3,
+  "usage_values_recorded_here": false
+}

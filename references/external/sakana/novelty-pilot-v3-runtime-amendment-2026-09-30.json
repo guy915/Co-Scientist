@@ -1,0 +1,64 @@
+{
+  "purpose": "Prospective source-pin-only study3 amendment after an offline-confirmed pre-admission defect; not a scientific result or a replay.",
+  "status": "VERIFIED_REGISTERED_AMENDMENT_NOT_ADMITTED",
+  "prepared_at_utc": "2026-09-30T06:05:59.593799+00:00",
+  "study_version": 3,
+  "original_registration_commit": "33cba115fd8b4d2d8b75754797dcf2cf3688ce97",
+  "original_protocol_sha256": "293af3a713f4670aeb22a87ff81215cbb37008bcf4f6699f8815fc0bf89419f8",
+  "original_preparation_receipt": "references/external/sakana/novelty-pilot-v3-preparation-2026-09-30.json",
+  "corrected_source_commit": "a4d124cd18d08b62ef62f725aa03a714e7f415cd",
+  "protocol_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.json",
+  "amended_protocol_sha256": "948381f74ef0582946872b457e79df9c612ced5b85808d5da54cf4321f404f66",
+  "runner_sha256": "169d1b04245fe9deb47c7320c557b1b9bc59afc5752ba2741a6eb6b61a776ba6",
+  "test_sha256": "ae8676be7f92e9c1b073af768740112ee4482303719aa05d8c382c1faef4cc3d",
+  "fixture_bank_sha256": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
+  "scientific_core_sha256": "f7c5e82aec74912c2a338e030dc98e20a7b320b24b7639a56e9b41206d048fd0",
+  "scientific_core_projection_excludes_metadata_keys": [
+    "pre_admission_source_pin_amendment",
+    "preparation_verification",
+    "prepared_at_utc",
+    "runner_sha256"
+  ],
+  "unchanged_scientific_core_equality": true,
+  "failure_evidence": "references/external/sakana/novelty-pilot-v3-pre-admission-failure-2026-09-30.json",
+  "exclusive_admission_absent_in_managed_and_original_isolated_checkout": true,
+  "scientific_calls_before_amendment": 0,
+  "tests": {
+    "red": "Public --study-version3 CLI failed at actual _check_runtime with KeyError validator before run_pilot.",
+    "green": {
+      "command": ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned_pilot.py -q",
+      "passed": 42,
+      "existing_cases_preserved": 34,
+      "new_cases": 8,
+      "coordinator_reran": true
+    },
+    "ruff_check_format_diff": "PASS"
+  },
+  "independent_runner_review": "ACCEPT exact169d1b runner and ae8676 test by fresh-context Luna6/xhigh.",
+  "independent_protocol_amendment_review": "ACCEPT exact948381f protocol by independent Luna6/xhigh against original33cba registration, corrected a4d124 source and unchanged scientific-core projection.",
+  "activation_still_required": [
+    "New isolated maintained MCP process/emptycache/currentexactzero catalog and soleStealthendpoint.",
+    "Exactly one exclusive study3 admission and first-error termination; no retry/substitution/replay."
+  ],
+  "cost": {
+    "model_calls": 0,
+    "outer_mcp_scientific_calls": 0,
+    "reported_account_usage_change": 0
+  },
+  "evidence_limits": [
+    "CLI success regression is offline and stops before run_pilot; no live scientific or model quality result.",
+    "Historicalv1/v2 admissions remain consumed and unchanged.",
+    "Original unadmitted protocol3 bytes and preparation evidence remain in the original committed registration."
+  ],
+  "registration_commit": "7a975b70948ce83c2f176e2814c38d26e674d4d4",
+  "registration_commit_time": "2026-09-30T08:10:00+02:00",
+  "committed_loader_verification": {
+    "status": "PASS",
+    "boundary": "Actual _load_pilot_protocol(3), _load_fixture_bank(...,3), exact protocol/source-review committed bytes and hashes; bank4 six pairs; absent exclusive marker.",
+    "protocol_sha256": "948381f74ef0582946872b457e79df9c612ced5b85808d5da54cf4321f404f66",
+    "bank_version": 4,
+    "source_review_sha256": "b8778dd68f51e3ab5bc720cc89e1f85fc9773187e98919fc23320ad0219bbc40",
+    "model_requests": 0,
+    "outer_mcp_calls": 0
+  }
+}

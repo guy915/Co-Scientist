@@ -245,19 +245,34 @@ def _select_v2_protocol(
     monkeypatch: pytest.MonkeyPatch,
     offline_runtime: dict[str, Any],
 ) -> dict[str, Any]:
+    return _select_prospective_protocol(2, tmp_path, monkeypatch, offline_runtime)
+
+
+def _select_prospective_protocol(
+    study_version: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline_runtime: dict[str, Any],
+) -> dict[str, Any]:
+    registration = pilot._study_registration(study_version)
+    protocol_constants = {
+        1: "PILOT_PREREG",
+        2: "PILOT_PREREG_V2",
+        3: "PILOT_PREREG_V3",
+    }
     protocol = offline_runtime["protocol"]
     protocol.update(
         {
-            "study_version": 2,
-            "protocol_version": 2,
-            "fixture_bank_version": 3,
-            "fixture_bank_path": pilot.V2_FIXTURE_BANK_PATH,
-            "fixture_bank_sha256": "v3-test-bank-hash",
+            "study_version": study_version,
+            "protocol_version": registration.protocol_version,
+            "fixture_bank_version": registration.fixture_bank_version,
+            "fixture_bank_path": registration.fixture_bank_path,
+            "fixture_bank_sha256": f"v{registration.fixture_bank_version}-test-bank-hash",
         }
     )
-    protocol_path = tmp_path / "pilot-protocol-v2.json"
+    protocol_path = tmp_path / f"pilot-protocol-v{study_version}.json"
     protocol_path.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(pilot, "PILOT_PREREG_V2", protocol_path)
+    monkeypatch.setattr(pilot, protocol_constants[study_version], protocol_path)
     monkeypatch.setattr(
         pilot,
         "_load_pilot_protocol",
@@ -927,24 +942,55 @@ def test_study_version_is_explicit_and_uses_separate_output_paths(
 ) -> None:
     assert pilot._parse_args([]).study_version == 1
     assert pilot._parse_args(["--study-version", "2"]).study_version == 2
+    assert pilot._parse_args(["--study-version", "3"]).study_version == 3
+    with pytest.raises(SystemExit):
+        pilot._parse_args(["--study-version", "4"])
+    with pytest.raises(
+        ValueError, match="Unsupported result-conditioned pilot study version: 4"
+    ):
+        pilot._new_output_paths(4)
 
     monkeypatch.setattr(pilot, "RESULT_DIR", tmp_path)
     v1_result, v1_blind = pilot._new_output_paths(1)
     v2_result, v2_blind = pilot._new_output_paths(2)
+    v3_result, v3_blind = pilot._new_output_paths(3)
 
     assert v1_result.name.startswith("novelty-result-conditioned-pilot-v1-")
     assert v2_result.name.startswith("novelty-result-conditioned-pilot-v2-")
+    assert v3_result.name.startswith("novelty-result-conditioned-pilot-v3-")
     assert "-v1-blind-" in v1_blind.name
     assert "-v2-blind-" in v2_blind.name
-    assert len({v1_result, v1_blind, v2_result, v2_blind}) == 4
+    assert "-v3-blind-" in v3_blind.name
+    assert len({v1_result, v1_blind, v2_result, v2_blind, v3_result, v3_blind}) == 6
 
 
-def test_v2_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
+def test_v3_admission_uses_a_distinct_exclusive_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol_path = tmp_path / "novelty-result-conditioned-pilot-prereg-v3.json"
+    protocol_bytes = b"committed prospective study v3 protocol\n"
+    protocol_path.write_bytes(protocol_bytes)
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V3", protocol_path)
+
+    admission_path = pilot._claim_campaign_admission({"model_name": MODEL}, 3)
+
+    assert admission_path == protocol_path.with_suffix(".admission.json")
+    admission = json.loads(admission_path.read_text(encoding="utf-8"))
+    assert admission["study_version"] == 3
+    assert admission["protocol_sha256"] == hashlib.sha256(protocol_bytes).hexdigest()
+    assert admission_path.stat().st_mode & 0o777 == 0o600
+    with pytest.raises(ValueError, match="campaign admission already exists"):
+        pilot._claim_campaign_admission({"model_name": MODEL}, 3)
+
+
+@pytest.mark.parametrize("study_version", [2, 3])
+def test_prospective_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     offline_runtime: dict[str, Any],
+    study_version: int,
 ) -> None:
-    _select_v2_protocol(tmp_path, monkeypatch, offline_runtime)
+    _select_prospective_protocol(study_version, tmp_path, monkeypatch, offline_runtime)
     _qualified_model(monkeypatch)
     import litellm
 
@@ -956,7 +1002,7 @@ def test_v2_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
         return _model_completion('{"query":"offline query"}')
 
     monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    cache_root = tmp_path / "cache-v2"
+    cache_root = tmp_path / f"cache-v{study_version}"
     cache_root.mkdir()
     client = FakeMCPClient(
         cache_root,
@@ -967,13 +1013,13 @@ def test_v2_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
     first = _run_pilot(
         client,
         cache_root,
-        tmp_path / "result-v2.json",
-        tmp_path / "blind-v2.json",
-        study_version=2,
+        tmp_path / f"result-v{study_version}.json",
+        tmp_path / f"blind-v{study_version}.json",
+        study_version=study_version,
     )
 
     assert first["status"] == "INCOMPLETE_ERROR"
-    assert first["study_version"] == 2
+    assert first["study_version"] == study_version
     assert first["model_call_count"] == 1
     assert first["provider_call_count"] == 1
     assert first["outer_mcp_call_count"] == 1
@@ -985,41 +1031,77 @@ def test_v2_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
     assert first["events"][-1]["trace_attestation"]["incomplete_fetch_count"] == 1
     assert provider_calls == 1
     assert len(client.calls) == 1
-    admission_path = pilot.PILOT_PREREG_V2.with_suffix(".admission.json")
+    admission_path = pilot._protocol_path(study_version).with_suffix(".admission.json")
     admission = json.loads(admission_path.read_text(encoding="utf-8"))
-    assert admission["study_version"] == 2
+    assert admission["study_version"] == study_version
     assert (
         admission["protocol_sha256"]
-        == hashlib.sha256(pilot.PILOT_PREREG_V2.read_bytes()).hexdigest()
+        == hashlib.sha256(pilot._protocol_path(study_version).read_bytes()).hexdigest()
     )
 
-    next_cache = tmp_path / "next-cache-v2"
+    next_cache = tmp_path / f"next-cache-v{study_version}"
     next_cache.mkdir()
     with pytest.raises(ValueError, match="campaign admission already exists"):
         _run_pilot(
             client,
             next_cache,
-            tmp_path / "fresh-result-v2.json",
-            tmp_path / "fresh-blind-v2.json",
-            study_version=2,
+            tmp_path / f"fresh-result-v{study_version}.json",
+            tmp_path / f"fresh-blind-v{study_version}.json",
+            study_version=study_version,
         )
     assert provider_calls == 1
     assert len(client.calls) == 1
 
 
-def test_v2_protocol_binds_committed_bank_path_and_hash(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    (
+        "study_version",
+        "protocol_constant",
+        "protocol_filename",
+        "protocol_version",
+        "bank_version",
+        "bank_path_relative",
+        "bank_status",
+    ),
+    [
+        (
+            2,
+            "PILOT_PREREG_V2",
+            "novelty-result-conditioned-pilot-prereg-v2.json",
+            2,
+            3,
+            "references/external/sakana/novelty-fixture-bank-prereg-v3.json",
+            "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN",
+        ),
+        (
+            3,
+            "PILOT_PREREG_V3",
+            "novelty-result-conditioned-pilot-prereg-v3.json",
+            3,
+            4,
+            "references/external/sakana/novelty-fixture-bank-prereg-v4.json",
+            "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN",
+        ),
+    ],
+)
+def test_versioned_protocol_binds_committed_bank_path_and_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    study_version: int,
+    protocol_constant: str,
+    protocol_filename: str,
+    protocol_version: int,
+    bank_version: int,
+    bank_path_relative: str,
+    bank_status: str,
 ) -> None:
     repository = tmp_path / "repository"
-    bank_path = repository / pilot.V2_FIXTURE_BANK_PATH
-    protocol_path = (
-        repository
-        / "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.json"
-    )
+    bank_path = repository / bank_path_relative
+    protocol_path = repository / "references/external/sakana" / protocol_filename
     bank_path.parent.mkdir(parents=True)
     bank = {
-        "version": 3,
-        "status": pilot.V2_FIXTURE_BANK_STATUS,
+        "version": bank_version,
+        "status": bank_status,
         "cases_in_fixed_order": [],
         "validation_boundary": {},
     }
@@ -1027,10 +1109,10 @@ def test_v2_protocol_binds_committed_bank_path_and_hash(
     bank_path.write_bytes(bank_bytes)
     protocol = {
         "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
-        "study_version": 2,
-        "protocol_version": 2,
-        "fixture_bank_version": 3,
-        "fixture_bank_path": pilot.V2_FIXTURE_BANK_PATH,
+        "study_version": study_version,
+        "protocol_version": protocol_version,
+        "fixture_bank_version": bank_version,
+        "fixture_bank_path": bank_path_relative,
         "fixture_bank_sha256": hashlib.sha256(bank_bytes).hexdigest(),
         "runner_sha256": hashlib.sha256(Path(pilot.__file__).read_bytes()).hexdigest(),
         "static_prompt_sha256": hashlib.sha256(
@@ -1078,37 +1160,42 @@ def test_v2_protocol_binds_committed_bank_path_and_hash(
         check=True,
     )
     monkeypatch.setattr(pilot, "ROOT", repository)
-    monkeypatch.setattr(pilot, "PILOT_PREREG_V2", protocol_path)
+    monkeypatch.setattr(pilot, protocol_constant, protocol_path)
     monkeypatch.setattr(
         pilot, "_model_boundary_hashes", lambda: {"offline": "source-hash"}
     )
 
-    loaded = pilot._load_pilot_protocol(2)
+    loaded = pilot._load_pilot_protocol(study_version)
     assert loaded == protocol
-    assert pilot._load_fixture_bank(loaded, 2) == bank
+    assert pilot._load_fixture_bank(loaded, study_version) == bank
 
     loaded["fixture_bank_path"] = "references/external/sakana/other-bank.json"
-    with pytest.raises(ValueError, match="bind fixture bank version 3"):
-        pilot._load_fixture_bank(loaded, 2)
+    with pytest.raises(ValueError, match=f"bind fixture bank version {bank_version}"):
+        pilot._load_fixture_bank(loaded, study_version)
 
-    loaded["fixture_bank_path"] = pilot.V2_FIXTURE_BANK_PATH
+    loaded["fixture_bank_path"] = bank_path_relative
     bank_path.write_text(json.dumps({**bank, "name": "changed"}), encoding="utf-8")
     with pytest.raises(ValueError, match="Fixture bank must be committed unchanged"):
-        pilot._load_fixture_bank(loaded, 2)
+        pilot._load_fixture_bank(loaded, study_version)
 
 
-def test_main_cli_selects_v2_protocol_and_passes_it_to_runner(
+@pytest.mark.parametrize("study_version", [2, 3])
+def test_main_cli_selects_prospective_protocol_and_passes_it_to_runner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     offline_runtime: dict[str, Any],
+    study_version: int,
 ) -> None:
-    protocol = _select_v2_protocol(tmp_path, monkeypatch, offline_runtime)
-    cache_root = tmp_path / "cache-v2-main"
+    protocol = _select_prospective_protocol(
+        study_version, tmp_path, monkeypatch, offline_runtime
+    )
+    cache_root = tmp_path / f"cache-v{study_version}-main"
     cache_root.mkdir()
     monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
     monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
     monkeypatch.setattr(
-        "sys.argv", ["novelty_result_conditioned_pilot", "--study-version", "2"]
+        "sys.argv",
+        ["novelty_result_conditioned_pilot", "--study-version", str(study_version)],
     )
     monkeypatch.setattr(
         pilot,
@@ -1137,8 +1224,10 @@ def test_main_cli_selects_v2_protocol_and_passes_it_to_runner(
     monkeypatch.setattr(pilot, "run_pilot", fake_run_pilot)
 
     assert asyncio.run(pilot._main()) == 0
-    assert protocol["study_version"] == calls["study_version"] == 2
-    assert calls["result_path"].name.startswith("novelty-result-conditioned-pilot-v2-")
+    assert protocol["study_version"] == calls["study_version"] == study_version
+    assert calls["result_path"].name.startswith(
+        f"novelty-result-conditioned-pilot-v{study_version}-"
+    )
 
 
 def test_v2_trace_reconciles_entrez_entrypoints_and_rejects_count_mismatch() -> None:
@@ -1282,6 +1371,146 @@ def _runtime_inputs(
     monkeypatch.setattr(pilot.fixture, "_check_server_tree_clean", lambda: None)
     monkeypatch.setattr(pilot.fixture, "_git", lambda *_: "server-tree")
     return protocol, prereg, cache_root
+
+
+def _study3_runtime_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    original_root = pilot.ROOT
+    protocol_path = pilot.PILOT_PREREG_V3
+    protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    protocol["runner_sha256"] = hashlib.sha256(
+        Path(pilot.__file__).read_bytes()
+    ).hexdigest()
+    test_protocol_path = tmp_path / "study3-protocol.json"
+    test_protocol_path.write_text(
+        json.dumps(protocol, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+
+    test_root = tmp_path / "repository"
+    test_root.mkdir()
+    (test_root / "engine").symlink_to(
+        original_root / "engine", target_is_directory=True
+    )
+    bank_relative = pilot._study_registration(3).fixture_bank_path
+    assert bank_relative is not None
+    bank_path = test_root / bank_relative
+    bank_path.parent.mkdir(parents=True)
+    bank_path.write_bytes((original_root / bank_relative).read_bytes())
+
+    monkeypatch.setattr(pilot, "ROOT", test_root)
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V3", test_protocol_path)
+    committed_file_bytes = pilot._committed_file_bytes
+
+    def read_test_registration(path: Path, label: str) -> bytes:
+        if path in {test_protocol_path, bank_path}:
+            return path.read_bytes()
+        return committed_file_bytes(path, label)
+
+    monkeypatch.setattr(pilot, "_committed_file_bytes", read_test_registration)
+    monkeypatch.setattr(pilot.fixture, "_check_server_tree_clean", lambda: None)
+    monkeypatch.setattr(pilot.fixture, "_git", lambda *_: protocol["mcp_tree"])
+    serving_process = {
+        "pid": 123,
+        "listener_address": "127.0.0.1:8123",
+        "source_path": str(test_root / "engine/mcp_server/server.py"),
+        "mcp_tree": protocol["mcp_tree"],
+    }
+    monkeypatch.setattr(
+        pilot, "_check_mcp_process", lambda *_args, **_kwargs: serving_process
+    )
+    endpoint = "http://127.0.0.1:8123/mcp"
+    monkeypatch.setenv("COSCIENTIST_CAMPAIGN_MCP_URL", endpoint)
+    monkeypatch.setenv("MCP_SERVER_URL", endpoint)
+    monkeypatch.setenv(pilot.fixture.MCP_SECRET_ENV, "offline-loopback-secret" * 2)
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+    monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_TRACE", "1")
+    monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_BUILD_ID", protocol["mcp_build_id"])
+    cache_root = tmp_path / "study3-cache"
+    cache_root.mkdir()
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+
+    return (
+        pilot._load_pilot_protocol(3),
+        pilot._load_fixture_bank(protocol, 3),
+        cache_root,
+    )
+
+
+def test_study3_cli_reaches_science_boundary_with_current_v4_bank(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, bank, _ = _study3_runtime_inputs(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        "sys.argv", ["novelty_result_conditioned_pilot", "--study-version", "3"]
+    )
+
+    class RuntimeGateReached(Exception):
+        pass
+
+    async def stop_before_science(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeGateReached
+
+    monkeypatch.setattr(pilot, "run_pilot", stop_before_science)
+    with pytest.raises(RuntimeGateReached):
+        asyncio.run(pilot._main())
+
+    assert protocol["study_version"] == 3
+    assert bank["version"] == 4
+
+
+@pytest.mark.parametrize(
+    ("bank_path_key"), ["maintained_validator", "parser", "tool_config"]
+)
+def test_study3_runtime_rejects_a_fixture_source_path_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bank_path_key: str,
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    bank["validation_boundary"][bank_path_key] = "engine/unexpected.py"
+
+    with pytest.raises(ValueError, match="validation source path differs"):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+@pytest.mark.parametrize(
+    ("protocol_hash_key"),
+    [
+        "validator_sha256",
+        "response_parser_sha256",
+        "tool_config_sha256",
+    ],
+)
+def test_study3_runtime_rejects_a_current_source_hash_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    protocol_hash_key: str,
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    protocol["validation_boundary"][protocol_hash_key] = "0" * 64
+
+    with pytest.raises(ValueError, match="Frozen validation source changed"):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+def test_study3_runtime_uses_current_protocol_hashes_not_historical_bank_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, bank, cache_root = _study3_runtime_inputs(tmp_path, monkeypatch)
+    for hash_key in ("validator_sha256", "parser_sha256", "tool_config_sha256"):
+        bank["validation_boundary"]["v3_reference_hashes"][hash_key] = "0" * 64
+
+    endpoint, checked_cache, build_id, _ = pilot._check_runtime(
+        protocol, bank, cache_root=cache_root
+    )
+
+    assert (endpoint, checked_cache, build_id) == (
+        "http://127.0.0.1:8123/mcp",
+        cache_root,
+        protocol["mcp_build_id"],
+    )
 
 
 def test_runtime_requires_the_protocol_to_pin_the_current_mcp_tree(

@@ -1,0 +1,514 @@
+{
+  "name": "M12-NOV-04b4d2 result-conditioned prospective paired study",
+  "status": "INCOMPLETE_ERROR",
+  "fixture_bank_sha256": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
+  "selected_model": "openrouter/stealth/space-bunny-alpha",
+  "model_call_count": 1,
+  "provider_call_count": 1,
+  "outer_mcp_call_count": 1,
+  "paid_calls": 0,
+  "max_model_calls": 24,
+  "max_outer_mcp_calls": 36,
+  "max_papers_per_search": 3,
+  "model_request_config": {
+    "max_attempts": 1,
+    "max_tokens": 1200,
+    "temperature": 0.0,
+    "enable_thinking": false,
+    "use_cache": false,
+    "max_price": {
+      "prompt": 0,
+      "completion": 0,
+      "request": 0
+    }
+  },
+  "campaign_admission": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json",
+  "mcp_serving_process": {
+    "pid": 24416,
+    "listener_address": "127.0.0.1:53289",
+    "source_path": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/engine/mcp_server/server.py",
+    "mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312"
+  },
+  "events": [
+    {
+      "event_id": 1,
+      "kind": "model",
+      "pair_id": "tim22-rboh",
+      "draft_id": "tim22-rboh:positive",
+      "draft": "The TIM22 carrier translocase facilitates mitochondrial iron uptake required for Fe-S biogenesis.",
+      "arm": "positive",
+      "stage": "static_query",
+      "started_at_utc": "2026-09-30T06:42:33.338496+00:00",
+      "request_config": {
+        "max_attempts": 1,
+        "max_tokens": 1200,
+        "temperature": 0.0,
+        "enable_thinking": false,
+        "use_cache": false,
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "telemetry": {
+        "m11_nov_01a3b3_query::openrouter/stealth/space-bunny-alpha": {
+          "deterministic_fallbacks": {},
+          "calls": 1,
+          "observed_model_calls": 1,
+          "reported_usage_calls": 1,
+          "priced_usage_calls": 1,
+          "requested_models": {
+            "openrouter/stealth/space-bunny-alpha": 1
+          },
+          "prompt_tokens": 431,
+          "completion_tokens": 58,
+          "reasoning_tokens": 0,
+          "cached_prompt_tokens": 149,
+          "cost_usd": 0.0,
+          "latency_seconds": 1.8673492910165805,
+          "retries": 0,
+          "cache_hits": 0,
+          "cache_misses": 0,
+          "errors": {}
+        }
+      },
+      "served_model": "openrouter/stealth/space-bunny-alpha",
+      "provider_calls": 1,
+      "observed_model_calls": 1,
+      "retries": 0,
+      "cache_hits": 0,
+      "ended_at_utc": "2026-09-30T06:42:35.303194+00:00",
+      "query": "TIM22 AND mitochondrial iron uptake AND iron-sulfur cluster biogenesis",
+      "status": "complete"
+    },
+    {
+      "event_id": 2,
+      "kind": "mcp",
+      "pair_id": "tim22-rboh",
+      "draft_id": "tim22-rboh:positive",
+      "draft": "The TIM22 carrier translocase facilitates mitochondrial iron uptake required for Fe-S biogenesis.",
+      "arm": "shared",
+      "stage": "first_search",
+      "started_at_utc": "2026-09-30T06:42:35.304187+00:00",
+      "papers": [
+        {
+          "rank": 1,
+          "pmid": "42785340",
+          "title": "Diagnostic performance and testing costs of pooled testing for molecular detection of tuberculosis in seven countries: a prospective, observational, diagnostic accuracy study.",
+          "authors": [
+            "Tushar Garg",
+            "Melissa Sander",
+            "Rachel L Byrne",
+            "S M Mazidur Rahman",
+            "Victor Santana Santos",
+            "Steve Wandiga",
+            "Augustine T Choko",
+            "Suraj Abdulkarim",
+            "Mosunmola Oluwaseun Iwakun",
+            "Andrew J Codlin",
+            "Konstantina Kontogianni",
+            "Vibol Iem",
+            "Ana I Cubas Atienzar",
+            "Marc Y R Henrion",
+            "S Bertel Squire",
+            "Sayera Banu",
+            "Cyrille Mbuli",
+            "Albert Ochieng' Okumu",
+            "John Bimba",
+            "Stephen John",
+            "Luan Nguyen Quang Vo",
+            "Tom Wingfield",
+            "Jacob Creswell"
+          ],
+          "year": 2026,
+          "doi": "10.1016/j.langlo.2026.104051",
+          "abstract_available": true,
+          "abstract_sha256": "fd31f624d1a2e918e7005e0eb9fa37b55adf69b0a35cbabe4fea5165afd03d21",
+          "fulltext_available": true,
+          "blind_id": "ceda741bca5745399f4d1dae15d2e4fe"
+        },
+        {
+          "rank": 2,
+          "pmid": "42732135",
+          "title": "Intensive Endoscopic Resection for Downstaging of Superficial Non-ampullary Duodenal Epithelial Tumor Burden in Familial Adenomatous Polyposis: A Single-center Retrospective Study on Long-term Clinical Outcome.",
+          "authors": [
+            "Reona Kawamura",
+            "Masayoshi Yamada",
+            "Hiroyuki Takamaru",
+            "Takeshi Nakajima",
+            "Seiichiro Abe",
+            "Satoru Nonaka",
+            "Ichiro Oda",
+            "Noriko Tanabe",
+            "Makoto Hirata",
+            "Yutaka Saito"
+          ],
+          "year": 2026,
+          "doi": "10.1002/deo2.70419",
+          "abstract_available": true,
+          "abstract_sha256": "26bbc5ad5f5c8f3d988130b71f099c980fee167fc7ddcd58dda850c5080a6a43",
+          "fulltext_available": true,
+          "blind_id": "4d4e7b89eda044ccbde5b753c24edd29"
+        },
+        {
+          "rank": 3,
+          "pmid": "42699223",
+          "title": "Respiratory Support With Nasal High Flow Reduces Opioid Requirements During Endoscopic Retrograde Cholangiopancreatography.",
+          "authors": [
+            "Tomotaka Mori",
+            "Takao Ayuse",
+            "Shuntaro Sato",
+            "Taiga Ichinomia",
+            "Rintaro Yano",
+            "Akane Shimakura",
+            "Yasuhiko Nakao",
+            "Kosuke Takahashi",
+            "Masanori Fukushima",
+            "Masafumi Haraguchi",
+            "Ryu Sasaki",
+            "Eisuke Ozawa",
+            "Satoshi Miuma",
+            "Stanislav Tatkov",
+            "Tetsuya Hara",
+            "Hisamitsu Miyaaki"
+          ],
+          "year": 2026,
+          "doi": "10.1002/deo2.70421",
+          "abstract_available": true,
+          "abstract_sha256": "c30f18f213a86feafcd246901b95b51085e5ef6c12723eb76d74b77f6a4c7705",
+          "fulltext_available": true,
+          "blind_id": "f695cd46f8744e1caa2d0e3ae5dd3adc"
+        }
+      ],
+      "ended_at_utc": "2026-09-30T06:42:47.202957+00:00",
+      "tool": "pubmed_search_with_fulltext",
+      "wire_parameters": {
+        "query": "The TIM22 carrier translocase facilitates mitochondrial iron uptake required for Fe-S biogenesis.",
+        "max_papers": 3,
+        "slug": "m11_nov_01a3b3_a77feb53e3e5_01",
+        "run_id": "m11_nov_01a3b3_a77feb53e3e5_01"
+      },
+      "trace": {
+        "run_id": "m11_nov_01a3b3_a77feb53e3e5_01",
+        "server_build_id": "a647af97e1a00234ebd16b1d88904230bdef6312",
+        "sort": "pub_date",
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "count": 1,
+            "first_ids": [
+              "41418755"
+            ],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "count": 0,
+            "first_ids": [],
+            "sort": "pub_date"
+          },
+          {
+            "rung_index": 3,
+            "rung_type": "or",
+            "count": 9,
+            "first_ids": [
+              "42524774",
+              "42785340",
+              "42685764",
+              "42542126",
+              "42685738",
+              "42732135",
+              "42699223",
+              "42694965",
+              "42657385"
+            ],
+            "sort": "pub_date"
+          }
+        ],
+        "selected": {
+          "rung_index": 3,
+          "rung_type": "or",
+          "count": 9,
+          "ids": [
+            "42524774",
+            "42785340",
+            "42685764",
+            "42542126",
+            "42685738",
+            "42732135",
+            "42699223",
+            "42694965",
+            "42657385"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42524774",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": false
+          },
+          {
+            "pmid": "42785340",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42685764",
+            "fetched": false,
+            "pmc_available": false,
+            "abstract_available": false
+          },
+          {
+            "pmid": "42542126",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42685738",
+            "fetched": true,
+            "pmc_available": false,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42732135",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42699223",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42694965",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          },
+          {
+            "pmid": "42657385",
+            "fetched": true,
+            "pmc_available": true,
+            "abstract_available": true
+          }
+        ],
+        "final_ids": [
+          "42785340",
+          "42732135",
+          "42699223"
+        ],
+        "shared_pool_supplements": [],
+        "serving_process": {
+          "pid": 24416,
+          "listener_address": "127.0.0.1:53289",
+          "source_path": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/engine/mcp_server/server.py",
+          "mcp_tree": "a647af97e1a00234ebd16b1d88904230bdef6312"
+        }
+      },
+      "trace_attestation": {
+        "run_id": "m11_nov_01a3b3_a77feb53e3e5_01",
+        "server_build_id": "a647af97e1a00234ebd16b1d88904230bdef6312",
+        "process_id": 24416,
+        "source_file": "/private/tmp/cosci-m12-study3-isolated-20260930-amended/engine/mcp_server/pubmed_client.py",
+        "sort": "pub_date",
+        "entrez_retry_policy": {
+          "max_tries": 1,
+          "sleep_between_tries": 0
+        },
+        "entrez_calls": {
+          "esearch": 3,
+          "efetch": 12,
+          "elink": 8
+        },
+        "incomplete_fetch_count": 1,
+        "fetch_errors": [
+          {
+            "stage": "metadata_fetch",
+            "pmid": "42685764",
+            "type": "HTTPError"
+          }
+        ],
+        "metadata_origins": {
+          "42524774": "entrez_fetch",
+          "42785340": "entrez_fetch",
+          "42542126": "entrez_fetch",
+          "42685738": "entrez_fetch",
+          "42732135": "entrez_fetch",
+          "42699223": "entrez_fetch",
+          "42694965": "entrez_fetch",
+          "42657385": "entrez_fetch"
+        },
+        "attempts": [
+          {
+            "rung_index": 1,
+            "rung_type": "exact",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 1,
+            "first_ids": [
+              "41418755"
+            ]
+          },
+          {
+            "rung_index": 2,
+            "rung_type": "anchored",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 0,
+            "first_ids": []
+          },
+          {
+            "rung_index": 3,
+            "rung_type": "or",
+            "operation": "esearch",
+            "recency_years": 0,
+            "retmax": 9,
+            "sort": "pub_date",
+            "count": 9,
+            "first_ids": [
+              "42524774",
+              "42785340",
+              "42685764",
+              "42542126",
+              "42685738",
+              "42732135",
+              "42699223",
+              "42694965",
+              "42657385"
+            ]
+          }
+        ],
+        "selected": {
+          "rung_index": 3,
+          "rung_type": "or",
+          "count": 9,
+          "ids": [
+            "42524774",
+            "42785340",
+            "42685764",
+            "42542126",
+            "42685738",
+            "42732135",
+            "42699223",
+            "42694965",
+            "42657385"
+          ],
+          "sort": "pub_date"
+        },
+        "pre_search_shared_pool": {
+          "file_count": 0,
+          "metadata_count": 0,
+          "first_ids": []
+        },
+        "fetched": [
+          {
+            "pmid": "42524774",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": false,
+            "abstract_available": false,
+            "incomplete": false
+          },
+          {
+            "pmid": "42785340",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42685764",
+            "fetched": false,
+            "metadata_origin": null,
+            "pmc_available": false,
+            "abstract_available": false,
+            "incomplete": true
+          },
+          {
+            "pmid": "42542126",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": false,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42685738",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": false,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42732135",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42699223",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42694965",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          },
+          {
+            "pmid": "42657385",
+            "fetched": true,
+            "metadata_origin": "entrez_fetch",
+            "pmc_available": true,
+            "abstract_available": true,
+            "incomplete": false
+          }
+        ],
+        "final_ids": [
+          "42785340",
+          "42732135",
+          "42699223"
+        ],
+        "shared_pool_supplements": [],
+        "error": null,
+        "outcome": "nonempty"
+      },
+      "trace_error": "ValueError",
+      "classification": "retrieval_error",
+      "exception_type": "ValueError",
+      "upstream_http_status": null,
+      "retry_after": null
+    }
+  ],
+  "study_version": 3,
+  "fixture_bank_version": 4,
+  "protocol_version": 3
+}

@@ -2,9 +2,28 @@
 
 ## Current execution state
 
+As of 30 September, all nine required source investigations are closed. The
+[corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md),
+[71-task public flow](m12-free-default-public-acceptance-2026-09-30.json) and
+[17-task Robin continuation](m12-robin-continuation-acceptance-2026-09-30.json)
+have recorded acceptance evidence, including their scientific limits. The four
+remaining M12 checks concern result-conditioned novelty, its disposition,
+candidate reconciliation and final acceptance. No further model qualification
+is authorized. The third novelty study has its own
+[frozen registration](sakana/novelty-result-conditioned-pilot-prereg-v3.json);
+its result must be recorded before resolving that candidate.
+
+The current verified release is [PR #79](https://github.com/guy915/Co-Scientist/pull/79),
+`a4a06abd723f8af8392a307457301837b15dc244`, with healthy existing-service
+deployments and 5/5 keyless smoke. See the
+[release receipt](m12-pubmed-trace-release-2026-09-30.json) and
+[rollback reconciliation](m12-current-release-reconciliation-2026-09-30.json).
+
+### Historical M1/M2 decisions
+
 M1's model-testing loop ended at the user's direction on 2026-09-22. The
-[free-model decision](baseline/model-choice-2026-09-22.md) selects Nex Pro from
-current official pricing/capability metadata and retained local results, with no
+[free-model decision](baseline/model-choice-2026-09-22.md) selected Nex Pro from
+then-current official pricing/capability metadata and retained local results, with no
 automatic unqualified fallback. The [qualification inventory](baseline/model-qualification/README.md)
 retains successes, failures and inconclusive alternatives without new trials.
 Guarded anonymous retrieval was verified [locally](baseline/retrieval-2026-09-19/README.md).
@@ -19,7 +38,7 @@ GitHub CI did not pass. On 23 September, the user extended this exception to
 subsequent campaign merges while GitHub Actions jobs fail before execution on
 an account hold. Required local checks and review still run; each release must
 record that hosted CI did not pass. The [M2 staging record](baseline/m2-production-staging.md)
-and [production run record](baseline/m2-production-run.json) track the current
+and [production run record](baseline/m2-production-run.json) track that historical
 deployment and bounded public-goal verification. The Kaimen milestone closed
 after these checks and removal of its temporary checkout. The bounded run did
 not return a provider response or publish a report, and claims neither result.
@@ -57,8 +76,9 @@ Do not reuse an old result after relevant code/configuration/input changes.
 
 ## Inference and isolation
 
-Do not run live evaluation drivers using their current defaults: local `.env`
-selects a model without a free suffix and retains paid-provider credentials.
+Do not trust ambient credentials or evaluation-driver defaults. Historical local
+settings included paid routes; the selected current route and its role overrides
+are recorded below, but every campaign process still needs explicit admission.
 Before inference, enforce zero-cost routing across engine, app, tools and runners;
 verify current applicable prices from OpenRouter. Unknown prices are unavailable.
 Preserve explicit user BYOK separately. Disable paid tools/plugins and notifications
@@ -76,13 +96,23 @@ GitHub CI for campaign merges while its hosted jobs fail before execution on
 an account hold. This does not waive deployment verification. Record exact
 commits, deployment IDs and health.
 The [initial deployment snapshot](baseline/releases-2026-09-19.json) is a starting
-reference, not a verified zero-cost rollback target. The M2 release's verified
-backup and zero-cost rollback anchor are recorded below.
+reference, not a verified zero-cost rollback target. Current source rollback
+points and dated backup evidence are distinguished below.
 Never restore paid routing on rollback. Verify a consistent backup before any
 persistent-data migration. The campaign explicitly authorizes required merges
 and deployments; routine implementation choices do not require re-interview.
 
-The current verified production code anchor is M8 [PR #35](https://github.com/guy915/Co-Scientist/pull/35),
+The current known-good source point for future releases is
+`a4a06abd723f8af8392a307457301837b15dc244`. If reverting the trace-support
+release itself, the preceding verified recovery source is
+`8bb80e28f141e7a78727cfce18fb322efb2819bb` (PR #78). These are different
+uses of a rollback point; do not describe redeploying the current source as
+reverting PR #79. Both preserve the selected zero-cost role overrides and
+leave production tracing disabled. The earlier `ef9684ab` rollback in PR #77's
+receipt applies to that older release, not the current recovery instruction.
+No rollback or configuration mutation occurred during reconciliation.
+
+The historical M8 production anchor was [PR #35](https://github.com/guy915/Co-Scientist/pull/35),
 merge commit `6a9baa9ef8a233ac251085dd26781ac356ef0563`. Its
 [OpenScience dossier](synthetic-sciences-openscience.md#final-m8-release-and-architecture)
 records successful Railway/Vercel deployments, the live additive receipt schema,
@@ -92,13 +122,23 @@ justified data recovery; ordinary code rollback should preserve the additive
 schema and current zero-cost routing. Hosted GitHub Actions did not run
 successfully for this merge under the existing user waiver.
 
-The M2 release's deployed system-default configuration is
+The [PR #77 role readback](m12-free-default-release-2026-09-30.json) records
+`MODEL_NAME=SUPERVISOR_MODEL_NAME=CHAT_MODEL_NAME=SEMANTIC_SAFETY_MODEL=openrouter/stealth/space-bunny-alpha`;
+`CLAIM_VERIFIER_MODEL` and the global free-mode setting were unset. System-default
+zero-cost policy preserves explicit BYOK separately; BYOK encryption was observed
+disabled, not enabled by this release. PR #79 made no configuration changes and
+did not reread secret-bearing variable values. The exact role readback is therefore
+dated evidence, not a fresh runtime attestation on every later commit. Recheck
+official catalog and sole-endpoint zero pricing before each permitted live batch;
+unknown prices, unavailable routes and paid substitutions remain prohibited.
+
+The historical M2 release's system-default configuration was
 `MODEL_NAME=SUPERVISOR_MODEL_NAME=CHAT_MODEL_NAME=SEMANTIC_SAFETY_MODEL=openrouter/nex-agi/nex-n2.5-pro:free`;
 `CLAIM_VERIFIER_MODEL` remains unset and inherits `MODEL_NAME`. This route has
 no model-level fallback, and its requests retain zero-price ceilings. The
 pre-switch production readback on 23 September showed four explicit old
-MiniMax values; all four now serve the selected Nex Pro route. The official catalog
-currently marks this free route as expiring 25 September 2026 (see the
+MiniMax values; all four then served the selected Nex Pro route. The dated catalog
+marked this free route as expiring 25 September 2026 (see the
 [dated receipt](baseline/nex-pro-catalog-2026-09-23.json)). Recheck current
 eligibility before each live batch; if the route retires, stop live calls and
 select an exact zero-priced replacement from current public information and

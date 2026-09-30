@@ -1,0 +1,659 @@
+{
+  "name": "M12 result-conditioned prospective fresh public fixture bank",
+  "version": 4,
+  "status": "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN",
+  "purpose": "Six fresh mechanism-specific positive/control pairs for a separately versioned prospective v4 comparison. These sources are not prior v1/v2/v3 inputs or retrieved papers, and this bank is not scientific evidence of effect, product adoption, or release.",
+  "source_snapshot": {
+    "source_method": "Public PubMed ESearch metadata discovery followed by one official NCBI EFetch XML batch; no draft-query searches or campaign search-flow use.",
+    "candidate_pool_count": 101,
+    "selected_source_count": 12,
+    "raw_primary_xml_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study3/pubmed-source-candidates.xml",
+    "raw_primary_xml_sha256": "54f221ae5e151c37bf631e57b84d1b8a5f0f876c402efdbea35c3e4299f172d5",
+    "retrieved_at_utc": "2026-09-30T03:42:53Z",
+    "efetch_http_status": 200,
+    "efetch_response_bytes": 2752559,
+    "prior_source_exclusion_receipt_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study3/prior-source-exclusions.json",
+    "prior_source_exclusion_count": 419,
+    "prior_source_exclusion_sha256": "0bcce0e6c197b3ee19bd6b7c9159fa94fd8422bb89faa62cbf1204b96c24913a",
+    "selected_prior_overlap_count": 0,
+    "selection_history_path": "references/external/sakana/novelty-fixture-bank-v4-source-review-2026-09-30.json",
+    "retention": "Mode0600 official source/exclusion snapshots under ignored primary-workspace .remember/archives, outside temporary reference checkouts. Public101-record metadata/selection ledger retained; originals in private tmp left intact for prior verification."
+  },
+  "source_review": {
+    "reviewer": "Independent source/abstract review",
+    "review_path": "references/external/sakana/novelty-fixture-bank-v4-source-review-2026-09-30.json",
+    "boundary": "PubMed-indexed metadata and abstract only; no full-text causal/expert adjudication. Source identity and abstract support are not search-performance or treatment-effect evidence.",
+    "changes_before_registration": [
+      "Excluded PMID 41602105 after official PubMed EFetch showed ArticleDate 2026-01-12, outside the requested 2023-2025 period despite journal PubDate year 2025. Replaced with already-fetched PMID 41338731 (ArticleDate 2025-10-03), whose abstract reports RNAi hmgcl silencing redirecting flux toward the MPA precursor. No new source request was made.",
+      "The source-selection process is disclosed as post-search metadata/abstract selection; no claim is made that the candidate order or identities were preregistered before ESearch."
+    ],
+    "prior_source_overlap_check": "0/12 among the 419-ID expanded receipt, hash recorded in source_snapshot."
+  },
+  "validation_boundary": {
+    "maintained_validator": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+    "parser": "engine/src/co_scientist/tools/response_parser.py",
+    "tool_config": "engine/src/co_scientist/config/tools.yaml",
+    "inheritance_note": "File paths and exact v3 validator contract are retained from v3; root must freeze current commit and current validator/parser/tool/MCP/prompt/request hashes in a separate v4 protocol before any request. This source bank does not authorize or initiate screening.",
+    "v3_reference_hashes": {
+      "code_commit_before_registration": "9c911683bfba027065a585f0e1b625b33938bbac",
+      "validator": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+      "validator_sha256": "93d794fd510188d03b5923d6759945bdfa6bdf05dc11e8609b4870c40b783b03",
+      "parser": "engine/src/co_scientist/tools/response_parser.py",
+      "parser_sha256": "9be8110bfbe8d3851ff10dedc0e20bd9d37fea63ef99bd5f1b874055e515aea8",
+      "tool_config": "engine/src/co_scientist/config/tools.yaml",
+      "tool_config_sha256": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+      "configured_tool": "first validation search-category tool: pubmed_fulltext -> pubmed_search_with_fulltext",
+      "query": "exact draft[:200], no subject-first rewrite, identifier injection, extra term, date filter, or other result-conditioned request",
+      "canonical_parameters": [
+        "query",
+        "max_papers",
+        "slug",
+        "run_id"
+      ],
+      "mapping": "ToolConfig.map_parameters, then _search_papers_via_tool_config and ResponseParser.parse_to_articles",
+      "source_id": "Article.source_id from the dictionary key, then _articles_to_paper_dict",
+      "max_papers": 3,
+      "recency_years": "omitted; maintained tool default",
+      "upstream_search": "retain selected relaxation rung and all fetched/selected IDs from the maintained tool's bounded trace; do not use custom Entrez output as the validator result"
+    }
+  },
+  "cases_in_fixed_order": [
+    {
+      "id": "tim22-rboh",
+      "positive": {
+        "draft": "The TIM22 carrier translocase facilitates mitochondrial iron uptake required for Fe-S biogenesis.",
+        "target_pmid": "41418755",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41418755/"
+      },
+      "distinct_control": {
+        "draft": "In Arabidopsis columella, RbohC and RbohE drive ROS oscillations that modulate PIN2-linked auxin distribution and root-cap turnover.",
+        "anchor_pmid": "41438069",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41438069/"
+      },
+      "overlap_rule": "The positive concerns mammalian mitochondrial iron import and Fe-S biogenesis; the control concerns Arabidopsis root-cap redox/auxin dynamics.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Shuai Liu et al.",
+          "title": "The TIM22 carrier translocase supports cell proliferation by facilitating mitochondrial iron uptake for Fe-S biogenesis.",
+          "publication_date": "2025-12-18",
+          "journal": "Molecular cell",
+          "doi": "10.1016/j.molcel.2025.11.022",
+          "doi_url": "https://doi.org/10.1016/j.molcel.2025.11.022",
+          "claim_basis": "The abstract reports TIM22 loss reducing mitochondrial iron-transporter presence and iron uptake, linking the complex to Fe-S biogenesis.",
+          "abstract_support_excerpts": [
+            "a primary function of the TIM22 carrier translocase is to facilitate transporter-mediated iron uptake required for Fe-S biogenesis"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "The TIM22 carrier translocase supports cell proliferation by facilitating mitochondrial iron uptake for Fe-S biogenesis.",
+            "first_author": "Shuai Liu",
+            "author_count": 17,
+            "journal": "Molecular cell",
+            "doi": "10.1016/j.molcel.2025.11.022",
+            "journal_issue_date": "2025-12-18",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Shuai Liu",
+              "Qingyu Li",
+              "Mengye Cao",
+              "Zefang Bimo Zhao",
+              "Cong Liu",
+              "Zhuoran Zhen",
+              "Jiankun Ren",
+              "Chengyang Liu",
+              "Danyang Ruan",
+              "Luna Zhang",
+              "Wenjuan Zhang",
+              "Hao Gong",
+              "Xiaolong Liu",
+              "Xuejie Zhang",
+              "Deng Pan",
+              "Weijun Pan",
+              "Jiajun Zhu"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Ye-Sol Shin et al.",
+          "title": "An RbohC and RbohE-mediated ROS oscillatory circuit regulates root cap turnover in Arabidopsis.",
+          "publication_date": "2025-11-14",
+          "journal": "iScience",
+          "doi": "10.1016/j.isci.2025.114056",
+          "doi_url": "https://doi.org/10.1016/j.isci.2025.114056",
+          "claim_basis": "The abstract identifies RbohC/RbohE as ROS sources and reports ROS oscillations modulating PIN2-associated auxin distribution and root-cap turnover.",
+          "abstract_support_excerpts": [
+            "We identify RbohC and RbohE as major ROS producers",
+            "ROS oscillations also affect auxin distribution by modulating the transporter PIN-FORMED2."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "An RbohC and RbohE-mediated ROS oscillatory circuit regulates root cap turnover in Arabidopsis.",
+            "first_author": "Ye-Sol Shin",
+            "author_count": 5,
+            "journal": "iScience",
+            "doi": "10.1016/j.isci.2025.114056",
+            "journal_issue_date": "2025-12-19",
+            "electronic_publication_date": "2025-11-14",
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Ye-Sol Shin",
+              "Woo-Taek Jeon",
+              "Hoon Jung",
+              "Thanh Ha Thi Do",
+              "Yuree Lee"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "sw5b-mlh1pms1",
+      "positive": {
+        "draft": "Sw-5b relieves Aux/IAA repression of ARF19, which activates GSL5/8 callose deposition at plasmodesmata to inhibit viral spread.",
+        "target_pmid": "41406207",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41406207/"
+      },
+      "distinct_control": {
+        "draft": "In yeast mismatch repair, Mlh1-Pms1 uses ATP to compact DNA; encountering a pre-existing nick suppresses compaction.",
+        "anchor_pmid": "41335467",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41335467/"
+      },
+      "overlap_rule": "The positive concerns plant immune-receptor-triggered auxin/callose defense; the control concerns yeast mismatch-repair ATPase behavior on DNA.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Tongqing Yang et al.",
+          "title": "A plant NLR receptor activates auxin signaling through Aux/IAAs-ARF19 and YUC8-TIR1/AFBs to promote callose-mediated antiviral defense.",
+          "publication_date": "2025-12-17",
+          "journal": "Science advances",
+          "doi": "10.1126/sciadv.aea2275",
+          "doi_url": "https://doi.org/10.1126/sciadv.aea2275",
+          "claim_basis": "The abstract reports Sw-5b relieving Aux/IAA repression of ARF19 and the downstream callose/auxin pathway limiting viral spread.",
+          "abstract_support_excerpts": [
+            "Sw-5b associates with and relieves repressors Aux/IAAs",
+            "ARF19 then activates callose synthase gene GSL5/8 to deposit callose at plasmodesmata"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "A plant NLR receptor activates auxin signaling through Aux/IAAs-ARF19 and YUC8-TIR1/AFBs to promote callose-mediated antiviral defense.",
+            "first_author": "Tongqing Yang",
+            "author_count": 19,
+            "journal": "Science advances",
+            "doi": "10.1126/sciadv.aea2275",
+            "journal_issue_date": "2025-12-19",
+            "electronic_publication_date": "2025-12-17",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ],
+            "authors": [
+              "Tongqing Yang",
+              "Ruizhen Zhao",
+              "Ruoxin Mei",
+              "Hongmin Cui",
+              "Zixuan Ding",
+              "Yanan Wen",
+              "Qian Wu",
+              "Zhengqiang Chen",
+              "Shen Huang",
+              "Chunli Wang",
+              "Lu Hong",
+              "Wenyu Zuo",
+              "Zhongkai Zhang",
+              "Min Zhu",
+              "Leiyun Yang",
+              "Zhengguang Zhang",
+              "Suomeng Dong",
+              "Yi Xu",
+              "Xiaorong Tao"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Bryce W Collingwood et al.",
+          "title": "Mlh1-Pms1 couples ATP-driven DNA compaction with nick-dependent endonuclease activation.",
+          "publication_date": "2025-11-26",
+          "journal": "Nucleic acids research",
+          "doi": "10.1093/nar/gkaf1252",
+          "doi_url": "https://doi.org/10.1093/nar/gkaf1252",
+          "claim_basis": "The abstract reports ATP-driven DNA compaction by yeast Mlh1-Pms1 and suppression on encountering a pre-existing nick.",
+          "abstract_support_excerpts": [
+            "Mlh1-Pms1 uses ATP to compact continuous DNA",
+            "When a pre-existing nick is encountered, compaction is suppressed"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "Mlh1-Pms1 couples ATP-driven DNA compaction with nick-dependent endonuclease activation.",
+            "first_author": "Bryce W Collingwood",
+            "author_count": 3,
+            "journal": "Nucleic acids research",
+            "doi": "10.1093/nar/gkaf1252",
+            "journal_issue_date": "2025-11-26",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Bryce W Collingwood",
+              "Amruta N Bhalkar",
+              "Carol M Manhart"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "kicstor-influenza-fusion",
+      "positive": {
+        "draft": "Human KICSTOR positions GATOR1 on lysosomes to regulate nutrient-dependent mTORC1 signaling.",
+        "target_pmid": "41198956",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41198956/"
+      },
+      "distinct_control": {
+        "draft": "VHH-derived macrocyclic peptides bind influenza hemagglutinin and block low-pH conformational changes that lead to membrane fusion.",
+        "anchor_pmid": "41413306",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41413306/"
+      },
+      "overlap_rule": "The positive concerns lysosomal nutrient sensing and mTORC1 regulation; the control concerns peptide inhibition of influenza membrane fusion.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Fei Teng et al.",
+          "title": "Architecture of the human KICSTOR and GATOR1-KICSTOR complexes.",
+          "publication_date": "2025-11-06",
+          "journal": "Nature structural & molecular biology",
+          "doi": "10.1038/s41594-025-01693-4",
+          "doi_url": "https://doi.org/10.1038/s41594-025-01693-4",
+          "claim_basis": "The abstract states that KICSTOR anchors GATOR1 to lysosomes and identifies nutrient-dependent mTORC1 regulation.",
+          "abstract_support_excerpts": [
+            "These findings identify how KICSTOR positions GATOR1 on lysosomes to regulate nutrient-dependent mTORC1 signaling."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "Architecture of the human KICSTOR and GATOR1-KICSTOR complexes.",
+            "first_author": "Fei Teng",
+            "author_count": 11,
+            "journal": "Nature structural & molecular biology",
+            "doi": "10.1038/s41594-025-01693-4",
+            "journal_issue_date": "2025-12",
+            "electronic_publication_date": "2025-11-06",
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Fei Teng",
+              "Huan Zeng",
+              "Xinyi Mai",
+              "Shujun Chen",
+              "Lulu Wang",
+              "Zeming Feng",
+              "Shuyun Tian",
+              "Shan Wang",
+              "Goran Stjepanovic",
+              "Chun-Yan Lim",
+              "Ming-Yuan Su"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Rameshwar U Kadam et al.",
+          "title": "VHH antibody loop guides design of a synthetic macrocyclic peptide that potently blocks influenza virus membrane fusion.",
+          "publication_date": "2025-12-18",
+          "journal": "Npj viruses",
+          "doi": "10.1038/s44298-025-00166-1",
+          "doi_url": "https://doi.org/10.1038/s44298-025-00166-1",
+          "claim_basis": "The abstract reports VHH-loop-inspired macrocyclic peptide binding to influenza HA and inhibition of fusion-linked low-pH changes.",
+          "abstract_support_excerpts": [
+            "nanomolar binding to influenza hemagglutinin (HA)",
+            "inhibiting the low pH mediated HA conformational changes that lead to membrane fusion."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "VHH antibody loop guides design of a synthetic macrocyclic peptide that potently blocks influenza virus membrane fusion.",
+            "first_author": "Rameshwar U Kadam",
+            "author_count": 16,
+            "journal": "Npj viruses",
+            "doi": "10.1038/s44298-025-00166-1",
+            "journal_issue_date": "2025-12-18",
+            "electronic_publication_date": "2025-12-18",
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Rameshwar U Kadam",
+              "Jarek Juraszek",
+              "Boerries Brandenburg",
+              "Divita Garg",
+              "Xueyong Zhu",
+              "Mandy Jongeneelen",
+              "Wim B G Schepens",
+              "Bart Stoops",
+              "Jan Vermond",
+              "Wouter Goutier",
+              "Chan Tang",
+              "Sven Blokland",
+              "Ronald Vogels",
+              "Robert H E Friesen",
+              "Maria J P van Dongen",
+              "Ian A Wilson"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "eif2d-psii-dgka",
+      "positive": {
+        "draft": "During intrinsic ribosome destabilization, eIF2D promotes 40S-subunit recycling; eIF2D deficiency causes unrecycled 40S accumulation.",
+        "target_pmid": "41335470",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41335470/"
+      },
+      "distinct_control": {
+        "draft": "In cyanobacteria, DgkA regulates thylakoid lipid biosynthesis and contributes to high-light acclimation of photosystem II.",
+        "anchor_pmid": "40836505",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/40836505/"
+      },
+      "overlap_rule": "The positive concerns eukaryotic translation-complex recycling; the control concerns cyanobacterial thylakoid lipid synthesis and photosystem-II repair.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Kazuya Ichihara et al.",
+          "title": "eIF2D promotes 40S ribosomal subunit recycling during intrinsic ribosome destabilization.",
+          "publication_date": "2025-11-26",
+          "journal": "Nucleic acids research",
+          "doi": "10.1093/nar/gkaf1322",
+          "doi_url": "https://doi.org/10.1093/nar/gkaf1322",
+          "claim_basis": "The abstract reports that eIF2D promotes 40S recycling during IRD and that unrecycled subunits accumulate in deficient cells.",
+          "abstract_support_excerpts": [
+            "eIF2D promotes 40S ribosome recycling during intrinsic ribosome destabilization",
+            "Unrecycled 40S ribosomes accumulate in eIF2D-deficient cells"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "eIF2D promotes 40S ribosomal subunit recycling during intrinsic ribosome destabilization.",
+            "first_author": "Kazuya Ichihara",
+            "author_count": 19,
+            "journal": "Nucleic acids research",
+            "doi": "10.1093/nar/gkaf1322",
+            "journal_issue_date": "2025-11-26",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Kazuya Ichihara",
+              "Taichi Shiraishi",
+              "Yuhei Chadani",
+              "Yuki Kito",
+              "Chisa Shiraishi",
+              "Mina Hirata",
+              "Yuta Takahashi",
+              "Akinao Kobo",
+              "Atsushi Hatano",
+              "Masaki Matsumoto",
+              "Kodai Machida",
+              "Hiroaki Imataka",
+              "Atsushi Toyoda",
+              "Emi Mishiro-Sato",
+              "Takayuki Nojima",
+              "Takuhiro Ito",
+              "Hideki Taguchi",
+              "Keiichi I Nakayama",
+              "Akinobu Matsumoto"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Kensuke Takagi et al.",
+          "title": "Cyanobacterial diacylglycerol kinase is involved in membrane lipid synthesis and contributes to high-light acclimation of photosystem II.",
+          "publication_date": "2025-08",
+          "journal": "The Plant journal : for cell and molecular biology",
+          "doi": "10.1111/tpj.70368",
+          "doi_url": "https://doi.org/10.1111/tpj.70368",
+          "claim_basis": "The abstract reports altered thylakoid lipid/PG balance, slower PSII repair in the mutant, and PG supplementation rescuing that repair rate.",
+          "abstract_support_excerpts": [
+            "DgkA is involved in the regulation of thylakoid lipid biosynthesis and contributes to the HL acclimation of PSII."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "Cyanobacterial diacylglycerol kinase is involved in membrane lipid synthesis and contributes to high-light acclimation of photosystem II.",
+            "first_author": "Kensuke Takagi",
+            "author_count": 4,
+            "journal": "The Plant journal : for cell and molecular biology",
+            "doi": "10.1111/tpj.70368",
+            "journal_issue_date": "2025-08",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ],
+            "authors": [
+              "Kensuke Takagi",
+              "Yuki Nakamura",
+              "Haruhiko Jimbo",
+              "Hajime Wada"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "btapc-kif1a",
+      "positive": {
+        "draft": "In Bacteroidota T6SS, BtapC coordinates co-secretion of synergistic effectors through sequential VgrG-BtpeA-BtaeB-BtapC assembly.",
+        "target_pmid": "41072405",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41072405/"
+      },
+      "distinct_control": {
+        "draft": "In unc-17(e245) C. elegans neurons, elevated tubulin acetylation compromises UNC-104 and cargo motility; MEC-17 knockdown improves UNC-104 motility.",
+        "anchor_pmid": "41452330",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41452330/"
+      },
+      "overlap_rule": "The positive concerns bacterial competition-effector loading/secretion; the control concerns neuronal microtubule modification and kinesin-3 transport.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Weixun Li et al.",
+          "title": "A conserved adaptor orchestrates co-secretion of synergistic type VI effectors in gut Bacteroidota.",
+          "publication_date": "2025-10-09",
+          "journal": "Cell host & microbe",
+          "doi": "10.1016/j.chom.2025.09.012",
+          "doi_url": "https://doi.org/10.1016/j.chom.2025.09.012",
+          "claim_basis": "The abstract reports BtapC-dependent co-secretion and sequential assembly of the VgrG-BtpeA-BtaeB-BtapC complex; the effectors show synergy in mouse colonization.",
+          "abstract_support_excerpts": [
+            "BtpeA and BtaeB co-secretion requires an adaptor protein, BtapC",
+            "VgrG-BtpeA-BtaeB-BtapC",
+            "combined activities of BtpeA and BtaeB significantly exceed the sum"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "A conserved adaptor orchestrates co-secretion of synergistic type VI effectors in gut Bacteroidota.",
+            "first_author": "Weixun Li",
+            "author_count": 12,
+            "journal": "Cell host & microbe",
+            "doi": "10.1016/j.chom.2025.09.012",
+            "journal_issue_date": "2025-11-12",
+            "electronic_publication_date": "2025-10-09",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ],
+            "authors": [
+              "Weixun Li",
+              "Shuaining Zheng",
+              "Xiaoning Xu",
+              "Jing He",
+              "Xuyao Jiao",
+              "Mingyu Wang",
+              "Wei Hu",
+              "Shengying Li",
+              "Xianzhi Jiang",
+              "Bentley Lim",
+              "Feng Shao",
+              "Xiang Gao"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Cheng-Shan Kuo et al.",
+          "title": "A Mutation in Vesicular Acetylcholine Transporter Increases Tubulin Acetylation Compromising Synaptic Vesicle Transport.",
+          "publication_date": "2025-12",
+          "journal": "Journal of neurochemistry",
+          "doi": "10.1111/jnc.70322",
+          "doi_url": "https://doi.org/10.1111/jnc.70322",
+          "claim_basis": "The abstract reports increased tubulin acetylation compromising UNC-104 and cargo motility, with MEC-17 knockdown improving motor motility.",
+          "abstract_support_excerpts": [
+            "motility of both motor and its cargo is significantly compromised",
+            "motility of UNC-104 improves when knocking down α-tubulin acetyltransferase MEC-17"
+          ],
+          "verified_pubmed_metadata": {
+            "title": "A Mutation in Vesicular Acetylcholine Transporter Increases Tubulin Acetylation Compromising Synaptic Vesicle Transport.",
+            "first_author": "Cheng-Shan Kuo",
+            "author_count": 8,
+            "journal": "Journal of neurochemistry",
+            "doi": "10.1111/jnc.70322",
+            "journal_issue_date": "2025-12",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ],
+            "authors": [
+              "Cheng-Shan Kuo",
+              "Vignesh Mahendran Ruckmani",
+              "Meng-Chieh Wang",
+              "Muhammad Safwan Khawaja",
+              "Odvogmed Bayansan",
+              "Syed Nooruzuha Barmaver",
+              "Prerana Bhan",
+              "Oliver Ingvar Wagner"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "hmgcl-mpa-occludin",
+      "positive": {
+        "draft": "RNAi silencing of hmgcl in Penicillium brevicompactum redirects mevalonate-pathway flux toward the mycophenolic-acid precursor FPP.",
+        "target_pmid": "41338731",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41338731/"
+      },
+      "distinct_control": {
+        "draft": "Occludin’s carboxy terminus binds dynein light intermediate chain; S471 phosphorylation promotes binding and S490 phosphorylation is required for trafficking.",
+        "anchor_pmid": "41401008",
+        "year": 2025,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/41401008/"
+      },
+      "overlap_rule": "The positive concerns fungal secondary-metabolite pathway flux; the control concerns phosphorylation-dependent endothelial tight-junction cargo trafficking.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Yi Lin et al.",
+          "title": "Improved production of mycophenolic acid in Penicillium brevicompactum by RNAi-mediated hmgcl gene silencing.",
+          "publication_date": "2025-10-03",
+          "journal": "Fungal biology",
+          "doi": "10.1016/j.funbio.2025.101666",
+          "doi_url": "https://doi.org/10.1016/j.funbio.2025.101666",
+          "claim_basis": "The abstract describes HMGCL as a competing pathway branch and reports RNAi silencing redirecting flux toward the MPA precursor with increased titer.",
+          "abstract_support_excerpts": [
+            "Here, we employ RNA interference (RNAi) to silence hmgcl in P. brevicompactum, redirecting flux toward farnesyl pyrophosphate (FPP), the MPA precursor."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "Improved production of mycophenolic acid in Penicillium brevicompactum by RNAi-mediated hmgcl gene silencing.",
+            "first_author": "Yi Lin",
+            "author_count": 7,
+            "journal": "Fungal biology",
+            "doi": "10.1016/j.funbio.2025.101666",
+            "journal_issue_date": "2025-12",
+            "electronic_publication_date": "2025-10-03",
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Yi Lin",
+              "JingJing Wang",
+              "Lin Lin",
+              "Tao Li",
+              "Yan Yan",
+              "Wei Wei",
+              "Dongzhi Wei"
+            ]
+          }
+        },
+        "control": {
+          "authors": "Xuwen Liu et al.",
+          "title": "Occludin acts as a dynein adaptor regulating permeability and collateral angiogenesis.",
+          "publication_date": "2025-12-16",
+          "journal": "Proceedings of the National Academy of Sciences of the United States of America",
+          "doi": "10.1073/pnas.2516076122",
+          "doi_url": "https://doi.org/10.1073/pnas.2516076122",
+          "claim_basis": "The abstract reports OCLN carboxy-terminal binding to dynein LIC and distinct S471-binding/S490-trafficking phosphorylation roles.",
+          "abstract_support_excerpts": [
+            "Mutational analysis revealed S471 phosphorylation promotes binding to the LIC while S490 phosphorylation is required for trafficking."
+          ],
+          "verified_pubmed_metadata": {
+            "title": "Occludin acts as a dynein adaptor regulating permeability and collateral angiogenesis.",
+            "first_author": "Xuwen Liu",
+            "author_count": 12,
+            "journal": "Proceedings of the National Academy of Sciences of the United States of America",
+            "doi": "10.1073/pnas.2516076122",
+            "journal_issue_date": "2025-12-23",
+            "electronic_publication_date": "2025-12-16",
+            "publication_types": [
+              "Journal Article"
+            ],
+            "authors": [
+              "Xuwen Liu",
+              "Enming J Su",
+              "Alyssa Dreffs",
+              "John P Gillies",
+              "Madeline Merlino",
+              "Lu Gao",
+              "Julian S Peregoff",
+              "Cheng-Mao Lin",
+              "Margaret Elizabeth Ross",
+              "Morgan E DeSantis",
+              "Daniel A Lawrence",
+              "David A Antonetti"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "screening_protocol": {
+    "order": "All six fixed pairs, positive then distinct control; all six are mandatory, with no enrollment, post-result substitution, or cherry-picked triplet.",
+    "no_screen_needed": "The v4 source set uses all listed inputs. No v4 validator eligibility/performance claim or query experiment has occurred.",
+    "comparison_gate": "The separately registered prospective study protocol v3 must be committed with exact current runner/model/MCP/prompt/request hashes before any model or maintained-tool request.",
+    "criteria": {
+      "primary": "Across the six positive drafts, compare exact target-PMID coverage in shared-first-search union candidate-follow-up results against the matched shared-first-search union static-follow-up results. Candidate must cover at least one additional positive target in aggregate and lose none of the positive target coverage in static. A target already present in shared-first search cannot earn incremental credit by reappearing in either follow-up.",
+      "non_regression": [
+        "Candidate loses none of the six distinct-control own-anchor coverage in matched shared-first-search union static-follow-up results, evaluated against shared-first-search union candidate-follow-up results.",
+        "Candidate does not increase cross-pair positive-target coverage among distinct controls; deduplicate each shared-first-search union follow-up PMID set identically for both arms.",
+        "Candidate does not increase the blinded unrelated-paper fraction among returned follow-up papers; incomplete blind labels make the outcome inconclusive.",
+        "Every returned paper has complete query, selected relaxation rung, selected/fetched/final PMID, source/tool, and actual server-process provenance."
+      ],
+      "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+      "failure_interpretation": "A primary or non-regression failure rejects this exact frozen adaptation only. It does not establish that every iterative search method fails.",
+      "pass_interpretation": "A pass retains the mechanism as promising only; no product adoption or release until the separately preregistered independent three-pair confirmatory comparison passes.",
+      "prospective_clarification": "Independent review before any study3 scientific call found that counting a follow-up re-retrieval of a seed target could fabricate incremental prior-art discovery. Union/dedup prevents this, retaining original at-least-one improvement/no-loss/control/provenance thresholds. v1/v2 remain interrupted and are not retrospectively rescored."
+    },
+    "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+    "cache": "New empty isolated cache, unique namespace for each outer call; no old trial/cache reuse.",
+    "stops": "First model/retrieval/provenance/error/rate-limit/retry/cost ambiguity stops the whole study unscored; no replay or case substitution.",
+    "privacy": "Public inputs only; no other researchers’ documents or runs."
+  },
+  "cost": {
+    "model_requests_for_preparation": 0,
+    "validator_requests_for_preparation": 0,
+    "metadata_search_requests": 24,
+    "public_source_metadata_batches": 1
+  },
+  "prepared_at_utc": "2026-09-30T04:08:00+00:00",
+  "registered_at_utc": "2026-09-30T04:22:43.037320+00:00",
+  "registration_note": "Source bank status is frozen before any v4 validator screen; root must commit/review the final v4 protocol and exact current trace boundary before any screening call.",
+  "trace_readiness_record": "references/external/sakana/pubmed-trace-readiness-2026-09-30.json"
+}
