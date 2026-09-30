@@ -103,5 +103,15 @@
     "No live Entrez response fetched for feasibility. Installed encoding and primary docs support design, not all server shapes.",
     "Four historical attempts remain incomplete, unscored and non-replayable.",
     "Newly registered batch comparison requires independent readiness and prospective protocol; current work is not admission."
-  ]
+  ],
+  "dependency_encoding_proof": {
+    "test_file": "engine/mcp_server/tests/test_pubmed_batch_encoding.py",
+    "test_sha256": "f5b0c7ecaaf7b6ca610104be6fdc147deba63e3a0c6c7269f627a71726810e5a",
+    "command": "../.venv-mcp/bin/python -m pytest mcp_server/tests/test_pubmed_batch_encoding.py -q (cwd engine/)",
+    "worker_result": "4 passed",
+    "coordinator_result": "4 passed in 0.03s",
+    "boundary": "real installed Bio.Entrez request construction, intercepted at _open before network I/O; GET and POST both covered",
+    "cleanup": "Ruff formatting applied after coordinator pass; no behavioral change",
+    "scope_limit": "dependency contract proof only; product implementation and f1/f2 acceptance remain unverified"
+  }
 }
