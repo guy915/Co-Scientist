@@ -42,5 +42,10 @@
     "mcp_tree": "6a2f19032c244e4b283d7248dc8cd69f59d3a511",
     "missing_behavior": "Pinned maintained MCP source has no COSCIENTIST_PUBMED_PILOT_TRACE writer; flag/source attestation alone did not prove trace readiness.",
     "scientific_disposition": "Inconclusive; neither pass nor fail; v1 may not be replayed."
+  },
+  "cache_observation": {
+    "application_response_cache_hits": 0,
+    "reported_cached_prompt_tokens": 149,
+    "interpretation": "One uncached application request, but provider telemetry reports cached prompt tokens. Do not claim zero provider-side prefix caching."
   }
 }
