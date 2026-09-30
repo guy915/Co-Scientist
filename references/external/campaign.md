@@ -14,11 +14,12 @@ is authorized. The third novelty study has its own
 its [recorded result](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
 stopped on an upstream metadata-fetch error. All three admissions are consumed;
 no replay or scientific disposition follows from those interruptions.
-A fresh authority audit found no owner-set study-count limit. Three explicit
+A fresh authority audit found no owner-set study-count limit. Explicit
 PLAN support items now prepare one distinct prospective comparison under the
-existing campaign authority: justify changed operational handling, verify fresh
-primary-source inputs, and independently review/commit its registration. No
-fourth scientific admission or loosened metric is authorized before those gates.
+existing campaign authority: justify changed operational handling, implement its
+default-off bounded transport seam, verify fresh primary sources, and independently
+review and commit its registration. No fourth scientific admission is authorized
+before those gates; scientific thresholds remain unchanged.
 
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
