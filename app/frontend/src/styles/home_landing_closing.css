@@ -1,10 +1,9 @@
-/* Landing page, part four: FAQ, closing card, footer, and the responsive
+/* Landing page, part four: FAQ, closing card, and the responsive
    and reduced-motion overrides for every part. */
 
 /* ---- FAQ ---- */
 .ucs-landing-faq {
   display: grid;
-  max-width: 820px;
   margin-top: 32px;
 }
 
@@ -40,16 +39,16 @@
 }
 
 .ucs-landing-faq details p {
-  max-width: 44rem;
+  max-width: 60rem;
   margin: 0 0 22px;
   color: var(--l-muted);
   line-height: 1.6;
 }
 
-/* ---- Closing card and footer ---- */
+/* ---- Closing card ---- */
 .ucs-landing-cta {
   display: grid;
-  grid-template-columns: 1fr 440px;
+  grid-template-columns: 1fr 340px;
   align-items: center;
   gap: 32px;
   padding: clamp(28px, 5vw, 72px);
@@ -69,26 +68,15 @@
 .ucs-landing-cta img {
   display: block;
   width: 100%;
+  max-height: 440px;
   height: auto;
+  justify-self: center;
+  object-fit: contain;
 }
 
 .ucs-landing-cta .ucs-landing-pill.is-solid {
   background: var(--l-o-teal);
   color: var(--l-c-teal);
-}
-
-.ucs-landing-foot {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 16px 32px;
-  padding-block: 40px 56px;
-  color: var(--l-muted);
-  font-size: 14px;
-}
-
-.ucs-landing-foot a {
-  color: inherit;
 }
 
 /* ---- Responsive ---- */
@@ -110,9 +98,8 @@
     margin-top: 0;
   }
 
-  .ucs-landing-overview {
+  .ucs-landing-ov {
     grid-template-columns: 1fr;
-    gap: 24px;
   }
 
   .ucs-landing-agents,
@@ -163,12 +150,18 @@
     display: grid;
   }
 
-  .ucs-landing-arena {
-    height: 420px;
+  /* The tree keeps a readable size and scrolls sideways instead. */
+  .ucs-landing-tree {
+    padding: 24px 20px;
   }
 
-  .ucs-landing-arena-caption {
-    inset-inline: 20px;
+  .ucs-landing-tree-scroll {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .ucs-landing-tree-scroll svg {
+    min-width: 720px;
   }
 }
 

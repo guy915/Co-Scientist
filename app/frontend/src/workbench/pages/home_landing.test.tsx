@@ -96,3 +96,36 @@ it('plays the chart tournament deterministically and zero-sum', () => {
   expect(final[first.leader]).toBe(Math.max(...final));
   expect(final[first.leader]).toBeGreaterThan(INITIAL_ELO);
 });
+
+it('walks one run from the goal to a ranked idea in the overview', () => {
+  renderLanding();
+  const overview = document.getElementById('landing-overview')!;
+  for (const heading of ['You write', 'The agents', 'You get']) {
+    expect(within(overview).getByText(heading)).toBeInTheDocument();
+  }
+  expect(
+    within(overview).getByText(/glioblastoma progression/),
+  ).toBeInTheDocument();
+});
+
+it('starts every idea in the tournament tree at the initial Elo', () => {
+  renderLanding();
+  const tournament = document.getElementById('landing-tournament')!;
+  const tree = tournament.querySelector('.ucs-landing-tree svg')!;
+  const ratings = [
+    ...tree.querySelectorAll('.ucs-landing-tree-leaf .ucs-landing-tree-elo'),
+  ];
+  expect(ratings).toHaveLength(8);
+  for (const rating of ratings)
+    expect(rating.textContent).toBe(String(INITIAL_ELO));
+});
+
+it('ends with the call to action before the FAQ, and no footer', () => {
+  const {container} = renderLanding();
+  const cta = screen.getByRole('heading', {name: 'Start with a question.'});
+  const faq = document.getElementById('faq')!;
+  expect(
+    cta.compareDocumentPosition(faq) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(container.querySelector('footer')).toBeNull();
+});

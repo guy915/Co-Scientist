@@ -77,19 +77,3 @@ Licensed under the Apache License, Version 2.0 (code) and CC-BY 4.0
   A copy of the Apache License, Version 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0
 -------------------------------------------------------------------------
-
--------------------------------------------------------------------------
-Google Sans Flex and Google Sans Code
-https://fonts.google.com/specimen/Google+Sans+Flex
-https://fonts.google.com/specimen/Google+Sans+Code
-Licensed under the SIL Open Font License, Version 1.1.
-
-  app/frontend/src/assets/fonts/google-sans-flex-latin.woff2
-  app/frontend/src/assets/fonts/google-sans-code-latin.woff2
-
-    The latin-subset woff2 files Google Fonts serves, unmodified. Used
-    only by the landing page under the chat home.
-
-  A copy of the SIL Open Font License, Version 1.1 is available at
-  https://openfontlicense.org
--------------------------------------------------------------------------

@@ -22,11 +22,11 @@ import {
   EvidenceSection,
   FaqSection,
   HowSection,
-  OverviewSection,
   SafetySection,
   TiersSection,
   TournamentSection,
 } from './home_landing_sections';
+import {OverviewSection} from './home_landing_overview';
 import {shapePath} from './home_landing_shapes';
 
 /** The landing page's root id, which the scroll hint links to. */
@@ -65,27 +65,6 @@ function useStartResearch(
   }, [rootRef, reduceMotion]);
 }
 
-// Thickens the wordmark as it scrolls up the screen: the variable font's
-// weight axis tracks how far the hero has travelled.
-function useWordmarkWeight(
-  wordRef: RefObject<HTMLElement | null>,
-  reduceMotion: boolean,
-) {
-  useEffect(() => {
-    const word = wordRef.current;
-    if (!word || reduceMotion) return;
-    const scroller = scrollParent(word);
-    const onScroll = () => {
-      const top = word.getBoundingClientRect().top;
-      const k = Math.max(0, Math.min(1, 1 - top / window.innerHeight));
-      word.style.fontVariationSettings = `"opsz" 144, "wght" ${Math.round(300 + k * 250)}`;
-    };
-    onScroll();
-    scroller.addEventListener('scroll', onScroll, {passive: true});
-    return () => scroller.removeEventListener('scroll', onScroll);
-  }, [wordRef, reduceMotion]);
-}
-
 function LandingHero({
   onStart,
   reduceMotion,
@@ -93,15 +72,10 @@ function LandingHero({
   onStart: () => void;
   reduceMotion: boolean;
 }) {
-  const wordRef = useRef<HTMLHeadingElement | null>(null);
-  useWordmarkWeight(wordRef, reduceMotion);
   const cookie = shapePath('cookie12');
   return (
     <section className="ucs-landing-hero" aria-labelledby="ucs-landing-word">
-      <p className="ucs-landing-label">
-        Multi-agent system · hypothesis generation
-      </p>
-      <h2 id="ucs-landing-word" ref={wordRef} className="ucs-landing-word">
+      <h2 id="ucs-landing-word" className="ucs-landing-word">
         Co-Scientist
       </h2>
       <div className="ucs-landing-hero-grid">
@@ -272,23 +246,9 @@ export default function HomeLanding() {
         <EvidenceSection />
         <SafetySection />
         <TiersSection reduceMotion={reduceMotion} />
-        <FaqSection />
         <ClosingSection onStart={onStart} />
+        <FaqSection />
       </div>
-      <footer className="ucs-landing-foot">
-        <span>Co-Scientist</span>
-        <span>
-          Based on{' '}
-          <a
-            href="https://arxiv.org/abs/2502.18864"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Towards an AI co-scientist
-          </a>{' '}
-          (Gottweis et al., 2025)
-        </span>
-      </footer>
     </div>
   );
 }

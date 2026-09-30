@@ -2,7 +2,7 @@
 // in "Towards an AI co-scientist" (Gottweis et al., 2025): the scientist's
 // goal flows through configuration to the Supervisor, which assigns the six
 // specialist agents to workers, and the run returns a research overview.
-// Wires carry a moving dash, and a highlight walks through the agents; hover
+// A highlight walks through the agents; hover
 // or focus an agent to hold it and read what it does. Phones get the same
 // flow as a stacked list.
 
@@ -17,10 +17,10 @@ const GRID: readonly (readonly [string, string])[] = [
   ['Ranking', 'Evolution'],
 ];
 const SPECIALISTS = LANDING_AGENTS.slice(1);
-const COLUMN_X = [280, 590];
-const ROW_Y = [212, 322, 432];
+const COLUMN_X = [280, 560];
+const ROW_Y = [214, 314, 414];
 const CELL_W = 240;
-const CELL_H = 58;
+const CELL_H = 56;
 const STEP_MS = 1800;
 
 function agentByName(name: string): LandingAgent {
@@ -106,36 +106,38 @@ function AgentCell({
 // Arrows inside the agents box: down each column, across each row, and the
 // paper's crossing links between the lower rows.
 const INNER_WIRES = [
-  'M400 270 V322',
-  'M400 380 V432',
-  'M710 270 V322',
-  'M710 380 V432',
-  'M524 241 H586',
-  'M524 351 H586',
-  'M524 461 H586',
-  'M590 330 L522 262',
-  'M522 380 L590 432',
-  'M590 380 L522 432',
+  'M400 270 V310',
+  'M400 370 V410',
+  'M680 270 V310',
+  'M680 370 V410',
+  'M524 242 H556',
+  'M524 342 H556',
+  'M524 442 H556',
+  'M562 316 L524 274',
+  'M522 372 L558 412',
+  'M558 372 L522 412',
 ];
 
 // The paper draws each row's pair as a two-way exchange.
-const TWO_WAY = new Set(INNER_WIRES.filter(d => d.includes(' H586')));
+const TWO_WAY = new Set(INNER_WIRES.filter(d => d.endsWith(' H556')));
 
-// Arrows outside it: goal to configuration to Supervisor, Supervisor down
-// into the agents and across to the overview, out to the workers and
-// memory, the workers' results back up, and the overview back to you.
+// Arrows outside it: you to goal to configuration to Supervisor, Supervisor
+// down into the agents and across to the overview, out to the workers and
+// memory, the workers' results back up to the Supervisor, the overview back
+// to you, and your feedback into the agents.
 const OUTER_WIRES = [
-  'M340 96 H384',
-  'M556 96 H600',
-  'M720 124 V184',
-  'M842 96 H924',
-  'M862 342 H916',
-  'M862 478 H916',
-  'M916 508 H864',
-  'M1036 262 C1036 190 920 150 846 118',
-  'M1040 64 V34 H70 V52',
-  'M70 174 C70 200 64 220 70 244',
-  'M200 296 C232 296 230 372 246 372',
+  'M100 88 H136',
+  'M310 88 H346',
+  'M516 88 H552',
+  'M671 118 V186',
+  'M786 88 H942',
+  'M830 273 H876',
+  'M830 440 H876',
+  'M880 470 H834',
+  'M1000 210 V150 H740 V122',
+  'M1053 54 V24 H64 V50',
+  'M64 156 V296',
+  'M196 326 H246',
 ];
 
 function DiagramWires({wires}: {wires: readonly string[]}) {
@@ -174,31 +176,31 @@ function DiagramFrame() {
       <rect
         className="ucs-landing-box"
         x="250"
-        y="186"
-        width="612"
-        height="370"
+        y="190"
+        width="580"
+        height="340"
         rx="32"
       />
       <text
         className="ucs-landing-box-label"
-        x="556"
-        y="536"
+        x="540"
+        y="508"
         textAnchor="middle"
       >
         Co-Scientist specialized agents
       </text>
-      <text className="ucs-landing-wire-label" x="734" y="160">
+      <text className="ucs-landing-wire-label" x="660" y="160" textAnchor="end">
         assigns agents to workers
       </text>
-      <circle className="ucs-landing-person" cx="70" cy="96" r="40" />
+      <circle className="ucs-landing-person" cx="64" cy="88" r="34" />
       <path
         className="ucs-landing-person-glyph"
-        d="M70 76 a12 12 0 1 1 0 24 a12 12 0 1 1 0 -24 M48 124 c4 -14 40 -14 44 0 z"
+        d="M64 70 a10 10 0 1 1 0 20 a10 10 0 1 1 0 -20 M46 110 c4 -14 32 -14 36 0 z"
       />
       <text
         className="ucs-landing-caption-text"
-        x="70"
-        y="164"
+        x="64"
+        y="146"
         textAnchor="middle"
       >
         You
@@ -207,61 +209,41 @@ function DiagramFrame() {
   );
 }
 
+// Every box outside the agents grid: [x, y, width, height, class, lines].
+const NODES: readonly (readonly [
+  number,
+  number,
+  number,
+  number,
+  string,
+  string[],
+])[] = [
+  [140, 62, 170, 52, 'is-you', ['Research goal']],
+  [350, 62, 166, 52, '', ['Configuration']],
+  [556, 58, 230, 60, 'is-supervisor', ['Supervisor agent']],
+  [946, 54, 214, 68, 'is-output', ['Research overview', 'and ranked ideas']],
+  [20, 300, 176, 52, 'is-you', ['Your feedback']],
+  [880, 214, 240, 34, 'is-worker', ['Worker']],
+  [880, 256, 240, 34, 'is-worker', ['Worker']],
+  [880, 298, 240, 34, 'is-worker', ['Worker']],
+  [880, 340, 240, 34, 'is-worker', ['Worker']],
+  [880, 420, 240, 70, 'is-worker', ['Context', 'memory']],
+];
+
 function DiagramNodes() {
   return (
     <>
-      <DiagramNode
-        x={170}
-        y={70}
-        w={170}
-        h={52}
-        className="is-you"
-        lines={['Research goal']}
-      />
-      <DiagramNode x={390} y={70} w={166} h={52} lines={['Configuration']} />
-      <DiagramNode
-        x={604}
-        y={66}
-        w={238}
-        h={60}
-        className="is-supervisor"
-        lines={['Supervisor agent']}
-      />
-      <DiagramNode
-        x={928}
-        y={64}
-        w={228}
-        h={76}
-        className="is-output"
-        lines={['Research overview', 'and ranked ideas']}
-      />
-      <DiagramNode
-        x={24}
-        y={250}
-        w={176}
-        h={52}
-        className="is-you"
-        lines={['Your feedback']}
-      />
-      {[0, 1, 2, 3].map(i => (
+      {NODES.map(([x, y, w, h, className, lines]) => (
         <DiagramNode
-          key={i}
-          x={920}
-          y={270 + i * 44}
-          w={232}
-          h={36}
-          className="is-worker"
-          lines={['Worker']}
+          key={`${x}-${y}`}
+          x={x}
+          y={y}
+          w={w}
+          h={h}
+          className={className}
+          lines={lines}
         />
       ))}
-      <DiagramNode
-        x={920}
-        y={458}
-        w={232}
-        h={70}
-        className="is-worker"
-        lines={['Context', 'memory']}
-      />
     </>
   );
 }
@@ -276,7 +258,7 @@ function DiagramSvg({
   return (
     <svg
       className="ucs-landing-diagram-svg"
-      viewBox="0 0 1180 570"
+      viewBox="0 0 1180 540"
       role="group"
       aria-label="System diagram: you set a research goal and configuration; the Supervisor agent assigns the Generation, Reflection, Ranking, Evolution, Proximity and Meta-review agents to workers that share a context memory; the run returns a research overview with ranked ideas, and your feedback flows back in."
     >

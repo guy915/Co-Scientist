@@ -59,36 +59,6 @@ export function useInView(
 }
 
 /**
- * Counts from 0 up to `target` once `start` turns true, easing out over
- * `ms`. Under reduced motion it shows the target at once.
- */
-export function useCountUp(
-  target: number,
-  start: boolean,
-  reduceMotion: boolean,
-  ms = 1200,
-): number {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (!start) return;
-    if (reduceMotion) {
-      setValue(target);
-      return;
-    }
-    const t0 = performance.now();
-    let frame = 0;
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / ms);
-      setValue(Math.round(target * (1 - Math.pow(1 - k, 3))));
-      if (k < 1) frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [target, start, reduceMotion, ms]);
-  return value;
-}
-
-/**
  * Returns the nearest ancestor of `el` that scrolls vertically, or the
  * window when the document itself is the scroller. The home page scrolls
  * inside the shell's page element, not the window, so scroll listeners and

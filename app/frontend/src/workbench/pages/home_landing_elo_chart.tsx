@@ -99,7 +99,7 @@ export function LandingEloChart({reduceMotion}: MotionProps) {
         />
       </svg>
       <div className="ucs-landing-elo-legend">
-        <span>Match →</span>
+        <span>Matches</span>
         <span>
           <b>{Math.round(chart.final)}</b> final Elo of the leader
         </span>
