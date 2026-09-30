@@ -102,5 +102,20 @@
         "18 passed (1.0m)"
       ]
     }
+  },
+  "test_organization_correction": {
+    "status": "VERIFIED",
+    "files": {
+      "engine/mcp_server/tests/test_pubmed_pilot_trace.py": 426,
+      "engine/mcp_server/tests/test_pubmed_pilot_trace_outcomes.py": 413
+    },
+    "tests_preserved_ast_identically": 14,
+    "assertions_preserved": 78,
+    "make_test_mcp_passed": 328,
+    "mypy_files": 80,
+    "file_length_gate": "PASS existing500line ceiling unchanged",
+    "runtime_source_changed": false,
+    "typing_note": "One scoped import-not-found annotation for pytest-local shared test helpers, no behavioral assertion or threshold waiver.",
+    "release_check": "Named make test-all rerun still pending"
   }
 }
