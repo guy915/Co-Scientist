@@ -1,4 +1,11 @@
-import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import {Icon} from '@/components/icon';
 import {BYOK_PROVIDERS, type ByokProvider} from '@/lib/api_key';
 
@@ -59,6 +66,63 @@ export function useCloseOnOutsidePointer(
   }, [open, container, onClose]);
 }
 
+// Gap between a trigger and the menu it opens.
+const MENU_GAP_PX = 6;
+
+/**
+ * Places an open menu under its trigger with `position: fixed`, so the
+ * Settings panel's scroll box (`overflow-y: auto`) cannot clip it and the
+ * menu may overflow the panel and the dialog edges.
+ *
+ * A fixed box's containing block is the viewport unless an ancestor has a
+ * transform, and the centered dialog has one. So the hook does not assume
+ * either: it first places the menu at 0,0, reads where that lands, and
+ * subtracts that origin. Re-placed on any scroll or resize while open.
+ *
+ * @param open Whether the menu is rendered.
+ * @param anchor The wrapper holding the trigger; its box sets the position.
+ * @param align `start` opens rightward from the trigger's left edge, `end`
+ *   leftward from its right edge.
+ * @returns The menu's ref and its inline style.
+ */
+export function useAnchoredMenu(
+  open: boolean,
+  anchor: React.RefObject<HTMLDivElement | null>,
+  align: 'start' | 'end' = 'start',
+) {
+  const menu = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const el = menu.current;
+      const trigger = anchor.current;
+      if (!el || !trigger) return;
+      el.style.top = '0px';
+      el.style.left = '0px';
+      const origin = el.getBoundingClientRect();
+      const box = trigger.getBoundingClientRect();
+      const left = align === 'end' ? box.right - origin.width : box.left;
+      const next = {
+        top: box.bottom + MENU_GAP_PX - origin.top,
+        left: left - origin.left,
+        minWidth: box.width,
+      };
+      el.style.top = `${next.top}px`;
+      el.style.left = `${next.left}px`;
+      setStyle(next);
+    }
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, anchor, align]);
+  return {menuRef: menu, menuStyle: style};
+}
+
 // One row of the open menu: a real button (so Tab and Enter work without an
 // activedescendant dance), carrying a check on the current choice so the
 // selection reads without relying on the highlight alone.
@@ -113,6 +177,7 @@ export function ProviderSelect({
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   useCloseOnOutsidePointer(open, container, () => setOpen(false));
+  const {menuRef, menuStyle} = useAnchoredMenu(open, container);
 
   function onSelect(option: ByokProvider) {
     setOpen(false);
@@ -148,7 +213,13 @@ export function ProviderSelect({
         />
       </button>
       {open && (
-        <div className="ucs-provider-menu" role="menu" aria-label="Provider">
+        <div
+          ref={menuRef}
+          style={menuStyle}
+          className="ucs-provider-menu"
+          role="menu"
+          aria-label="Provider"
+        >
           {BYOK_PROVIDERS.map(option => (
             <ProviderOption
               key={option}

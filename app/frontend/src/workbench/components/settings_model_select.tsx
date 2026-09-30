@@ -12,10 +12,10 @@ import {
   getStoredModel,
   setStoredModel,
 } from '@/lib/api_key';
-import {useCloseOnOutsidePointer} from './settings_provider_select';
-
-/** Shown in a disabled select while no API key is set. */
-export const FREE_MODEL_LABEL = 'Free model';
+import {
+  useAnchoredMenu,
+  useCloseOnOutsidePointer,
+} from './settings_provider_select';
 
 const TIER_LABELS: Record<ModelTier, string> = {
   supervisor: 'Supervisor model',
@@ -53,6 +53,12 @@ function ModelSelect({
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   useCloseOnOutsidePointer(open, container, () => setOpen(false));
+  // The right-hand (worker) select opens leftward, back over the dialog.
+  const {menuRef, menuStyle} = useAnchoredMenu(
+    open,
+    container,
+    tier === 'worker' ? 'end' : 'start',
+  );
   const triggerId = `cosci-settings-${tier}-model`;
   const labelId = `${triggerId}-label`;
 
@@ -88,7 +94,7 @@ function ModelSelect({
           disabled={disabled}
           onClick={() => setOpen(current => !current)}
         >
-          <span>{disabled ? FREE_MODEL_LABEL : modelLabel(value)}</span>
+          <span>{modelLabel(value)}</span>
           <Icon
             aria-hidden="true"
             className="ucs-provider-chevron"
@@ -97,6 +103,8 @@ function ModelSelect({
         </button>
         {open && !disabled && (
           <div
+            ref={menuRef}
+            style={menuStyle}
             className="ucs-provider-menu"
             role="menu"
             aria-label={TIER_LABELS[tier]}
@@ -212,14 +220,16 @@ function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
   return (
     <p className="ucs-settings-field-hint" role="status">
       No API key: you are on free usage. Only Express runs are available.
-      {count} Add a key to choose models and run types.
+      {count} Add a key to use the chosen models and other run types.
     </p>
   );
 }
 
 /**
  * The Supervisor and Worker model selects, side by side, under the key.
- * Disabled (showing the free model) until an API key is set.
+ * Choosable without a key: the choice is stored and rides along once a key
+ * is added (byokHeaders sends models only with a key). Disabled only until
+ * the catalog loads.
  *
  * @param hasKey Whether an API key is stored.
  * @param fields The state from useModelFields.
@@ -231,7 +241,7 @@ export function ModelSelectors({
   hasKey: boolean;
   fields: ModelFields;
 }) {
-  const disabled = !hasKey || fields.options.length === 0;
+  const disabled = fields.options.length === 0;
   return (
     <>
       <div className="ucs-settings-model-grid">
