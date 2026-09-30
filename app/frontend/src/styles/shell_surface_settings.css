@@ -282,8 +282,8 @@
 /* Provider chooser (settings_provider_select.tsx). Full panel width, matching
    the API key field directly under it: the two are one stacked pair, and a
    content-width trigger beside a full-width input read as a control that had
-   failed to lay out. The menu is positioned off this wrapper so it opens
-   directly under the trigger. */
+   failed to lay out. The menu is placed under the trigger by
+   useAnchoredMenu (settings_provider_select.tsx). */
 .ucs-provider-select {
   position: relative;
   display: grid;
@@ -329,10 +329,14 @@
 }
 
 .ucs-provider-menu {
-  position: absolute;
+  /* Fixed, not absolute: the Settings panel scrolls (overflow-y: auto), and
+     an absolute menu was clipped at its edge. useAnchoredMenu sets top/left;
+     the menu may overflow the panel and the dialog. */
+  position: fixed;
   z-index: 40;
-  top: calc(100% + 0.35rem);
+  top: 0;
   left: 0;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
   display: grid;
   width: max-content;
   min-width: 100%;
@@ -394,12 +398,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* The right-hand select's menu opens leftward, inside the dialog. */
-.ucs-settings-model-field:last-child .ucs-provider-menu {
-  right: 0;
-  left: auto;
 }
 
 .ucs-provider-trigger:disabled {
