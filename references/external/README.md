@@ -1,10 +1,13 @@
 # External reference campaign
 
 Current retrieval work: [offline batching verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json)
-closes PLAN f1/f2. The default-off metadata/PMC-link path passes 371 MCP tests,
-strict typing and independent review; it remains unreleased. Four original
-scientific/final gates remain open. Historical studies are immutable and unscored;
-no new comparison, source bank or model qualification has started.
+closes PLAN f1/f2; [strict trace-reader verification](sakana/novelty-batch-reader-verification-2026-09-30.json)
+closes f3 with 26 passing offline cases and independent review. The required
+[maintained-code release checks](m12-batching-release-checks-2026-09-30.json) pass;
+the batching path remains unreleased. Workflow integration is next, before a
+distinct prospective comparison. Four original scientific/final gates remain
+open; historical studies remain immutable and unscored. No new source bank,
+registration, admission or model qualification has started.
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)

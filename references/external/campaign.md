@@ -30,6 +30,14 @@ closed by [offline implementation and independent verification](sakana/novelty-p
 The code remains unreleased. No fifth registration, additional source bank or
 model qualification is underway.
 
+The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.json)
+now passes 26 offline tests, including the maintained public-tool producer with
+one metadata batch and two PMC pages. Its exact metadata proof excludes search,
+full-text and recovery from savings; it makes no total-request or page-completeness
+claim. It remains separate from the pilot workflow until PLAN f4 is complete.
+The [required maintained-code checks](m12-batching-release-checks-2026-09-30.json)
+passed on pinned product trees; they do not establish live scientific acceptance.
+
 Before a distinct comparison can use batching, a separately registered reader must
 validate records rather than reuse the historical per-ID call-count assertions:
 

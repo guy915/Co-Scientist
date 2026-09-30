@@ -1,0 +1,72 @@
+{
+  "purpose": "Required offline release-check evidence for the maintained batching code after preserving PR81 UI changes; not a PR/deployment receipt",
+  "recorded_at_utc": "2026-09-30T17:42:58.006395+00:00",
+  "status": "ALL_REQUIRED_OFFLINE_CHECKS_PASSED_PRODUCT_TREES_UNCHANGED",
+  "base_commit": "852ac4f9d3dd2629307589a0b775f2dde37384d9",
+  "merged_main": "062a3d3156f5129202df9c5c36c9e84ac761d800",
+  "component_trees": {
+    "app": "404467fd6734e7be2eea67bbb3ac9aa196f4901f",
+    "engine": "e10c5b3f87586e8fd9286f29ee30f6f449d3482f",
+    "evaluations": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+    "e2e": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+    ".github": "1eb74a4ab52fffe43aed1407de8f997711545e5a"
+  },
+  "checks": [
+    {
+      "command": "make test-all",
+      "exit_code": 0,
+      "result": "3171 engine passed/2 existing skips;2055 app passed;371 MCP passed;strict MCP mypy88;parity ledger/evaluation tests passed",
+      "private_log": "/private/tmp/cosci-batch-release-testall-20260930.log",
+      "log_sha256": "baafe963a1e53607e8da88556022c6e4f94ffaaea1b2ee8a8c3f64f7b071dede"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "result": "passed",
+      "private_log": "/private/tmp/cosci-batch-release-lint-20260930.log",
+      "log_sha256": "320ef0bd83fc34c6f791b1b40de9de29293f117e319c01c736aa07719d35601f"
+    },
+    {
+      "command": "make typecheck",
+      "exit_code": 0,
+      "result": "554 app/567 engine/60 evaluation source files clean",
+      "private_log": "/private/tmp/cosci-batch-release-typecheck-20260930.log",
+      "log_sha256": "8773f31ad68355efda32ef21a2fb4c58557fde5157e327cc1d0058e85339ee5f"
+    },
+    {
+      "command": "make build",
+      "exit_code": 0,
+      "result": "passed",
+      "private_log": "/private/tmp/cosci-batch-release-build-20260930.log",
+      "log_sha256": "07405b0dc2a4eb94335ec6519ded3a2f4b8dcfb2b6f8ffeb0b1d7d579b8f554c"
+    },
+    {
+      "command": "make eval-smoke",
+      "exit_code": 0,
+      "result": "offline smoke passed",
+      "private_log": "/private/tmp/cosci-batch-release-eval-smoke-20260930.log",
+      "log_sha256": "cb498928d93e269edf4b0bf72729baf90e76e9fbcc93935a9f944a0287e967e6"
+    },
+    {
+      "command": "(cd app/frontend && bun run test)",
+      "exit_code": 0,
+      "result": "813 tests/128 files passed",
+      "private_log": "/private/tmp/cosci-batch-release-frontend-20260930.log",
+      "log_sha256": "776dec6f66264b5191c63f4be54c7985f985a50e8ca52cab82bea693e0686359"
+    },
+    {
+      "command": "make e2e",
+      "exit_code": 0,
+      "result": "18 passed, isolated offline browser stack",
+      "private_log": "/private/tmp/cosci-batch-release-e2e-20260930.log",
+      "log_sha256": "c4d14a01299131080f15e60d6610332d0945046a1d82c318b35a181f34c26bcc"
+    }
+  ],
+  "limits": [
+    "No live model/Entrez evaluation or production operation occurred.",
+    "The separate new batch reader is outside these maintained-component checks and needs targeted independent proof.",
+    "Reuse is valid only while the relevant product trees, dependencies, configuration and evaluation inputs are unchanged.",
+    "Exact-diff pre-PR review/security approval and release/deployment verification remain required before treating the code as shipped.",
+    "make test-sandbox-linux is not applicable: no execution confinement or container behavior changed."
+  ]
+}
