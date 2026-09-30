@@ -2,7 +2,7 @@
 
 ## Current execution state
 
-As of 30 September, all nine required source investigations are closed. The
+As of 1 October local time, all nine required source investigations are closed. The
 [corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md),
 [71-task public flow](m12-free-default-public-acceptance-2026-09-30.json) and
 [17-task Robin continuation](m12-robin-continuation-acceptance-2026-09-30.json)
@@ -27,8 +27,15 @@ and [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-202
 support a default-off, bounded metadata/PMC-link batching path. PLAN f1/f2 are
 closed by [offline implementation and independent verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json):
 371 MCP tests, strict typing and preserved legacy studies/full-text downloads.
-The code remains unreleased. The separately prepared fifth comparison is now
-registered; no admission or model qualification has occurred.
+The code remains unreleased. The separately registered fifth comparison
+[was admitted once](sakana/novelty-pilot-v5-launch-2026-09-30.json), then
+[stopped incomplete](sakana/novelty-pilot-v5-terminal-2026-09-30.json) after 14
+zero-cost model responses and 21 outer searches. The last search was empty with
+no recorded upstream error; strict raw-trace validation passed, but returned-link
+validation falsely demanded batching metadata despite zero returned papers.
+No arm scoring, scientific disposition, confirmation or replay is authorized.
+All five admissions are consumed. Next f7 is only an offline behavioral repair of
+that local guard, retaining all nonempty-link and upstream-error proof requirements.
 
 The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.json)
 now passes 26 offline tests, including the maintained public-tool producer with
@@ -41,9 +48,9 @@ an unchanged committed bank6/protocol5 with a distinct exclusive admission, and
 [f5 preparation and committed loaders](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
 now pass with the real isolated CLI/MCP preflight. Source review verifies all twelve
 primary records and finite-set disjointness against 644 prior IDs; selection is exploratory.
-The preflight process is stopped; f6 needs fresh route/account and process checks
-before its sole admission. Historical records and assertions
-are unchanged; their exact original runner is retained in Git. Strict typing of
+The preflight process is stopped. F6 rechecked the exact current free route/account,
+attested a fresh isolated MCP, and consumed its sole admission; both live PIDs and
+listener are now absent. Historical records and assertions are unchanged; their exact original runner is retained in Git. Strict typing of
 new tests passes, with inherited whole-reference diagnostics explicitly retained.
 The [required maintained-code checks](m12-batching-release-checks-2026-09-30.json)
 passed on pinned product trees; they do not establish live scientific acceptance.

@@ -1,0 +1,9 @@
+{
+  "status": "CLAIMED",
+  "claimed_at_utc": "2026-09-30T22:01:35.753716+00:00",
+  "protocol_sha256": "eeaf7fd39db1d73d7dabb50a73c6911df83869645306b37e1a65200acda8e4bb",
+  "model_name": "openrouter/stealth/space-bunny-alpha",
+  "max_model_calls": 24,
+  "max_outer_mcp_calls": 36,
+  "study_version": 5
+}

@@ -3,15 +3,16 @@
 Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
 [strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
 [workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
-close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
-closes f5: six exploratory pairs, twelve independently verified primary sources,
-exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
-The normal loader accepted the committed bytes; no admission or scientific call occurred.
-The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
-Next is the sole f6 comparison after fresh free-route and serving-process checks,
-with the unchanged 24-model/36-outer-call caps and scientific gates. All four
-historical admissions remain consumed, immutable and unscored. Four original
-scientific/final gates remain open; no further model qualification is authorized.
+close PLAN f1–f4; [committed registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+closes f5. The [sole fifth-study launch](sakana/novelty-pilot-v5-launch-2026-09-30.json)
+[terminated incomplete](sakana/novelty-pilot-v5-terminal-2026-09-30.json) after
+14 free model responses and 21 outer searches. A valid empty PubMed trace passed
+strict attestation but a later guard incorrectly required per-paper link proof.
+Its actual result, consumed admission, unscored blind packet and raw cache are retained;
+account usage did not increase. No scientific adoption/rejection follows.
+Next f7 reproduces and repairs only that empty-result guard offline. It authorizes
+no replay, continuation, new bank or live run. Batching remains unreleased; the four
+original scientific/final gates stay open. No further model qualification is authorized.
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)
