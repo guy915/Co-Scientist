@@ -24,11 +24,11 @@ def _capture_requests(monkeypatch: pytest.MonkeyPatch) -> list[Request]:
 def _request_params(request: Request) -> dict[str, list[str]]:
     """Reads the encoded query string or POST body from a Request."""
     data = request.data
-    encoded = (
-        data.decode("utf-8")
-        if data is not None
-        else urlsplit(request.full_url).query
-    )
+    if data is None:
+        encoded = urlsplit(request.full_url).query
+    else:
+        assert isinstance(data, bytes)
+        encoded = data.decode("utf-8")
     return parse_qs(encoded)
 
 

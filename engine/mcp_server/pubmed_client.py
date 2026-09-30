@@ -1,5 +1,7 @@
 """Entrez-backed PubMed client: search and per-paper metadata fetching."""
 
+import hashlib
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,40 @@ logger = logging.getLogger(__name__)
 
 # One source of truth for the sort sent to Entrez and recorded in pilot traces.
 PUBMED_SEARCH_SORT = "pub_date"
+PUBMED_METADATA_BATCH_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
+PUBMED_METADATA_BATCH_SIZE = 9
+
+
+def _metadata_no_link_sidecar(metadata_file: Path) -> Path:
+    return metadata_file.with_name(f".{metadata_file.stem}.no-link.sha256")
+
+
+def _has_proven_metadata_no_link(metadata_file: Path) -> bool:
+    try:
+        expected = _metadata_no_link_sidecar(metadata_file).read_text(
+            encoding="ascii"
+        )
+        actual = hashlib.sha256(metadata_file.read_bytes()).hexdigest()
+    except (OSError, UnicodeError):
+        return False
+    return expected == actual
+
+
+def _write_metadata_cache_file(
+    metadata_file: Path,
+    metadata: dict[str, Any],
+    *,
+    successful_no_link: bool = False,
+) -> None:
+    sidecar = _metadata_no_link_sidecar(metadata_file)
+    # Failed legacy lookups can rewrite identical JSON. Expire the old proof.
+    sidecar.unlink(missing_ok=True)
+    with open(metadata_file, "w", encoding="utf-8") as stream:
+        json.dump(metadata, stream)
+    if successful_no_link:
+        digest = hashlib.sha256(metadata_file.read_bytes()).hexdigest()
+        sidecar.write_text(digest, encoding="ascii")
+
 
 # Configure Entrez credentials at import so the source is ready to query.
 initialize_entrez()
@@ -126,6 +162,27 @@ def _extract_abstract(article: dict[str, Any]) -> str:
         return " ".join(article["Abstract"]["AbstractText"])
     except KeyError:
         return "<not found>"
+
+
+def _parse_pubmed_article(
+    pubmed_article: dict[str, Any],
+    pmc_full_text_id: str | None,
+    doi: str | None = None,
+) -> dict[str, Any]:
+    """Parses one PubMed record using the maintained metadata fields."""
+    citation = pubmed_article["MedlineCitation"]
+    article = citation["Article"]
+    resolved_doi = doi if doi is not None else _extract_doi(pubmed_article)
+    return {
+        "date_revised": _parse_date_revised(citation),
+        "title": clean_markup(article["ArticleTitle"]),
+        "abstract": clean_markup(_extract_abstract(article)),
+        "doi": resolved_doi,
+        "authors": _parse_authors(article),
+        "publication": article["Journal"]["Title"],
+        "pmc_full_text_id": pmc_full_text_id,
+        "publication_types": _extract_publication_types(article),
+    }
 
 
 def _apply_recency_filter(
@@ -244,22 +301,9 @@ class _EntrezClient:
             entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
         )
         pubmed_article = results["PubmedArticle"][0]
-        citation = pubmed_article["MedlineCitation"]
-        article = citation["Article"]
-
         doi = _extract_doi(pubmed_article)
-        return {
-            "date_revised": _parse_date_revised(citation),
-            # PubMed sends formatting inside its metadata -- italics around
-            # species names, subscripts inside gene symbols.
-            "title": clean_markup(article["ArticleTitle"]),
-            "abstract": clean_markup(_extract_abstract(article)),
-            "doi": doi,
-            "authors": _parse_authors(article),
-            "publication": article["Journal"]["Title"],
-            "pmc_full_text_id": self._fetch_pmc_fulltext_id(paper_id, doi),
-            "publication_types": _extract_publication_types(article),
-        }
+        pmc_id = self._fetch_pmc_fulltext_id(paper_id, doi)
+        return _parse_pubmed_article(pubmed_article, pmc_id, doi)
 
     def _esearch_ids(
         self, query: str, retmax: int, recency_years: int
