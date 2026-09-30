@@ -1,0 +1,91 @@
+{
+  "purpose": "Terminal fourth-study evidence. Operational interruption is not a scientific rejection, adoption or successful comparison.",
+  "status": "INCOMPLETE_UNSCORED_CONSUMED_ADMISSION",
+  "recorded_at_utc": "2026-09-30T14:04:08.281601+00:00",
+  "source_commit": "c168f285071a000e80077a71565bc883dce3aa3a",
+  "result_path": "references/external/sakana/novelty-result-conditioned-pilot-v4-01dfb626be3f.json",
+  "result_sha256": "0369f49780f25fbcd159042e3115079c278cb6f927296b697ee82609611bb6fb",
+  "protocol_sha256": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc",
+  "admission_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.admission.json",
+  "admission_sha256": "1a9e4697cc7af07762655526b2e4a149bdac1842fa5fcde37090c389da54db83",
+  "terminal_private_path": "/private/tmp/cosci-m12-04b4-study4-run-artifacts-20260930/terminal.json",
+  "terminal_private_sha256": "f0b92e8021492695d4c25df23575fd69ecad45437eb0f1f1c3b58e2fba5a3583",
+  "runner_exit_code": 1,
+  "launcher_exit_code": 0,
+  "owned_processes_stopped": true,
+  "model_evidence": {
+    "requested_and_all_served_model": "openrouter/stealth/space-bunny-alpha",
+    "physical_provider_responses": 13,
+    "model_queries": 13,
+    "local_response_cache_hits": 0,
+    "retries": 0,
+    "fallbacks": 0,
+    "reported_cost_usd": 0,
+    "paid_calls": 0,
+    "scope": "Per-response telemetry and unchanged account usage observed; not audited billing. Cached input-token reporting is distinct from local response-cache reuse."
+  },
+  "retrieval_evidence": {
+    "outer_calls": 19,
+    "fully_traversed_pairs_before_error": 3,
+    "required_pairs": 6,
+    "first_error_stage": "first_search",
+    "first_error_pair": "pma1-pontine",
+    "event_classification": "retrieval_error",
+    "event_exception_type": "ValueError",
+    "upstream_error_from_raw_trace": {
+      "study_id": "M12-04b4-study4-20260930",
+      "run_id": "m11_nov_01a3b3_1a2ad17de24f_19",
+      "server_build_id": "b9be2e8af56575544d7b97bb99b816595027affd",
+      "process_id": 57295,
+      "operation": "elink",
+      "logical_request_ordinal": 8,
+      "attempt_ordinal": 1,
+      "http_status": 429,
+      "retry_after_value": "2",
+      "retry_after_raw_prefix": "2",
+      "retry_after_raw_truncated": false,
+      "wait_seconds": 0.0,
+      "outcome": "study_budget_exhausted"
+    },
+    "successful_recoveries_before_error": 2,
+    "failed_trace_exhausted_calls": 1,
+    "result_aggregate_scope": "Top-level entrez_recovery_accounting includes the first18 successfully validated searches, not the rejected nineteenth raw trace. All-trace totals below include that failed search; do not confuse its excluded exhaustion with zero failures.",
+    "all_19_recorded_trace_logical_entries": {
+      "esearch": 30,
+      "efetch": 144,
+      "elink": 104
+    },
+    "all_19_recorded_trace_client_entry_attempts": {
+      "esearch": 30,
+      "efetch": 146,
+      "elink": 104
+    },
+    "entry_count_limit": "Client-entry counters are not wire HTTP telemetry;36 is outer-call cap, not aggregate HTTP cap.",
+    "recovery_budget": {
+      "used": 2,
+      "maximum": 2,
+      "failed_request_retried": false
+    }
+  },
+  "account_usage": {
+    "before": 39.240436083,
+    "after": 39.240436083,
+    "unchanged": true,
+    "post_http_status": 200
+  },
+  "blind_packet": [
+    {
+      "mode": "0o600",
+      "path": "/tmp/cosci-m12-nov-04b4e3-v4-blind-01dfb626be3f480298c8fb3cf8f43dc6.json",
+      "sha256": "4aad6a061219c3f73b802de15b8c52c91a63e44b2df47a6b99bac17515be0d0b"
+    }
+  ],
+  "scientific_scoring": {
+    "status": "NOT_PERFORMED",
+    "reason": "Six-pair completeness prerequisite failed; partial results and blind packet remain unscored.",
+    "adoption": false,
+    "rejection": false,
+    "confirmation_authorized_by_pass": false
+  },
+  "next": "Read-only audit of maintained PubMed pacing/request volume and reusable batching only; no consumed-study replay, new fixtures, further model qualification or another live comparison without an explicit justified prospective plan."
+}
