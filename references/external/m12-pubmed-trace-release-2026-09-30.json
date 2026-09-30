@@ -1,6 +1,6 @@
 {
   "purpose": "M12-04b8a release of verified opt-in maintained PubMed trace and archived versioned study runner",
-  "status": "PRE_RELEASE_CHECKS_RUNNING",
+  "status": "PRE_RELEASE_CORRECTION",
   "reviewed_source_head": "17d9522ec673fa5f4a50b1f25a55b0e4676bbfe0",
   "base": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
   "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
@@ -35,10 +35,72 @@
     "user_primary_agents": "Preserved user changes in primary checkout."
   },
   "release": {
-    "status": "PENDING_REQUIRED_CHECKS",
+    "status": "PENDING_TEST_ORGANIZATION_CORRECTION_AND_REQUIRED_RERUN",
     "production_source_before": "8bb80e28f141e7a78727cfce18fb322efb2819bb",
     "configuration_changes": {},
     "invariants": "Retain API single replica/UID0, persistent DB /app/data, cache off volume, existing free model defaults and BYOK isolation. No schema migration, no trace flag enabled in production.",
     "scientific_acceptance": "Novelty interruption remains inconclusive; b4/b5/b7/b8 not satisfied by this release."
+  },
+  "initial_required_checks": {
+    "make-test-all": {
+      "exit_code": 2,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-test-all.log",
+      "summary": [
+        "3171 passed, 2 skipped in 134.43s (0:02:14)",
+        "2055 passed, 31 warnings in 259.85s (0:04:19)",
+        "328 passed, 5 warnings in 4.53s",
+        "Success: no issues found in 79 source files"
+      ],
+      "failure": "Parity file-length gate: new819line test module exceeds existing500line ceiling; behavioral engine/API/MCP suites and strictMCPtypes passed. Assertions/thresholds remain intact; test-only split and actual named command rerun required."
+    },
+    "make-lint": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-lint.log",
+      "summary": [
+        "652 files already formatted",
+        "554 files already formatted",
+        "60 files already formatted",
+        "All checks passed!",
+        "All checks passed!",
+        "All checks passed!"
+      ]
+    },
+    "make-typecheck": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-typecheck.log",
+      "summary": [
+        "Success: no issues found in 554 source files",
+        "Success: no issues found in 567 source files",
+        "Success: no issues found in 60 source files"
+      ]
+    },
+    "make-build": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-build.log",
+      "summary": [
+        "\u2713 built in 1.13s",
+        "Pre-rendered 1 public routes and 404.html."
+      ]
+    },
+    "make-eval-smoke": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-eval-smoke.log",
+      "summary": []
+    },
+    "frontend-bun-test": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/frontend-bun-test.log",
+      "summary": [
+        "Test Files  128 passed (128)",
+        "Tests  813 passed (813)"
+      ]
+    },
+    "make-e2e": {
+      "exit_code": 0,
+      "log": "/private/tmp/cosci-release-checks-d46dafae-d7348b1236ff44dfb0bd9124581d41ff/make-e2e.log",
+      "summary": [
+        "18 passed (1.0m)"
+      ]
+    }
   }
 }
