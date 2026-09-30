@@ -1,5 +1,15 @@
 # M12 acceptance-gap disposition after PR #60
 
+## Current update — 30 September 2026
+
+This update supersedes the dated snapshots below; `PLAN.md` remains authoritative.
+
+- **Selected route:** [the corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md) passed its frozen gates with 200 responses. [The released public flow](m12-free-default-public-acceptance-2026-09-30.json) completed 71/71 tasks with 178 observed/priced responses, reported $0 and unchanged account usage. Its 29 recovered API-error attempts and citation limitations remain visible; this is not expert validation or superiority over untested models.
+- **Ling Sante:** [the configuration-specific disposition](baseline/model-qualification/ling-sante-disposition-2026-09-30.md) rejects the pinned Novita/model/request configuration under its existing repeated-completed-failure rule. Two completed primary judgments missed the frozen partial-support label; the third trial's separate incomplete verifier does not erase those results. Other configurations are not assessed.
+- **Cloudflare larger-output variant:** remains untested and unqualified. The tested 1,024-output-token closing tool turn truncated; no larger-budget result exists. Privacy/retention is waived. Unattended free-plan admission, completed tool behavior and scientific quality are unproven. No new probe is authorized or performed. The campaign contract permits an unselected alternative to remain unqualified without blocking the selected-route release; full candidate reconciliation remains M12-04b7.
+- **Novelty:** qualified-route preregistration is committed and loader-verified; the result-conditioned pilot and conditional independent confirmation remain open. The prior precise-rung rejection is a separate mechanism.
+- **Robin and final acceptance:** remain open. No old ambiguous refinement action is replayed, and no full campaign completion is claimed.
+
 **Finding:** The nine required repository assessments and accepted releases are
 reconciled, but the original campaign acceptance criteria do **not** yet hold.
 This is a negative acceptance finding, not a declaration that the campaign is
