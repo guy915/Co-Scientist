@@ -1,5 +1,5 @@
 {
-  "purpose": "M12-04b2 default release evidence; deployment/public flow remains unverified",
+  "purpose": "M12-04b2 verified free defaults, existing-service release and completed owned public flow",
   "recorded_at_utc": "2026-09-29T22:35:16.346524+00:00",
   "starting_head": "f10041a219ac89c1cd33de5c6f0c88dc04743df4",
   "product_base": "ef9684ab93bf92f49a8711cb34a5840dd76a7399",
@@ -172,19 +172,14 @@
     "rollback": "Keep four zero-price overrides; prior verified ef9684ab code supports this route. Never restore expired or paid model settings."
   },
   "public_flow": {
-    "status": "running",
+    "status": "completed",
     "run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
-    "execution_policy": "campaign",
-    "selected_model": "openrouter/stealth/space-bunny-alpha",
-    "notify_on_completion": false,
-    "admission_receipt": "/private/tmp/cosci-defaults-public-admission-20260930.json",
-    "create_receipt": "/private/tmp/cosci-defaults-public-create-20260930.json",
-    "start_receipt": "/private/tmp/cosci-defaults-public-start-20260930.json",
-    "watch_session": 74105,
-    "watch_log": "/private/tmp/cosci-defaults-public-watch-20260930.log",
-    "watch_script": "/private/tmp/cosci_defaults_sse_watch_20260930.py",
-    "remaining": "Await terminal event, verify report/public provenance/ownership/tasks and served model/cost before checking M12-04b2. Do not duplicate create/start.",
-    "pre_launch_recovery": "Initial launcher stopped before create because managed .env has no OpenRouter key; use existing protected primary .env for account usage readback. No inference/create occurred in that attempt."
+    "evidence_record": "m12-free-default-public-acceptance-2026-09-30.json",
+    "tasks_completed": 71,
+    "tasks_total": 71,
+    "observed_model_responses": 178,
+    "reported_cost_usd": 0,
+    "account_usage_unchanged": true
   },
   "deliberately_absent": [
     "secrets",

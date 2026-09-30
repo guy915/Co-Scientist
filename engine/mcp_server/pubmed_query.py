@@ -46,6 +46,9 @@ actual ``esearch`` as a callable.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
+
+_MAX_TRACE_IDS = 9
 
 # A search returning at least this many ids is "enough"; below it the caller
 # steps to the next, broader ladder rung. Clamped to the caller's retmax so a
@@ -204,11 +207,89 @@ def relaxation_ladder(
     return ladder
 
 
+def _relaxation_rung_type(
+    rung_index: int, query: str, term: str, recency_years: int
+) -> str:
+    if rung_index == 1:
+        return "exact"
+    if term == query and recency_years == 0:
+        return "recency_dropped"
+    return "anchored" if " AND (" in term else "or"
+
+
+def _record_attempt(
+    trace: dict[str, Any] | None, attempt: dict[str, Any] | None
+) -> None:
+    """Records one application-level ESearch rung without query text.
+
+    Bio.Entrez's internal transport retries are below this seam and are not
+    visible as separate attempts here.
+    """
+    if trace is not None and attempt is not None:
+        trace.setdefault("attempts", []).append(attempt)
+
+
+def _new_attempt(
+    trace: dict[str, Any] | None,
+    rung_index: int,
+    rung_type: str,
+    recency_years: int,
+    retmax: int,
+) -> dict[str, Any]:
+    return {
+        "rung_index": rung_index,
+        "rung_type": rung_type,
+        "operation": "esearch",
+        "recency_years": recency_years,
+        "retmax": retmax,
+        "sort": trace["sort"] if trace is not None else None,
+    }
+
+
+def _record_failed_attempt(
+    trace: dict[str, Any] | None,
+    attempt: dict[str, Any],
+    exc: Exception,
+) -> None:
+    attempt.update(
+        {"count": 0, "first_ids": [], "error_type": type(exc).__name__}
+    )
+    _record_attempt(trace, attempt)
+    if trace is None:
+        return
+    trace["selected"] = None
+    trace["threshold_met"] = False
+    trace["error"] = {"stage": "esearch", "type": type(exc).__name__}
+
+
+def _record_selected_rung(
+    trace: dict[str, Any] | None,
+    selected: tuple[int, str, str, list[str]] | None,
+    threshold_met: bool,
+) -> None:
+    """Records which relaxation rung supplied the returned identifiers."""
+    if trace is None:
+        return
+    trace["selected"] = (
+        {
+            "rung_index": selected[0],
+            "rung_type": selected[1],
+            "count": len(selected[3]),
+            "ids": selected[3][:_MAX_TRACE_IDS],
+            "sort": trace["sort"],
+        }
+        if selected
+        else None
+    )
+    trace["threshold_met"] = threshold_met
+
+
 def search_with_relaxation(
     query: str,
     retmax: int,
     recency_years: int,
     esearch: EsearchFn,
+    trace: dict[str, Any] | None = None,
 ) -> list[str]:
     """Run ``esearch`` down the relaxation ladder until results suffice.
 
@@ -224,16 +305,35 @@ def search_with_relaxation(
         retmax: Maximum ids to request per attempt.
         recency_years: The initial publication-date window (0 = none).
         esearch: Runs one search: ``(query, retmax, recency_years) -> ids``.
+        trace: Optional bounded record of each application-level search rung.
 
     Returns:
         The chosen attempt's ids (possibly empty).
     """
     threshold = min(MIN_RESULTS_BEFORE_RELAX, retmax)
     best: list[str] = []
-    for term, recency in relaxation_ladder(query, recency_years):
-        ids = esearch(term, retmax, recency)
+    fallback: tuple[int, str, str, list[str]] | None = None
+    for rung_index, (term, recency) in enumerate(
+        relaxation_ladder(query, recency_years), start=1
+    ):
+        rung_type = _relaxation_rung_type(rung_index, query, term, recency)
+        attempt = _new_attempt(trace, rung_index, rung_type, recency, retmax)
+        try:
+            ids = esearch(term, retmax, recency)
+        except Exception as exc:
+            _record_failed_attempt(trace, attempt, exc)
+            raise
+        attempt.update({"count": len(ids), "first_ids": ids[:_MAX_TRACE_IDS]})
+        _record_attempt(trace, attempt)
         if len(ids) >= threshold:
+            _record_selected_rung(
+                trace,
+                (rung_index, rung_type, term, ids),
+                threshold_met=True,
+            )
             return ids
         if ids and not best:
             best = ids
+            fallback = (rung_index, rung_type, term, ids)
+    _record_selected_rung(trace, fallback, threshold_met=False)
     return best

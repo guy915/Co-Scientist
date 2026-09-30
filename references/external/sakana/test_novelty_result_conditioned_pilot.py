@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -39,6 +40,8 @@ class FakeMCPClient:
         fail_on_call: int | None = None,
         abstract_suffix: str = "",
         response_override: str | None = None,
+        include_v2_trace: bool = False,
+        incomplete_fetch: bool = False,
     ) -> None:
         self.cache_root = cache_root
         self.events = events
@@ -46,6 +49,8 @@ class FakeMCPClient:
         self.fail_on_call = fail_on_call
         self.abstract_suffix = abstract_suffix
         self.response_override = response_override
+        self.include_v2_trace = include_v2_trace
+        self.incomplete_fetch = incomplete_fetch
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.last_response: str | None = None
         self.initialize_calls = 0
@@ -97,6 +102,74 @@ class FakeMCPClient:
             ),
             encoding="utf-8",
         )
+        if self.include_v2_trace:
+            ids = list(response_data) if isinstance(response_data, dict) else []
+            metadata = response_data.get(ids[0], {}) if ids else {}
+            raw_trace = {
+                "run_id": params["run_id"],
+                "server_build_id": "offline-build",
+                "process_id": 123,
+                "source_file": str(pilot.ROOT / "engine/mcp_server/pubmed_client.py"),
+                "sort": "pub_date",
+                "entrez_retry_policy": {
+                    "max_tries": 1,
+                    "sleep_between_tries": 0,
+                },
+                "entrez_calls": {
+                    "esearch": 1,
+                    "efetch": len(ids) + int(self.incomplete_fetch),
+                    "elink": len(ids),
+                },
+                "incomplete_fetch_count": int(self.incomplete_fetch),
+                "fetch_errors": (
+                    [{"stage": "fulltext", "pmid": ids[0], "type": "RuntimeError"}]
+                    if self.incomplete_fetch and ids
+                    else []
+                ),
+                "metadata_origins": {paper_id: "entrez_fetch" for paper_id in ids},
+                "attempts": [
+                    {
+                        "rung_index": 1,
+                        "rung_type": "original",
+                        "operation": "esearch",
+                        "count": len(ids),
+                        "first_ids": ids,
+                        "sort": "pub_date",
+                    }
+                ],
+                "selected": {
+                    "rung_index": 1,
+                    "rung_type": "original",
+                    "count": len(ids),
+                    "ids": ids,
+                    "sort": "pub_date",
+                }
+                if ids
+                else None,
+                "pre_search_shared_pool": {
+                    "file_count": 0,
+                    "metadata_count": 0,
+                    "first_ids": [],
+                },
+                "fetched": [
+                    {
+                        "pmid": paper_id,
+                        "fetched": True,
+                        "metadata_origin": "entrez_fetch",
+                        "pmc_available": False,
+                        "abstract_available": bool(
+                            str(metadata.get("abstract", "")).strip()
+                        ),
+                        "incomplete": self.incomplete_fetch and paper_id == ids[0],
+                    }
+                    for paper_id in ids
+                ],
+                "final_ids": ids,
+                "shared_pool_supplements": [],
+                "error": None,
+                "outcome": "nonempty" if ids else "empty",
+            }
+            trace.write_text(json.dumps(raw_trace), encoding="utf-8")
         return self.last_response
 
 
@@ -149,6 +222,7 @@ def _run_pilot(
     *,
     expected_build_id: str = "offline-build",
     model_name: str = MODEL,
+    study_version: int = 1,
 ) -> dict[str, Any]:
     return asyncio.run(
         pilot.run_pilot(
@@ -161,8 +235,40 @@ def _run_pilot(
             expected_build_id=expected_build_id,
             model_name=model_name,
             model_api_key="offline-test-key",
+            study_version=study_version,
         )
     )
+
+
+def _select_v2_protocol(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline_runtime: dict[str, Any],
+) -> dict[str, Any]:
+    protocol = offline_runtime["protocol"]
+    protocol.update(
+        {
+            "study_version": 2,
+            "protocol_version": 2,
+            "fixture_bank_version": 3,
+            "fixture_bank_path": pilot.V2_FIXTURE_BANK_PATH,
+            "fixture_bank_sha256": "v3-test-bank-hash",
+        }
+    )
+    protocol_path = tmp_path / "pilot-protocol-v2.json"
+    protocol_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V2", protocol_path)
+    monkeypatch.setattr(
+        pilot,
+        "_load_pilot_protocol",
+        lambda study_version=1: protocol,
+    )
+    monkeypatch.setattr(
+        pilot,
+        "_load_fixture_bank",
+        lambda _protocol, _study_version: screen._load_preregistration(1),
+    )
+    return protocol
 
 
 def _model_completion(content: str, model: str = SERVED_MODEL) -> SimpleNamespace:
@@ -814,6 +920,333 @@ def test_main_is_disabled_until_a_preregistered_protocol_exists(
         ValueError, match="disabled until its protocol is preregistered"
     ):
         asyncio.run(pilot._main())
+
+
+def test_study_version_is_explicit_and_uses_separate_output_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert pilot._parse_args([]).study_version == 1
+    assert pilot._parse_args(["--study-version", "2"]).study_version == 2
+
+    monkeypatch.setattr(pilot, "RESULT_DIR", tmp_path)
+    v1_result, v1_blind = pilot._new_output_paths(1)
+    v2_result, v2_blind = pilot._new_output_paths(2)
+
+    assert v1_result.name.startswith("novelty-result-conditioned-pilot-v1-")
+    assert v2_result.name.startswith("novelty-result-conditioned-pilot-v2-")
+    assert "-v1-blind-" in v1_blind.name
+    assert "-v2-blind-" in v2_blind.name
+    assert len({v1_result, v1_blind, v2_result, v2_blind}) == 4
+
+
+def test_v2_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_replayed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline_runtime: dict[str, Any],
+) -> None:
+    _select_v2_protocol(tmp_path, monkeypatch, offline_runtime)
+    _qualified_model(monkeypatch)
+    import litellm
+
+    provider_calls = 0
+
+    async def fake_acompletion(**_: Any) -> SimpleNamespace:
+        nonlocal provider_calls
+        provider_calls += 1
+        return _model_completion('{"query":"offline query"}')
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    cache_root = tmp_path / "cache-v2"
+    cache_root.mkdir()
+    client = FakeMCPClient(
+        cache_root,
+        [],
+        include_v2_trace=True,
+        incomplete_fetch=True,
+    )
+    first = _run_pilot(
+        client,
+        cache_root,
+        tmp_path / "result-v2.json",
+        tmp_path / "blind-v2.json",
+        study_version=2,
+    )
+
+    assert first["status"] == "INCOMPLETE_ERROR"
+    assert first["study_version"] == 2
+    assert first["model_call_count"] == 1
+    assert first["provider_call_count"] == 1
+    assert first["outer_mcp_call_count"] == 1
+    assert first["events"][-1]["trace_error"] == "ValueError"
+    assert (
+        first["events"][-1]["trace_attestation"]["fetch_errors"][0]["stage"]
+        == "fulltext"
+    )
+    assert first["events"][-1]["trace_attestation"]["incomplete_fetch_count"] == 1
+    assert provider_calls == 1
+    assert len(client.calls) == 1
+    admission_path = pilot.PILOT_PREREG_V2.with_suffix(".admission.json")
+    admission = json.loads(admission_path.read_text(encoding="utf-8"))
+    assert admission["study_version"] == 2
+    assert (
+        admission["protocol_sha256"]
+        == hashlib.sha256(pilot.PILOT_PREREG_V2.read_bytes()).hexdigest()
+    )
+
+    next_cache = tmp_path / "next-cache-v2"
+    next_cache.mkdir()
+    with pytest.raises(ValueError, match="campaign admission already exists"):
+        _run_pilot(
+            client,
+            next_cache,
+            tmp_path / "fresh-result-v2.json",
+            tmp_path / "fresh-blind-v2.json",
+            study_version=2,
+        )
+    assert provider_calls == 1
+    assert len(client.calls) == 1
+
+
+def test_v2_protocol_binds_committed_bank_path_and_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = tmp_path / "repository"
+    bank_path = repository / pilot.V2_FIXTURE_BANK_PATH
+    protocol_path = (
+        repository
+        / "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.json"
+    )
+    bank_path.parent.mkdir(parents=True)
+    bank = {
+        "version": 3,
+        "status": pilot.V2_FIXTURE_BANK_STATUS,
+        "cases_in_fixed_order": [],
+        "validation_boundary": {},
+    }
+    bank_bytes = (json.dumps(bank, indent=2) + "\n").encode()
+    bank_path.write_bytes(bank_bytes)
+    protocol = {
+        "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
+        "study_version": 2,
+        "protocol_version": 2,
+        "fixture_bank_version": 3,
+        "fixture_bank_path": pilot.V2_FIXTURE_BANK_PATH,
+        "fixture_bank_sha256": hashlib.sha256(bank_bytes).hexdigest(),
+        "runner_sha256": hashlib.sha256(Path(pilot.__file__).read_bytes()).hexdigest(),
+        "static_prompt_sha256": hashlib.sha256(
+            pilot.STATIC_PROMPT.encode()
+        ).hexdigest(),
+        "conditioned_prompt_sha256": hashlib.sha256(
+            pilot.CONDITIONED_PROMPT.encode()
+        ).hexdigest(),
+        "request_config": pilot.MODEL_REQUEST_CONFIG,
+        "max_outer_mcp_calls": pilot.OUTER_MCP_CALL_LIMIT,
+        "max_model_calls": pilot.MODEL_CALL_LIMIT,
+        "model_name": MODEL,
+        "model_boundary_sha256": {"offline": "source-hash"},
+        "mcp_tree": "offline-build",
+        "mcp_build_id": "offline-build",
+    }
+    protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Pilot Test",
+            "-c",
+            "user.email=pilot@example.invalid",
+            "add",
+            str(bank_path.relative_to(repository)),
+            str(protocol_path.relative_to(repository)),
+        ],
+        cwd=repository,
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Pilot Test",
+            "-c",
+            "user.email=pilot@example.invalid",
+            "commit",
+            "-qm",
+            "register offline prospective protocol",
+        ],
+        cwd=repository,
+        check=True,
+    )
+    monkeypatch.setattr(pilot, "ROOT", repository)
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V2", protocol_path)
+    monkeypatch.setattr(
+        pilot, "_model_boundary_hashes", lambda: {"offline": "source-hash"}
+    )
+
+    loaded = pilot._load_pilot_protocol(2)
+    assert loaded == protocol
+    assert pilot._load_fixture_bank(loaded, 2) == bank
+
+    loaded["fixture_bank_path"] = "references/external/sakana/other-bank.json"
+    with pytest.raises(ValueError, match="bind fixture bank version 3"):
+        pilot._load_fixture_bank(loaded, 2)
+
+    loaded["fixture_bank_path"] = pilot.V2_FIXTURE_BANK_PATH
+    bank_path.write_text(json.dumps({**bank, "name": "changed"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="Fixture bank must be committed unchanged"):
+        pilot._load_fixture_bank(loaded, 2)
+
+
+def test_main_cli_selects_v2_protocol_and_passes_it_to_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    offline_runtime: dict[str, Any],
+) -> None:
+    protocol = _select_v2_protocol(tmp_path, monkeypatch, offline_runtime)
+    cache_root = tmp_path / "cache-v2-main"
+    cache_root.mkdir()
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "offline-test-key")
+    monkeypatch.setattr(
+        "sys.argv", ["novelty_result_conditioned_pilot", "--study-version", "2"]
+    )
+    monkeypatch.setattr(
+        pilot,
+        "_check_runtime",
+        lambda _protocol, _bank, *, cache_root: (
+            "http://127.0.0.1:8123/mcp",
+            cache_root,
+            "offline-build",
+            offline_runtime["serving_process"],
+        ),
+    )
+    monkeypatch.setattr(pilot, "ToolRegistry", lambda **_kwargs: object())
+    monkeypatch.setattr(pilot, "MCPToolClient", lambda **_kwargs: object())
+    calls: dict[str, Any] = {}
+
+    async def fake_run_pilot(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        calls["result_path"] = args[4]
+        calls.update(kwargs)
+        return {
+            "status": "PILOT_COMPLETE_LABELS_PENDING",
+            "model_call_count": 24,
+            "provider_call_count": 24,
+            "outer_mcp_call_count": 36,
+        }
+
+    monkeypatch.setattr(pilot, "run_pilot", fake_run_pilot)
+
+    assert asyncio.run(pilot._main()) == 0
+    assert protocol["study_version"] == calls["study_version"] == 2
+    assert calls["result_path"].name.startswith("novelty-result-conditioned-pilot-v2-")
+
+
+def test_v2_trace_reconciles_entrez_entrypoints_and_rejects_count_mismatch() -> None:
+    source_file = str((pilot.ROOT / "engine/mcp_server/pubmed_client.py").resolve())
+    trace = {
+        "run_id": "run-1",
+        "server_build_id": "build-1",
+        "process_id": 123,
+        "source_file": source_file,
+        "sort": "pub_date",
+        "entrez_retry_policy": {"max_tries": 1, "sleep_between_tries": 0},
+        "entrez_calls": {"esearch": 1, "efetch": 1, "elink": 1},
+        "incomplete_fetch_count": 0,
+        "fetch_errors": [],
+        "metadata_origins": {"12345": "entrez_fetch"},
+        "attempts": [
+            {
+                "rung_index": 1,
+                "rung_type": "original",
+                "operation": "esearch",
+                "count": 1,
+                "first_ids": ["12345"],
+                "sort": "pub_date",
+            }
+        ],
+        "selected": {
+            "rung_index": 1,
+            "rung_type": "original",
+            "count": 1,
+            "ids": ["12345"],
+            "sort": "pub_date",
+        },
+        "pre_search_shared_pool": {
+            "file_count": 0,
+            "metadata_count": 0,
+            "first_ids": [],
+        },
+        "fetched": [
+            {
+                "pmid": "12345",
+                "fetched": True,
+                "metadata_origin": "entrez_fetch",
+                "pmc_available": False,
+                "abstract_available": True,
+                "incomplete": False,
+            }
+        ],
+        "final_ids": ["12345"],
+        "shared_pool_supplements": [],
+        "error": None,
+        "outcome": "nonempty",
+    }
+    serving_process = {"pid": 123}
+
+    attestation = pilot._validate_v2_trace(
+        trace,
+        run_id="run-1",
+        expected_build_id="build-1",
+        serving_process=serving_process,
+        returned_ids=["12345"],
+    )
+    assert (
+        "not physical HTTP requests" in attestation["count_semantics"]["entrez_calls"]
+    )
+    trace["entrez_calls"]["efetch"] = 3
+    trace["fetched"][0]["pmc_available"] = True
+    paginated_attestation = pilot._validate_v2_trace(
+        trace,
+        run_id="run-1",
+        expected_build_id="build-1",
+        serving_process=serving_process,
+        returned_ids=["12345"],
+    )
+    assert paginated_attestation["entrez_calls"]["efetch"] == 3
+    assert "may paginate" in paginated_attestation["count_semantics"]["entrez_calls"]
+    trace["entrez_calls"]["efetch"] = 0
+    with pytest.raises(ValueError, match="attestation is incomplete or inconsistent"):
+        pilot._validate_v2_trace(
+            trace,
+            run_id="run-1",
+            expected_build_id="build-1",
+            serving_process=serving_process,
+            returned_ids=["12345"],
+        )
+    trace["entrez_calls"]["efetch"] = 3
+    trace["entrez_calls"]["esearch"] = 2
+    with pytest.raises(ValueError, match="attestation is incomplete or inconsistent"):
+        pilot._validate_v2_trace(
+            trace,
+            run_id="run-1",
+            expected_build_id="build-1",
+            serving_process=serving_process,
+            returned_ids=["12345"],
+        )
+    trace["entrez_calls"]["esearch"] = 1
+    trace["pre_search_shared_pool"] = {
+        "file_count": 1,
+        "metadata_count": 1,
+        "first_ids": ["12345"],
+    }
+    with pytest.raises(ValueError, match="attestation is incomplete or inconsistent"):
+        pilot._validate_v2_trace(
+            trace,
+            run_id="run-1",
+            expected_build_id="build-1",
+            serving_process=serving_process,
+            returned_ids=["12345"],
+        )
 
 
 def _runtime_inputs(

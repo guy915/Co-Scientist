@@ -6,9 +6,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mcp_server.entrez import initialize_entrez as initialize_entrez
+from mcp_server.entrez_rate_limit import pilot_trace_context
 from mcp_server.fulltext_download import _symlink_into_run as _symlink_into_run
 from mcp_server.pubmed_client import _extract_doi as _extract_doi
 from mcp_server.pubmed_client import _parse_authors as _parse_authors
+from mcp_server.pubmed_pilot_trace import new_pilot_trace as _new_pilot_trace
+from mcp_server.pubmed_pilot_trace import (
+    record_fetched_papers as _record_fetched_papers,
+)
+from mcp_server.pubmed_pilot_trace import (
+    record_pool_snapshot as _record_pool_snapshot,
+)
+from mcp_server.pubmed_pilot_trace import (
+    reserve_trace_run as _reserve_trace_run,
+)
+from mcp_server.pubmed_pilot_trace import (
+    write_trace_atomically as _write_trace_atomically,
+)
 from mcp_server.shared_pool import (
     _load_shared_pool_candidate as _load_shared_pool_candidate,
 )
@@ -41,6 +55,7 @@ class _PubmedRun:
         run_dir: Per-run directory to symlink into, or None.
         shared_dir: Shared-pool directory holding accumulated papers.
         semaphore: Concurrency limiter bounding entrez API calls.
+        trace: Bounded pilot provenance, when explicitly enabled.
     """
 
     query: str
@@ -50,6 +65,7 @@ class _PubmedRun:
     run_dir: Path | None
     shared_dir: Path
     semaphore: "asyncio.Semaphore"
+    trace: dict[str, Any] | None
 
 
 class PubmedSource(_SharedPoolMixin):
@@ -83,12 +99,19 @@ class PubmedSource(_SharedPoolMixin):
             search_buffer,
             max_papers,
         )
-        paper_ids = self.pubmed_search_ids(
-            query, retmax=search_buffer, recency_years=recency_years
-        )
-        return await self._gather_paper_metadata(
-            paper_ids, run.shared_dir, run.run_dir, run.semaphore
-        )
+        with pilot_trace_context(run.trace):
+            paper_ids = self.pubmed_search_ids(
+                query,
+                retmax=search_buffer,
+                recency_years=recency_years,
+                trace=run.trace,
+            )
+            all_details = await self._gather_paper_metadata(
+                paper_ids, run.shared_dir, run.run_dir, run.semaphore
+            )
+        if run.trace is not None:
+            _record_fetched_papers(run.trace, all_details)
+        return all_details
 
     def _select_fulltext_papers(
         self, all_details: dict[str, Any], max_papers: int
@@ -249,7 +272,11 @@ class PubmedSource(_SharedPoolMixin):
         """
         if fulltext_shortfall > 0 and run.run_dir:
             self._supplement_from_shared_pool(
-                _PoolDirs(shared_dir=run.shared_dir, run_dir=run.run_dir),
+                _PoolDirs(
+                    shared_dir=run.shared_dir,
+                    run_dir=run.run_dir,
+                    trace=run.trace,
+                ),
                 papers_to_use,
                 all_details,
                 fulltext_shortfall,
@@ -317,18 +344,51 @@ class PubmedSource(_SharedPoolMixin):
             Dict mapping paper_id to metadata, with fulltext where available.
         """
         run = self._build_run(query, slug, max_papers, run_id)
-        all_details = await self._search_and_collect_metadata(
-            query, max_papers, recency_years, run
-        )
-        papers_to_use, fulltext_shortfall = self._select_fulltext_papers(
-            all_details, max_papers
-        )
-        await self._download_and_record(
-            run, papers_to_use, all_details, fulltext_shortfall
-        )
-        return self._assemble_final_results(
-            papers_to_use, all_details, max_papers
-        )
+        with pilot_trace_context(run.trace):
+            try:
+                all_details = await self._search_and_collect_metadata(
+                    query, max_papers, recency_years, run
+                )
+                papers_to_use, fulltext_shortfall = (
+                    self._select_fulltext_papers(all_details, max_papers)
+                )
+                await self._download_and_record(
+                    run, papers_to_use, all_details, fulltext_shortfall
+                )
+                if run.trace is not None:
+                    _record_fetched_papers(run.trace, all_details)
+                final_results = self._assemble_final_results(
+                    papers_to_use, all_details, max_papers
+                )
+            except Exception as exc:
+                self._write_pilot_error_trace(run, exc)
+                raise
+        if run.trace is not None:
+            run.trace["outcome"] = "nonempty" if final_results else "empty"
+        self._write_pilot_trace(run, final_results)
+        return final_results
+
+    def _write_pilot_error_trace(self, run: _PubmedRun, exc: Exception) -> None:
+        if run.trace is None:
+            return
+        if run.trace.get("error") is None:
+            run.trace["error"] = {
+                "stage": "retrieval_pipeline",
+                "type": type(exc).__name__,
+            }
+        run.trace["outcome"] = "error"
+        try:
+            self._write_pilot_trace(run, {})
+        except Exception:
+            logger.exception("Failed to write PubMed pilot error trace")
+
+    def _write_pilot_trace(
+        self, run: _PubmedRun, final_results: dict[str, Any]
+    ) -> None:
+        if run.trace is None or run.run_dir is None:
+            return
+        run.trace["final_ids"] = list(final_results)[:3]
+        _write_trace_atomically(run.run_dir / ".search-trace.json", run.trace)
 
     def _build_run(
         self, query: str, slug: str, max_papers: int, run_id: str | None
@@ -351,7 +411,11 @@ class PubmedSource(_SharedPoolMixin):
         # event loop / asyncio setup unless this async path is actually run.
         import asyncio
 
+        trace = _new_pilot_trace(run_id)
         shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
+        if trace is not None and run_dir is not None and run_id is not None:
+            _reserve_trace_run(run_dir, run_id, trace["server_build_id"])
+        _record_pool_snapshot(trace, shared_dir)
         return _PubmedRun(
             query,
             slug,
@@ -360,4 +424,5 @@ class PubmedSource(_SharedPoolMixin):
             run_dir,
             shared_dir,
             asyncio.Semaphore(3),
+            trace,
         )

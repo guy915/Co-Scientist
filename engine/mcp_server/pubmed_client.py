@@ -7,11 +7,14 @@ from typing import Any
 from Bio import Entrez
 
 from mcp_server.entrez import initialize_entrez
-from mcp_server.entrez_rate_limit import entrez_call
+from mcp_server.entrez_rate_limit import entrez_call, record_pilot_fetch_error
 from mcp_server.pubmed_query import search_with_relaxation
 from mcp_server.tools.text import clean_markup
 
 logger = logging.getLogger(__name__)
+
+# One source of truth for the sort sent to Entrez and recorded in pilot traces.
+PUBMED_SEARCH_SORT = "pub_date"
 
 # Configure Entrez credentials at import so the source is ready to query.
 initialize_entrez()
@@ -199,16 +202,25 @@ class _EntrezClient:
         """
         try:
             # elink cross-references PubMed IDs to PMC IDs; a paper only has
-            # a usable PMC fulltext if this link exists. Any failure here
-            # (no link, malformed response) just means fulltext is
-            # unavailable, not a fatal error for the caller.
+            # a usable PMC fulltext if this link exists. A request failure
+            # still means fulltext is unavailable for retrieval, but pilot
+            # traces must distinguish it from a successful no-link response.
             related = self.entrez_read(
                 entrez_call(
                     Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id
                 )
             )
-            return str(related[0]["LinkSetDb"][0]["Link"][0]["Id"])
-        except Exception:
+        except Exception as exc:
+            record_pilot_fetch_error("elink", exc)
+            logger.debug("%s -- fulltext not available in pmc", doi)
+            return None
+        try:
+            link_sets = related[0]["LinkSetDb"]
+            if not link_sets or not link_sets[0].get("Link"):
+                return None
+            return str(link_sets[0]["Link"][0]["Id"])
+        except (IndexError, KeyError, TypeError) as exc:
+            record_pilot_fetch_error("elink_parse", exc)
             logger.debug("%s -- fulltext not available in pmc", doi)
             return None
 
@@ -257,10 +269,10 @@ class _EntrezClient:
             "db": "pubmed",
             "term": query,
             "retmax": retmax,
-            "sort": "pub_date",
+            "sort": PUBMED_SEARCH_SORT,
         }
         _apply_recency_filter(search_params, recency_years)
-        logger.debug("searching pubmed with sort=pub_date (most recent first)")
+        logger.debug("searching pubmed with sort=%s", PUBMED_SEARCH_SORT)
         results = self.entrez_read(entrez_call(Entrez.esearch, **search_params))
         # esearch's IdList is empty (not absent) when nothing matches, so the
         # truthiness check also covers that case, not just a missing key.
@@ -269,7 +281,11 @@ class _EntrezClient:
         return []
 
     def pubmed_search_ids(
-        self, query: str, retmax: int = 10, recency_years: int = 0
+        self,
+        query: str,
+        retmax: int = 10,
+        recency_years: int = 0,
+        trace: dict[str, Any] | None = None,
     ) -> list[str]:
         """Searches PubMed and returns matching paper IDs.
 
@@ -282,12 +298,13 @@ class _EntrezClient:
             query: PubMed boolean query.
             retmax: Maximum results to return.
             recency_years: Filter to papers from last N years (0 = no filter).
+            trace: Optional bounded pilot-trace dictionary.
 
         Returns:
             List of PubMed IDs sorted by publication date (most recent first).
         """
         ids = search_with_relaxation(
-            query, retmax, recency_years, self._esearch_ids
+            query, retmax, recency_years, self._esearch_ids, trace
         )
         if not ids:
             logger.warning("No results found for query: %s", query)

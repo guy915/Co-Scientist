@@ -1,22 +1,23 @@
 {
-  "name": "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
-  "protocol_version": 1,
+  "name": "M12-04b4 prospective v2 result-conditioned exploratory paired pilot",
+  "protocol_version": 2,
   "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
   "candidate_calls_authorized": true,
   "unresolved_fields": [],
   "decision_scope": {
     "question": "Whether one bounded result-conditioned PubMed follow-up recovers source-backed prior art over a matched draft-only follow-up without degrading distinct-control retrieval.",
-    "unit": "Six fixed positive/distinct-control draft pairs from the exposed v1 development bank; all six pairs and all 12 drafts are mandatory.",
+    "unit": "Six fixed positive/distinct-control draft pairs from independently source-verified fresh bank v3; all six pairs and all 12 drafts are mandatory.",
     "claim_limit": "Exploratory only. A pass requires a new independently eligible three-pair confirmatory comparison before implementation or release; a failure rejects only this frozen adaptation.",
     "design_reference": "references/external/sakana/novelty-result-conditioned-design-v1.md",
-    "design_sha256": "abf89e4661a73632ef514625ce8f5a7f9c89700fdb58506fd0f68558f04c312c"
+    "design_sha256": "abf89e4661a73632ef514625ce8f5a7f9c89700fdb58506fd0f68558f04c312c",
+    "historical_study": "v1 was interrupted after one model response and one shared first search; its consumed admission and result remain immutable. This is a separate prospective study, not replay or repair of v1."
   },
-  "fixture_bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v1.json",
-  "fixture_bank_sha256": "66e616e0b4e9089b4b8d971781ce0a15f81cf202c4a949a645a7bd8b13e810a1",
+  "fixture_bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v3.json",
+  "fixture_bank_sha256": "b938e6fb30e3a3f913204742b28c1c03df203a52fb54e82d1d512badef415fb2",
   "runner_path": "references/external/sakana/novelty_result_conditioned_pilot.py",
-  "runner_sha256": "8c2aafb5309348ed9db18210c69b8578bdc93043a9a74c5a711006b9c97b28e9",
+  "runner_sha256": "ddb953dacc253f982d980be2d8e793ab935a83a12527760a4c2ed8c570de85a6",
   "validation_boundary": {
-    "code_commit_before_registration": "e49db942e6f88b2fa529c44dddbc2027793df785",
+    "code_commit_before_registration": "59949c444a9abc63a9a64c0fff8c326b9388ece4",
     "validator_path": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
     "validator_sha256": "93d794fd510188d03b5923d6759945bdfa6bdf05dc11e8609b4870c40b783b03",
     "response_parser_path": "engine/src/co_scientist/tools/response_parser.py",
@@ -36,19 +37,18 @@
     "engine/src/co_scientist/llm_telemetry.py": "74e0cd5ad6b030047ec16bc97ff0c934d715f4f5239a38290878bf0d56a66bd9",
     "engine/src/co_scientist/llm_gateway_routing.py": "2a689876b938dd3048b6c1f082d728eb89e1a4a84eaab9309f4ee4e295c1d06f"
   },
-  "mcp_tree": "6a2f19032c244e4b283d7248dc8cd69f59d3a511",
-  "mcp_build_id": "6a2f19032c244e4b283d7248dc8cd69f59d3a511",
+  "mcp_tree": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
+  "mcp_build_id": "44d5eb599f5732bf99eb9a70b575a4d706040e81",
   "model_name": "openrouter/stealth/space-bunny-alpha",
   "selected_model_condition": {
     "status": "QUALIFIED_ROUTE_REGISTERED_BEFORE_ANY_PILOT_CALL",
     "official_exact_zero_route": {
       "source": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
-      "observed_at_utc": "2026-09-29T23:47:08.007863+00:00",
+      "observed_at_utc": "2026-09-30T01:54:45.859945+00:00",
       "requested_model": "openrouter/stealth/space-bunny-alpha",
       "catalog_model_id": "stealth/space-bunny-alpha",
       "endpoint_count": 1,
       "provider_name": "Stealth",
-      "endpoint_model_id": "stealth/space-bunny-alpha",
       "endpoint_status": 0,
       "pricing": {
         "prompt": "0",
@@ -78,7 +78,9 @@
         "observed_model_responses": 178,
         "reported_cost_usd": 0,
         "account_usage_unchanged": true
-      }
+      },
+      "catalog_source": "https://openrouter.ai/api/v1/models",
+      "endpoint_model_name": "Space Bunny Alpha"
     },
     "served_model_rule": "Each response must expose served_model exactly equal to openrouter/stealth/space-bunny-alpha. The route is pinned to only Stealth and allow_fallbacks=false; the request has zero prompt, completion, and request price ceilings. Missing telemetry, route mismatch, admission or price failure stops before another call; no alias, fallback, paid substitution, retry, or cache reuse.",
     "prior_route_not_selected": "nex-agi/nex-n2.5-pro:free",
@@ -88,7 +90,7 @@
       "outcome": "The exact-zero Nex row was present immediately before create/start, but disappeared from the official catalog by 13:14 UTC while the run was active. Eight strategy tasks failed exact explicit-route admission; zero hypotheses and $0.00 model cost resulted. This route is not pinned or qualified for this pilot.",
       "record": "PLAN.md M11-OPS-02b execution note, 2026-09-25 13:42 UTC"
     },
-    "activation_gate": "This private draft is not active. Before candidate calls, commit the exact final protocol with status PREREGISTERED_BEFORE_ANY_PILOT_CALL and candidate_calls_authorized=true only after a fresh official exact-zero catalog and endpoint admission passes at launch; then claim the existing exclusive campaign marker before any client initialization or external call. Any gate failure aborts without calls."
+    "activation_gate": "The committed protocol fixes the design. Before its sole admission, recheck exact-zero catalog and active Stealth endpoint, actual credential-free maintained MCP process and empty isolated cache. After exclusive admission, never replay or retry this study. No alias, fallback or paid substitution."
   },
   "prompts": {
     "static_template": "Generate one concise PubMed search query for the scientific draft below. Use the draft alone. Do not add identifiers. Return JSON with one string field named query, at most 200 characters.\n\nDraft:\n{draft}",
@@ -131,69 +133,69 @@
     "draft_count": 12,
     "fixed_pair_manifest": [
       {
-        "pair_id": "butyrate-foxp3",
-        "positive_draft_sha256": "4c81b4faaf7b623fb95c8a6fedca153eb3421e5850f759c5359750cf4c1e5156",
-        "positive_target_pmid_scorer_only": "24226770",
-        "distinct_control_draft_sha256": "88f8ebd2497fe8e6019724cd9619344f566f69a82d79bba5e29ac33d05aa2472",
-        "distinct_control_anchor_pmid_scorer_only": "25586379",
+        "pair_id": "csx23-pomab",
+        "positive_draft_sha256": "a8bc074e72ad8899710d1227b7ee1a61d1ac5b7272634c200f939fccc4c7ce02",
+        "positive_target_pmid_scorer_only": "38471818",
+        "distinct_control_draft_sha256": "09ef460f2efcca42fdd375c72769e2deffd85d1924238401046d4cdfdeda0ff2",
+        "distinct_control_anchor_pmid_scorer_only": "37500658",
         "initial_query_sha256": {
-          "positive": "4c81b4faaf7b623fb95c8a6fedca153eb3421e5850f759c5359750cf4c1e5156",
-          "distinct_control": "88f8ebd2497fe8e6019724cd9619344f566f69a82d79bba5e29ac33d05aa2472"
+          "positive": "a8bc074e72ad8899710d1227b7ee1a61d1ac5b7272634c200f939fccc4c7ce02",
+          "distinct_control": "09ef460f2efcca42fdd375c72769e2deffd85d1924238401046d4cdfdeda0ff2"
         }
       },
       {
-        "pair_id": "gpx4-ferroptosis",
-        "positive_draft_sha256": "2bf2ef94ac014211d1eec4663337151019a0b7d8362b6e03261901194af497d6",
-        "positive_target_pmid_scorer_only": "24439385",
-        "distinct_control_draft_sha256": "7dd7600a0355950d1186f204bb094dd7621798bad40cad0c2b99ce0666388d7e",
-        "distinct_control_anchor_pmid_scorer_only": "24577084",
+        "pair_id": "co-condensates-lsr2",
+        "positive_draft_sha256": "b7801ad80734cdda85304cddf99dfe6bbc130626801543d045f2f7f086d1e9ba",
+        "positive_target_pmid_scorer_only": "39567828",
+        "distinct_control_draft_sha256": "4234e5088a365b3aaddde9f3db10581e7370455e4564cd95da1210d9192cd4e8",
+        "distinct_control_anchor_pmid_scorer_only": "38267428",
         "initial_query_sha256": {
-          "positive": "2bf2ef94ac014211d1eec4663337151019a0b7d8362b6e03261901194af497d6",
-          "distinct_control": "7dd7600a0355950d1186f204bb094dd7621798bad40cad0c2b99ce0666388d7e"
+          "positive": "b7801ad80734cdda85304cddf99dfe6bbc130626801543d045f2f7f086d1e9ba",
+          "distinct_control": "4234e5088a365b3aaddde9f3db10581e7370455e4564cd95da1210d9192cd4e8"
         }
       },
       {
-        "pair_id": "cgas-beclin1",
-        "positive_draft_sha256": "0fb71e0de60d20197cf24e73f9adfb730c5ace373a9594f11cc2fa0fab7d4d19",
-        "positive_target_pmid_scorer_only": "24528868",
-        "distinct_control_draft_sha256": "bcb972b5ee47e42528eb1d30e64e01b4add6a8af5d372fe474b72f08fc5b0fc3",
-        "distinct_control_anchor_pmid_scorer_only": "28289409",
+        "pair_id": "munc13-spoiva",
+        "positive_draft_sha256": "5e75a8fad4a8f881c9eaf4ee05ef24e1b839a89d5a5a11c6e7400a29659e0ebf",
+        "positive_target_pmid_scorer_only": "37590407",
+        "distinct_control_draft_sha256": "3f7ef2e36d5bbadd80aea3d3fc5c776738ea946bc4f3a947892dcd0837e37ff2",
+        "distinct_control_anchor_pmid_scorer_only": "38721605",
         "initial_query_sha256": {
-          "positive": "0fb71e0de60d20197cf24e73f9adfb730c5ace373a9594f11cc2fa0fab7d4d19",
-          "distinct_control": "bcb972b5ee47e42528eb1d30e64e01b4add6a8af5d372fe474b72f08fc5b0fc3"
+          "positive": "5e75a8fad4a8f881c9eaf4ee05ef24e1b839a89d5a5a11c6e7400a29659e0ebf",
+          "distinct_control": "3f7ef2e36d5bbadd80aea3d3fc5c776738ea946bc4f3a947892dcd0837e37ff2"
         }
       },
       {
-        "pair_id": "indole-ahr-il22",
-        "positive_draft_sha256": "3d13122e937434253f1aa25eb4608343f2710083126989d5995e89718e8457fc",
-        "positive_target_pmid_scorer_only": "23973224",
-        "distinct_control_draft_sha256": "701e1548b3362c87f401930d1d87fa4cd3152ece6dba8a4716e4874c144ddfbe",
-        "distinct_control_anchor_pmid_scorer_only": "19836068",
+        "pair_id": "opa1-prc1",
+        "positive_draft_sha256": "a9e8b4e3d5e0fdba37659cf6f65a92e026a97c035cb290e03be934a53493a059",
+        "positive_target_pmid_scorer_only": "38225406",
+        "distinct_control_draft_sha256": "52e3f9c5677dfa1daba6be4b3e298d0cb8d7b89048386dc026a54685f1c7d2f5",
+        "distinct_control_anchor_pmid_scorer_only": "39472429",
         "initial_query_sha256": {
-          "positive": "3d13122e937434253f1aa25eb4608343f2710083126989d5995e89718e8457fc",
-          "distinct_control": "701e1548b3362c87f401930d1d87fa4cd3152ece6dba8a4716e4874c144ddfbe"
+          "positive": "a9e8b4e3d5e0fdba37659cf6f65a92e026a97c035cb290e03be934a53493a059",
+          "distinct_control": "52e3f9c5677dfa1daba6be4b3e298d0cb8d7b89048386dc026a54685f1c7d2f5"
         }
       },
       {
-        "pair_id": "bfragilis-psa-tlr2",
-        "positive_draft_sha256": "f7a6616a1d04041c30c268dde6c9427943fbaa58612830288021ab7761ec531e",
-        "positive_target_pmid_scorer_only": "21512004",
-        "distinct_control_draft_sha256": "6357a44a654020e99e04e3cffcb26aa92a4f7aea5e823ae6cdd4e7ff819978da",
-        "distinct_control_anchor_pmid_scorer_only": "19701202",
+        "pair_id": "rice-wall-dzip1l",
+        "positive_draft_sha256": "4355fe80aa39f1e80325019ee25fd1c6c2785859146fead292b1fff26093e48d",
+        "positive_target_pmid_scorer_only": "38943676",
+        "distinct_control_draft_sha256": "a87b317bc4b3cb7af2a0f9417a5ca3ead8bb39b1e8551d1a71bd10044eabe530",
+        "distinct_control_anchor_pmid_scorer_only": "38634253",
         "initial_query_sha256": {
-          "positive": "f7a6616a1d04041c30c268dde6c9427943fbaa58612830288021ab7761ec531e",
-          "distinct_control": "6357a44a654020e99e04e3cffcb26aa92a4f7aea5e823ae6cdd4e7ff819978da"
+          "positive": "4355fe80aa39f1e80325019ee25fd1c6c2785859146fead292b1fff26093e48d",
+          "distinct_control": "a87b317bc4b3cb7af2a0f9417a5ca3ead8bb39b1e8551d1a71bd10044eabe530"
         }
       },
       {
-        "pair_id": "gpr81-lactate-survival",
-        "positive_draft_sha256": "71cce3e101c4d6faf6968d6bb9dc981bc417c2ed4e1a6eb78eab42a7688a655b",
-        "positive_target_pmid_scorer_only": "24928781",
-        "distinct_control_draft_sha256": "88f4e1fc63d6271a226778d419894922f6957d69ed8f1b85234fff6280aed988",
-        "distinct_control_anchor_pmid_scorer_only": "35820416",
+        "pair_id": "fungal-editing-hcr3",
+        "positive_draft_sha256": "f7468800c028dea81e2d566625dffaefcb44c11b81f9bbf3c168e52dabe1029a",
+        "positive_target_pmid_scorer_only": "38729938",
+        "distinct_control_draft_sha256": "c8f920b4cc9776e3de9783db69712c5253093568f0a14efd9bf076b46dcc69f9",
+        "distinct_control_anchor_pmid_scorer_only": "38379086",
         "initial_query_sha256": {
-          "positive": "71cce3e101c4d6faf6968d6bb9dc981bc417c2ed4e1a6eb78eab42a7688a655b",
-          "distinct_control": "88f4e1fc63d6271a226778d419894922f6957d69ed8f1b85234fff6280aed988"
+          "positive": "f7468800c028dea81e2d566625dffaefcb44c11b81f9bbf3c168e52dabe1029a",
+          "distinct_control": "c8f920b4cc9776e3de9783db69712c5253093568f0a14efd9bf076b46dcc69f9"
         }
       }
     ],
@@ -232,7 +234,8 @@
       "note": "36 is the outer MCP tool-call ceiling, not an upstream NCBI HTTP-request ceiling; internal request/rung provenance is retained by the pinned maintained trace.",
       "esearch_retmax_max": 9,
       "metadata_fetch_max": 9,
-      "result_order": "Maintained parser / source response order after pinned PubMed newest-first retrieval and existing fulltext-first, abstract-only fill behavior; no additional pilot ranking."
+      "result_order": "Maintained parser / source response order after pinned PubMed newest-first retrieval and existing fulltext-first, abstract-only fill behavior; no additional pilot ranking.",
+      "count_semantics": "Entrez seam counters record ESearch/EFetch/ELink invocations. Metadata IDs remain bounded by nine; PMC fulltext EFetch may use multiple retstart pages. These are not retries or wire HTTP telemetry, and no aggregate upstream HTTP-request ceiling is claimed."
     }
   },
   "target_blinding": {
@@ -294,9 +297,9 @@
   ],
   "campaign_admission": {
     "one_shot": true,
-    "marker_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.admission.json",
+    "marker_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.admission.json",
     "creation": "Atomic exclusive-create before the first external model or MCP call.",
-    "scope": "One campaign-wide claim for this frozen v1 protocol; changing result/blind output paths cannot create a second admission.",
+    "scope": "One exclusive claim for this frozen prospective v2 protocol and bank v3; result/blind output changes cannot create another admission.",
     "limits": {
       "max_model_calls": 24,
       "max_outer_mcp_calls": 36
@@ -310,22 +313,71 @@
   "provenance": {
     "result_report": "Private file with request parameters, exact query, model telemetry, papers/PMIDs for scoring, trace, validation outcome, and attested MCP serving PID/listener/source path/source tree.",
     "blind_packet": "Separate private file with randomized IDs and draft/title/abstract only; no arm, rank, PMID, or scorer IDs.",
-    "live_mcp_attestation": "Pin current MCP source tree and build ID to the same git subtree; verify one loopback listener PID, listener address, engine working directory, maintained import path, credential-free child environment, trace build ID, and cache root before and after every outer call; retain PID/source path/tree in report and trace."
+    "live_mcp_attestation": "Pin current MCP source tree and build ID to the same git subtree; verify one loopback listener PID, listener address, engine working directory, maintained import path, credential-free child environment, trace build ID, and cache root before and after every outer call; retain PID/source path/tree in report and trace.",
+    "raw_trace_required": [
+      "run_id",
+      "server_build_id",
+      "process_id",
+      "source_file",
+      "sort",
+      "entrez_retry_policy",
+      "entrez_calls",
+      "incomplete_fetch_count",
+      "fetch_errors",
+      "metadata_origins",
+      "attempts",
+      "selected",
+      "pre_search_shared_pool",
+      "fetched",
+      "final_ids",
+      "shared_pool_supplements",
+      "error",
+      "outcome"
+    ],
+    "raw_trace_gate": "Exact 1/0 retry policy; no trace/retrieval/fetch errors or incomplete rows; exactly empty pre-search pool, no supplements/cache carryover, all selected metadata freshly fetched; source/process/run/build/returned IDs and maintained-counter consistency required before further calls. Preserve raw fields normalized away by the historical reader.",
+    "tool_run_id_namespace": "Existing M11-NOV-01 candidate prefix m11_nov_01a3b3 with unique per-study nonce and outer-call number. Explicit study_version=2 and separate protocol/admission/result paths identify this prospective study."
   },
   "source_evidence": {
-    "OPS_02b_disposition": "Space Bunny is qualified for the fixed scientific/reliability screen and the completed M12-04b2 public flow; see references/external/m12-space-bunny-corrected-result-2026-09-30.md and references/external/m12-free-default-release-2026-09-30.json. Fresh exact-zero endpoint metadata was rechecked keylessly for this private draft; final launch-time catalog/endpoint admission and committed registration remain required. Historical Nex failure remains recorded under selected_model_condition.prior_evidence.",
-    "external_calls_during_preparation": 0,
+    "selected_route": "Qualified fixed configuration and completed deployed public flow; retained screen/release links in selected_model_condition. Fresh launch-time zero-price admission remains mandatory.",
+    "fixture_source_review": "references/external/sakana/novelty-fixture-bank-v3-source-review-2026-09-30.json",
+    "trace_readiness": "references/external/sakana/pubmed-trace-readiness-2026-09-30.json",
+    "source_metadata_preparation": "Twelve exact public PMID records verified through one NCBI XML metadata/abstract batch after documented HTML access failures; six wording corrections applied before bank registration. No candidate/eligibility/query screening.",
     "model_inference_during_preparation": 0,
-    "pubmed_calls_during_preparation": 0,
-    "metadata_reads_during_preparation": "Read-only official endpoint eligibility; no inference or scientific retrieval calls."
+    "scientific_mcp_calls_during_preparation": 0,
+    "model_metadata_reads": "Read-only official catalog and sole active Stealth endpoint, no inference.",
+    "reuse": "Independent implementation of an external technique; no claim of Google private implementation or copied restricted source."
   },
   "static_prompt_sha256": "a43f7c96c12e54b2c31b764387a7556b954351a1205bfdc14075324e72003c65",
   "conditioned_prompt_sha256": "5e17fac7c276dafc7100242e464ee12db191b33de06453f10872cb1c12925ab2",
-  "registered_at_utc": "2026-09-29T23:53:26.929436+00:00",
+  "registered_at_utc": "2026-09-30T02:16:36.631553+00:00",
   "launch_requirements": [
     "Recheck official zero-price catalog/endpoint eligibility before live batch",
     "Use empty isolated cache and credential-free attested MCP process",
     "Claim existing one-shot admission before MCP initialize",
     "No retries, route substitutions, paid services or replays"
-  ]
+  ],
+  "study_version": 2,
+  "fixture_bank_version": 3,
+  "preparation_verification": {
+    "offline_runner_tests": 30,
+    "independent_semantic_review": "ACCEPT after test-first PMC-pagination accounting correction",
+    "maintained_producer_to_exact_v2_raw_validator": {
+      "status": "PASS",
+      "boundary": "Actual maintained public tool with canned Entrez handles -> exact AST-loaded v2 raw trace validator",
+      "selected_count": 9,
+      "returned_count": 3,
+      "entrez_calls": {
+        "esearch": 1,
+        "efetch": 9,
+        "elink": 9
+      },
+      "count_semantics": {
+        "attempts": "application-level ESearch rungs",
+        "entrez_calls": "maintained Entrez entrypoint invocations; PMC fulltext EFetch may paginate; not physical HTTP requests"
+      },
+      "external_calls": 0,
+      "model_calls": 0
+    }
+  },
+  "stop_rule_scope": "The first error stops scientific requests in this admitted study permanently. It does not turn unrelated authorized documentation into a scientific pass or authorize replay."
 }

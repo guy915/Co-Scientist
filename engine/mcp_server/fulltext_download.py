@@ -1,5 +1,6 @@
 """PMC fulltext download and shared-pool storage for PubMed papers."""
 
+import contextvars
 import logging
 import traceback
 from pathlib import Path
@@ -7,7 +8,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from Bio import Entrez
 
-from mcp_server.entrez_rate_limit import entrez_call
+from mcp_server.entrez_rate_limit import (
+    entrez_call,
+    pilot_trace_context,
+    record_pilot_fetch_error,
+)
 from mcp_server.pubmed_client import _EntrezClient
 
 if TYPE_CHECKING:
@@ -143,6 +148,7 @@ class _FulltextMixin(_EntrezClient):
         try:
             return self._store_fulltext(pmc_id, slug, run_id)
         except Exception as e:
+            record_pilot_fetch_error("fulltext", e)
             logger.error(
                 "Failed to download PMC fulltext for %s: %s: %s",
                 pmc_id,
@@ -176,10 +182,19 @@ class _FulltextMixin(_EntrezClient):
 
         async with semaphore:
             pmc_id = all_details[paper_id]["pmc_full_text_id"]
-            # get_pubmed_fulltext is synchronous, run in executor
-            await asyncio.get_event_loop().run_in_executor(
-                None, self.get_pubmed_fulltext, pmc_id, slug, run_id
-            )
+            # Preserve the pilot's run/paper identity across this executor
+            # boundary; unlike asyncio.to_thread, run_in_executor does not
+            # copy ContextVars itself.
+            with pilot_trace_context(None, paper_id):
+                context = contextvars.copy_context()
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    context.run,
+                    self.get_pubmed_fulltext,
+                    pmc_id,
+                    slug,
+                    run_id,
+                )
 
     async def _download_fulltexts_for_papers(
         self,
