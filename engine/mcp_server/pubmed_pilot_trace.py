@@ -13,15 +13,65 @@ import mcp_server.pubmed_client as pubmed_client
 from mcp_server.entrez_rate_limit import (
     PILOT_ENTREZ_MAX_TRIES,
     PILOT_ENTREZ_SLEEP_BETWEEN_TRIES,
+    STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,
+    STUDY4_MAX_RETRIES_PER_STUDY,
+    STUDY4_RECOVERY_POLICY,
+    STUDY4_RECOVERY_STUDY_ID,
+    bind_study4_recovery,
 )
 from mcp_server.pubmed_client import PUBMED_SEARCH_SORT
 
 _MAX_PILOT_TRACE_IDS = 9
 
 
+def _pilot_trace_flags() -> tuple[bool, bool]:
+    trace_enabled = os.getenv("COSCIENTIST_PUBMED_PILOT_TRACE") == "1"
+    recovery_setting = os.getenv("COSCIENTIST_PUBMED_STUDY4_RECOVERY", "0")
+    if recovery_setting not in {"0", "1"}:
+        raise ValueError("Study 4 Entrez recovery flag must be 0 or 1")
+    recovery_enabled = recovery_setting == "1"
+    if recovery_enabled and not trace_enabled:
+        raise ValueError("Study 4 Entrez recovery requires pilot tracing")
+    return trace_enabled, recovery_enabled
+
+
+def _enable_study4_recovery(trace: dict[str, Any]) -> None:
+    study_id = os.getenv("COSCIENTIST_PUBMED_STUDY_ID")
+    if study_id != STUDY4_RECOVERY_STUDY_ID:
+        raise ValueError(
+            "Study 4 Entrez recovery requires the protocol study ID"
+        )
+    process_retries_used = bind_study4_recovery(study_id)
+    trace.update(
+        {
+            "entrez_recovery": {
+                "study_id": study_id,
+                "policy": STUDY4_RECOVERY_POLICY,
+                "max_retries_per_logical_request": (
+                    STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
+                ),
+                "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
+                "retries_used": 0,
+                "recovered_calls": 0,
+                "exhausted_calls": 0,
+                "client_entry_attempts": {
+                    "esearch": 0,
+                    "efetch": 0,
+                    "elink": 0,
+                },
+                "process_retries_used_at_start": process_retries_used,
+                "process_retries_used_at_end": process_retries_used,
+            },
+            "recovered_transient_attempts": [],
+            "entrez_recovery_call_outcomes": [],
+        }
+    )
+
+
 def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
     """Creates provenance only when an explicit pilot trace is requested."""
-    if os.getenv("COSCIENTIST_PUBMED_PILOT_TRACE") != "1":
+    trace_enabled, recovery_enabled = _pilot_trace_flags()
+    if not trace_enabled:
         return None
     build_id = os.getenv("COSCIENTIST_PUBMED_PILOT_BUILD_ID")
     if not run_id or not build_id:
@@ -31,7 +81,7 @@ def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
     # effective values so a pilot cannot mistake its rung count for wire calls.
     Entrez.max_tries = PILOT_ENTREZ_MAX_TRIES
     Entrez.sleep_between_tries = PILOT_ENTREZ_SLEEP_BETWEEN_TRIES
-    return {
+    trace: dict[str, Any] = {
         "run_id": run_id,
         "server_build_id": build_id,
         "process_id": os.getpid(),
@@ -52,6 +102,9 @@ def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
         "shared_pool_supplements": [],
         "error": None,
     }
+    if recovery_enabled:
+        _enable_study4_recovery(trace)
+    return trace
 
 
 def record_pool_snapshot(

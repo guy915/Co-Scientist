@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import email.utils
 import hashlib
 import json
 import os
@@ -29,10 +30,47 @@ RESULT_DIR = ROOT / "references/external/sakana"
 PILOT_PREREG = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v1.json"
 PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
 PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
+PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
 V3_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN"
+V4_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v5.json"
+V4_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS"
+STUDY4_IDENTITY = "M12-04b4-study4-20260930"
+STUDY4_RECOVERY_ENV = "COSCIENTIST_PUBMED_STUDY4_RECOVERY"
+STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
+STUDY4_RECOVERY_POLICY = "study4-entrez-429-502-v1"
+STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST = 1
+STUDY4_MAX_RETRIES_PER_STUDY = 2
+STUDY4_RETRYABLE_HTTP_STATUSES = (429, 502)
+STUDY4_RETRY_AFTER_MAX_SECONDS = 60
+STUDY4_RETRY_AFTER_DEFAULT_SECONDS = 15
+STUDY4_PACER_INTERVAL_SECONDS = 0.4
+STUDY4_MAX_TRACE_RECOVERY_ROWS = 256
+STUDY4_RECOVERY_PROTOCOL = MappingProxyType(
+    {
+        "study_id": STUDY4_IDENTITY,
+        "activation_env": STUDY4_RECOVERY_ENV,
+        "activation_value": "1",
+        "study_id_env": STUDY_ID_ENV,
+        "study_id_env_value": STUDY4_IDENTITY,
+        "trace_env": "COSCIENTIST_PUBMED_PILOT_TRACE",
+        "trace_value": "1",
+        "policy": STUDY4_RECOVERY_POLICY,
+        "retryable_http_statuses": [429, 502],
+        "max_retries_per_logical_request": STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,
+        "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
+        "retry_after_max_seconds": STUDY4_RETRY_AFTER_MAX_SECONDS,
+        "retry_after_default_seconds": STUDY4_RETRY_AFTER_DEFAULT_SECONDS,
+        "pacer_interval_seconds": STUDY4_PACER_INTERVAL_SECONDS,
+    }
+)
+_STUDY4_OPERATION_ORDER = ("esearch", "efetch", "elink")
+_STUDY4_OPERATIONS = frozenset(_STUDY4_OPERATION_ORDER)
+_STUDY4_RECOVERY_OUTCOMES = frozenset(
+    {"recovered", "exhausted", "study_budget_exhausted", "retry_after_over_cap"}
+)
 TOOL_CONFIG = fixture.TOOL_CONFIG
 
 PAIR_COUNT = 6
@@ -106,6 +144,16 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4d2 result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v3",
             "cosci-m12-nov-04b4d2-v3-blind",
+        ),
+        4: _StudyRegistration(
+            4,
+            5,
+            V4_FIXTURE_BANK_PATH,
+            V4_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4e3 result-conditioned prospective paired study",
+            "novelty-result-conditioned-pilot-v4",
+            "cosci-m12-nov-04b4e3-v4-blind",
         ),
     }
 )
@@ -267,6 +315,7 @@ async def _search_once(
     study_version: int,
     blind_items: list[dict[str, Any]],
     event: dict[str, Any],
+    study4_recovery_accounting: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]] | None:
     slug = f"m11_nov_01a3b3_{nonce}_{outer_call_number:02d}"
     event.update(
@@ -293,13 +342,21 @@ async def _search_once(
     papers: dict[str, dict[str, Any]] = {}
     try:
         _require_same_serving_process(
-            endpoint, serving_process, cache_root, expected_build_id
+            endpoint,
+            serving_process,
+            cache_root,
+            expected_build_id,
+            expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
         )
         papers = await fixture._search_papers_for_hypothesis(
             query, context, max_papers=MAX_PAPERS
         )
         _require_same_serving_process(
-            endpoint, serving_process, cache_root, expected_build_id
+            endpoint,
+            serving_process,
+            cache_root,
+            expected_build_id,
+            expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
         )
         payload_error = fixture._payload_error(recorder.last_response)
         if payload_error is not None:
@@ -404,18 +461,41 @@ async def _search_once(
                 "error",
                 "outcome",
             )
+            if study_version == 4:
+                raw_fields += (
+                    "entrez_recovery",
+                    "recovered_transient_attempts",
+                    "entrez_recovery_call_outcomes",
+                )
             event["trace_attestation"] = {key: raw_trace.get(key) for key in raw_fields}
+            returned_ids = (
+                [str(pmid) for pmid in payload] if isinstance(payload, dict) else None
+            )
             event["trace_attestation"].update(
                 _validate_v2_trace(
                     raw_trace,
                     run_id=slug,
                     expected_build_id=expected_build_id,
                     serving_process=serving_process,
-                    returned_ids=[str(pmid) for pmid in payload]
-                    if isinstance(payload, dict)
-                    else None,
+                    returned_ids=returned_ids,
                 )
             )
+            if study_version == 4:
+                if study4_recovery_accounting is None:
+                    raise ValueError("Study 4 recovery accounting is unavailable")
+                recovery_attestation = _validate_study4_recovery_trace(
+                    raw_trace,
+                    run_id=slug,
+                    expected_build_id=expected_build_id,
+                    serving_process=serving_process,
+                    study_retries_used_so_far=study4_recovery_accounting[
+                        "retries_used"
+                    ],
+                )
+                event["trace_attestation"].update(recovery_attestation)
+                _accumulate_study4_recovery(
+                    study4_recovery_accounting, recovery_attestation
+                )
         selected = event["trace"].get("selected") or {}
         if (
             len(event["trace"].get("attempts", [])) > 3
@@ -604,6 +684,339 @@ def _validate_v2_trace(
     }
 
 
+def _validate_study4_recovery_trace(
+    trace: dict[str, Any],
+    *,
+    run_id: str,
+    expected_build_id: str,
+    serving_process: dict[str, Any],
+    study_retries_used_so_far: int,
+) -> dict[str, Any]:
+    """Validate and return one bounded v4 retry ledger delta."""
+
+    def reject() -> None:
+        raise ValueError("Study 4 Entrez recovery trace is incomplete or inconsistent")
+
+    def parse_retry_after(value: str) -> tuple[str, float | None]:
+        value = value.strip()
+        if value.isascii() and value.isdecimal():
+            try:
+                seconds = int(value)
+            except ValueError:
+                return "invalid", None
+            return "seconds", float(seconds)
+        try:
+            parsed = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return "invalid", None
+        return ("date", None) if parsed is not None else ("invalid", None)
+
+    recovery = trace.get("entrez_recovery")
+    if (
+        trace.get("run_id") != run_id
+        or trace.get("server_build_id") != expected_build_id
+        or trace.get("process_id") != serving_process.get("pid")
+        or not isinstance(recovery, dict)
+        or recovery.get("study_id") != STUDY4_IDENTITY
+        or recovery.get("policy") != STUDY4_RECOVERY_POLICY
+        or recovery.get("max_retries_per_logical_request")
+        != STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
+        or recovery.get("max_retries_per_study") != STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        reject()
+
+    calls = trace.get("entrez_calls")
+    client_attempts = recovery.get("client_entry_attempts")
+    if (
+        not isinstance(calls, dict)
+        or set(calls) != _STUDY4_OPERATIONS
+        or any(type(count) is not int or count < 0 for count in calls.values())
+        or not isinstance(client_attempts, dict)
+        or set(client_attempts) != _STUDY4_OPERATIONS
+        or any(
+            type(count) is not int or count < 0 for count in client_attempts.values()
+        )
+    ):
+        reject()
+
+    counters = {
+        name: recovery.get(name)
+        for name in ("retries_used", "recovered_calls", "exhausted_calls")
+    }
+    if any(type(value) is not int or value < 0 for value in counters.values()):
+        reject()
+    process_start = recovery.get("process_retries_used_at_start")
+    process_end = recovery.get("process_retries_used_at_end")
+    if (
+        type(study_retries_used_so_far) is not int
+        or not 0 <= study_retries_used_so_far <= STUDY4_MAX_RETRIES_PER_STUDY
+        or type(process_start) is not int
+        or type(process_end) is not int
+        or not 0 <= process_start <= process_end
+        or process_end > STUDY4_MAX_RETRIES_PER_STUDY
+        or counters["retries_used"] > process_end - process_start
+        or study_retries_used_so_far + counters["retries_used"]
+        > STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        reject()
+
+    attempts = trace.get("recovered_transient_attempts")
+    outcomes = trace.get("entrez_recovery_call_outcomes")
+    total_logical_calls = sum(calls.values())
+    if (
+        not isinstance(attempts, list)
+        or len(attempts)
+        > min(
+            STUDY4_MAX_TRACE_RECOVERY_ROWS,
+            total_logical_calls * (STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST + 1),
+        )
+        or not isinstance(outcomes, list)
+        or len(outcomes) > min(STUDY4_MAX_TRACE_RECOVERY_ROWS, total_logical_calls)
+    ):
+        reject()
+
+    outcome_by_request: dict[tuple[str, int], dict[str, Any]] = {}
+    recovered_calls = 0
+    exhausted_calls = 0
+    retries_used = 0
+    for row in outcomes:
+        if not isinstance(row, dict):
+            reject()
+        operation = row.get("operation")
+        ordinal = row.get("logical_request_ordinal")
+        if (
+            not isinstance(operation, str)
+            or operation not in _STUDY4_OPERATIONS
+            or type(ordinal) is not int
+        ):
+            reject()
+        retry_count = row.get("retry_count")
+        entry_count = row.get("client_entry_attempts")
+        final_outcome = row.get("final_outcome")
+        key = (operation, ordinal)
+        if (
+            row.get("study_id") != STUDY4_IDENTITY
+            or row.get("run_id") != run_id
+            or not 1 <= ordinal <= calls[operation]
+            or key in outcome_by_request
+            or type(retry_count) is not int
+            or retry_count not in {0, STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST}
+            or type(entry_count) is not int
+            or entry_count != 1 + retry_count
+            or not isinstance(final_outcome, str)
+            or final_outcome not in _STUDY4_RECOVERY_OUTCOMES
+        ):
+            reject()
+        if final_outcome in {"recovered", "exhausted"} and retry_count != 1:
+            reject()
+        if final_outcome == "recovered":
+            recovered_calls += 1
+        else:
+            exhausted_calls += 1
+        retries_used += retry_count
+        outcome_by_request[key] = row
+
+    if (
+        counters["retries_used"] != retries_used
+        or counters["recovered_calls"] != recovered_calls
+        or counters["exhausted_calls"] != exhausted_calls
+        or recovered_calls + exhausted_calls != len(outcomes)
+    ):
+        reject()
+
+    attempts_by_request: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for row in attempts:
+        if not isinstance(row, dict):
+            reject()
+        operation = row.get("operation")
+        ordinal = row.get("logical_request_ordinal")
+        attempt_ordinal = row.get("attempt_ordinal")
+        status = row.get("http_status")
+        wait_seconds = row.get("wait_seconds")
+        retry_after = row.get("retry_after_value")
+        retry_after_raw_prefix = row.get("retry_after_raw_prefix")
+        retry_after_raw_truncated = row.get("retry_after_raw_truncated")
+        if (
+            not isinstance(operation, str)
+            or operation not in _STUDY4_OPERATIONS
+            or type(ordinal) is not int
+        ):
+            reject()
+        key = (operation, ordinal)
+        if (
+            row.get("study_id") != STUDY4_IDENTITY
+            or row.get("run_id") != run_id
+            or row.get("server_build_id") != expected_build_id
+            or row.get("process_id") != serving_process.get("pid")
+            or not 1 <= ordinal <= calls[operation]
+            or type(attempt_ordinal) is not int
+            or attempt_ordinal not in {1, 2}
+            or type(status) is not int
+            or status not in STUDY4_RETRYABLE_HTTP_STATUSES
+            or isinstance(wait_seconds, bool)
+            or not isinstance(wait_seconds, (int, float))
+            or not 0 <= wait_seconds <= STUDY4_RETRY_AFTER_MAX_SECONDS
+            or (
+                retry_after is not None
+                and (
+                    not isinstance(retry_after, str)
+                    or len(retry_after) > 128
+                    or any(
+                        ord(char) != 9 and not 32 <= ord(char) <= 126
+                        for char in retry_after
+                    )
+                )
+            )
+            or type(retry_after_raw_truncated) is not bool
+            or (
+                retry_after_raw_prefix is not None
+                and (
+                    not isinstance(retry_after_raw_prefix, str)
+                    or len(retry_after_raw_prefix) > 128
+                )
+            )
+            or (retry_after is None) != (retry_after_raw_prefix is None)
+        ):
+            reject()
+        attempts_by_request.setdefault(key, []).append(row)
+
+    for operation in _STUDY4_OPERATION_ORDER:
+        expected_entries = calls[operation] + sum(
+            row["retry_count"]
+            for (row_operation, _), row in outcome_by_request.items()
+            if row_operation == operation
+        )
+        if client_attempts[operation] != expected_entries:
+            reject()
+
+    for key, row in outcome_by_request.items():
+        request_attempts = attempts_by_request.pop(key, [])
+        ordinals = [attempt.get("attempt_ordinal") for attempt in request_attempts]
+        final_outcome = row["final_outcome"]
+        if (
+            not request_attempts
+            or ordinals != list(range(1, len(ordinals) + 1))
+            or len(ordinals) > row["client_entry_attempts"]
+            or row["client_entry_attempts"] != 1 + row["retry_count"]
+            or any(
+                attempt.get("outcome") != final_outcome for attempt in request_attempts
+            )
+        ):
+            reject()
+        if final_outcome == "recovered" and ordinals != [1]:
+            reject()
+        retry_count = row["retry_count"]
+        for index, attempt in enumerate(request_attempts):
+            retry_was_issued = index < retry_count
+            retry_after = attempt.get("retry_after_value")
+            wait_seconds = attempt.get("wait_seconds")
+            if not retry_was_issued:
+                if wait_seconds != 0:
+                    reject()
+                continue
+            if retry_after is None:
+                if wait_seconds != STUDY4_RETRY_AFTER_DEFAULT_SECONDS:
+                    reject()
+                continue
+            retry_after_kind, requested_wait = parse_retry_after(retry_after)
+            if retry_after_kind == "seconds":
+                if (
+                    requested_wait is None
+                    or requested_wait > STUDY4_RETRY_AFTER_MAX_SECONDS
+                ):
+                    reject()
+                if wait_seconds != requested_wait:
+                    reject()
+            elif retry_after_kind == "date":
+                if wait_seconds > STUDY4_RETRY_AFTER_MAX_SECONDS:
+                    reject()
+            elif wait_seconds != STUDY4_RETRY_AFTER_DEFAULT_SECONDS:
+                reject()
+        final_attempt = request_attempts[-1]
+        final_retry_after = final_attempt.get("retry_after_value")
+        final_kind, final_delay = (
+            parse_retry_after(final_retry_after)
+            if isinstance(final_retry_after, str)
+            else ("missing", None)
+        )
+        if final_kind == "seconds":
+            if final_delay is not None and final_delay > STUDY4_RETRY_AFTER_MAX_SECONDS:
+                if final_outcome != "retry_after_over_cap":
+                    reject()
+            elif final_outcome == "retry_after_over_cap":
+                reject()
+        if final_kind == "invalid" and final_outcome == "retry_after_over_cap":
+            reject()
+
+    if attempts_by_request:
+        reject()
+    if any(row["final_outcome"] != "recovered" for row in outcomes):
+        reject()
+    return {
+        "entrez_recovery": recovery,
+        "recovered_transient_attempts": attempts,
+        "entrez_recovery_call_outcomes": outcomes,
+    }
+
+
+def _accumulate_study4_recovery(
+    accounting: dict[str, Any], attestation: dict[str, Any]
+) -> None:
+    recovery = attestation["entrez_recovery"]
+    if (
+        recovery["process_retries_used_at_start"]
+        != accounting["process_retries_used_at_end"]
+        or recovery["process_retries_used_at_end"]
+        != recovery["process_retries_used_at_start"] + recovery["retries_used"]
+        or accounting["retries_used"] + recovery["retries_used"]
+        > STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        raise ValueError("Study 4 Entrez process budget changed between pilot traces")
+    accounting["retries_used"] += recovery["retries_used"]
+    accounting["recovered_calls"] += recovery["recovered_calls"]
+    accounting["exhausted_calls"] += recovery["exhausted_calls"]
+    for operation in _STUDY4_OPERATION_ORDER:
+        accounting["client_entry_attempts"][operation] += recovery[
+            "client_entry_attempts"
+        ][operation]
+    accounting["process_retries_used_at_end"] = recovery["process_retries_used_at_end"]
+    accounting["recovered_transient_attempts"].extend(
+        attestation["recovered_transient_attempts"]
+    )
+    accounting["entrez_recovery_call_outcomes"].extend(
+        attestation["entrez_recovery_call_outcomes"]
+    )
+
+
+def _validate_complete_study4_recovery(accounting: dict[str, Any]) -> None:
+    attempts = accounting["recovered_transient_attempts"]
+    outcomes = accounting["entrez_recovery_call_outcomes"]
+    recovered = sum(row.get("final_outcome") == "recovered" for row in outcomes)
+    exhausted = sum(row.get("final_outcome") != "recovered" for row in outcomes)
+    retries = sum(row.get("retry_count", 0) for row in outcomes)
+    if (
+        accounting["study_id"] != STUDY4_IDENTITY
+        or accounting["policy"] != STUDY4_RECOVERY_POLICY
+        or accounting["process_retries_used_at_start"] != 0
+        or accounting["process_retries_used_at_end"] != accounting["retries_used"]
+        or accounting["retries_used"] > STUDY4_MAX_RETRIES_PER_STUDY
+        or retries != accounting["retries_used"]
+        or accounting["process_retries_used_at_end"] != retries
+        or recovered != accounting["recovered_calls"]
+        or exhausted != accounting["exhausted_calls"]
+        or len(attempts) < len(outcomes)
+        or len(attempts) > 2 * len(outcomes)
+        or any(row.get("final_outcome") != "recovered" for row in outcomes)
+        or not isinstance(accounting.get("client_entry_attempts"), dict)
+        or set(accounting["client_entry_attempts"]) != _STUDY4_OPERATIONS
+        or any(
+            type(value) is not int or value < 0
+            for value in accounting["client_entry_attempts"].values()
+        )
+    ):
+        raise ValueError("Study 4 Entrez recovery accounting is incomplete")
+
+
 async def run_pilot(
     fixture_prereg: dict[str, Any],
     registry: ToolRegistry,
@@ -709,6 +1122,25 @@ async def run_pilot(
                 "protocol_version": registration.protocol_version,
             }
         )
+    study4_recovery_accounting: dict[str, Any] | None = None
+    if study_version == 4:
+        study4_recovery_accounting = {
+            "study_id": STUDY4_IDENTITY,
+            "policy": STUDY4_RECOVERY_POLICY,
+            "max_retries_per_logical_request": STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,
+            "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
+            "retries_used": 0,
+            "recovered_calls": 0,
+            "exhausted_calls": 0,
+            "client_entry_attempts": {
+                operation: 0 for operation in _STUDY4_OPERATION_ORDER
+            },
+            "process_retries_used_at_start": 0,
+            "process_retries_used_at_end": 0,
+            "recovered_transient_attempts": [],
+            "entrez_recovery_call_outcomes": [],
+        }
+        report["entrez_recovery_accounting"] = study4_recovery_accounting
     blind_packet: dict[str, Any] = {"status": "BLIND_LABELS_PENDING", "items": []}
     fixture._write_json(result_path, report, private=True)
     fixture._write_json(blind_path, blind_packet, private=True)
@@ -816,6 +1248,7 @@ async def run_pilot(
             study_version=study_version,
             blind_items=blind_packet["items"],
             event=event,
+            study4_recovery_accounting=study4_recovery_accounting,
         )
         if result is None:
             report["status"] = (
@@ -885,6 +1318,8 @@ async def run_pilot(
                     )
                     if candidate_followup is None:
                         return report
+        if study4_recovery_accounting is not None:
+            _validate_complete_study4_recovery(study4_recovery_accounting)
         report["status"] = "PILOT_COMPLETE_LABELS_PENDING"
         report["ended_at_utc"] = _now()
         blind_packet["items"].sort(key=lambda item: item["blind_id"])
@@ -961,6 +1396,7 @@ def _protocol_path(study_version: int) -> Path:
         1: PILOT_PREREG,
         2: PILOT_PREREG_V2,
         3: PILOT_PREREG_V3,
+        4: PILOT_PREREG_V4,
     }[study_version]
 
 
@@ -1032,6 +1468,10 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
         or protocol.get("fixture_bank_version") != registration.fixture_bank_version
     ):
         raise ValueError("Pilot protocol does not select the prospective study version")
+    if study_version == 4 and protocol.get("entrez_recovery_policy") != dict(
+        STUDY4_RECOVERY_PROTOCOL
+    ):
+        raise ValueError("Study 4 protocol does not pin the Entrez recovery policy")
     if (
         protocol.get("runner_sha256")
         != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -1071,6 +1511,7 @@ def _check_mcp_process(
     expected_secret: str,
     expected_build_id: str,
     cache_root: Path,
+    expected_study_id: str | None = None,
 ) -> dict[str, Any]:
     """Attest the actual loopback listener's source directory and environment."""
     fixture._check_server_tree_clean()
@@ -1154,12 +1595,26 @@ def _check_mcp_process(
         != cache_root.resolve()
     ):
         raise ValueError("MCP process settings differ from the frozen pilot")
-    return {
+    process = {
         "pid": int(pid),
         "listener_address": addresses[0],
         "source_path": str(source_path),
         "mcp_tree": source_tree,
     }
+    if expected_study_id is not None:
+        if (
+            expected_study_id != STUDY4_IDENTITY
+            or environment.get(STUDY4_RECOVERY_ENV) != "1"
+            or environment.get(STUDY_ID_ENV) != expected_study_id
+        ):
+            raise ValueError(
+                "MCP process study recovery binding differs from the protocol"
+            )
+        process["study4_recovery"] = {
+            "enabled": True,
+            "study_id": expected_study_id,
+        }
+    return process
 
 
 def _require_same_serving_process(
@@ -1167,12 +1622,14 @@ def _require_same_serving_process(
     expected: dict[str, Any],
     cache_root: Path,
     expected_build_id: str,
+    expected_study_id: str | None = None,
 ) -> None:
     actual = _check_mcp_process(
         endpoint,
         expected_secret=os.environ[fixture.MCP_SECRET_ENV],
         expected_build_id=expected_build_id,
         cache_root=cache_root,
+        expected_study_id=expected_study_id,
     )
     if actual != expected:
         raise ValueError("MCP serving process changed during the pilot")
@@ -1184,6 +1641,23 @@ def _check_runtime(
     *,
     cache_root: Path,
 ) -> tuple[str, Path, str, dict[str, Any]]:
+    study_version = protocol.get("study_version", 1)
+    _study_registration(study_version)
+    expected_study_id: str | None = None
+    if study_version == 4:
+        if protocol.get("entrez_recovery_policy") != dict(STUDY4_RECOVERY_PROTOCOL):
+            raise ValueError(
+                "Study 4 recovery policy differs from the committed protocol"
+            )
+        if (
+            os.environ.get(STUDY4_RECOVERY_ENV) != "1"
+            or os.environ.get(STUDY_ID_ENV) != STUDY4_IDENTITY
+            or os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1"
+        ):
+            raise ValueError(
+                "Study 4 recovery activation differs from the committed protocol"
+            )
+        expected_study_id = STUDY4_IDENTITY
     if os.environ.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
         raise ValueError("Set COSCIENTIST_REQUIRE_FREE_MODELS=1")
     endpoint = os.environ.get("COSCIENTIST_CAMPAIGN_MCP_URL", "")
@@ -1207,16 +1681,26 @@ def _check_runtime(
         )
     if os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1":
         raise ValueError("Maintained PubMed run tracing must be enabled")
+    registration = _study_registration(study_version)
     boundary = fixture_prereg.get("validation_boundary")
-    if protocol.get("study_version") == 3 or fixture_prereg.get("version") == 4:
+    bank_version = fixture_prereg.get("version")
+    uses_current_boundary = (
+        registration.fixture_bank_version is not None
+        and registration.fixture_bank_version >= 4
+    ) or (isinstance(bank_version, int) and bank_version >= 4)
+    if uses_current_boundary:
         protocol_boundary = protocol.get("validation_boundary")
         if (
-            protocol.get("study_version") != 3
-            or fixture_prereg.get("version") != 4
+            registration.fixture_bank_version is None
+            or protocol.get("study_version") != study_version
+            or protocol.get("fixture_bank_version") != registration.fixture_bank_version
+            or bank_version != registration.fixture_bank_version
             or not isinstance(protocol_boundary, dict)
             or not isinstance(boundary, dict)
         ):
-            raise ValueError("Study 3 must bind the current v4 validation boundary")
+            raise ValueError(
+                f"Study {study_version} must bind the current v{registration.fixture_bank_version} validation boundary"
+            )
         for path_key, hash_key, bank_path_key in (
             ("validator_path", "validator_sha256", "maintained_validator"),
             ("response_parser_path", "response_parser_sha256", "parser"),
@@ -1229,14 +1713,14 @@ def _check_runtime(
                 or boundary.get(bank_path_key) != relative_path
             ):
                 raise ValueError(
-                    f"Study 3 validation source path differs from fixture bank: {path_key}"
+                    f"Study {study_version} validation source path differs from fixture bank: {path_key}"
                 )
             expected_hash = protocol_boundary.get(hash_key)
             if not isinstance(expected_hash, str) or not re.fullmatch(
                 r"[0-9a-f]{64}", expected_hash
             ):
                 raise ValueError(
-                    f"Study 3 validation source hash is missing or malformed: {path_key}"
+                    f"Study {study_version} validation source hash is missing or malformed: {path_key}"
                 )
             if fixture._sha256(ROOT / relative_path) != expected_hash:
                 raise ValueError(f"Frozen validation source changed: {relative_path}")
@@ -1272,6 +1756,7 @@ def _check_runtime(
         expected_secret=os.environ[fixture.MCP_SECRET_ENV],
         expected_build_id=expected_build,
         cache_root=cache_root,
+        expected_study_id=expected_study_id,
     )
     return endpoint, cache_root, expected_build, serving_process
 
