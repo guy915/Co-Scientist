@@ -1,0 +1,106 @@
+{
+  "observed_at_utc": "2026-09-30T19:38:11.164018+00:00",
+  "purpose": "Read-only official eligibility; no inference or model qualification",
+  "evidence": {
+    "catalog": {
+      "url": "https://openrouter.ai/api/v1/models",
+      "http_status": 200,
+      "sha256": "e0b086515d25f794141fd116518901f66b31a8a590407edaf6b641b5e79e4794",
+      "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study5/preparation/catalog.json",
+      "selection": {
+        "id": "stealth/space-bunny-alpha",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1000000,
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "response_format",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      }
+    },
+    "endpoints": {
+      "url": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+      "http_status": 200,
+      "sha256": "3fa6b30a482eb085e1e6b14affa4cdfaae95e180be0e2965ad0dedd3b8406024",
+      "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study5/preparation/endpoints.json",
+      "selection": [
+        {
+          "name": "Stealth | stealth/space-bunny-alpha",
+          "model_id": "stealth/space-bunny-alpha",
+          "provider_name": "Stealth",
+          "pricing": {
+            "prompt": "0",
+            "completion": "0",
+            "discount": 0
+          },
+          "status": 0,
+          "supported_parameters": [
+            "reasoning",
+            "include_reasoning",
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "tools",
+            "tool_choice",
+            "response_format",
+            "reasoning_effort"
+          ]
+        }
+      ]
+    }
+  },
+  "launch_recheck_required": true,
+  "account_usage": {
+    "usage": 39.240436083,
+    "limit": 40,
+    "limit_remaining": 0.7595639170000013,
+    "rate_limit": {
+      "requests": -1,
+      "interval": "10s",
+      "note": "This field is deprecated and safe to ignore."
+    },
+    "expires_at": null,
+    "is_free_tier": false,
+    "limit_reset": null,
+    "http_status": 200,
+    "observed_at_utc": "2026-09-30T19:39:58.109673+00:00",
+    "credential_printed": false,
+    "request_scope": "read-only auth/key; no inference"
+  },
+  "status": "ELIGIBLE_ZERO_PRICE_READ_ONLY_PREPARATION",
+  "private_retention": {
+    "directory": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study5/preparation",
+    "files": [
+      {
+        "name": "catalog.json",
+        "sha256": "e0b086515d25f794141fd116518901f66b31a8a590407edaf6b641b5e79e4794"
+      },
+      {
+        "name": "endpoints.json",
+        "sha256": "3fa6b30a482eb085e1e6b14affa4cdfaae95e180be0e2965ad0dedd3b8406024"
+      },
+      {
+        "name": "account-projection.json",
+        "sha256": "7a7de1f451dcab0e041f8dd0850511dba618cdb0d8bd758fc7dd10f271bba82e"
+      }
+    ]
+  },
+  "limits": "Official catalog omits ancillary request/reasoning prices; existing pinned promotional-free policy and per-request zero-price caps remain required. No inference, qualification, or billing audit. Recheck immediately before live batch.",
+  "release_observation": {
+    "observed_main_commit": "f553e8df0a9fac84bf23d8c610345aa5fb4146a0",
+    "change": "PR82 frontend-only; campaign tree remains pinned to bb406429; preserve UI changes at release integration",
+    "health_url": "https://api-production-97eb.up.railway.app/health",
+    "status": "healthy",
+    "version": "0.1.0",
+    "limits": "Read-only health proves availability, not deployment of unreleased batching."
+  }
+}
