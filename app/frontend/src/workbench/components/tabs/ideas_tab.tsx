@@ -52,8 +52,12 @@ const IDEA_SPLIT_GRID_CLASSES =
   'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_17rem] ' +
   'max-[1023px]:grid-cols-1';
 
+// One `minmax(0,1fr)` column, and no horizontal scroll: an implicit `auto`
+// track sized itself to the widest card's nowrap title and chip row, so the
+// cards spilled past the column and were cropped behind a sideways scroll.
 const IDEA_RANK_LIST_CLASSES =
-  'idea-rank-list m-0 grid content-start gap-[0.7rem] overflow-y-auto ' +
+  'idea-rank-list m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] content-start ' +
+  'gap-[0.7rem] overflow-x-hidden overflow-y-auto ' +
   'border-r border-cosci-idea-list-border bg-transparent py-5 pr-6 ' +
   'pl-5 list-none';
 
@@ -62,7 +66,8 @@ const IDEA_RANK_LIST_CLASSES =
 // the text is not indented under a rank column. The row is an anchor (each
 // idea has its own ?idea= URL), hence the explicit no-underline.
 const IDEA_RANK_ROW_CLASSES =
-  'idea-rank-row grid min-h-[8.9rem] w-full cursor-pointer content-start ' +
+  'idea-rank-row grid min-h-[8.9rem] w-full min-w-0 ' +
+  'grid-cols-[minmax(0,1fr)] cursor-pointer content-start ' +
   'gap-[0.5rem] rounded-[10px] no-underline ' +
   'border border-cosci-idea-row-border bg-cosci-idea-row-bg ' +
   'p-4 text-left text-cosci-idea-row-text transition-colors duration-150 ' +
@@ -70,7 +75,10 @@ const IDEA_RANK_ROW_CLASSES =
   'hover:bg-cosci-idea-row-hover-bg ' +
   'motion-reduce:transition-none';
 
-const IDEA_RANK_HEAD_CLASSES = 'idea-rank-head flex items-center gap-[0.6rem]';
+// Wraps, so a card with every chip drops the extras to a second line rather
+// than widening past its column.
+const IDEA_RANK_HEAD_CLASSES =
+  'idea-rank-head flex flex-wrap items-center gap-[0.6rem]';
 
 const IDEA_RANK_SELECTED_CLASSES =
   'selected !border-cosci-idea-row-selected-border ' +
@@ -81,7 +89,7 @@ const IDEA_RANK_SELECTED_CLASSES =
 const IDEA_CHIP_CLASSES =
   'inline-grid h-7 min-w-7 place-items-center rounded-full border-0 ' +
   'px-3 bg-cosci-idea-chip-bg text-[0.875rem] font-normal ' +
-  'text-cosci-idea-chip-text';
+  'whitespace-nowrap text-cosci-idea-chip-text';
 
 const IDEA_ELO_CHIP_CLASSES =
   IDEA_CHIP_CLASSES + ' idea-elo-chip w-fit min-w-[6.35rem]';
@@ -90,6 +98,7 @@ const IDEA_ELO_CHIP_CLASSES =
 // and published, but flagged so the reader treats it as unverified.
 const IDEA_UNVERIFIED_CHIP_CLASSES =
   'idea-unverified-chip inline-flex h-7 w-fit items-center gap-1 ' +
+  'whitespace-nowrap ' +
   'rounded-full bg-cosci-idea-chip-bg px-3 text-[0.8rem] font-medium ' +
   'text-cosci-idea-chip-text';
 
@@ -101,6 +110,7 @@ const IDEA_UNVERIFIED_CHIP_CLASSES =
 // stops it reading as sound.
 const IDEA_UNDERMINED_CHIP_CLASSES =
   'idea-undermined-chip inline-flex h-7 w-fit items-center gap-1 ' +
+  'whitespace-nowrap ' +
   'rounded-full bg-th-destructive-container px-3 text-[0.8rem] ' +
   'font-medium text-th-destructive-on-container';
 

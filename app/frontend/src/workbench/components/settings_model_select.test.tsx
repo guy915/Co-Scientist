@@ -75,14 +75,15 @@ it('stores a chosen supervisor model', async () => {
   expect(getStoredModel('worker')).toBe('');
 });
 
-it('disables both selects and explains free usage without a key', async () => {
+it('keeps both selects choosable and explains free usage without a key', async () => {
   renderSection('', 'deepseek');
   expect(
     await screen.findByText(/2 of 3 free runs left today/),
   ).toBeInTheDocument();
   expect(screen.getByText(/Only Express runs/)).toBeInTheDocument();
-  expect(trigger(/Supervisor model/)).toBeDisabled();
-  expect(trigger(/Worker model/)).toBeDisabled();
+  expect(await screen.findAllByText('deepseek-v4-flash')).toHaveLength(2);
+  expect(trigger(/Supervisor model/)).toBeEnabled();
+  expect(trigger(/Worker model/)).toBeEnabled();
 });
 
 it('resets model choices when the provider changes', () => {

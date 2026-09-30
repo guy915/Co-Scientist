@@ -113,8 +113,10 @@ export const COMPOSER_BASE_CLASSES =
 // sliding under the actions.
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem] pb-[3rem]';
 
+// Inset from the left edge (left-[0.4rem]) so the empty textarea's caret,
+// which sits at x=0, blinks beside the lock icon rather than on top of it.
 export const COMPOSER_LABEL_TEXT_CLASSES =
-  'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
+  'absolute top-0 left-[0.4rem] z-[1] flex h-6 items-center gap-[0.45rem] ' +
   'pointer-events-none text-base text-cosci-composer-label';
 
 export const COMPOSER_LABEL_TEXT_HIDDEN_CLASSES = 'hidden';
@@ -128,7 +130,7 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 // than stacking on top of it and making the empty box too tall.
 export const COMPOSER_TEXTAREA_CLASSES =
   'relative z-[2] block min-h-[2.85rem] w-full ' +
-  'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
+  'resize-none overflow-y-auto border-0 bg-transparent p-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
 // Bottom action row (source controls + submit), absolutely positioned over
