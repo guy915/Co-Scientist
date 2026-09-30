@@ -1,21 +1,21 @@
-import {render, screen} from '@testing-library/react';
-import {expect, it} from 'vitest';
+import {fireEvent, render, screen} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
+import {expect, it, vi} from 'vitest';
 import {HelpSection} from './settings_dialog_sections';
 
-it('answers what the app is and how to start a run', () => {
-  render(<HelpSection />);
-  expect(screen.getByText('What is Co-Scientist?')).toBeInTheDocument();
-  expect(screen.getByText('How do I start a run?')).toBeInTheDocument();
-});
-
-// The FAQ used to carry a "Are there keyboard shortcuts?" entry, because the
-// two shortcuts it described had no other discoverable surface. Both are
-// gone, and the FAQ is the one place a reader would look to find out that
-// they exist -- documenting a binding the app no longer honors would be
-// worse than saying nothing, so the entry has to go with them. See
-// layout_no_shortcuts.test.tsx for the check that none came back.
-it('promises no keyboard shortcuts', () => {
-  render(<HelpSection />);
-  expect(screen.queryByText(/keyboard shortcut/i)).toBeNull();
-  expect(screen.queryByText(/arrow key/i)).toBeNull();
+// The FAQ moved out of Settings to the landing page under the chat home
+// (home_landing_content.ts), so Help carries one link to it rather than a
+// second copy that could drift. Its own checks live in home_landing.test.tsx.
+it('links to the FAQ on the landing page and closes on the way', () => {
+  const onNavigate = vi.fn();
+  render(
+    <MemoryRouter>
+      <HelpSection onNavigate={onNavigate} />
+    </MemoryRouter>,
+  );
+  const link = screen.getByRole('link', {name: 'Read the FAQ'});
+  expect(link).toHaveAttribute('href', '/#faq');
+  fireEvent.click(link);
+  expect(onNavigate).toHaveBeenCalledOnce();
+  expect(screen.queryByText('What is Co-Scientist?')).toBeNull();
 });

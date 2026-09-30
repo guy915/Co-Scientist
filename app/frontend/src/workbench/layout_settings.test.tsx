@@ -59,10 +59,12 @@ it('opens the Settings dialog and switches sections', async () => {
   expect(screen.queryByText('Settings saved')).toBeNull();
 
   fireEvent.click(screen.getByRole('button', {name: 'Help'}));
-  // The Help section renders project info plus the FAQ accordion rows
-  // (native <details>, one per question).
-  expect(screen.getByText('What is Co-Scientist?')).toBeInTheDocument();
-  expect(screen.getByText('Where does my API key go?')).toBeInTheDocument();
+  // The Help section renders project info plus a link to the FAQ, which
+  // lives on the landing page under the chat home.
+  expect(screen.getByRole('link', {name: 'Read the FAQ'})).toHaveAttribute(
+    'href',
+    '/#faq',
+  );
 
   fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
   expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();

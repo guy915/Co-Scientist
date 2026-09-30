@@ -1,65 +1,28 @@
 /* Shell popover panels, FAQ, toast, and sidebar chat list. */
 
-/* Get-help FAQ: native <details> accordion, styled as stacked rows with a
-   chevron that rotates when the row is open. */
-.ucs-faq {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-}
-
-.ucs-faq-item {
-  border-top: 1px solid var(--cosci-menu-divider);
-}
-
-.ucs-faq-item:last-child {
-  border-bottom: 1px solid var(--cosci-menu-divider);
-}
-
-.ucs-faq-question {
-  display: flex;
+/* Settings > Help's link to the FAQ, which lives on the landing page under
+   the chat home. */
+.ucs-help-faq-link {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  cursor: pointer;
+  align-self: start;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  color: var(--cosci-blue);
   font-size: 0.9rem;
   font-weight: 500;
-  list-style: none;
-  padding: 0.85rem 0.15rem;
+  text-decoration: none;
 }
 
-/* Hide the default disclosure triangle (Safari renders it via ::-webkit). */
-.ucs-faq-question::-webkit-details-marker {
-  display: none;
+.ucs-help-faq-link:hover,
+.ucs-help-faq-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
 }
 
-.ucs-faq-question:hover {
-  color: var(--cosci-blue);
-}
-
-.ucs-faq-chevron {
-  flex: 0 0 auto;
-  color: var(--cosci-menu-icon);
-  font-size: 1.25rem;
-  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.ucs-faq-item[open] .ucs-faq-chevron {
-  transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ucs-faq-chevron {
-    transition: none;
-  }
-}
-
-.ucs-faq-answer {
-  margin: 0;
-  padding: 0 0.15rem 0.9rem;
-  color: var(--cosci-muted);
-  font-size: 0.85rem;
-  line-height: 1.5;
+.ucs-help-faq-link svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 /* One sidebar treatment for every route — the chat rail must look
@@ -218,4 +181,3 @@
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
 }
-

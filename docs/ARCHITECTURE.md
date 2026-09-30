@@ -170,7 +170,9 @@ still holds: nothing here lets a view render without hitting the API.
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`; the earlier public landing
     page and demo routes were removed, and `src/public/` now holds only
-    residual helpers (404 page, no-index).
+    residual helpers (404 page, no-index). A landing page now lives *under*
+    the chat home instead (`pages/home_landing*.tsx`), one scroll below the
+    composer, so the app still opens on the chat.
 -   The engine's offline LLM backend exists so the system has **observable
     behaviour without any external dependency**. The same LangGraph graph
     runs either way; only `litellm.acompletion` for `offline/` models is

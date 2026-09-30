@@ -1,0 +1,305 @@
+/* Landing page, part two: the How it works system diagram and the agent
+   cards. Part one is home_landing.css. */
+
+/* ---- How it works: the system diagram ---- */
+.ucs-landing-diagram {
+  margin: 48px 0 0;
+  padding: clamp(16px, 3vw, 40px);
+  border-radius: 32px;
+  background: var(--l-surface);
+}
+
+.ucs-landing-diagram-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--l-body);
+}
+
+.ucs-landing-diagram-svg text {
+  fill: var(--l-ink);
+  font-size: 17px;
+}
+
+.ucs-landing-box {
+  fill: var(--l-bg);
+  stroke: var(--l-line);
+  stroke-width: 1.5;
+}
+
+.ucs-landing-box-label,
+.ucs-landing-wire-label {
+  fill: var(--l-muted) !important;
+  font-size: 14px !important;
+}
+
+.ucs-landing-node rect {
+  fill: var(--l-bg);
+  stroke: var(--l-line);
+}
+
+.ucs-landing-node.is-you rect,
+.ucs-landing-person {
+  fill: var(--l-c-blue);
+  stroke: none;
+}
+
+.ucs-landing-node.is-you text {
+  fill: var(--l-o-blue);
+}
+
+.ucs-landing-person-glyph {
+  fill: var(--l-o-blue);
+  opacity: 0.55;
+}
+
+.ucs-landing-node.is-supervisor rect {
+  fill: var(--l-ink);
+  stroke: none;
+}
+
+.ucs-landing-node.is-supervisor text {
+  fill: var(--l-bg);
+  font-weight: 500;
+}
+
+.ucs-landing-node.is-output rect {
+  fill: var(--l-c-teal);
+  stroke: none;
+}
+
+.ucs-landing-node.is-output text {
+  fill: var(--l-o-teal);
+}
+
+.ucs-landing-node.is-worker rect {
+  fill: var(--l-surface);
+}
+
+.ucs-landing-node.is-worker text {
+  fill: var(--l-muted);
+  font-size: 15px;
+}
+
+.ucs-landing-wire {
+  fill: none;
+  marker-end: url(#ucs-landing-arrow);
+  stroke: var(--l-muted);
+  stroke-dasharray: 6 6;
+  stroke-width: 1.5;
+}
+
+.ucs-landing-wire.is-two-way {
+  marker-start: url(#ucs-landing-arrow);
+}
+
+#ucs-landing-arrow path {
+  fill: var(--l-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ucs-landing-wire {
+    animation: ucs-landing-flow 1.2s linear infinite;
+  }
+}
+
+@keyframes ucs-landing-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.ucs-landing-agent-cell {
+  cursor: pointer;
+  outline: none;
+}
+
+.ucs-landing-agent-cell rect {
+  fill: var(--tone-c);
+  stroke: transparent;
+  stroke-width: 3;
+  transition:
+    stroke 0.3s,
+    transform 0.4s var(--l-ease);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ucs-landing-agent-cell text {
+  fill: var(--tone-o) !important;
+  pointer-events: none;
+}
+
+.ucs-landing-agent-cell.is-active rect {
+  stroke: var(--tone-o);
+  transform: scale(1.05);
+}
+
+.ucs-landing-agent-cell:focus-visible rect {
+  stroke: var(--l-accent);
+}
+
+.ucs-landing-diagram-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-height: 3.2em;
+  margin-top: 20px;
+  color: var(--l-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ucs-landing-diagram-caption b {
+  color: var(--l-ink);
+  font-weight: 500;
+}
+
+.ucs-landing-flow {
+  display: none;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ucs-landing-flow > li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 16px 20px;
+  border-radius: 24px;
+  background: var(--l-bg);
+  color: var(--l-muted);
+  font-size: 14px;
+}
+
+.ucs-landing-flow > li + li::before {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  height: 22px;
+  border-left: 1.5px dashed var(--l-muted);
+  content: '';
+}
+
+.ucs-landing-flow b {
+  color: var(--l-ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.ucs-landing-flow > li.is-you {
+  background: var(--l-c-blue);
+  color: var(--l-o-blue);
+}
+
+.ucs-landing-flow > li.is-supervisor {
+  background: var(--l-ink);
+  color: var(--l-bg);
+}
+
+.ucs-landing-flow > li.is-supervisor b {
+  color: inherit;
+}
+
+.ucs-landing-flow > li.is-output {
+  background: var(--l-c-teal);
+  color: var(--l-o-teal);
+}
+
+.ucs-landing-flow > li.is-you b,
+.ucs-landing-flow > li.is-output b {
+  color: inherit;
+}
+
+.ucs-landing-flow-ring {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px !important;
+  border: 1.5px dashed var(--l-line);
+}
+
+.ucs-landing-flow-ring span {
+  padding: 10px 14px;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background: var(--tone-c);
+  color: var(--tone-o);
+  transition: border-color 0.3s;
+}
+
+.ucs-landing-flow-ring span.is-active {
+  border-color: var(--tone-o);
+}
+
+.ucs-landing-flow-ring em {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  font-style: normal;
+  text-align: center;
+}
+
+/* ---- Agent cards ---- */
+.ucs-landing-agents {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.ucs-landing-agent {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 28px;
+  border-radius: 32px;
+  background: var(--l-surface);
+  outline-offset: 3px;
+}
+
+.ucs-landing-agent.is-wide {
+  grid-column: span 3;
+}
+
+.ucs-landing-agent h3 {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.ucs-landing-agent p {
+  margin: 6px 0 0;
+  color: var(--l-muted);
+  line-height: 1.5;
+}
+
+.ucs-landing-badge {
+  position: relative;
+  display: block;
+  width: 104px;
+  color: var(--tone-o);
+}
+
+.ucs-landing-badge > svg:first-child {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ucs-landing-badge > svg:first-child path {
+  fill: var(--tone-c);
+}
+
+.ucs-landing-badge > svg:last-child {
+  position: absolute;
+  inset: 0;
+  width: 40px;
+  height: 40px;
+  margin: auto;
+  fill: currentColor;
+}

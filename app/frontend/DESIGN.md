@@ -284,7 +284,7 @@ components:
 
 ## Overview
 
-Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents) and at `/chats/:id` for a reopened session, a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas) a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. The earlier public surface — landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it.
+Co-Scientist is a Gemini Enterprise-style workbench for multi-agent idea development. The live surface is a single-page workbench: a chat workspace at `/` (greeting, composer, recents) and at `/chats/:id` for a reopened session, a tabbed run detail at `/runs/:id/:tab` (Goal Details, Learning, Research Overview, All Ideas) a shared read-only goal report at `/shared/:token`, and a researcher-access page at `/access`. The earlier public surface — the `/about` landing page, `/runs` dashboard, demo pages — was deliberately removed; do not reintroduce or style for it. The one exception is the **landing page under the chat home** (see Landing page): the home still opens on the chat, and the landing page sits below it, one scroll away.
 
 The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: teal/blue accents for primary actions, tonal containers for states, semantic tones for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
@@ -407,7 +407,7 @@ These values are copied from the Gemini product and should not be "normalized" o
 
 Bespoke **styled** CSS class names (as opposed to Tailwind utilities) use **exactly two prefixes**, split by origin. New CSS classes must take one of them; do not invent a third family or revive the retired ones (`google-*`, `gemini-*`, `cosci-*` as a *class* prefix, `wb-*` beyond the stray below).
 
-- **`ucs-*`** — app **shell chrome** the reference doesn't dictate: the app shell grid, nav rail items, header bar, chat list, popovers, the settings menu/dialog/FAQ, and the canonical tooltip system (`ucs-tooltip-*`).
+- **`ucs-*`** — app **shell chrome** the reference doesn't dictate: the app shell grid, nav rail items, header bar, chat list, popovers, the settings menu/dialog, the landing page under the chat home (`ucs-landing-*`), and the canonical tooltip system (`ucs-tooltip-*`).
 - **`reference-*`** — surfaces that reproduce a **specific Gemini reference** screen 1:1: the composer, recents cards, step timeline, chat bubbles, setup document, spec grid, option cards, connectors menu, report tabs/toast, workspace-main.
 
 Two intentional strays remain: `wb-skeleton` (the one surviving `wb-*` utility) and `md-state` / `md-elevation-*` (MD3 primitives). The Ideas tab additionally uses bare `idea-*` class names (`idea-split-shell`, `idea-rank-row`, `idea-detail-pane`, …) as **unstyled structural/test markers** — they carry no CSS rules (styling comes from Tailwind `cosci-idea-*` utilities) and must stay that way; if an `idea-*` class ever needs a stylesheet rule, rename it into one of the two families instead. Everything else is a Tailwind utility. Note the `--cosci-*` **custom-property** prefix is unrelated to class names — it's the token namespace (see Colors) and stays.
@@ -420,7 +420,7 @@ Every interactive element gets an MD3 **state layer** — a translucent `current
 
 **Nothing snaps.** A global baseline in `index.css` transitions `background-color`, `border-color`, `color`, `box-shadow`, and `opacity` over **140ms** with the MD3 standard easing (`cubic-bezier(0.2, 0, 0, 1)`) on every `button`, `a`, `summary`, `[role="button"]`, `[role="tab"]`, `input`, `select`, and `textarea`. Component-specific transitions (higher specificity) still win where set — e.g. recents cards ease `background-color` over 160ms, the sidebar rail animates `grid-template-columns` over 240ms with nav labels fading/collapsing in sync (opacity 180ms / max-width 240ms).
 
-The motion budget by tier: **micro-interactions ≤ 200ms** (the 140ms baseline, the 120ms state layer); **structural motion ≤ 240ms** (the sidebar rail); **entrance fades at 300ms** (`reference-fade-in`, 0.3s ease-in-out, on the home stage) — the ceiling; and the run-step **spinner** loops at 0.8s. Do not add anything slower than 300ms.
+The motion budget by tier: **micro-interactions ≤ 200ms** (the 140ms baseline, the 120ms state layer); **structural motion ≤ 240ms** (the sidebar rail); **entrance fades at 300ms** (`reference-fade-in`, 0.3s ease-in-out, on the home stage) — the ceiling; and the run-step **spinner** loops at 0.8s. Do not add anything slower than 300ms. The landing page under the chat home is the one exemption (see Landing page); its motion never reaches the workbench above it.
 
 Two guardrails:
 
@@ -461,13 +461,27 @@ The session chat column (`chat_setup_classes.ts` / `chat_home_classes.ts`, under
 
 The home surface centers the flask mark and greeting (display type, weight 400) above a **three-step onboarding timeline** (the green step dots — see Colors), suggestion cards with hover-preview bubbles, and the composer. The **recents panel** lists `RecentRunCard`s (the shadowed reference cards — see Elevation & Depth) with a bottom mask fade and a dashed empty-state card. A running card shows the run's real phase as a step flow labeled "In Progress", with a 0.8s `reference-run-step-spin` spinner on the active step. Run status elsewhere renders as **plain text tones, not pills** — there is no status-pill component.
 
+### Landing page
+
+The chat home (`/`) opens exactly as before. One gray line under the composer (`.reference-home-scroll-hint`, "Scroll to see how Co-Scientist works" with a bobbing chevron) points down to a **landing page** rendered below the home stage (`home_landing.tsx`, lazy-loaded so the home's first paint never waits on it). While it is mounted, `.ucs-page--home` scrolls and the stage keeps exactly one screen (`home_landing.css`); the conversation view never mounts it.
+
+It is the app's one **editorial surface**, modeled on Google's product and model pages (DeepMind model pages, Google Labs, NotebookLM), so it deliberately steps outside the workbench rules below the fold — and only there:
+
+- **Type:** display in **Google Sans Flex** (variable weight + optical size; the hero wordmark's weight tracks scroll), labels and figures in **Google Sans Code**, body in Google Sans Text. Both new faces are OFL, self-hosted latin woff2s in `src/assets/fonts/`.
+- **Shape:** Material 3 Expressive shapes (cookie, flower, clover, sunny, gem, pill), sampled at one point count so they morph (`home_landing_shapes.ts`); cards and media at 24–48px radii; pills for every control.
+- **Color:** landing-scoped tokens (`--l-*` on `.ucs-landing`) with tonal container pairs (`--l-c-*` fill / `--l-o-*` ink) in teal, blue, green, yellow, red, redefined under `:root[data-theme='dark']`. The Google four-color set appears only as data (tournament leaders, tier cycles). The live-tournament panel is always dark.
+- **Motion:** allowed past the 300ms budget, because it is content rather than feedback: a live Elo arena on canvas (paused off screen), flowing diagram wires, a walking agent highlight, a sources marquee, line draw-in on the Elo chart, count-ups, shape morphs on hover. Every one has a `prefers-reduced-motion` path that renders the settled frame.
+- **Facts:** every number is the product's own — tiers mirror `RUN_TIER_DEFAULTS` (pinned by `app/tests/test_landing_tiers.py`) and the starting Elo mirrors `INITIAL_ELO_RATING`. Simulations are labeled as simulations.
+
+Sections, in rail order: Overview, How it works (a system diagram after the paper's architecture figure, plus agent cards), Tournament (live arena, Elo chart, podium), Evidence (claim verdicts and the sources marquee), Safety, Tiers (interactive pool), FAQ, then a closing call to action that scrolls back up and focuses the composer.
+
 ### Ideas tab
 
 The All Ideas view (`ideas_tab.tsx` + `ideas_detail_pane.tsx`) is a desktop **split pane** (rank list left, detail pane right) that collapses to a master-detail flow on mobile. Rows carry Elo and rank chips plus an "unverified" caution chip; every surface in the tab is themed by the `--cosci-idea-*` token family in `reference_surface.css`. Detail-pane section headings use the display face at `2rem`.
 
 ### Settings
 
-The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, and an FAQ accordion (`.ucs-faq-*`). Saving is silent -- the field shows what it stored. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
+The rail's settings entry opens a `ucs-*` **menu popover** (`.ucs-popover--menu`, MD3 elevation-2) containing the **three-way theme segmented control** (`.ucs-theme-segment` / `.ucs-theme-button`: System / Light / Dark), and a centered **settings dialog** (`.ucs-settings-dialog`) with a section nav, card-based panels, field inputs, and a Help card whose "Read the FAQ" link (`.ucs-help-faq-link`) closes the dialog and opens the FAQ on the landing page (`/#faq`). The FAQ copy lives only there (`home_landing_content.ts`). Saving is silent -- the field shows what it stored. Dialog and card titles use the display face (title-lg / title-sm). New preference UI belongs here, not in ad-hoc popovers.
 
 ### Tabs (Run Detail)
 
@@ -519,5 +533,5 @@ Empty placeholders use the shared `EmptyState` component (`workbench/components/
 - **Don't** fold the `--cosci-*` product palette into the MD3 tokens, and don't use raw `--cosci-teal` / `--cosci-green` directly — use the accent role tokens (`--cosci-accent`, `--cosci-composer-submit`, `--cosci-logo-color`) so light/dark swap correctly.
 - **Don't** give any element a `prefers-reduced-motion`-exempt animation; every transition must have the reduce escape.
 - **Don't** use more than two font weights on a single card or panel, and don't bold display headings — Google Sans display roles are weight 400.
-- **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or landing/marketing surfaces — run status is communicated through activity text tones and the recents step flow. (The Logs panel's count chips are tally chips, not run-status pills; they are fine.)
+- **Don't** reintroduce status pills, phase-colored progress segments, dashboards, or marketing surfaces beyond the one landing page under the chat home — run status is communicated through activity text tones and the recents step flow. (The Logs panel's count chips are tally chips, not run-status pills; they are fine.)
 - **Don't** introduce new semantic colors without both halves of the pair — the light value in `theme_tokens.css` and a hardcoded dark override in `index.css`.
