@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from mcp_server.entrez_rate_limit import (
+    pilot_trace_context,
+    record_pilot_fetch_error,
+    record_pilot_metadata_origin,
+)
 from mcp_server.fulltext_download import _FulltextMixin, _symlink_into_run
 
 if TYPE_CHECKING:
@@ -26,10 +31,43 @@ class _PoolDirs:
     Attributes:
         shared_dir: Shared-pool directory holding accumulated papers.
         run_dir: Per-run directory the supplemented papers link into.
+        trace: Optional pilot provenance for actual supplement selections.
     """
 
     shared_dir: Path
     run_dir: Path
+    trace: dict[str, Any] | None = None
+
+
+def _record_pool_supplements(
+    trace: dict[str, Any] | None,
+    papers_to_supplement: list[tuple[str, dict[str, Any]]],
+) -> None:
+    if trace is None:
+        return
+    attempted_ids = {
+        paper_id
+        for attempt in trace.get("attempts", [])
+        for paper_id in attempt.get("first_ids", [])
+    }
+    records = trace.setdefault("shared_pool_supplements", [])
+    for paper_id, _metadata in papers_to_supplement:
+        if len(records) >= 9:
+            break
+        # Supplements are selected from the shared pool's already-cached
+        # fulltext files before this run's download phase, so their origin is
+        # known without retaining an unbounded snapshot of every cached PMID.
+        preexisting = True
+        matched_esearch = paper_id in attempted_ids
+        records.append(
+            {
+                "pmid": paper_id,
+                "source": "shared_pool",
+                "origin": "prior_pool",
+                "preexisting": preexisting,
+                "matched_esearch_first_ids": matched_esearch,
+            }
+        )
 
 
 def _load_shared_pool_candidate(
@@ -185,15 +223,18 @@ class _SharedPoolMixin(_FulltextMixin):
                 # Entrez.efetch/elink use blocking urllib and entrez_read
                 # sleeps for rate limiting; run off the event loop so the
                 # gathered fetches actually proceed concurrently.
-                paper_details = await asyncio.to_thread(
-                    self._fetch_paper_details, paper_id
-                )
+                with pilot_trace_context(None, paper_id):
+                    paper_details = await asyncio.to_thread(
+                        self._fetch_paper_details, paper_id
+                    )
                 with open(metadata_file, "w", encoding="utf-8") as f:
                     json.dump(paper_details, f)
                 logger.debug("Saved metadata for %s to shared pool", paper_id)
                 _link_metadata_to_run(run_dir, paper_id)
+                record_pilot_metadata_origin(paper_id, "entrez_fetch")
                 return (paper_id, paper_details)
             except Exception as e:
+                record_pilot_fetch_error("metadata_fetch", e, paper_id)
                 logger.warning("Failed to read paper %s: %s", paper_id, e)
                 logger.debug(traceback.format_exc())
                 return (paper_id, None)
@@ -220,6 +261,7 @@ class _SharedPoolMixin(_FulltextMixin):
         # Check shared pool first (smart cache across runs)
         metadata_file = shared_dir / f"{paper_id}.metadata.json"
         if metadata_file.exists():
+            record_pilot_metadata_origin(paper_id, "shared_pool_cache")
             logger.debug(
                 "Paper %s metadata found in shared pool, reusing", paper_id
             )
@@ -361,6 +403,7 @@ class _SharedPoolMixin(_FulltextMixin):
         self._apply_shared_pool_supplements(
             run_dir, papers_to_supplement, papers_to_use, all_details
         )
+        _record_pool_supplements(dirs.trace, papers_to_supplement)
         logger.info(
             "Supplemented %s papers from shared pool (total: %s/%s)",
             len(papers_to_supplement),

@@ -24,9 +24,11 @@ to sit in the response readers paced nothing, since by the time a handle is
 open its request has already gone out.
 """
 
+import contextvars
 import threading
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from typing import Any
 
 from Bio import Entrez
@@ -48,6 +50,111 @@ _next_slot = 0.0
 # fake clock instead of real elapsed time. Production never overrides these.
 _clock: Callable[[], float] = time.monotonic
 _sleep: Callable[[float], None] = time.sleep
+
+_PILOT_ENTREZ_CALLS = ("esearch", "efetch", "elink")
+PILOT_ENTREZ_MAX_TRIES = 1
+PILOT_ENTREZ_SLEEP_BETWEEN_TRIES = 0
+_pilot_trace_context: contextvars.ContextVar[
+    tuple[dict[str, Any], str | None] | None
+] = contextvars.ContextVar("pubmed_pilot_trace", default=None)
+_pilot_trace_lock = threading.Lock()
+
+
+@contextmanager
+def pilot_trace_context(
+    trace: dict[str, Any] | None, paper_id: str | None = None
+) -> Any:
+    """Scopes optional trace accounting across async work and worker threads.
+
+    ``asyncio.to_thread`` copies the current context, so individual blocking
+    Entrez calls keep the correct run and paper identity without process-wide
+    mutable request state.
+    """
+    parent = _pilot_trace_context.get()
+    resolved_trace = (
+        trace if trace is not None else parent[0] if parent else None
+    )
+    resolved_paper_id = (
+        paper_id if paper_id is not None else parent[1] if parent else None
+    )
+    if resolved_trace is None:
+        yield
+        return
+    token = _pilot_trace_context.set((resolved_trace, resolved_paper_id))
+    try:
+        yield
+    finally:
+        _pilot_trace_context.reset(token)
+
+
+def record_pilot_fetch_error(
+    stage: str, exc: Exception, paper_id: str | None = None
+) -> None:
+    """Records bounded, redacted fetch failure details for the active pilot."""
+    context = _pilot_trace_context.get()
+    if context is None:
+        return
+    trace, current_paper_id = context
+    resolved_paper_id = paper_id if paper_id is not None else current_paper_id
+    with _pilot_trace_lock:
+        trace["incomplete_fetch_count"] = (
+            trace.get("incomplete_fetch_count", 0) + 1
+        )
+        errors = trace.setdefault("fetch_errors", [])
+        if len(errors) < 9:
+            errors.append(
+                {
+                    "stage": stage,
+                    "pmid": resolved_paper_id,
+                    "type": type(exc).__name__,
+                }
+            )
+
+
+def record_pilot_metadata_origin(paper_id: str, origin: str) -> None:
+    """Records origin only for IDs exposed in the bounded selected-ID sample."""
+    context = _pilot_trace_context.get()
+    if context is None:
+        return
+    trace, _current_paper_id = context
+    selected = trace.get("selected")
+    selected_ids = selected.get("ids", []) if isinstance(selected, dict) else []
+    if paper_id not in selected_ids[:9]:
+        return
+    with _pilot_trace_lock:
+        trace.setdefault("metadata_origins", {})[paper_id] = origin
+
+
+def _record_pilot_entrez_call(request: Callable[..., Any]) -> None:
+    context = _pilot_trace_context.get()
+    if context is None:
+        return
+    operation = next(
+        (
+            name
+            for name in _PILOT_ENTREZ_CALLS
+            if request is getattr(Entrez, name)
+        ),
+        None,
+    )
+    if operation is None:
+        return
+    trace, _paper_id = context
+    with _pilot_trace_lock:
+        counts = trace.setdefault(
+            "entrez_calls", dict.fromkeys(_PILOT_ENTREZ_CALLS, 0)
+        )
+        counts[operation] += 1
+
+
+def _assert_pilot_retry_policy() -> None:
+    if _pilot_trace_context.get() is None:
+        return
+    if (
+        Entrez.max_tries != PILOT_ENTREZ_MAX_TRIES
+        or Entrez.sleep_between_tries != PILOT_ENTREZ_SLEEP_BETWEEN_TRIES
+    ):
+        raise RuntimeError("Biopython PubMed pilot retry policy changed")
 
 
 def _request_interval() -> float:
@@ -96,4 +203,9 @@ def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
     if campaign_free_mode():
         kwargs["api_key"] = None
     _await_slot()
+    _assert_pilot_retry_policy()
+    # These count calls entering the maintained request seam. They are not
+    # wire-attempt counts; Biopython retries are separately disabled and
+    # attested only in the explicit pilot serving mode.
+    _record_pilot_entrez_call(request)
     return request(**kwargs)
