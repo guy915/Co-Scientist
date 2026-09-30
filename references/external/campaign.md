@@ -7,13 +7,18 @@ As of 30 September, all nine required source investigations are closed. The
 [71-task public flow](m12-free-default-public-acceptance-2026-09-30.json) and
 [17-task Robin continuation](m12-robin-continuation-acceptance-2026-09-30.json)
 have recorded acceptance evidence, including their scientific limits. The four
-remaining M12 checks concern result-conditioned novelty, its disposition,
+original M12 gates concern result-conditioned novelty, its disposition,
 candidate reconciliation and final acceptance. No further model qualification
 is authorized. The third novelty study has its own
 [frozen registration](sakana/novelty-result-conditioned-pilot-prereg-v3.json);
 its [recorded result](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
 stopped on an upstream metadata-fetch error. All three admissions are consumed;
-no replay, fourth study or scientific disposition follows from those interruptions.
+no replay or scientific disposition follows from those interruptions.
+A fresh authority audit found no owner-set study-count limit. Three explicit
+PLAN support items now prepare one distinct prospective comparison under the
+existing campaign authority: justify changed operational handling, verify fresh
+primary-source inputs, and independently review/commit its registration. No
+fourth scientific admission or loosened metric is authorized before those gates.
 
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
