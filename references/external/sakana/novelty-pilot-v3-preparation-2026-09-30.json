@@ -1,6 +1,6 @@
 {
   "purpose": "Preparation and offline acceptance of separately registered third novelty study; no live inference, retrieval comparison, adoption or efficacy claim.",
-  "status": "CONTENT_ACCEPTED_PENDING_COMMITTED_LOADER_VERIFICATION",
+  "status": "VERIFIED_REGISTERED_PREPARATION_NOT_ADMITTED",
   "study_version": 3,
   "protocol_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.json",
   "protocol_sha256": "293af3a713f4670aeb22a87ff81215cbb37008bcf4f6699f8815fc0bf89419f8",
@@ -29,6 +29,12 @@
       },
       "transport": "Existing canned Entrez helper; offline-only, no serving-process/live-science claim.",
       "private_receipt_sha256": "5a8c24c954403e359665e86cf0cffa527326d6240b8a1a52642e838b82ac578a"
+    },
+    "real_committed_protocol_bank_loader": {
+      "status": "PASS",
+      "boundary": "_load_pilot_protocol(3), _load_fixture_bank(...,3), exact committed source-review bytes/SHA, six-pair count, raw-trace selection and absent exclusive marker",
+      "scientific_requests": 0,
+      "model_requests": 0
     }
   },
   "independent_review": {
@@ -63,5 +69,7 @@
     "source_metadata_efetch_batches": 1,
     "paid_calls": 0
   },
-  "cleanup": "Removed reflected path lookup/cast; reused existing runner/test/maintainedproducer helper. Historical studies and source snapshots retained as evidence. No UI/product-runtime changes."
+  "cleanup": "Removed reflected path lookup/cast; reused existing runner/test/maintainedproducer helper. Historical studies and source snapshots retained as evidence. No UI/product-runtime changes.",
+  "registration_commit": "33cba115fd8b4d2d8b75754797dcf2cf3688ce97",
+  "registration_commit_time": "2026-09-30T06:38:14+02:00"
 }
