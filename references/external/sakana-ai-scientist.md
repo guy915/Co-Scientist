@@ -1,13 +1,15 @@
 # SakanaAI/AI-Scientist — pinned source assessment
 
-Current retrieval work: [offline batching verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json)
-closes PLAN f1/f2; [strict trace-reader verification](sakana/novelty-batch-reader-verification-2026-09-30.json)
-closes f3 with 26 passing offline cases and independent review. The required
-[maintained-code release checks](m12-batching-release-checks-2026-09-30.json) pass;
-the batching path remains unreleased. Workflow integration is next, before a
-distinct prospective comparison. Four original scientific/final gates remain
-open; historical studies remain immutable and unscored. No new source bank,
-registration, admission or model qualification has started.
+Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
+[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
+[prospective workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+close PLAN f1–f4. Independent verification passed 88 runner and 26 reader tests;
+new test files pass strict typing, while inherited reference-runner diagnostics
+remain documented. The [maintained release checks](m12-batching-release-checks-2026-09-30.json)
+remain applicable; batching is unreleased. Preparing the distinct comparison is
+next. Four original scientific/final gates remain open; historical studies are
+immutable and unscored. No new source bank, registration, admission or model
+qualification has started.
 
 **Source:** https://github.com/SakanaAI/AI-Scientist at [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) (committed 2025-12-19). The ignored checkout at `references/work/sakana-ai-scientist/` was removed after release; it was never a runtime dependency. This is an external technique source, not evidence of Google's Co-Scientist implementation.
 

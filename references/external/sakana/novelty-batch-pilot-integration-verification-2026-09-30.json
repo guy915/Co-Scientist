@@ -1,0 +1,189 @@
+{
+  "purpose": "Offline acceptance of explicit prospective batch-aware pilot dispatch and non-executing draft preflight",
+  "recorded_at_utc": "2026-09-30T19:21:42.941158+00:00",
+  "scope_item": "M12-04b4f4",
+  "candidate": "M11-NOV-01",
+  "status": "OFFLINE_INTEGRATION_AND_INDEPENDENT_REVIEW_ACCEPTED",
+  "base_commit": "1610d796ddad548365daaa2400506cbc6cc443b0",
+  "classification": "Local evaluation support for an external scientific technique; no scientific adoption or Google-equivalence claim",
+  "source_files": [
+    {
+      "path": "references/external/sakana/novelty_result_conditioned_pilot.py",
+      "sha256": "419468594b2ac46677df2fa027a3a1eff943d8043079926a03d1c12c012176ba",
+      "lines": 2156
+    },
+    {
+      "path": "references/external/sakana/test_novelty_result_conditioned_batch_pilot.py",
+      "sha256": "fd975f68c18351a342ca30ebfc5332b4469d4e6dc38e7001f60880763d67e8f0",
+      "lines": 480
+    },
+    {
+      "path": "references/external/sakana/test_novelty_result_conditioned_batch_preflight.py",
+      "sha256": "0b6ad4ca8d39ee0d773b46a94625be2d3bdce43a7e603c7993777f30a35887a6",
+      "lines": 316
+    }
+  ],
+  "unchanged_batch_reader": {
+    "path": "references/external/sakana/novelty_batch_trace.py",
+    "sha256": "63ed3ebfdde0d20bd840b1bf1d97f3fc2e98208b6ba6ac94b9d449efd67cbb69"
+  },
+  "architecture": {
+    "prospective_version": 5,
+    "future_fixture_bank_version": 6,
+    "protocol": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v5.json",
+    "bank": "references/external/sakana/novelty-fixture-bank-prereg-v6.json",
+    "admission": "distinct v5 .admission.json; O_EXCL one-shot claim before external use",
+    "results": "distinct v5 result and blind-packet prefixes",
+    "dispatch": "Reused runner routes v5 raw producer traces to the separately pinned strict reader; historical per-ID validator assertions remain unchanged.",
+    "provenance": "Retains metadata_batching and reconciles returned pmc_full_text_id with each per-PMID ELink result before blind evidence.",
+    "process": "Runner and child require batching1, recovery unset/0 and no study ID; child source/build/PID/cache/credential snapshot checked before and after affected calls.",
+    "source_pins": "Runner hash, separate batch-reader/producer hash map, model boundary map, MCP tree/build and existing validator/parser/tool configuration boundaries.",
+    "preflight": "Explicit v5-only --preflight-only --preflight-protocol PATH --preflight-bank PATH validates outside-repo unregistered draft inputs, fixed design and local tool configuration, then runtime boundaries. It does not authorize execution.",
+    "limits": "Existing six-pair design, prompts, metrics, request settings and 24model/36outer-call ceilings remain unchanged."
+  },
+  "red_evidence": [
+    {
+      "observed": "Initial actual CLI test failed because version5 was not supported.",
+      "meaning": "New integration interface red; not a claim that historical studies were defective."
+    },
+    {
+      "observed": "Hash-valid empty draftbank printed successful preflight; failing behavioral test reproduced it before shared six-pair/draft/tool checks were extracted.",
+      "meaning": "Real interim preflight false-success defect corrected."
+    },
+    {
+      "observed": "First legacy+new suite rejected a new None-valued preflight_bank_path kwarg in v2/v3 mocks.",
+      "correction": "Ordinary loader calls retain historical shape; preflight override passed only in preflight mode."
+    }
+  ],
+  "scoped_review_corrections": [
+    "V5 aliases to exposed study4 bank rejected; actual route requires distinct future bank6.",
+    "CLI and direct async entrypoint reject incomplete/unflagged temporary overrides.",
+    "Removed new private-export type suppression by importing the actual typed tool helper.",
+    "Missing-tool test exercises real tool gate by stubbing lookup, rather than stubbing the expected exception.",
+    "New tests split into coherent modules below500lines; historical test assertions untouched."
+  ],
+  "checks": [
+    {
+      "command": "pytest legacy and both new runner modules",
+      "exit_code": 0,
+      "passed": 88,
+      "private_log": "/private/tmp/cosci-f4-root-runner-tests-accepted.log",
+      "log_sha256": "f4d04e063b596084e47bee931702bb7a5f4b199d5ee712771b93ed943dd7c565",
+      "observer": "coordinator independent final run"
+    },
+    {
+      "command": "pytest strict batch reader in dedicated MCP venv",
+      "exit_code": 0,
+      "passed": 26,
+      "private_log": "/private/tmp/cosci-f4-root-reader-tests-final.log",
+      "log_sha256": "0be7428786bb2b1b4bbf8bc76b7fd4a048960e57c5df85a67f2660eade6729a7",
+      "observer": "coordinator independent final run"
+    },
+    {
+      "command": "strict mypy --follow-imports=silent on both NEW test modules",
+      "exit_code": 0,
+      "private_log": "/private/tmp/cosci-f4-root-new-tests-mypy-accepted.log",
+      "log_sha256": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8",
+      "observer": "coordinator independent final run"
+    },
+    {
+      "command": "strict mypy original HEAD runner (identical isolated copy)",
+      "exit_code": 1,
+      "private_log": "/private/tmp/cosci-f4-root-reference-mypy-baseline.log",
+      "log_sha256": "42911b4da10db24bafc211fd159684d3bd842ab39821780d4cd189a88584b923",
+      "observer": "coordinator independent final run"
+    },
+    {
+      "command": "strict mypy current reference runner",
+      "exit_code": 1,
+      "private_log": "/private/tmp/cosci-f4-root-reference-mypy-current.log",
+      "log_sha256": "74781d56e9c05862df980de4a8c8f926b011d461515943c3aedfd76a74f18cee",
+      "observer": "coordinator independent final run"
+    },
+    {
+      "command": "Ruff check and format --check on three changed files; git diff --check",
+      "exit_code": 0,
+      "observer": "coordinator final run"
+    }
+  ],
+  "strict_reference_audit": {
+    "baseline": 40,
+    "current": 35,
+    "introduced_message_multiset": {},
+    "scope": "Same strict audit command; inherited diagnostics remain nonzero, no strict audit pass claimed."
+  },
+  "preservation": {
+    "historical_assertion_constant_ast_sha256": {
+      "STUDY4_RECOVERY_PROTOCOL": "26993029f06e7d663ddb7383d8d262513ddb94f5697e37bdb075a9764d13a3dd",
+      "MODEL_CALL_LIMIT": "539226680fcfa8b9a490b57b7bf2215eaaefc6c91aa416b9be2c8b3be028bead",
+      "OUTER_MCP_CALL_LIMIT": "a9593892d0f642fd4296c2980217a9e644677db89b63194720f92c406113fc13",
+      "MODEL_REQUEST_CONFIG": "21afd5c51b40f281938832b562ea644083d36484c718d241d9568864fc2bfec0",
+      "STATIC_PROMPT": "a336e8c1638e9c4ab873a3e8dc7cc7062ede8856b033b78982782aaa4e073534",
+      "CONDITIONED_PROMPT": "e73edfe4565fb76575cf7f0b81abde2af87ebbc8761252d49513eb6fae4dad9c",
+      "_validate_v2_trace": "95e9e746f835443f6988bcb5200b65d7720ec54928651220e99be1970eaba027",
+      "_validate_study4_recovery_trace": "e451c57dc529be00ea39448eb741eb3a00b23cc62aff6a125b8d8a6d6c3133b4",
+      "_accumulate_study4_recovery": "735877cba2cba7e5af79021cc6b1f19e959b54a3d53bd962d41aeb189fa0df48",
+      "_validate_complete_study4_recovery": "8f6fd6495b9dfef75b91bf60130bd5ff9f5b8eed5f700c285a80f75468a48180"
+    },
+    "historical_registration_entries_unchanged": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "historical_tests_byte_unchanged": true,
+    "immutable_record_sha256": {
+      "references/external/sakana/novelty-fixture-bank-prereg-v5.json": "bde8d60addb56d5e8d85ffc423eec1d8beb7f9bf35e5dc723040977dee41c2d9",
+      "references/external/sakana/novelty-fixture-bank-v3-source-review-2026-09-30.json": "8a8a36fb80faaaaf47f8284ffade1886be1858c33b580be771970f920ed1e251",
+      "references/external/sakana/novelty-fixture-recovery-prereg-v1.json": "801d586fa6b98c2ac609d658fbd020d707b118ac7191e86463f2c8e73a460b18",
+      "references/external/sakana/novelty-fixture-bank-prereg-v4.json": "a687a2152e56540c281599686aae9a53ddc1228544f66d4289c8eb8eb582f7e6",
+      "references/external/sakana/novelty-fixture-bank-v4-source-review-2026-09-30.json": "b8778dd68f51e3ab5bc720cc89e1f85fc9773187e98919fc23320ad0219bbc40",
+      "references/external/sakana/novelty-result-conditioned-pilot-v1-45158c24d998.json": "cfa3419787cbc9c77e1644a1ac04c2bfe5c994d9b149749bf77846e368b96d03",
+      "references/external/sakana/novelty-result-conditioned-pilot-v4-01dfb626be3f.json": "0369f49780f25fbcd159042e3115079c278cb6f927296b697ee82609611bb6fb",
+      "references/external/sakana/novelty-precise-rung-01c1-confirmatory-prereg-v1.json": "533804b9638f8a474db3a2e9c1a12d2777bdfc69a022265c813085f5c3b726e3",
+      "references/external/sakana/novelty-fixture-bank-prereg-v3.json": "b938e6fb30e3a3f913204742b28c1c03df203a52fb54e82d1d512badef415fb2",
+      "references/external/sakana/novelty-fixture-bank-prereg-v2.json": "a1b1df652f7c8beb4dfc070f88e1986f555e1d61b9027470086a0508432453ca",
+      "references/external/sakana/novelty-fixture-bank-v5-source-review-2026-09-30.json": "6da74ec3e7f76f9237d19234d5f3ab4523d1eda2d3cf6941e703351da8b2468f",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.json": "2aab9b9519893c970ef1edf6043bdf06fa7a4293d59450949d47c41979183f08",
+      "references/external/sakana/novelty-fixture-bank-screen-launch-v2.json": "b3601f581f64ab0450b95b65e8387fdd2e7bc5192e2699a901d96d0e9da89988",
+      "references/external/sakana/novelty-fixture-bank-screen-results-v1-7f8ab2878b1d.json": "21b18e2fbd4754579c836d9c880dce55a03a8354fcf3e718838b1057c7bc2ca8",
+      "references/external/sakana/novelty-fixture-bank-screen-assessment-v1.json": "1760765a49d18e27afea1f06fe06fc276e4c268d22c2bd69d2762d73b880463d",
+      "references/external/sakana/novelty-fixture-bank-screen-launch-v1.json": "739c1f1d304999735fe34f8cb02e2ae02fa8ded0631f6680995fdb575a8298a9",
+      "references/external/sakana/novelty-fixture-bank-screen-assessment-v2.json": "c34bdadf52e9e2a2e954afe7d674558588dcafbd25b3fe4a90c1311c3f18fb3c",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.admission.json": "a01438e012aaef86b66633e099413449005aafdf56cffdf6dda36ff889834296",
+      "references/external/sakana/novelty-fixture-bank-prereg-v1.json": "66e616e0b4e9089b4b8d971781ce0a15f81cf202c4a949a645a7bd8b13e810a1",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.json": "2fecde382ba33116ca530e030c6d24128d99824138b0130a4ad232513b50bd8c",
+      "references/external/sakana/novelty-result-conditioned-pilot-v3-b1d8d2b44552.json": "d374d2fcc7a10c9fa1d6723de6ddb77a54b5c25c71853aac600c197f10a7a716",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.json": "948381f74ef0582946872b457e79df9c612ced5b85808d5da54cf4321f404f66",
+      "references/external/sakana/novelty-query-prereg-amendment-v1.json": "cdb5cf8b184f17d9d3e93dfd96415f103610f34034e38af2253fca61b39b2e30",
+      "references/external/sakana/novelty-fixture-discovery-prereg-v1.json": "868d1485699403dfbce0397f43a7d5db72f54a88940b47b773a5dc74dc7d9d8e",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.admission.json": "38ea0d368be5f8c605a093e9ae086e0168e176dc2435084e512970a7fb5e74f0",
+      "references/external/sakana/novelty-result-conditioned-pilot-v2-740644c6fe1f.json": "237fe07c448583ceada5797dc33624a82f2b90c06ddabc262cba6b5ecb6daaae",
+      "references/external/sakana/novelty-fixture-bank-screen-results-v2-f023df7313f3.json": "2dd06d38f999553560b898e1590a5e8d242f37f0201cf26093511f919aba4512",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.json": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc",
+      "references/external/sakana/novelty-precise-rung-01b2b-independent-prereg-v1.json": "dec79fbe21bec82ee6535cc711cc66b2f37da61d5ef79a2eb4c0f7c2e8b8b3e8",
+      "references/external/sakana/novelty-precise-rung-prereg-v1.json": "5b9d7a0ac076fb44574a2b357f6b7de2a5bc151140049ac478f6d3e96b69d08b",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.admission.json": "1a9e4697cc7af07762655526b2e4a149bdac1842fa5fcde37090c389da54db83",
+      "references/external/sakana/novelty-query-prereg-v1.json": "79afc453855e826be1202990fda0b33c2ae85a64ee67eb1a34fb52088e9b92a9",
+      "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json": "0def3646965379face286c101c8c0e7b2e1807c47063841046a1560d50d20b60"
+    },
+    "historical_runner_hash_behavior": "Changing shared runner intentionally makes old consumed registrations reject current source. Their original records and exact source remain in Git; no hash exemption or replay was added.",
+    "maintained_trees_unchanged": true
+  },
+  "independent_review": {
+    "agent": "batch_pilot_review",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "context": "fresh and read-only",
+    "result": "Exact final hashes accepted; no remaining P1/P2",
+    "tests_run_by_reviewer": false
+  },
+  "release_checks": "../m12-batching-release-checks-2026-09-30.json; pinned maintained trees unchanged, no redundant full suite rerun",
+  "cleanup": "Scoped inline cleanup/deslop; no new unused imports/variables, type suppression or UI edits. Useful source/tests/evidence retained; no production dependency on reference checkout.",
+  "limits": [
+    "No actual v5 protocol, bank6 or admission exists. No live query, model inference, model qualification, scientific score, production configuration change or deployment occurred.",
+    "Offline tests exercise actual CLI/async loaders and mocked transport/process boundaries. Actual isolated MCP/CLI readiness and current zero-price eligibility remain f5 work.",
+    "Strict whole-reference audit remains FAIL on35 inherited diagnostics; the original matched source has40. New test files pass strict typing; no added diagnostic messages under the matched audit.",
+    "All four original scientific/final acceptance gates remain open."
+  ]
+}

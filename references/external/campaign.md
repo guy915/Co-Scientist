@@ -34,7 +34,13 @@ The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.js
 now passes 26 offline tests, including the maintained public-tool producer with
 one metadata batch and two PMC pages. Its exact metadata proof excludes search,
 full-text and recovery from savings; it makes no total-request or page-completeness
-claim. It remains separate from the pilot workflow until PLAN f4 is complete.
+claim. [PLAN f4 integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+now routes prospective v5 traces through that reader and validates a non-executing
+outside-repo draft preflight; 88 runner tests pass. Actual execution still requires
+an unchanged committed bank6/protocol5 with a distinct exclusive admission, and
+actual isolated process readiness remains f5. Historical records and assertions
+are unchanged; their exact original runner is retained in Git. Strict typing of
+new tests passes, with inherited whole-reference diagnostics explicitly retained.
 The [required maintained-code checks](m12-batching-release-checks-2026-09-30.json)
 passed on pinned product trees; they do not establish live scientific acceptance.
 

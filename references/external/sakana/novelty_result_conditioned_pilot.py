@@ -14,10 +14,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple, cast
 from urllib.parse import urlsplit
 
 import novelty_fixture_bank_screen as fixture
+import novelty_batch_trace as batch_trace_reader
+from co_scientist.agents.generation.literature_tools.validate_search import (
+    _find_search_tool,
+)
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.llm_free_policy import scoped_campaign_mode
@@ -31,15 +35,20 @@ PILOT_PREREG = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v1.json"
 PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
 PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
 PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
+PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
 V3_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN"
 V4_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v5.json"
 V4_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS"
+V5_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v6.json"
+V5_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_FIFTH_STUDY_INPUTS"
+OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
 STUDY4_IDENTITY = "M12-04b4-study4-20260930"
 STUDY4_RECOVERY_ENV = "COSCIENTIST_PUBMED_STUDY4_RECOVERY"
 STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
+BATCH_METADATA_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
 STUDY4_RECOVERY_POLICY = "study4-entrez-429-502-v1"
 STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST = 1
 STUDY4_MAX_RETRIES_PER_STUDY = 2
@@ -100,6 +109,15 @@ MODEL_BOUNDARY_FILES = (
     "engine/src/co_scientist/llm_telemetry.py",
     "engine/src/co_scientist/llm_gateway_routing.py",
 )
+BATCH_TRACE_SOURCE_FILES = (
+    "references/external/sakana/novelty_batch_trace.py",
+    "engine/mcp_server/entrez_rate_limit.py",
+    "engine/mcp_server/pubmed_client.py",
+    "engine/mcp_server/pubmed_metadata_batch.py",
+    "engine/mcp_server/pubmed_pilot_trace.py",
+    "engine/mcp_server/shared_pool.py",
+    "engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
+)
 
 
 class _StudyRegistration(NamedTuple):
@@ -155,6 +173,16 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "novelty-result-conditioned-pilot-v4",
             "cosci-m12-nov-04b4e3-v4-blind",
         ),
+        5: _StudyRegistration(
+            5,
+            6,
+            V5_FIXTURE_BANK_PATH,
+            V5_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4f4 batch-aware result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v5",
+            "cosci-m12-nov-04b4f4-v5-blind",
+        ),
     }
 )
 
@@ -206,6 +234,38 @@ def _contains_source_id(text: str, source_ids: set[str]) -> bool:
         re.search(rf"(?<!\d){re.escape(source_id)}(?!\d)", text)
         for source_id in source_ids
     )
+
+
+def _pilot_pairs(prereg: dict[str, Any], study_version: int) -> list[dict[str, Any]]:
+    pairs = prereg["cases_in_fixed_order"]
+    if not isinstance(pairs, list) or len(pairs) != PAIR_COUNT:
+        raise ValueError(
+            "Pilot requires every pair from the frozen v1 bank"
+            if study_version == 1
+            else "Pilot requires every pair from the frozen bank"
+        )
+    return cast(list[dict[str, Any]], pairs)
+
+
+def _validate_pilot_drafts(
+    prereg: dict[str, Any], pairs: list[dict[str, Any]]
+) -> set[str]:
+    source_ids = _source_ids(prereg)
+    for pair in pairs:
+        for arm in ("positive", "distinct_control"):
+            draft = pair[arm]["draft"]
+            if len(draft) > MAX_QUERY_CHARS or _contains_source_id(draft, source_ids):
+                raise ValueError("Frozen draft violates the PMID/query boundary")
+    return source_ids
+
+
+def _pilot_search_tool(registry: ToolRegistry) -> Any:
+    tool_id, tool = _find_search_tool(registry)
+    if tool_id != "pubmed_fulltext" or not tool:
+        raise ValueError("Configured PubMed validation tool is unavailable")
+    if tool.mcp_tool_name != "pubmed_search_with_fulltext":
+        raise ValueError("Configured PubMed validation tool differs from the pilot")
+    return tool
 
 
 def _prompt(
@@ -293,6 +353,34 @@ async def _generate_query(
     return query
 
 
+def _validate_batch_returned_links(
+    raw_trace: dict[str, Any],
+    records: dict[str, Any],
+    returned_ids: list[str],
+) -> None:
+    batching = raw_trace.get("metadata_batching")
+    batches = batching.get("batches") if isinstance(batching, dict) else None
+    if not isinstance(batches, list):
+        raise ValueError("PubMed batch trace has no per-ID ELink results")
+    pmc_ids = {
+        result["pmid"]: result["pmc_id"]
+        for batch in batches
+        if isinstance(batch, dict)
+        for result in batch.get("elink_results", [])
+        if isinstance(result, dict) and isinstance(result.get("pmid"), str)
+    }
+    for paper_id in returned_ids:
+        record = records.get(paper_id)
+        if (
+            not isinstance(record, dict)
+            or "pmc_full_text_id" not in record
+            or record.get("pmc_full_text_id") != pmc_ids.get(paper_id)
+        ):
+            raise ValueError(
+                "Returned PMC link identity differs from batch ELink proof"
+            )
+
+
 async def _search_once(
     query: str,
     *,
@@ -347,6 +435,7 @@ async def _search_once(
             cache_root,
             expected_build_id,
             expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
+            expected_metadata_batch=study_version == 5,
         )
         papers = await fixture._search_papers_for_hypothesis(
             query, context, max_papers=MAX_PAPERS
@@ -357,6 +446,7 @@ async def _search_once(
             cache_root,
             expected_build_id,
             expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
+            expected_metadata_batch=study_version == 5,
         )
         payload_error = fixture._payload_error(recorder.last_response)
         if payload_error is not None:
@@ -385,6 +475,29 @@ async def _search_once(
         ):
             error = ValueError("Malformed nonempty PubMed response payload")
     records = payload if isinstance(payload, dict) else {}
+    batch_raw_trace: dict[str, Any] | None = None
+    batch_trace_attestation: dict[str, Any] | None = None
+    batch_trace_error: Exception | None = None
+    if study_version == 5 and error is None:
+        try:
+            trace_path = fixture._trace_path(cache_root, slug, slug)
+            batch_raw_trace = json.loads(trace_path.read_text(encoding="utf-8"))
+            batch_returned_ids = (
+                [str(pmid) for pmid in payload] if isinstance(payload, dict) else []
+            )
+            batch_trace_attestation = batch_trace_reader.validate_batch_trace(
+                batch_raw_trace,
+                run_id=slug,
+                expected_build_id=expected_build_id,
+                serving_process=serving_process,
+                returned_ids=batch_returned_ids,
+            )
+            _validate_batch_returned_links(batch_raw_trace, records, batch_returned_ids)
+        except Exception as exc:
+            batch_trace_error = exc
+            error = error or exc
+    if study_version == 5 and error is not None:
+        papers = {}
     private_papers: list[dict[str, Any]] = []
     for rank, (paper_id, metadata) in enumerate(papers.items(), start=1):
         raw = records.get(str(paper_id), {})
@@ -438,10 +551,10 @@ async def _search_once(
         )
         event["trace"]["serving_process"] = serving_process
         if _study_registration(study_version).requires_raw_trace:
-            raw_trace = json.loads(
+            raw_trace = batch_raw_trace or json.loads(
                 fixture._trace_path(cache_root, slug, slug).read_text(encoding="utf-8")
             )
-            raw_fields = (
+            raw_fields = [
                 "run_id",
                 "server_build_id",
                 "process_id",
@@ -460,26 +573,37 @@ async def _search_once(
                 "shared_pool_supplements",
                 "error",
                 "outcome",
-            )
+            ]
             if study_version == 4:
                 raw_fields += (
                     "entrez_recovery",
                     "recovered_transient_attempts",
                     "entrez_recovery_call_outcomes",
                 )
+            if study_version == 5:
+                raw_fields += ("metadata_batching",)
+                if batch_trace_error is not None:
+                    raise batch_trace_error
+                if "metadata_batching" in raw_trace:
+                    event["trace"]["metadata_batching"] = raw_trace["metadata_batching"]
             event["trace_attestation"] = {key: raw_trace.get(key) for key in raw_fields}
-            returned_ids = (
+            returned_ids: list[str] | None = (
                 [str(pmid) for pmid in payload] if isinstance(payload, dict) else None
             )
-            event["trace_attestation"].update(
-                _validate_v2_trace(
-                    raw_trace,
-                    run_id=slug,
-                    expected_build_id=expected_build_id,
-                    serving_process=serving_process,
-                    returned_ids=returned_ids,
+            if study_version == 5:
+                if batch_trace_attestation is None:
+                    raise ValueError("Study 5 batch trace attestation is unavailable")
+                event["trace_attestation"].update(batch_trace_attestation)
+            else:
+                event["trace_attestation"].update(
+                    _validate_v2_trace(
+                        raw_trace,
+                        run_id=slug,
+                        expected_build_id=expected_build_id,
+                        serving_process=serving_process,
+                        returned_ids=returned_ids,
+                    )
                 )
-            )
             if study_version == 4:
                 if study4_recovery_accounting is None:
                     raise ValueError("Study 4 recovery accounting is unavailable")
@@ -1017,6 +1141,13 @@ def _validate_complete_study4_recovery(accounting: dict[str, Any]) -> None:
         raise ValueError("Study 4 Entrez recovery accounting is incomplete")
 
 
+def _require_empty_pilot_cache(cache_root: Path) -> None:
+    if cache_root.is_symlink() or not cache_root.is_absolute():
+        raise ValueError("Pilot cache must be absolute and not a symlink")
+    if not cache_root.is_dir() or any(cache_root.iterdir()):
+        raise ValueError("Pilot cache must exist and start empty")
+
+
 async def run_pilot(
     fixture_prereg: dict[str, Any],
     registry: ToolRegistry,
@@ -1052,37 +1183,18 @@ async def run_pilot(
         raise ValueError("Pilot MCP client differs from the attested endpoint")
     if result_path.exists() or blind_path.exists():
         raise ValueError("Pilot outputs already exist; never overwrite a prior run")
-    if cache_root.is_symlink() or not cache_root.is_absolute():
-        raise ValueError("Pilot cache must be absolute and not a symlink")
-    if not cache_root.is_dir() or any(cache_root.iterdir()):
-        raise ValueError("Pilot cache must exist and start empty")
+    _require_empty_pilot_cache(cache_root)
     if fixture_prereg != _load_fixture_bank(protocol, study_version):
         raise ValueError(
             "Pilot must use the complete frozen v1 fixture bank"
             if study_version == 1
             else "Pilot must use the complete committed fixture bank"
         )
-    pairs = fixture_prereg["cases_in_fixed_order"]
-    if len(pairs) != PAIR_COUNT:
-        raise ValueError(
-            "Pilot requires every pair from the frozen v1 bank"
-            if study_version == 1
-            else "Pilot requires every pair from the frozen bank"
-        )
+    pairs = _pilot_pairs(fixture_prereg, study_version)
     if not model_name or not model_api_key:
         raise ValueError("A selected model and explicit model API key are required")
-    tool_id, tool = fixture._find_search_tool(registry)
-    if tool_id != "pubmed_fulltext" or not tool:
-        raise ValueError("Configured PubMed validation tool is unavailable")
-    if tool.mcp_tool_name != "pubmed_search_with_fulltext":
-        raise ValueError("Configured PubMed validation tool differs from the pilot")
-
-    source_ids = _source_ids(fixture_prereg)
-    for pair in pairs:
-        for arm in ("positive", "distinct_control"):
-            draft = pair[arm]["draft"]
-            if len(draft) > MAX_QUERY_CHARS or _contains_source_id(draft, source_ids):
-                raise ValueError("Frozen draft violates the PMID/query boundary")
+    tool = _pilot_search_tool(registry)
+    source_ids = _validate_pilot_drafts(fixture_prereg, pairs)
 
     admission_path = _claim_campaign_admission(protocol, study_version)
     recorder = (
@@ -1175,6 +1287,14 @@ async def run_pilot(
             prompt = _prompt(variant, draft, papers)
             if _contains_source_id(prompt, source_ids):
                 raise ValueError("Model prompt contains a frozen target or anchor PMID")
+            if study_version == 5:
+                _require_same_serving_process(
+                    endpoint,
+                    serving_process,
+                    cache_root,
+                    expected_build_id,
+                    expected_metadata_batch=True,
+                )
             query = await _generate_query(
                 prompt,
                 model_name=model_name,
@@ -1187,6 +1307,14 @@ async def run_pilot(
                 expected_source_ids=source_ids,
                 event=event,
             )
+            if study_version == 5:
+                _require_same_serving_process(
+                    endpoint,
+                    serving_process,
+                    cache_root,
+                    expected_build_id,
+                    expected_metadata_batch=True,
+                )
             event["query"] = query
             event["status"] = "complete"
             report["provider_call_count"] += event["provider_calls"]
@@ -1261,7 +1389,23 @@ async def run_pilot(
         return result
 
     try:
+        if study_version == 5:
+            _require_same_serving_process(
+                endpoint,
+                serving_process,
+                cache_root,
+                expected_build_id,
+                expected_metadata_batch=True,
+            )
         await client.initialize()
+        if study_version == 5:
+            _require_same_serving_process(
+                endpoint,
+                serving_process,
+                cache_root,
+                expected_build_id,
+                expected_metadata_batch=True,
+            )
         with scoped_campaign_mode(True):
             for pair in pairs:
                 pair_id = pair["id"]
@@ -1397,6 +1541,7 @@ def _protocol_path(study_version: int) -> Path:
         2: PILOT_PREREG_V2,
         3: PILOT_PREREG_V3,
         4: PILOT_PREREG_V4,
+        5: PILOT_PREREG_V5,
     }[study_version]
 
 
@@ -1409,7 +1554,12 @@ def _study_registration(study_version: int) -> _StudyRegistration:
         ) from exc
 
 
-def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str, Any]:
+def _load_fixture_bank(
+    protocol: dict[str, Any],
+    study_version: int,
+    *,
+    preflight_bank_path: Path | None = None,
+) -> dict[str, Any]:
     registration = _study_registration(study_version)
     if registration.fixture_bank_version is None:
         return fixture._load_preregistration(1)
@@ -1424,17 +1574,36 @@ def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str
         )
     assert registration.fixture_bank_path is not None
     assert registration.fixture_bank_status is not None
-    path = ROOT / registration.fixture_bank_path
+    if preflight_bank_path is not None:
+        if study_version != 5:
+            raise ValueError(
+                "Temporary fixture preflight is available only for study 5"
+            )
+        path = preflight_bank_path.expanduser().resolve()
+        if path.is_relative_to(ROOT.resolve()):
+            raise ValueError(
+                "Temporary preflight fixture must stay outside the repository"
+            )
+    else:
+        path = ROOT / registration.fixture_bank_path
     bank_bytes = path.read_bytes()
-    if _committed_file_bytes(path, "Fixture bank") != bank_bytes:
+    if (
+        preflight_bank_path is None
+        and _committed_file_bytes(path, "Fixture bank") != bank_bytes
+    ):
         raise ValueError("Fixture bank must be committed unchanged")
     bank_hash = hashlib.sha256(bank_bytes).hexdigest()
     if protocol.get("fixture_bank_sha256") != bank_hash:
         raise ValueError("Prospective protocol names a different fixture bank")
     bank = json.loads(bank_bytes)
+    expected_status = (
+        OFFLINE_PREFLIGHT_BANK_STATUS
+        if preflight_bank_path is not None
+        else registration.fixture_bank_status
+    )
     if (
         bank.get("version") != registration.fixture_bank_version
-        or bank.get("status") != registration.fixture_bank_status
+        or bank.get("status") != expected_status
     ):
         raise ValueError(
             f"Fixture bank version {registration.fixture_bank_version} is not preregistered"
@@ -1448,16 +1617,49 @@ def _model_boundary_hashes() -> dict[str, str]:
     }
 
 
-def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
+def _batch_trace_source_hashes() -> dict[str, str]:
+    return {
+        relative: fixture._sha256(ROOT / relative)
+        for relative in BATCH_TRACE_SOURCE_FILES
+    }
+
+
+def _load_pilot_protocol(
+    study_version: int = 1,
+    *,
+    preflight_protocol_path: Path | None = None,
+    preflight_bank_path: Path | None = None,
+) -> dict[str, Any]:
     registration = _study_registration(study_version)
-    prereg_path = _protocol_path(study_version)
+    if (preflight_protocol_path is None) != (preflight_bank_path is None):
+        raise ValueError("Temporary preflight requires both protocol and fixture paths")
+    if preflight_protocol_path is not None:
+        if study_version != 5:
+            raise ValueError(
+                "Temporary protocol preflight is available only for study 5"
+            )
+        prereg_path = preflight_protocol_path.expanduser().resolve()
+        if prereg_path.is_relative_to(ROOT.resolve()):
+            raise ValueError(
+                "Temporary preflight protocol must stay outside the repository"
+            )
+    else:
+        prereg_path = _protocol_path(study_version)
     if not prereg_path.is_file():
         raise ValueError("Pilot is disabled until its protocol is preregistered")
     protocol_bytes = prereg_path.read_bytes()
-    if _committed_protocol_bytes(prereg_path) != protocol_bytes:
+    if (
+        preflight_protocol_path is None
+        and _committed_protocol_bytes(prereg_path) != protocol_bytes
+    ):
         raise ValueError("Pilot protocol must be committed unchanged")
     protocol = json.loads(protocol_bytes)
-    if protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
+    if preflight_protocol_path is not None:
+        if protocol.get("status") != OFFLINE_PREFLIGHT_BANK_STATUS:
+            raise ValueError(
+                "Temporary preflight protocol is not explicitly unregistered"
+            )
+    elif protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
         raise ValueError("Pilot protocol is not preregistered")
     if registration.fixture_bank_version is None:
         if protocol.get("fixture_bank_sha256") != fixture._bank_config(1)["sha256"]:
@@ -1494,6 +1696,13 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
             "Pilot model admission/dispatch sources changed or are unpinned"
         )
     if (
+        study_version == 5
+        and protocol.get("batch_trace_source_sha256") != _batch_trace_source_hashes()
+    ):
+        raise ValueError(
+            "Study 5 batch reader or producer sources changed or are unpinned"
+        )
+    if (
         protocol.get("max_outer_mcp_calls") != OUTER_MCP_CALL_LIMIT
         or protocol.get("max_model_calls") != MODEL_CALL_LIMIT
     ):
@@ -1501,8 +1710,20 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
     if not isinstance(protocol.get("model_name"), str) or not protocol["model_name"]:
         raise ValueError("Pilot protocol does not select a model")
     if registration.fixture_bank_version is not None:
-        _load_fixture_bank(protocol, study_version)
+        _load_fixture_bank(
+            protocol,
+            study_version,
+            preflight_bank_path=preflight_bank_path,
+        )
     return protocol
+
+
+def _study5_batch_environment_matches(environment: Mapping[str, str]) -> bool:
+    return (
+        environment.get(BATCH_METADATA_ENV) == "1"
+        and environment.get(STUDY4_RECOVERY_ENV) in {None, "0"}
+        and STUDY_ID_ENV not in environment
+    )
 
 
 def _check_mcp_process(
@@ -1512,6 +1733,7 @@ def _check_mcp_process(
     expected_build_id: str,
     cache_root: Path,
     expected_study_id: str | None = None,
+    expected_metadata_batch: bool = False,
 ) -> dict[str, Any]:
     """Attest the actual loopback listener's source directory and environment."""
     fixture._check_server_tree_clean()
@@ -1555,16 +1777,19 @@ def _check_mcp_process(
         or Path(working_dirs[0]).resolve() != (ROOT / "engine").resolve()
     ):
         raise ValueError("MCP process is not running from the pinned engine tree")
-    process = subprocess.run(
+    process_snapshot = subprocess.run(
         ["ps", "eww", "-p", pid],
         capture_output=True,
         text=True,
         check=False,
     )
-    if process.returncode != 0:
+    if process_snapshot.returncode != 0:
         raise ValueError("MCP process environment could not be attested")
     environment = dict(
-        re.findall(r"(?<!\S)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)", process.stdout)
+        re.findall(
+            r"(?<!\S)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)",
+            process_snapshot.stdout,
+        )
     )
     python_paths = [
         (
@@ -1575,7 +1800,7 @@ def _check_mcp_process(
     ]
     engine_path = (ROOT / "engine").resolve()
     if (
-        "mcp_server.server:app" not in process.stdout
+        "mcp_server.server:app" not in process_snapshot.stdout
         or not python_paths
         or any(path != engine_path for path in python_paths)
         or not source_path.is_relative_to(engine_path / "mcp_server")
@@ -1595,12 +1820,20 @@ def _check_mcp_process(
         != cache_root.resolve()
     ):
         raise ValueError("MCP process settings differ from the frozen pilot")
+    if expected_metadata_batch and not _study5_batch_environment_matches(environment):
+        raise ValueError(
+            "MCP process batching or recovery settings differ from study 5"
+        )
     process = {
         "pid": int(pid),
         "listener_address": addresses[0],
         "source_path": str(source_path),
         "mcp_tree": source_tree,
     }
+    if expected_metadata_batch:
+        process["metadata_batching"] = {"enabled": True}
+        process["study4_recovery_enabled"] = False
+        process["study_id"] = None
     if expected_study_id is not None:
         if (
             expected_study_id != STUDY4_IDENTITY
@@ -1623,6 +1856,7 @@ def _require_same_serving_process(
     cache_root: Path,
     expected_build_id: str,
     expected_study_id: str | None = None,
+    expected_metadata_batch: bool = False,
 ) -> None:
     actual = _check_mcp_process(
         endpoint,
@@ -1630,6 +1864,7 @@ def _require_same_serving_process(
         expected_build_id=expected_build_id,
         cache_root=cache_root,
         expected_study_id=expected_study_id,
+        expected_metadata_batch=expected_metadata_batch,
     )
     if actual != expected:
         raise ValueError("MCP serving process changed during the pilot")
@@ -1658,6 +1893,9 @@ def _check_runtime(
                 "Study 4 recovery activation differs from the committed protocol"
             )
         expected_study_id = STUDY4_IDENTITY
+    expected_metadata_batch = study_version == 5
+    if expected_metadata_batch and not _study5_batch_environment_matches(os.environ):
+        raise ValueError("Study 5 requires batching and disables Study 4 recovery")
     if os.environ.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
         raise ValueError("Set COSCIENTIST_REQUIRE_FREE_MODELS=1")
     endpoint = os.environ.get("COSCIENTIST_CAMPAIGN_MCP_URL", "")
@@ -1757,6 +1995,7 @@ def _check_runtime(
         expected_build_id=expected_build,
         cache_root=cache_root,
         expected_study_id=expected_study_id,
+        expected_metadata_batch=expected_metadata_batch,
     )
     return endpoint, cache_root, expected_build, serving_process
 
@@ -1775,21 +2014,94 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--study-version", type=int, choices=tuple(_STUDY_REGISTRATIONS), default=1
     )
-    return parser.parse_args(argv)
-
-
-async def _main(study_version: int | None = None) -> int:
-    study_version = (
-        _parse_args().study_version if study_version is None else study_version
+    parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--preflight-protocol", type=Path)
+    parser.add_argument("--preflight-bank", type=Path)
+    args = parser.parse_args(argv)
+    has_temporary_input = (
+        args.preflight_protocol is not None or args.preflight_bank is not None
     )
+    if has_temporary_input and not args.preflight_only:
+        parser.error("temporary protocol and fixture inputs require --preflight-only")
+    if args.preflight_only and args.study_version != 5:
+        parser.error("--preflight-only is available only for study version 5")
+    if args.preflight_only and (
+        args.preflight_protocol is None or args.preflight_bank is None
+    ):
+        parser.error(
+            "study 5 preflight requires --preflight-protocol and --preflight-bank"
+        )
+    return args
+
+
+async def _main(
+    study_version: int | None = None,
+    *,
+    preflight_only: bool = False,
+    preflight_protocol: Path | None = None,
+    preflight_bank: Path | None = None,
+) -> int:
+    if study_version is None:
+        args = _parse_args()
+        study_version = args.study_version
+        preflight_only = args.preflight_only
+        preflight_protocol = args.preflight_protocol
+        preflight_bank = args.preflight_bank
+    has_temporary_input = preflight_protocol is not None or preflight_bank is not None
+    if has_temporary_input and not preflight_only:
+        raise ValueError("Temporary inputs are permitted only for study 5 preflight")
+    if preflight_only and (preflight_protocol is None or preflight_bank is None):
+        raise ValueError("Temporary inputs are permitted only for study 5 preflight")
+    if preflight_only and study_version != 5:
+        raise ValueError("Temporary protocol preflight is available only for study 5")
     _study_registration(study_version)
-    protocol = (
-        _load_pilot_protocol()
-        if study_version == 1
-        else _load_pilot_protocol(study_version)
+    if preflight_only:
+        protocol = _load_pilot_protocol(
+            study_version,
+            preflight_protocol_path=preflight_protocol,
+            preflight_bank_path=preflight_bank,
+        )
+    else:
+        protocol = (
+            _load_pilot_protocol()
+            if study_version == 1
+            else _load_pilot_protocol(study_version)
+        )
+    fixture_prereg = (
+        _load_fixture_bank(protocol, study_version, preflight_bank_path=preflight_bank)
+        if preflight_only
+        else _load_fixture_bank(protocol, study_version)
     )
-    fixture_prereg = _load_fixture_bank(protocol, study_version)
     cache_root = Path(os.environ.get("COSCIENTIST_LIT_REVIEW_DIR", ""))
+    if preflight_only:
+        pairs = _pilot_pairs(fixture_prereg, study_version)
+        registry = ToolRegistry(
+            config_path=str(ROOT / TOOL_CONFIG), skip_user_config=True
+        )
+        _pilot_search_tool(registry)
+        _validate_pilot_drafts(fixture_prereg, pairs)
+        _require_empty_pilot_cache(cache_root)
+        endpoint, checked_cache, expected_build, serving_process = _check_runtime(
+            protocol, fixture_prereg, cache_root=cache_root
+        )
+        if checked_cache.resolve() != cache_root.resolve():
+            raise ValueError("Pilot runtime changed the isolated cache root")
+        print(
+            json.dumps(
+                {
+                    "status": "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED",
+                    "study_version": study_version,
+                    "endpoint": endpoint,
+                    "mcp_build_id": expected_build,
+                    "model_name": protocol["model_name"],
+                    "serving_process": serving_process,
+                    "cache_empty": True,
+                    "admission_claimed": False,
+                    "scientific_calls": 0,
+                }
+            )
+        )
+        return 0
     endpoint, cache_root, expected_build, _ = _check_runtime(
         protocol, fixture_prereg, cache_root=cache_root
     )
@@ -1828,5 +2140,17 @@ async def _main(study_version: int | None = None) -> int:
     return 0 if report["status"] == "PILOT_COMPLETE_LABELS_PENDING" else 1
 
 
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    return asyncio.run(
+        _main(
+            args.study_version,
+            preflight_only=args.preflight_only,
+            preflight_protocol=args.preflight_protocol,
+            preflight_bank=args.preflight_bank,
+        )
+    )
+
+
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(_main()))
+    raise SystemExit(main())
