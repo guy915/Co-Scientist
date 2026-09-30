@@ -26,6 +26,9 @@ from co_scientist.tools.response_parser import ResponseParser
 ROOT = fixture.ROOT
 RESULT_DIR = ROOT / "references/external/sakana"
 PILOT_PREREG = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v1.json"
+PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
+V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
+V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 TOOL_CONFIG = fixture.TOOL_CONFIG
 
 PAIR_COUNT = 6
@@ -210,6 +213,7 @@ async def _search_once(
     draft_id: str,
     source_ids: set[str],
     first_search_event_id: int | None,
+    study_version: int,
     blind_items: list[dict[str, Any]],
     event: dict[str, Any],
 ) -> list[dict[str, Any]] | None:
@@ -325,6 +329,42 @@ async def _search_once(
             fixture._trace_path(cache_root, slug, slug), slug, expected_build_id
         )
         event["trace"]["serving_process"] = serving_process
+        if study_version == 2:
+            raw_trace = json.loads(
+                fixture._trace_path(cache_root, slug, slug).read_text(encoding="utf-8")
+            )
+            raw_fields = (
+                "run_id",
+                "server_build_id",
+                "process_id",
+                "source_file",
+                "sort",
+                "entrez_retry_policy",
+                "entrez_calls",
+                "incomplete_fetch_count",
+                "fetch_errors",
+                "metadata_origins",
+                "attempts",
+                "selected",
+                "pre_search_shared_pool",
+                "fetched",
+                "final_ids",
+                "shared_pool_supplements",
+                "error",
+                "outcome",
+            )
+            event["trace_attestation"] = {key: raw_trace.get(key) for key in raw_fields}
+            event["trace_attestation"].update(
+                _validate_v2_trace(
+                    raw_trace,
+                    run_id=slug,
+                    expected_build_id=expected_build_id,
+                    serving_process=serving_process,
+                    returned_ids=[str(pmid) for pmid in payload]
+                    if isinstance(payload, dict)
+                    else None,
+                )
+            )
         selected = event["trace"].get("selected") or {}
         if (
             len(event["trace"].get("attempts", [])) > 3
@@ -352,6 +392,167 @@ async def _search_once(
     return private_papers
 
 
+def _validate_v2_trace(
+    trace: dict[str, Any],
+    *,
+    run_id: str,
+    expected_build_id: str,
+    serving_process: dict[str, Any],
+    returned_ids: list[str] | None,
+) -> dict[str, Any]:
+    """Check prospective raw fields omitted by the unchanged v1 reader."""
+
+    def reject() -> None:
+        raise ValueError(
+            "Prospective PubMed trace attestation is incomplete or inconsistent"
+        )
+
+    if (
+        trace.get("run_id") != run_id
+        or trace.get("server_build_id") != expected_build_id
+        or trace.get("process_id") != serving_process.get("pid")
+        or trace.get("source_file")
+        != str((ROOT / "engine/mcp_server/pubmed_client.py").resolve())
+        or trace.get("sort") != "pub_date"
+        or "error" not in trace
+        or trace["error"] is not None
+        or trace.get("outcome") not in {"nonempty", "empty"}
+    ):
+        reject()
+    retry_policy = trace.get("entrez_retry_policy")
+    if retry_policy != {"max_tries": 1, "sleep_between_tries": 0}:
+        reject()
+    calls = trace.get("entrez_calls")
+    if not isinstance(calls, dict) or set(calls) != {"esearch", "efetch", "elink"}:
+        reject()
+    if any(type(value) is not int or value < 0 for value in calls.values()):
+        reject()
+
+    attempts = trace.get("attempts")
+    if not isinstance(attempts, list) or not 1 <= len(attempts) <= 3:
+        reject()
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            reject()
+        ids = attempt.get("first_ids")
+        if (
+            attempt.get("operation") != "esearch"
+            or attempt.get("sort") != "pub_date"
+            or "error_type" in attempt
+            or type(attempt.get("count")) is not int
+            or not isinstance(ids, list)
+            or attempt["count"] != len(ids)
+        ):
+            reject()
+    if calls["esearch"] != len(attempts):
+        reject()
+
+    selected = trace.get("selected")
+    if selected is None:
+        selected_ids: list[str] = []
+        if any(attempt["count"] for attempt in attempts):
+            reject()
+    elif isinstance(selected, dict):
+        selected_ids = selected.get("ids")
+        if (
+            not isinstance(selected_ids, list)
+            or not selected_ids
+            or len(selected_ids) > 9
+            or any(
+                not isinstance(pmid, str) or not pmid.isdecimal()
+                for pmid in selected_ids
+            )
+            or len(set(selected_ids)) != len(selected_ids)
+            or selected.get("sort") != "pub_date"
+            or type(selected.get("count")) is not int
+            or selected["count"] != len(selected_ids)
+        ):
+            reject()
+        matches = [
+            attempt
+            for attempt in attempts
+            if attempt.get("rung_index") == selected.get("rung_index")
+            and attempt.get("rung_type") == selected.get("rung_type")
+        ]
+        if len(matches) != 1 or matches[0]["first_ids"] != selected_ids:
+            reject()
+    else:
+        reject()
+
+    pool = trace.get("pre_search_shared_pool")
+    pool_ids = pool.get("first_ids") if isinstance(pool, dict) else None
+    if (
+        not isinstance(pool, dict)
+        or type(pool.get("file_count")) is not int
+        or type(pool.get("metadata_count")) is not int
+        or pool["file_count"] < pool["metadata_count"]
+        or pool["file_count"] != 0
+        or pool["metadata_count"] != 0
+        or not isinstance(pool_ids, list)
+        or pool_ids
+        or trace.get("shared_pool_supplements") != []
+    ):
+        reject()
+
+    errors = trace.get("fetch_errors")
+    incomplete = trace.get("incomplete_fetch_count")
+    if (
+        not isinstance(errors, list)
+        or errors
+        or type(incomplete) is not int
+        or incomplete != 0
+    ):
+        reject()
+    fetched = trace.get("fetched")
+    origins = trace.get("metadata_origins")
+    if (
+        not isinstance(fetched, list)
+        or len(fetched) != len(selected_ids)
+        or not isinstance(origins, dict)
+        or set(origins) != set(selected_ids)
+        or [row.get("pmid") for row in fetched if isinstance(row, dict)] != selected_ids
+    ):
+        reject()
+    fresh = 0
+    for row in fetched:
+        if (
+            not isinstance(row, dict)
+            or row.get("fetched") is not True
+            or row.get("incomplete") is not False
+            or row.get("metadata_origin") != origins.get(row.get("pmid"))
+        ):
+            reject()
+        if row["metadata_origin"] == "entrez_fetch":
+            fresh += 1
+        else:
+            reject()
+    if fresh != len(selected_ids):
+        reject()
+
+    final_ids = trace.get("final_ids")
+    if (
+        not isinstance(final_ids, list)
+        or len(final_ids) > MAX_PAPERS
+        or any(not isinstance(pmid, str) or not pmid.isdecimal() for pmid in final_ids)
+        or final_ids != (returned_ids if returned_ids is not None else [])
+        or (trace["outcome"] == "nonempty") != bool(final_ids)
+        or calls["elink"] != fresh
+        or calls["efetch"] < fresh
+    ):
+        reject()
+    return {
+        "entrez_retry_policy": retry_policy,
+        "entrez_calls": calls,
+        "incomplete_fetch_count": incomplete,
+        "fetch_errors": errors,
+        "metadata_origins": origins,
+        "count_semantics": {
+            "attempts": "application-level ESearch rungs",
+            "entrez_calls": "maintained Entrez entrypoint invocations; PMC fulltext EFetch may paginate; not physical HTTP requests",
+        },
+    }
+
+
 async def run_pilot(
     fixture_prereg: dict[str, Any],
     registry: ToolRegistry,
@@ -363,9 +564,14 @@ async def run_pilot(
     expected_build_id: str,
     model_name: str,
     model_api_key: str,
+    study_version: int = 1,
 ) -> dict[str, Any]:
     """Run all six frozen pairs using the maintained search and LLM seams."""
-    protocol = _load_pilot_protocol()
+    protocol = (
+        _load_pilot_protocol(study_version)
+        if study_version == 2
+        else _load_pilot_protocol()
+    )
     if model_name != protocol["model_name"]:
         raise ValueError("Selected model differs from the committed pilot protocol")
     if expected_build_id != protocol.get("mcp_build_id"):
@@ -385,11 +591,21 @@ async def run_pilot(
         raise ValueError("Pilot cache must be absolute and not a symlink")
     if not cache_root.is_dir() or any(cache_root.iterdir()):
         raise ValueError("Pilot cache must exist and start empty")
-    if fixture_prereg != fixture._load_preregistration(1):
-        raise ValueError("Pilot must use the complete frozen v1 fixture bank")
+    if study_version not in (1, 2):
+        raise ValueError("Unsupported result-conditioned pilot study version")
+    if fixture_prereg != _load_fixture_bank(protocol, study_version):
+        raise ValueError(
+            "Pilot must use the complete frozen v1 fixture bank"
+            if study_version == 1
+            else "Pilot must use the complete committed fixture bank"
+        )
     pairs = fixture_prereg["cases_in_fixed_order"]
     if len(pairs) != PAIR_COUNT:
-        raise ValueError("Pilot requires every pair from the frozen v1 bank")
+        raise ValueError(
+            "Pilot requires every pair from the frozen v1 bank"
+            if study_version == 1
+            else "Pilot requires every pair from the frozen bank"
+        )
     if not model_name or not model_api_key:
         raise ValueError("A selected model and explicit model API key are required")
     tool_id, tool = fixture._find_search_tool(registry)
@@ -405,7 +621,7 @@ async def run_pilot(
             if len(draft) > MAX_QUERY_CHARS or _contains_source_id(draft, source_ids):
                 raise ValueError("Frozen draft violates the PMID/query boundary")
 
-    admission_path = _claim_campaign_admission(protocol)
+    admission_path = _claim_campaign_admission(protocol, study_version)
     recorder = (
         client
         if isinstance(client, fixture._RecordingClient)
@@ -413,10 +629,15 @@ async def run_pilot(
     )
     parser = ResponseParser(tool)
     nonce = uuid.uuid4().hex[:12]
+    bank_hash = (
+        protocol["fixture_bank_sha256"]
+        if study_version == 2
+        else fixture._bank_config(1)["sha256"]
+    )
     report: dict[str, Any] = {
         "name": "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
         "status": "RUNNING",
-        "fixture_bank_sha256": fixture._bank_config(1)["sha256"],
+        "fixture_bank_sha256": bank_hash,
         "selected_model": model_name,
         "model_call_count": 0,
         "provider_call_count": 0,
@@ -430,6 +651,15 @@ async def run_pilot(
         "mcp_serving_process": serving_process,
         "events": [],
     }
+    if study_version == 2:
+        report.update(
+            {
+                "name": "M12-NOV-04b4c result-conditioned prospective paired study",
+                "study_version": 2,
+                "fixture_bank_version": 3,
+                "protocol_version": 2,
+            }
+        )
     blind_packet: dict[str, Any] = {"status": "BLIND_LABELS_PENDING", "items": []}
     fixture._write_json(result_path, report, private=True)
     fixture._write_json(blind_path, blind_packet, private=True)
@@ -468,7 +698,11 @@ async def run_pilot(
                 prompt,
                 model_name=model_name,
                 model_api_key=model_api_key,
-                run_id=f"m11_nov_01a3b3_{nonce}_{report['model_call_count']:02d}",
+                run_id=(
+                    f"m11_nov_01a3b3_{nonce}_{report['model_call_count']:02d}"
+                    if study_version == 1
+                    else f"m12_nov_v2_{nonce}_{report['model_call_count']:02d}"
+                ),
                 expected_source_ids=source_ids,
                 event=event,
             )
@@ -530,6 +764,7 @@ async def run_pilot(
             draft_id=draft_id,
             source_ids=source_ids,
             first_search_event_id=first_search_event_id,
+            study_version=study_version,
             blind_items=blind_packet["items"],
             event=event,
         )
@@ -623,17 +858,21 @@ def _error_status(exc: Exception) -> str:
     return "INCOMPLETE_ERROR"
 
 
-def _claim_campaign_admission(protocol: dict[str, Any]) -> Path:
+def _claim_campaign_admission(protocol: dict[str, Any], study_version: int = 1) -> Path:
     """Persist the campaign's one-shot claim before its first external call."""
-    path = PILOT_PREREG.with_suffix(".admission.json")
+    path = _protocol_path(study_version).with_suffix(".admission.json")
     receipt = {
         "status": "CLAIMED",
         "claimed_at_utc": _now(),
-        "protocol_sha256": hashlib.sha256(PILOT_PREREG.read_bytes()).hexdigest(),
+        "protocol_sha256": hashlib.sha256(
+            _protocol_path(study_version).read_bytes()
+        ).hexdigest(),
         "model_name": protocol["model_name"],
         "max_model_calls": MODEL_CALL_LIMIT,
         "max_outer_mcp_calls": OUTER_MCP_CALL_LIMIT,
     }
+    if study_version == 2:
+        receipt["study_version"] = 2
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError as exc:
@@ -646,11 +885,11 @@ def _claim_campaign_admission(protocol: dict[str, Any]) -> Path:
     return path
 
 
-def _committed_protocol_bytes(path: Path) -> bytes:
+def _committed_file_bytes(path: Path, label: str) -> bytes:
     try:
         relative_path = path.resolve().relative_to(ROOT.resolve()).as_posix()
     except ValueError as exc:
-        raise ValueError("Pilot protocol must be committed unchanged") from exc
+        raise ValueError(f"{label} must be committed unchanged") from exc
     committed = subprocess.run(
         ["git", "show", f"HEAD:{relative_path}"],
         cwd=ROOT,
@@ -658,8 +897,45 @@ def _committed_protocol_bytes(path: Path) -> bytes:
         check=False,
     )
     if committed.returncode:
-        raise ValueError("Pilot protocol must be committed unchanged")
+        raise ValueError(f"{label} must be committed unchanged")
     return committed.stdout
+
+
+def _committed_protocol_bytes(path: Path) -> bytes:
+    return _committed_file_bytes(path, "Pilot protocol")
+
+
+def _protocol_path(study_version: int) -> Path:
+    if study_version == 1:
+        return PILOT_PREREG
+    if study_version == 2:
+        return PILOT_PREREG_V2
+    raise ValueError(
+        f"Unsupported result-conditioned pilot study version: {study_version}"
+    )
+
+
+def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str, Any]:
+    if study_version == 1:
+        return fixture._load_preregistration(1)
+    if (
+        protocol.get("study_version") != 2
+        or protocol.get("protocol_version") != 2
+        or protocol.get("fixture_bank_version") != 3
+        or protocol.get("fixture_bank_path") != V2_FIXTURE_BANK_PATH
+    ):
+        raise ValueError("Prospective protocol must bind fixture bank version 3")
+    path = ROOT / V2_FIXTURE_BANK_PATH
+    bank_bytes = path.read_bytes()
+    if _committed_file_bytes(path, "Fixture bank") != bank_bytes:
+        raise ValueError("Fixture bank must be committed unchanged")
+    bank_hash = hashlib.sha256(bank_bytes).hexdigest()
+    if protocol.get("fixture_bank_sha256") != bank_hash:
+        raise ValueError("Prospective protocol names a different fixture bank")
+    bank = json.loads(bank_bytes)
+    if bank.get("version") != 3 or bank.get("status") != V2_FIXTURE_BANK_STATUS:
+        raise ValueError("Fixture bank version 3 is not preregistered")
+    return bank
 
 
 def _model_boundary_hashes() -> dict[str, str]:
@@ -668,17 +944,25 @@ def _model_boundary_hashes() -> dict[str, str]:
     }
 
 
-def _load_pilot_protocol() -> dict[str, Any]:
-    if not PILOT_PREREG.is_file():
+def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
+    prereg_path = _protocol_path(study_version)
+    if not prereg_path.is_file():
         raise ValueError("Pilot is disabled until its protocol is preregistered")
-    protocol_bytes = PILOT_PREREG.read_bytes()
-    if _committed_protocol_bytes(PILOT_PREREG) != protocol_bytes:
+    protocol_bytes = prereg_path.read_bytes()
+    if _committed_protocol_bytes(prereg_path) != protocol_bytes:
         raise ValueError("Pilot protocol must be committed unchanged")
     protocol = json.loads(protocol_bytes)
     if protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
         raise ValueError("Pilot protocol is not preregistered")
-    if protocol.get("fixture_bank_sha256") != fixture._bank_config(1)["sha256"]:
-        raise ValueError("Pilot protocol names a different frozen fixture bank")
+    if study_version == 1:
+        if protocol.get("fixture_bank_sha256") != fixture._bank_config(1)["sha256"]:
+            raise ValueError("Pilot protocol names a different frozen fixture bank")
+    elif (
+        protocol.get("study_version") != 2
+        or protocol.get("protocol_version") != 2
+        or protocol.get("fixture_bank_version") != 3
+    ):
+        raise ValueError("Pilot protocol does not select the prospective study version")
     if (
         protocol.get("runner_sha256")
         != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -707,6 +991,8 @@ def _load_pilot_protocol() -> dict[str, Any]:
         raise ValueError("Pilot call bounds differ from preregistration")
     if not isinstance(protocol.get("model_name"), str) or not protocol["model_name"]:
         raise ValueError("Pilot protocol does not select a model")
+    if study_version == 2:
+        _load_fixture_bank(protocol, study_version)
     return protocol
 
 
@@ -885,8 +1171,17 @@ def _check_runtime(
     return endpoint, cache_root, expected_build, serving_process
 
 
-def _new_output_paths() -> tuple[Path, Path]:
+def _new_output_paths(study_version: int = 1) -> tuple[Path, Path]:
+    if study_version not in (1, 2):
+        raise ValueError(
+            f"Unsupported result-conditioned pilot study version: {study_version}"
+        )
     nonce = uuid.uuid4().hex
+    if study_version == 2:
+        return (
+            RESULT_DIR / f"novelty-result-conditioned-pilot-v2-{nonce[:12]}.json",
+            Path("/tmp") / f"cosci-m12-nov-04b4c-v2-blind-{nonce}.json",
+        )
     return (
         RESULT_DIR / f"novelty-result-conditioned-pilot-v1-{nonce[:12]}.json",
         Path("/tmp") / f"cosci-m11-nov-01a3b3-v1-blind-{nonce}.json",
@@ -895,13 +1190,20 @@ def _new_output_paths() -> tuple[Path, Path]:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--study-version", type=int, choices=(1, 2), default=1)
     return parser.parse_args(argv)
 
 
-async def _main() -> int:
-    _parse_args()
-    protocol = _load_pilot_protocol()
-    fixture_prereg = fixture._load_preregistration(1)
+async def _main(study_version: int | None = None) -> int:
+    study_version = (
+        _parse_args().study_version if study_version is None else study_version
+    )
+    protocol = (
+        _load_pilot_protocol(study_version)
+        if study_version == 2
+        else _load_pilot_protocol()
+    )
+    fixture_prereg = _load_fixture_bank(protocol, study_version)
     cache_root = Path(os.environ.get("COSCIENTIST_LIT_REVIEW_DIR", ""))
     endpoint, cache_root, expected_build, _ = _check_runtime(
         protocol, fixture_prereg, cache_root=cache_root
@@ -909,7 +1211,9 @@ async def _main() -> int:
     model_api_key = os.environ.get("OPENROUTER_API_KEY")
     if not model_api_key:
         raise ValueError("Pass the OpenRouter model key to the runner explicitly")
-    result_path, blind_path = _new_output_paths()
+    result_path, blind_path = (
+        _new_output_paths(study_version) if study_version == 2 else _new_output_paths()
+    )
     registry = ToolRegistry(config_path=str(ROOT / TOOL_CONFIG), skip_user_config=True)
     client = MCPToolClient(server_url=endpoint)
     report = await run_pilot(
@@ -922,6 +1226,7 @@ async def _main() -> int:
         expected_build_id=expected_build,
         model_name=protocol["model_name"],
         model_api_key=model_api_key,
+        study_version=study_version,
     )
     print(
         json.dumps(
