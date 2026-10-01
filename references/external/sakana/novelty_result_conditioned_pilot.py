@@ -41,6 +41,7 @@ PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
 PILOT_PREREG_V6 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v6.json"
 PILOT_PREREG_V7 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v7.json"
 PILOT_PREREG_V8 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v8.json"
+PILOT_PREREG_V9 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v9.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
@@ -55,7 +56,10 @@ V7_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v
 V7_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SEVENTH_STUDY_INPUTS"
 V8_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v9.json"
 V8_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_EIGHTH_STUDY_INPUTS"
+V9_FIXTURE_BANK_PATH = V8_FIXTURE_BANK_PATH
+V9_FIXTURE_BANK_STATUS = V8_FIXTURE_BANK_STATUS
 STUDY8_SEARCH_PARAMETERS = MappingProxyType({"include_fulltext": False})
+STUDY9_SEARCH_PARAMETERS = STUDY8_SEARCH_PARAMETERS
 OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
 JSON_QUERY_OUTPUT_FORMAT = "json"
 PLAIN_TEXT_QUERY_OUTPUT_FORMAT = "plain_text"
@@ -242,6 +246,18 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             True,
             PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
         ),
+        9: _StudyRegistration(
+            9,
+            9,
+            V9_FIXTURE_BANK_PATH,
+            V9_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4k2 batch-aware compact-query result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v9",
+            "cosci-m12-nov-04b4k2-v9-blind",
+            True,
+            PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+        ),
     }
 )
 
@@ -283,6 +299,27 @@ PLAIN_TEXT_CONDITIONED_PROMPT = (
     "Use only the draft and the supplied first-search titles and abstracts to "
     "choose useful terminology. Do not add or infer publication identifiers. "
     + PLAIN_TEXT_OUTPUT_INSTRUCTION
+    + "\n\nDraft:\n{draft}\n\nFirst-search titles and abstracts:\n{evidence}"
+)
+COMPACT_QUERY_OUTPUT_GUIDANCE = (
+    "Use 3-5 core search terms or short quoted phrases. Use AND/OR only where "
+    "useful and keep Boolean structure compact. Do not add PubMed field tags "
+    "or expand the query with synonyms."
+)
+COMPACT_PLAIN_TEXT_OUTPUT_INSTRUCTION = (
+    PLAIN_TEXT_OUTPUT_INSTRUCTION + " " + COMPACT_QUERY_OUTPUT_GUIDANCE
+)
+COMPACT_PLAIN_TEXT_STATIC_PROMPT = (
+    "Generate one concise PubMed search query for the scientific draft below. "
+    "Use the draft alone. Do not add identifiers. "
+    + COMPACT_PLAIN_TEXT_OUTPUT_INSTRUCTION
+    + "\n\nDraft:\n{draft}"
+)
+COMPACT_PLAIN_TEXT_CONDITIONED_PROMPT = (
+    "Generate one concise PubMed search query for the scientific draft below. "
+    "Use only the draft and the supplied first-search titles and abstracts to "
+    "choose useful terminology. Do not add or infer publication identifiers. "
+    + COMPACT_PLAIN_TEXT_OUTPUT_INSTRUCTION
     + "\n\nDraft:\n{draft}\n\nFirst-search titles and abstracts:\n{evidence}"
 )
 _CREDENTIAL_SUFFIXES = (
@@ -352,8 +389,11 @@ def _prompt(
     papers: list[dict[str, Any]] | None = None,
     *,
     output_format: str = JSON_QUERY_OUTPUT_FORMAT,
+    study_version: int = 1,
 ) -> str:
-    static_template, conditioned_template = _query_prompt_templates(output_format)
+    static_template, conditioned_template = _query_prompt_templates(
+        output_format, study_version=study_version
+    )
     if variant == "static":
         return static_template.format(draft=draft)
     evidence = "\n\n".join(
@@ -366,10 +406,17 @@ def _prompt(
     return conditioned_template.format(draft=draft, evidence=evidence)
 
 
-def _query_prompt_templates(output_format: str) -> tuple[str, str]:
+def _query_prompt_templates(
+    output_format: str, *, study_version: int = 1
+) -> tuple[str, str]:
     if output_format == JSON_QUERY_OUTPUT_FORMAT:
         return STATIC_PROMPT, CONDITIONED_PROMPT
     if output_format == PLAIN_TEXT_QUERY_OUTPUT_FORMAT:
+        if study_version == 9:
+            return (
+                COMPACT_PLAIN_TEXT_STATIC_PROMPT,
+                COMPACT_PLAIN_TEXT_CONDITIONED_PROMPT,
+            )
         return PLAIN_TEXT_STATIC_PROMPT, PLAIN_TEXT_CONDITIONED_PROMPT
     raise ValueError(f"Unsupported query output format: {output_format}")
 
@@ -396,35 +443,38 @@ def _query_output_format(protocol: dict[str, Any], study_version: int) -> str:
 
 
 def _validate_search_parameters(protocol: dict[str, Any], study_version: int) -> None:
-    if study_version == 8:
+    if study_version in (8, 9):
         parameters = protocol.get("search_parameters")
         if (
             not isinstance(parameters, dict)
-            or set(parameters) != set(STUDY8_SEARCH_PARAMETERS)
+            or set(parameters) != set(STUDY9_SEARCH_PARAMETERS)
             or parameters.get("include_fulltext") is not False
             or "include_fulltext" in protocol
         ):
             raise ValueError(
-                "Study 8 protocol must pin metadata-only search parameters"
+                f"Study {study_version} protocol must pin metadata-only search parameters"
             )
     elif "search_parameters" in protocol or "include_fulltext" in protocol:
         raise ValueError("Historical study protocols cannot override search parameters")
 
 
 class _MetadataOnlySearchClient:
-    """Pass the study8 opt-out through the maintained MCP tool call."""
+    """Pass a metadata-only study opt-out through the maintained MCP call."""
 
-    def __init__(self, recorder: Any) -> None:
+    def __init__(self, recorder: Any, study_version: int = 8) -> None:
         self.recorder = recorder
+        self.study_version = study_version
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.recorder, name)
 
     async def call_tool(self, tool_name: str, **params: Any) -> Any:
         if tool_name != "pubmed_search_with_fulltext":
-            raise ValueError("Study 8 requires the maintained PubMed search tool")
+            raise ValueError(
+                f"Study {self.study_version} requires the maintained PubMed search tool"
+            )
         parameters = dict(params)
-        parameters.update(STUDY8_SEARCH_PARAMETERS)
+        parameters.update(STUDY9_SEARCH_PARAMETERS)
         return await self.recorder.call_tool(tool_name, **parameters)
 
 
@@ -1463,8 +1513,8 @@ async def run_pilot(
         if isinstance(client, fixture._RecordingClient)
         else fixture._RecordingClient(client)
     )
-    if study_version == 8:
-        recorder = _MetadataOnlySearchClient(recorder)
+    if study_version in (8, 9):
+        recorder = _MetadataOnlySearchClient(recorder, study_version)
     parser = ResponseParser(tool)
     nonce = uuid.uuid4().hex[:12]
     bank_hash = (
@@ -1549,7 +1599,11 @@ async def run_pilot(
         fixture._write_json(result_path, report, private=True)
         try:
             prompt = _prompt(
-                variant, draft, papers, output_format=query_output_format
+                variant,
+                draft,
+                papers,
+                output_format=query_output_format,
+                study_version=study_version,
             )
             if _contains_source_id(prompt, source_ids):
                 raise ValueError("Model prompt contains a frozen target or anchor PMID")
@@ -1812,6 +1866,7 @@ def _protocol_path(study_version: int) -> Path:
         6: PILOT_PREREG_V6,
         7: PILOT_PREREG_V7,
         8: PILOT_PREREG_V8,
+        9: PILOT_PREREG_V9,
     }[study_version]
 
 
@@ -1958,14 +2013,18 @@ def _load_pilot_protocol(
         != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     ):
         raise ValueError("Pilot runner changed after preregistration")
-    static_prompt, conditioned_prompt = _query_prompt_templates(output_format)
-    if protocol.get("static_prompt_sha256") != hashlib.sha256(
-        static_prompt.encode()
-    ).hexdigest():
+    static_prompt, conditioned_prompt = _query_prompt_templates(
+        output_format, study_version=study_version
+    )
+    if (
+        protocol.get("static_prompt_sha256")
+        != hashlib.sha256(static_prompt.encode()).hexdigest()
+    ):
         raise ValueError("Static prompt changed after preregistration")
-    if protocol.get("conditioned_prompt_sha256") != hashlib.sha256(
-        conditioned_prompt.encode()
-    ).hexdigest():
+    if (
+        protocol.get("conditioned_prompt_sha256")
+        != hashlib.sha256(conditioned_prompt.encode()).hexdigest()
+    ):
         raise ValueError("Conditioned prompt changed after preregistration")
     if protocol.get("request_config") != MODEL_REQUEST_CONFIG:
         raise ValueError("Pilot request settings differ from preregistration")

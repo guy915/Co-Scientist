@@ -1,0 +1,62 @@
+{
+  "item": "M12-04b4k2",
+  "status": "VERIFIED_OFFLINE_IMPLEMENTATION_ONLY",
+  "observed_at_utc": "2026-10-01T06:24:37.372941+00:00",
+  "starting_commit": "07a2e4387b52e2b0def65a57a69307270eaa618a",
+  "fidelity_classification": "Local comparison design; not Google behavior or scientific effectiveness evidence.",
+  "source_sha256": {
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "b73d05b026177b503dca795184aa3b5648dafdefd4af3507b696e05de4e1c6d0",
+    "references/external/sakana/test_novelty_result_conditioned_compact_query.py": "608aa7235f74ef3c87513632dc738786c2dbbcfd4026b4442117949b000c4216",
+    "references/external/sakana/test_novelty_result_conditioned_batch_preflight.py": "e8f38d805e93f95dd6bb300975c31e7cdb8233460bf18070118a9a932e3aa95c"
+  },
+  "behavior": "Prospective study9 selects identical compact-output guidance in both arms, forwards study identity through generation and frozen prompt hashing, and retains study8 metadata-only transport.",
+  "data": "Exact canonical bank9 reused unchanged as exposed development; originally registered for study8. No new bank or holdout.",
+  "bank9_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+  "red": {
+    "owner": "Luna6/xhigh metadata_only_study_dispatch",
+    "command": "PYTHONPATH=engine .venv/bin/python -m pytest -q references/external/sakana/test_novelty_result_conditioned_compact_query.py",
+    "observed_by_worker": "2 failures: unsupported study9 and prompt selector rejects study_version"
+  },
+  "green": {
+    "coordinator_command": "PYTHONPATH=references/external/sakana:engine/src:engine .venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned*.py -q",
+    "tests_passed": 172,
+    "duration_seconds": 4.42,
+    "sibling_tests_passed": 11,
+    "ruff_scoped": "PASS",
+    "new_and_preflight_test_format": "PASS",
+    "git_diff_check": "PASS",
+    "runner_whole_file_format": "Existing untouched formatting left unchanged; no broad sweep."
+  },
+  "coverage": [
+    "Both compact prompts retain whole draft; only conditioned arm receives matched full title/abstract evidence.",
+    "Exact retained 288-character study8 tagged query still fails strict200 guard with raw response retained, one normally-stopped physical response, no repair/retry.",
+    "Offline full six-pair stub flow has24 model calls/36 outer calls with literal include_fulltext=False and no parameter extras.",
+    "Actual runner and protocol-loader select study9 templates; legacy templates remain selected for studies1\u20138.",
+    "Missing protocol fixture is isolated and blocks execution; one-shot admission rejects second invocation.",
+    "Wrong/missing/extra/false-like metadata parameters are rejected; unknown study10 remains rejected."
+  ],
+  "unchanged_guard_ast": [
+    "_generate_query",
+    "_validate_plain_text_query",
+    "_contains_source_id",
+    "_claim_campaign_admission"
+  ],
+  "historical_records_byte_equal": 37,
+  "independent_review": {
+    "peer": "Antigravity Gemini3.8FlashHigh",
+    "model": "gemini-3.8-flash-high",
+    "conversation_id": "768a98fd-c5f4-4c96-92d5-cc84641b1bed",
+    "verdict": "ACCEPT",
+    "supplied_text_only": true,
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/implementation-review/review.json",
+    "sha256": "fdccad3fdcf6a6bdc01b3404c0b848380531ec9daacf44e8991527a320eaa01e",
+    "coordinator_clarification": "Peer summary saying bank9 reuses bank8 inputs is imprecise: actual canonical fixture bank is version9, originally used by study8; its exact bytes stay unchanged. No bank8 copy is introduced."
+  },
+  "canonical_protocol9_present": false,
+  "canonical_admission9_present": false,
+  "live_model_calls": 0,
+  "scientific_acceptance": false,
+  "production_changed": false,
+  "cleanup": "Scoped manual cleanup/deslop: changed lines fit existing helpers, lint reports no unused code; purposeful private review/preflight preparation retained; no UI touched.",
+  "next": "M12-04b4k3 separate private/canonical registration and actual isolated nonexecuting preflight; b4 owns eventual fresh eligibility and one-shot live comparison."
+}

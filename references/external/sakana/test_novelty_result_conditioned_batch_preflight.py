@@ -242,9 +242,9 @@ def test_cli_preflight_validates_temporary_unregistered_batch_study_without_call
 
 def test_unknown_study_version_is_not_accepted() -> None:
     with pytest.raises(SystemExit):
-        pilot._parse_args(["--study-version", "9"])
+        pilot._parse_args(["--study-version", "10"])
     with pytest.raises(ValueError, match="Unsupported result-conditioned pilot"):
-        pilot._study_registration(9)
+        pilot._study_registration(10)
 
 
 @pytest.mark.parametrize("study_version", [5, 6])
