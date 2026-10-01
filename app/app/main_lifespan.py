@@ -74,7 +74,7 @@ def _startup_engine_setup() -> None:
     never forwarded to the generator, so a bad path went unnoticed); the
     generator is built per run, so this is checked here at startup, once.
     """
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     logger.info("Model: %s", settings.model_name)

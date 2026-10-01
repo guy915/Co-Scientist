@@ -381,12 +381,12 @@ logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 ```
 src/co_scientist/
 ├── generator/          # HypothesisGenerator — public entry point, builds/runs LangGraph
-├── state.py            # WorkflowState TypedDict + custom reducers
-├── models.py           # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
+├── state/              # WorkflowState TypedDict + custom reducers
+├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
-├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
-├── cache.py            # Disk-based LLM response cache
-├── constants.py        # Elo params, token limits, workflow defaults
+├── mcp_client/         # MCP server connection (langchain-mcp-adapters)
+├── cache/              # Disk-based LLM response cache
+├── constants/          # Elo params, token limits, workflow defaults
 ├── progress.py         # Shared progress-event emission used by agent nodes
 ├── schemas/            # JSON schemas for structured LLM output
 ├── prompts/            # Prompt builders; templates/ has the markdown files (bundled as package data)

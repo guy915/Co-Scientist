@@ -442,7 +442,7 @@ def _fold_gate_telemetry(
     if not usage:
         return
     from co_scientist.models import MetricDeltas, create_metrics_update
-    from co_scientist.models_metrics import merge_metrics
+    from co_scientist.models.metrics import merge_metrics
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     delta = create_metrics_update(

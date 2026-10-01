@@ -5,13 +5,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist import cache_nodes
 from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.generation.literature_review import search as lr_search
 from co_scientist.cache import NodeCache
+from co_scientist.cache import nodes as cache_nodes
 from co_scientist.models import Article
 from tests._literature_node import _TWO_PAPERS, _stub_node, _stub_research
 from tests._state import make_state

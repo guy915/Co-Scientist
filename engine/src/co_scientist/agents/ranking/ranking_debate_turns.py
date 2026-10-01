@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 # The paper's tournament-debate turn envelope (SSR note 9.3): the panel
 # discussion "typically rang[es] from 3 to 5, with a maximum of 10" and
 # ends with a conclusive judgment once sufficient depth is reached. These
-# live here, not in constants_tournament.py, because the judge loop
+# live here, not in constants/tournament.py, because the judge loop
 # (ranking_debate.py) and the follow-up-turn prose in
 # ``_append_debate_context`` must share a single source -- the panel paces
 # itself against whatever number it is told, so a stale figure reads as a
-# real instruction. constants_tournament.py keeps the values that size the
+# real instruction. constants/tournament.py keeps the values that size the
 # tournament (Elo, match budgets, wave width); this envelope belongs to
 # the debate itself.
 _RANKING_DEBATE_TYPICAL_MIN_TURNS: Final = 3

@@ -1,7 +1,7 @@
-"""Cache-tier constants, split out of ``constants.py`` (size cap).
+"""Cache-tier constants, split out of ``constants/__init__.py`` (size cap).
 
 Re-exported from ``co_scientist.constants``, the same pattern
-``constants_tournament`` uses for the Elo-tournament constants -- one
+``constants.tournament`` uses for the Elo-tournament constants -- one
 import path for every constant, regardless of which module actually
 defines it.
 """

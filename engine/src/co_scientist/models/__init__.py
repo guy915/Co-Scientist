@@ -4,9 +4,9 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 
 The execution-metrics models and node state-update helpers live in
-``models_metrics``, hypothesis-id minting in ``models_ids``, the
-literature-article record in ``models_article``, and the review record plus
-the Hypothesis serialization helpers in ``models_review``; all four are
+``models.metrics``, hypothesis-id minting in ``models.ids``, the
+literature-article record in ``models.article``, and the review record plus
+the Hypothesis serialization helpers in ``models.review``; all four are
 re-exported here so import sites are unaffected by the split.
 """
 
@@ -15,33 +15,33 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models_article import Article as Article
-from co_scientist.models_ids import new_hypothesis_id as new_hypothesis_id
-from co_scientist.models_ids import (
+from co_scientist.models.article import Article as Article
+from co_scientist.models.ids import new_hypothesis_id as new_hypothesis_id
+from co_scientist.models.ids import (
     run_scoped_hypothesis_ids as run_scoped_hypothesis_ids,
 )
-from co_scientist.models_ids import run_seed_material as run_seed_material
-from co_scientist.models_metrics import ExecutionMetrics as ExecutionMetrics
-from co_scientist.models_metrics import MetricDeltas as MetricDeltas
-from co_scientist.models_metrics import (
+from co_scientist.models.ids import run_seed_material as run_seed_material
+from co_scientist.models.metrics import ExecutionMetrics as ExecutionMetrics
+from co_scientist.models.metrics import MetricDeltas as MetricDeltas
+from co_scientist.models.metrics import (
     create_metrics_update as create_metrics_update,
 )
-from co_scientist.models_metrics import merge_metrics as merge_metrics
-from co_scientist.models_metrics import phase_message as phase_message
-from co_scientist.models_review import AGENT_REVIEWER as AGENT_REVIEWER
-from co_scientist.models_review import (
+from co_scientist.models.metrics import merge_metrics as merge_metrics
+from co_scientist.models.metrics import phase_message as phase_message
+from co_scientist.models.review import AGENT_REVIEWER as AGENT_REVIEWER
+from co_scientist.models.review import (
     BLOCKING_REVIEW_DISPOSITIONS as BLOCKING_REVIEW_DISPOSITIONS,
 )
-from co_scientist.models_review import SCIENTIST_REVIEWER as SCIENTIST_REVIEWER
-from co_scientist.models_review import UNDERMINED_VERDICT as UNDERMINED_VERDICT
-from co_scientist.models_review import HypothesisReview as HypothesisReview
-from co_scientist.models_review import _assessment_fields as _assessment_fields
-from co_scientist.models_review import _claim_fields as _claim_fields
-from co_scientist.models_review import _rebuild_reviews as _rebuild_reviews
-from co_scientist.models_review import (
+from co_scientist.models.review import SCIENTIST_REVIEWER as SCIENTIST_REVIEWER
+from co_scientist.models.review import UNDERMINED_VERDICT as UNDERMINED_VERDICT
+from co_scientist.models.review import HypothesisReview as HypothesisReview
+from co_scientist.models.review import _assessment_fields as _assessment_fields
+from co_scientist.models.review import _claim_fields as _claim_fields
+from co_scientist.models.review import _rebuild_reviews as _rebuild_reviews
+from co_scientist.models.review import (
     _reviews_to_dicts as _reviews_to_dicts,
 )
-from co_scientist.models_review import has_peer_review as has_peer_review
+from co_scientist.models.review import has_peer_review as has_peer_review
 
 
 class GenerationMethod(str, enum.Enum):
@@ -105,7 +105,7 @@ class Hypothesis:
         id: Stable unique identifier that survives serialization and
             evolution. Excluded from equality/hashing (``compare=False``) so the
             text-based dedup heuristics are unaffected. Minted by
-            ``models_ids.new_hypothesis_id``: a random uuid4, or this run's
+            ``models.ids.new_hypothesis_id``: a random uuid4, or this run's
             next deterministic id inside a ``run_scoped_hypothesis_ids``
             block.
         category: Short classification label for the hypothesis (e.g. the

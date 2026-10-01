@@ -9,7 +9,7 @@ host serving that model. Both failures are silent, which is why the
 pairing is asserted rather than left to the pricing table's comment.
 """
 
-from co_scientist.constants_pricing import MODEL_PRICING
+from co_scientist.constants.pricing import MODEL_PRICING
 
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, Settings
 

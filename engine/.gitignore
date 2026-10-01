@@ -68,4 +68,6 @@ logs/
 *.bak
 *.orig
 cache/
+# The cache package is source, not a runtime cache directory.
+!/src/co_scientist/cache/
 paper_cache/

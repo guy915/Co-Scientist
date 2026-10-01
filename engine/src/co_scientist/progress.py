@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ``llm.structured.validate.get_fallback_response`` -- which runs deep below any
 # node and receives no state of its own -- reads it to record a served fallback
 # into the run's ``degraded_nodes`` state key. ContextVar-scoped, like the
-# run-scoped id factory in ``models_ids``: each durable task runs in its own
+# run-scoped id factory in ``models.ids``: each durable task runs in its own
 # asyncio task context, so concurrent runs never see each other's state. A stale
 # value is harmless -- see ``record_schema_degradation``.
 _ACTIVE_WORKFLOW_STATE: contextvars.ContextVar["WorkflowState | None"] = (

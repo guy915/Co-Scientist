@@ -31,7 +31,7 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 | Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 14 registered nodes (12 when MCP is unavailable — `literature_review`/`reflection` are excluded from the graph, not skipped at runtime). Selected by `engine_adapter.select_provider()`. |
 | MCP server | `engine/mcp_server/` | FastMCP + Biopython. 26 tools (24 without a web-search provider key): PubMed search/fulltext, OpenAlex, ChEMBL/UniProt, `search_web`/`read_url`, and 8 INDRA CoGex queries. Python 3.12 only. |
 
-Provider selection (`app/app/engine_adapter/provider.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline_llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
+Provider selection (`app/app/engine_adapter/provider.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline.llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
 
 ---
 
@@ -108,7 +108,7 @@ Key facts:
 - The topology is declared once in `workflow_topology.py` (`generator/graph.py` wires the graph from it; the durable `task_runtime.next_task_type` resolves through it): every work phase converges on `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` — deep verification precedes tournament entry, mirroring `03-reflection.md`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
-- `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
+- `max_iterations` defaults to `1` (`constants/__init__.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
 - A checkpoint-restored run re-enters at the orchestrator loop point via the START router (`generator/graph.py::_resume_router`); a fresh run starts at the supervisor.
 - The graph is built once per `HypothesisGenerator` instance (`generator/configuration.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`_GRAPH_RECURSION_LIMIT` in `generator/run_execution.py`).
 
@@ -116,17 +116,17 @@ Key facts:
 
 ## 5. WorkflowState & data flow
 
-State is a `TypedDict` (`state.py:45`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Four fields carry a reducer that runs on **every** write — three engine-owned, one LangGraph built-in — and the rest overwrite. The table below is authoritative.
+State is a `TypedDict` (`state/__init__.py:45`) flowing through every node. Each node returns a *delta* dict; LangGraph applies it. Four fields carry a reducer that runs on **every** write — three engine-owned, one LangGraph built-in — and the rest overwrite. The table below is authoritative.
 
 | Field(s) | Reducer | Why |
 | --- | --- | --- |
-| `hypotheses` | `deduplicate_hypotheses` (`state_reducers.py:212`, re-exported from `state.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
-| `tournament_matchups` | `accumulate_matchups` (`state_reducers.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
-| `metrics` | `merge_metrics` (`models_metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models_metrics.py:214`, re-exported from `models.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
+| `hypotheses` | `deduplicate_hypotheses` (`state/reducers.py:212`, re-exported from `state/__init__.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
+| `tournament_matchups` | `accumulate_matchups` (`state/reducers.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
+| `metrics` | `merge_metrics` (`models/metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models/metrics.py:214`, re-exported from `models/__init__.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
 | `messages` | `add_messages` (LangGraph) | Phase messages append rather than overwrite. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `evolution_details`, `current_iteration`, etc. |
 
-Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models_metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/run_execution.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
+Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models/metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/run_execution.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
 
 ---
 
@@ -192,10 +192,10 @@ flowchart LR
 ```
 
 - **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate_support.py:25` and re-exported into `debate.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
-- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate_stages.py::_run_validate_novelty_stage`, line 180, re-exported from `validate.py`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate_stages.py::_run_synthesis_stage_batches`, line 103).
+- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants/__init__.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate_stages.py::_run_validate_novelty_stage`, line 180, re-exported from `validate.py`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate_stages.py::_run_synthesis_stage_batches`, line 103).
 - **Citations** are domain-agnostic: `ReferenceIndex` (`citations.py:24`) is built from papers (`used_in_analysis=True`) **then** knowledge-graph enrichment sources, assigning sequential `[C1]`, `[C2]`, … keys in one namespace (`citations.py::build_reference_index`). The LLM emits `[Cn]` in `literature_grounding`; `resolve_citation_keys` (`citations.py:213`) maps them back to source metadata.
 - **Degraded mode** (`coordinator_results.py::_apply_degraded_mode_fallback`) stamps `literature_grounding` with an explicit "No literature review available" warning to prevent hallucinated citations; the MCP/lit-review availability check that decides degraded mode is `coordinator_strategy.py::_check_literature_availability`.
-- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants_tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
+- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants/__init__.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants/tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
 
 ---
 
@@ -207,7 +207,7 @@ External tools are pulled from MCP servers via a YAML-driven `ToolRegistry`. The
 flowchart TD
   YAML["tools.yaml (or TOOLS_CONFIG URL)<br/>servers · tools · workflows · enrichments · prompts"]
   YAML --> TR["ToolRegistry<br/>config/registry.py"]
-  TR --> MTC["MCPToolClient<br/>mcp_client.py (langchain_mcp_adapters)"]
+  TR --> MTC["MCPToolClient<br/>mcp_client/ (langchain_mcp_adapters)"]
   MTC --> MTP["MCPToolProvider<br/>tools/provider.py"]
   MTP --> CLT["call_llm_with_tools<br/>llm/tools/loop.py, exported by llm/__init__.py — agentic tool-calling loop"]
   CLT -->|tool call| MTP
@@ -311,27 +311,27 @@ Key endpoints (full list in `AGENTS.md`): `POST /api/runs` (create draft), `POST
 
 ## 11. Fidelity & constants
 
-The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants.py`; the Elo/tournament values below live in the sibling `constants_tournament.py` and are re-exported from `constants.py`.
+The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants/__init__.py`; the Elo/tournament values below live in the sibling `constants/tournament.py` and are re-exported from `constants/__init__.py`.
 
 Cited by file rather than by line: a line number is a promise this table has repeatedly failed to keep as the module evolved.
 
 | Constant | Value | Where |
 | --- | --- | --- |
-| `INITIAL_ELO_RATING` | `1200` | `constants_tournament.py` |
-| `ELO_K_FACTOR` | `24` | `constants_tournament.py` |
-| `COMPARATIVE_BATCH_THRESHOLD` | `5` (≤5 → comparative batch; >5 → parallel individual) | `constants.py` |
-| `MAX_CONCURRENT_LLM_CALLS` | `5` | `constants.py` |
-| `DEFAULT_MAX_ITERATIONS` | `1` | `constants.py` |
-| `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants.py` |
-| `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants.py` |
+| `INITIAL_ELO_RATING` | `1200` | `constants/tournament.py` |
+| `ELO_K_FACTOR` | `24` | `constants/tournament.py` |
+| `COMPARATIVE_BATCH_THRESHOLD` | `5` (≤5 → comparative batch; >5 → parallel individual) | `constants/__init__.py` |
+| `MAX_CONCURRENT_LLM_CALLS` | `5` | `constants/__init__.py` |
+| `DEFAULT_MAX_ITERATIONS` | `1` | `constants/__init__.py` |
+| `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants/__init__.py` |
+| `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants/__init__.py` |
 | `_DEBATE_MAX_DISCUSSION_TURNS` | `10` (free-form discussion turns before the final synthesis turn; a converged panel stops sooner) | `prompts/generation_debate.py` |
-| `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants.py` |
-| `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants.py` |
-| `LITERATURE_REVIEW_PAPERS_COUNT` | `10` (`_DEV=4`, `RECENCY_YEARS=7`) | `constants.py` |
-| `get_draft_max_iterations` | `min(5 + count*2, 30)` | `constants.py` |
-| `get_validate_max_iterations` | `min(count*10, 50)` | `constants.py` |
+| `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants/__init__.py` |
+| `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants/__init__.py` |
+| `LITERATURE_REVIEW_PAPERS_COUNT` | `10` (`_DEV=4`, `RECENCY_YEARS=7`) | `constants/__init__.py` |
+| `get_draft_max_iterations` | `min(5 + count*2, 30)` | `constants/__init__.py` |
+| `get_validate_max_iterations` | `min(count*10, 50)` | `constants/__init__.py` |
 
-Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants_tokens.py`, re-exported from `constants.py`).
+Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants/tokens.py`, re-exported from `constants/__init__.py`).
 
 ---
 
@@ -341,8 +341,8 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budget
 | --- | --- |
 | Graph topology, routers | `engine/src/co_scientist/workflow_topology.py` (one declaration, read by both run paths) |
 | Graph assembly | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
-| State definition + its reducers | `engine/src/co_scientist/state.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models_metrics.py`) |
-| Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
+| State definition + its reducers | `engine/src/co_scientist/state/__init__.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models/metrics.py`) |
+| Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models/` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |
 | Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
 | Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |

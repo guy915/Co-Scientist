@@ -31,7 +31,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation,
 )
 from co_scientist.agents.generation.citations import ReferenceIndex
-from co_scientist.offline_llm import (
+from co_scientist.offline.llm import (
     DEFAULT_OFFLINE_MODEL,
     install_offline_router,
 )

@@ -133,7 +133,7 @@ Key state fields relevant to hypothesis output:
 | `articles_with_reasoning` | Literature Review | Formatted literature summary used by Generate and Reflection nodes |
 | `context_enrichment_sources` | Literature Review | Structured items from knowledge graph tools (e.g., INDRA statements); merged into citation index alongside papers |
 
-See `state.py` for the full `WorkflowState` type definition.
+See `state/__init__.py` for the full `WorkflowState` type definition.
 
 ## Citations
 

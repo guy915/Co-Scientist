@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # and it changed which ideas got bred per tier. Small pools are handled by
 # the slice itself -- an express-tier run may hold fewer than five rankable
 # ideas, and it then evolves every one it has. Defined here (not in
-# constants.py) because it belongs to evolution's contract alone.
+# constants/__init__.py) because it belongs to evolution's contract alone.
 EVOLUTION_PARENT_COUNT: Final = 5
 
 

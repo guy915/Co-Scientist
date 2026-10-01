@@ -325,7 +325,7 @@ def _build_proximity_update(
     than replacing it, so removed_duplicates accumulates the full history
     across iterations. outcome.hypotheses_to_keep is a strict subset of
     `hypotheses` (same ids, no new hypotheses introduced), so this bare-list
-    return REPLACEs the pool via deduplicate_hypotheses (state.py), pruning
+    return REPLACEs the pool via deduplicate_hypotheses (state package), pruning
     the removed duplicates. The iteration counter is owned by the
     orchestrator, not advanced here.
 

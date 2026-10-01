@@ -7,6 +7,8 @@
 **/*.sqlite*
 **/reports
 **/cache
+# The engine's cache package is source, not a runtime cache directory.
+!engine/src/co_scientist/cache
 **/.cache
 **/paper_cache
 **/.coscientist_cache

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _cache_dir_stats,
     _clear_cache_files,
     _evict_stale_entry,
@@ -27,7 +27,7 @@ from co_scientist.constants import (
     DEFAULT_CACHE_ENABLED,
     truncate,
 )
-from co_scientist.constants_cache import (
+from co_scientist.constants.cache import (
     DEFAULT_CACHE_TTL_SECONDS,
     LLM_CACHE_SCHEMA_VERSION,
 )

@@ -130,7 +130,7 @@ def _build_removed_duplicate_record(
 ) -> dict[str, Any]:
     """Builds one removed-duplicate audit entry for a dropped hypothesis.
 
-    Feeds the removed_duplicates audit trail (state.py), which evolve.py
+    Feeds the removed_duplicates audit trail (state package), which evolve.py
     later reads to avoid recreating them and the UI surfaces for
     transparency.
 

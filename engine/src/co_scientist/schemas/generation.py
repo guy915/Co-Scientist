@@ -135,7 +135,7 @@ _EXPERIMENT_FIELD: dict[str, Any] = obj(
             "type": "array",
             "items": _EXPERIMENT_STEP_FIELD,
             # No minItems: the offline backend's schema filler emits one
-            # item per array by default (co_scientist.offline_llm), and
+            # item per array by default (co_scientist.offline.llm), and
             # format_experiment_plan renders however many steps arrive
             # rather than enforcing a floor -- the published "2-5" is
             # advisory in the description, not a hard lower bound here.

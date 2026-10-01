@@ -60,7 +60,7 @@ def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         stay empty for the whole forced-offline posture.
     """
     import litellm
-    from co_scientist.offline_llm import is_offline_model
+    from co_scientist.offline.llm import is_offline_model
 
     original = litellm.acompletion
     recorded: list[dict[str, Any]] = []

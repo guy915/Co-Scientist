@@ -21,7 +21,7 @@ generator = HypothesisGenerator(
 ```
 
 Only the four run-size knobs are top-level constructor arguments; every other
-knob lives on `GeneratorOptions` and is passed as `options=`. See constants.py
+knob lives on `GeneratorOptions` and is passed as `options=`. See constants/__init__.py
 for other defaults.
 
 ## Configuration Parameters
@@ -92,14 +92,14 @@ See [LiteLLM provider documentation](https://docs.litellm.ai/docs/providers) for
 
 Any model name prefixed `offline/` (default: `offline/deterministic`) is
 answered locally instead of calling a real provider. Call
-`co_scientist.offline_llm.install_offline_router()` once at process startup
+`co_scientist.offline.llm.install_offline_router()` once at process startup
 to install the router: it installs itself as the engine's completion backend
 (`co_scientist.llm.request.backend`) so calls to `offline/`-prefixed models are
 answered locally, while every other model passes through untouched to the
 backend it replaced — real and offline models can coexist in the same process.
 
 ```python
-from co_scientist.offline_llm import install_offline_router
+from co_scientist.offline.llm import install_offline_router
 
 install_offline_router()
 
@@ -212,11 +212,11 @@ COSCIENTIST_LIT_REVIEW_DIR=./cache/literature_review
 
 ## Constants and Internal Parameters
 
-Most users won't need to modify these, but they're centralized in `src/co_scientist/constants.py`:
+Most users won't need to modify these, but they're centralized in `src/co_scientist/constants/__init__.py`:
 
 ### Elo Rating Parameters
 
-Defined in `src/co_scientist/constants_tournament.py` (re-exported from `constants.py`):
+Defined in `src/co_scientist/constants/tournament.py` (re-exported from `constants/__init__.py`):
 
 ```python
 INITIAL_ELO_RATING = 1200  # Starting Elo rating for all hypotheses
@@ -250,8 +250,8 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.95  # Remove near-identical hypotheses
 
 ### Modifying Constants
 
-If you need to tune these parameters, edit `src/co_scientist/constants.py` (or
-`constants_tournament.py` for the Elo/tournament parameters above).
+If you need to tune these parameters, edit `src/co_scientist/constants/__init__.py` (or
+`constants/tournament.py` for the Elo/tournament parameters above).
 
 Modifying constants may affect result quality and should be done with careful evaluation.
 

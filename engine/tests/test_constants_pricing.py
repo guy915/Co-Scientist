@@ -1,6 +1,6 @@
-"""Tests for ``co_scientist.constants_pricing.estimate_cost_usd``."""
+"""Tests for ``co_scientist.constants.pricing.estimate_cost_usd``."""
 
-from co_scientist.constants_pricing import MODEL_PRICING, estimate_cost_usd
+from co_scientist.constants.pricing import MODEL_PRICING, estimate_cost_usd
 
 
 def test_unlisted_model_prices_at_zero() -> None:

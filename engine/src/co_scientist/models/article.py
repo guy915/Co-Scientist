@@ -13,7 +13,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.models_metrics import _known_field_kwargs
+from co_scientist.models.metrics import _known_field_kwargs
 
 
 @dataclass

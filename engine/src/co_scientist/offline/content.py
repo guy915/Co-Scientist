@@ -1,6 +1,6 @@
 """Human-presentable leaf text for the deterministic offline backend.
 
-``offline_llm`` fills a response schema; this module decides what a single
+``offline.llm`` fills a response schema; this module decides what a single
 string leaf inside it says. Two properties matter, and neither is served by
 one generic sentence:
 
@@ -23,7 +23,7 @@ the product makes.
 import random
 import re
 
-from co_scientist.offline_content_stopwords import _STOPWORDS as _STOPWORDS
+from co_scientist.offline.content_stopwords import _STOPWORDS as _STOPWORDS
 
 # Field-name fragments mapped to the sentence shape that field should carry.
 # Matched as substrings against the property name, longest first, so

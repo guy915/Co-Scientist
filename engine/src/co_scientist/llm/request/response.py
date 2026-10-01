@@ -24,7 +24,7 @@ class TokenUsage:
 
     Every field defaults to zero, which is also what a response carrying
     no ``usage`` at all naturally produces (the offline backend never
-    populates one -- see ``offline_llm``) -- there is no separate
+    populates one -- see ``offline.llm``) -- there is no separate
     "unknown" state a caller needs to check for.
 
     Attributes:

@@ -23,7 +23,7 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
     Asserted over the declared table rather than one hand-picked pair, so
     a rung added later cannot reintroduce the shape.
     """
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.profile import gateway_routes, model_profile
 
     def rate(gateway_relative: str) -> tuple[float, float]:
@@ -112,7 +112,7 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
 
 def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
     """A zero-priced primary must keep the provider ceiling armed too."""
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.profile import gateway_routes
     from co_scientist.llm.request.gateway_routing import _gateway_provider
 
@@ -161,7 +161,7 @@ def test_the_price_cap_admits_the_headline_rate() -> None:
     exactly on it, since the gateway's own price comparison may not
     represent the listed rate with the same rounding this process does.
     """
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.request.gateway_routing import (
         _MAX_PRICE_MULTIPLE,
         _gateway_provider,

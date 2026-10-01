@@ -20,7 +20,7 @@ from typing import Any
 import jsonschema
 import pytest
 
-from co_scientist import offline_llm
+from co_scientist.offline import llm as offline_llm
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA, REVIEW_BATCH_SCHEMA
 from tests._offline_helpers import isolate_offline_router
@@ -129,7 +129,7 @@ async def test_optional_field_hints_stays_scoped_to_named_schemas() -> None:
 def _optional_property_names(schema: dict[str, Any]) -> set[str]:
     """Walks a schema fragment, collecting every optional property name.
 
-    Mirrors what ``offline_schema_fill``'s traversal treats as optional: a
+    Mirrors what ``offline.schema_fill``'s traversal treats as optional: a
     property declared in an object node's ``properties`` but absent from
     that node's own ``required`` list, at any nesting depth (inside array
     items included) -- the same scope ``_OPTIONAL_FIELD_HINTS`` values

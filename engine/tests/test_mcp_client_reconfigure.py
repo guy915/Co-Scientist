@@ -18,8 +18,8 @@ import httpx
 import pytest
 
 from co_scientist.llm import scoped_campaign_mode
-from co_scientist.mcp_campaign import POLICY, PUBLIC_TOOLS
 from co_scientist.mcp_client import MCPToolClient, get_mcp_client
+from co_scientist.mcp_client.campaign import POLICY, PUBLIC_TOOLS
 from tests._mcp import FakeMultiServerMCPClient, make_registry, string_tool
 
 

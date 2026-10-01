@@ -43,8 +43,8 @@ from co_scientist.agents.generation.literature_review.search_retry import (
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.workflow_schema import WorkflowConfig
 from co_scientist.constants import corpus_slug
-from co_scientist.mcp_campaign import campaign_serves_tool
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.mcp_client.campaign import campaign_serves_tool
 from co_scientist.research import RetrievalError, SourceHit
 
 logger = logging.getLogger(__name__)

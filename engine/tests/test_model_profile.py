@@ -9,7 +9,7 @@ import dataclasses
 
 import pytest
 
-from co_scientist.constants_pricing import MODEL_PRICING
+from co_scientist.constants.pricing import MODEL_PRICING
 from co_scientist.llm import ModelProfile, model_profile
 from co_scientist.llm.profile import (
     ModelPrice,

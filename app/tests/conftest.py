@@ -65,7 +65,7 @@ def _offline_router() -> None:
     router must be the engine's completion backend for the entire session. It
     is idempotent and a harmless passthrough for any non-offline model.
     """
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
 
@@ -73,7 +73,7 @@ def _offline_router() -> None:
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.admission import free_catalog
 
     catalog = {

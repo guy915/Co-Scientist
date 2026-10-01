@@ -15,7 +15,7 @@ Three adapters exist:
   string path ``"co_scientist.llm.litellm.acompletion"`` resolves to that
   same attribute, so a test (or any caller) that patches it still steers a
   call that is already built.
-* ``co_scientist.offline_llm.OfflineRouter``, which answers ``offline/``
+* ``co_scientist.offline.llm.OfflineRouter``, which answers ``offline/``
   models locally and hands every other model to the backend it replaced.
 * the recording fake in ``tests/_llm_fake.py``.
 

@@ -18,7 +18,6 @@ import jsonschema
 import litellm
 import pytest
 
-from co_scientist import offline_llm
 from co_scientist.agents.reflection.review_gate import _disposition_for
 from co_scientist.agents.reflection.review_helpers import (
     _review_from_response,
@@ -27,6 +26,7 @@ from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
 from co_scientist.llm.request.backend import active_backend
+from co_scientist.offline import llm as offline_llm
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA

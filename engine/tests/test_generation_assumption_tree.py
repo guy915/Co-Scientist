@@ -368,7 +368,7 @@ async def test_offline_tree_is_deterministic(
     new ASSUMPTION_TREE/ASSUMPTION_SUB schemas must stay satisfiable by
     the canned filler -- one assumption, one parent, wrapped indices.
     """
-    from co_scientist import offline_llm
+    from co_scientist.offline import llm as offline_llm
     from tests._offline_helpers import isolate_offline_router
 
     isolate_offline_router(monkeypatch)

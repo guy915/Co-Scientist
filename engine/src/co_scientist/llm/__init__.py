@@ -2,8 +2,8 @@
 
 The one module the rest of the engine, the app and the evaluations call the
 model through. Production code outside this package imports from
-``co_scientist.llm`` alone, except ``offline_llm`` (which replaces the
-completion boundary) and ``constants_pricing`` (which reads the route table),
+``co_scientist.llm`` alone, except ``offline.llm`` (which replaces the
+completion boundary) and ``constants.pricing`` (which reads the route table),
 and tests patch internals directly; ``__all__`` is the whole interface: three
 entry points (``call_llm``, ``call_llm_json``, ``call_llm_with_tools``), the
 value objects they take, and the run-scoped contexts and counters their
@@ -32,7 +32,7 @@ layers before it in this list, at the module that defines the name
 
 The interface resolves its names on first access instead of importing the
 implementation here. A handful of foundation modules the implementation
-itself imports (``cache``, ``models_metrics``, ``workspace``, ``mcp_client``)
+itself imports (``cache``, ``models.metrics``, ``workspace``, ``mcp_client``)
 read ``current_api_key``, ``campaign_free_mode`` or ``ModelCallStats`` from
 this package; an eager import of every entry point from this file would
 re-enter them half-initialised, so each name loads only the module that

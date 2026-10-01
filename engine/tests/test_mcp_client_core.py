@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 
 import co_scientist.mcp_client as mcp_client_module
-import co_scientist.mcp_client_session as mcp_client_session_module
+import co_scientist.mcp_client.session as mcp_client_session_module
 from co_scientist.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeMultiServerMCPClient, make_tool_call, string_tool

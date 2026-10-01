@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     coscientist_cache_dir: str = "./cache"
 
     # Elo tournament K-factor. The initial rating itself is re-exported from
-    # the engine's constants.py (app/elo.py's INITIAL_ELO), which is the
+    # the engine's constants package (app/elo.py's INITIAL_ELO), which is the
     # actual owner of the tournament math; this stays app-owned so per-
     # deployment tuning does not require an engine change
     # (test_elo_engine_parity guards it against engine drift).

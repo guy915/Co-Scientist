@@ -54,14 +54,14 @@ since ``review_node`` maps entries back to hypotheses (by their
 short response as failed reviews. The research overview's
 "research_directions" array is filled past the report's directions-
 preview gate instead of to a prompt-derived count -- see
-``co_scientist.offline_llm``'s comment on the two. ``_ARRAY_LENGTH_HINTS``
-(imported from ``co_scientist.offline_llm``) wires each by schema name.
+``co_scientist.offline.llm``'s comment on the two. ``_ARRAY_LENGTH_HINTS``
+(imported from ``co_scientist.offline.llm``) wires each by schema name.
 
 The schema-filling traversal (``_fill_schema``, ``_FillHints``) lives in
-``co_scientist.offline_schema_fill``; the ``supervisor_allocation``
+``co_scientist.offline.schema_fill``; the ``supervisor_allocation``
 prompt-flag branch (``_supervisor_allocation_response``) and the
 response/prompt shape helpers (``_build_response``, ``_prompt_text``)
-live in ``co_scientist.offline_llm``. Both are shared with the production
+live in ``co_scientist.offline.llm``. Both are shared with the production
 offline-model router; this module supplies its own leaf-value strategy
 (``_next_leaf``, backed by a process-global counter reset only per test
 process) rather than the router's per-call seeded RNG, since existing
@@ -82,15 +82,15 @@ from co_scientist.cache import LLMCache
 from co_scientist.generator import GeneratorOptions, HypothesisGenerator
 from co_scientist.llm import precall
 from co_scientist.llm.request import backend
-from co_scientist.offline_llm import (
+from co_scientist.offline.llm import (
     _ARRAY_LENGTH_HINTS,
     _prompt_text,
     _supervisor_allocation_response,
 )
-from co_scientist.offline_llm import (
+from co_scientist.offline.llm import (
     _build_response as _fake_response,
 )
-from co_scientist.offline_schema_fill import _fill_schema, _FillHints
+from co_scientist.offline.schema_fill import _fill_schema, _FillHints
 
 # Shared across every fake call in a test run so no two generated leaves
 # (hypothesis text, free-form turns, etc.) ever collide.

@@ -15,25 +15,25 @@ from co_scientist.models import (
     Hypothesis,
     merge_metrics,
 )
-from co_scientist.state_reducers import (
+from co_scientist.state.reducers import (
     AppendHypotheses as AppendHypotheses,
 )
-from co_scientist.state_reducers import (
+from co_scientist.state.reducers import (
     HypothesisUpdate as HypothesisUpdate,
 )
-from co_scientist.state_reducers import (
+from co_scientist.state.reducers import (
     ReplaceHypotheses as ReplaceHypotheses,
 )
-from co_scientist.state_reducers import (
+from co_scientist.state.reducers import (
     accumulate_matchups as accumulate_matchups,
 )
-from co_scientist.state_reducers import accumulate_research_ledgers
-from co_scientist.state_reducers import (
+from co_scientist.state.reducers import accumulate_research_ledgers
+from co_scientist.state.reducers import (
     deduplicate_hypotheses as deduplicate_hypotheses,
 )
 
 # AppendHypotheses, ReplaceHypotheses, HypothesisUpdate and
-# deduplicate_hypotheses live in state_reducers.py (this file's length
+# deduplicate_hypotheses live in state/reducers.py (this file's length
 # ceiling) and are re-exported above so every existing importer of
 # co_scientist.state is unaffected.
 

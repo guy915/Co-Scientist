@@ -18,8 +18,8 @@ import asyncio
 from typing import Any
 
 import pytest
-from co_scientist import offline_llm
 from co_scientist.llm.request import backend
+from co_scientist.offline import llm as offline_llm
 
 from app import store, task_worker
 from app.store import RunStatus

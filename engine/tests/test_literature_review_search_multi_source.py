@@ -17,7 +17,6 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist import offline_llm
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.agents.generation.literature_review.helpers import (
     SearchConfig,
@@ -31,6 +30,7 @@ from co_scientist.config import (
     WorkflowConfig,
 )
 from co_scientist.llm import scoped_campaign_mode
+from co_scientist.offline import llm as offline_llm
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
 from tests._offline_helpers import isolate_offline_router
 from tests._retrieval_config import make_tool_config

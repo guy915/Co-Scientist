@@ -84,7 +84,7 @@ def test_the_legacy_minimax_default_carries_the_all_free_chain() -> None:
     ]
     assert body["models"] == chain
 
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
 
     for gateway_relative in (_MINIMAX.removeprefix("openrouter/"), *chain):
         price = MODEL_PRICING[f"openrouter/{gateway_relative}"]

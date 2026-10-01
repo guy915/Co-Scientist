@@ -131,7 +131,7 @@ def test_durable_merge_retains_events_without_claiming_complete_tracking() -> (
 ):
     import json
 
-    from co_scientist.models_metrics import ExecutionMetrics, merge_metrics
+    from co_scientist.models.metrics import ExecutionMetrics, merge_metrics
 
     legacy = ExecutionMetrics(model_usage={"judge::model": {"calls": 2}})
     delta = ExecutionMetrics(

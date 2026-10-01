@@ -8,7 +8,7 @@ from typing import Any
 
 from co_scientist.llm import scoped_telemetry
 from co_scientist.models import MetricDeltas
-from co_scientist.models_metrics import (
+from co_scientist.models.metrics import (
     ExecutionMetrics,
     create_metrics_update,
     merge_metrics,

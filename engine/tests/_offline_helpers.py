@@ -5,11 +5,11 @@ Leading underscore so pytest does not collect this module.
 
 import pytest
 
-from co_scientist import offline_llm
 from co_scientist.generator import (
     GeneratorOptions,
     HypothesisGenerator,
 )
+from co_scientist.offline import llm as offline_llm
 from tests._llm_fake import restore_backend_at_teardown
 
 

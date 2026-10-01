@@ -65,8 +65,8 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 # Tree bounds (E12): depth is two levels by construction (top + sub); the
-# three widths bound breadth. Kept here, not in constants.py, because they
-# are this technique's private shape, not a cross-agent parameter.
+# three widths bound breadth. Kept here, not in the constants package, because
+# they are this technique's private shape, not a cross-agent parameter.
 ASSUMPTION_TREE_MAX_TOP = 6
 ASSUMPTION_TREE_MAX_LOAD_BEARING = 3
 ASSUMPTION_TREE_MAX_SUB_PER_PARENT = 3

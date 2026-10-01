@@ -306,7 +306,7 @@ def test_seed_demo_run_creates_new_run_when_none_given(
     # offline router first -- otherwise the engine run's offline/ model calls
     # have no handler and the run fails. Idempotent; a passthrough for real
     # models.
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     goal = "A standalone seeding goal"

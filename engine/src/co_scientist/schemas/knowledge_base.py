@@ -3,7 +3,7 @@
 Two schemas, not one, because the section is outlined once and then
 written a theme at a time: a single call asking for the whole ~20,000-token
 span cannot be served inside the 600s per-call ceiling, whatever budget it
-carries (see ``constants_tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS`` for the
+carries (see ``constants.tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS`` for the
 measurement). The word bands below are shared by both -- the outline reads
 them to size its section count, the theme writer to write against them.
 

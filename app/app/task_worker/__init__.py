@@ -418,7 +418,7 @@ async def run_forever(
     # The standalone worker runs in its own process without the app lifespan,
     # so install the offline LLM router here too. Idempotent and a harmless
     # passthrough for real models (see main.lifespan).
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     while True:

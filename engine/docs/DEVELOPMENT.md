@@ -10,13 +10,13 @@ engine/
 │   └── co_scientist/
 │       ├── __init__.py
 │       ├── generator/          # HypothesisGenerator package (core, graph, streaming)
-│       ├── state.py            # WorkflowState TypedDict
+│       ├── state/              # WorkflowState TypedDict
 │       ├── schemas/            # JSON schemas for LLM responses
-│       ├── models.py           # Hypothesis, Article dataclasses (among others)
+│       ├── models/             # Hypothesis, Article dataclasses (among others)
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
-│       ├── cache.py            # LLM response caching
-│       ├── mcp_client.py       # MCP server integration
-│       ├── constants.py        # Configuration constants
+│       ├── cache/              # LLM response caching
+│       ├── mcp_client/         # MCP server integration
+│       ├── constants/          # Configuration constants
 │       ├── config/             # YAML-based tool/domain configuration
 │       │   ├── registry.py     # Config loading and merge logic
 │       │   ├── schema.py       # Config schema validation
@@ -155,7 +155,7 @@ idempotency keys, so an existing key must never change value.
 
 ### 4. Update State Type (if needed)
 
-If your node adds new state fields, update `src/co_scientist/state.py`:
+If your node adds new state fields, update `src/co_scientist/state/__init__.py`:
 
 ```python
 class WorkflowState(TypedDict, total=False):
@@ -176,7 +176,7 @@ class WorkflowState(TypedDict, total=False):
 | `articles` | `list[Article] \| None` | Retrieved papers (literature review) |
 | `metrics` | `ExecutionMetrics` | Performance tracking |
 
-There are many other fields. Inspect state as each node completed or view state.py for other captured state.
+There are many other fields. Inspect state as each node completed or view state/__init__.py for other captured state.
 
 ### Hypothesis Structure
 
@@ -198,7 +198,7 @@ Each hypothesis is a `Hypothesis` dataclass in state, serialized to a dict in st
 | `reflection_notes` | string | Reflection node analysis against literature |
 | `generation_method` | string | One of `"debate"`, `"literature_tools"`, `"assumptions"`, `"research_expansion"` |
 
-See `models.py` for the full `Hypothesis` dataclass.
+See `models/__init__.py` for the full `Hypothesis` dataclass.
 
 ## LLM Calling
 

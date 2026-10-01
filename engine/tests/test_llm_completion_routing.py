@@ -28,13 +28,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist import offline_llm
 from co_scientist.llm.attempts import json_attempt
 from co_scientist.llm.request import completion
 from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )
 from co_scientist.llm.request.schema import _apply_response_format
+from co_scientist.offline import llm as offline_llm
 from tests._offline_helpers import isolate_offline_router
 
 _SCHEMA: dict[str, Any] = {

@@ -8,8 +8,8 @@ from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[1]
 _POLICY_FILES = (
-    "constants.py",
-    "constants_tokens.py",
+    "constants/__init__.py",
+    "constants/tokens.py",
     "llm/values.py",
     "llm/profile/families.py",
     "llm/profile/routes.py",

@@ -9,7 +9,7 @@ aggregation and scoping contract in isolation.
 
 from types import SimpleNamespace
 
-from co_scientist.constants_pricing import estimate_cost_usd
+from co_scientist.constants.pricing import estimate_cost_usd
 from co_scientist.llm import (
     ModelCallStats,
     record_call,
@@ -169,7 +169,7 @@ def test_merging_fan_out_usage_keeps_every_field_stats_carries() -> None:
     """
     import dataclasses
 
-    from co_scientist.models_metrics import _merge_usage_entry
+    from co_scientist.models.metrics import _merge_usage_entry
 
     numeric = {
         f.name: 2

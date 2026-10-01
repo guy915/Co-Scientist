@@ -1,9 +1,9 @@
 """Stopword vocabulary for the deterministic offline backend's term mining.
 
-Split out of ``co_scientist.offline_content`` to keep that module under the
+Split out of ``co_scientist.offline.content`` to keep that module under the
 repo's file-length ceiling. Holds only the noise-word set ``subject_terms``
 filters out of a prompt's research-goal text; the extraction logic and the
-sentence templates that consume it stay in ``offline_content``. Re-exported
+sentence templates that consume it stay in ``offline.content``. Re-exported
 from there so existing importers are unaffected.
 """
 

@@ -58,7 +58,7 @@ from unittest import mock
 import litellm
 import pytest
 
-from co_scientist.constants_pricing import MODEL_PRICING, estimate_cost_usd
+from co_scientist.constants.pricing import MODEL_PRICING, estimate_cost_usd
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm import (
     deepseek_thinking_extra_body,
