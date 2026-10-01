@@ -6,6 +6,8 @@ The [plain-text query boundary](sakana/novelty-plain-query-boundary-verification
 
 The [local fulltext opt-out correction](sakana/novelty-fulltext-optout-verification-2026-10-01.json) preserves default downloads and paper selection while allowing titles/abstracts-only callers to avoid unused PMC I/O. Matched fixture,372 MCP tests, strict typing and independent exact-hash review pass. [PR #89 and the real metadata-only tool response](m12-fulltext-optout-release-2026-10-01.json) close operational i2; no scientific acceptance is inferred.
 
+The separately reviewed [metadata-only study8 registration](sakana/novelty-pilot-v8-registration-verification-2026-10-01.json) now binds committed bank9/protocol8 after actual isolated zero-call MCP/CLI preflight and normal-loader verification. Its six pairs, prompts, scientific criteria and24model/36outer limits remain unchanged; only reviewed sources, study namespace and explicit fulltext opt-out differ. It is unadmitted and unscored; fresh zero-price route/account and process/cache checks remain required before the one-shot comparison. Historical consumed studies remain immutable.
+
 **Source:** https://github.com/SakanaAI/AI-Scientist at [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) (committed 2025-12-19). The ignored checkout at `references/work/sakana-ai-scientist/` was removed after release; it was never a runtime dependency. This is an external technique source, not evidence of Google's Co-Scientist implementation.
 
 ## Terms and reuse boundary
