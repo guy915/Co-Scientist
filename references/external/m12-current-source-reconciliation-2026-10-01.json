@@ -1,0 +1,114 @@
+{
+  "purpose": "Current source-pin and link reconciliation supporting M12-04b7; not final release acceptance.",
+  "status": "NINE_SOURCE_PINS_AND_CURRENT_RECORD_LINKS_VERIFIED",
+  "observed_at_utc": "2026-10-01T07:40:45.138485+00:00",
+  "source_head": "c98379978c2c37dc0cf73d265ee3ccd86f2241c0",
+  "sources": [
+    {
+      "order": 1,
+      "dossier": "kaimen-inc-co-scientist.md",
+      "pinned_commit": "cef5bcfec8820865855593b437a941005a9f961a",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 2,
+      "dossier": "conradry-open-coscientist-agents.md",
+      "pinned_commit": "a20b018300da57a26578f8e7442b890193950afa",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 3,
+      "dossier": "llnl-open-ai-co-scientist.md",
+      "pinned_commit": "c8342c0e28474d134f80caa6b9668470ebf55258",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 4,
+      "dossier": "raktim-mondol-co-scientist.md",
+      "pinned_commit": "10aa84a3c5a774c6fe5de050000c3f5e0996eb45",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 5,
+      "dossier": "k-dense-scientific-agent-skills.md",
+      "pinned_commit": "49c6e97775eaa18ba791bebe23162a70ae601c18",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 6,
+      "dossier": "sakana-ai-scientist.md",
+      "pinned_commit": "1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 7,
+      "dossier": "synthetic-sciences-openscience.md",
+      "pinned_commit": "4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 8,
+      "dossier": "mims-harvard-tooluniverse.md",
+      "pinned_commit": "78883724c46a94ec1d1bfdc984efb25ba1b76aed",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    },
+    {
+      "order": 9,
+      "dossier": "future-house-robin.md",
+      "pinned_commit": "4a5cce310f3bc7663a67117db88af43b84733ffe",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true
+    }
+  ],
+  "relative_markdown_links": {
+    "files_scanned": [
+      "references/external/kaimen-inc-co-scientist.md",
+      "references/external/conradry-open-coscientist-agents.md",
+      "references/external/llnl-open-ai-co-scientist.md",
+      "references/external/raktim-mondol-co-scientist.md",
+      "references/external/k-dense-scientific-agent-skills.md",
+      "references/external/sakana-ai-scientist.md",
+      "references/external/synthetic-sciences-openscience.md",
+      "references/external/mims-harvard-tooluniverse.md",
+      "references/external/future-house-robin.md",
+      "references/external/README.md",
+      "references/external/campaign.md",
+      "references/external/campaign-final-report.md",
+      "references/external/m11-follow-up-register.md",
+      "references/external/m12-acceptance-gaps-2026-09-27.md",
+      "references/external/baseline/model-qualification/model-route-reconciliation-2026-09-30.md"
+    ],
+    "checked": 440,
+    "missing": []
+  },
+  "record_sha256": {
+    "references/external/kaimen-inc-co-scientist.md": "b1dc4f7533fdf1bedf91f02e1e634e50f51d227accc0d4af04564327d252a501",
+    "references/external/conradry-open-coscientist-agents.md": "9c88fbfbd96cecadfe2c4314240209c4eea1708ad0fff1d619e2de1fa5ffb69a",
+    "references/external/llnl-open-ai-co-scientist.md": "90d0dd9101c80a31c2d7bcf283c4d86c70bdd9f6321165af033240d7c1fd51bd",
+    "references/external/raktim-mondol-co-scientist.md": "fabeb75f249bcd037d7809c8a91a7e5edd4033027c01d8b8444f0f4d012516a2",
+    "references/external/k-dense-scientific-agent-skills.md": "d7ffe6e89d7cd945ba6b394dfaefa239089095c858924a1dfa240d36a6d16517",
+    "references/external/sakana-ai-scientist.md": "0860c6e58a722f88f0cd77b74537a6397057509bcbf9a091a97654b4af2b1f69",
+    "references/external/synthetic-sciences-openscience.md": "576fb06b58ae92e0beb347bdaffe72c1ec370902546ad6a6ba8799a3bee31a4b",
+    "references/external/mims-harvard-tooluniverse.md": "18edf01342284e882d058fbeab649fb8feb100e38c53248eab1c5224ee4747fa",
+    "references/external/future-house-robin.md": "0f2f9719c2db40e0eed6b528822bb9460d94bd7e671c8b7420ee47228162067c",
+    "references/external/README.md": "c860b441f0941c03ff5cb1fb6a36c942b5ce26fc65ce198ad0d6bf673430b692",
+    "references/external/campaign.md": "9d0717f02b9432dfe973c03f33b4824a80de14eb356c5c492b1036681397d4ae",
+    "references/external/campaign-final-report.md": "8de5f9650e9bc29e5f231f2f626eafd0b207936e00be098a87edb8bc9c90c6dc",
+    "references/external/m11-follow-up-register.md": "33a55c6732f332a8d069cad2d199c130e0f61bcc7c8b127c3171363f62c6546f",
+    "references/external/m12-acceptance-gaps-2026-09-27.md": "22659ffbdde82a3810d8227c75a746df9852c0a8caf16f83f0ec391f61a1b299",
+    "references/external/baseline/model-qualification/model-route-reconciliation-2026-09-30.md": "f070736053584c3fb9c46c6379e3c9476e554a68aa018b4b857e6bfd40232ba3"
+  },
+  "scope_limits": [
+    "License discussions and pins are retained inspected records, not a new legal analysis.",
+    "Current reviewed records/reference runner still require PR integration; final M12-04b8 remains open.",
+    "Historical studies and dated snapshots remain immutable; no new inference or qualification."
+  ]
+}
