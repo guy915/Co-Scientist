@@ -3,14 +3,14 @@
 Extracted verbatim from ``app.engine_adapter.drain``: per-hypothesis review
 rows, covering the scientist-authored review, the engine's own review list,
 the deep-verification review, and the mature Reflection cascade. ``drain``
-re-exports every name here, so the original module namespace keeps
-resolving.
+re-exports the names its callers and tests use, so the original module
+namespace keeps resolving for them.
 
 The citation half of the original module now lives in ``drain_citations``
 (split out when this file outgrew the 500-line ceiling), and the structured
 ``detail_json`` builders in ``drain_review_detail`` (split out when
 persisting the report's review block took it past the ceiling a second
-time); every name either holds is re-exported below, so importers written
+time); the names importers use are re-exported below, so importers written
 against ``drain_reviews`` -- ``drain`` and ``drain_hypotheses`` among them
 -- keep resolving unchanged.
 """
@@ -22,37 +22,10 @@ from typing import Any
 
 from app import store
 from app.engine_adapter.drain_citations import (
-    _BRACKET_GROUP as _BRACKET_GROUP,
-)
-from app.engine_adapter.drain_citations import (
-    _citation_available as _citation_available,
-)
-from app.engine_adapter.drain_citations import (
-    _citation_map as _citation_map,
-)
-from app.engine_adapter.drain_citations import (
-    _citation_url as _citation_url,
-)
-from app.engine_adapter.drain_citations import (
     _CitationSink as _CitationSink,
 )
 from app.engine_adapter.drain_citations import (
-    _CitationTarget as _CitationTarget,
-)
-from app.engine_adapter.drain_citations import (
-    _claim_cited_by as _claim_cited_by,
-)
-from app.engine_adapter.drain_citations import (
-    _ensure_citation_evidence_id as _ensure_citation_evidence_id,
-)
-from app.engine_adapter.drain_citations import (
-    _hypothesis_grounding_text as _hypothesis_grounding_text,
-)
-from app.engine_adapter.drain_citations import (
     _persist_engine_citations as _persist_engine_citations,
-)
-from app.engine_adapter.drain_citations import (
-    _persist_one_citation as _persist_one_citation,
 )
 from app.engine_adapter.drain_review_detail import (
     _ASSUMPTION_SUPPORT_LABELS as _ASSUMPTION_SUPPORT_LABELS,

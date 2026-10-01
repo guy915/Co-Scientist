@@ -1,6 +1,6 @@
 """Run lifecycle endpoints: start, cancel, pause, and resume.
 
-Split out of ``app.runs`` (which re-exports every name here and mounts
+Split out of ``app.runs`` (which re-exports the names callers use and mounts
 ``router`` on its own, so the served route set is unchanged). Also home
 to the resume launcher shared by the resume endpoint and the startup
 auto-resume path (``resume_interrupted_runs``, called from the app
@@ -23,9 +23,6 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
-from app.runs_resume_admission import (
-    _has_paused_engine_task as _has_paused_engine_task,
-)
 from app.runs_resume_admission import (
     _is_resumable as _is_resumable,
 )

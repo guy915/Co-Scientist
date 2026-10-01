@@ -17,7 +17,7 @@ Ideas" placement), the meta-review's tournament-facing half after that
 write-up, and the run-wide References list last.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
-every name is re-exported so its namespace keeps resolving.
+the names callers use are re-exported so its namespace keeps resolving.
 """
 
 from __future__ import annotations

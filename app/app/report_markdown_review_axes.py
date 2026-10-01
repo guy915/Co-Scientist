@@ -8,8 +8,7 @@ saw was any sub-structure below Correctness and Novelty.
 
 Homed apart from ``report_markdown_review_block`` because that module is
 the per-idea assembly point and was already two thirds of the way to the
-size ceiling; the two halves are re-exported from ``report_markdown`` so
-that namespace keeps resolving.
+size ceiling; ``report_markdown_review_block`` imports the two halves.
 
 Two conventions this file keeps, both learned elsewhere in this repo:
 

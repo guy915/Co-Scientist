@@ -3,9 +3,9 @@
 Schedules the ranking chain from a committed checkpoint, judges bounded
 waves of Elo matchups (one durable task per wave), and finalizes the
 tournament back into orchestration. Split from ``app.engine_tasks``,
-which re-exports these names for compatibility. Wave construction and
-judging moved on to ``app.engine_tasks_ranking_wave``; every moved name is
-re-exported below so this module's namespace keeps resolving.
+which re-exports the names callers use. Wave construction and judging
+moved on to ``app.engine_tasks_ranking_wave``; the moved names still in
+use are re-exported below so this module's namespace keeps resolving.
 """
 
 from __future__ import annotations
@@ -22,21 +22,6 @@ from app.engine_tasks_ranking_wave import (
     _prepare_ranking_wave,
     _WavePlan,
     _WaveResult,
-)
-from app.engine_tasks_ranking_wave import (
-    _apply_wave_elo as _apply_wave_elo,
-)
-from app.engine_tasks_ranking_wave import (
-    _judge_one_matchup as _judge_one_matchup,
-)
-from app.engine_tasks_ranking_wave import (
-    _judge_wave_matchups as _judge_wave_matchups,
-)
-from app.engine_tasks_ranking_wave import (
-    _ranking_wave as _ranking_wave,
-)
-from app.engine_tasks_ranking_wave import (
-    _WaveJudgeContext as _WaveJudgeContext,
 )
 from app.engine_tasks_support import (
     RANKING_FINALIZE_TASK,

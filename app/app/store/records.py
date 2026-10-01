@@ -6,8 +6,8 @@ critiques, pairwise tournament matches, and safety-gate decisions. The
 tournament matches live in ``app.store.records_matches``, the safety-gate
 decisions in ``app.store.records_safety``, the proximity edges in
 ``app.store.records_proximity``, and the shared per-run listing query in
-``app.store.records_support``; all are re-exported here so the module
-namespace is unchanged.
+``app.store.records_support``; the names callers use are re-exported here
+so the module namespace stays usable.
 
 Every helper accepts ``db_path`` (override for the SQLite database path)
 and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
@@ -25,7 +25,6 @@ from typing import Any
 from app.citations import CitationState
 from app.store.db import _now, _use_conn
 from app.store.records_matches import NewMatch as NewMatch
-from app.store.records_matches import _insert_match_row as _insert_match_row
 from app.store.records_matches import add_match as add_match
 from app.store.records_matches import count_matches as count_matches
 from app.store.records_matches import list_matches as list_matches

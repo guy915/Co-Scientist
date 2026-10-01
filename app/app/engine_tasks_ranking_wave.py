@@ -4,7 +4,7 @@ One durable ranking task judges a bounded *wave* of Elo matchups: this
 module owns the value objects describing a wave, the pairing selection, the
 concurrent judging, and the Elo application that folds a judged wave back
 into the running totals. Split from ``app.engine_tasks_ranking``, which
-re-exports every name here so its namespace keeps resolving.
+re-exports the names callers use so its namespace keeps resolving.
 """
 
 from __future__ import annotations

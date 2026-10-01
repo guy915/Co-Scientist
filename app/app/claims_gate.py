@@ -6,8 +6,8 @@ provenance support span and the claim-assessment record they populate, and the
 publication gate. Citation metadata and resolvability -- a third concern, and
 one no gate here consults -- moved on to :mod:`app.citation_metadata`.
 
-:mod:`app.claims` imports these names back and re-exports them, so every public
-name remains importable from ``app.claims`` exactly as before. This module
+:mod:`app.claims` imports these names back and re-exports the ones callers
+use, so they remain importable from ``app.claims`` as before. This module
 deliberately does **not** import :mod:`app.claims` -- doing so would create an
 import cycle, since ``app.claims`` depends on the names defined here. The set
 moved here is self-contained precisely so that no such back-import is needed.

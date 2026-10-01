@@ -20,9 +20,9 @@ NLI/LLM entailment model is a swappable, provenance-tagged assessor.
 
 Step 2's assessment half lives in :mod:`app.claim_grounding_assess`, which
 touches no database at all -- the module boundary is what keeps a provider
-call out of a write transaction. Every name it defines is re-exported here,
-so ``app.claim_grounding`` remains the single import and monkeypatch
-surface it has always been.
+call out of a write transaction. The names callers and tests still reach
+through ``app.claim_grounding`` are re-exported here, so it remains their
+import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -35,25 +35,7 @@ from typing import Any
 
 from app import store
 from app.claim_grounding_assess import (
-    ASSESSMENT_CONCURRENCY as ASSESSMENT_CONCURRENCY,
-)
-from app.claim_grounding_assess import (
     AssessorSpec as AssessorSpec,
-)
-from app.claim_grounding_assess import (
-    _assess_flat_claims as _assess_flat_claims,
-)
-from app.claim_grounding_assess import (
-    _claim_records as _claim_records,
-)
-from app.claim_grounding_assess import (
-    _per_hypothesis_claim_records as _per_hypothesis_claim_records,
-)
-from app.claim_grounding_assess import (
-    _regroup_assessments as _regroup_assessments,
-)
-from app.claim_grounding_assess import (
-    _zip_hypothesis_assessments as _zip_hypothesis_assessments,
 )
 from app.claim_grounding_assess import (
     assess_claim_groups as assess_claim_groups,

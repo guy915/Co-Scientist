@@ -2,8 +2,8 @@
 
 Split out of ``app.store.records`` to keep that module within the size
 cap. Holds the insert/list helpers for the outcome rows of Elo tournament
-matches. Every name is re-exported from ``app.store.records``, so callers
-and monkeypatching tests are unaffected.
+matches. The names callers use are re-exported from ``app.store.records``,
+so callers and monkeypatching tests are unaffected.
 
 Every helper accepts ``db_path`` (override for the SQLite database path)
 and ``conn`` (an open connection to reuse, e.g. from ``transaction``).

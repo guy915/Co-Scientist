@@ -37,7 +37,7 @@ them, degrading a missing description to the older bare-name bullet and a
 malformed field (not a list, or an unnamed entry) to rendering nothing.
 
 Split out of ``report_markdown`` to keep that module within the size cap;
-every name is re-exported so its namespace keeps resolving.
+the names callers use are re-exported so its namespace keeps resolving.
 
 Display only, in every case: never used to gate, filter, rank, or
 disqualify a hypothesis.

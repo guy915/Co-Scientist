@@ -3,7 +3,7 @@
 Each executor runs one hypothesis-scoped unit of work against a
 read-only checkpoint, returning its result for the family's aggregate
 to commit. Split from ``app.engine_tasks_fanout``, which re-exports
-these names so ``app.engine_tasks`` remains the stable import and
+the names callers use so ``app.engine_tasks`` remains their import and
 monkeypatch surface.
 """
 

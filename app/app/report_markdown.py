@@ -11,217 +11,22 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
-# The run-wide bibliography (R12-12) lives in its own module to keep
-# report_markdown_documents within the size cap; the name is re-exported so
-# this module's namespace keeps resolving.
-from app.report_markdown_bibliography import (
-    _render_references_section as _render_references_section,
-)
-from app.report_markdown_documents import (
-    _NOVELTY_DISCLOSURE as _NOVELTY_DISCLOSURE,
-)
-
 # The document assembler and the input bundle it renders from live in
-# their own module to keep this one within the size cap; every name is
+# their own module to keep this one within the size cap; both are
 # re-exported so this module's namespace keeps resolving.
 from app.report_markdown_documents import (
     ReportMarkdownInputs as ReportMarkdownInputs,
 )
 from app.report_markdown_documents import (
-    _any_novelty_verified as _any_novelty_verified,
-)
-from app.report_markdown_documents import (
-    _claim_evidence_by_hypothesis as _claim_evidence_by_hypothesis,
-)
-from app.report_markdown_documents import (
-    _render_citation_audit as _render_citation_audit,
-)
-from app.report_markdown_documents import (
-    _render_novelty_disclosure as _render_novelty_disclosure,
-)
-from app.report_markdown_documents import (
-    _render_top_hypotheses_markdown as _render_top_hypotheses_markdown,
-)
-from app.report_markdown_documents import (
     render_report_markdown as render_report_markdown,
-)
-
-# The header (title, provider line, Research Goal Details) lives in its
-# own module to keep this one within the size cap; the names are
-# re-exported so this module's namespace keeps resolving.
-from app.report_markdown_header import (
-    _render_about_disclosure as _render_about_disclosure,
-)
-from app.report_markdown_header import (
-    _render_provenance_line as _render_provenance_line,
-)
-from app.report_markdown_header import (
-    _render_research_goal_details as _render_research_goal_details,
-)
-from app.report_markdown_header import (
-    _render_summary_section as _render_summary_section,
-)
-from app.report_markdown_header import (
-    _render_title_and_provider as _render_title_and_provider,
 )
 
 # The per-hypothesis 'Top hypotheses' entry renderer (and its exclusive
 # claim-evidence helpers) moved to its own module to keep this one within
-# both the line-count and mccabe-complexity caps; every moved name is
+# both the line-count and mccabe-complexity caps; the entry renderer is
 # re-exported so this module's namespace keeps resolving.
-from app.report_markdown_hypothesis import _claim_status as _claim_status
-from app.report_markdown_hypothesis import (
-    _render_claim_evidence as _render_claim_evidence,
-)
-from app.report_markdown_hypothesis import (
-    _render_evidence_span as _render_evidence_span,
-)
 from app.report_markdown_hypothesis import (
     _render_hypothesis_entry as _render_hypothesis_entry,
-)
-from app.report_markdown_hypothesis import (
-    _render_hypothesis_experiment as _render_hypothesis_experiment,
-)
-from app.report_markdown_hypothesis import (
-    _render_hypothesis_mechanism as _render_hypothesis_mechanism,
-)
-from app.report_markdown_hypothesis import (
-    _render_hypothesis_safety as _render_hypothesis_safety,
-)
-from app.report_markdown_hypothesis import (
-    _render_hypothesis_scene_setting as _render_hypothesis_scene_setting,
-)
-from app.report_markdown_hypothesis import (
-    _reviews_by_hypothesis as _reviews_by_hypothesis,
-)
-
-# The knowledge-base section lives in its own module to keep this one
-# within the size cap; the name is re-exported so this module's namespace
-# keeps resolving.
-from app.report_markdown_knowledge_base import (
-    _render_knowledge_base_markdown as _render_knowledge_base_markdown,
-)
-
-# The meta-review insights section moved to its own module to keep this
-# one within the size cap; every moved name is re-exported so this
-# module's namespace keeps resolving. Split in two: the earlier section's
-# cross-run synthesis and the later, tournament-facing comparison share
-# the same source payload but render onto two different headings, at two
-# different positions in the one document -- see
-# report_markdown_meta_review.py.
-from app.report_markdown_meta_review import (
-    _render_meta_review_overview_markdown as _render_meta_review_overview_markdown,  # noqa: E501
-)
-from app.report_markdown_meta_review import (
-    _render_meta_review_ranking_markdown as _render_meta_review_ranking_markdown,  # noqa: E501
-)
-
-# The research-overview/NIH-aims/contacts renderers moved verbatim to
-# ``report_markdown_overview``; every moved name is re-exported so this
-# module's namespace keeps resolving.
-from app.report_markdown_overview import (
-    _has_aims_content as _has_aims_content,
-)
-from app.report_markdown_overview import (
-    _has_overview_content as _has_overview_content,
-)
-from app.report_markdown_overview import (
-    _render_aims_list as _render_aims_list,
-)
-from app.report_markdown_overview import (
-    _render_directions_list as _render_directions_list,
-)
-from app.report_markdown_overview import (
-    _render_experiments_list as _render_experiments_list,
-)
-from app.report_markdown_overview import (
-    _render_nih_aim as _render_nih_aim,
-)
-from app.report_markdown_overview import (
-    _render_nih_aims_section as _render_nih_aims_section,
-)
-from app.report_markdown_overview import (
-    _render_optional_paragraph as _render_optional_paragraph,
-)
-from app.report_markdown_overview import (
-    _render_overview_section as _render_overview_section,
-)
-from app.report_markdown_overview import (
-    _render_research_contacts_section as _render_research_contacts_section,
-)
-from app.report_markdown_overview import (
-    _render_research_direction as _render_research_direction,
-)
-from app.report_markdown_overview import (
-    render_research_overview_markdown as render_research_overview_markdown,
-)
-from app.report_markdown_overview import (
-    research_overview_sections as research_overview_sections,
-)
-
-# The per-hypothesis References subsection (resolving [C*] citation keys)
-# lives in its own module to keep this one within the size cap; both names
-# are re-exported so this module's namespace keeps resolving.
-from app.report_markdown_references import (
-    _render_references_markdown as _render_references_markdown,
-)
-from app.report_markdown_references import (
-    references_by_hypothesis as references_by_hypothesis,
-)
-
-# R14-17's per-axis sub-structure and the citation-sourced Related
-# Article Abstracts lists, split off the block module to keep both within
-# the size cap; re-exported for the same reason as the block itself.
-from app.report_markdown_review_axes import (
-    feasibility_extras as feasibility_extras,
-)
-from app.report_markdown_review_axes import impact_extras as impact_extras
-from app.report_markdown_review_axes import (
-    related_article_abstracts as related_article_abstracts,
-)
-from app.report_markdown_review_axes import (
-    related_article_titles as related_article_titles,
-)
-
-# The per-idea review block (Reviews summary, All reviews, deep
-# verification -- R14-14/R14-17) lives in its own module to keep the
-# per-entry assembly module within the size cap; the names are
-# re-exported so this module's namespace keeps resolving.
-from app.report_markdown_review_block import (
-    _render_critiques_rollup as _render_critiques_rollup,
-)
-from app.report_markdown_review_block import (
-    _render_deep_verification as _render_deep_verification,
-)
-from app.report_markdown_review_block import (
-    _render_hypothesis_reviews as _render_hypothesis_reviews,
-)
-from app.report_markdown_review_block import (
-    _render_reviews_summary as _render_reviews_summary,
-)
-
-# The data-sources section (skill attribution + literature-search summary)
-# moved to its own module to keep this one within the size cap; both names
-# are re-exported so this module's namespace keeps resolving.
-from app.report_markdown_sources import (
-    _render_data_source_notice as _render_data_source_notice,
-)
-from app.report_markdown_sources import (
-    _render_data_sources_section as _render_data_sources_section,
-)
-
-# The Supervisor's synthesized guidance sections (stratification
-# attributes, evaluation criteria, the review rubric) live in their own
-# module to keep this one within the size cap; every name is re-exported
-# so this module's namespace keeps resolving.
-from app.report_markdown_supervisor import (
-    _render_evaluation_criteria_markdown as _render_evaluation_criteria_markdown,  # noqa: E501
-)
-from app.report_markdown_supervisor import (
-    _render_review_summary_markdown as _render_review_summary_markdown,
-)
-from app.report_markdown_supervisor import (
-    _render_stratification_attributes_markdown as _render_stratification_attributes_markdown,  # noqa: E501
 )
 
 # The table-of-contents renderer (R14-1) lives in its own module to keep
@@ -229,13 +34,6 @@ from app.report_markdown_supervisor import (
 # namespace keeps resolving.
 from app.report_markdown_toc import (
     _render_table_of_contents as _render_table_of_contents,
-)
-
-# The tournament's debate transcripts (F3) live in their own module to
-# keep report_markdown_documents within the size cap; the name is
-# re-exported so this module's namespace keeps resolving.
-from app.report_markdown_tournament import (
-    _render_tournament_debates_markdown as _render_tournament_debates_markdown,
 )
 
 

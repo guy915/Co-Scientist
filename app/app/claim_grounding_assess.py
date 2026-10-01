@@ -9,8 +9,8 @@ writer starved. Keeping the assessment half in its own module makes that
 boundary a physical one: nothing in this file may open a connection, and
 ``claim_grounding.persist_grounding`` is what callers run afterwards.
 
-:mod:`app.claim_grounding` imports these names back and re-exports them,
-so every name remains importable (and monkeypatchable) from
+:mod:`app.claim_grounding` imports these names back and re-exports the ones
+callers use, so they remain importable (and monkeypatchable) from
 ``app.claim_grounding`` exactly as before. This module deliberately does
 **not** import :mod:`app.claim_grounding` -- that would create an import
 cycle, since the grounding wiring depends on the names defined here.

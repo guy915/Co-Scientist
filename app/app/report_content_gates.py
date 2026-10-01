@@ -3,8 +3,8 @@
 Holds the exclusion filters that decide which hypotheses reach the final
 report: the contradicted/unverified id sets and the safety gate that drops
 prohibited, rejected, or contradicted ideas. ``report_content`` re-exports
-every name here, and ``report_render`` re-exports it in turn, so callers keep
-a single ``app.report_render`` import surface.
+the names callers use from here, and ``report_render`` re-exports those in
+turn, so callers keep a single ``app.report_render`` import surface.
 """
 
 from __future__ import annotations

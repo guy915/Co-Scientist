@@ -10,9 +10,8 @@ renderers read the ``detail_json`` the drain already writes
 (``engine_adapter/drain_review_detail.py``).
 
 Homed apart from ``report_markdown_hypothesis`` because that module is
-the per-entry assembly point and was already near the size ceiling; the
-names are re-exported from ``report_markdown`` so that namespace keeps
-resolving.
+the per-entry assembly point and was already near the size ceiling;
+``report_markdown_hypothesis`` imports its names.
 
 Two conventions this file keeps:
 

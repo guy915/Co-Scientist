@@ -5,7 +5,8 @@ transaction: retrieved articles as evidence rows, and each engine
 hypothesis (identity/lineage derivation, the store row, its mutable Elo
 state, and its reviews/citations via the ``drain_reviews`` helpers), plus
 the proximity-pruned archive merge. Split from ``drain`` by concern;
-``drain`` re-exports every name so its namespace keeps resolving.
+``drain`` re-exports the names tests and callers use so its namespace keeps
+resolving for them.
 """
 
 from __future__ import annotations

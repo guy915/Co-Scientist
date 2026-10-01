@@ -33,8 +33,5 @@ from app.engine_adapter.tools import (
     connectors_report as connectors_report,
 )
 from app.engine_adapter.tools import (
-    tools_config_report as tools_config_report,
-)
-from app.engine_adapter.tools import (
     validate_tools_config as validate_tools_config,
 )

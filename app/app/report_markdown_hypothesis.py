@@ -5,8 +5,9 @@ that module's line count under their caps: as more optional subsections
 (scene-setting MO-6, safety-and-toxicity MO-10) were added to one entry,
 its renderer's branch count grew past the mccabe ceiling. Each optional
 subsection now factors into its own low-complexity helper here, and the
-entry point is a straight-line assembly of them -- names are re-exported
-from ``report_markdown`` so that module's namespace keeps resolving.
+entry point is a straight-line assembly of them -- the entry renderer is
+re-exported from ``report_markdown`` so that module's namespace keeps
+resolving.
 """
 
 from __future__ import annotations

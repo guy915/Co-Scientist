@@ -17,7 +17,6 @@ from app import store
 from app.citations import empty_citation_summary
 from app.claim_grounding import evidence_passages, persist_grounding
 from app.claims import EvidencePassage
-from app.elo import INITIAL_ELO as INITIAL_ELO
 from app.engine_adapter import drain_escalation
 from app.engine_adapter.drain_claim_grounding import (
     _assess_claims as _assess_claims,
@@ -33,18 +32,9 @@ from app.engine_adapter.drain_hypotheses import (
 )
 
 # Evidence/hypothesis, review/citation, and match/proximity persistence
-# moved verbatim to sibling modules; every moved name is re-exported so this
-# module's namespace (the seam tests and callers patch/import against) keeps
-# resolving.
-from app.engine_adapter.drain_hypotheses import (
-    _article_coalesced_fields as _article_coalesced_fields,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _derive_hypothesis_identity as _derive_hypothesis_identity,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _HypIdentity as _HypIdentity,
-)
+# moved verbatim to sibling modules; the names tests and callers patch or
+# import through this module are re-exported so its namespace keeps
+# resolving for them.
 from app.engine_adapter.drain_hypotheses import (
     _hypotheses_with_proximity_archive as _hypotheses_with_proximity_archive,
 )
@@ -52,40 +42,13 @@ from app.engine_adapter.drain_hypotheses import (
     _HypothesisSink as _HypothesisSink,
 )
 from app.engine_adapter.drain_hypotheses import (
-    _payload_parent_ids as _payload_parent_ids,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _persist_engine_evidence as _persist_engine_evidence,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _persist_engine_hypothesis as _persist_engine_hypothesis,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _persist_engine_hypothesis_row as _persist_engine_hypothesis_row,
-)
-from app.engine_adapter.drain_hypotheses import (
     _persist_evidence_and_hypotheses as _persist_evidence_and_hypotheses,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _persist_hypothesis_state as _persist_hypothesis_state,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _resolve_persisted_parent_id as _resolve_persisted_parent_id,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _resolve_persisted_parent_ids as _resolve_persisted_parent_ids,
-)
-from app.engine_adapter.drain_matches import (
-    _matchup_loser_engine_id as _matchup_loser_engine_id,
 )
 from app.engine_adapter.drain_matches import (
     _persist_engine_matches as _persist_engine_matches,
 )
 from app.engine_adapter.drain_matches import (
     _persist_engine_proximity as _persist_engine_proximity,
-)
-from app.engine_adapter.drain_matches import (
-    _resolve_match_sides as _resolve_match_sides,
 )
 from app.engine_adapter.drain_report_inputs import (
     critical_criteria,
@@ -100,37 +63,7 @@ from app.engine_adapter.drain_research import (
     _persist_retrieval_calls as _persist_retrieval_calls,
 )
 from app.engine_adapter.drain_reviews import (
-    _citation_map as _citation_map,
-)
-from app.engine_adapter.drain_reviews import (
-    _citation_url as _citation_url,
-)
-from app.engine_adapter.drain_reviews import (
     _CitationSink as _CitationSink,
-)
-from app.engine_adapter.drain_reviews import (
-    _ensure_citation_evidence_id as _ensure_citation_evidence_id,
-)
-from app.engine_adapter.drain_reviews import (
-    _hypothesis_grounding_text as _hypothesis_grounding_text,
-)
-from app.engine_adapter.drain_reviews import (
-    _persist_deep_verification_review as _persist_deep_verification_review,
-)
-from app.engine_adapter.drain_reviews import (
-    _persist_engine_citations as _persist_engine_citations,
-)
-from app.engine_adapter.drain_reviews import (
-    _persist_engine_review_rows as _persist_engine_review_rows,
-)
-from app.engine_adapter.drain_reviews import (
-    _persist_engine_reviews as _persist_engine_reviews,
-)
-from app.engine_adapter.drain_reviews import (
-    _persist_scientist_review as _persist_scientist_review,
-)
-from app.engine_adapter.drain_reviews import (
-    _score_or_none as _score_or_none,
 )
 from app.engine_adapter.drain_safety import (
     _persist_held_for_review as _persist_held_for_review,
@@ -142,7 +75,6 @@ from app.engine_adapter.drain_telemetry import (
     fold_grounding_telemetry as fold_grounding_telemetry,
 )
 from app.hypothesis_screening import screen_hypotheses
-from app.text_utils import first_sentence as first_sentence
 
 logger = logging.getLogger(__name__)
 

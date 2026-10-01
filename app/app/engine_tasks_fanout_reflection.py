@@ -4,7 +4,7 @@ The aggregate task that commits mature-reflection fan-out results, plus
 the ``_AppliedItems`` tally and the checkpoint-and-advance commit helper
 every fan-out aggregate shares. Split from
 ``app.engine_tasks_fanout_aggregates``, which imports the shared helper
-and re-exports these names so ``app.engine_tasks`` remains the stable
+and re-exports the names callers use so ``app.engine_tasks`` remains their
 import and monkeypatch surface.
 
 The deep-verification aggregate is the sibling

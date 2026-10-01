@@ -2,8 +2,8 @@
 
 The generation node's fan-out scheduling (one durable task per enabled
 strategy plus the aggregate) and the per-strategy executor. Split from
-``app.engine_tasks_fanout``, which re-exports these names so
-``app.engine_tasks`` remains the stable import and monkeypatch surface.
+``app.engine_tasks_fanout``, which re-exports the names callers use so
+``app.engine_tasks`` remains their import and monkeypatch surface.
 """
 
 from __future__ import annotations

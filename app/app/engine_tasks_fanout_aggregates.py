@@ -3,13 +3,13 @@
 Each fan-out family (review, generation, mature reflection, deep
 verification) ends in one aggregate task that folds successful item
 results into the workflow checkpoint while preserving per-item failures.
-Split from ``app.engine_tasks_fanout``, which re-exports these names so
-``app.engine_tasks`` remains the stable import and monkeypatch surface.
+Split from ``app.engine_tasks_fanout``, which re-exports the names callers
+use so ``app.engine_tasks`` remains their import and monkeypatch surface.
 The mature-reflection aggregate, plus the shared ``_AppliedItems`` tally
 and checkpoint-and-advance helper, live in
 ``app.engine_tasks_fanout_reflection``; the deep-verification aggregate
-lives in ``app.engine_tasks_fanout_verification``. Both are re-exported
-below.
+lives in ``app.engine_tasks_fanout_verification``. The names callers use
+are re-exported below.
 
 The one shape every family's aggregate *task* shares -- the enqueue --
 lives here too, since both fan-out schedulers
@@ -27,45 +27,18 @@ from typing import Any
 from app import store
 from app.engine_tasks_context import TaskCommit
 from app.engine_tasks_fanout_reflection import (
-    _AppliedItems as _AppliedItems,
-)
-from app.engine_tasks_fanout_reflection import (
-    _apply_mature_reflection_items as _apply_mature_reflection_items,
-)
-from app.engine_tasks_fanout_reflection import (
     _checkpoint_and_advance as _checkpoint_and_advance,
-)
-from app.engine_tasks_fanout_reflection import (
-    _commit_mature_reflection_aggregate as _commit_mature_reflection_aggregate,
-)
-from app.engine_tasks_fanout_reflection import (
-    _mature_reflection_update as _mature_reflection_update,
 )
 from app.engine_tasks_fanout_reflection import (
     execute_mature_reflection_aggregate as execute_mature_reflection_aggregate,
 )
 from app.engine_tasks_fanout_verification import (
-    _apply_verification_items as _apply_verification_items,
-)
-from app.engine_tasks_fanout_verification import (
-    _commit_verification_aggregate as _commit_verification_aggregate,
-)
-from app.engine_tasks_fanout_verification import (
-    _verification_aggregate_update as _verification_aggregate_update,
-)
-from app.engine_tasks_fanout_verification import (
     execute_verification_aggregate as execute_verification_aggregate,
-)
-from app.engine_tasks_support import (
-    _emit_node_completion as _emit_node_completion,
 )
 from app.engine_tasks_support import (
     _generator_for_restore,
     _replay_or_supersede,
     _require_item_task,
-)
-from app.engine_tasks_support import (
-    _save_state_and_enqueue as _save_state_and_enqueue,
 )
 from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask

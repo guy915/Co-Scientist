@@ -4,8 +4,7 @@ Covers reading runs, status transitions (including terminal-state
 timestamps), and the per-run summary counts. Creation lives in
 ``app.store.runs_create``; the enriched list rollups and derived-data resets
 live in ``app.store.runs_views``, and startup reconciliation lives in
-``app.store.runs_reconcile``. Those APIs are re-exported here to keep the
-module namespace unchanged.
+``app.store.runs_reconcile``. The APIs callers use are re-exported here.
 """
 
 from __future__ import annotations
@@ -20,12 +19,6 @@ from app.store.models import (
     RunRow,
     RunStatus,
     _row_to_run,
-)
-from app.store.runs_admission import (
-    _count_other_active_runs as _count_other_active_runs,
-)
-from app.store.runs_admission import (
-    _queue_run_if_startable as _queue_run_if_startable,
 )
 from app.store.runs_admission import (
     reserve_run_capacity as reserve_run_capacity,
@@ -44,21 +37,6 @@ from app.store.runs_create import create_run as create_run
 from app.store.runs_create import log_run_created as log_run_created
 from app.store.runs_delete import count_run_rows as count_run_rows
 from app.store.runs_delete import delete_run as delete_run
-from app.store.runs_reconcile import (
-    _ACTIVE_RUN_STATUSES as _ACTIVE_RUN_STATUSES,
-)
-from app.store.runs_reconcile import (
-    _fail_interrupted_run as _fail_interrupted_run,
-)
-from app.store.runs_reconcile import (
-    _reconcile_one_run as _reconcile_one_run,
-)
-from app.store.runs_reconcile import (
-    _settle_run_for_failed_task as _settle_run_for_failed_task,
-)
-from app.store.runs_reconcile import (
-    _settle_run_out_of_work as _settle_run_out_of_work,
-)
 from app.store.runs_reconcile import (
     reconcile_interrupted_runs as reconcile_interrupted_runs,
 )

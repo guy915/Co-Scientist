@@ -5,8 +5,8 @@ row a citation points at, narrowing the grounding paragraph to the part that
 actually cites a given source, and classifying the pair through the shared
 citation path. Split out of ``drain_reviews`` by concern once that module
 outgrew the repository's 500-line file ceiling -- reviews and citations
-share no helper, so the seam is clean. ``drain_reviews`` re-exports every
-name here, so both its own namespace and ``drain``'s keep resolving.
+share no helper, so the seam is clean. ``drain_reviews`` re-exports the
+names callers use, so both its own namespace and ``drain``'s keep resolving.
 """
 
 from __future__ import annotations

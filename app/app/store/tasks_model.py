@@ -3,9 +3,9 @@
 Split out of ``app.store.tasks`` to keep that module within the size cap,
 and to give ``app.store.tasks_attempts`` a way to decode a task row
 without importing back from ``app.store.tasks`` (which imports from
-``tasks_attempts`` and would otherwise cycle). Every name is re-exported
-from ``app.store.tasks``, so callers and monkeypatching tests are
-unaffected.
+``tasks_attempts`` and would otherwise cycle). The names callers use are
+re-exported from ``app.store.tasks``, so callers and monkeypatching tests
+are unaffected.
 """
 
 from __future__ import annotations

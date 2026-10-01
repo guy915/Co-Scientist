@@ -10,8 +10,8 @@ helpers in ``report_events``, the content-derivation helpers (topics,
 insights, buckets, claim filters) in ``report_content``, the gathering and
 assembly of the payload/markdown pair (``ReportRequest``, ``_BuiltReport``,
 ``_build_report_content``) in ``report_build``, and the completion-email
-scheduling in ``report_notify``; their names are re-exported here so
-callers keep a single ``app.report_render`` import surface.
+scheduling in ``report_notify``; the names callers use are re-exported here
+so ``app.report_render`` stays their import surface.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from app.report_build import ReportRequest as ReportRequest
 from app.report_build import _build_report_content as _build_report_content
 from app.report_build import _BuiltReport as _BuiltReport
 from app.report_build import _ReportBuildArgs as _ReportBuildArgs
-from app.report_build import _ReportData as _ReportData
 from app.report_content import _agent_insights as _agent_insights
 from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -51,18 +50,11 @@ from app.report_content import (
 )
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
-from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
 from app.report_events import hypothesis_stub as hypothesis_stub
 from app.report_events import make_emitter as make_emitter
 from app.report_events import match_stub as match_stub
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
-)
-from app.report_notify import (
-    _completion_email_deliverable as _completion_email_deliverable,
-)
-from app.report_notify import (
-    _completion_email_task as _completion_email_task,
 )
 from app.report_notify import (
     _enqueue_completion_notification as _enqueue_completion_notification,

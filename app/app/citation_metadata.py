@@ -13,8 +13,8 @@ bibliography classifies every rendered reference through
 
 Split out of :mod:`app.claims_gate`, which owned resolvability beside the
 entailment verdict and the publication gate -- three concerns, and the file
-was near its size budget. :mod:`app.claims` re-exports every public name
-here exactly as before.
+was near its size budget. :mod:`app.claims` re-exports the public names
+callers use exactly as before.
 
 The check has two halves, and they differ in where they can run:
 

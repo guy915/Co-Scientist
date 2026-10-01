@@ -1,8 +1,8 @@
 """The metrics snapshot a durable task commit persists.
 
 Split out of ``engine_tasks_support`` to keep that module on the task
-vocabulary and checkpoint plumbing; every name here stays importable from
-``app.engine_tasks_support`` via re-export, so existing import sites and
+vocabulary and checkpoint plumbing; the names callers use stay importable
+from ``app.engine_tasks_support`` via re-export, so existing import sites and
 monkeypatch seams are unaffected.
 
 The snapshot is what makes a run's metrics readable while it is still

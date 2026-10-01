@@ -3,8 +3,7 @@
 Renders the engine's ``research_overview`` payload — the overview summary
 and research directions, the NIH Specific Aims section, and the research
 contacts — as markdown lines. Split from ``report_markdown`` by concern;
-every function here is pure and ``report_markdown`` re-exports each name so
-its namespace keeps resolving.
+every function here is pure.
 """
 
 from __future__ import annotations
@@ -15,11 +14,8 @@ from typing import Any
 # live in report_markdown_contact_groups -- split out to keep this module
 # within the size cap, and a leaf relative to this one (it imports only
 # report_markdown_text, never this module) so the two never form a
-# cross-import cycle. Both names are re-exported so this module's
+# cross-import cycle. The grouped renderer is re-exported so this module's
 # namespace keeps resolving.
-from app.report_markdown_contact_groups import (
-    _render_contact_evidence_line as _render_contact_evidence_line,
-)
 from app.report_markdown_contact_groups import (
     _render_research_contacts_section as _render_research_contacts_section,
 )

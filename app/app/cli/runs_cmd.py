@@ -7,9 +7,9 @@ module stays strict-mypy clean. The streaming/polling handlers (``wait``,
 ``watch``, ``ask``) live in ``app.cli.runs_stream_cmd`` and are re-exported
 here so ``runs_cmd.handle_watch`` and friends keep resolving. The per-run
 sub-collection reads (``hypotheses``, ``evidence``, ...) plus ``metrics``
-live in ``app.cli.runs_collections_cmd``, re-exported the same way, so
-``runs_cmd.COLLECTION_COMMANDS`` and ``runs_cmd.handle_hypotheses`` also
-keep resolving for ``app.cli.parsers_runs`` and the CLI test suite.
+live in ``app.cli.runs_collections_cmd``; ``runs_cmd.COLLECTION_COMMANDS``
+and the handlers the CLI test suite calls are re-exported the same way,
+for ``app.cli.parsers_runs`` and that suite.
 """
 
 from __future__ import annotations
@@ -37,25 +37,7 @@ from app.cli.runs_collections_cmd import (
     COLLECTION_HANDLERS as COLLECTION_HANDLERS,
 )
 from app.cli.runs_collections_cmd import (
-    CollectionCommand as CollectionCommand,
-)
-from app.cli.runs_collections_cmd import (
-    _collection_handler as _collection_handler,
-)
-from app.cli.runs_collections_cmd import (
-    _emit_collection as _emit_collection,
-)
-from app.cli.runs_collections_cmd import (
-    handle_citations as handle_citations,
-)
-from app.cli.runs_collections_cmd import (
     handle_claim_evidence as handle_claim_evidence,
-)
-from app.cli.runs_collections_cmd import (
-    handle_evidence as handle_evidence,
-)
-from app.cli.runs_collections_cmd import (
-    handle_hypotheses as handle_hypotheses,
 )
 from app.cli.runs_collections_cmd import (
     handle_matches as handle_matches,
@@ -65,15 +47,6 @@ from app.cli.runs_collections_cmd import (
 )
 from app.cli.runs_collections_cmd import (
     handle_proximity as handle_proximity,
-)
-from app.cli.runs_collections_cmd import (
-    handle_reviews as handle_reviews,
-)
-from app.cli.runs_collections_cmd import (
-    handle_safety as handle_safety,
-)
-from app.cli.runs_collections_cmd import (
-    handle_tasks as handle_tasks,
 )
 from app.cli.runs_stream_cmd import (
     WATCH_RECONNECT_ATTEMPTS as WATCH_RECONNECT_ATTEMPTS,

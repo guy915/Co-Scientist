@@ -1,8 +1,8 @@
 """The bounded queue view and mutations the Supervisor may drive.
 
 Split out of ``engine_tasks_support`` to keep that module on the task
-vocabulary and checkpoint plumbing; every name here stays importable from
-``app.engine_tasks_support`` via re-export, so existing import sites and
+vocabulary and checkpoint plumbing; the names callers use stay importable
+from ``app.engine_tasks_support`` via re-export, so existing import sites and
 monkeypatch seams are unaffected.
 
 Both halves are deliberately bounded. The snapshot the Supervisor reads is

@@ -16,8 +16,8 @@ shape always has, via ``_render_contact_entry``'s defaults.
 Split out of ``report_markdown_overview`` to keep that module within the
 size cap. Imports only the leaf ``report_markdown_text`` module, never
 ``report_markdown_overview`` itself, so the two never form a cross-import
-cycle; ``report_markdown_overview`` re-exports this module's public names
-so its own namespace keeps resolving.
+cycle; ``report_markdown_overview`` re-exports the one public name it
+still uses so its own namespace keeps resolving.
 """
 
 from __future__ import annotations

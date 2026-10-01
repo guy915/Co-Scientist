@@ -5,8 +5,8 @@ exception types the loop keys on (``_LeaseLostError``,
 ``UnsupportedTaskError``) and the helpers that durably record a settled
 task -- success, superseded-checkpoint completion, the single permanent
 failure, and the retryable default. Split from ``task_worker`` by concern;
-``task_worker`` re-exports every name so its namespace (the seam tests and
-callers patch/import against) keeps resolving.
+``task_worker`` re-exports the names tests and callers use so its namespace
+(the seam they patch/import against) keeps resolving.
 """
 
 from __future__ import annotations

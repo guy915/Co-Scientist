@@ -5,8 +5,7 @@ base topic builders, agent-insight and idea-bucket derivation, and claim-
 evidence enrichment. The exclusion filters (contradicted/unverified/unsafe)
 live in ``report_content_gates`` and are re-exported here. The finalize path
 -- ``_build_report_content`` and ``finalize_report`` -- stays in
-``report_render``, which re-exports every name here so callers keep a single
-``app.report_render`` import surface.
+``report_render``, which re-exports the names callers use from here.
 """
 
 from __future__ import annotations
@@ -28,11 +27,8 @@ from app.report_content_gates import (
 from app.report_content_gates import (
     _exclusion_tally as _exclusion_tally,
 )
-from app.report_content_gates import (
-    _hypothesis_passes_safety_gate as _hypothesis_passes_safety_gate,
-)
 
-# Re-exported so ``app.report_content`` keeps every name it exposed before
+# Re-exported so ``app.report_content`` keeps this name it exposed before
 # the gates split; the redundant-alias form does not fit in 80 columns.
 from app.report_content_gates import (  # noqa: F401
     _legacy_hypothesis_passes_safety_gate,

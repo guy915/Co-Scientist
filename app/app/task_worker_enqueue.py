@@ -2,7 +2,7 @@
 
 Putting a run's first (or resumed) durable task on the queue is a concern
 the worker needs but does not lease. Split from ``app.task_worker``, which
-re-exports every name here so its namespace (the seam tests and callers
+re-exports the names tests and callers use so its namespace (the seam they
 patch against) keeps resolving.
 """
 

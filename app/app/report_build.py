@@ -3,8 +3,8 @@
 Holds the "build" half of report finalization -- loading a run's store
 data and shaping it into the payload/markdown pair -- kept separate from
 the "publish" half (the safety gate, persistence, and event emission) so
-each stays independently sized and testable. Every name is re-exported
-from ``app.report_render``, which remains the stable import and
+each stays independently sized and testable. The names callers use are
+re-exported from ``app.report_render``, which remains their import and
 monkeypatch surface.
 """
 

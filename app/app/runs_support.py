@@ -4,7 +4,7 @@
 ``runs_collections``, ``runs_contrib``) all guard requests on run
 existence. The helpers live here, below every router module, so the
 siblings never import ``app.runs`` (which includes their routers) and
-create an import cycle. ``app.runs`` re-exports both names, so
+create an import cycle. ``app.runs`` re-exports ``_run_or_404``, so
 ``runs._run_or_404`` remains the stable import surface.
 """
 

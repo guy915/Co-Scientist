@@ -3,8 +3,8 @@
 Extracts every pending hypothesis's atomic claims, assesses them against
 the run's evidence passages in one bounded wave, and quarantines
 contradicted ideas (``evidence_blocked``) before a decisive Elo
-tournament. Split from ``app.engine_tasks``, which re-exports these
-names for compatibility.
+tournament. Split from ``app.engine_tasks``, which re-exports the names
+callers use.
 """
 
 from __future__ import annotations

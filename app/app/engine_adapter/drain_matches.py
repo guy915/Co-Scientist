@@ -2,8 +2,8 @@
 
 Extracted verbatim from ``app.engine_adapter.drain``: matchup side
 resolution by engine hypothesis id, match-row persistence, and weighted
-proximity-graph edges. ``drain`` re-exports every name here, so the
-original module namespace keeps resolving.
+proximity-graph edges. ``drain`` re-exports the names tests and callers use,
+so the original module namespace keeps resolving for them.
 """
 
 from __future__ import annotations

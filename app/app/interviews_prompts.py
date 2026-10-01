@@ -5,7 +5,7 @@ prompt, prompt builders, and field normalization/readiness predicates. The
 model call itself, the deterministic fallback, and the streaming/advance
 cluster stay in ``app.interviews``, which tests monkeypatch by module
 attribute (``interviews._call_interview_model``); everything here is
-seam-free and re-exported from that module.
+seam-free; the names callers use are re-exported from that module.
 """
 
 from __future__ import annotations

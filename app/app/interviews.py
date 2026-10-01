@@ -6,9 +6,9 @@ the request-shaping half (schema, prompts, field normalization) in
 ``interviews_prompts``, the SSE transport for one turn's advancement in
 ``interviews_stream``, the request bodies in ``interviews_models``, and
 the rewind/retry revision endpoints in ``interviews_revision`` (mounted
-via ``router.include_router`` so they keep their original paths); all
-are re-exported here, so ``app.interviews`` remains the stable import
-and monkeypatch surface.
+via ``router.include_router`` so they keep their original paths); the
+names callers and tests use are re-exported here, so ``app.interviews``
+remains their import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -35,31 +35,16 @@ from app.interviews_documents import (
     _with_documents as _with_documents,
 )
 from app.interviews_model import (
-    _INTERVIEW_STALL_SECONDS as _INTERVIEW_STALL_SECONDS,
-)
-from app.interviews_model import (
-    _INTERVIEW_TOTAL_SECONDS as _INTERVIEW_TOTAL_SECONDS,
-)
-from app.interviews_model import (
     ProseSink as ProseSink,
 )
 from app.interviews_model import (
     ReasoningSink as ReasoningSink,
 )
 from app.interviews_model import (
-    TurnSinks as TurnSinks,
-)
-from app.interviews_model import (
     _call_interview_model as _call_interview_model,
 )
 from app.interviews_model import (
-    _collect_stream_content as _collect_stream_content,
-)
-from app.interviews_model import (
     _fallback_interview_response as _fallback_interview_response,
-)
-from app.interviews_model import (
-    _stream_interview_content as _stream_interview_content,
 )
 from app.interviews_models import (
     CreateInterviewRequest as CreateInterviewRequest,
@@ -71,16 +56,10 @@ from app.interviews_models import (
     InterviewTurnRequest as InterviewTurnRequest,
 )
 from app.interviews_prompts import (
-    _SYSTEM_PROMPT as _SYSTEM_PROMPT,
-)
-from app.interviews_prompts import (
     _clean_list as _clean_list,
 )
 from app.interviews_prompts import (
     _essentials_ready as _essentials_ready,
-)
-from app.interviews_prompts import (
-    _interview_request as _interview_request,
 )
 from app.interviews_prompts import (
     _normalized_fields as _normalized_fields,
@@ -97,29 +76,8 @@ from app.interviews_question_repair import (
 from app.interviews_questions import (
     normalized_questions as normalized_questions,
 )
-from app.interviews_revision import (
-    _require_revisable_turn as _require_revisable_turn,
-)
-from app.interviews_revision import (
-    _reset_derivation as _reset_derivation,
-)
-from app.interviews_revision import (
-    _rewind_and_restream as _rewind_and_restream,
-)
-from app.interviews_revision import (
-    edit_interview_turn as edit_interview_turn,
-)
-from app.interviews_revision import (
-    retry_interview_turn as retry_interview_turn,
-)
-from app.interviews_stream import (
-    _advance_stream as _advance_stream,
-)
 from app.interviews_stream import (
     _interview_stream as _interview_stream,
-)
-from app.interviews_stream import (
-    _resolve_advance_task as _resolve_advance_task,
 )
 
 logger = logging.getLogger(__name__)

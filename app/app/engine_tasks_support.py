@@ -2,10 +2,10 @@
 
 The task-type vocabulary and the checkpoint save/enqueue/restore
 helpers used by every ``engine_tasks_*`` module. Split from
-``app.engine_tasks``, which re-exports these names, so the
+``app.engine_tasks``, which re-exports the names callers use, so the
 fan-out/ranking/gate modules can share them without an import cycle
 back into the dispatcher. The node-completion emitters moved on to
-``app.engine_tasks_emit`` and are re-exported below.
+``app.engine_tasks_emit``; the ones still in use are re-exported below.
 """
 
 from __future__ import annotations
@@ -28,19 +28,10 @@ from app.engine_tasks_emit import (
     _emit_node_completion as _emit_node_completion,
 )
 from app.engine_tasks_emit import (
-    _emit_node_milestone as _emit_node_milestone,
-)
-from app.engine_tasks_emit import (
     _plain_final_state as _plain_final_state,
 )
 from app.engine_tasks_metrics import (
     _metrics_snapshot as _metrics_snapshot,
-)
-from app.engine_tasks_metrics import (
-    _performance_assessment as _performance_assessment,
-)
-from app.engine_tasks_metrics import (
-    _plain_metrics as _plain_metrics,
 )
 from app.engine_tasks_pause import (
     _save_paused_if_requested as _save_paused_if_requested,
@@ -52,15 +43,8 @@ from app.engine_tasks_portfolio import (
     _enqueue_node_portfolio as _enqueue_node_portfolio,
 )
 from app.engine_tasks_queue_actions import (
-    _apply_single_queue_action as _apply_single_queue_action,
-)
-from app.engine_tasks_queue_actions import (
-    _apply_supervisor_queue_actions as _apply_supervisor_queue_actions,
-)
-from app.engine_tasks_queue_actions import (
     _durable_queue_snapshot as _durable_queue_snapshot,
 )
-from app.report_render import make_emitter as make_emitter
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
 

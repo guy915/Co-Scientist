@@ -4,8 +4,8 @@ The aggregate task that commits per-hypothesis deep-verification results
 into the run's checkpoint and advances it into the tournament. Split from
 ``app.engine_tasks_fanout_reflection``, whose ``_AppliedItems`` tally and
 ``_checkpoint_and_advance`` helper it shares;
-``app.engine_tasks_fanout_aggregates`` re-exports these names so
-``app.engine_tasks`` remains the stable import and monkeypatch surface.
+``app.engine_tasks_fanout_aggregates`` re-exports the names callers use so
+``app.engine_tasks`` remains their import and monkeypatch surface.
 
 Two marks are written here rather than by the items themselves, because
 this is the only boundary that sees the whole family: the once-ever

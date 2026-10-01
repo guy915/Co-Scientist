@@ -8,9 +8,9 @@ durable vocabulary lives in sibling modules -- ``engine_tasks_support``
 ``engine_tasks_gate`` (pre-ranking evidence gate), ``engine_tasks_fanout``
 (review/verification/generation/reflection fan-out),
 ``engine_tasks_ranking`` (tournament chain), and ``engine_tasks_node``
-(node/finalize commit helpers) -- and every moved name is re-exported
-here so ``app.engine_tasks`` remains the stable import and monkeypatch
-surface.
+(node/finalize commit helpers) -- and the moved names that callers and
+tests use are re-exported here so ``app.engine_tasks`` remains their
+import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -19,24 +19,12 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
-from app.engine_adapter.drain import (
-    _persist_final_state as _persist_final_state,
-)
 from app.engine_adapter.provider import sync_engine_llm_backend
-from app.engine_tasks_context import (
-    ExactSuccessor as ExactSuccessor,
-)
 from app.engine_tasks_context import (
     TaskCommit as TaskCommit,
 )
 from app.engine_tasks_context import (
     _task_commit as _task_commit,
-)
-from app.engine_tasks_fanout import (
-    _enqueue_generation_fanout as _enqueue_generation_fanout,
-)
-from app.engine_tasks_fanout import (
-    _enqueue_mature_reflection_fanout as _enqueue_mature_reflection_fanout,
 )
 from app.engine_tasks_fanout import (
     _enqueue_review_fanout as _enqueue_review_fanout,
@@ -71,12 +59,6 @@ from app.engine_tasks_fanout import (
 from app.engine_tasks_gate import (
     _apply_pre_ranking_evidence_gate as _apply_pre_ranking_evidence_gate,
 )
-from app.engine_tasks_gate import (
-    _assess_gate_claims as _assess_gate_claims,
-)
-from app.engine_tasks_gate import (
-    _GatePlan as _GatePlan,
-)
 from app.engine_tasks_inputs import (
     _bootstrap_start_status as _bootstrap_start_status,
 )
@@ -93,12 +75,6 @@ from app.engine_tasks_inputs import (
     enqueue_scientist_continuation as enqueue_scientist_continuation,
 )
 from app.engine_tasks_node import (
-    _SYNC_FANOUT_HANDLERS as _SYNC_FANOUT_HANDLERS,
-)
-from app.engine_tasks_node import (
-    ADMISSION_NODE as ADMISSION_NODE,
-)
-from app.engine_tasks_node import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
 from app.engine_tasks_node import (
@@ -108,34 +84,13 @@ from app.engine_tasks_node import (
     _dispatch_node_fanout as _dispatch_node_fanout,
 )
 from app.engine_tasks_node import (
-    _drain_and_persist_final_state as _drain_and_persist_final_state,
-)
-from app.engine_tasks_node import (
-    _emit_finalize_stage_events as _emit_finalize_stage_events,
-)
-from app.engine_tasks_node import (
-    _finalize_replay_or_none as _finalize_replay_or_none,
-)
-from app.engine_tasks_node import (
-    _halt_finalize_if_blocked as _halt_finalize_if_blocked,
-)
-from app.engine_tasks_node import (
-    _pause_finalize_if_requested as _pause_finalize_if_requested,
-)
-from app.engine_tasks_node import (
     _pause_node_task_if_requested as _pause_node_task_if_requested,
 )
 from app.engine_tasks_node import (
     _require_active_run as _require_active_run,
 )
 from app.engine_tasks_node import (
-    _restore_finalize_checkpoint as _restore_finalize_checkpoint,
-)
-from app.engine_tasks_node import (
     _restore_node_task_state as _restore_node_task_state,
-)
-from app.engine_tasks_node import (
-    _settle_finalize_outcome as _settle_finalize_outcome,
 )
 from app.engine_tasks_node import (
     execute_finalize as execute_finalize,
@@ -150,12 +105,6 @@ from app.engine_tasks_ranking import (
     _ranking_eligible as _ranking_eligible,
 )
 from app.engine_tasks_ranking import (
-    _ranking_wave as _ranking_wave,
-)
-from app.engine_tasks_ranking import (
-    _schedule_ranking_chain as _schedule_ranking_chain,
-)
-from app.engine_tasks_ranking import (
     execute_ranking_finalize as execute_ranking_finalize,
 )
 from app.engine_tasks_ranking import (
@@ -163,9 +112,6 @@ from app.engine_tasks_ranking import (
 )
 from app.engine_tasks_restore import (
     _prepare_node_task as _prepare_node_task,
-)
-from app.engine_tasks_support import (
-    _CHECKPOINT_PROVIDER as _CHECKPOINT_PROVIDER,
 )
 from app.engine_tasks_support import (
     BOOTSTRAP_TASK as BOOTSTRAP_TASK,
@@ -216,25 +162,10 @@ from app.engine_tasks_support import (
     VERIFICATION_ITEM_TASK as VERIFICATION_ITEM_TASK,
 )
 from app.engine_tasks_support import (
-    NodeCompletion as NodeCompletion,
-)
-from app.engine_tasks_support import (
     SafetyHoldError as SafetyHoldError,
 )
 from app.engine_tasks_support import (
     SupersededTaskError as SupersededTaskError,
-)
-from app.engine_tasks_support import (
-    _apply_supervisor_queue_actions as _apply_supervisor_queue_actions,
-)
-from app.engine_tasks_support import (
-    _durable_queue_snapshot as _durable_queue_snapshot,
-)
-from app.engine_tasks_support import (
-    _emit_node_completion as _emit_node_completion,
-)
-from app.engine_tasks_support import (
-    _emit_node_milestone as _emit_node_milestone,
 )
 from app.engine_tasks_support import (
     _generator_and_opts as _generator_and_opts,
@@ -246,28 +177,10 @@ from app.engine_tasks_support import (
     _latest_task_checkpoint as _latest_task_checkpoint,
 )
 from app.engine_tasks_support import (
-    _plain_final_state as _plain_final_state,
-)
-from app.engine_tasks_support import (
-    _require_item_task as _require_item_task,
-)
-from app.engine_tasks_support import (
     _require_run as _require_run,
 )
 from app.engine_tasks_support import (
-    _restore_item_checkpoint as _restore_item_checkpoint,
-)
-from app.engine_tasks_support import (
-    _save_paused_state as _save_paused_state,
-)
-from app.engine_tasks_support import (
     _save_state_and_enqueue as _save_state_and_enqueue,
-)
-from app.engine_tasks_support import (
-    _save_state_and_enqueue_exact as _save_state_and_enqueue_exact,
-)
-from app.engine_tasks_support import (
-    _successor_task_type as _successor_task_type,
 )
 from app.execution_policy import (
     CAMPAIGN,

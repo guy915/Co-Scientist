@@ -1,6 +1,6 @@
 """Read-only run collection and report endpoints.
 
-Split out of ``app.runs`` (which re-exports every name here and mounts
+Split out of ``app.runs`` (which re-exports the names callers use and mounts
 ``router`` on its own, so the served route set is unchanged): the
 per-run collection getters (hypotheses, evidence, matches, proximity,
 reviews, safety, tasks, citations, metrics, logs, claim-evidence), the

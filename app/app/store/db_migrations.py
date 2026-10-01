@@ -5,8 +5,8 @@ Holds every ``_migrate_*`` step plus the ``_add_column_if_missing``
 primitive they share, run in order by
 ``_run_migrations`` against an already-``CREATE TABLE IF NOT EXISTS``'d
 connection. Connection management, transactions, and the one-time schema
-bootstrap that calls into here stay in ``app.store.db``. Every name is
-re-exported from ``app.store.db``, so callers and monkeypatching tests
+bootstrap that calls into here stay in ``app.store.db``. The names callers
+use are re-exported from ``app.store.db``, so callers and monkeypatching tests
 (e.g. ``store_db._run_migrations``) are unaffected.
 
 Migrations are ordered and append-only: each one is safe to run against an

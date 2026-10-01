@@ -4,7 +4,7 @@ The checkpoint-guard, state-restore, pause, fan-out dispatch, and
 final-drain helpers that ``execute_node_task`` in ``app.engine_tasks``
 composes, plus ``execute_finalize`` itself, which is here because every
 helper it composes already is. Split from ``app.engine_tasks``, which
-re-exports every name here so it remains the stable import and
+re-exports the names callers use so it remains their import and
 monkeypatch surface.
 """
 
@@ -47,9 +47,6 @@ from app.engine_tasks_pause import (
     _save_paused_state_if_requested,
 )
 from app.engine_tasks_ranking import _schedule_ranking_chain
-from app.engine_tasks_restore import (
-    ADMISSION_NODE as ADMISSION_NODE,
-)
 from app.engine_tasks_restore import (
     _restore_node_task_state as _restore_node_task_state,
 )
