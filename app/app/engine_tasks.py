@@ -171,9 +171,6 @@ from app.engine_tasks_support import (
     _generator_and_opts as _generator_and_opts,
 )
 from app.engine_tasks_support import (
-    _generator_for_restore as _generator_for_restore,
-)
-from app.engine_tasks_support import (
     _latest_task_checkpoint as _latest_task_checkpoint,
 )
 from app.engine_tasks_support import (

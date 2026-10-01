@@ -17,7 +17,17 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, store
+from app import (
+    engine_tasks,
+    engine_tasks_fanout_aggregates,
+    engine_tasks_fanout_reflection,
+    engine_tasks_fanout_verification,
+    engine_tasks_node,
+    engine_tasks_outcome_refinement,
+    engine_tasks_ranking,
+    engine_tasks_support,
+    store,
+)
 from app.safety import screen_intake
 
 
@@ -87,6 +97,31 @@ async def _deterministic_screen(
     return screen_intake(subject.text)
 
 
+# Every module that looks ``_generator_for_restore`` up at call time. Each
+# imported the name by value, so a patch on any other module -- the
+# ``engine_tasks`` facade included -- installs nothing and the suite quietly
+# runs the real generator.
+_RESTORE_GENERATOR_NAMESPACES = (
+    engine_tasks_support,
+    engine_tasks_node,
+    engine_tasks_ranking,
+    engine_tasks_fanout_aggregates,
+    engine_tasks_fanout_reflection,
+    engine_tasks_fanout_verification,
+    engine_tasks_outcome_refinement,
+)
+
+
+def _patch_restore_generator(
+    monkeypatch: pytest.MonkeyPatch, generator: _Generator
+) -> None:
+    """Make every restore site rebuild state with ``generator``."""
+    for namespace in _RESTORE_GENERATOR_NAMESPACES:
+        monkeypatch.setattr(
+            namespace, "_generator_for_restore", lambda *_: generator
+        )
+
+
 def _patch_generator(
     monkeypatch: pytest.MonkeyPatch,
     generator: _Generator,
@@ -104,9 +139,7 @@ def _patch_generator(
         engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
     )
     if restore:
-        monkeypatch.setattr(
-            engine_tasks, "_generator_for_restore", lambda *_: generator
-        )
+        _patch_restore_generator(monkeypatch, generator)
     if screen:
         monkeypatch.setattr(
             engine_tasks, "screen_with_escalation", _deterministic_screen

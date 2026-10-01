@@ -18,6 +18,7 @@ from app.report import finalize as report_finalize
 from app.safety import ScreenSubject
 from tests._engine_tasks_helpers import (
     _Generator,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -68,9 +69,7 @@ def _seed_halted_finalize(
         "finalize-safety-worker", run_id=run_id, db_path=db_path
     )
     assert task is not None and task.id == queued.id
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
 

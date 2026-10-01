@@ -19,6 +19,7 @@ from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,
     _patch_generator,
+    _patch_restore_generator,
     _patch_task_node,
     _seed_checkpoint,
     _task_state,
@@ -251,9 +252,7 @@ def _seed_finalize_task(
     assert task is not None and task.id == queued.id
     # Restore builds a real generator otherwise; the fixture generator carries a
     # null tool_registry, which restore_workflow_state accepts.
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
 

@@ -21,6 +21,7 @@ from app import engine_tasks, store, task_worker
 from app.engine_adapter import drain_claim_grounding
 from tests._engine_tasks_helpers import (
     _Generator,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -55,9 +56,7 @@ def _seed_finalize_task(
         ),
         db_path=db_path,
     )
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
 
