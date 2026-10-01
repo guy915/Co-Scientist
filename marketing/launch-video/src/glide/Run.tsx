@@ -22,13 +22,22 @@ const StatusPill: React.FC<{label: string; f: number}> = ({label, f}) => (
   </div>
 );
 
-/** A caption line over a white band, so it stays legible over the UI below it. */
-const Caption: React.FC<{text: string; start: number; end: number}> = ({text, start, end}) => (
-  <AbsoluteFill style={{alignItems: 'center'}}>
-    <div style={{position: 'absolute', inset: '0 0 auto 0', height: 200, background: 'linear-gradient(#fff 62%, rgba(255,255,255,0))'}} />
-    <TypeLine text={text} start={start} end={end} size={60} style={{marginTop: 84}} />
-  </AbsoluteFill>
-);
+/**
+ * A caption line over a white band, so it stays legible over the UI below it.
+ * Mounted only inside its own window: the band is opaque, so a band left on
+ * screen buries the next caption's text. The text is positioned so it paints
+ * above the (absolutely positioned) band.
+ */
+const Caption: React.FC<{text: string; start: number; end: number}> = ({text, start, end}) => {
+  const f = useCurrentFrame();
+  if (f < start - 2 || f > end + 12) return null;
+  return (
+    <AbsoluteFill style={{alignItems: 'center'}}>
+      <div style={{position: 'absolute', inset: '0 0 auto 0', height: 200, background: 'linear-gradient(#fff 62%, rgba(255,255,255,0))', opacity: envelope(f, start - 2, end + 12, 8, 10)}} />
+      <TypeLine text={text} start={start} end={end} size={60} style={{marginTop: 84, position: 'relative'}} />
+    </AbsoluteFill>
+  );
+};
 
 /** 225-370: the run starts — the seven agents gather while the stage pill ticks on. */
 export const Agents: React.FC = () => {
@@ -77,21 +86,27 @@ const REPORT: Pose[] = [
 ];
 
 /** One camera move: the ranked list, the evidence, the report, then all three together. */
-export const Ranked: React.FC = () => {
+const GLIDE_CAPTIONS = [
+  'Every idea ranked in a head-to-head tournament.',
+  'Every claim checked against the literature.',
+  'Every run ends in a report you can act on.',
+] as const;
+
+export const Ranked: React.FC<{captions?: readonly string[]}> = ({captions = GLIDE_CAPTIONS}) => {
   const f = useCurrentFrame();
   const listOut = ramp(f, 140, 20, accel);
   return (
     <AbsoluteFill>
       {f < 165 && (
         <div style={{position: 'absolute', inset: 0, opacity: 1 - listOut, transform: `scale(${mix(1, 1.03, listOut)})`}}>
-          <ProofList start={6} width={760} x={-130} y={62} chip="right" />
+          <ProofList start={0} width={740} x={-130} y={44} chip="right" />
         </div>
       )}
       {f >= 145 && f < 272 && <FloatCard src="ui/light-learning.png" width={1640} crop={LEARN_CROP} {...posed(f, LEARNING)} />}
       {f >= 258 && <FloatCard src="ui/light-overview.png" width={1720} crop={REPORT_CROP} {...posed(f, REPORT)} />}
-      <Caption text="Every idea ranked in a head-to-head tournament." start={16} end={140} />
-      <Caption text="Every claim checked against the literature." start={170} end={252} />
-      <Caption text="Every run ends in a report you can act on." start={280} end={470} />
+      <Caption text={captions[0]} start={10} end={140} />
+      <Caption text={captions[1]} start={170} end={252} />
+      <Caption text={captions[2]} start={280} end={470} />
     </AbsoluteFill>
   );
 };

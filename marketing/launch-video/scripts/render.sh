@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 scale=${1:-1}
 mkdir -p out previews
 uv run -q --with numpy python scripts/score.py out
-for pair in "A-Expressive:a" "B-Glide:b" "C-Signal:c"; do
+for pair in "A-Expressive:a" "B-Glide:b" "C-Signal:c" "Final:final"; do
   id=${pair%%:*}; s=${pair##*:}
   npx remotion render src/index.ts "$id" "out/$s-video.mp4" --scale="$scale" --concurrency=8 --log=error
   ffmpeg -v error -y -i "out/$s-video.mp4" -i "out/$s.wav" \

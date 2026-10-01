@@ -1,7 +1,11 @@
 # Open Co-Scientist — launch teaser
 
-Three preview directions for the launch film, built with [Remotion](https://www.remotion.dev)
-(React → MP4). Pick one; the final is cut from that composition.
+The launch film, built with [Remotion](https://www.remotion.dev) (React → MP4), and the three
+preview directions it was chosen from.
+
+**Final** (`src/final/Final.tsx`, ~50 s): B's product walk-through is the spine; at "Running the
+tournament" it drops into C's dark tournament (network, leaderboard, claim checking), then returns
+to the real app to show the same result, and closes on the end card.
 
 | ID | Direction | Look | Length |
 | --- | --- | --- | --- |
@@ -40,12 +44,12 @@ All three open on the same 3D glass flask, share the brand tokens of the app
 
 ```bash
 npm install
-scripts/render.sh          # all three at 1080p with sound -> previews/
+scripts/render.sh          # Final + the three previews at 1080p with sound -> previews/
 npm run studio             # live preview / scrubbing
 ```
 
 - `src/shared/` — primitives every film uses (type reveals, lockup, floating UI card, prompt box, Elo chart).
-- `src/{expressive,glide,signal}/` — one folder per direction.
+- `src/{expressive,glide,signal}/` — one folder per preview direction; `src/final/` composes B and C.
 - `public/ui/` — real screens captured from production by `scripts/capture_ui.mjs` (demo run 285b7684).
 - `public/hero/` — the flask (gitignored, 54 MB). Regenerate with `/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/hero_flask.py -- "$PWD/public/hero" 120 1000 32`.
 - `scripts/score.py` — the soundtrack. Synthesized from each film's cue sheet so hits land on cuts;

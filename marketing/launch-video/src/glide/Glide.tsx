@@ -17,7 +17,7 @@ export const GLIDE_FRAMES = 960;
 const GOAL = 'What mechanisms drive antibiotic resistance in S. aureus biofilms?';
 
 /** 0-110: the title line, then the real home screen rises into place. */
-const Arrive: React.FC = () => {
+export const Arrive: React.FC = () => {
   const f = useCurrentFrame();
   const rise = ramp(f, 56, 46, emphasized);
   const push = ramp(f, 100, 40, emphasized);
@@ -43,7 +43,7 @@ const Arrive: React.FC = () => {
 };
 
 /** 110-230: the composer comes forward and the goal is typed and sent. */
-const Ask: React.FC = () => {
+export const Ask: React.FC = () => {
   const f = useCurrentFrame();
   const inn = ramp(f, 4, 22, emphasized);
   const out = ramp(f, 104, 16, accel);
@@ -61,7 +61,7 @@ const Ask: React.FC = () => {
 };
 
 /** 840-960: the end card. */
-const End: React.FC = () => <Lockup start={8} />;
+export const End: React.FC = () => <Lockup start={8} />;
 
 /** Preview B: product-led, one continuous camera over the real app, Gemini-launch style. */
 export const Glide: React.FC = () => (
