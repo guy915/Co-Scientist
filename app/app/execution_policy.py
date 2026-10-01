@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
 
-from co_scientist.llm_free_policy import scoped_campaign_mode
+from co_scientist.llm import scoped_campaign_mode
 from fastapi import Request
 
 from app.auth import principal_for_request

@@ -131,7 +131,7 @@ def test_queued_steering_flags_engine_pending_steering(
     high-priority request to generate anew; the adapter must set it when
     steering is queued (in addition to folding the text into preferences).
     """
-    from app.engine_adapter import _build_engine_opts
+    from app.engine_adapter import build_engine_opts
 
     run = store.create_run(
         "rg",
@@ -150,14 +150,14 @@ def test_queued_steering_flags_engine_pending_steering(
         db_path=isolated_db,
     )
 
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert opts.get("pending_steering") is True
     # The steering text is also folded into the preferences context.
     assert "kinase X" in str(opts.get("preferences") or "")
 
 
 def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
-    from app.engine_adapter import _build_engine_opts
+    from app.engine_adapter import build_engine_opts
 
     run = store.create_run(
         "rg",
@@ -166,13 +166,13 @@ def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
         {},
         store.RunCreateOptions(db_path=isolated_db),
     )
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "pending_steering" not in opts
 
 
 def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
     """A consented attachment becomes engine literature and citation context."""
-    from app.engine_adapter import _build_engine_opts
+    from app.engine_adapter import build_engine_opts
 
     run = store.create_run(
         "kinase AML",
@@ -191,7 +191,7 @@ def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
 
     sources = opts["context_enrichment_sources"]
     assert sources[0]["source_type"] == "private_document"

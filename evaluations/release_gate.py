@@ -1,13 +1,13 @@
 """Scientific release gate over a completed run artifact.
 
-Publication decisions reuse the live predicates in ``app.report_content_gates``
+Publication decisions reuse the live predicates in ``app.report.gates``
 and ``app.hypothesis_safety``. Artifact admission is deliberately stricter:
 missing final-screen evidence or a statement needed to reconstruct a legacy
 hypothesis decision prevents this evaluator from proving publication readiness.
 Those completeness prerequisites are not additional live publication rules.
 
 The publication checks and artifact prerequisites, in finalization order
-(``app.report_render._finalize_report_pipeline``):
+(``app.report.finalize._finalize_report_pipeline``):
 
 1. The final report-level safety screen withholds the whole report on a
    ``block`` or a ``hold``. The latest final-stage audit record is required;
@@ -21,7 +21,7 @@ are reported as observations instead:
 
 - **Verified-claim ratio.** Production publishes an unsupported (but
   uncontradicted) idea with an explicit "Unverified" badge rather than
-  withholding it -- see ``_unverified_hypothesis_ids``. A gate demanding
+  withholding it -- see ``unverified_hypothesis_ids``. A gate demanding
   80% supported claims would withhold essentially every real run, and
   asserting it here while production does the opposite is exactly the
   divergence ``L1`` is about. The ratio is still computed and returned,
@@ -39,7 +39,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
 
 from app.hypothesis_safety import is_blocking_status, review_hypothesis_safety
-from app.report_content_gates import (
+from app.report.gates import (
     EXCLUDED_HYPOTHESIS_STATUSES,
     _contradicted_hypothesis_ids,
 )

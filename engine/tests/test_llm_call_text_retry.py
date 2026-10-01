@@ -7,9 +7,9 @@ tests exist because the production failure this ladder answers was a
 one attempt and no way to recover. They mirror
 ``test_escalating_recovers_the_call`` and
 ``test_disabling_thinking_recovers_a_thinking_only_call`` in that file, but
-through ``call_llm``'s own escalation loop
-(``llm_text_retry.run_with_budget_escalation``) rather than
-``call_llm_json``'s, to pin that ``call_llm`` actually recovers and not just
+through ``call_llm`` (which runs on the same attempt loop,
+``llm.attempts.retry.run_attempts``, with no judge) rather than
+``call_llm_json``, to pin that ``call_llm`` actually recovers and not just
 that it classifies failures correctly (already covered there).
 
 Reuses that file's network-fake helpers rather than a second
@@ -102,7 +102,7 @@ async def test_call_llm_default_max_attempts_exhausts_the_ladder_only(
 
     The ladder has three rungs that change the request -- the original
     call, RAISED_BUDGET, then NO_THINKING (see
-    ``llm_json_escalation.BudgetEscalation``) -- so three attempts is the
+    ``llm.attempts.escalation.BudgetEscalation``) -- so three attempts is the
     point past which every further attempt would resend the identical
     NO_THINKING request. ``call_llm_json`` keeps a default of 5 because a
     schema or parse failure holds its current rung and genuinely benefits

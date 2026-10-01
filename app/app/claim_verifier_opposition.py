@@ -18,13 +18,14 @@ from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_telemetry import (
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
     ModelCallStats,
+    call_llm_json,
     record_call,
     scoped_telemetry_phase,
 )
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync

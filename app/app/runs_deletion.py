@@ -1,6 +1,6 @@
 """Permanent run deletion: ``DELETE /api/runs/{run_id}``.
 
-Split out of ``app.runs`` (which re-exports and mounts this router, so the
+Split out of ``app.runs`` (which mounts this router, so the
 served route set is unchanged) for the same reason ``runs_lifecycle`` and
 ``runs_contrib`` are split out: one concern per module. Addresses N3 (no
 run/report/document deletion) for the run/report half; the document half
@@ -27,7 +27,7 @@ router = APIRouter()
 # Statuses with a live or claimable worker lease. Everything else -- draft
 # (never started), paused (its task is parked, not leased), and every
 # terminal status -- has no in-flight writer to race, so deletion is safe.
-# Mirrors the frontend's ACTIVE_STATUSES (see api/runs.ts::isActiveStatus).
+# Mirrors the frontend's active phase (api/run_lifecycle.ts::isActiveStatus).
 _ACTIVE_STATUSES = frozenset({"queued", "running", "synthesizing"})
 
 

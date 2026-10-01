@@ -35,22 +35,10 @@ from app.logs_rate_limit import (
     REPORTS_PER_MINUTE as REPORTS_PER_MINUTE,
 )
 from app.logs_rate_limit import (
-    _check_both_rates as _check_both_rates,
-)
-from app.logs_rate_limit import (
     _check_ingest_rate as _check_ingest_rate,
 )
 from app.logs_rate_limit import (
-    _check_rate as _check_rate,
-)
-from app.logs_rate_limit import (
     _check_report_rate as _check_report_rate,
-)
-from app.logs_rate_limit import (
-    _ingest_hits as _ingest_hits,
-)
-from app.logs_rate_limit import (
-    _rate_limit_keys as _rate_limit_keys,
 )
 from app.logs_rate_limit import (
     _report_hits as _report_hits,

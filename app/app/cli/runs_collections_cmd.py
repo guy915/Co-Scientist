@@ -1,8 +1,8 @@
 """The ``cosci runs`` sub-collection reads: hypotheses, evidence, and friends.
 
-Split out of ``app.cli.runs_cmd``, which re-exports every name here so
-``runs_cmd.handle_hypotheses`` and ``runs_cmd.COLLECTION_COMMANDS`` keep
-resolving for ``app.cli.parsers_runs`` and the CLI test suite.
+Split out of ``app.cli.runs_cmd``, which re-exports the names callers use so
+``runs_cmd.COLLECTION_COMMANDS`` and the handlers the CLI test suite calls
+keep resolving for ``app.cli.parsers_runs`` and that suite.
 
 The per-run sub-collection reads (``hypotheses``, ``evidence``, ...) differ
 only in path, payload key, and columns, so they are one table --

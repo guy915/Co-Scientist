@@ -14,8 +14,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, runs_crud
+from app import runs_crud
 from app.main import app
+from tests._process_mode_helpers import FakeProcessMode
 
 from ._interviews_helpers import (
     InterviewFields,
@@ -28,13 +29,13 @@ from ._interviews_helpers import (
 
 
 @pytest.fixture(autouse=True)
-def _titling_is_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
+def _titling_is_reachable(fake_process_mode: FakeProcessMode) -> None:
     """Report a keyed deployment so the scheduling guard is the only gate.
 
     Offline runs skip titling wholesale, which would make every assertion
     here pass for the wrong reason.
     """
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
 
 
 @pytest.fixture

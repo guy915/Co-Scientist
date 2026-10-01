@@ -24,8 +24,7 @@ from co_scientist.constants import (
     strip_citation_markers,
     truncate_for_prompt,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.research import (
     Document,

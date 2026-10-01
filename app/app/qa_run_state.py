@@ -221,7 +221,7 @@ def _rendered_recommendations(raw: Any, cap: int) -> list[str]:
     """Render meta-review recommendations, structured or bare, as lines.
 
     A recommendation is either a ``{focus_area, recommendation,
-    justification}`` dict or a bare string (see ``report_content``); both
+    justification}`` dict or a bare string (see ``report.content``); both
     reach the reader as one line here.
     """
     if not isinstance(raw, list):
@@ -248,7 +248,7 @@ def _report_counts(payload: dict[str, Any]) -> dict[str, int]:
     """Pull the report's headline counts, defaulting each to zero.
 
     The three idea counts name different things and are computed
-    differently (see ``report_content_gates``); they are carried through
+    differently (see ``report.gates``); they are carried through
     under their own names rather than collapsed, because reading one where
     another is meant is exactly how a report ends up contradicting itself.
     """

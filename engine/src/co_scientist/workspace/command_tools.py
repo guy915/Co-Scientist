@@ -15,7 +15,7 @@ tests patch them.
 import logging
 from typing import Any
 
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 from co_scientist.sandbox import is_known_safe
 from co_scientist.skills import (
     invoked_skill,

@@ -453,7 +453,7 @@ def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
         MAX_SIMULATION_TURNS,
         SIMULATION_TOKEN_BUDGET,
     )
-    from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+    from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
     assert SIMULATION_TOKEN_BUDGET < DEFAULT_TOOL_LOOP_TOKEN_BUDGET
     # Enough for the six-to-eight turns the useful work takes, and for

@@ -1,4 +1,4 @@
-import {announceRunStart} from '@/api/runs';
+import {announceRunStart, isDraftStatus, isFailureStatus} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
 import {type StartedSession} from '../pages/chat_timeline_cards';
@@ -32,7 +32,7 @@ function validateStartTarget(
   target: ResolvedStartTarget,
   deps: Pick<ExecuteStartDeps, 'setDraft' | 'setConfirmed' | 'stageToStart'>,
 ): ResolvedStartTarget {
-  if (target.status === 'failed' || target.status === 'blocked') {
+  if (isFailureStatus(target.status)) {
     deps.setConfirmed(null);
     deps.setDraft(deps.stageToStart);
     throw runOutcomeError(target.status);
@@ -44,7 +44,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   const chatId = deps.stageToStart.spec.interviewId;
   const target = validateStartTarget(await resolveStartTarget(deps), deps);
   const stage = target.stage ?? deps.stageToStart;
-  let shouldAnnounce = target.status === 'draft';
+  let shouldAnnounce = isDraftStatus(target.status);
 
   if (shouldAnnounce) {
     appendChatMessage(deps.setMessages, {

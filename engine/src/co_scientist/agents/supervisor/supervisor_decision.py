@@ -48,7 +48,8 @@ WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 # this schema reaches the model as prompt text and nothing server-side
 # checks the reply -- but ``call_llm_json`` validates each parsed response
 # against this same schema in-process before returning it
-# (``llm_json.validate_json_schema``). So a bound declared here is enforced
+# (``llm.structured.validate.validate_json_schema``). So a bound declared here
+# is enforced
 # here: an out-of-range or non-integer priority, at either level, never
 # reaches ``SupervisorDecision``. It fails validation, the retry carries
 # the error back to the model, and a model that keeps violating loses the

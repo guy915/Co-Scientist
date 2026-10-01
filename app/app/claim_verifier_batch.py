@@ -37,9 +37,12 @@ from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_json_lists import coerce_json_list
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+    coerce_json_list,
+)
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
@@ -226,9 +229,9 @@ async def _call_llm_batch_entailment_async(
     disabled-reasoning request outright ("Reasoning is mandatory for this
     endpoint and cannot be disabled" -- the same run's recovered finalize,
     every batched call failing identically on both attempts), so
-    ``co_scientist.llm_thinking`` sends the smallest reasoning tier the
+    ``co_scientist.llm.request.thinking`` sends the smallest reasoning tier the
     gateway exposes instead, funded by the same thinking-token floor a
-    normal thinking call gets -- see ``GatewayModel.reasoning_can_disable``
+    normal thinking call gets -- see ``ModelProfile.reasoning_can_disable``
     and ``effective_thinking_enabled``. ``max_attempts=3`` (not the
     historical 2) keeps a plain re-ask available for a schema or parse
     failure now that no rung of the escalation ladder needs to spend an

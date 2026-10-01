@@ -119,7 +119,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             # `description`, mirroring the published
                             # Evaluation Criteria section's own bolded-
                             # name-plus-prose shape (line 2558) --
-                            # report-only (report_markdown_supervisor.py),
+                            # report-only (report/markdown/supervisor.py),
                             # deliberately excluded from the reviewer-
                             # prompt injection below (see
                             # _format_critical_criterion in

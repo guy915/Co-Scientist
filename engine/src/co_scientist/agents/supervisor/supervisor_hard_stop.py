@@ -73,11 +73,11 @@ def _owed_review_is_affordable(
     except against ``TerminationReason.BUDGET``, which this deferral must
     never buy against: the LLM-call ceiling is enforced a second time
     *inside* the forced task by the provider-request seam
-    (``llm_call_budget.record_provider_request``), at the same boundary
-    with zero headroom (see ``policy_checks._check_owed_review``'s
-    docstring for the full argument), so deferring past it here would only
-    let the forced task crash on its first provider call instead of
-    stopping cleanly.
+    (``llm.admission.call_budget.record_provider_request``), at the same
+    boundary with zero headroom (see ``policy_checks._check_owed_review``'s
+    docstring for the full argument), so deferring past it here would only let
+    the forced task crash on its first provider call instead of stopping
+    cleanly.
     """
     if termination_reason is TerminationReason.BUDGET:
         return False

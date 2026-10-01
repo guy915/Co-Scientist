@@ -72,7 +72,7 @@ def test_health_degraded_when_key_set_but_engine_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Provider key present + engine unimportable = degraded, still 200."""
-    monkeypatch.setattr(diagnostics, "_has_provider_key", lambda: True)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setattr(
         diagnostics,
         "check_engine",

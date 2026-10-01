@@ -7,8 +7,8 @@ calls retain the real offline-engine fallback used by tests and developers.
 This module owns which runs are seeded and when. The curated content itself
 lives in siblings -- goal-detail lists in ``seed_planning``, the derived-row
 writers in ``seed_scenario``, and the terminal synthesis payloads in
-``seed_overview`` -- each moved name re-exported here so ``app.seed`` stays
-the stable import and monkeypatch surface.
+``seed_overview`` -- the moved names callers and tests use re-exported here
+so ``app.seed`` stays their import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -21,12 +21,6 @@ from app import store, task_worker
 from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
 from app.litellm_shutdown import run_in_scoped_loop
 from app.run_modes import resolved_run_config, setup_config
-from app.seed_overview import (
-    _curated_meta_review as _curated_meta_review,
-)
-from app.seed_overview import (
-    _curated_research_overview as _curated_research_overview,
-)
 from app.seed_planning import (
     _scenario_planning_lists as _scenario_planning_lists,
 )

@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import report_render, store
+from app import store
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from tests._client import drain as _drain
 from tests._store_helpers import _add
 
@@ -25,9 +27,9 @@ async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
 def _finalize(run: Any, db_path: str) -> None:
     """Run the real finalize_report pipeline (safety gate + persistence)."""
     _drain(
-        report_render.finalize_report(
+        report_finalize.finalize_report(
             run.id,
-            report_render.ReportRequest(
+            report_build.ReportRequest(
                 research_goal=run.research_goal,
                 run_mode="standard",
                 provider="engine",

@@ -5,11 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from co_scientist.llm_tool_loop import _drop_dead_context
-from co_scientist.llm_tool_transcript import (
-    _ELIDED_NOTE as _NOTE,
-)
-from co_scientist.llm_tool_transcript import elide_aged_evidence
+from co_scientist.llm.tools.loop_run import _drop_dead_context
+from co_scientist.llm.tools.transcript import _ELIDED_NOTE as _NOTE
+from co_scientist.llm.tools.transcript import elide_aged_evidence
 
 _ABSTRACT = "A long abstract."
 

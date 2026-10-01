@@ -9,7 +9,7 @@ Unlike those siblings this module carries no router of its own: FastAPI
 rejects the empty ``""`` create/list paths on a prefix-less sub-router, so
 ``app.runs`` registers these handlers directly on ``runs.router`` (in the
 original order, keeping ``/demo`` ahead of ``/{run_id}``) and re-exports
-every name, remaining the stable import and monkeypatch surface.
+the names callers use, remaining their import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -41,11 +41,7 @@ from app.goal_restatement import generate_goal_restatement
 from app.runs_crud_create import (
     _persist_new_run_for_owner as _persist_new_run_impl,
 )
-from app.runs_crud_create import _receipt_replay as _receipt_replay
 from app.runs_crud_create import _run_setup_documents as _run_setup_documents
-from app.runs_crud_resolve import (
-    _build_run_config as _build_run_config,
-)
 from app.runs_crud_resolve import (
     _resolve_byok as _resolve_byok,
 )

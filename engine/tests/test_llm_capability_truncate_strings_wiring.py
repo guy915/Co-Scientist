@@ -15,10 +15,9 @@ from typing import Any
 import pytest
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.llm import (
-    CompletionSpec,
+from co_scientist.llm import CompletionSpec, call_llm_json
+from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
-    call_llm_json,
 )
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests.test_llm_capability_shim import (

@@ -19,6 +19,8 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
+from app.claim_verdict import ClaimRole
+from app.claims_gate import EntailmentLabel
 from app.demo_seed_data import (
     DEMO_SEED_VERSION,
     DemoEvidence,
@@ -28,7 +30,7 @@ from app.demo_seed_data import (
     scenario_hypotheses,
     scenario_key,
 )
-from app.report_render import ReportRequest, _build_report_content
+from app.report import ReportRequest, build_report_content
 from app.seed_config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
@@ -201,8 +203,8 @@ def _add_claim_rows(
             run_id=seed.run.id,
             hypothesis_id=hyp_id,
             claim=claim,
-            label="partial",
-            claim_role="speculative",
+            label=EntailmentLabel.PARTIAL.value,
+            claim_role=ClaimRole.SPECULATIVE.value,
             supporting=[
                 {
                     "evidence_id": evidence_id,
@@ -360,7 +362,7 @@ def _scenario_report_request(
         setup=setup if isinstance(setup, dict) else None,
         # Supervisor-synthesized guidance (R12-17/R12-18/R12-23): a
         # different, goal-specific field from ``setup`` above -- see
-        # ``report_markdown_supervisor.py``'s vocabulary warning.
+        # ``report/markdown/supervisor.py``'s vocabulary warning.
         attributes=curated_stratification_attributes(key),
         critical_criteria=curated_critical_criteria(key),
         prepared_at=time.time(),
@@ -376,7 +378,7 @@ async def _save_scenario_report(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
     meta_review = _curated_meta_review(seed.scenario, seed.hypotheses)
-    built = await _build_report_content(
+    built = await build_report_content(
         seed.run.id,
         _scenario_report_request(seed, hypothesis_ids, overview, meta_review),
     )

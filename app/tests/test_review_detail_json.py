@@ -14,7 +14,7 @@ import asyncio
 import json
 
 from app import store
-from app.engine_adapter.drain_reviews import (
+from app.engine_adapter.drain.reviews import (
     _review_detail_json,
     _simulation_detail,
     _verdict_detail,

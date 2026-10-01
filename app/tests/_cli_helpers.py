@@ -80,7 +80,13 @@ def _offline_server_env(
     env = {k: v for k, v in os.environ.items() if k not in _KEY_VARS}
     env.update(
         {
-            "PYTHONPATH": str(APP_DIR),
+            # The engine rides along explicitly: this replaces the parent's
+            # PYTHONPATH, so without it the server resolves ``co_scientist``
+            # through the venv's editable install -- the main checkout's
+            # engine, which lacks whatever this branch's app code imports.
+            "PYTHONPATH": os.pathsep.join(
+                [str(APP_DIR), str(APP_DIR.parent / "engine" / "src")]
+            ),
             # Force the deterministic offline backend and disable the
             # literature-review node so the spawned server never makes a paid
             # call or probes a (possibly live) local MCP server.

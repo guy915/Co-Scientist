@@ -18,8 +18,8 @@ line-by-line output.
 
 import json
 
-from app import report_markdown
-from app.report_markdown_hypothesis import _HYPOTHESIS_DISCLAIMER
+from app.report.markdown import hypothesis as report_markdown_hypothesis
+from app.report.markdown.hypothesis import _HYPOTHESIS_DISCLAIMER
 
 
 def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
@@ -141,7 +141,7 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         },
     ]
 
-    lines = report_markdown._render_hypothesis_entry(
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
         1, hyp, edges, references, reviews
     )
 
@@ -282,7 +282,9 @@ def test_hypothesis_entry_omits_every_optional_subsection_when_absent() -> None:
     """
     hyp = {"id": "h2", "title": "Bare hypothesis.", "elo_rating": 1200}
 
-    lines = report_markdown._render_hypothesis_entry(2, hyp, [], [], [])
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
+        2, hyp, [], [], []
+    )
 
     assert lines == [
         "### 2. **Co-Scientist - Bare hypothesis.**  _Elo: 1200_",
@@ -302,7 +304,9 @@ def test_hypothesis_title_is_bold_and_product_prefixed() -> None:
     """
     hyp = {"id": "h3", "title": "Rate-limiting feedback."}
 
-    lines = report_markdown._render_hypothesis_entry(3, hyp, [], [], [])
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
+        3, hyp, [], [], []
+    )
 
     assert lines[0] == (
         "### 3. **Co-Scientist - Rate-limiting feedback.**  _Elo: _"
@@ -326,7 +330,9 @@ def test_unreviewed_scientist_admission_notice_leads_the_entry() -> None:
         "statement": "A contributed statement.",
     }
 
-    lines = report_markdown._render_hypothesis_entry(1, hyp, [], [], [])
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
+        1, hyp, [], [], []
+    )
 
     assert lines[1] == _HYPOTHESIS_DISCLAIMER
     assert lines[2] == ""
@@ -346,10 +352,10 @@ def test_scientist_admission_notice_absent_once_peer_reviewed() -> None:
     own_review = [{"hypothesis_id": "h6", "reviewer_agent": "scientist"}]
     peer_review = [{"hypothesis_id": "h6", "reviewer_agent": "review"}]
 
-    still_flagged = report_markdown._render_hypothesis_entry(
+    still_flagged = report_markdown_hypothesis._render_hypothesis_entry(
         1, hyp, [], [], own_review
     )
-    cleared = report_markdown._render_hypothesis_entry(
+    cleared = report_markdown_hypothesis._render_hypothesis_entry(
         1, hyp, [], [], peer_review
     )
 
@@ -361,7 +367,9 @@ def test_scientist_admission_notice_absent_for_agent_ideas() -> None:
     """An agent-generated idea never carries the notice, reviewed or not."""
     hyp = {"id": "h7", "title": "Agent idea.", "created_by_agent": "generation"}
 
-    lines = report_markdown._render_hypothesis_entry(1, hyp, [], [], [])
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
+        1, hyp, [], [], []
+    )
 
     assert not any(line.startswith(_NOTICE_PREFIX) for line in lines)
 
@@ -373,7 +381,7 @@ def test_hypothesis_title_falls_back_to_untitled_when_absent() -> None:
     missing, and ``hypothesis_title`` degrades to "Untitled" rather than
     raising.
     """
-    lines = report_markdown._render_hypothesis_entry(
+    lines = report_markdown_hypothesis._render_hypothesis_entry(
         1, {"id": "h4"}, [], [], []
     )
 

@@ -344,7 +344,7 @@ def persist_escalated_verdicts(
     Pure database work -- the escalation itself (an async model call per
     held hypothesis) has already run, outside any transaction; see
     ``app.hypothesis_safety.escalate_held_hypotheses`` and
-    ``app.engine_adapter.drain._persist_final_state`` for the transaction
+    ``app.engine_adapter.drain.persist_final_state`` for the transaction
     boundaries this must stay inside of. A verdict the model did not raise
     is skipped: the deterministic ``hold`` status and its audit row are
     already persisted from the first screening pass over that hypothesis,

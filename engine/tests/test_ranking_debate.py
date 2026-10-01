@@ -94,13 +94,13 @@ def test_wave_narrows_once_the_provider_throttles(
     they sleep in jittered backoff, and the burst is what provoked the
     throttling to begin with.
     """
-    from co_scientist import llm_json_retry
     from co_scientist.constants import RANKING_WAVE_MIN_SIZE, RANKING_WAVE_SIZE
+    from co_scientist.llm.attempts import retry
 
-    monkeypatch.setattr(llm_json_retry, "_rate_limited_attempts", 0)
+    monkeypatch.setattr(retry, "_rate_limited_attempts", 0)
     assert ranking_debate.effective_ranking_wave_size() == RANKING_WAVE_SIZE
 
-    monkeypatch.setattr(llm_json_retry, "_rate_limited_attempts", 1)
+    monkeypatch.setattr(retry, "_rate_limited_attempts", 1)
     assert ranking_debate.effective_ranking_wave_size() == RANKING_WAVE_MIN_SIZE
 
 

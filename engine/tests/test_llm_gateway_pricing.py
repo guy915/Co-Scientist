@@ -8,7 +8,7 @@ primaries) -- distinct concerns from that
 file's routing-shape and reasoning-knob tests.
 """
 
-from co_scientist.llm_request import deepseek_thinking_extra_body
+from co_scientist.llm import deepseek_thinking_extra_body
 
 
 def test_no_fallback_costs_more_than_the_model_above_it() -> None:
@@ -24,7 +24,7 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
     a rung added later cannot reintroduce the shape.
     """
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.profile import gateway_routes, model_profile
 
     def rate(gateway_relative: str) -> tuple[float, float]:
         price = MODEL_PRICING[f"openrouter/{gateway_relative}"]
@@ -33,14 +33,15 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
             price.completion_usd_per_million,
         )
 
-    for primary, declared in _GATEWAY_MODELS.items():
-        if not declared.fallbacks:
+    for primary in gateway_routes():
+        fallbacks = model_profile(primary).fallbacks
+        if not fallbacks:
             continue
         above = (
             MODEL_PRICING[primary].prompt_usd_per_million,
             MODEL_PRICING[primary].completion_usd_per_million,
         )
-        for name in declared.fallbacks:
+        for name in fallbacks:
             below = rate(name)
             assert below <= above, (
                 f"{name} costs more than {primary} it falls back from"
@@ -57,13 +58,12 @@ def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
     over the declared table, not one hand-picked chain, so a rung added
     later cannot reintroduce the shape.
     """
-    from co_scientist.llm_thinking import (
-        _GATEWAY_MAX_FALLBACKS,
-        _GATEWAY_MODELS,
-    )
+    from co_scientist.llm.profile import gateway_routes, model_profile
+    from co_scientist.llm.request.gateway_routing import _GATEWAY_MAX_FALLBACKS
 
-    for primary, declared in _GATEWAY_MODELS.items():
-        assert len(declared.fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
+    for primary in gateway_routes():
+        fallbacks = model_profile(primary).fallbacks
+        assert len(fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
 
 
 def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
@@ -80,14 +80,15 @@ def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
     over the whole declared table, not one hand-picked chain, so a rung
     added later cannot reintroduce the shape.
     """
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.profile import gateway_routes, model_profile
 
-    for primary, declared in _GATEWAY_MODELS.items():
+    for primary in gateway_routes():
+        declared = model_profile(primary)
         if not declared.reasoning_can_disable:
             continue
         for name in declared.fallbacks:
-            fallback = _GATEWAY_MODELS.get(f"openrouter/{name}")
-            assert fallback is not None and fallback.reasoning_can_disable, (
+            fallback = model_profile(f"openrouter/{name}")
+            assert fallback.gateway and fallback.reasoning_can_disable, (
                 f"{primary} claims reasoning_can_disable=True but its "
                 f"fallback {name} does not"
             )
@@ -98,15 +99,13 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
 
     ``test_no_declared_chain_exceeds_openrouters_fallback_cap`` pins the
     source data; this pins what a call actually sends, so a future bug in
-    ``_declared_gateway_body`` that appended to a chain would be caught
+    ``_gateway_body`` that appended to a chain would be caught
     here even if the table itself stayed correct.
     """
-    from co_scientist.llm_thinking import (
-        _GATEWAY_MAX_FALLBACKS,
-        _GATEWAY_MODELS,
-    )
+    from co_scientist.llm.profile import gateway_routes
+    from co_scientist.llm.request.gateway_routing import _GATEWAY_MAX_FALLBACKS
 
-    for model in _GATEWAY_MODELS:
+    for model in gateway_routes():
         body = deepseek_thinking_extra_body(model)
         assert len(body.get("models", [])) <= _GATEWAY_MAX_FALLBACKS, model
 
@@ -114,9 +113,10 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
 def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
     """A zero-priced primary must keep the provider ceiling armed too."""
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _GATEWAY_MODELS, _gateway_provider
+    from co_scientist.llm.profile import gateway_routes
+    from co_scientist.llm.request.gateway_routing import _gateway_provider
 
-    for primary in _GATEWAY_MODELS:
+    for primary in gateway_routes():
         price = MODEL_PRICING[primary]
         provider = _gateway_provider(primary)
         assert "max_price" in provider, primary
@@ -147,7 +147,7 @@ def test_the_price_cap_excludes_the_2x_tier() -> None:
     someone reading this: the next host above the headline rate is
     Morph at 1.29x, well clear of the current cap.
     """
-    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE
+    from co_scientist.llm.request.gateway_routing import _MAX_PRICE_MULTIPLE
 
     assert 1.0 <= _MAX_PRICE_MULTIPLE < 1.29
 
@@ -162,7 +162,10 @@ def test_the_price_cap_admits_the_headline_rate() -> None:
     represent the listed rate with the same rounding this process does.
     """
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE, _gateway_provider
+    from co_scientist.llm.request.gateway_routing import (
+        _MAX_PRICE_MULTIPLE,
+        _gateway_provider,
+    )
 
     primary = "openrouter/z-ai/glm-5.3-flash"
     price = MODEL_PRICING[primary]

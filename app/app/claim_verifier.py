@@ -25,12 +25,12 @@ thresholds, SSR §12):
 Routing through ``co_scientist.llm.call_llm_json`` (rather than calling
 ``litellm`` directly, as this module used to) means every entailment call
 now shares the engine's response cache, per-phase telemetry
-(``co_scientist.llm_telemetry.scoped_telemetry`` -- the gate opens
+(``co_scientist.llm.telemetry.scoped_telemetry`` -- the gate opens
 ``"claim_gate"``, the finalize grounding pass opens ``"claim_grounding"``),
-run-scoped call-budget enforcement (``co_scientist.llm_call_budget``, so
-``LLMCallBudgetExceededError`` terminates a run over-spending on claims the
+run-scoped call-budget enforcement (``co_scientist.llm.admission.call_budget``,
+so ``LLMCallBudgetExceededError`` terminates a run over-spending on claims the
 same way it does an engine node), and the thinking-token floor
-(``co_scientist.llm_thinking``) -- see the root AGENTS.md finding this
+(``co_scientist.llm.request.thinking``) -- see the root AGENTS.md finding this
 module's docstring used to warn about, now closed.
 
 ``app.claim_verifier_batch`` holds the same judge asked to assess a whole
@@ -59,10 +59,13 @@ from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_json_lists import coerce_json_list
-from co_scientist.llm_telemetry import record_deterministic_fallback
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+    coerce_json_list,
+    record_deterministic_fallback,
+)
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
@@ -122,8 +125,8 @@ _SYSTEM_PROMPT = (
 # A ceiling, not a reservation: the verdict JSON is short, and the generous
 # cap only matters for an unusually long quote. The chain of thought is not
 # funded from here -- the engine's own thinking floor
-# (``co_scientist.llm_thinking``) raises whatever budget a thinking model is
-# sent with, so reasoning cannot eat the answer's share.
+# (``co_scientist.llm.request.thinking``) raises whatever budget a thinking
+# model is sent with, so reasoning cannot eat the answer's share.
 _MAX_TOKENS = 6000
 
 # ``passage`` is the judge's cited passage number -- the bracketed integer
@@ -156,8 +159,9 @@ _CITATION_LIST = {
 
 # The assessor's raw verdict shape (``AssessorDraft``), enforced server-side
 # where the model supports json_schema and reshaped into conformance by the
-# engine's json_object downgrade path otherwise (see llm_json._backfill_
-# required_fields / _prune_unknown_properties).
+# engine's json_object downgrade path otherwise (see
+# llm.structured.validate._backfill_ required_fields /
+# _prune_unknown_properties).
 _ENTAILMENT_DRAFT_SCHEMA = obj(
     {
         "label": {
@@ -280,11 +284,11 @@ async def _call_llm_entailment_async(
     reject a disabled-reasoning request outright ("Reasoning is mandatory
     for this endpoint and cannot be disabled" -- the same run's recovered
     finalize, every batched call failing identically on both attempts), so
-    ``co_scientist.llm_thinking`` sends the smallest reasoning tier the
+    ``co_scientist.llm.request.thinking`` sends the smallest reasoning tier the
     gateway exposes instead of a bare disable for a model declared unable
     to honour one, and funds that with the thinking-token floor exactly as
     it would a normal thinking call -- see
-    ``GatewayModel.reasoning_can_disable`` and
+    ``ModelProfile.reasoning_can_disable`` and
     ``effective_thinking_enabled``. ``max_attempts=3`` (not the historical
     2) keeps a plain re-ask available for a schema or parse failure now
     that no rung of the escalation ladder needs to spend an attempt

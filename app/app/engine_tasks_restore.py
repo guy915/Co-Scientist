@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from app import engine_tasks_runtime
 from app.engine_tasks_context import TaskCommit, _task_commit
 from app.engine_tasks_inputs import _merge_scientist_inputs
 from app.engine_tasks_support import (
     NODE_TASK_PREFIX,
     _durable_queue_snapshot,
-    _generator_and_opts,
 )
 from app.store import ScientificTask
 
@@ -61,7 +61,7 @@ def _restore_node_task_state(
     """Restore workflow state and re-apply durable per-boundary overlays.
 
     Re-delivers durable scientist steering/private sources at every safe
-    task boundary. ``_build_engine_opts`` only *reads* the message queue;
+    task boundary. ``build_engine_opts`` only *reads* the message queue;
     the ids it read ride the commit target and are retired inside the
     transaction that commits this state's successor checkpoint, so a worker
     lost mid-node leaves the steer claimable rather than acknowledged.
@@ -121,7 +121,9 @@ def _prepare_node_task(
     Only the orchestrator's own commit may acknowledge steering: it is
     the run's one scheduling decision point (see ``_task_commit``).
     """
-    generator, opts = _generator_and_opts(task, db_path)
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(
+        task, db_path
+    )
     state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
     node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
     if node_name == "orchestrator":

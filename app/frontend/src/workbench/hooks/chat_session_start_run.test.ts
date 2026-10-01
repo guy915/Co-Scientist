@@ -1,7 +1,10 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {type HandlerDeps} from './chat_session_types';
 
-vi.mock('@/api/runs', () => ({
+// Spread the real module so the pure status questions stay real and only the
+// network calls are faked.
+vi.mock('@/api/runs', async importActual => ({
+  ...(await importActual<typeof import('@/api/runs')>()),
   createRun: vi.fn(async () => ({id: 'r1', status: 'draft'})),
   startRun: vi.fn(async () => {}),
   cancelRun: vi.fn(async (id: string) => ({id, status: 'cancelled'})),

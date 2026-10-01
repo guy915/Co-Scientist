@@ -1,10 +1,11 @@
 """Durable fan-out scheduling for review, verification, and reflection.
 
-Split from ``app.engine_tasks``, which re-exports every name here. The
+Split from ``app.engine_tasks``, which re-exports the names callers use. The
 generation fan-out lives in ``app.engine_tasks_fanout_generation``, the
 per-item executors in ``app.engine_tasks_fanout_items``, and the
 aggregates that commit fan-out results in
-``app.engine_tasks_fanout_aggregates``; all are re-exported below.
+``app.engine_tasks_fanout_aggregates``; the names callers use are
+re-exported below.
 """
 
 from __future__ import annotations
@@ -35,25 +36,7 @@ from app.engine_tasks_fanout_generation import (
     _enqueue_generation_fanout as _enqueue_generation_fanout,
 )
 from app.engine_tasks_fanout_generation import (
-    _enqueue_generation_strategy_tasks as _enqueue_generation_strategy_tasks,
-)
-from app.engine_tasks_fanout_generation import (
-    _generation_task_specs as _generation_task_specs,
-)
-from app.engine_tasks_fanout_generation import (
-    _run_generation_strategy as _run_generation_strategy,
-)
-from app.engine_tasks_fanout_generation import (
-    _save_generation_plan_checkpoint as _save_generation_plan_checkpoint,
-)
-from app.engine_tasks_fanout_generation import (
     execute_generation_strategy as execute_generation_strategy,
-)
-from app.engine_tasks_fanout_items import (
-    _hypothesis_for_item as _hypothesis_for_item,
-)
-from app.engine_tasks_fanout_items import (
-    _run_observation_reflection as _run_observation_reflection,
 )
 from app.engine_tasks_fanout_items import (
     execute_mature_reflection_item as execute_mature_reflection_item,
@@ -65,25 +48,13 @@ from app.engine_tasks_fanout_items import (
     execute_verification_item as execute_verification_item,
 )
 from app.engine_tasks_support import (
-    _CHECKPOINT_PROVIDER as _CHECKPOINT_PROVIDER,
-)
-from app.engine_tasks_support import (
-    GENERATION_AGGREGATE_TASK as GENERATION_AGGREGATE_TASK,
-)
-from app.engine_tasks_support import (
-    GENERATION_STRATEGY_TASK as GENERATION_STRATEGY_TASK,
-)
-from app.engine_tasks_support import (
     MATURE_REFLECTION_AGGREGATE_TASK,
     MATURE_REFLECTION_ITEM_TASK,
     REVIEW_AGGREGATE_TASK,
     REVIEW_ITEM_TASK,
     VERIFICATION_AGGREGATE_TASK,
     VERIFICATION_ITEM_TASK,
-    _assert_task_commit_allowed,
-)
-from app.engine_tasks_support import (
-    _restore_item_checkpoint as _restore_item_checkpoint,
+    assert_task_commit_allowed,
 )
 from app.store import ScientificTask
 
@@ -145,7 +116,7 @@ def _create_fanout_tasks(
         A tuple of (item tasks, aggregate task).
     """
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         items = enqueue_items(conn)
         aggregate = _enqueue_aggregate_task(
             task, items, checkpoint_seq, conn, spec

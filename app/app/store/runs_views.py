@@ -326,7 +326,7 @@ def clear_publication_artifacts(
     This narrower reset is used by the idempotent finalizer. It preserves
     checkpoints, scientific tasks, lifecycle events, intake/final safety audit,
     messages, reports, and scientist contributions while removing rows that
-    `_persist_final_state` deterministically reconstructs.
+    `persist_final_state` deterministically reconstructs.
     """
     with _use_conn(conn, db_path) as active:
         _delete_agent_derived_rows(active, run_id)

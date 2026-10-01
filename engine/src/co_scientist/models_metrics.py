@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.llm_telemetry import ModelCallStats
+from co_scientist.llm import ModelCallStats
 
 
 def _known_field_kwargs(cls: Any, data: dict[str, Any]) -> dict[str, Any]:
@@ -46,12 +46,12 @@ class ExecutionMetrics:
     phase_times: dict[str, float] = field(default_factory=dict)
     # Keyed by "{phase}::{model}" (the durable task/node name and the
     # litellm model name); each value is a plain dict of the fields on
-    # ``llm_telemetry.ModelCallStats`` (calls, prompt/completion/reasoning
+    # ``llm.telemetry.ModelCallStats`` (calls, prompt/completion/reasoning
     # tokens, cost_usd, latency_seconds, retries, cache_hits/misses, and an
     # errors dict keyed by error kind). Populated by
     # ``task_runtime.execute_task_node`` from the in-memory telemetry
     # captured during that node's LLM calls -- see
-    # ``co_scientist.llm_telemetry`` for why this is aggregated in memory
+    # ``co_scientist.llm.telemetry`` for why this is aggregated in memory
     # rather than written per call (AGENTS.md: a per-call database row or
     # persisted log record starves the single SQLite writer).
     model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)

@@ -33,17 +33,17 @@ helpers in ``runs_events``.
 This module owns the SSE stream and assembles the full route set by
 including the sibling endpoint routers -- ``runs_crud`` (create/list/read),
 ``runs_lifecycle`` (start/cancel/pause/resume and the startup auto-resume
-launcher), ``runs_collections`` (read-only collection getters, safety
-adjudication, reports), ``runs_contrib`` (scientist-contributed
+launcher; the safety-adjudication handler it drives lives in
+``runs_lifecycle_adjudication``), ``runs_collections`` (read-only collection
+getters and reports, plus the registration of that handler at its historical
+slot), ``runs_contrib`` (scientist-contributed
 hypotheses/reviews/attachments), and ``runs_chat`` (steering messages and
-grounded Q&A), with shared existence guards in ``runs_support``. Every
-moved name is re-exported here so ``app.runs`` remains the stable import
-and monkeypatch surface.
+grounded Q&A), with shared existence guards in ``runs_support``. The
+moved names that callers and tests use are re-exported here so
+``app.runs`` remains their import and monkeypatch surface.
 """
 
 from __future__ import annotations
-
-from typing import Any as Any
 
 from fastapi import (
     APIRouter,
@@ -51,23 +51,8 @@ from fastapi import (
     Request,
     Response,
 )
-from fastapi import (
-    BackgroundTasks as BackgroundTasks,
-)
-from fastapi import (
-    HTTPException as HTTPException,
-)
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app import (
-    engine_adapter as engine_adapter,
-)
-from app import (
-    engine_tasks as engine_tasks,
-)
-from app import (
-    qa as qa,
-)
 from app import (
     runs_chat,
     runs_collections,
@@ -77,187 +62,22 @@ from app import (
     runs_lifecycle,
     store,
 )
-from app.auth import client_id as client_id
-from app.runs_chat import (
-    _gather_qa_context as _gather_qa_context,
-)
-from app.runs_chat import (
-    _offline_qa_response as _offline_qa_response,
-)
-from app.runs_chat import (
-    announce_start as announce_start,
-)
-from app.runs_chat import (
-    ask_question as ask_question,
-)
-from app.runs_chat import (
-    list_messages as list_messages,
-)
-from app.runs_chat import (
-    send_message as send_message,
-)
-from app.runs_collections import (
-    adjudicate_safety as adjudicate_safety,
-)
-from app.runs_collections import (
-    get_citations as get_citations,
-)
-from app.runs_collections import (
-    get_claim_evidence as get_claim_evidence,
-)
-from app.runs_collections import (
-    get_evidence as get_evidence,
-)
-from app.runs_collections import (
-    get_hypotheses as get_hypotheses,
-)
-from app.runs_collections import (
-    get_hypothesis_outcomes as get_hypothesis_outcomes,
-)
-from app.runs_collections import (
-    get_matches as get_matches,
-)
-from app.runs_collections import (
-    get_metrics as get_metrics,
-)
-from app.runs_collections import (
-    get_proximity as get_proximity,
-)
-from app.runs_collections import (
-    get_report as get_report,
-)
-from app.runs_collections import (
-    get_report_markdown as get_report_markdown,
-)
-from app.runs_collections import (
-    get_reviews as get_reviews,
-)
-from app.runs_collections import (
-    get_run_logs as get_run_logs,
-)
-from app.runs_collections import (
-    get_safety as get_safety,
-)
-from app.runs_collections import (
-    get_tasks as get_tasks,
-)
-from app.runs_contrib import (
-    add_attachment as add_attachment,
-)
-from app.runs_contrib import (
-    add_human_hypothesis as add_human_hypothesis,
-)
-from app.runs_contrib import (
-    add_human_review as add_human_review,
-)
-from app.runs_contrib import (
-    record_hypothesis_outcome as record_hypothesis_outcome,
-)
-from app.runs_contrib import (
-    search_attachments as search_attachments,
-)
-from app.runs_contrib import (
-    upload_attachment as upload_attachment,
-)
-from app.runs_crud import (
-    _build_run_config as _build_run_config,
-)
-from app.runs_crud import (
-    _persist_new_run as _persist_new_run,
-)
-from app.runs_crud import (
-    _populate_run_title as _populate_run_title,
-)
-from app.runs_crud import (
-    _resolve_run_interview as _resolve_run_interview,
-)
-from app.runs_crud import (
-    _runs_payload as _runs_payload,
-)
 from app.runs_crud import (
     create_run as create_run,
 )
-from app.runs_crud import (
-    get_run as get_run,
-)
-from app.runs_crud import (
-    list_demo_runs as list_demo_runs,
-)
-from app.runs_crud import (
-    list_runs as list_runs,
-)
-from app.runs_crud import (
-    rename_run as rename_run,
-)
-from app.runs_deletion import (
-    delete_run as delete_run,
-)
 from app.runs_events import _event_stream
 from app.runs_lifecycle import (
-    _check_startable as _check_startable,
-)
-from app.runs_lifecycle import (
-    _has_paused_engine_task as _has_paused_engine_task,
-)
-from app.runs_lifecycle import (
     _launch_resume as _launch_resume,
-)
-from app.runs_lifecycle import (
-    _log_resume_task_result as _log_resume_task_result,
 )
 from app.runs_lifecycle import (
     _resume_tasks as _resume_tasks,
 )
 from app.runs_lifecycle import (
-    cancel_run as cancel_run,
-)
-from app.runs_lifecycle import (
-    pause_run as pause_run,
-)
-from app.runs_lifecycle import (
     resume_interrupted_runs as resume_interrupted_runs,
-)
-from app.runs_lifecycle import (
-    resume_run as resume_run,
-)
-from app.runs_lifecycle import (
-    start_run as start_run,
-)
-from app.runs_models import (
-    AskRequest as AskRequest,
-)
-from app.runs_models import (
-    CreateRunRequest as CreateRunRequest,
-)
-from app.runs_models import (
-    HumanAttachmentRequest as HumanAttachmentRequest,
-)
-from app.runs_models import (
-    HumanHypothesisRequest as HumanHypothesisRequest,
-)
-from app.runs_models import (
-    HumanReviewRequest as HumanReviewRequest,
-)
-from app.runs_models import (
-    SafetyAdjudicationRequest as SafetyAdjudicationRequest,
-)
-from app.runs_models import (
-    SendMessageRequest as SendMessageRequest,
-)
-from app.runs_models import (
-    StartRunRequest as StartRunRequest,
-)
-from app.runs_models import (
-    _build_create_run_config as _build_create_run_config,
-)
-from app.runs_support import (
-    _require_run as _require_run,
 )
 from app.runs_support import (
     _run_or_404 as _run_or_404,
 )
-from app.store import RunStatus as RunStatus
-from app.title_gen import generate_run_title as generate_run_title
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 

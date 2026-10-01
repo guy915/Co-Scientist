@@ -13,15 +13,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.llm_request import (
-    deepseek_thinking_extra_body as _thinking_body,
-)
-from co_scientist.llm_request import (
-    model_reasons as _model_reasons,
-)
-from co_scientist.llm_request import (
-    reasoning_effort_args as _effort_args,
-)
+from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
+from co_scientist.llm import model_reasons as _model_reasons
+from co_scientist.llm import reasoning_effort_args as _effort_args
 
 
 def _is_deepseek(model_name: str) -> bool:
@@ -49,7 +43,7 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
     every other call site -- see ``deepseek_thinking_kwargs``. Kept as a
     tested seam rather than deleted, the same way the engine keeps its own
     ``enable_thinking=False`` disable knob at the top of the budget-
-    escalation ladder (``llm_tool_iteration.py``) even though most calls
+    escalation ladder (``llm/tools/iteration.py``) even though most calls
     never take that rung: a future call site sized for a small, fixed
     extraction where a reasoning spend would blow the budget can opt out
     without re-deriving this shape. ``test_config_thinking.py`` pins both
@@ -170,8 +164,8 @@ def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
     The rung a thinking-only turn is retried at: a streamed turn that
     reasoned and then wrote no answer at all is retried once with thinking
     off, mirroring the engine's own non-streaming ladder for
-    ``LLMThinkingOnlyError`` (``llm_json_retry.BudgetEscalation``) without
-    reimplementing it -- these app call sites make one request, not a
+    ``LLMThinkingOnlyError`` (``llm.attempts.escalation.BudgetEscalation``)
+    without reimplementing it -- these app call sites make one request, not a
     ladder of them, so one retry at this rung is the whole mechanism they
     need.
 

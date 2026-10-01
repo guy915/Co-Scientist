@@ -69,7 +69,7 @@ def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
 
 
 # Tasks that route through the meta_review node, so scheduling either one
-# resets the cadence anchors (``generator.graph._TASK_ROUTES``).
+# resets the cadence anchors (``workflow_topology.TASK_ROUTES``).
 _META_REVIEW_ROUTED_TASKS = frozenset({TaskType.META_REVIEW, TaskType.EVOLVE})
 
 # Tasks that advance the iteration counter as they are scheduled; mirrors

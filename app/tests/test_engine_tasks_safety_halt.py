@@ -13,10 +13,12 @@ from typing import Any
 import pytest
 from co_scientist.models import Hypothesis
 
-from app import engine_tasks, report_render, store
+from app import engine_tasks, store
 from app.safety import ScreenSubject
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -67,9 +69,7 @@ def _seed_halted_finalize(
         "finalize-safety-worker", run_id=run_id, db_path=db_path
     )
     assert task is not None and task.id == queued.id
-    monkeypatch.setattr(
-        engine_tasks, "_generator_for_restore", lambda *_: _Generator(state)
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
 
@@ -110,9 +110,7 @@ async def test_an_unhalted_run_still_publishes(
     """The halt check is the only thing that withholds the report."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=False)
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", _deterministic_final_screen
-    )
+    _install_runtime(monkeypatch).screen = _deterministic_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 

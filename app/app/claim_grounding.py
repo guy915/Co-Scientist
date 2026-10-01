@@ -11,7 +11,7 @@ store-aware wiring the engine drain runs (SSR §6, §7; RGV §4, §5):
    assessor provenance) to the ``claim_evidence`` graph.
 3. Run the publication gate and record its verdict. A *contradicted* claim
    withholds the hypothesis from the report (the contradiction gate in
-   ``report_content_gates``); a merely unsupported one does not, under the
+   ``report.gates``); a merely unsupported one does not, under the
    rank-and-publish policy -- the idea is published carrying an "Unverified"
    badge. This module records the verdict; it does not enforce it.
 
@@ -20,9 +20,9 @@ NLI/LLM entailment model is a swappable, provenance-tagged assessor.
 
 Step 2's assessment half lives in :mod:`app.claim_grounding_assess`, which
 touches no database at all -- the module boundary is what keeps a provider
-call out of a write transaction. Every name it defines is re-exported here,
-so ``app.claim_grounding`` remains the single import and monkeypatch
-surface it has always been.
+call out of a write transaction. The names callers and tests still reach
+through ``app.claim_grounding`` are re-exported here, so it remains their
+import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -35,25 +35,7 @@ from typing import Any
 
 from app import store
 from app.claim_grounding_assess import (
-    ASSESSMENT_CONCURRENCY as ASSESSMENT_CONCURRENCY,
-)
-from app.claim_grounding_assess import (
     AssessorSpec as AssessorSpec,
-)
-from app.claim_grounding_assess import (
-    _assess_flat_claims as _assess_flat_claims,
-)
-from app.claim_grounding_assess import (
-    _claim_records as _claim_records,
-)
-from app.claim_grounding_assess import (
-    _per_hypothesis_claim_records as _per_hypothesis_claim_records,
-)
-from app.claim_grounding_assess import (
-    _regroup_assessments as _regroup_assessments,
-)
-from app.claim_grounding_assess import (
-    _zip_hypothesis_assessments as _zip_hypothesis_assessments,
 )
 from app.claim_grounding_assess import (
     assess_claim_groups as assess_claim_groups,
@@ -61,12 +43,12 @@ from app.claim_grounding_assess import (
 from app.claim_grounding_assess import (
     assess_hypothesis_claims as assess_hypothesis_claims,
 )
+from app.claim_verdict import is_speculative
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
     BatchAssessor,
     ClaimAssessment,
-    EntailmentLabel,
     EvidencePassage,
     GateDecision,
     GateResult,
@@ -75,8 +57,6 @@ from app.claims import (
 )
 
 logger = logging.getLogger(__name__)
-
-_SUPPORTING_LABELS = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
 
 
 def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
@@ -202,7 +182,7 @@ class GroundingResult:
 
     # Store ids of hypotheses that did not clear the publication gate.
     # Advisory: the report withholds only *contradicted* ideas (see
-    # report_content_gates._exclude_unsafe_hypotheses) and publishes merely
+    # report.gates.exclude_unsafe_hypotheses) and publishes merely
     # unsupported ones with an "Unverified" badge. Nothing reads this set but
     # the count, which the run's citation.grounding event reports.
     blocked_ids: frozenset[str]
@@ -319,14 +299,13 @@ def _has_supported_claim(
     """Whether any claim has a ``supports`` or ``partial`` verdict.
 
     The same rule the report's "Verified" count and "Unverified" badge use
-    (``report_content_gates._supported_hypothesis_ids``). The gate itself is
+    (``claim_verdict.is_supporting``). The gate itself is
     stricter -- it also fails a hypothesis that has support for some claims
     but not for a categorical one -- so a gate failure alone does not mean
     the idea is published unverified.
     """
     return any(
-        assessment.label in _SUPPORTING_LABELS
-        for assessment, _role in assessments
+        assessment.label.is_supporting for assessment, _role in assessments
     )
 
 
@@ -393,7 +372,7 @@ def _ground_one_hypothesis(
         explicitly_speculative_claims={
             assessment.claim
             for assessment, role in assessments
-            if role == "speculative"
+            if is_speculative(role)
         },
         require_supported_claim=not allow_speculative,
     )
@@ -482,7 +461,7 @@ def _record_blocked_hypothesis(
     )
     # The quarantine line (logged by the caller) says what actually happens.
     # Under the rank-and-publish policy (see
-    # report_content_gates._unverified_hypothesis_ids) failing this gate does
+    # report.gates.unverified_hypothesis_ids) failing this gate does
     # not withhold an idea: only a *contradicted* claim does that. An
     # unsupported one is published, and it carries the "Unverified" badge only
     # when it has no supported claim at all. This line used to announce a

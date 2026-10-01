@@ -6,11 +6,12 @@ Leading underscore so pytest does not collect this module.
 import litellm
 import pytest
 
-from co_scientist import llm_request, offline_llm
+from co_scientist import offline_llm
 from co_scientist.generator import (
     GeneratorOptions,
     HypothesisGenerator,
 )
+from co_scientist.llm.request import completion
 
 
 def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,9 +30,9 @@ def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
     monkeypatch.setattr(
-        llm_request,
+        completion,
         "_supports_json_schema_response_format",
-        llm_request._supports_json_schema_response_format,
+        completion._supports_json_schema_response_format,
     )
     monkeypatch.setattr(offline_llm, "_installed", False)
     monkeypatch.setattr(offline_llm, "_original_acompletion", None)

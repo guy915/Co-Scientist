@@ -1,7 +1,7 @@
 """Engine-drain tests for contextual safety-verdict escalation (J14).
 
 Covers the drain's wiring of ``hypothesis_safety.escalate_held_hypotheses``
-into ``engine_adapter.drain._persist_final_state``: a bulk engine-generated
+into ``engine_adapter.drain.persist_final_state``: a bulk engine-generated
 hypothesis the deterministic screen holds UNCERTAIN now gets the same
 contextual-escalation chance a scientist-authored hypothesis already had
 (``app.human_input``). These mirror the fail-closed cases already pinned in
@@ -18,12 +18,13 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 
 from app import engine_adapter, safety, store
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from tests._drain_helpers import _engine_hypothesis, _persist
+from tests._process_mode_helpers import FakeProcessMode
 
 # A control-arm hard-split item the deterministic layer holds as UNCERTAIN
 # via the benign-context marker check ("triage"/"disaster"), carrying
@@ -71,15 +72,14 @@ def _fake_semantic_response(category: str) -> SimpleNamespace:
     )
 
 
-def _stub_eligible(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_eligible(
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
+) -> None:
     """Make every hypothesis-stage escalation eligible to reach the model."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
 
 
 def _held_status(run_id: str, isolated_db: str) -> str:
@@ -91,7 +91,9 @@ def _held_status(run_id: str, isolated_db: str) -> str:
 
 
 def test_drain_escalates_and_raises_a_held_verdict(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """The bulk drain path now raises a held UNCERTAIN too (FINDINGS.md J14).
 
@@ -104,7 +106,7 @@ def test_drain_escalates_and_raises_a_held_verdict(
     async def block_completion(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("prohibited")
 
-    _stub_eligible(monkeypatch)
+    _stub_eligible(monkeypatch, fake_process_mode)
     monkeypatch.setattr(litellm, "acompletion", block_completion)
     run = _real_run("drain escalation raise")
 
@@ -148,7 +150,9 @@ def test_campaign_scope_reaches_held_hypothesis_executor(
 
 
 def test_rescreen_does_not_downgrade_an_escalation_raised_block(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """A later whole-pool re-screen must not undo an escalation's raise.
 
@@ -162,7 +166,7 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
     async def block_completion(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("prohibited")
 
-    _stub_eligible(monkeypatch)
+    _stub_eligible(monkeypatch, fake_process_mode)
     monkeypatch.setattr(litellm, "acompletion", block_completion)
     run = _real_run("drain escalation rescreen")
 
@@ -187,16 +191,15 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
 
 
 def test_drain_escalation_fails_closed_on_missing_credential(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """A configured-but-unreachable model leaves the hold in place."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: False
-    )
+    fake_process_mode.online(credential=False)
     run = _real_run("drain escalation no credential")
 
     _persist(
@@ -207,7 +210,9 @@ def test_drain_escalation_fails_closed_on_missing_credential(
 
 
 def test_drain_escalation_fails_closed_on_provider_error(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """A provider failure mid-call leaves the hold in place, not a block."""
     import litellm
@@ -215,7 +220,7 @@ def test_drain_escalation_fails_closed_on_provider_error(
     async def raise_completion(**_: object) -> None:
         raise RuntimeError("provider unavailable")
 
-    _stub_eligible(monkeypatch)
+    _stub_eligible(monkeypatch, fake_process_mode)
     monkeypatch.setattr(litellm, "acompletion", raise_completion)
     run = _real_run("drain escalation provider error")
 
@@ -261,7 +266,9 @@ def test_drain_skips_escalation_cleanly_when_offline(
 
 
 def test_escalation_does_not_hold_the_write_lock(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """A concurrent write succeeds while escalation is in flight.
 
@@ -280,7 +287,7 @@ def test_escalation_does_not_hold_the_write_lock(
         assert release_call.wait(timeout=5), "test did not release the call"
         return _fake_semantic_response("allowed")
 
-    _stub_eligible(monkeypatch)
+    _stub_eligible(monkeypatch, fake_process_mode)
     monkeypatch.setattr(litellm, "acompletion", slow_completion)
     run = _real_run("drain escalation lock check")
 
@@ -316,7 +323,9 @@ def test_escalation_does_not_hold_the_write_lock(
 
 
 async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
-    monkeypatch: pytest.MonkeyPatch, isolated_db: str
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_db: str,
+    fake_process_mode: FakeProcessMode,
 ) -> None:
     """The audit row must say what happened, not what usually happens.
 
@@ -329,7 +338,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     """
     import litellm
 
-    _stub_eligible(monkeypatch)
+    _stub_eligible(monkeypatch, fake_process_mode)
 
     async def _allow(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("allowed")
@@ -337,7 +346,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     monkeypatch.setattr(litellm, "acompletion", _allow)
     run = _real_run("cleared hold audit")
 
-    await engine_adapter._persist_final_state(
+    await engine_adapter.persist_final_state(
         run_id=run.id,
         final_state=_escalation_state(),
         db_path=isolated_db,

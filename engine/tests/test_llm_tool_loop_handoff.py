@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
-from co_scientist.llm_tool_loop import _handoff_iteration
+from co_scientist.llm.tools.policy import _handoff_iteration
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -205,7 +205,7 @@ async def test_a_loop_stops_on_spend_before_it_runs_out_of_turns(
 
 def test_the_transcript_estimate_counts_what_is_actually_resent() -> None:
     """Tool calls are billed too, so the estimate cannot ignore them."""
-    from co_scientist.llm_tool_policy import transcript_tokens
+    from co_scientist.llm.tools.policy import transcript_tokens
 
     plain = [{"role": "user", "content": "a" * 400}]
     with_calls = [
@@ -316,7 +316,7 @@ def test_the_wrap_up_promises_only_the_turns_the_budget_affords() -> None:
     Telling a model eleven turns remain when the budget affords two is
     how a loop ends mid-step having been warned.
     """
-    from co_scientist.llm_tool_policy import _turns_remaining
+    from co_scientist.llm.tools.policy import _turns_remaining
 
     loop = ToolLoop(
         tools=_SEARCH_TOOL,

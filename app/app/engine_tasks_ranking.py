@@ -3,9 +3,9 @@
 Schedules the ranking chain from a committed checkpoint, judges bounded
 waves of Elo matchups (one durable task per wave), and finalizes the
 tournament back into orchestration. Split from ``app.engine_tasks``,
-which re-exports these names for compatibility. Wave construction and
-judging moved on to ``app.engine_tasks_ranking_wave``; every moved name is
-re-exported below so this module's namespace keeps resolving.
+which re-exports the names callers use. Wave construction and judging
+moved on to ``app.engine_tasks_ranking_wave``; the moved names still in
+use are re-exported below so this module's namespace keeps resolving.
 """
 
 from __future__ import annotations
@@ -23,31 +23,15 @@ from app.engine_tasks_ranking_wave import (
     _WavePlan,
     _WaveResult,
 )
-from app.engine_tasks_ranking_wave import (
-    _apply_wave_elo as _apply_wave_elo,
-)
-from app.engine_tasks_ranking_wave import (
-    _judge_one_matchup as _judge_one_matchup,
-)
-from app.engine_tasks_ranking_wave import (
-    _judge_wave_matchups as _judge_wave_matchups,
-)
-from app.engine_tasks_ranking_wave import (
-    _ranking_wave as _ranking_wave,
-)
-from app.engine_tasks_ranking_wave import (
-    _WaveJudgeContext as _WaveJudgeContext,
-)
 from app.engine_tasks_support import (
     RANKING_FINALIZE_TASK,
     RANKING_MATCH_TASK,
     RANKING_PROGRESS_EVERY,
     NodeCompletion,
     _emit_node_completion,
-    _generator_for_restore,
-    _replay_or_supersede,
     _save_state_and_enqueue,
     _save_state_and_enqueue_exact,
+    leased_state,
 )
 from app.store import ScientificTask
 from app.store.runs_reconcile import _ACTIVE_RUN_STATUSES
@@ -176,24 +160,6 @@ async def _schedule_ranking_chain(
     }
 
 
-def _restore_ranking_state(
-    task: ScientificTask, db_path: str | None, *, label: str
-) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
-    """Guard a ranking task against replay/supersession, then restore state."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
-        task, db_path, label=label
-    )
-    if replay is not None:
-        return replay, {}, current_seq
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return None, state, current_seq
-
-
 def _ranking_match_successor(
     next_index: int,
     rounds: int,
@@ -318,7 +284,7 @@ async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Judge and commit exactly one Elo matchup before scheduling another."""
-    replay, state, current_seq = _restore_ranking_state(
+    replay, state, current_seq = leased_state(
         task, db_path, label="ranking match"
     )
     if replay is not None:
@@ -438,7 +404,7 @@ async def execute_ranking_finalize(
     from co_scientist.agents.ranking.ranking import _finalize_ranking_result
     from co_scientist.task_runtime import apply_task_update
 
-    replay, state, current_seq = _restore_ranking_state(
+    replay, state, current_seq = leased_state(
         task, db_path, label="ranking finalizer"
     )
     if replay is not None:

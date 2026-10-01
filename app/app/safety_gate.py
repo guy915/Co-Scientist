@@ -134,12 +134,12 @@ def _commit_task_safety_events(
     db_path: str | None,
 ) -> list[dict[str, Any]]:
     """Fence a durable task's safety decision and terminal status effects."""
-    from app.engine_tasks_support import _assert_task_commit_allowed
+    from app.engine_tasks_support import assert_task_commit_allowed
 
     decision_payload = result.to_dict()
     event_type = f"safety.{result.stage}"
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         if result.stage == "intake":
             _assert_bootstrap_intake_lease(run_id, task, conn)
         _record_safety_decision(run_id, result, db_path=db_path, conn=conn)

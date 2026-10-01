@@ -15,8 +15,8 @@ so it must never spend itself on a healthy run's ordinary backlog.
 
 Every scenario that exhausts the budget here does so via ``max_tasks``,
 not ``max_llm_calls``: the LLM-call ceiling is also enforced *inside* a
-task by the provider-request seam (``llm_call_budget``), at the identical
-boundary with zero headroom, so the check refuses to override that one
+task by the provider-request seam (``llm.admission.call_budget``), at the
+identical boundary with zero headroom, so the check refuses to override that one
 reason specifically -- see ``test_owed_review_refuses_to_override_the_
 llm_call_ceiling`` below and the full argument in
 ``scheduling.policy_budget._check_owed_review``'s docstring.

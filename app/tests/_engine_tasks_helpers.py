@@ -7,6 +7,7 @@ verbatim from the original single ``test_engine_tasks.py``.
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,8 +18,8 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, store
-from app.safety import screen_intake
+from app import engine_tasks, engine_tasks_runtime, store
+from app.engine_tasks_runtime import ProductionEngineTaskRuntime
 
 
 def _task_state(run_id: str) -> dict[str, Any]:
@@ -77,40 +78,81 @@ class _Generator:
 async def _deterministic_screen(
     _run_id: str, subject: Any, *_: Any, **__: Any
 ) -> Any:
-    """Stand in for the intake escalation with its deterministic verdict.
+    """Stand in for the escalation with its deterministic verdict.
 
     Matches ``screen_with_escalation``'s signature (run id, then the
     ``ScreenSubject``) and returns what that wrapper returns for any run
     these tests create: the deterministic decision, with no contextual
     model call.
     """
-    return screen_intake(subject.text)
+    return subject.deterministic
+
+
+class FakeEngineTaskRuntime:
+    """Test adapter for ``app.engine_tasks_runtime``.
+
+    Every slot starts as the production adapter's own, so a test replaces
+    only the collaborators it states. ``screen`` serves both the intake gate
+    and the final-report gate; the stand-ins here key on ``subject.stage``
+    when a test needs only one of them. ``production`` is kept for a test
+    that wraps or restores the real collaborator.
+    """
+
+    def __init__(self) -> None:
+        self.production = ProductionEngineTaskRuntime()
+        self.generator_and_opts: Callable[..., tuple[Any, dict[str, Any]]] = (
+            self.production.generator_and_opts
+        )
+        self.generator_for_restore: Callable[..., Any] = (
+            self.production.generator_for_restore
+        )
+        self.screen: Callable[..., Awaitable[Any]] = self.production.screen
+        self.drain_final_state: Callable[..., Awaitable[Any]] = (
+            self.production.drain_final_state
+        )
+
+
+def _install_runtime(monkeypatch: pytest.MonkeyPatch) -> FakeEngineTaskRuntime:
+    """Install the test adapter for this test, or return the one installed.
+
+    The one place a test states which collaborators a durable task runs
+    against, in place of patching each module that looks one up. Undone with
+    the test.
+    """
+    installed = engine_tasks_runtime._installed
+    if isinstance(installed, FakeEngineTaskRuntime):
+        return installed
+    runtime = FakeEngineTaskRuntime()
+    monkeypatch.setattr(engine_tasks_runtime, "_installed", runtime)
+    return runtime
+
+
+def _patch_restore_generator(
+    monkeypatch: pytest.MonkeyPatch, generator: _Generator
+) -> None:
+    """Make every restore site rebuild state with ``generator``."""
+    _install_runtime(monkeypatch).generator_for_restore = lambda *_: generator
 
 
 def _patch_generator(
     monkeypatch: pytest.MonkeyPatch,
-    generator: _Generator,
+    generator: Any,
     *,
     restore: bool = False,
     screen: bool = False,
 ) -> None:
     """Route the executor's generator seams at ``generator``.
 
-    Installs ``_generator_and_opts`` always, and optionally the restore
-    seam and the deterministic intake screen -- the exact setattr calls the
-    durable-executor tests otherwise repeat verbatim.
+    Installs the generator for a new run always, and optionally the restore
+    generator and the deterministic screen -- the slots the durable-executor
+    tests otherwise patch module by module.
     """
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
+    runtime = _install_runtime(monkeypatch)
+    runtime.generator_and_opts = lambda *_: (generator, {})
     if restore:
-        monkeypatch.setattr(
-            engine_tasks, "_generator_for_restore", lambda *_: generator
-        )
+        _patch_restore_generator(monkeypatch, generator)
     if screen:
-        monkeypatch.setattr(
-            engine_tasks, "screen_with_escalation", _deterministic_screen
-        )
+        runtime.screen = _deterministic_screen
 
 
 def _patch_task_node(monkeypatch: pytest.MonkeyPatch, execute: Any) -> None:

@@ -181,7 +181,7 @@ def escalate_held_hypotheses(
 
     This is the drain's escalation phase: pure provider work, run strictly
     between the drain's two write transactions (see
-    ``app.engine_adapter.drain._persist_final_state`` -- never inside
+    ``app.engine_adapter.drain.persist_final_state`` -- never inside
     either, since ``store.transaction`` takes SQLite's write lock the
     instant it opens, and this must never hold that lock across network
     I/O). Synchronous at this boundary so the drain, itself synchronous,

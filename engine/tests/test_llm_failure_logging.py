@@ -151,7 +151,12 @@ def _llm_layer_records(
     return [
         r
         for r in caplog.records
-        if r.name in ("co_scientist.llm", "co_scientist.llm_response")
+        if r.name
+        in (
+            "co_scientist.llm",
+            "co_scientist.llm.call",
+            "co_scientist.llm.request.response",
+        )
         and r.levelno >= logging.WARNING
     ]
 
@@ -161,11 +166,11 @@ async def test_one_failed_attempt_logs_one_failure_record(
 ) -> None:
     """Three layers saw the same failure and all three wrote it down.
 
-    ``llm_response`` logged the empty completion, ``call_llm`` logged the
-    call, and the retry loop logged the attempt -- one answerless
-    completion, three records saying the same sentence. A production
-    export of a run that recovered fine read as 27 errors and 29 warnings,
-    which is what a reader has to page through to find a real fault.
+    ``llm.request.response`` logged the empty completion, ``call_llm`` logged
+    the call, and the retry loop logged the attempt -- one answerless
+    completion, three records saying the same sentence. A production export of a
+    run that recovered fine read as 27 errors and 29 warnings, which is what a
+    reader has to page through to find a real fault.
     """
     _disable_cache(monkeypatch)
     _serve(monkeypatch, [_answerless(), _completion(_message('{"a":1}'))])
@@ -179,7 +184,7 @@ async def test_one_failed_attempt_logs_one_failure_record(
 
     failures = [r for r in caplog.records if "LLM call failed" in r.message]
     assert len(failures) == 1
-    assert failures[0].name == "co_scientist.llm_json_retry"
+    assert failures[0].name == "co_scientist.llm.attempts.retry"
     assert _llm_layer_records(caplog) == []
 
 
@@ -243,12 +248,12 @@ async def test_a_direct_call_llm_failure_logs_once_per_attempt(
     """Silencing the raw call layer under the retry loop must not silence it.
 
     ``debate`` and the literature-review synthesis call ``call_llm``
-    directly, and ``call_llm`` now carries its own budget-escalation retry
-    loop (see ``llm_text_retry``) built on the same failure-logging pieces
-    ``call_llm_json`` uses -- so a repeated failure logs once per attempt,
-    not once per underlying raw call PLUS once per attempt, and the raw
-    call layer itself (``co_scientist.llm``/``co_scientist.llm_call``) stays
-    silent under it exactly as it does under ``call_llm_json``.
+    directly, and ``call_llm`` runs on the same attempt loop
+    (``llm.attempts.retry``) as ``call_llm_json`` -- so a repeated failure
+    logs once per attempt, not once per underlying raw call PLUS once per
+    attempt, and the raw call layer itself
+    (``co_scientist.llm``/``co_scientist.llm.attempts.single``) stays silent
+    under it exactly as it does under ``call_llm_json``.
     """
     from co_scientist.llm import call_llm
 
@@ -265,7 +270,7 @@ async def test_a_direct_call_llm_failure_logs_once_per_attempt(
 
     failures = [r for r in caplog.records if "LLM call failed" in r.message]
     assert len(failures) == 3
-    assert {r.name for r in failures} == {"co_scientist.llm_json_retry"}
+    assert {r.name for r in failures} == {"co_scientist.llm.attempts.retry"}
     assert [r.levelno for r in failures] == [
         logging.WARNING,
         logging.WARNING,
@@ -284,7 +289,7 @@ def test_a_repaired_truncation_reports_the_phase_once(
     two records to learn one fact. The phase is the fact; the strategy
     index is for someone debugging the repair strategies.
     """
-    from co_scientist.llm_json import parse_tool_loop_json
+    from co_scientist.llm import parse_tool_loop_json
 
     truncated = '{"items": [{"a": 1}, {"a": 2'
 

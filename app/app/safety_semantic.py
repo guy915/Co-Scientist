@@ -3,8 +3,7 @@
 Split from ``app.safety`` so the deterministic policy, the model assessment,
 and the run-level effects stay independently readable while each module stays
 under the repository's file-length ceiling. ``app.safety`` keeps
-``screen_contextual`` and ``_semantic_credential_available`` -- both are
-established monkeypatch seams -- and calls into the helpers here.
+``screen_contextual`` and calls into the helpers here.
 """
 
 from __future__ import annotations
@@ -12,9 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_json_lists import coerce_json_list
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+    coerce_json_list,
+)
 from co_scientist.schemas.builders import obj
 
 from app.safety_types import SafetyDecision
@@ -59,8 +61,8 @@ def _semantic_prompt(text: str, stage: str) -> str:
 # "uncertain" is listed first because it is the enum's backfill default:
 # under the json_object downgrade, a model that omits ``category``
 # entirely gets it filled with the enum's first value
-# (``co_scientist.llm_json._default_for_field_schema``), and a missing
-# verdict must read as "needs a human", never as the strictest or the
+# (``co_scientist.llm.structured.validate._default_for_field_schema``), and a
+# missing verdict must read as "needs a human", never as the strictest or the
 # most permissive category by accident of list order.
 _SEMANTIC_CATEGORY_SCHEMA = {
     "type": "string",
@@ -196,14 +198,14 @@ async def _call_semantic_safety_model(
     used to raise ``json.loads``'s "Expecting value" straight out of this
     function, which every caller treats as a provider failure and holds
     for human review (``_assessment_unavailable_decision``). The engine
-    seam already strips fences (``llm_json.extract_response_json``),
-    backfills required fields and prunes invented ones under the
-    json_object downgrade, retries on the shared budget ladder, and
-    raises once every attempt is exhausted -- so the same
-    ``except Exception`` in ``screen_contextual``/``assess_hold_contextually``
-    still catches a persistently bad model and still falls back to the
-    unavailable-assessment hold; it just no longer trips on a
-    well-formed-but-fenced first answer.
+    seam already strips fences
+    (``llm.structured.validate.extract_response_json``), backfills required
+    fields and prunes invented ones under the json_object downgrade, retries on
+    the shared budget ladder, and raises once every attempt is exhausted -- so
+    the same ``except Exception`` in
+    ``screen_contextual``/``assess_hold_contextually`` still catches a
+    persistently bad model and still falls back to the unavailable-assessment
+    hold; it just no longer trips on a well-formed-but-fenced first answer.
 
     Sending no ``max_tokens`` was not "unbounded" -- it took the
     provider's own default, small enough for thinking to exhaust before

@@ -11,10 +11,11 @@ import sys
 
 import pytest
 
-from app import engine_adapter, store
+from app import store
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+from tests._process_mode_helpers import FakeProcessMode
 
 
 def _completed_run_id() -> str:
@@ -57,13 +58,13 @@ def test_ask_offline_returns_grounded_answer_not_error() -> None:
 
 
 def test_ask_uses_real_llm_when_provider_key_present(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A configured provider still streams through the litellm path."""
     rid = _completed_run_id()
     # The Q&A endpoint routes on the LLM backend now, not the retired mock
     # provider: a real (non-offline) backend takes the streaming litellm path.
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
     monkeypatch.setitem(
         sys.modules, "litellm", _fake_litellm(["Model ", "text"])
     )

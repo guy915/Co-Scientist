@@ -1,8 +1,8 @@
 """Startup and shutdown helpers for the FastAPI ``lifespan`` hook.
 
-Split out of ``app.main``, which re-exports every name here so
+Split out of ``app.main``, which re-exports the names the test suite uses so
 ``main._launch_embedded_recovery_workers`` and friends keep resolving for
-the test suite. The ``lifespan`` async generator itself stays in
+it. The ``lifespan`` async generator itself stays in
 ``app.main`` -- see the module docstring there and AGENTS.md's "Gotchas"
 section for the load-bearing ordering constraints (startup work runs
 before uvicorn binds a port; the checkpoint sweep must stay inline;

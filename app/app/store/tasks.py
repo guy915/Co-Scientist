@@ -14,8 +14,8 @@ The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
 live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
 probes live in ``app.store.tasks_probes``. Ambiguous provider outcomes and
-expired-lease recovery live in ``app.store.tasks_recovery``. Every name from
-those sibling modules is re-exported here so the module namespace is unchanged.
+expired-lease recovery live in ``app.store.tasks_recovery``. The names from
+those sibling modules that callers use are re-exported here.
 """
 
 from __future__ import annotations
@@ -31,9 +31,6 @@ from app.store import tasks_recovery
 from app.store.db import _now, _use_conn, connect, transaction
 from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
-)
-from app.store.tasks_attempts import (
-    _ATTEMPT_ERROR_MAX_CHARS as _ATTEMPT_ERROR_MAX_CHARS,
 )
 from app.store.tasks_attempts import (
     _MAX_STORED_ATTEMPTS as _MAX_STORED_ATTEMPTS,
@@ -61,9 +58,6 @@ from app.store.tasks_lifecycle import resume_run_tasks as resume_run_tasks
 from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
-)
-from app.store.tasks_model import (
-    UNKNOWN_PROVIDER_OUTCOME_ERROR as UNKNOWN_PROVIDER_OUTCOME_ERROR,
 )
 from app.store.tasks_model import ScientificTask as ScientificTask
 from app.store.tasks_model import TaskFailure as TaskFailure

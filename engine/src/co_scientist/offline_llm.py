@@ -1,14 +1,14 @@
 """Deterministic offline LLM backend for ``offline/``-prefixed models.
 
 Productionizes the pattern proven out by the test fake in
-``tests/_llm_fake.py``: every engine LLM call funnels through exactly two
-``litellm.acompletion`` call sites (``co_scientist.llm`` and
-``co_scientist.llm_tool_loop``), both of which read the live module
-attribute, so ``setattr(litellm, "acompletion", wrapper)`` intercepts
-everything. ``install_offline_router`` installs a conditional wrapper: a
-call whose ``model`` starts with ``OFFLINE_MODEL_PREFIX`` is answered
-locally by ``offline_acompletion``; every other call passes through to the
-original callable untouched, so real-model traffic is unaffected.
+``tests/_llm_fake.py``: every engine LLM call funnels through
+``co_scientist.llm.request.completion._acompletion_within_timeout``, which
+reads the live ``litellm.acompletion`` module attribute, so
+``setattr(litellm, "acompletion", wrapper)`` intercepts everything.
+``install_offline_router`` installs a conditional wrapper: a call whose
+``model`` starts with ``OFFLINE_MODEL_PREFIX`` is answered locally by
+``offline_acompletion``; every other call passes through to the original
+callable untouched, so real-model traffic is unaffected.
 
 Unlike the test fake's process-global counter (fine for a monkeypatch that
 pytest reverts after every test), the runtime router must not depend on
@@ -52,7 +52,7 @@ import types
 from collections.abc import Callable
 from typing import Any
 
-from co_scientist import llm_request
+from co_scientist.llm.request import completion
 from co_scientist.offline_content import leaf_text, subject_terms
 from co_scientist.offline_schema_fill import _fill_schema, _FillHints
 
@@ -118,7 +118,7 @@ def _relevance_batch_length(prompt: str) -> dict[str, int]:
 # model freely decides how many major directions a hypothesis pool
 # resolves into. This hook is therefore a fixed count, not a prompt
 # reading: enough to clear the report's directions-preview gate
-# (report_markdown_overview.py::_render_directions_preview renders
+# (report/markdown/overview.py::_render_directions_preview renders
 # nothing below two named directions), so an offline run reads as having
 # found several directions worth pursuing rather than exactly one.
 _RESEARCH_DIRECTIONS_COUNT = 3
@@ -214,10 +214,10 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 #
 # Both entries below were found dark (docs/decisions/2026-09-02-offline-
 # optional-field-reach.md): FULL_REVIEW_SCHEMA's go_no_go_recommendation/
-# time_to_verdict feed drain_reviews._verdict_detail, which
+# time_to_verdict feed drain.reviews._verdict_detail, which
 # ideas_detail_review_findings.tsx's VerdictLines never renders without
 # them; META_REVIEW_SCHEMA's strategic_recommendations[] time_estimate/
-# phase_label/recommended_idea feed report_markdown_meta_review's
+# phase_label/recommended_idea feed report.markdown.meta_review's
 # _render_recommendation the same way. Both are plain free-text fields --
 # no value needs to reference another part of the response -- so a name
 # list alone is enough; see the ADR for the optional fields left out
@@ -264,7 +264,7 @@ def _prompt_text(completion_args: dict[str, Any]) -> str:
 
     Args:
         completion_args: The completion arguments built by
-            ``co_scientist.llm_request._build_completion_args``.
+            ``co_scientist.llm.request.completion._build_completion_args``.
 
     Returns:
         The last message's content, or "" if there are no messages.
@@ -375,9 +375,9 @@ async def offline_acompletion(**completion_args: Any) -> Any:
 
     Args:
         **completion_args: The completion arguments built by
-            ``co_scientist.llm_request._build_completion_args`` (model,
-            messages, response_format, ...); only "model", "response_format",
-            and the outgoing prompt text are inspected.
+            ``co_scientist.llm.request.completion._build_completion_args``
+            (model, messages, response_format, ...); only "model",
+            "response_format", and the outgoing prompt text are inspected.
 
     Returns:
         A fake completion response exposing
@@ -440,10 +440,10 @@ def install_offline_router() -> None:
     routers. ``offline/``-prefixed models are answered by
     ``offline_acompletion``; every other model's call passes through
     untouched to the callable that was live at install time. Also wraps
-    ``llm_request._supports_json_schema_response_format`` so schema'd
+    ``llm.request.completion._supports_json_schema_response_format`` so schema'd
     offline calls take the native json_schema branch in
-    ``co_scientist.llm_request._apply_response_format`` rather than the
-    json_object provider-capability shim.
+    ``co_scientist.llm.request.completion._apply_response_format`` rather than
+    the json_object provider-capability shim.
     """
     global _installed, _original_acompletion, _original_supports_json_schema
 
@@ -454,7 +454,7 @@ def install_offline_router() -> None:
 
     original_acompletion = litellm.acompletion
     original_supports_json_schema = (
-        llm_request._supports_json_schema_response_format
+        completion._supports_json_schema_response_format
     )
 
     litellm.acompletion = _make_routed_acompletion(original_acompletion)
@@ -463,7 +463,7 @@ def install_offline_router() -> None:
     # mismatch) installs the plain-function replacement. noqa: intentional
     # dynamic patch, the same pattern the test fake uses via monkeypatch.
     setattr(  # noqa: B010
-        llm_request,
+        completion,
         "_supports_json_schema_response_format",
         _make_routed_supports_json_schema(original_supports_json_schema),
     )

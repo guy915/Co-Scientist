@@ -51,13 +51,13 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.llm import (
+    DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
     call_llm_with_tools,
+    parse_tool_loop_json,
 )
-from co_scientist.llm_json import parse_tool_loop_json
-from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
@@ -164,9 +164,10 @@ def _count_assistant_turns(messages: list[dict[str, Any]]) -> int:
 
     Each tool-loop iteration issues exactly one ``litellm.acompletion`` and
     appends its assistant message to the running conversation
-    (``llm_tool_loop.py``), so the assistant-role entries are a precise
+    (``llm/tools/loop.py``), so the assistant-role entries are a precise
     count of real LLM calls the loop made -- finding L3's fix for
-    tool-based generation, without needing to instrument ``llm.py`` itself.
+    tool-based generation, without needing to instrument the ``llm`` package
+    itself.
 
     Args:
         messages: The full running conversation returned by
@@ -239,7 +240,7 @@ async def _invoke_draft_llm(
     except Exception as e:
         # No fallback: Phase 1 failing means there are no drafts to pass to
         # Phase 2, so this re-raises rather than degrading gracefully (unlike
-        # the enhancement-node fallbacks in llm.py's
+        # the enhancement-node fallbacks in llm.structured.validate's
         # _ENHANCEMENT_NODE_FALLBACKS).
         logger.error("Draft phase failed: %s", e)
         raise

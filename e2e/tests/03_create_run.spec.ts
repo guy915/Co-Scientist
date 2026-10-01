@@ -152,7 +152,7 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
 // optional in FULL_REVIEW_SCHEMA but named in offline_llm's
 // _OPTIONAL_FIELD_HINTS, so the offline backend fills them too -- see
 // ideas_detail_review_findings.tsx's SimulationFindings/VerdictLines and
-// drain_reviews.py's detail_json build.
+// drain/reviews.py's detail_json build.
 async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   const detail = page.getByRole('region', {name: 'Hypothesis detail'});
   const fullReviewHeading = detail.getByRole('heading', {
@@ -186,7 +186,7 @@ async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
 }
 
 // The overview report's research-directions preview list, gated on 2+ named
-// directions (report_markdown_overview.py::_render_directions_preview,
+// directions (report/markdown/overview.py::_render_directions_preview,
 // mirrored in the frontend's DirectionsPreview) -- proof the offline
 // backend's research_overview call is sized past that gate rather than
 // defaulting to the generic filler's one item per array.

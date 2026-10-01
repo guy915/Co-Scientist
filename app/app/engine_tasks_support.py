@@ -2,10 +2,10 @@
 
 The task-type vocabulary and the checkpoint save/enqueue/restore
 helpers used by every ``engine_tasks_*`` module. Split from
-``app.engine_tasks``, which re-exports these names, so the
+``app.engine_tasks``, which re-exports the names callers use, so the
 fan-out/ranking/gate modules can share them without an import cycle
 back into the dispatcher. The node-completion emitters moved on to
-``app.engine_tasks_emit`` and are re-exported below.
+``app.engine_tasks_emit``; the ones still in use are re-exported below.
 """
 
 from __future__ import annotations
@@ -13,9 +13,9 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from app import store
-from app.engine_adapter.opts import _build_engine_opts, _build_generator
-from app.engine_adapter.provider import _import_hypothesis_generator
+from app import engine_tasks_runtime, store
+from app.engine_adapter.opts import build_engine_opts, build_generator
+from app.engine_adapter.provider import import_hypothesis_generator
 from app.engine_tasks_context import (
     ExactSuccessor,
     TaskCommit,
@@ -28,19 +28,10 @@ from app.engine_tasks_emit import (
     _emit_node_completion as _emit_node_completion,
 )
 from app.engine_tasks_emit import (
-    _emit_node_milestone as _emit_node_milestone,
-)
-from app.engine_tasks_emit import (
     _plain_final_state as _plain_final_state,
 )
 from app.engine_tasks_metrics import (
     _metrics_snapshot as _metrics_snapshot,
-)
-from app.engine_tasks_metrics import (
-    _performance_assessment as _performance_assessment,
-)
-from app.engine_tasks_metrics import (
-    _plain_metrics as _plain_metrics,
 )
 from app.engine_tasks_pause import (
     _save_paused_if_requested as _save_paused_if_requested,
@@ -52,15 +43,8 @@ from app.engine_tasks_portfolio import (
     _enqueue_node_portfolio as _enqueue_node_portfolio,
 )
 from app.engine_tasks_queue_actions import (
-    _apply_single_queue_action as _apply_single_queue_action,
-)
-from app.engine_tasks_queue_actions import (
-    _apply_supervisor_queue_actions as _apply_supervisor_queue_actions,
-)
-from app.engine_tasks_queue_actions import (
     _durable_queue_snapshot as _durable_queue_snapshot,
 )
-from app.report_render import make_emitter as make_emitter
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
 
@@ -137,7 +121,7 @@ def _successor_task_type(successor: str | None) -> str:
     return f"{NODE_TASK_PREFIX}{successor}"
 
 
-def _assert_task_commit_allowed(
+def assert_task_commit_allowed(
     task: ScientificTask, conn: sqlite3.Connection
 ) -> None:
     """Require the task's lease and run to remain live inside its commit."""
@@ -177,13 +161,13 @@ def _generator_and_opts(
 
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
-    generator = _build_generator(
-        _import_hypothesis_generator(),
+    generator = build_generator(
+        import_hypothesis_generator(),
         cfg,
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
     )
-    return generator, _build_engine_opts(cfg, run.id, db_path)
+    return generator, build_engine_opts(cfg, run.id, db_path)
 
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
@@ -191,8 +175,8 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
-    return _build_generator(
-        _import_hypothesis_generator(),
+    return build_generator(
+        import_hypothesis_generator(),
         resolved_run_config(run.config),
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
@@ -277,7 +261,7 @@ def _save_state_and_enqueue(
     )
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         if pause_if_requested:
             paused = _save_paused_if_requested(
                 commit, state, successor_type, envelope, conn
@@ -369,7 +353,7 @@ def _save_state_and_enqueue_exact(
         ),
     )
     with store.transaction(commit.db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_exact_checkpoint(
             task, envelope, commit.current_seq, conn
         )
@@ -422,6 +406,47 @@ def _replay_or_supersede(
     return None, checkpoint, current_seq
 
 
+def restore_checkpoint_state(
+    task: ScientificTask, checkpoint: dict[str, Any], db_path: str | None
+) -> dict[str, Any]:
+    """Rebuild the workflow state ``checkpoint`` holds for a leased task.
+
+    The generator exists only to hand its tool registry to the restore, so it
+    is built per call and dropped: nothing it creates outlives the calling
+    cohort's event loop, and steering is not consumed.
+    """
+    from app.engine_adapter.checkpoints import restore_workflow_state
+
+    generator = engine_tasks_runtime.active().generator_for_restore(
+        task, db_path
+    )
+    return restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+
+
+def leased_state(
+    task: ScientificTask, db_path: str | None, *, label: str
+) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
+    """Guard a leased task against replay or supersession, then restore state.
+
+    Returns ``(replay_result, state, current_seq)``. When ``replay_result`` is
+    not ``None`` the caller returns it at once and ``state`` is empty: this
+    task already committed the checkpoint now on record. Raises
+    ``SupersededTaskError`` exactly as ``_replay_or_supersede`` does.
+    """
+    replay, checkpoint, current_seq = _replay_or_supersede(
+        task, db_path, label=label
+    )
+    if replay is not None:
+        return replay, {}, current_seq
+    return (
+        None,
+        restore_checkpoint_state(task, checkpoint, db_path),
+        current_seq,
+    )
+
+
 def _restore_item_checkpoint(
     task: ScientificTask, db_path: str | None, *, superseded: str
 ) -> tuple[dict[str, Any], int]:
@@ -441,14 +466,8 @@ def _restore_item_checkpoint(
     Raises:
         SupersededTaskError: When the leased checkpoint was superseded.
     """
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
         raise SupersededTaskError(f"{superseded} checkpoint was superseded")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return state, expected_seq
+    return restore_checkpoint_state(task, checkpoint, db_path), expected_seq

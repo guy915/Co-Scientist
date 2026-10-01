@@ -323,12 +323,12 @@ class TestOrchestratorDirectRankRoute:
     """
 
     def test_task_routes_rank_goes_to_safety_screen(self) -> None:
-        from co_scientist.generator.graph import _TASK_ROUTES
+        from co_scientist.workflow_topology import TASK_ROUTES
 
-        assert _TASK_ROUTES["rank"] == "safety_screen"
+        assert TASK_ROUTES["rank"] == "safety_screen"
 
     def test_route_next_task_rank_returns_safety_screen(self) -> None:
-        from co_scientist.generator.graph import _route_next_task
+        from co_scientist.workflow_topology import route_next_task
 
         state = make_state(next_task="rank")
-        assert _route_next_task(state) == "safety_screen"
+        assert route_next_task(state) == "safety_screen"

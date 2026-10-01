@@ -22,7 +22,7 @@ disabling is reconciled once, at registry load"):
   (``scheduling.policy_cadence._check_meta_review_cadence``, which covers
   both the ordered step and the companion path). This is "no *periodic*
   meta-review", NOT "no meta-review agent": the EVOLVE branch still enters
-  the meta_review node (``generator/graph._TASK_ROUTES``, out of this
+  the meta_review node (``workflow_topology.TASK_ROUTES``, out of this
   driver's reach), so the node can still run to feed evolution. The off
   path degrades cleanly -- every consumer reads ``state["meta_review"]``,
   which stays the empty ``{}`` it starts at and renders nothing, exactly

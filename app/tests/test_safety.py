@@ -9,8 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import safety
+from app import process_mode
 from app.safety import screen_contextual, screen_final, screen_intake
+from tests._process_mode_helpers import FakeProcessMode
 
 
 def test_allow_benign_research_goal() -> None:
@@ -67,7 +68,7 @@ def test_azure_safety_model_resolves_its_credential(
 ) -> None:
     """An ``azure/`` safety model must not read as having no credential.
 
-    ``_semantic_credential_available`` used to carry its own provider table,
+    The safety screen's credential check used to carry its own provider table,
     which never learned ``AZURE_API_KEY``. The gap does not raise: the
     contextual screen just returns the deterministic baseline, so the
     semantic layer reads as configured-but-never-winning rather than as
@@ -75,7 +76,7 @@ def test_azure_safety_model_resolves_its_credential(
     the offline-mode probe already recognized Azure through.
     """
     monkeypatch.setenv("AZURE_API_KEY", "sk-test")
-    assert safety._semantic_credential_available("azure/gpt-4o") is True
+    assert process_mode.credential_available("azure/gpt-4o") is True
 
 
 def test_google_api_key_credentials_a_gemini_safety_model(
@@ -88,7 +89,7 @@ def test_google_api_key_credentials_a_gemini_safety_model(
     """
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("GOOGLE_API_KEY", "sk-test")
-    assert safety._semantic_credential_available("gemini/gemini-3-pro") is True
+    assert process_mode.credential_available("gemini/gemini-3-pro") is True
 
 
 def test_unknown_provider_has_no_credential(
@@ -96,11 +97,11 @@ def test_unknown_provider_has_no_credential(
 ) -> None:
     """A model whose provider is unmapped falls back to the baseline."""
     monkeypatch.setenv("AZURE_API_KEY", "sk-test")
-    assert safety._semantic_credential_available("mystery/model-x") is False
+    assert process_mode.credential_available("mystery/model-x") is False
 
 
 async def test_contextual_screen_holds_ambiguous_risk(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """Semantic uncertainty pauses release and preserves provenance."""
     import litellm
@@ -121,10 +122,7 @@ async def test_contextual_screen_holds_ambiguous_risk(
 
     # The suite process is offline-pinned, which is its own deliberate
     # carve-out; these exercise a configured deployment's contextual screen.
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", fake_completion)
     decision = await screen_contextual(
         "Optimize a sensitive biological protocol.", "intake"
@@ -137,7 +135,7 @@ async def test_contextual_screen_holds_ambiguous_risk(
 
 
 async def test_contextual_failure_fails_closed(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """An unavailable semantic assessor cannot silently allow publication."""
     import litellm
@@ -147,10 +145,7 @@ async def test_contextual_failure_fails_closed(
 
     # The suite process is offline-pinned, which is its own deliberate
     # carve-out; these exercise a configured deployment's contextual screen.
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", failed_completion)
     decision = await screen_contextual("Ambiguous protocol", "final")
 

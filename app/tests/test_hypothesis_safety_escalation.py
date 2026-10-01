@@ -30,18 +30,19 @@ from app.hypothesis_safety import (
     escalate_review,
     review_hypothesis_safety,
 )
+from tests._process_mode_helpers import FakeProcessMode
 
 _MODEL = "openrouter/test/safety:free"
 
 
 @pytest.fixture(autouse=True)
 def _qualified_model_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.setattr(
-        llm_free_catalog,
+        free_catalog,
         "_fetch_catalog",
         lambda: {
             "test/safety:free": {
@@ -140,16 +141,13 @@ async def test_run_not_eligible_to_escalate_leaves_verdict_unchanged(
 
 
 async def test_missing_credential_holds_rather_than_allows(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A configured-but-unreachable model must not silently clear a hold."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: False
-    )
+    fake_process_mode.online(credential=False)
     review = _held_review()
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
@@ -159,7 +157,7 @@ async def test_missing_credential_holds_rather_than_allows(
 
 
 async def test_provider_error_holds_rather_than_allows(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A provider failure mid-call must not clear the hold either."""
     import litellm
@@ -173,10 +171,7 @@ async def test_provider_error_holds_rather_than_allows(
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", raise_completion)
     review = _held_review()
 
@@ -190,7 +185,7 @@ async def test_provider_error_holds_rather_than_allows(
 
 
 async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A model saying "allowed" resolves a Tier B hold to allow.
 
@@ -213,10 +208,7 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", allow_completion)
     review = _held_review()
 
@@ -227,7 +219,7 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
 
 
 async def test_model_raises_a_held_verdict(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """When the model disagrees with the hold, it may raise it to block."""
     import litellm
@@ -239,10 +231,7 @@ async def test_model_raises_a_held_verdict(
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", block_completion)
     review = _held_review()
 
@@ -254,7 +243,7 @@ async def test_model_raises_a_held_verdict(
 
 
 async def test_admission_endpoint_path_blocks_on_model_raise(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The scientist-admission wrapper reflects an escalated block too."""
     import litellm
@@ -266,10 +255,7 @@ async def test_admission_endpoint_path_blocks_on_model_raise(
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     monkeypatch.setattr(litellm, "acompletion", block_completion)
 
     admission = await human_input.admit_human_hypothesis_with_escalation(

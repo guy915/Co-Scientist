@@ -7,14 +7,14 @@ claim verbatim is maximally supporting and completely unusable; only a check
 that never reads the claim can say so. This module is that check, and it is
 the single implementation of it: the drain resolves every retrieved article
 through :func:`assess_resolvability` (see
-``engine_adapter/drain_evidence_resolution.py``), and the report's
+``engine_adapter/drain/evidence_resolution.py``), and the report's
 bibliography classifies every rendered reference through
 :func:`classify_source_type` / :func:`classify_date`.
 
 Split out of :mod:`app.claims_gate`, which owned resolvability beside the
 entailment verdict and the publication gate -- three concerns, and the file
-was near its size budget. :mod:`app.claims` re-exports every public name
-here exactly as before.
+was near its size budget. :mod:`app.claims` re-exports the public names
+callers use exactly as before.
 
 The check has two halves, and they differ in where they can run:
 

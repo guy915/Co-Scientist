@@ -13,7 +13,7 @@ from typing import Any
 from co_scientist.agents.proximity.proximity_graph import is_judged_edge
 
 from app import store
-from app.report_render import article_stub, hypothesis_stub, match_stub
+from app.run_events import article_stub, hypothesis_stub, match_stub
 
 
 def _canonical_event_type(node_name: str) -> str:
@@ -210,7 +210,7 @@ def _canonical_engine_payload(
     ``store.append_event`` JSON-serializes the payload with no fallback
     handler, so raw hypothesis/article dicts (which may carry non-serializable
     fields such as embeddings) must never be embedded whole. This mirrors the
-    projection discipline in ``_persist_final_state``.
+    projection discipline in ``persist_final_state``.
 
     Args:
         node_name: The engine graph node name.

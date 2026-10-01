@@ -3,8 +3,8 @@
 Everything between the request body and the DRAFT row: the
 bring-your-own-key credential, the goal interview it may have come
 from, and the config those produce. Split from ``runs_crud`` so that
-module stays under the line ceiling; every name is re-exported there,
-which remains the import and monkeypatch surface.
+module stays under the line ceiling; the names callers use are re-exported
+there, which remains their import and monkeypatch surface.
 """
 
 from __future__ import annotations

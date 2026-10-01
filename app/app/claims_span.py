@@ -102,8 +102,7 @@ def _downgrade_unproven_label(
     PARTIAL claim cites its near-miss passage as a supporting span, so it is
     guarded against the same ``supporting`` list as SUPPORTS.
     """
-    supporting_labels = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
-    if (label in supporting_labels and not supporting) or (
+    if (label.is_supporting and not supporting) or (
         label is EntailmentLabel.CONTRADICTS and not contradicting
     ):
         return EntailmentLabel.INSUFFICIENT

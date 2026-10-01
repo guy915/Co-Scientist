@@ -9,7 +9,7 @@ when a run retrieved nothing.
 
 from typing import Any
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _hypothesis() -> dict[str, Any]:

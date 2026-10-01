@@ -32,11 +32,7 @@ from co_scientist.agents.meta_review import (
     research_overview_direction_calls as calls,
 )
 from co_scientist.constants import RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS
-from co_scientist.llm_telemetry import (
-    ModelCallStats,
-    record_call,
-    scoped_telemetry,
-)
+from co_scientist.llm import ModelCallStats, record_call, scoped_telemetry
 from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_MAX_DIRECTIONS,
     RESEARCH_OVERVIEW_TARGET_DIRECTIONS,

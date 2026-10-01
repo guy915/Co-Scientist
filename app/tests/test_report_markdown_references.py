@@ -11,7 +11,7 @@ resolve them against. These tests pin the fix at the render layer, in
 isolation from the drain/store.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _hypothesis(hyp_id: str, mechanism: str) -> dict[str, object]:

@@ -4,7 +4,7 @@ The aggregate task that commits mature-reflection fan-out results, plus
 the ``_AppliedItems`` tally and the checkpoint-and-advance commit helper
 every fan-out aggregate shares. Split from
 ``app.engine_tasks_fanout_aggregates``, which imports the shared helper
-and re-exports these names so ``app.engine_tasks`` remains the stable
+and re-exports the names callers use so ``app.engine_tasks`` remains their
 import and monkeypatch surface.
 
 The deep-verification aggregate is the sibling
@@ -22,10 +22,9 @@ from app.engine_tasks_context import TaskCommit
 from app.engine_tasks_support import (
     NodeCompletion,
     _emit_node_completion,
-    _generator_for_restore,
-    _replay_or_supersede,
     _require_item_task,
     _save_state_and_enqueue,
+    leased_state,
 )
 from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
@@ -266,17 +265,11 @@ async def execute_mature_reflection_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit mature Reflection results while isolating individual failures."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
+    replay, state, current_seq = leased_state(
         task, db_path, label="reflection aggregate"
     )
     if replay is not None:
         return replay
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     items = _apply_mature_reflection_items(
         by_id,

@@ -22,7 +22,7 @@ from co_scientist.models import SCIENTIST_REVIEWER
 
 from app import engine_tasks, engine_tasks_inputs, store, task_worker
 from app.config import settings
-from app.engine_adapter import drain_hypotheses
+from app.engine_adapter.drain import hypotheses as drain_hypotheses
 from app.engine_tasks_support import NODE_TASK_PREFIX
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (

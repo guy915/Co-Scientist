@@ -117,7 +117,7 @@ _HYPOTHESIS_UPSERT = (
 # The mutable-state row is created once and thereafter only updated, so a
 # re-persisted hypothesis keeps the safety_status its screening set and the
 # tournament counters it has accumulated. The drain writes Elo and status
-# immediately afterwards (see drain_hypotheses._persist_hypothesis_state).
+# immediately afterwards (see drain.hypotheses._persist_hypothesis_state).
 _HYPOTHESIS_STATE_INSERT = (
     "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) "
     "VALUES (?,?,?) ON CONFLICT(hypothesis_id) DO NOTHING"

@@ -55,7 +55,7 @@ const AIMS_CLOSING_FIELDS = [
   ['impact', ''],
 ] as const;
 // Per-aim body fields, each labelled; new spelling first, same order and
-// labels as report_markdown_overview.py's _AIM_BODY_FIELDS. Only one
+// labels as report/markdown/overview.py's _AIM_BODY_FIELDS. Only one
 // spelling of each pair is ever present, so the whole list renders in
 // order.
 //
@@ -95,7 +95,7 @@ function LabeledBlock({heading, text}: {heading: string; text: string}) {
 // F4/OVERVIEW-AIMS-VOCABULARY-001: every published exemplar heads an aim
 // by its number ("Specific Aims N") and prints its overarching goal as a
 // labelled body field beneath it, not as the heading text -- mirroring
-// report_markdown_overview.py's _render_nih_aim exactly.
+// report/markdown/overview.py's _render_nih_aim exactly.
 function SpecificAim({aim, number}: {aim: unknown; number: number}) {
   const record = isRecord(aim) ? aim : {};
   return (

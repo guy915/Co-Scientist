@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.generation.literature_tools import draft_skills
-from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.skills import catalog
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_draft_workspace

@@ -2,10 +2,10 @@
 
 The drain runs only on the real-engine branch, which the mock-forced test
 fixtures never reach. To keep it verifiable without an LLM, the drain is a
-module-level helper (`_persist_final_state`) that takes a synthetic final
+module-level helper (`persist_final_state`) that takes a synthetic final
 state and writes hypotheses, evidence, matches, and reviews into the store,
 returning the report inputs. The report itself is built and persisted by the
-shared ``report_render.finalize_report`` path.
+shared ``report.finalize.finalize_report`` path.
 
 This module holds the core drain, research-overview, lineage, matchup, and
 synthesis-exclusion cases. Multi-parent (combination) lineage lives in
@@ -22,7 +22,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import report_render, store
+from app import store
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,
@@ -333,9 +335,9 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 
     def _finalize(resumed: bool) -> list[Any]:
         return _drain(
-            report_render.finalize_report(
+            report_finalize.finalize_report(
                 run.id,
-                report_render.ReportRequest(
+                report_build.ReportRequest(
                     research_goal=run.research_goal,
                     run_mode="standard",
                     provider="engine",

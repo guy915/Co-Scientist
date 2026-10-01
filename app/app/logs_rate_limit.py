@@ -1,6 +1,6 @@
 """Per-process rate limiting for the open log-ingestion and report endpoints.
 
-Split out of ``app.logs_api``, which re-exports every name here so
+Split out of ``app.logs_api``, which re-exports the names callers use so
 ``logs_api._report_hits`` (mutated directly by ``test_logs_report.py``)
 and ``logs_api.REPORTS_PER_MINUTE`` keep resolving. Both endpoints this
 guards are open to unauthenticated callers by necessity -- a browser in

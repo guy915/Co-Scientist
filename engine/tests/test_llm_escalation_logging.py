@@ -1,7 +1,7 @@
 """Pins the escalation log text to what the request actually carries.
 
 Commit 7aaf3682 redirected the ``NO_THINKING`` rung on a model that
-cannot honour a disable (``GatewayModel.reasoning_can_disable`` is False
+cannot honour a disable (``ModelProfile.reasoning_can_disable`` is False
 -- every declared entry in the deployed free chain) to minimal-effort
 reasoning instead of a literal disable, but left ``log_escalation``
 always reporting "thinking disabled" for that rung. On exactly the
@@ -20,9 +20,12 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm_json_escalation import BudgetEscalation, log_escalation
+from co_scientist.llm.attempts.escalation import (
+    BudgetEscalation,
+    log_escalation,
+)
 
-# Declared in ``_GATEWAY_MODELS`` with the default ``reasoning_can_disable
+# Declared as a gateway route with the default ``reasoning_can_disable
 # =False`` -- the deployed free-chain primary, and the exact model the
 # 7aaf3682 redirect was written for.
 _UNDISABLEABLE_MODEL = "openrouter/minimax/minimax-m3:free"

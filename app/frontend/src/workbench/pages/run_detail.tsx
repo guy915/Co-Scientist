@@ -1,9 +1,12 @@
 import {useParams} from 'react-router-dom';
 import {
-  isActiveStatus,
-  type RunStatus,
-  type RunWithSummary,
+  isCompletedStatus,
+  isTerminalNonCompletedStatus,
+  runActivity,
   runGoal,
+  type RunActivity,
+  type RunWithSummary,
+  type TerminalNonCompletedStatus,
 } from '@/api/runs';
 import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
@@ -14,7 +17,6 @@ import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
   AwaitingDecisionNotice,
-  isTerminalNonCompletedStatus,
   ReportErrorAlert,
   reportSectionLabel,
   ReportTabNav,
@@ -23,7 +25,6 @@ import {
   RunDetailSkeleton,
   RunEndState,
   RunToast,
-  type TerminalNonCompletedStatus,
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
@@ -48,16 +49,6 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
-// Whether the run is executing. 'unknown' is a real third state: until the
-// run row (or the shell's history) says otherwise, neither the results chrome
-// nor the live view is the right guess.
-type RunActivity = 'active' | 'inactive' | 'unknown';
-
-function activityOf(status: RunStatus | undefined): RunActivity {
-  if (!status) return 'unknown';
-  return isActiveStatus(status) ? 'active' : 'inactive';
-}
-
 // The run's activity, known as early as possible. The fetched row wins once
 // it lands (a row that failed to load counts as settled, so an errored page
 // still offers its tabs). Before that the shell's run-history list already
@@ -69,8 +60,8 @@ function useRunActivity(
   data: RunDetailData,
 ): RunActivity {
   const {history} = useRunHistoryContext();
-  if (data.loaded) return data.run ? activityOf(data.run.status) : 'inactive';
-  return activityOf(history.find(run => run.id === id)?.status);
+  if (data.loaded) return data.run ? runActivity(data.run.status) : 'inactive';
+  return runActivity(history.find(run => run.id === id)?.status);
 }
 
 // The page grid: only a settled, non-active run gets the tab-nav row, since
@@ -117,7 +108,10 @@ function runUsedOffline(run: RunWithSummary): boolean {
 
 function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
   return Boolean(
-    run?.status === 'completed' && run.provider === 'engine' && !run.is_demo,
+    run &&
+    isCompletedStatus(run.status) &&
+    run.provider === 'engine' &&
+    !run.is_demo,
   );
 }
 
@@ -125,7 +119,7 @@ function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
 // categorically; flag it as ungrounded unless it was offline-backed.
 function reportIsUngrounded(data: RunDetailData): boolean {
   const run = data.run;
-  if (!data.loaded || !run || run.status !== 'completed') return false;
+  if (!data.loaded || !run || !isCompletedStatus(run.status)) return false;
   if (data.evidence.length > 0) return false;
   return !runUsedOffline(run);
 }

@@ -23,7 +23,7 @@ run's stored ``attributes`` -- whichever shape it holds.
 
 A goal-*specific* attribute rubric is a separate, already-built field:
 ``config_synthesis.attributes`` (R12-17), which the Supervisor synthesizes
-per run and ``report_markdown_supervisor.py`` renders as "Stratification
+per run and ``report/markdown/supervisor.py`` renders as "Stratification
 Attributes" -- deliberately not this field, and not touched here.
 
 Every name here is re-exported from ``run_modes`` so ``run_modes.<name>``

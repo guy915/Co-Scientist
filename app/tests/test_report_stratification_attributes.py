@@ -15,7 +15,7 @@ two differently-shaped things in Google's own documents, and conflating
 them would reproduce the wrong one).
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(

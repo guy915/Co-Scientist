@@ -4,7 +4,7 @@ The MASH Goal Report carries a ``Knowledge Base`` section as a two-level
 heading hierarchy -- named themes, each wrapping the named subject
 headings that hold the dense prose -- and, notably, zero citations
 anywhere in the span (``docs/CORPUS-EXTRACTION.md`` R12-6).
-``report_content._knowledge_base_topics`` / ``_synthesized_knowledge_base_
+``report.content._knowledge_base_topics`` / ``_synthesized_knowledge_base_
 topics`` already compute this, and it is persisted into the payload and
 rendered in the React UI, but the markdown renderer never emitted it --
 computed, paid for, and dropped on this one surface only. This pins that
@@ -16,7 +16,7 @@ carries no reference/citation apparatus, matching the published
 exemplar.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(knowledge_base: list[dict[str, object]]) -> str:

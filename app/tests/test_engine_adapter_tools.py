@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 import pytest
 
 from app.config import settings
-from app.engine_adapter.opts import _build_generator
+from app.engine_adapter.opts import build_generator
 from app.engine_adapter.tools import (
     connectors_report,
     tools_config_report,
@@ -70,7 +70,7 @@ def test_build_generator_forwards_configured_tools_config(
 ) -> None:
     """A configured tools_config reaches HypothesisGenerator."""
     monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
-    _build_generator(_FakeGenerator, _cfg())
+    build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["options"].tools_config == _INDRA_CONFIG
 
 
@@ -79,13 +79,13 @@ def test_build_generator_forwards_none_tools_config(
 ) -> None:
     """An unset tools_config forwards None (engine uses its defaults)."""
     monkeypatch.setattr(settings, "tools_config", None)
-    _build_generator(_FakeGenerator, _cfg())
+    build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["options"].tools_config is None
 
 
 def test_build_generator_forwards_run_elo_k_factor() -> None:
     """The persisted run K-factor governs real-engine Elo updates."""
-    _build_generator(_FakeGenerator, _cfg())
+    build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["options"].elo_k_factor == 36
 
 
@@ -103,12 +103,12 @@ def test_build_generator_offline_disables_cache_without_env_mutation(
     ``enable_cache=False``; since ``co_scientist.cache.get_cache()``
     memoizes that env var once per process, the embedded worker's first
     generator built (often this offline one, at startup demo-seeding) could
-    silently disable caching for every later real run. ``_build_generator``
+    silently disable caching for every later real run. ``build_generator``
     forwards ``enable_cache=False`` as a plain constructor kwarg; this pins
     that no env mutation reappears at this boundary.
     """
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
-    _build_generator(_FakeGenerator, _cfg(), offline=True)
+    build_generator(_FakeGenerator, _cfg(), offline=True)
     assert _FakeGenerator.last_kwargs["options"].enable_cache is False
     import os
 
@@ -134,7 +134,7 @@ def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
     monkeypatch.setattr(engine_cache, "_global_cache", None)
 
-    _build_generator(HypothesisGenerator, _cfg(), offline=True)
+    build_generator(HypothesisGenerator, _cfg(), offline=True)
     import os
 
     assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
@@ -202,14 +202,14 @@ def test_tools_config_report_none_enumerates_the_bundled_default() -> None:
 
 def test_build_generator_enables_web_search_by_default() -> None:
     """A config without the toggle keeps web search on."""
-    _build_generator(_FakeGenerator, _cfg())
+    build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["options"].disable_tools == []
 
 
 def test_build_generator_disables_web_search_when_toggled_off() -> None:
     """Turning the connector off disables the engine's web_search tool."""
     cfg = _cfg() | {"enable_web_search": False}
-    _build_generator(_FakeGenerator, cfg)
+    build_generator(_FakeGenerator, cfg)
     assert _FakeGenerator.last_kwargs["options"].disable_tools == [
         "web_search",
     ]
@@ -223,7 +223,7 @@ def test_disabling_web_search_keeps_read_url() -> None:
     break literature retrieval for unrelated sources.
     """
     cfg = _cfg() | {"enable_web_search": False}
-    _build_generator(_FakeGenerator, cfg)
+    build_generator(_FakeGenerator, cfg)
     assert "read_url" not in _FakeGenerator.last_kwargs["options"].disable_tools
 
 

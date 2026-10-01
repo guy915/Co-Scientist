@@ -164,7 +164,7 @@ def _check_owed_review(
     ``TerminationReason.BUDGET`` (the LLM-call ceiling). That ceiling is
     enforced twice -- here, between scheduling decisions, and again
     *inside* a task by the provider-request seam
-    (``llm_call_budget.record_provider_request``), at the identical
+    (``llm.admission.call_budget.record_provider_request``), at the identical
     boundary: ``stats.llm_calls`` is read straight from that seam's own
     counter (``orchestrator_stats._scheduler_scalars``), and the app
     scopes the seam's ceiling from the same ``max_llm_calls`` run-config

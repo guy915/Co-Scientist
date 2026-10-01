@@ -18,7 +18,7 @@ from co_scientist.generator.streaming import (
     _merge_node_state_into_cumulative,
     cumulative_stream_state_from,
 )
-from co_scientist.llm_credentials import scoped_api_key
+from co_scientist.llm import scoped_api_key
 from co_scientist.models import (
     run_scoped_hypothesis_ids,
     run_seed_material,

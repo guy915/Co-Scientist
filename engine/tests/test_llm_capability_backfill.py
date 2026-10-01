@@ -16,7 +16,7 @@ from typing import Any
 
 import jsonschema
 
-from co_scientist.llm_json import _backfill_required_fields
+from co_scientist.llm.structured.validate import _backfill_required_fields
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
 from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 

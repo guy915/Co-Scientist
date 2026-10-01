@@ -46,7 +46,7 @@ from co_scientist.generator.run_setup import (
     _resolve_tool_calling_generation,
 )
 from co_scientist.generator.streaming import _build_generation_result
-from co_scientist.llm_credentials import scoped_api_key
+from co_scientist.llm import scoped_api_key
 from co_scientist.models import (
     run_scoped_hypothesis_ids,
     run_seed_material,

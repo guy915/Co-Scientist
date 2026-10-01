@@ -37,7 +37,7 @@ async def test_offline_full_review_fills_the_go_no_go_verdict_fields() -> None:
 
     Both fields are optional in ``FULL_REVIEW_SCHEMA``, so the generic
     filler used to leave them out of every offline response --
-    ``drain_reviews._verdict_detail`` then had nothing to read, and
+    ``drain.reviews._verdict_detail`` then had nothing to read, and
     ``VerdictLines`` (ideas_detail_review_findings.tsx) never rendered on
     an offline run (docs/decisions/2026-09-02-offline-optional-field-
     reach.md).
@@ -67,7 +67,7 @@ async def test_offline_meta_review_fills_the_roadmap_step_fields() -> None:
     ``time_estimate``/``phase_label``/``recommended_idea`` are optional in
     ``META_REVIEW_SCHEMA``'s ``strategic_recommendations[]`` items, so they
     used to be absent from every offline response --
-    ``report_markdown_meta_review._render_recommendation`` never printed
+    ``report.markdown.meta_review._render_recommendation`` never printed
     the phase prefix, time-estimate suffix, or "Recommended idea:" line on
     an offline run.
     """

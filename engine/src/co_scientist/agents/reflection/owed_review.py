@@ -44,7 +44,7 @@ OWED_REVIEW_MARKER = "owed_review_issued"
 MAX_OWED_REVIEW_OVERRIDES_PER_RUN = 24
 
 # Foreign disposition this override must leave alone. Proximity's archive
-# marker (the app's ``drain_hypotheses.DEDUPLICATED_REVIEW_DISPOSITION``,
+# marker (the app's ``drain.hypotheses.DEDUPLICATED_REVIEW_DISPOSITION``,
 # spelled out here because the engine may not import the app -- mirrors
 # ``review_gate._FOREIGN_DISPOSITIONS``' own "duplicate" entry) can land on
 # an idea before it is ever peer-reviewed, since the app archives a

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from co_scientist.llm_free_policy import enforce_free_request
+from co_scientist.llm import enforce_free_request
 
 from app import credentials, offline_guard
 

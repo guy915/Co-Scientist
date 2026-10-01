@@ -7,18 +7,16 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -98,11 +96,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         ),
         db_path=isolated_db,
     )
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any
@@ -121,7 +115,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
             reason="Final-stage policy blocked this report.",
         )
 
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={
             "idea_count": 1,
             "leaderboard": [
@@ -136,15 +130,11 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     async def fake_build_report(*_: Any, **__: Any) -> Any:
         return built
 
+    _install_runtime(monkeypatch).drain_final_state = fake_drain
     monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
+        report_finalize, "build_report_content", fake_build_report
     )
-    monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
-    )
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", block_final_report
-    )
+    _install_runtime(monkeypatch).screen = block_final_report
 
     assert await task_worker.run_once(
         "final-safety-worker", run_id=run_id, db_path=isolated_db

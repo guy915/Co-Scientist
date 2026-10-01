@@ -1,6 +1,6 @@
 """SSE transport for one interview turn's advancement.
 
-Split out of ``app.interviews`` (which re-exports every name here, so the
+Split out of ``app.interviews`` (which re-exports the names callers use, so the
 ``interviews._interview_stream`` import and monkeypatch paths survive):
 this module owns turning one Agent turn into an SSE stream -- the live
 reasoning relay, the closing interview/error frame, and the BYOK scoping

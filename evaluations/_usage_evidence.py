@@ -93,7 +93,7 @@ def capture_usage(phase: str, *, live: bool) -> Iterator[dict[str, Any]]:
     if not live:
         yield evidence
         return
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     with scoped_telemetry(phase) as telemetry:
         try:

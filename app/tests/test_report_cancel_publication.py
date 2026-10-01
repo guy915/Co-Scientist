@@ -10,18 +10,16 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -105,11 +103,7 @@ def _seed_owned_finalize(
     assert task is not None and task.id == queued.id
     assert task.task_type == engine_tasks.FINALIZE_TASK
     assert task.status == ("leased" if claim else "queued")
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any
@@ -121,9 +115,7 @@ def _seed_owned_finalize(
         )
         return drained, 1.25, {}
 
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = fake_drain
     return owner, run_id, task, hypothesis_id
 
 
@@ -131,7 +123,7 @@ def _install_report_stubs(
     hypothesis_id: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Supply fixed report content and an allowing final safety verdict."""
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={
             "research_goal": "Study cancellation at report publication",
             "leaderboard": [{"id": hypothesis_id, "title": "IL-6 feedback"}],
@@ -157,11 +149,9 @@ def _install_report_stubs(
         return SafetyDecision(stage="final", decision="allow")
 
     monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
+        report_finalize, "build_report_content", fake_build_report
     )
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
 
 
 def _install_cancel_before_publication(
@@ -170,7 +160,7 @@ def _install_cancel_before_publication(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
     """Cancel after final safety commits and before report publication."""
-    gate_readiness_and_publish = report_render._gate_readiness_and_publish
+    gate_readiness_and_publish = report_finalize._gate_readiness_and_publish
     cancel_responses: list[dict[str, Any]] = []
 
     async def cancel_before_publication(*args: Any, **kwargs: Any) -> Any:
@@ -181,7 +171,9 @@ def _install_cancel_before_publication(
             yield event
 
     monkeypatch.setattr(
-        report_render, "_gate_readiness_and_publish", cancel_before_publication
+        report_finalize,
+        "_gate_readiness_and_publish",
+        cancel_before_publication,
     )
     return cancel_responses
 

@@ -7,7 +7,7 @@ from typing import Any, ClassVar, cast
 
 import pytest
 from co_scientist.checkpoint import serialize_workflow_state
-from co_scientist.llm_credentials import current_api_key
+from co_scientist.llm import current_api_key
 from fastapi import Request
 
 from app import (
@@ -25,9 +25,9 @@ from app import (
     store,
 )
 from app.config import settings
-from app.engine_adapter import drain_claim_grounding
 from app.engine_adapter.checkpoints import restore_workflow_state
-from app.engine_adapter.opts import _build_generator
+from app.engine_adapter.drain import claim_grounding as drain_claim_grounding
+from app.engine_adapter.opts import build_generator
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_NAME,
@@ -37,6 +37,7 @@ from app.execution_policy import (
 from app.runs_crud_resolve import _ResolvedRunSettings
 from app.runs_models import CreateRunRequest
 from app.store import RunCreateOptions, ScientificTask
+from tests._process_mode_helpers import FakeProcessMode
 
 
 def _cfg() -> dict[str, Any]:
@@ -227,7 +228,7 @@ def test_generator_uses_campaign_worker_and_supervisor_and_isolates_standard(
     with scoped_execution_policy(
         CAMPAIGN, campaign_model_name=CAMPAIGN_MODEL_NAME
     ):
-        _build_generator(_Generator, _cfg())
+        build_generator(_Generator, _cfg())
     campaign = _Generator.last_kwargs
     assert campaign["model_name"] == "openrouter/stealth/space-bunny-alpha"
     assert (
@@ -237,14 +238,14 @@ def test_generator_uses_campaign_worker_and_supervisor_and_isolates_standard(
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     with scoped_execution_policy(STANDARD):
-        _build_generator(_Generator, _cfg())
+        build_generator(_Generator, _cfg())
     standard = _Generator.last_kwargs
     assert standard["model_name"] == worker
     assert standard["options"].supervisor_model_name == supervisor
 
 
 async def test_semantic_safety_selects_campaign_before_credential_check(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     models: list[tuple[str, str]] = []
     monkeypatch.setattr(settings, "semantic_safety_enabled", True)
@@ -253,7 +254,6 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
         settings, "supervisor_model_name", "configured/supervisor"
     )
     monkeypatch.setattr(settings, "model_name", "configured/worker")
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
 
     def credential_available(model: str) -> bool:
         models.append(("credential", model))
@@ -263,9 +263,7 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
         models.append(("request", model))
         return safety.screen_intake(text)
 
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", credential_available
-    )
+    fake_process_mode.online(credential=credential_available)
     monkeypatch.setattr(safety, "run_semantic_safety_model", assess)
 
     with scoped_execution_policy(

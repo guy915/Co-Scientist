@@ -25,7 +25,7 @@ from co_scientist.schemas.builders import obj, str_array
 # R12-15/MO-4: Google's own published prose ("Plausible:", etc.) is a
 # *display* decision, not a stored-value one -- mature_reviews.py's
 # `assumptions_likely_false` filter matches the literal enum string, so
-# only `drain_reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
+# only `drain/reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
 # (docs/PARITY.md REVIEW-ASSUMPTION-WORDING-001).
 ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
     "supported",
@@ -40,7 +40,7 @@ ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
 # hypotheses/, e.g. development-seven-parameter-sni-*.md lines 137-183:
 # "1. Executive Verdict" ... "8. Conclusion"). Keys are this codebase's
 # snake_case; the reader-facing headings live with the renderer
-# (app/app/report_markdown_review_block.py), the same split every other
+# (app/app/report/markdown/review_block.py), the same split every other
 # published-vocabulary field uses.
 #
 # Declared on the full review rather than on REVIEW_SCHEMA's own
@@ -156,7 +156,7 @@ REVIEWS_SUMMARY_SCHEMA: dict[str, Any] = obj(
 # that echoes its input scales the response with the input and truncates
 # identically on every retry (the trap ``proximity_dedup`` hit). The
 # renderer attaches it instead, from the citation/evidence rows the
-# hypothesis already carries (``report_markdown_review_axes``).
+# hypothesis already carries (``report.markdown.review_axes``).
 PER_AXIS_REVIEW_PARTS: tuple[str, ...] = (
     "comparison_with_knowledge_base",
     "goal_requirements_assessment",
@@ -274,7 +274,7 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
             # rejected disposition and the one field
             # `mature_reviews.apply_mature_review_disposition` reads to
             # gate the tournament -- these two are display-only, read by
-            # nothing else in this codebase (report_markdown_hypothesis's
+            # nothing else in this codebase (report.markdown.hypothesis's
             # renderer is their only consumer). Optional: Google's own
             # published files carry this in only 8 of 19, so a review that
             # omits it is not a malformed one.

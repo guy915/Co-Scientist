@@ -4,9 +4,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm_tool_loop
 from co_scientist.cache import LLMCache
-from co_scientist.llm import CompletionSpec, call_llm
+from co_scientist.llm import CompletionSpec, call_llm, precall
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
@@ -20,6 +19,7 @@ from co_scientist.task_runtime import (
     next_task_type,
     plan_portfolio,
 )
+from co_scientist.workflow_topology import WORKFLOW_ROUTES
 from tests._llm_wrapper_fakes import (
     make_completion,
     make_message,
@@ -27,6 +27,12 @@ from tests._llm_wrapper_fakes import (
     patch_acompletion,
 )
 from tests._state import make_state
+from tests._topology import (
+    ABSENT,
+    build_graph,
+    decision_states,
+    graph_successor,
+)
 
 
 def test_apply_task_update_uses_graph_state_reducers() -> None:
@@ -67,34 +73,30 @@ def test_a_second_researcher_does_not_erase_the_first_one() -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    ("completed", "mcp", "decision", "expected"),
-    [
-        ("supervisor", True, None, "literature_review"),
-        ("supervisor", False, None, "generate"),
-        ("generate", True, None, "reflection"),
-        ("generate", False, None, "review"),
-        # Deep verification precedes tournament entry, mirroring
-        # ``03-reflection.md``: ReviewHypothesis verifies the hypothesis
-        # and only then creates its AddToTournament task.
-        ("safety_screen", False, None, "deep_verification"),
-        ("deep_verification", False, None, "ranking"),
-        ("ranking", False, None, "orchestrator"),
-        ("orchestrator", False, "evolve", "meta_review"),
-        ("orchestrator", False, "terminate", "research_overview"),
-        ("research_overview", False, None, None),
-    ],
-)
+@pytest.mark.parametrize("literature_review", [True, False])
+@pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
 def test_next_task_type_mirrors_graph_topology(
-    completed: str,
-    mcp: bool,
-    decision: str | None,
-    expected: str | None,
+    node: str, literature_review: bool
 ) -> None:
-    state = make_state()
-    state["mcp_available"] = mcp
-    state["next_task"] = decision
-    assert next_task_type(completed, state) == expected
+    """The durable path names what the compiled graph is wired to run next.
+
+    Both answers are read off the real thing -- ``next_task_type`` against
+    the edges and conditional branches LangGraph compiled -- for every node
+    ``WORKFLOW_ROUTES`` declares, in both flow shapes, across the decisions a
+    resolver route reads. The nodes the simplified flow leaves out are the
+    declared divergence ``test_workflow_topology`` covers, so they are
+    skipped here.
+    """
+    graph = build_graph(literature_review)
+    for state in decision_states():
+        state["mcp_available"] = literature_review
+        expected = graph_successor(graph, node, state)
+        if expected == ABSENT:
+            continue
+        assert next_task_type(node, state) == expected, (
+            node,
+            state.get("next_task"),
+        )
 
 
 async def test_execute_task_node_runs_only_named_specialist(
@@ -119,18 +121,18 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
     """A node's real LLM calls are captured into its committed metrics.
 
     Drives the actual dispatch boundary (``co_scientist.llm.call_llm`` ->
-    ``llm_request._acompletion_within_timeout``) with only the network
-    edge faked, the same convention every other engine LLM test uses --
-    not a fixture of this feature's own logic. Without
-    ``execute_task_node`` scoping telemetry around the handler call (and
-    without the dispatch boundary recording it), ``model_usage`` stays the
-    all-zero default forever, however many LLM calls a node makes. Uses a
-    real (empty, per-test-tmp-dir) ``LLMCache`` rather than
-    ``disable_llm_cache`` so the resulting cache-miss telemetry is also
-    exercised against genuine cache behavior, not a NullCache stand-in.
+    ``llm.request.completion._acompletion_within_timeout``) with only the
+    network edge faked, the same convention every other engine LLM test uses --
+    not a fixture of this feature's own logic. Without ``execute_task_node``
+    scoping telemetry around the handler call (and without the dispatch boundary
+    recording it), ``model_usage`` stays the all-zero default forever, however
+    many LLM calls a node makes. Uses a real (empty, per-test-tmp-dir)
+    ``LLMCache`` rather than ``disable_llm_cache`` so the resulting cache-miss
+    telemetry is also exercised against genuine cache behavior, not a NullCache
+    stand-in.
     """
     monkeypatch.setattr(
-        llm_tool_loop,
+        precall,
         "get_cache",
         lambda: LLMCache(cache_dir=str(tmp_path), enabled=True),
     )

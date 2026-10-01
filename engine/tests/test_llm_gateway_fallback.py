@@ -15,12 +15,11 @@ from co_scientist.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.llm_request import (
+from co_scientist.llm import deepseek_thinking_extra_body, model_reasons
+from co_scientist.llm.request.completion import (
     CompletionShape,
     _build_completion_args,
     _supports_json_schema_response_format,
-    deepseek_thinking_extra_body,
-    model_reasons,
 )
 
 _PRIMARY = "openrouter/z-ai/glm-5.3-flash"
@@ -106,7 +105,7 @@ def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
     one deliberate exception -- it heads its own non-default chain -- so
     it is checked separately, not against this invariant.
     """
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.profile import model_profile
 
     for gateway_relative in (
         "nvidia/nemotron-3-super-120b-a12b:free",
@@ -117,14 +116,17 @@ def test_the_fallback_models_do_not_themselves_carry_a_chain() -> None:
     ):
         model_name = f"openrouter/{gateway_relative}"
         assert "models" not in deepseek_thinking_extra_body(model_name)
-        assert not _GATEWAY_MODELS[model_name].fallbacks
+        profile = model_profile(model_name)
+        assert profile.gateway
+        assert not profile.fallbacks
 
 
 def test_selected_nex_pro_default_has_no_model_fallback() -> None:
     """The selected default stays on Nex Pro when its route is unavailable."""
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.profile import model_profile
 
-    assert not _GATEWAY_MODELS[_NEX_PRO].fallbacks
+    assert model_profile(_NEX_PRO).gateway
+    assert not model_profile(_NEX_PRO).fallbacks
     body = deepseek_thinking_extra_body(_NEX_PRO)
     assert "models" not in body
     assert body["provider"]["max_price"] == {
@@ -222,7 +224,7 @@ def test_the_minimal_reasoning_redirect_keeps_the_ordinary_floor() -> None:
     ladder exists to avoid. With the reasoning itself capped, the
     ordinary floor is enough room and the rungs differ again.
     """
-    from co_scientist.llm_thinking import effective_max_tokens
+    from co_scientist.llm.request.thinking import effective_max_tokens
 
     assert (
         effective_max_tokens(_MINIMAX, 12000, enable_thinking=False)
@@ -238,7 +240,7 @@ def test_a_call_that_actually_asked_for_thinking_keeps_the_ordinary_floor() -> (
     The forced-reasoning redirect changes what the ``reasoning`` object
     carries, never the budget an ordinary thinking call is funded at.
     """
-    from co_scientist.llm_thinking import effective_max_tokens
+    from co_scientist.llm.request.thinking import effective_max_tokens
 
     assert (
         effective_max_tokens(_MINIMAX, 12000, enable_thinking=True)
@@ -251,7 +253,7 @@ def test_a_non_reasoning_call_is_untouched_by_the_floor() -> None:
 
     ``max_tokens`` passes through exactly as the call site sized it.
     """
-    from co_scientist.llm_thinking import effective_max_tokens
+    from co_scientist.llm.request.thinking import effective_max_tokens
 
     assert (
         effective_max_tokens(
@@ -301,7 +303,7 @@ def test_every_gateway_call_prefers_the_default_upstream_order(
     cover without needing a re-pin.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
-    from co_scientist.llm_thinking import _DEFAULT_UPSTREAM_ORDER
+    from co_scientist.llm.request.gateway_routing import _DEFAULT_UPSTREAM_ORDER
 
     for model in (_PRIMARY, _GLM, _MINIMAX):
         provider = deepseek_thinking_extra_body(model)["provider"]
@@ -362,9 +364,9 @@ def test_gateway_models_without_native_schema_use_json_object() -> None:
     Qwen's pinned endpoint supports native structured outputs, so it is
     checked separately above. This asserts the other routes' downgrade
     decision, not litellm's
-    registry: every ``_GATEWAY_MODELS`` key is now declared explicitly in
-    ``_supports_json_schema_response_format`` rather than falling through
-    to ``litellm.supports_response_schema``. That fallback made the test
+    registry: every declared gateway route now states ``json_schema`` in its
+    profile rather than falling through to
+    ``litellm.supports_response_schema``. That fallback made the test
     non-hermetic in practice -- the registry's answer for
     ``openrouter/z-ai/glm-5.2:free`` flipped from False to True between
     two runs on the same day with no code change, because free/stealth
@@ -377,9 +379,9 @@ def test_gateway_models_without_native_schema_use_json_object() -> None:
     the engine's own logic, and this test now pins that logic rather than
     a mocked stand-in for it.
     """
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.profile import gateway_routes
 
-    for model in _GATEWAY_MODELS:
+    for model in gateway_routes():
         if model == _QWEN_CANDIDATE:
             continue
         assert _supports_json_schema_response_format(model) is False, model
@@ -416,12 +418,10 @@ def test_the_two_reasoning_facts_stay_separable() -> None:
     under test, because collapsing the two is what withheld the token
     floor and cost 24 answerless round-trips.
     """
-    from co_scientist.llm_thinking import GatewayModel
+    from co_scientist.llm.profile import ModelProfile, Thinking
 
-    knob_only = GatewayModel(
-        takes_reasoning_knob=False, spends_budget_thinking=True
-    )
+    knob_only = ModelProfile(thinking=Thinking.NONE, reasons=True)
 
-    assert knob_only.takes_reasoning_knob is False
-    assert knob_only.spends_budget_thinking is True
+    assert knob_only.thinking is Thinking.NONE
+    assert knob_only.reasons is True
     assert model_reasons(_PRIMARY) is True

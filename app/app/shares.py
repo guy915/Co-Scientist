@@ -9,10 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from app import store
 from app.auth import client_id
 from app.evidence_chunking import parent_evidence_id
-from app.report_render import (
-    _exclude_unsafe_hypotheses,
-    _released_claim_evidence,
-)
+from app.report import exclude_unsafe_hypotheses, released_claim_evidence
 
 router = APIRouter(tags=["shares"])
 
@@ -110,7 +107,7 @@ def _released_content(
     """A run's hypotheses and evidence as the Goal Report releases them.
 
     Reuses the finalize path's publication gates -- the same
-    ``_exclude_unsafe_hypotheses`` / ``_released_claim_evidence`` pair the
+    ``exclude_unsafe_hypotheses`` / ``released_claim_evidence`` pair the
     report builder applies -- so a share exposes exactly the ranked ideas
     the report published and only the evidence those ideas cite. Safety-
     blocked, review-rejected, deduplicated, and contradicted ideas stay
@@ -124,11 +121,11 @@ def _released_content(
     """
     all_hypotheses = store.list_hypotheses(run_id)
     claim_edges = store.list_claim_evidence(run_id)
-    hypotheses = _exclude_unsafe_hypotheses(
+    hypotheses = exclude_unsafe_hypotheses(
         run_id, all_hypotheses, None, claim_edges
     )
     evidence = store.list_evidence(run_id)
-    released_edges = _released_claim_evidence(hypotheses, claim_edges, evidence)
+    released_edges = released_claim_evidence(hypotheses, claim_edges, evidence)
     referenced = _referenced_evidence_ids(released_edges)
     released_evidence = [
         {field: item.get(field) for field in _PUBLIC_EVIDENCE_FIELDS}

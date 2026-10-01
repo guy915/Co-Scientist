@@ -28,8 +28,11 @@ from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
-from co_scientist.llm import CompletionSpec, call_llm_json
-from co_scientist.llm_telemetry import scoped_telemetry_phase
+from co_scientist.llm import (
+    CompletionSpec,
+    call_llm_json,
+    scoped_telemetry_phase,
+)
 from co_scientist.prompts import (
     OverviewReviewMaterial,
     OverviewRevisionRequest,

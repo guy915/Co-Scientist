@@ -1,4 +1,15 @@
-import {cancelRun, createRun, getRun, startRun, type Run} from '@/api/runs';
+import {
+  cancelRun,
+  createRun,
+  getRun,
+  isCancelledStatus,
+  isDraftStatus,
+  isFailureStatus,
+  isStartedStatus,
+  retiresStartIntent,
+  startRun,
+  type Run,
+} from '@/api/runs';
 import {
   getPendingCreateIntent,
   readPendingCreateIntent,
@@ -82,10 +93,10 @@ async function resolveStartError(
     retireIntent(chatId, intent);
     return 'already-started';
   }
-  if (status === 'draft') {
+  if (isDraftStatus(status)) {
     return resolveDraftAfterFailedStart(runId, chatId, intent, deps, error);
   }
-  if (status === 'cancelled') retireIntent(chatId, intent);
+  if (isCancelledStatus(status)) retireIntent(chatId, intent);
   restoreDraft(deps);
   throw startErrorForStatus(status) ?? error;
 }
@@ -98,7 +109,7 @@ async function resolveDraftAfterFailedStart(
   error: unknown,
 ): Promise<StartDisposition> {
   const status = await cancelAndReadStatus(runId);
-  if (status === 'cancelled') retireIntent(chatId, intent);
+  if (isCancelledStatus(status)) retireIntent(chatId, intent);
   if (isStartedStatus(status)) {
     retireIntent(chatId, intent);
     return 'already-started';
@@ -109,7 +120,7 @@ async function resolveDraftAfterFailedStart(
 
 async function cancelAndReadStatus(runId: string): Promise<string | undefined> {
   const cancellation = await cancelRun(runId).catch(() => undefined);
-  if (cancellation?.status === 'cancelled') return 'cancelled';
+  if (isCancelledStatus(cancellation?.status)) return 'cancelled';
   // A lost cancel response may mean the run started between the requests.
   return readRunStatus(runId);
 }
@@ -129,16 +140,6 @@ async function readRunStatus(runId: string): Promise<string | undefined> {
   }
 }
 
-function isStartedStatus(status: string | undefined): status is string {
-  return (
-    status === 'queued' ||
-    status === 'running' ||
-    status === 'synthesizing' ||
-    status === 'completed' ||
-    status === 'paused'
-  );
-}
-
 function restoreDraft(deps: SettleDeps): void {
   deps.setConfirmed(null);
   deps.setDraft(deps.stageToStart);
@@ -151,13 +152,7 @@ export function runOutcomeError(status: string): Error {
 }
 
 function startErrorForStatus(status: string | undefined): Error | undefined {
-  if (status === 'failed' || status === 'blocked') {
-    return runOutcomeError(status);
-  }
-}
-
-function shouldRetireIntent(status: string): boolean {
-  return status !== 'draft' && status !== 'failed' && status !== 'blocked';
+  if (isFailureStatus(status)) return runOutcomeError(status);
 }
 
 async function readStartIntent(
@@ -188,7 +183,7 @@ export async function resolveStartTarget(
     deps,
   );
   if (linked) {
-    if (linked.status === 'cancelled') {
+    if (isCancelledStatus(linked.status)) {
       return createStartTarget(payload, chatId, undefined);
     }
     return linked;
@@ -207,7 +202,7 @@ async function resolveChangedPendingIntent(
 ): Promise<ResolvedStartTarget> {
   const previous = await postCreate(payload, chatId, intent);
   const settled = await cancelUnstartedDraft(previous, deps);
-  if (settled.status === 'cancelled') {
+  if (isCancelledStatus(settled.status)) {
     return createAfterCancelledReceipt(payload, chatId, settled);
   }
   if (isStartedStatus(settled.status)) {
@@ -224,9 +219,9 @@ async function cancelUnstartedDraft(
   target: ResolvedStartTarget,
   deps: StartRecoveryDeps,
 ): Promise<ResolvedStartTarget> {
-  if (target.status !== 'draft') return target;
+  if (!isDraftStatus(target.status)) return target;
   const status = await cancelAndReadStatus(target.runId);
-  if (status === 'cancelled' || isStartedStatus(status)) {
+  if (retiresStartIntent(status)) {
     return {...target, status};
   }
   restoreDraft(deps);
@@ -288,7 +283,7 @@ async function getLinkedRun(
     restoreDraft(deps);
     throw error;
   }
-  if (shouldRetireIntent(linkedRun.status)) retireIntent(chatId, intent);
+  if (retiresStartIntent(linkedRun.status)) retireIntent(chatId, intent);
   return {
     runId,
     status: linkedRun.status,
@@ -316,10 +311,10 @@ async function createStartTarget(
   let intent = pending;
   if (!intent && chatId) intent = await getPendingCreateIntent(chatId, payload);
   const target = await postCreate(payload, chatId, intent);
-  if (target.status === 'cancelled') {
+  if (isCancelledStatus(target.status)) {
     return createAfterCancelledReceipt(payload, chatId, target);
   }
-  if (shouldRetireIntent(target.status)) retireIntent(chatId, intent);
+  if (retiresStartIntent(target.status)) retireIntent(chatId, intent);
   return target;
 }
 
@@ -333,13 +328,13 @@ async function createAfterCancelledReceipt(
     ? await getPendingCreateIntent(chatId, payload)
     : undefined;
   const replacement = await postCreate(payload, chatId, intent);
-  if (replacement.status === 'cancelled') {
+  if (isCancelledStatus(replacement.status)) {
     retireIntent(chatId, replacement.intent);
     throw new Error(
       'The cancelled run was retired. Click Start research again.',
     );
   }
-  if (shouldRetireIntent(replacement.status)) {
+  if (retiresStartIntent(replacement.status)) {
     retireIntent(chatId, replacement.intent);
   }
   return replacement;

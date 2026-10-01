@@ -1,6 +1,6 @@
 """Scientist-contributed input endpoints: hypotheses, reviews, attachments.
 
-Split out of ``app.runs`` (which re-exports every name here and mounts
+Split out of ``app.runs`` (which re-exports the names callers use and mounts
 ``router`` on its own, so the served route set is unchanged): the
 Milestone 7 human-in-the-loop surface — scientist-authored hypotheses
 and reviews, text/document attachments to the run's private corpus, and
@@ -43,16 +43,7 @@ from app.outcome_refinement_action import (
     request_outcome_refinement_action,
 )
 from app.runs_contrib_attachments import (
-    add_attachment as add_attachment,
-)
-from app.runs_contrib_attachments import (
     router as attachments_router,
-)
-from app.runs_contrib_attachments import (
-    search_attachments as search_attachments,
-)
-from app.runs_contrib_attachments import (
-    upload_attachment as upload_attachment,
 )
 from app.runs_contrib_support import _steer_and_continue as _steer_and_continue
 from app.runs_models import (

@@ -4,8 +4,8 @@ Split out of ``app.interviews``: this module owns one Agent turn's contact
 with the model -- the streaming request, its bounds, draining the stream, and
 the fallback that keeps the interview usable when the provider is absent.
 ``app.interviews`` owns the durable turn lifecycle and the HTTP surface, and
-re-exports every name here, so ``interviews._call_interview_model`` remains
-the monkeypatch seam it has always been.
+re-exports the names callers use, so ``interviews._call_interview_model``
+remains the monkeypatch seam it has always been.
 """
 
 from __future__ import annotations

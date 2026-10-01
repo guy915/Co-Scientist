@@ -28,7 +28,7 @@ def clamp_task_priority(priority: int) -> int:
     output enforcement is not guaranteed by every provider, so every write
     path re-bounds the value defensively instead of trusting it. This is
     not a property of the ``scientific_tasks.priority`` column itself --
-    ``report_notify.py`` deliberately enqueues completion-email tasks at
+    ``report/notify.py`` deliberately enqueues completion-email tasks at
     priority -100, outside this range, to sink beneath all Supervisor-
     scheduled work.
 

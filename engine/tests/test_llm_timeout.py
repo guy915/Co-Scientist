@@ -18,25 +18,31 @@ from litellm.exceptions import (
     Timeout as LiteLLMTimeout,
 )
 
-from co_scientist import llm, llm_request, llm_retry_backoff
+from co_scientist import llm
 from co_scientist.exceptions import LLMTimeoutError
-from co_scientist.llm import CompletionSpec, LLMCallOptions, ToolLoop
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    ToolLoop,
+    scoped_telemetry,
+)
+from co_scientist.llm.attempts import backoff
+from co_scientist.llm.request import completion
 
 
 def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     """An unset env var yields the generous built-in default."""
-    monkeypatch.delenv(llm_request.LLM_TIMEOUT_ENV, raising=False)
+    monkeypatch.delenv(completion.LLM_TIMEOUT_ENV, raising=False)
     assert (
-        llm_request.llm_timeout_seconds()
-        == llm_request.DEFAULT_LLM_TIMEOUT_SECONDS
+        completion.llm_timeout_seconds()
+        == completion.DEFAULT_LLM_TIMEOUT_SECONDS
     )
 
 
 def test_timeout_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """An operator-set ceiling is honoured."""
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "12.5")
-    assert llm_request.llm_timeout_seconds() == 12.5
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "12.5")
+    assert completion.llm_timeout_seconds() == 12.5
 
 
 @pytest.mark.parametrize("value", ["0", "-1"])
@@ -44,28 +50,28 @@ def test_timeout_disabled_by_non_positive(
     monkeypatch: pytest.MonkeyPatch, value: str
 ) -> None:
     """Zero or negative disables the ceiling entirely."""
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, value)
-    assert llm_request.llm_timeout_seconds() is None
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, value)
+    assert completion.llm_timeout_seconds() is None
 
 
 def test_timeout_falls_back_on_garbage(monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-numeric value falls back rather than crashing the call."""
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "soon")
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "soon")
     assert (
-        llm_request.llm_timeout_seconds()
-        == llm_request.DEFAULT_LLM_TIMEOUT_SECONDS
+        completion.llm_timeout_seconds()
+        == completion.DEFAULT_LLM_TIMEOUT_SECONDS
     )
 
 
 def test_completion_args_carry_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """The provider client is asked to give up on its own too."""
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "42")
-    args = llm_request._build_completion_args(
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "42")
+    args = completion._build_completion_args(
         "prompt",
         "deepseek/deepseek-v4-flash",
         100,
         0.5,
-        llm_request.CompletionShape(),
+        completion.CompletionShape(),
     )
     assert args["timeout"] == 42.0
 
@@ -74,13 +80,13 @@ def test_completion_args_omit_timeout_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A disabled ceiling passes no timeout argument at all."""
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0")
-    args = llm_request._build_completion_args(
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0")
+    args = completion._build_completion_args(
         "prompt",
         "deepseek/deepseek-v4-flash",
         100,
         0.5,
-        llm_request.CompletionShape(),
+        completion.CompletionShape(),
     )
     assert "timeout" not in args
 
@@ -92,8 +98,8 @@ async def test_hung_call_raises_timeout_error(
 
     This is the regression: previously the await simply never completed.
     """
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0.01")
-    monkeypatch.setattr(llm_request, "_TIMEOUT_GRACE_SECONDS", 0.0)
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0.01")
+    monkeypatch.setattr(completion, "_TIMEOUT_GRACE_SECONDS", 0.0)
 
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
@@ -104,7 +110,7 @@ async def test_hung_call_raises_timeout_error(
         scoped_telemetry("test_phase") as telemetry,
         pytest.raises(LLMTimeoutError) as excinfo,
     ):
-        await llm_request._acompletion_within_timeout(
+        await completion._acompletion_within_timeout(
             {}, "deepseek/deepseek-v4-pro"
         )
     assert "deepseek/deepseek-v4-pro" in str(excinfo.value)
@@ -126,8 +132,8 @@ async def test_hung_tool_loop_call_raises_timeout_error(
     completion call used to await litellm bare -- a wedged provider there
     parked a durable task exactly like the plain-call case.
     """
-    monkeypatch.setenv(llm_request.LLM_TIMEOUT_ENV, "0.01")
-    monkeypatch.setattr(llm_request, "_TIMEOUT_GRACE_SECONDS", 0.0)
+    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0.01")
+    monkeypatch.setattr(completion, "_TIMEOUT_GRACE_SECONDS", 0.0)
 
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
@@ -202,7 +208,7 @@ async def test_native_provider_timeout_is_not_retried(
         )
 
     monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
-    monkeypatch.setattr(llm_request, "enforce_free_request", admit)
+    monkeypatch.setattr(completion, "enforce_free_request", admit)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
         await llm.call_llm_json(
@@ -274,7 +280,7 @@ async def test_rate_limited_retry_waits_before_trying_again(
     """
     slept: list[float] = []
     monkeypatch.setattr(
-        "co_scientist.llm_json_retry.asyncio.sleep", _recording_sleep(slept)
+        "co_scientist.llm.attempts.retry.asyncio.sleep", _recording_sleep(slept)
     )
     calls = 0
 
@@ -310,9 +316,7 @@ async def test_rate_limit_backoff_is_jittered(
     interval and resume together, reproducing the burst exactly. The spread
     is what actually smooths the ramp.
     """
-    waits = {
-        llm_retry_backoff._rate_limit_backoff_seconds(1) for _ in range(40)
-    }
+    waits = {backoff._rate_limit_backoff_seconds(1) for _ in range(40)}
     assert len(waits) > 1, "identical waits would re-synchronize the burst"
 
 
@@ -322,7 +326,7 @@ async def test_schema_failure_still_retries_without_waiting(
     """Backoff is scoped to throttling; a bad payload retries immediately."""
     slept: list[float] = []
     monkeypatch.setattr(
-        "co_scientist.llm_json_retry.asyncio.sleep", _recording_sleep(slept)
+        "co_scientist.llm.attempts.retry.asyncio.sleep", _recording_sleep(slept)
     )
     calls = 0
 
@@ -361,7 +365,7 @@ async def test_deployment_api_key_does_not_disable_free_admission(
     monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
-        await llm_request._acompletion_within_timeout(
+        await completion._acompletion_within_timeout(
             {
                 "model": "openrouter/nex-agi/nex-n2.5-pro:free",
                 "messages": [{"role": "user", "content": "prompt"}],

@@ -201,7 +201,8 @@ class WorkflowState(TypedDict):
     degraded_nodes: list[str]
     """Schema names of enhancement nodes that published a placeholder
     instead of their own output -- either the model's answer would not
-    parse after all retries (``llm_json._ENHANCEMENT_NODE_FALLBACKS``) or
+    parse after all retries
+    (``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS``) or
     its provider could not be reached at all
     (``agents.node_degradation.run_or_degrade``). The run continues --
     this list only lets the report say a section is blank because

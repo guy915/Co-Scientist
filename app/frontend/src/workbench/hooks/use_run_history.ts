@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import {type Run} from '@/api/runs';
+import {isCompletedStatus, type Run} from '@/api/runs';
 import {useRunHistoryContext} from './run_history_context';
 
 /**
@@ -27,7 +27,7 @@ export function useRunHistory(): {
   const homeScores = useMemo(() => {
     const scores: Record<string, number | null> = {};
     for (const run of history) {
-      if (run.status === 'completed') scores[run.id] = run.top_elo ?? null;
+      if (isCompletedStatus(run.status)) scores[run.id] = run.top_elo ?? null;
     }
     return scores;
   }, [history]);

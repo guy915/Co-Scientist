@@ -7,7 +7,7 @@ ceiling (and ``seed_overview.py`` itself to within one line of the
 solutions comparison, and the generic strengths/weaknesses/themes/
 recommendations boilerplate that together build a demo's full meta-
 review payload, mirroring the shape a real run's meta-review call
-produces (see ``report_markdown_meta_review.py`` on the app side,
+produces (see ``report/markdown/meta_review.py`` on the app side,
 ``schemas/meta_review_schema.py`` on the engine side).
 
 Re-exported from ``app.seed_overview`` so its two importers

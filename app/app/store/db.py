@@ -4,8 +4,8 @@ Owns the connection/transaction context managers, the WAL and pragma
 setup, and the one-time schema bootstrap; the CREATE TABLE script itself
 lives in ``app.store.schema`` and the idempotent in-place migration steps
 live in ``app.store.db_migrations`` (split out to keep this module within
-the size cap, and re-exported below so callers and monkeypatching tests
-keep the ``app.store.db`` namespace). The other ``app.store`` submodules
+the size cap; the step callers and monkeypatching tests still reach as an
+``app.store.db`` name is re-exported below). The other ``app.store`` submodules
 build on the primitives defined here instead of calling
 ``sqlite3.connect`` directly.
 """
@@ -21,42 +21,6 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 
-from app.store.db_migrations import (
-    _add_column_if_missing as _add_column_if_missing,
-)
-from app.store.db_migrations import (
-    _migrate_client_isolation as _migrate_client_isolation,
-)
-from app.store.db_migrations import (
-    _migrate_evidence_identity_columns as _migrate_evidence_identity_columns,
-)
-from app.store.db_migrations import (
-    _migrate_evidence_retrieval_call_id as _migrate_evidence_retrieval_call_id,
-)
-from app.store.db_migrations import (
-    _migrate_evidence_retrieval_scoring_columns as _migrate_evidence_retrieval_scoring_columns,  # noqa: E501
-)
-from app.store.db_migrations import (
-    _migrate_hypothesis_parent_ids as _migrate_hypothesis_parent_ids,
-)
-from app.store.db_migrations import (
-    _migrate_interview_columns as _migrate_interview_columns,
-)
-from app.store.db_migrations import (
-    _migrate_match_and_safety_columns as _migrate_match_and_safety_columns,
-)
-from app.store.db_migrations import (
-    _migrate_message_and_hypothesis_columns as _migrate_message_and_hypothesis_columns,  # noqa: E501
-)
-from app.store.db_migrations import (
-    _migrate_proximity_and_evidence_columns as _migrate_proximity_and_evidence_columns,  # noqa: E501
-)
-from app.store.db_migrations import (
-    _migrate_run_and_report_columns as _migrate_run_and_report_columns,
-)
-from app.store.db_migrations import (
-    _migrate_task_attempts_history as _migrate_task_attempts_history,
-)
 from app.store.db_migrations import _run_migrations as _run_migrations
 from app.store.schema import SCHEMA as _SCHEMA
 

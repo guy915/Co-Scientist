@@ -1,6 +1,6 @@
 """Run lifecycle endpoints: start, cancel, pause, and resume.
 
-Split out of ``app.runs`` (which re-exports every name here and mounts
+Split out of ``app.runs`` (which re-exports the names callers use and mounts
 ``router`` on its own, so the served route set is unchanged). Also home
 to the resume launcher shared by the resume endpoint and the startup
 auto-resume path (``resume_interrupted_runs``, called from the app
@@ -24,13 +24,7 @@ from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.runs_models import StartRunRequest
 from app.runs_resume_admission import (
-    _has_paused_engine_task as _has_paused_engine_task,
-)
-from app.runs_resume_admission import (
     _is_resumable as _is_resumable,
-)
-from app.runs_resume_admission import (
-    _lifecycle_revision as _lifecycle_revision,
 )
 from app.runs_resume_admission import (
     _prepare_resume_state as _prepare_resume_state,
@@ -38,9 +32,7 @@ from app.runs_resume_admission import (
 from app.runs_resume_admission import (
     _queue_resume_workflow as _queue_resume_workflow,
 )
-from app.runs_resume_admission import (
-    _resume_admission_snapshot as _resume_admission_snapshot,
-)
+from app.runs_resume_admission import resume_admission_snapshot
 from app.runs_support import _run_or_404
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
 
@@ -242,7 +234,7 @@ async def resume_run(run_id: str) -> dict[str, Any]:
     restart gave up on: failing a run never touched its task rows, so their
     retry budgets are intact.
     """
-    run, lifecycle_revision = _resume_admission_snapshot(run_id)
+    run, lifecycle_revision = resume_admission_snapshot(run_id)
     if run.status == RunStatus.COMPLETED.value:
         raise HTTPException(status_code=409, detail="run already completed")
     if run.status == RunStatus.BLOCKED.value:
@@ -321,7 +313,7 @@ async def _launch_resume(
     if expected_status is None or expected_lifecycle_revision is None:
         # Retain the internal helper's direct-call contract; request, hold,
         # and startup paths pass the state they observed at admission.
-        run, revision = _resume_admission_snapshot(run_id)
+        run, revision = resume_admission_snapshot(run_id)
         if expected_status is None:
             expected_status = run.status
         if expected_lifecycle_revision is None:
@@ -338,7 +330,7 @@ async def _launch_resume(
 async def _resume_interrupted_run(run_id: str) -> None:
     """Resume one startup candidate only if it is still active."""
     try:
-        run, lifecycle_revision = _resume_admission_snapshot(run_id)
+        run, lifecycle_revision = resume_admission_snapshot(run_id)
     except HTTPException as exc:
         if exc.status_code == 404:
             return

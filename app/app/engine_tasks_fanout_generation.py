@@ -2,8 +2,8 @@
 
 The generation node's fan-out scheduling (one durable task per enabled
 strategy plus the aggregate) and the per-strategy executor. Split from
-``app.engine_tasks_fanout``, which re-exports these names so
-``app.engine_tasks`` remains the stable import and monkeypatch surface.
+``app.engine_tasks_fanout``, which re-exports the names callers use so
+``app.engine_tasks`` remains their import and monkeypatch surface.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ from app.engine_tasks_support import (
     _CHECKPOINT_PROVIDER,
     GENERATION_AGGREGATE_TASK,
     GENERATION_STRATEGY_TASK,
-    _assert_task_commit_allowed,
     _restore_item_checkpoint,
+    assert_task_commit_allowed,
 )
 from app.store import ScientificTask
 
@@ -235,7 +235,7 @@ def _commit_generation_fanout(
         order, and the aggregate task.
     """
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         planned_seq = _save_generation_plan_checkpoint(
             task, checkpoint_seq, envelope, conn
         )
@@ -393,7 +393,7 @@ async def execute_generation_strategy(
     see ``co_scientist.skills.usage``. Empty without skills installed.
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
     from co_scientist.skills import scoped_skill_usage
 
     state, expected_seq = _restore_item_checkpoint(

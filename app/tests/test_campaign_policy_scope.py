@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 from fastapi import HTTPException, Request
 
 from app import (

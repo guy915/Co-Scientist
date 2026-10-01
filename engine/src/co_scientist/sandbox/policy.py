@@ -137,7 +137,7 @@ def read_only() -> SandboxPolicy:
 
 def campaign_workspace_policy(policy: SandboxPolicy) -> SandboxPolicy:
     """Keep campaign workspace commands offline under OS confinement."""
-    from co_scientist.llm_free_policy import campaign_free_mode
+    from co_scientist.llm import campaign_free_mode
 
     if not campaign_free_mode():
         return policy

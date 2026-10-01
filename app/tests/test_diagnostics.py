@@ -65,18 +65,19 @@ def test_derive_health_status_degraded_when_key_but_no_engine(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A configured provider key with no importable engine degrades health."""
-    monkeypatch.setattr(diagnostics, "_has_provider_key", lambda: True)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     status = derive_health_status(
         HealthCheck(ok=True), HealthCheck(ok=False, detail="missing")
     )
     assert status == DEGRADED
 
 
-def test_derive_health_status_healthy_in_pure_offline_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """No key and no engine is the normal offline mock setup, not degraded."""
-    monkeypatch.setattr(diagnostics, "_has_provider_key", lambda: False)
+def test_derive_health_status_healthy_in_pure_offline_mode() -> None:
+    """No key and no engine is the normal offline mock setup, not degraded.
+
+    Keyless is the suite's own posture: ``isolated_db`` scrubs every provider
+    credential before each test.
+    """
     status = derive_health_status(
         HealthCheck(ok=True), HealthCheck(ok=False, detail="missing")
     )

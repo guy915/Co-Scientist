@@ -3,18 +3,19 @@
 OpenRouter's free-model variants carry two different 429 sources: an
 upstream provider hiccup the existing jittered backoff already answers,
 and a platform-wide per-minute/per-day cap whose reset can be hours away.
-``llm_json_retry._platform_rate_limit_park`` (shared with
-``llm_text_retry`` through ``_handle_json_call_failure``) is what tells
-them apart, so a durable task can be parked instead of failed on the
-second kind without spending further attempts on the first.
+``llm.attempts.park.platform_rate_limit_park`` is what tells them apart,
+and the one attempt loop (``llm.attempts.retry.run_attempts``, shared by
+``call_llm``, ``call_llm_json`` and the tool turn) acts on it, so a durable
+task can be parked instead of failed on the second kind without spending
+further attempts on the first.
 
-The same handler also decides which *non*-throttled failures are worth
+The same loop also decides which *non*-throttled failures are worth
 spacing out. Those cases live here too, since they share one seam:
-``llm_json_escalation.is_transient_provider_error``.
+``llm.attempts.escalation.is_transient_provider_error``.
 """
 
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import httpx
 import pytest
@@ -28,12 +29,13 @@ from litellm.exceptions import (
     ServiceUnavailableError,
 )
 
-from co_scientist import llm_json_retry, llm_retry_backoff
 from co_scientist.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm_json_attempt import _JsonAttempt
+from co_scientist.llm.attempts import backoff, retry
+from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
+from co_scientist.llm.attempts.park import platform_rate_limit_park
 
 
 def _rate_limit_error(
@@ -69,7 +71,7 @@ def test_x_ratelimit_reset_header_parks_the_task() -> None:
         headers={"x-ratelimit-reset": str(int(reset_at * 1000))},
     )
 
-    park = llm_json_retry._platform_rate_limit_park(error)
+    park = platform_rate_limit_park(error)
 
     assert isinstance(park, LLMRateLimitParkError)
     assert park.resume_at == pytest.approx(reset_at, abs=1.0)
@@ -83,7 +85,7 @@ def test_message_only_upstream_rate_limit_backs_off() -> None:
         "provider_code=rate_limited"
     )
 
-    assert llm_json_retry._platform_rate_limit_park(error) is None
+    assert platform_rate_limit_park(error) is None
 
 
 def test_short_retry_after_backs_off() -> None:
@@ -93,7 +95,7 @@ def test_short_retry_after_backs_off() -> None:
         headers={"retry-after": "20"},
     )
 
-    assert llm_json_retry._platform_rate_limit_park(error) is None
+    assert platform_rate_limit_park(error) is None
 
 
 def test_per_day_message_falls_back_to_next_utc_midnight() -> None:
@@ -103,7 +105,7 @@ def test_per_day_message_falls_back_to_next_utc_midnight() -> None:
         " rate limit exceeded"
     )
 
-    park = llm_json_retry._platform_rate_limit_park(error)
+    park = platform_rate_limit_park(error)
 
     assert isinstance(park, LLMRateLimitParkError)
     assert park.reason == "message_per_day"
@@ -117,30 +119,45 @@ def test_per_minute_message_stays_under_the_park_threshold() -> None:
         " rate limit exceeded"
     )
 
-    assert llm_json_retry._platform_rate_limit_park(error) is None
+    assert platform_rate_limit_park(error) is None
+
+
+def _fails_once(error: Exception) -> Callable[[Attempt], Awaitable[str]]:
+    """An attempt-maker that raises ``error`` once, then answers."""
+
+    async def make_attempt(attempt: Attempt) -> str:
+        if attempt.number == 1:
+            raise error
+        return "answered"
+
+    return make_attempt
 
 
 @pytest.mark.asyncio
 async def test_handle_json_call_failure_raises_park_error_without_backoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The shared failure handler raises the park error, never backs off."""
+    """The attempt loop raises the park error: no wait, no further attempt.
+
+    Named for the failure handler this loop replaced.
+    """
 
     async def _fail_if_called(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("must not sleep out a platform-cap park")
 
     monkeypatch.setattr(
-        "co_scientist.llm_json_retry.asyncio.sleep", _fail_if_called
+        "co_scientist.llm.attempts.retry.asyncio.sleep", _fail_if_called
     )
     now = time.time()
     error = _rate_limit_error(
         "RateLimitError: OpenRouterException - rate limited",
         headers={"x-ratelimit-reset": str(int((now + 7200) * 1000))},
     )
-    attempt = _JsonAttempt(number=1, is_final=False)
 
     with pytest.raises(LLMRateLimitParkError) as excinfo:
-        await llm_json_retry._handle_json_call_failure(error, attempt)
+        await retry.run_attempts(
+            _fails_once(error), AttemptPlan("m", max_attempts=3)
+        )
 
     assert excinfo.value.resume_at == pytest.approx(now + 7200, abs=1.0)
 
@@ -149,23 +166,27 @@ async def test_handle_json_call_failure_raises_park_error_without_backoff(
 async def test_handle_json_call_failure_backs_off_ordinary_throttle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A message-only throttle still goes through the ordinary backoff."""
+    """A message-only throttle still goes through the ordinary backoff.
+
+    Named for the failure handler the attempt loop replaced.
+    """
     slept: list[float] = []
 
     async def _record_sleep(delay: float) -> None:
         slept.append(delay)
 
     monkeypatch.setattr(
-        "co_scientist.llm_json_retry.asyncio.sleep", _record_sleep
+        "co_scientist.llm.attempts.retry.asyncio.sleep", _record_sleep
     )
     error = _rate_limit_error(
         "RateLimitError: DeepseekException - rate-limited upstream"
     )
-    attempt = _JsonAttempt(number=1, is_final=False)
 
-    outcome = await llm_json_retry._handle_json_call_failure(error, attempt)
+    result = await retry.run_attempts(
+        _fails_once(error), AttemptPlan("m", max_attempts=2)
+    )
 
-    assert outcome.error is error
+    assert result == "answered"
     assert len(slept) == 1
 
 
@@ -198,18 +219,19 @@ _ROUTES_EXHAUSTED_MESSAGE = (
 async def _sleeps_for(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> list[float]:
-    """Return the waits ``_handle_json_call_failure`` took for one failure."""
+    """Return the waits the attempt loop took after one failed attempt."""
     slept: list[float] = []
 
     async def _record_sleep(delay: float) -> None:
         slept.append(delay)
 
     monkeypatch.setattr(
-        "co_scientist.llm_json_retry.asyncio.sleep", _record_sleep
+        "co_scientist.llm.attempts.retry.asyncio.sleep", _record_sleep
     )
-    attempt = _JsonAttempt(number=1, is_final=False)
-    outcome = await llm_json_retry._handle_json_call_failure(error, attempt)
-    assert outcome.error is error
+    result = await retry.run_attempts(
+        _fails_once(error), AttemptPlan("m", max_attempts=2)
+    )
+    assert result == "answered"
     return slept
 
 
@@ -236,7 +258,7 @@ async def test_overloaded_api_error_backs_off(
     overload; a transient provider failure must wait like a throttle does.
     """
     error = _overloaded_error()
-    before = llm_json_retry.rate_limited_attempt_count()
+    before = retry.rate_limited_attempt_count()
 
     slept = await _sleeps_for(monkeypatch, error)
 
@@ -244,7 +266,7 @@ async def test_overloaded_api_error_backs_off(
     assert slept[0] > 0
     # Rate-limit telemetry sizes the next fan-out wave; an overload is
     # not throttling and must not inflate it.
-    assert llm_json_retry.rate_limited_attempt_count() == before
+    assert retry.rate_limited_attempt_count() == before
 
 
 @pytest.mark.asyncio
@@ -337,15 +359,10 @@ async def test_bare_not_found_retries_at_once_and_raises_when_final(
 
     assert await _sleeps_for(monkeypatch, error) == []
 
-    # The handler re-raises with a bare ``raise``, so it has to be called
-    # from inside the caller's own except block.
-    try:
-        raise error
-    except NotFoundError:
-        with pytest.raises(NotFoundError):
-            await llm_json_retry._handle_json_call_failure(
-                error, _JsonAttempt(number=5, is_final=True)
-            )
+    with pytest.raises(NotFoundError):
+        await retry.run_attempts(
+            _fails_once(error), AttemptPlan("m", max_attempts=1)
+        )
 
 
 @pytest.mark.asyncio
@@ -401,17 +418,13 @@ async def test_throttle_keeps_its_own_shorter_schedule(
 
     slept = await _sleeps_for(monkeypatch, error)
 
-    assert slept[0] <= llm_retry_backoff._RATE_LIMIT_BACKOFF_BASE_SECONDS
+    assert slept[0] <= backoff._RATE_LIMIT_BACKOFF_BASE_SECONDS
 
 
 def test_provider_outage_backoff_grows_between_attempts() -> None:
     """A later attempt always waits longer than an earlier one can."""
-    first = max(
-        llm_retry_backoff._provider_outage_backoff_seconds(1) for _ in range(50)
-    )
-    fourth = min(
-        llm_retry_backoff._provider_outage_backoff_seconds(4) for _ in range(50)
-    )
+    first = max(backoff.provider_outage_backoff_seconds(1) for _ in range(50))
+    fourth = min(backoff.provider_outage_backoff_seconds(4) for _ in range(50))
 
     assert fourth > first
 
@@ -419,6 +432,6 @@ def test_provider_outage_backoff_grows_between_attempts() -> None:
 def test_provider_outage_backoff_is_capped() -> None:
     """No single wait grows without bound, however many attempts precede it."""
     assert (
-        llm_retry_backoff._provider_outage_backoff_seconds(10)
-        <= llm_retry_backoff._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
+        backoff.provider_outage_backoff_seconds(10)
+        <= backoff._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
     )

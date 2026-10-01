@@ -6,8 +6,8 @@ provenance support span and the claim-assessment record they populate, and the
 publication gate. Citation metadata and resolvability -- a third concern, and
 one no gate here consults -- moved on to :mod:`app.citation_metadata`.
 
-:mod:`app.claims` imports these names back and re-exports them, so every public
-name remains importable from ``app.claims`` exactly as before. This module
+:mod:`app.claims` imports these names back and re-exports the ones callers
+use, so they remain importable from ``app.claims`` as before. This module
 deliberately does **not** import :mod:`app.claims` -- doing so would create an
 import cycle, since ``app.claims`` depends on the names defined here. The set
 moved here is self-contained precisely so that no such back-import is needed.
@@ -39,6 +39,17 @@ class EntailmentLabel(str, enum.Enum):
     PARTIAL = "partial"
     CONTRADICTS = "contradicts"
     INSUFFICIENT = "insufficient"
+
+    @property
+    def is_supporting(self) -> bool:
+        """Whether this verdict counts as support: ``SUPPORTS`` or ``PARTIAL``.
+
+        The one definition of the rule; :mod:`app.claim_verdict` lifts it onto
+        persisted claim-evidence edges.
+        """
+        return (
+            self is EntailmentLabel.SUPPORTS or self is EntailmentLabel.PARTIAL
+        )
 
 
 # --- Support spans (provenance) and claim assessments -----------------------
@@ -192,9 +203,6 @@ def _classify_gate_claims(
     )
 
 
-_SUPPORTING_LABELS = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
-
-
 def _blocks_for_missing_support(
     assessments: list[ClaimAssessment], *, require_supported_claim: bool
 ) -> bool:
@@ -206,7 +214,7 @@ def _blocks_for_missing_support(
     """
     if not require_supported_claim:
         return False
-    return not any(a.label in _SUPPORTING_LABELS for a in assessments)
+    return not any(a.label.is_supporting for a in assessments)
 
 
 def _gate_block_reason(

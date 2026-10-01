@@ -7,8 +7,8 @@ interrupted run resumable or fails it with a clear reason, and the
 in-process settlement that fails a run the moment its last claimable
 work dies. Both failure paths write the same run-row transition and the
 same terminal ``status`` event shape, so the SSE stream closes on
-either. Every pre-existing name is re-exported from ``app.store.runs``,
-so callers and monkeypatching tests are unaffected.
+either. The pre-existing names callers use are re-exported from
+``app.store.runs``, so callers and monkeypatching tests are unaffected.
 """
 
 from __future__ import annotations

@@ -39,11 +39,11 @@ def _install_replies(
 
 
 def _mock_zero_price_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.setattr(
-        llm_free_catalog,
+        free_catalog,
         "_fetch_catalog",
         lambda: {
             "stealth/space-bunny-alpha": {

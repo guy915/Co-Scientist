@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from co_scientist.llm_tool_transcript import elide_repeated_papers
+from co_scientist.llm.tools.transcript import elide_repeated_papers
 
 
 def _result(payload: Any) -> dict[str, Any]:

@@ -18,7 +18,7 @@ is what turns that into a first-attempt success.
 
 from typing import Any
 
-from co_scientist.llm_json import _prune_unknown_properties
+from co_scientist.llm.structured.validate import _prune_unknown_properties
 
 _CLOSED_SCHEMA: dict[str, Any] = {
     "type": "object",

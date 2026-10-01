@@ -88,13 +88,13 @@ import litellm
 from evaluations._run_driver import configure_environment
 configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
 from app.config import settings
-from co_scientist import llm_free_catalog
+from co_scientist.llm.admission import free_catalog
 from co_scientist.llm import call_llm, CompletionSpec
 from co_scientist.exceptions import FreeModelEligibilityError
 
 async def check():
     for price in ("0.01", "0"):
-        llm_free_catalog._snapshot = None
+        free_catalog._snapshot = None
         catalog = {"data": [{"id": "campaign/zero:free",
             "pricing": {"prompt": "0", "completion": price},
             "architecture": {"input_modalities": ["text"],

@@ -18,7 +18,7 @@ import pytest
 from co_scientist.agents.generation.experiment_plan import (
     format_experiment_plan,
 )
-from co_scientist.llm_json import validate_json_schema
+from co_scientist.llm.structured.validate import validate_json_schema
 from co_scientist.models import Hypothesis
 from co_scientist.offline_schema_fill import _fill_schema
 from co_scientist.schemas.generation import (

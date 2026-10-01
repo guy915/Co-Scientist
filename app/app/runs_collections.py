@@ -1,11 +1,12 @@
 """Read-only run collection and report endpoints.
 
-Split out of ``app.runs`` (which re-exports every name here and mounts
+Split out of ``app.runs`` (which re-exports the names callers use and mounts
 ``router`` on its own, so the served route set is unchanged): the
 per-run collection getters (hypotheses, evidence, matches, proximity,
-reviews, safety, tasks, citations, metrics, logs, claim-evidence), the
-safety adjudication endpoint that operates on those decisions, and the
-report payload/Markdown reads.
+reviews, safety, tasks, citations, metrics, logs, claim-evidence) and the
+report payload/Markdown reads. The one write on this router, safety
+adjudication, is implemented in ``runs_lifecycle_adjudication`` and only
+registered here (see below).
 """
 
 from __future__ import annotations
@@ -16,11 +17,11 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from app import store
-from app.auth import client_id, require_bearer_principal
+from app.auth import require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
-from app.runs_models import SafetyAdjudicationRequest
+from app.report import unverified_hypothesis_ids
+from app.runs_lifecycle_adjudication import adjudicate_safety
 from app.runs_support import _require_run, _run_or_404
-from app.store import RunStatus
 
 router = APIRouter()
 
@@ -29,8 +30,6 @@ router = APIRouter()
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
-    from app.report_render import _unverified_hypothesis_ids
-
     hyps = store.list_hypotheses(run_id)
     # Flag ideas without an evidence-supported claim so the UI can badge them
     # "Unverified" (they are ranked and published under the rank-and-publish
@@ -44,7 +43,7 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
         for hyp in hyps:
             hyp["unverified"] = False
     else:
-        unverified = _unverified_hypothesis_ids(run_id, None, hyps)
+        unverified = unverified_hypothesis_ids(run_id, None, hyps)
         for hyp in hyps:
             hyp["unverified"] = str(hyp.get("id")) in unverified
     return {"hypotheses": hyps}
@@ -126,129 +125,11 @@ async def get_tasks(run_id: str) -> dict[str, Any]:
     return {"tasks": [_task_payload(t) for t in store.list_tasks(run_id)]}
 
 
-async def _apply_adjudication_lifecycle(
-    run: store.RunRow,
-    decision: dict[str, Any],
-    resolution: str,
-    *,
-    expected_lifecycle_revision: int,
-) -> None:
-    """Apply the run-lifecycle consequence of one adjudicated decision.
-
-    Intake/final holds gate the run's whole goal or report, so a rejection
-    blocks the run and an approval releases it. A hypothesis-stage hold
-    concerns one idea the engine already kept out of the pool and the
-    report; rejecting it confirms the exclusion, and the recorded
-    resolution is the verdict -- the run's lifecycle is untouched.
-
-    Args:
-        run: The run whose decision was adjudicated.
-        decision: The resolved decision row (carries its ``stage``).
-        resolution: ``"approved"`` or ``"rejected"``.
-        expected_lifecycle_revision: Transition revision observed at admission.
-    """
-    if decision["stage"] == "hypothesis":
-        return
-    if resolution == "rejected":
-        _block_rejected_run_if_current(
-            run, expected_lifecycle_revision=expected_lifecycle_revision
-        )
-    elif run.status == RunStatus.PAUSED.value:
-        await _release_approved_hold(
-            run.id,
-            expected_status=run.status,
-            expected_lifecycle_revision=expected_lifecycle_revision,
-        )
-
-
-def _block_rejected_run_if_current(
-    run: store.RunRow, *, expected_lifecycle_revision: int
-) -> None:
-    """Block a rejected run only while its admission state is unchanged."""
-    from app.runs_lifecycle import _lifecycle_revision
-
-    with store.transaction() as conn:
-        current = store.get_run(run.id, conn=conn)
-        if current is None:
-            raise HTTPException(status_code=404, detail="run not found")
-        if (
-            current.status != run.status
-            or _lifecycle_revision(run.id, conn=conn)
-            != expected_lifecycle_revision
-        ):
-            raise HTTPException(
-                status_code=409, detail="run status changed during adjudication"
-            )
-        store.update_run_status(
-            run.id,
-            RunStatus.BLOCKED,
-            error="Safety reviewer rejected held content.",
-            conn=conn,
-        )
-
-
-async def _release_approved_hold(
-    run_id: str,
-    *,
-    expected_status: str,
-    expected_lifecycle_revision: int,
-) -> None:
-    """Relaunch a run whose intake or final hold a reviewer just approved.
-
-    The gate that held the run parked its task rather than completing it
-    (``engine_tasks.SafetyHoldError``), so the boundary the run stopped at
-    is still on the queue waiting to be released -- which is exactly what
-    the resume path does. Approval used to only rewrite the run's status,
-    which left the queue untouched: the holding task had already succeeded,
-    re-enqueueing its boundary hit the same idempotency key and created
-    nothing, and the run sat with no claimable work forever.
-
-    The stage is not re-screened on the way back through: the escalation
-    wrapper skips a stage a reviewer approved (``screen_with_escalation``),
-    so a fresh contextual verdict cannot re-hold what a person released.
-    """
-    from app.runs_lifecycle import _launch_resume
-
-    await _launch_resume(
-        run_id,
-        expected_status=expected_status,
-        expected_lifecycle_revision=expected_lifecycle_revision,
-    )
-
-
-@router.post("/{run_id}/safety/{decision_id}/adjudicate")
-async def adjudicate_safety(
-    run_id: str,
-    decision_id: int,
-    body: SafetyAdjudicationRequest,
-    request: Request,
-) -> dict[str, Any]:
-    """Resolve one held safety decision and update the run lifecycle."""
-    from app.runs_lifecycle import _resume_admission_snapshot
-
-    run, lifecycle_revision = _resume_admission_snapshot(run_id)
-    reviewer = client_id(request)
-    if not reviewer:
-        raise HTTPException(
-            status_code=403, detail="an identified reviewer is required"
-        )
-    resolved = store.resolve_safety_decision(
-        run_id, decision_id, body.resolution, reviewer
-    )
-    if not resolved:
-        raise HTTPException(
-            status_code=409,
-            detail="decision is not reviewable or was already resolved",
-        )
-    decisions = store.list_safety_decisions(run_id)
-    decision = next(item for item in decisions if item["id"] == decision_id)
-    await _apply_adjudication_lifecycle(
-        run,
-        decision,
-        body.resolution,
-        expected_lifecycle_revision=lifecycle_revision,
-    )
-    return {"resolution": body.resolution, "decision_id": decision_id}
+# The handler lives with the lifecycle code it drives. It is registered here,
+# at the slot between /tasks and /citations, only so the served route table
+# keeps listing it where it always has: registration order is first-match-wins
+# and is the order the API docs show.
+router.post("/{run_id}/safety/{decision_id}/adjudicate")(adjudicate_safety)
 
 
 @router.get("/{run_id}/citations")
@@ -293,8 +174,9 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """Return the run's claim-level entailment graph (Milestone 5).
 
     Each edge is one atomic claim of a hypothesis with its assessed label
-    (supports/contradicts/insufficient) and the exact supporting/contradicting
-    passages that drove the verdict.
+    (an ``EntailmentLabel`` value; ``app.claim_verdict`` says what each
+    means) and the exact supporting/contradicting passages that drove the
+    verdict.
     """
     _require_run(run_id)
     return {"claim_evidence": store.list_claim_evidence(run_id)}

@@ -1,4 +1,4 @@
-"""Integration tests spanning router + store + engine_adapter + report_render.
+"""Integration tests spanning router + store + engine_adapter + report.finalize.
 
 ``test_runs.py`` and friends already cover single-endpoint behavior; this file
 covers multi-component journeys none of them exercise: a full run's event log

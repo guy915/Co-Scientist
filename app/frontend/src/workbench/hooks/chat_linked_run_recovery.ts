@@ -1,4 +1,12 @@
-import type {ChatSummary, Interview, Run, RunFocus, RunTier} from '@/api/runs';
+import {
+  isCancelledStatus,
+  isDraftStatus,
+  type ChatSummary,
+  type Interview,
+  type Run,
+  type RunFocus,
+  type RunTier,
+} from '@/api/runs';
 import type {InferredRunSpec} from '../run_spec';
 import {
   attributeDisplayString,
@@ -131,7 +139,7 @@ export function recoveryStatus(
   if (!linkedRun) return undefined;
   if (linkedRun.phase === 'loading') return 'checking';
   if (linkedRun.phase === 'error') return 'error';
-  if (linkedRun.run.status === 'cancelled') return 'cancelled';
+  if (isCancelledStatus(linkedRun.run.status)) return 'cancelled';
   return undefined;
 }
 
@@ -140,7 +148,9 @@ function recoverySpec(
 ): InferredRunSpec | undefined {
   if (!linkedRun) return undefined;
   if (linkedRun.phase !== 'ready') return undefined;
-  return linkedRun.run.status === 'draft' ? linkedRun.recoverySpec : undefined;
+  return isDraftStatus(linkedRun.run.status)
+    ? linkedRun.recoverySpec
+    : undefined;
 }
 
 export function recoverySummary(

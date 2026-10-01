@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, engine_tasks_node, store, task_worker
+from tests._engine_tasks_helpers import _install_runtime
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -31,9 +32,7 @@ async def test_early_finalize_pause_skips_final_drain(
         drain_calls.append(True)
         raise AssertionError("paused finalize called the final drain")
 
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", unexpected_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = unexpected_drain
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert result["status"] == "paused"
@@ -56,9 +55,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
     # Restore the real drain replaced by the shared fixture.
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", real_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = real_drain
     cancel_responses: list[dict[str, Any]] = []
 
     async def cancel_inside_drain(*_: Any, **__: Any) -> Any:
@@ -72,7 +69,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", cancel_inside_drain
+        engine_tasks_node, "persist_final_state", cancel_inside_drain
     )
     task = store.claim_task(
         "cancel-during-drain-worker", run_id=run_id, db_path=isolated_db
@@ -181,9 +178,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", real_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = real_drain
     pause_responses: list[dict[str, Any]] = []
 
     async def pause_inside_drain(*_: Any, **kwargs: Any) -> Any:
@@ -208,7 +203,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", pause_inside_drain
+        engine_tasks_node, "persist_final_state", pause_inside_drain
     )
 
     assert await task_worker.run_once(
@@ -319,9 +314,7 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", real_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = real_drain
 
     async def fake_persist_final_state(*_: Any, **kwargs: Any) -> Any:
         store.add_hypothesis(
@@ -341,7 +334,7 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", fake_persist_final_state
+        engine_tasks_node, "persist_final_state", fake_persist_final_state
     )
     task = store.claim_task(
         "cancel-after-drain-worker", run_id=run_id, db_path=isolated_db

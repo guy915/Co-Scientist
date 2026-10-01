@@ -1,4 +1,4 @@
-import {isActiveStatus, type Run} from '@/api/runs';
+import {isActiveStatus, isCompletedStatus, type Run} from '@/api/runs';
 import {formatDurationPhrase} from '@/lib/duration';
 import {capitalizeTerm} from '@/lib/text';
 
@@ -65,7 +65,7 @@ function formatHomeRunElapsed(run: Run, nowSeconds: number): string {
  * @returns The chip text.
  */
 export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {
-  if (run.status === 'completed') {
+  if (isCompletedStatus(run.status)) {
     return `Total time: ${formatHomeRunDuration(run)}`;
   }
   if (isActiveStatus(run.status)) {
@@ -91,7 +91,7 @@ export function homeRunScore(
   run: Run,
   scoresByRunId: Record<string, number | null>,
 ): number | null {
-  if (run.status !== 'completed') return null;
+  if (!isCompletedStatus(run.status)) return null;
   return Object.prototype.hasOwnProperty.call(scoresByRunId, run.id)
     ? scoresByRunId[run.id]
     : null;

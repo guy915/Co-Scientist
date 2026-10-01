@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react';
 import {
   cancelRun,
   HttpError,
-  isTerminalStatus,
+  isStoppableStatus,
   type RunStatus,
 } from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -78,15 +78,6 @@ function useArmedStop(runId: string | undefined) {
   return {armed, stopping, activate};
 }
 
-// Whether a run can still be stopped: anything the server would accept a
-// cancel for. Deliberately not `isActiveStatus`, which excludes `paused` --
-// that is the right reading for a progress indicator, and the wrong one
-// here, since a paused run is precisely an unfinished run the scientist may
-// want rid of. A draft has not started, so there is nothing to stop.
-function isStoppable(status: RunStatus | undefined): boolean {
-  return Boolean(status && status !== 'draft' && !isTerminalStatus(status));
-}
-
 // The control's two faces: the offer, and the armed confirmation. Named
 // together so the label, the hover text and the icon cannot drift into
 // disagreeing about which state the button is in.
@@ -129,7 +120,7 @@ export function CancelRunControl({
   status: RunStatus | undefined;
 }) {
   const {armed, stopping, activate} = useArmedStop(runId);
-  if (!runId || !isStoppable(status)) return null;
+  if (!runId || !isStoppableStatus(status)) return null;
 
   const face = stopFace(armed);
   return (

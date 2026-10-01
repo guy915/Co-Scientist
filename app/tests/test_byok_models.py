@@ -9,7 +9,7 @@ from starlette.datastructures import Headers
 
 from app import byok_models, credentials, store
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, settings
-from app.engine_adapter.opts import _build_generator
+from app.engine_adapter.opts import build_generator
 from app.run_modes import resolved_run_config
 
 _KEY = "sk-model-choice-123456"
@@ -107,7 +107,7 @@ def test_generator_runs_each_tier_on_its_chosen_model() -> None:
         model="deepseek/deepseek-v4-flash",
         supervisor_model="deepseek/deepseek-v4-pro",
     )
-    _build_generator(generator, resolved_run_config({}), byok=cred)
+    build_generator(generator, resolved_run_config({}), byok=cred)
     assert captured["model_name"] == "deepseek/deepseek-v4-flash"
     options = captured["options"]
     assert options.supervisor_model_name == "deepseek/deepseek-v4-pro"

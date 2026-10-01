@@ -12,7 +12,7 @@ the published heading.
 
 from __future__ import annotations
 
-from app.report_markdown_review_block import _render_critiques_rollup
+from app.report.markdown.review_block import _render_critiques_rollup
 from tests._review_block_helpers import _row, _summary_row
 
 

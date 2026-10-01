@@ -53,8 +53,8 @@ def _section_or_none(response: dict[str, Any], key: str) -> str | None:
     """One proposal section from the response, or None if it has none.
 
     Blank counts as absent: under the json_object downgrade
-    ``llm_json._backfill_required_fields`` inserts ``""`` for a missing
-    required string, and an empty mechanism must read as "this child has
+    ``llm.structured.validate._backfill_required_fields`` inserts ``""`` for a
+    missing required string, and an empty mechanism must read as "this child has
     no mechanism section" rather than fall back to the parent's.
     """
     value = response.get(key)

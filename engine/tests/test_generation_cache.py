@@ -16,7 +16,7 @@ import json
 from typing import Any
 
 import co_scientist.cache as cache_mod
-import co_scientist.llm as llm_mod
+import co_scientist.llm.call as llm_call
 from co_scientist.agents.generation import debate
 from co_scientist.agents.generation.debate import (
     generate_with_debate,
@@ -82,7 +82,7 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
         LLMCacheRequest("P", "m", 0.7, 100, json_schema=schema),
         {"hypotheses": [{"hypothesis": "CACHED"}]},
     )
-    monkeypatch.setattr(llm_mod, "_call_llm_single_attempt", _fresh_call_llm)
+    monkeypatch.setattr(llm_call, "_call_llm_single_attempt", _fresh_call_llm)
 
     cached = _run_json_call(schema, use_cache=True)
     assert cached["hypotheses"][0]["hypothesis"] == "CACHED"

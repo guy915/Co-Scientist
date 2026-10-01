@@ -34,7 +34,12 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
     engine = (
         Path(__file__).resolve().parents[2] / "engine" / "src" / "co_scientist"
     )
-    for name in ("llm_free_policy.py", "llm_free_catalog.py"):
+    for name in (
+        "llm/admission/free_policy.py",
+        "llm/admission/free_catalog.py",
+        "llm/profile/families.py",
+        "llm/profile/routes.py",
+    ):
         assert (
             identities[0]["request_policy_files"][name]
             == hashlib.sha256((engine / name).read_bytes()).hexdigest()
@@ -46,11 +51,10 @@ def test_model_and_fallback_changes_change_persisted_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import dataclasses
 
     from app import store
     from app.config import settings
-    from co_scientist import llm_gateway_routing
+    from co_scientist.llm.profile import routes
 
     db = str(tmp_path / "model-policy.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
@@ -74,12 +78,8 @@ def test_model_and_fallback_changes_change_persisted_identity(
 
     original = capture()
     model = settings.model_name
-    declared = llm_gateway_routing._GATEWAY_MODELS[model]
-    monkeypatch.setitem(
-        llm_gateway_routing._GATEWAY_MODELS,
-        model,
-        dataclasses.replace(declared, fallbacks=()),
-    )
+    declared = routes.ROUTES[model]
+    monkeypatch.setitem(routes.ROUTES, model, {**declared, "fallbacks": ()})
     rerouted = capture()
     assert original["routing"] != rerouted["routing"]
     assert original["digest"] != rerouted["digest"]

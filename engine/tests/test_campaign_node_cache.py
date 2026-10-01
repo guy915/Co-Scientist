@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from co_scientist.cache import NodeCache
-from co_scientist.llm_credentials import scoped_api_key
+from co_scientist.llm import scoped_api_key
 
 
 @pytest.mark.parametrize("force", [False, True])

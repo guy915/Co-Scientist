@@ -9,7 +9,7 @@ status inside the caller's own transaction. ``fail_task`` itself stays in
 ``app.store.tasks``: it also calls ``_settle_run_for_failed_task``, and a
 test monkeypatches that name on ``app.store.tasks`` to verify the whole
 write is transactional, which only holds while the call site resolving it
-lives in that module. Every name here is re-exported from
+lives in that module. The names callers use are re-exported from
 ``app.store.tasks``, so callers and monkeypatching tests
 (``store_tasks._MAX_STORED_ATTEMPTS``) are unaffected.
 """
@@ -72,7 +72,7 @@ def renew_task_lease(
 
 
 # The largest max_attempts any caller in this codebase configures is 3
-# (the NewTask default; report_notify.py's own retry task uses it too).
+# (the NewTask default; report/notify.py's own retry task uses it too).
 # Capped well above that for headroom against a future caller raising its
 # own budget, while still bounding this column's size on a hot table.
 _MAX_STORED_ATTEMPTS = 10

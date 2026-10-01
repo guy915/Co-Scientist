@@ -17,7 +17,7 @@ from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt,
     _MatchupPromptContext,
 )
-from co_scientist.llm_telemetry import record_deterministic_fallback
+from co_scientist.llm import record_deterministic_fallback
 from co_scientist.models import Hypothesis
 
 logger = logging.getLogger(__name__)

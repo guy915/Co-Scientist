@@ -5,8 +5,8 @@ the two ablation seams (periodic meta-review, forced generation strategy).
 Each resolves a run's durable config against the tier table (and the
 literature-review kill switch), and the engine treats every one as a
 request it may still refuse. Split from ``opts.py`` on that module's
-500-line cap; ``opts.py`` re-exports every name so callers and tests that
-import from ``app.engine_adapter.opts`` are unchanged.
+500-line cap; ``opts.py`` re-exports the names callers and tests use, so
+they import from ``app.engine_adapter.opts`` unchanged.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _resolve_tool_calling_generation_toggle(cfg: dict[str, Any]) -> bool:
 # Two things make the per-hypothesis figure a floor rather than the
 # cost. A turn that comes back answerless is retried at a raised budget
 # and then with thinking off, so one turn can be up to three completions
-# (`llm_json_escalation.BudgetEscalation`). And the maturity scheduler
+# (`llm.attempts.escalation.BudgetEscalation`). And the maturity scheduler
 # keys on the full review alone, so a hypothesis whose *full* review
 # fails re-issues its simulation review -- tool loop included -- on
 # every later iteration.

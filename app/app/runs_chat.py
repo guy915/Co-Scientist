@@ -4,8 +4,7 @@ Scientist steering messages (queued and drained between iterations) and the
 grounded Q&A endpoint with its streamed LLM (or deterministic offline)
 answer. Split from ``app.runs`` by concern, matching the sibling endpoint
 modules (``runs_lifecycle``, ``runs_collections``, ``runs_contrib``); the
-router here is included into ``runs.router`` and every name is re-exported
-from ``app.runs``, which remains the stable import and monkeypatch surface.
+router here is included into ``runs.router``.
 """
 
 from __future__ import annotations

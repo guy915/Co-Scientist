@@ -1,13 +1,13 @@
 """Degrading one node when its provider cannot be reached at all.
 
-``llm_json._ENHANCEMENT_NODE_FALLBACKS`` already declares which nodes may
-publish nothing rather than stop a run -- but only
-``_handle_json_retries_exhausted`` serves those fallbacks, so they cover a
-model that answers unparseably and not a provider that does not answer.
-The other door out of ``call_llm_json`` is a raise: ``LLMTimeoutError``
-(never retried, since a stalled provider will not answer the same request
-faster) and a provider error on the final in-call attempt both leave by
-it, carrying past the fallback table entirely.
+``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS`` already declares which
+nodes may publish nothing rather than stop a run -- but only
+``_handle_json_retries_exhausted`` serves those fallbacks, so they cover a model
+that answers unparseably and not a provider that does not answer. The other door
+out of ``call_llm_json`` is a raise: ``LLMTimeoutError`` (never retried, since a
+stalled provider will not answer the same request faster) and a provider error
+on the final in-call attempt both leave by it, carrying past the fallback table
+entirely.
 
 That gap cost production run 49a509b0 its whole output. 146 tasks
 committed, then the terminal ``research_overview`` node hit a provider

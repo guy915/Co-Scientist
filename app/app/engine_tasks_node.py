@@ -4,7 +4,7 @@ The checkpoint-guard, state-restore, pause, fan-out dispatch, and
 final-drain helpers that ``execute_node_task`` in ``app.engine_tasks``
 composes, plus ``execute_finalize`` itself, which is here because every
 helper it composes already is. Split from ``app.engine_tasks``, which
-re-exports every name here so it remains the stable import and
+re-exports the names callers use so it remains their import and
 monkeypatch surface.
 """
 
@@ -14,8 +14,8 @@ import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from app import store
-from app.engine_adapter.drain import _persist_final_state
+from app import engine_tasks_runtime, store
+from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks_checkpoint_guard import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
@@ -48,17 +48,12 @@ from app.engine_tasks_pause import (
 )
 from app.engine_tasks_ranking import _schedule_ranking_chain
 from app.engine_tasks_restore import (
-    ADMISSION_NODE as ADMISSION_NODE,
-)
-from app.engine_tasks_restore import (
     _restore_node_task_state as _restore_node_task_state,
 )
 from app.engine_tasks_support import (
     FINALIZE_TASK,
     NodeCompletion,
-    _assert_task_commit_allowed,
     _emit_node_completion,
-    _generator_for_restore,
     _latest_task_checkpoint,
     _metrics_snapshot,
     _plain_final_state,
@@ -66,8 +61,11 @@ from app.engine_tasks_support import (
     _save_paused_state,
     _save_state_and_enqueue,
     _successor_task_type,
+    assert_task_commit_allowed,
+    restore_checkpoint_state,
 )
-from app.report_render import ReportRequest, finalize_report, make_emitter
+from app.report import ReportRequest, finalize_report
+from app.run_events import make_emitter
 from app.run_modes import normalize_run_tier
 from app.safety import SafetyDecision, apply_safety_gate
 from app.store import RunStatus, ScientificTask
@@ -201,7 +199,7 @@ def _commit_finalize_drain(
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         status = conn.execute(
             "SELECT status FROM runs WHERE id=?", (task.run_id,)
         ).fetchone()["status"]
@@ -309,7 +307,7 @@ async def _drain_and_persist_final_state(
     """Persist replayable final artifacts outside a database lock."""
     final_state = _plain_final_state(state)
     store.clear_publication_artifacts(run.id, db_path=db_path)
-    drained = await _persist_final_state(
+    drained = await persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
     metrics = _metrics_snapshot(final_state)
@@ -321,14 +319,8 @@ def _restore_finalize_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Restore the workflow state the run's last committed checkpoint holds."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
     checkpoint, _ = _latest_task_checkpoint(task, db_path)
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return checkpoint, state
+    return checkpoint, restore_checkpoint_state(task, checkpoint, db_path)
 
 
 async def _publish_finalize_report(  # noqa: PLR0913
@@ -376,9 +368,8 @@ async def execute_finalize(
     halted = await _halt_finalize_if_blocked(run, state, task, db_path)
     if halted is not None:
         return halted
-    drained, execution_time, metrics = await _drain_and_persist_final_state(
-        run, state, db_path
-    )
+    drain = engine_tasks_runtime.active().drain_final_state
+    drained, execution_time, metrics = await drain(run, state, db_path)
     paused = _commit_finalize_drain(commit, state, drained, metrics)
     if paused is not None:
         return paused
@@ -394,7 +385,7 @@ async def execute_finalize(
 
 def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
     """Settle and free call-budget tracking, including nonterminal exits."""
-    from co_scientist.llm_call_budget import release_run_call_budget
+    from co_scientist.llm import release_run_call_budget
 
     outcome = _settle_finalize_outcome(run_id, db_path)
     release_run_call_budget(run_id)

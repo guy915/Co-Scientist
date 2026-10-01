@@ -7,7 +7,7 @@ a real run's Supervisor synthesizes once, per goal, before any hypothesis
 exists. A curated demo has no Supervisor call to draw them from, so this
 module hand-authors the same shape -- goal-specific, not the user-authored
 setup attributes/criteria ``seed_planning.py`` owns (see
-``report_markdown_supervisor.py``'s vocabulary warning: same English words,
+``report/markdown/supervisor.py``'s vocabulary warning: same English words,
 two different published sections).
 
 Split out of ``seed_overview``/``seed_scenario`` so each stays within the

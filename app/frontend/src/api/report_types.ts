@@ -9,7 +9,7 @@ import type {ClaimEvidenceRow, RunMode} from './run_types';
 /**
  * Structured contents of a run's final synthesis report. One canonical shape
  * for every provider, built server-side by
- * `report_render.build_report_payload`.
+ * `report.payload.build_report_payload`.
  */
 export interface ReportPayload {
   research_goal: string;

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from co_scientist.llm_tool_transcript import (
+from co_scientist.llm.tools.transcript import (
     ABORTED_RESULT,
     elide_superseded_writes,
     normalize_tool_transcript,

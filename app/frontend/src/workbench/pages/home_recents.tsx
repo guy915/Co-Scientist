@@ -1,5 +1,10 @@
 import {Link} from 'react-router-dom';
-import {isActiveStatus, type ChatSummary, type Run} from '@/api/runs';
+import {
+  isActiveStatus,
+  isCompletedStatus,
+  type ChatSummary,
+  type Run,
+} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {firstSentenceClause} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/use_now_tick';
@@ -286,7 +291,7 @@ function RecentRunCard({
         {isActiveRun ? (
           <RunStepFlow run={run} />
         ) : (
-          run.status === 'completed' && (
+          isCompletedStatus(run.status) && (
             <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
           )
         )}

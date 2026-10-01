@@ -12,11 +12,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import report_render, store
+from app import store
 from app.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
 )
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from tests._drain_helpers import _final_state_with_features, _persist
 
 
@@ -63,9 +65,9 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
     from tests._client import drain as _drain
 
     _drain(
-        report_render.finalize_report(
+        report_finalize.finalize_report(
             run.id,
-            report_render.ReportRequest(
+            report_build.ReportRequest(
                 research_goal=run.research_goal,
                 run_mode="standard",
                 provider="engine",
@@ -100,9 +102,9 @@ def test_report_payload_degraded_sections_default_empty(
     from tests._client import drain as _drain
 
     _drain(
-        report_render.finalize_report(
+        report_finalize.finalize_report(
             run.id,
-            report_render.ReportRequest(
+            report_build.ReportRequest(
                 research_goal=run.research_goal,
                 run_mode="standard",
                 provider="engine",

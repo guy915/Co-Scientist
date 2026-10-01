@@ -18,6 +18,7 @@ from app.config import settings
 from app.safety import REDACTED_PLACEHOLDER, SafetyDecision
 from app.task_worker_outcomes import _LeaseLostError
 from tests._client import make_client
+from tests._engine_tasks_helpers import _install_runtime
 
 _STRICT_GOAL = "Assess select agent stockpile resilience across regions."
 
@@ -109,9 +110,7 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
             stage="intake", decision="redact", matches=["select agent"]
         )
 
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", cancel_then_return_redaction
-    )
+    _install_runtime(monkeypatch).screen = cancel_then_return_redaction
 
     with pytest.raises(_LeaseLostError):
         await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
@@ -166,9 +165,7 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
             )
         return SafetyDecision(stage="intake", decision="allow")
 
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", expire_then_allow
-    )
+    _install_runtime(monkeypatch).screen = expire_then_allow
 
     with pytest.raises(_LeaseLostError):
         await engine_tasks.execute_bootstrap(task, db_path=isolated_db)

@@ -169,16 +169,16 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     """The gate's entailment calls now count against a run's LLM-call ceiling.
 
     Before routing through the engine seam these calls were invisible to
-    ``co_scientist.llm_call_budget`` -- a production run spent $4.70 over
-    ~1,000 provider requests against a 2500-call ceiling that never saw
-    them. Batching judges this hypothesis's several claims in a single
-    call (see ``app.claims.assess_claims_batch``), so a ceiling of 0 --
-    not 1 -- is what the very first call must already exceed to prove the
-    ceiling sees this gate's calls at all.
+    ``co_scientist.llm.admission.call_budget`` -- a production run spent $4.70
+    over ~1,000 provider requests against a 2500-call ceiling that never saw
+    them. Batching judges this hypothesis's several claims in a single call (see
+    ``app.claims.assess_claims_batch``), so a ceiling of 0 -- not 1 -- is what
+    the very first call must already exceed to prove the ceiling sees this
+    gate's calls at all.
     """
     from co_scientist.cache import scoped_cache_override
     from co_scientist.exceptions import LLMCallBudgetExceededError
-    from co_scientist.llm_call_budget import scoped_llm_call_budget
+    from co_scientist.llm import scoped_llm_call_budget
 
     _install_fake_acompletion(monkeypatch)
     state = _multi_claim_state()

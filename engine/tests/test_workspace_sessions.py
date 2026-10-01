@@ -327,7 +327,7 @@ class TestAnInterruptedCommand:
     async def test_the_resumed_transcript_says_the_call_was_aborted(
         self, tmp_path: Path
     ) -> None:
-        from co_scientist.llm_tool_transcript import (
+        from co_scientist.llm.tools.transcript import (
             ABORTED_RESULT,
             normalize_tool_transcript,
         )

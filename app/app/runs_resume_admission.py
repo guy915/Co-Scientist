@@ -51,7 +51,7 @@ def _has_failed_precheckpoint_bootstrap_while_paused(
     )
 
 
-def _lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
+def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
     """Return the monotonic sequence of the latest lifecycle transition."""
     row = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) FROM run_events "
@@ -61,12 +61,12 @@ def _lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
     return int(row[0])
 
 
-def _resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
+def resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
     """Read the run status and lifecycle revision from one SQLite snapshot."""
     with store.connect() as conn:
         conn.execute("BEGIN")
         run = _run_or_404(run_id, conn=conn)
-        revision = _lifecycle_revision(run_id, conn=conn)
+        revision = lifecycle_revision(run_id, conn=conn)
         conn.execute("COMMIT")
     return run, revision
 
@@ -146,7 +146,7 @@ def _check_resume_admission(
     run = _run_or_404(run_id, conn=conn)
     if (
         run.status != expected_status
-        or _lifecycle_revision(run_id, conn=conn) != expected_lifecycle_revision
+        or lifecycle_revision(run_id, conn=conn) != expected_lifecycle_revision
     ):
         raise HTTPException(
             status_code=409, detail="run status changed while resuming"

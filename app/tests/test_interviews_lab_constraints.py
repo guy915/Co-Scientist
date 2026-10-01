@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import interviews, store
-from app.engine_adapter import _build_engine_opts
+from app.engine_adapter import build_engine_opts
 from app.interviews_prompts import _normalized_fields
 from app.main import app
 
@@ -260,7 +260,7 @@ def test_engine_opts_thread_interview_lab_constraints(
     )
     run = _run_from_interview(interview["id"], isolated_db)
 
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert opts.get("lab_constraints") == ["Zebrafish facility only"]
 
 
@@ -271,7 +271,7 @@ def test_engine_opts_omit_lab_constraints_when_none_declared(
     interview = store.create_interview("c5", "A challenge", db_path=isolated_db)
     run = _run_from_interview(interview["id"], isolated_db)
 
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts
 
 
@@ -286,7 +286,7 @@ def test_engine_opts_without_interview_carry_no_lab_constraints(
         {},
         store.RunCreateOptions(db_path=isolated_db),
     )
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts
 
 
@@ -301,5 +301,5 @@ def test_engine_opts_survive_a_missing_interview_row(
         {"interview_id": "no-such-interview"},
         store.RunCreateOptions(db_path=isolated_db),
     )
-    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts

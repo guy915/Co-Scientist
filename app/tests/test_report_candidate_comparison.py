@@ -12,7 +12,7 @@ ideas`` section -- a thematic summary paragraph plus one block per idea --
 rather than two duplicate headings, and renders each idea's columns as
 bold-label bullets rather than a markdown table, matching every other
 meta-review section's convention (``_render_connection``, and
-``report_markdown_meta_themes._render_sub_theme``)
+``report.markdown.meta_themes._render_sub_theme``)
 instead of the published table markup.
 
 The table's own columns follow the run's own subject matter (``axes``,
@@ -23,7 +23,7 @@ older fixed-field shape a run's meta-review carried before that (still
 accepted on read, per the renderer's own fallback).
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(meta_review: dict[str, object]) -> str:

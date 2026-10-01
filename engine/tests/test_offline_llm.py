@@ -18,7 +18,7 @@ import jsonschema
 import litellm
 import pytest
 
-from co_scientist import llm_request, offline_llm
+from co_scientist import offline_llm
 from co_scientist.agents.reflection.review_gate import _disposition_for
 from co_scientist.agents.reflection.review_helpers import (
     _review_from_response,
@@ -26,6 +26,7 @@ from co_scientist.agents.reflection.review_helpers import (
 from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
+from co_scientist.llm.request import completion
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
@@ -142,7 +143,7 @@ async def test_offline_meta_review_fills_main_research_directions() -> None:
     ``main_research_directions`` is required (unlike the roadmap-step
     fields ``test_offline_optional_fields.py`` hints in), so the generic
     filler must already populate it via one leaf draw -- this is what lets
-    ``report_markdown_meta_review``'s renderer show a populated section on
+    ``report.markdown.meta_review``'s renderer show a populated section on
     every offline run, including every curated demo, with no
     ``_OPTIONAL_FIELD_HINTS`` entry needed.
     """
@@ -351,12 +352,12 @@ def test_install_offline_router_is_idempotent() -> None:
     """A second ``install_offline_router`` call does not double-wrap."""
     offline_llm.install_offline_router()
     routed_once = litellm.acompletion
-    supports_once = llm_request._supports_json_schema_response_format
+    supports_once = completion._supports_json_schema_response_format
 
     offline_llm.install_offline_router()
 
     assert litellm.acompletion is routed_once
-    assert llm_request._supports_json_schema_response_format is supports_once
+    assert completion._supports_json_schema_response_format is supports_once
 
 
 async def test_install_offline_router_idempotency_does_not_lose_passthrough(

@@ -13,8 +13,10 @@ from typing import Any
 
 import pytest
 
-from app import report_render, safety, store
-from app.report_render import ReportRequest, finalize_report, make_emitter
+from app import safety, store
+from app.report import ReportRequest, finalize_report
+from app.report import finalize as report_finalize
+from app.run_events import make_emitter
 from app.safety import REDACTED_PLACEHOLDER, SafetyDecision
 from app.safety_redaction import redact_matched_spans, redact_payload_text
 
@@ -120,7 +122,7 @@ async def test_final_redaction_scrubs_report_markdown_and_payload(
 
 def test_report_render_exposes_the_redaction_helper() -> None:
     """The finalize path owns one redaction seam, not an inline copy."""
-    assert callable(report_render._redacted_report)
+    assert callable(report_finalize._redacted_report)
 
 
 @pytest.mark.parametrize("matches", [["dual-use"], ["DUAL-USE"]])

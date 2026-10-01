@@ -171,8 +171,8 @@ fill whatever it is given, and in production these calls came back with
 ``reasoning_tokens`` sitting exactly on ``THINKING_FLOOR_MAX_TOKENS`` and
 ``content`` empty -- then did it again on all five ``call_llm_json``
 attempts, because every attempt re-sent the same budget.
-``llm_json_escalation.escalated_max_tokens`` answers the second attempt
-with a budget raised from the call's own size (see
+``llm.attempts.escalation.escalated_max_tokens`` answers the second
+attempt with a budget raised from the call's own size (see
 ``BUDGET_ESCALATION_MAX_INCREMENT``), floored here, and the third by
 turning thinking off, so the ladder terminates whether or not the
 reasoning would ever have finished.
@@ -249,11 +249,11 @@ MINIMAL_REASONING_MAX_TOKENS: Final = 2048
 """Reasoning tokens a call that asked *not* to reason may be given.
 
 Not a ``max_tokens`` budget: the gateway's own ``reasoning`` object takes
-a bound on the chain of thought alone (``llm_gateway_body
-._minimal_reasoning_knob``), which is the only lever that answers this
-failure. A call site sizes its ``max_tokens`` around
+a bound on the chain of thought alone
+(``llm.request.gateway_body._minimal_reasoning_knob``), which is the only
+lever that answers this failure. A call site sizes its ``max_tokens`` around
 ``enable_thinking=False``, but a declared gateway model with
-``reasoning_can_disable=False`` (``GatewayModel``) never goes out
+``reasoning_can_disable=False`` (``ModelProfile``) never goes out
 disabled -- and the tier name it was redirected to bounds nothing.
 Production measured exactly that, twice, at two different budgets:
 ~20-21k reasoning tokens against the 18000-token

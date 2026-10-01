@@ -99,7 +99,7 @@ class Hypothesis:
             ``text``. None for a run predating this field, or a
             ``json_object`` downgrade whose response omitted it -- the app's
             drain is where that absence is resolved to a displayable title
-            (see ``app/app/engine_adapter/drain_hypotheses.py``), so this
+            (see ``app/app/engine_adapter/drain/hypotheses.py``), so this
             field is carried through unvalidated exactly as the LLM returned
             it, the same as ``category``/``introduction`` below.
         id: Stable unique identifier that survives serialization and

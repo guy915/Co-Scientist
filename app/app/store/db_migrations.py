@@ -5,8 +5,8 @@ Holds every ``_migrate_*`` step plus the ``_add_column_if_missing``
 primitive they share, run in order by
 ``_run_migrations`` against an already-``CREATE TABLE IF NOT EXISTS``'d
 connection. Connection management, transactions, and the one-time schema
-bootstrap that calls into here stay in ``app.store.db``. Every name is
-re-exported from ``app.store.db``, so callers and monkeypatching tests
+bootstrap that calls into here stay in ``app.store.db``. The names callers
+use are re-exported from ``app.store.db``, so callers and monkeypatching tests
 (e.g. ``store_db._run_migrations``) are unaffected.
 
 Migrations are ordered and append-only: each one is safe to run against an
@@ -350,7 +350,7 @@ def _migrate_review_detail_column(conn: sqlite3.Connection) -> None:
     numbered list back had to re-parse prose. This column carries the
     same content as a small bounded JSON object instead, read-only and
     display-only: nothing in this codebase parses it to gate, rank, or
-    filter a hypothesis (see ``drain_reviews._review_detail_json``). NULL
+    filter a hypothesis (see ``drain.reviews._review_detail_json``). NULL
     for every review row with nothing structured beyond summary/critique.
     """
     _add_column_if_missing(conn, "reviews", "detail_json", "TEXT")
@@ -366,7 +366,7 @@ def _migrate_evidence_retraction_column(conn: sqlite3.Connection) -> None:
     unreachable one, and nowhere recorded which it was. Both retraction
     sources (the article's own metadata and the live resolver's
     ``retraction_set`` check) land here (see
-    ``engine_adapter.drain_evidence_resolution._resolved_article``). NULL
+    ``engine_adapter.drain.evidence_resolution._resolved_article``). NULL
     for every row persisted before this column existed -- the same as an
     un-flagged row, since an old run has no way to know, so it renders
     exactly as it did before this column existed.
@@ -382,7 +382,7 @@ def _migrate_evidence_source_type_column(conn: sqlite3.Connection) -> None:
     Classified at drain time rather than at render time because the
     strongest signal -- the engine ``Article``'s publisher-declared
     ``publication_type`` -- is not itself persisted (see
-    ``engine_adapter.drain_evidence_resolution``). NULL for every row
+    ``engine_adapter.drain.evidence_resolution``). NULL for every row
     persisted before this column existed, and for evidence that arrived by
     another path; readers classify such a row from what it does carry
     rather than showing a gap.
@@ -408,7 +408,7 @@ def _migrate_match_debate_transcript(conn: sqlite3.Connection) -> None:
     exchange the verdict rests on was generated, paid for, and dropped at
     this boundary. This column carries it as a small bounded JSON document
     -- ``{"verdict", "turns": [{"turn", "favored", "text"}]}``, built by
-    ``engine_adapter.drain_matches`` -- read-only and display-only:
+    ``engine_adapter.drain.matches`` -- read-only and display-only:
     nothing parses it to rank, gate, or score anything. NULL for every
     match judged before it existed, which renders exactly as those matches
     render today (no debate section at all).

@@ -52,8 +52,11 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import CompletionSpec, LLMCallOptions
-from co_scientist.llm_telemetry import scoped_telemetry_phase
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    scoped_telemetry_phase,
+)
 from co_scientist.prompts import (
     DirectionWritingMaterial,
     get_research_overview_direction_prompt,

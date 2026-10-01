@@ -13,8 +13,7 @@ import logging
 
 import pytest
 
-from co_scientist.llm_json import parse_tool_loop_json
-from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm import coerce_json_list, parse_tool_loop_json
 
 # -----------------------------------------------------------------------------
 # parse_tool_loop_json -- the real, schema-less call site

@@ -1,9 +1,8 @@
 """Request models and create-run config resolution for the runs router.
 
 The pydantic request bodies and the helpers that turn a create-run request into
-a resolved run configuration live here so ``runs`` keeps to route wiring. Every
-name is re-exported from ``app.runs`` so the ``app.runs.<name>`` import paths
-stay stable.
+a resolved run configuration live here so ``runs`` keeps to route wiring.
+Callers import them from this module.
 """
 
 from __future__ import annotations

@@ -25,7 +25,7 @@ from co_scientist.generator.streaming import (
     _build_generation_result,
     _initial_cumulative_stream_state,
 )
-from co_scientist.llm_json import get_fallback_response
+from co_scientist.llm.structured.validate import get_fallback_response
 from co_scientist.models import ExecutionMetrics
 from co_scientist.progress import (
     _ACTIVE_WORKFLOW_STATE,

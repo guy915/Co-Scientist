@@ -7,19 +7,17 @@ from typing import Any, cast
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, engine_tasks_node, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision, apply_safety_gate
 from app.safety_redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -76,11 +74,7 @@ def _seed_leased_finalize(
     )
     assert task is not None and task.id == queued.id
     assert task.status == "leased"
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any
@@ -92,9 +86,7 @@ def _seed_leased_finalize(
         )
         return drained, 1.0, {}
 
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = fake_drain
     return owner, headers, run_id, task
 
 
@@ -112,7 +104,7 @@ def _install_report(
             }
         ]
     )
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={"idea_count": 1, "leaderboard": leaderboard},
         markdown="# Goal Report with sensitive span",
         facts=[],
@@ -123,7 +115,7 @@ def _install_report(
         return built
 
     monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
+        report_finalize, "build_report_content", fake_build_report
     )
 
 
@@ -166,11 +158,9 @@ async def test_cancel_race_does_not_block_run(
     async def allow_final_screen(*_: Any, **__: Any) -> Any:
         return SafetyDecision(stage="final", decision="allow")
 
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
     cancel_responses: list[dict[str, Any]] = []
-    block_for_empty_leaderboard = report_render._block_for_empty_leaderboard
+    block_for_empty_leaderboard = report_finalize._block_for_empty_leaderboard
 
     async def cancel_before_readiness_write(*args: Any, **kwargs: Any) -> Any:
         response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
@@ -180,7 +170,7 @@ async def test_cancel_race_does_not_block_run(
             yield event
 
     monkeypatch.setattr(
-        report_render,
+        report_finalize,
         "_block_for_empty_leaderboard",
         cancel_before_readiness_write,
     )
@@ -220,9 +210,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     async def allow_final_screen(*_: Any, **__: Any) -> Any:
         return SafetyDecision(stage="final", decision="allow")
 
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -270,9 +258,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
             matches=["sensitive span"],
         )
 
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", redact_final_screen
-    )
+    _install_runtime(monkeypatch).screen = redact_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -423,9 +409,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
         matches = ["sensitive span"] if decision == "redact" else []
         return SafetyDecision(stage="final", decision=decision, matches=matches)
 
-    monkeypatch.setattr(
-        report_render, "screen_with_escalation", cancel_then_decide
-    )
+    _install_runtime(monkeypatch).screen = cancel_then_decide
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)

@@ -9,8 +9,8 @@ writer starved. Keeping the assessment half in its own module makes that
 boundary a physical one: nothing in this file may open a connection, and
 ``claim_grounding.persist_grounding`` is what callers run afterwards.
 
-:mod:`app.claim_grounding` imports these names back and re-exports them,
-so every name remains importable (and monkeypatchable) from
+:mod:`app.claim_grounding` imports these names back and re-exports the ones
+callers use, so they remain importable (and monkeypatchable) from
 ``app.claim_grounding`` exactly as before. This module deliberately does
 **not** import :mod:`app.claim_grounding` -- that would create an import
 cycle, since the grounding wiring depends on the names defined here.
@@ -23,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from app.claim_verdict import ClaimRole
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
@@ -48,9 +49,9 @@ ASSESSMENT_CONCURRENCY = 12
 # and expected effect are visibly proposed idea content; mechanism stores the
 # literature-grounding rationale and must remain categorical/evidence-backed.
 _CLAIM_FIELD_ROLES = (
-    ("statement", "speculative"),
-    ("mechanism", "categorical"),
-    ("expected_effect", "speculative"),
+    ("statement", ClaimRole.SPECULATIVE.value),
+    ("mechanism", ClaimRole.CATEGORICAL.value),
+    ("expected_effect", ClaimRole.SPECULATIVE.value),
 )
 
 
@@ -80,7 +81,7 @@ def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
             if claim not in roles:
                 ordered.append(claim)
                 roles[claim] = role
-            elif role == "categorical":
+            elif role == ClaimRole.CATEGORICAL:
                 # The strict role wins when identical text appears in both
                 # rationale and proposed-idea fields.
                 roles[claim] = role

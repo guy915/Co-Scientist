@@ -1,10 +1,11 @@
 """Provider selection and engine-availability probes.
 
-Owns the offline/real LLM-backend split (`offline_mode`,
-`resolve_offline_backend`, `sync_engine_llm_backend`), reports provider
-diagnostics for the /status route (`system_status`), and performs the lazy
-engine import used by the engine path (`select_provider` always resolves to
-the engine; the mock workflow is retired).
+Owns the per-run offline/real LLM-backend split (`resolve_offline_backend`,
+`sync_engine_llm_backend`), reports provider diagnostics for the /status route
+(`system_status`), and performs the lazy engine import used by the engine path
+(`select_provider` always resolves to the engine; the mock workflow is
+retired). The process-level `offline_mode` predicate lives in
+``app.process_mode`` and is re-exported here, its public home.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Any
 
 from app import store
 from app.config import any_provider_credential, byok_enabled, settings
+from app.process_mode import offline_mode as offline_mode
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
@@ -29,18 +31,6 @@ if os.path.isdir(_engine_src) and _engine_src not in sys.path:
 logger = logging.getLogger(__name__)
 
 
-# True if any provider key that LiteLLM/the engine reads from the
-# environment is present. Any single key is sufficient to attempt the
-# real-engine path; which model actually gets used is a separate concern
-# controlled by settings.model_name / settings.supervisor_model_name.
-#
-# Which env vars count is config.PROVIDER_CREDENTIAL_ENV's to say, not this
-# module's: the same question is asked by the semantic safety screen, and the
-# two answered it from separately maintained lists until they disagreed.
-def _has_provider_key() -> bool:
-    return any_provider_credential()
-
-
 # Checks importability via find_spec rather than a real import, so this can
 # be probed cheaply and repeatedly without triggering the engine's own
 # import-time side effects (e.g. LangGraph module setup).
@@ -51,23 +41,6 @@ def _engine_importable() -> bool:
         return importlib.util.find_spec("co_scientist") is not None
     except Exception:
         return False
-
-
-def offline_mode() -> bool:
-    """Return whether this process runs against the offline LLM backend.
-
-    True when offline execution is forced (``COSCIENTIST_FORCE_OFFLINE=1``, or
-    its deprecated alias ``COSCIENTIST_FORCE_MOCK=1``) or when no provider
-    credential is configured. This is a process-level, request-time predicate:
-    use it to decide a *new* run's backend, never to infer a *past* run's
-    backend (use ``store.run_used_offline`` for that -- see the note in
-    ``select_provider``).
-    """
-    if os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
-        return True
-    if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
-        return True  # deprecated alias, retained for backward compatibility
-    return not _has_provider_key()
 
 
 def select_provider() -> str:
@@ -130,7 +103,7 @@ def sync_engine_llm_backend(
 
 def system_status() -> dict[str, Any]:
     """Return provider/engine diagnostic info for the /status route."""
-    has_key = _has_provider_key()
+    has_key = any_provider_credential()
     engine = _engine_importable()
     provider = select_provider()
     # Imported lazily to avoid a package-level import cycle (engine_adapter's
@@ -158,7 +131,7 @@ def system_status() -> dict[str, Any]:
     }
 
 
-def _import_hypothesis_generator() -> Any | None:
+def import_hypothesis_generator() -> Any | None:
     """Import the engine's `HypothesisGenerator`, or None if unavailable."""
     try:
         # The engine is a hard runtime dependency; this import only fails

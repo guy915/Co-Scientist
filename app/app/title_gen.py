@@ -216,10 +216,10 @@ def _reasoned_with_no_answer(response: Any) -> bool:
     """Whether this completion spent reasoning tokens and wrote nothing.
 
     Reads the same usage field the engine's non-streaming ladder raises
-    ``LLMThinkingOnlyError`` from (``co_scientist.llm_response``), without
-    importing that machinery: this module makes one direct ``litellm``
-    call outside the engine's ``call_llm*`` seam, so it needs only the
-    read, not the exception class or the retry ladder built on it.
+    ``LLMThinkingOnlyError`` from (``co_scientist.llm.request.response``),
+    without importing that machinery: this module makes one direct ``litellm``
+    call outside the engine's ``call_llm*`` seam, so it needs only the read, not
+    the exception class or the retry ladder built on it.
     """
     usage = getattr(response, "usage", None)
     details = getattr(usage, "completion_tokens_details", None)

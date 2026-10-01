@@ -37,40 +37,10 @@ from app.auth import (
 )
 from app.byok_models import router as byok_models_router
 from app.config import settings
-from app.diagnostics_api import (
-    ConfigResponse as ConfigResponse,
-)
-from app.diagnostics_api import (
-    Connector as Connector,
-)
-from app.diagnostics_api import (
-    HealthCheckResult as HealthCheckResult,
-)
-from app.diagnostics_api import (
-    HealthResponse as HealthResponse,
-)
-from app.diagnostics_api import (
-    ProbeStatus as ProbeStatus,
-)
-from app.diagnostics_api import (
-    SystemStatusResponse as SystemStatusResponse,
-)
 
-# Re-exports keep the diagnostics HTTP surface importable from app.main,
-# where it lived before moving to app.diagnostics_api.
+# Re-exports keep the names tests use importable from app.main, where the
+# diagnostics HTTP surface lived before moving to app.diagnostics_api.
 from app.diagnostics_api import _is_operator
-from app.diagnostics_api import (
-    get_config as get_config,
-)
-from app.diagnostics_api import (
-    get_system_status as get_system_status,
-)
-from app.diagnostics_api import (
-    health as health,
-)
-from app.diagnostics_api import (
-    root as root,
-)
 from app.diagnostics_api import (
     router as diagnostics_api_router,
 )
@@ -92,9 +62,6 @@ from app.main_lifespan import (
 )
 from app.main_lifespan import (
     _reconcile_and_log_interrupted_runs as _reconcile_and_log_interrupted_runs,
-)
-from app.main_lifespan import (
-    _resume_checkpointed_runs as _resume_checkpointed_runs,
 )
 from app.main_lifespan import (
     _shutdown_recovery as _shutdown_recovery,
@@ -164,7 +131,8 @@ else:
 # (_reclaim_disk_space, _startup_engine_setup,
 # _reconcile_and_log_interrupted_runs, _resume_checkpointed_runs,
 # _launch_embedded_recovery_workers, _shutdown_recovery,
-# _start_recovery_task) live in app.main_lifespan, re-exported above.
+# _start_recovery_task) live in app.main_lifespan; the ones tests use are
+# re-exported above.
 
 
 @asynccontextmanager

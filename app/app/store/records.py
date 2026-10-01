@@ -6,8 +6,8 @@ critiques, pairwise tournament matches, and safety-gate decisions. The
 tournament matches live in ``app.store.records_matches``, the safety-gate
 decisions in ``app.store.records_safety``, the proximity edges in
 ``app.store.records_proximity``, and the shared per-run listing query in
-``app.store.records_support``; all are re-exported here so the module
-namespace is unchanged.
+``app.store.records_support``; the names callers use are re-exported here
+so the module namespace stays usable.
 
 Every helper accepts ``db_path`` (override for the SQLite database path)
 and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
@@ -23,9 +23,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.citations import CitationState
+from app.claim_verdict import DEFAULT_CLAIM_ROLE
 from app.store.db import _now, _use_conn
 from app.store.records_matches import NewMatch as NewMatch
-from app.store.records_matches import _insert_match_row as _insert_match_row
 from app.store.records_matches import add_match as add_match
 from app.store.records_matches import count_matches as count_matches
 from app.store.records_matches import list_matches as list_matches
@@ -89,7 +89,7 @@ class NewEvidence:
     query behind them. ``retracted`` is reported alongside ``available``
     rather than folded into it -- a retracted source still persists as
     unavailable, unchanged, but a reader is told which one it was (see
-    ``engine_adapter.drain_evidence_resolution.ResolvedArticle``).
+    ``engine_adapter.drain.evidence_resolution.ResolvedArticle``).
     ``source_type`` is what kind of source it is (peer-reviewed, preprint,
     database record, web page, attached document), classified from the
     metadata at drain time; it is reported to a reader and gates nothing.
@@ -277,9 +277,10 @@ def list_citations(
 class NewClaimEvidence:
     """One claim-level entailment edge of the claim-evidence graph.
 
-    ``label`` is the entailment verdict ('supports' | 'contradicts' |
-    'insufficient') and ``claim_role`` marks a categorical finding versus
-    a visibly speculative proposal. ``supporting``/``contradicting`` are
+    ``label`` is the entailment verdict (an ``EntailmentLabel`` value) and
+    ``claim_role`` marks a categorical finding versus a visibly speculative
+    proposal (a ``ClaimRole`` value); ``app.claim_verdict`` says what each
+    means to a reader. ``supporting``/``contradicting`` are
     the spans for/against the claim -- JSON-serializable provenance
     objects (``{evidence_id, quote, start, end, source, url}``; legacy
     rows stored bare passage strings). ``assessor`` is the provenance id
@@ -294,7 +295,7 @@ class NewClaimEvidence:
     supporting: Iterable[Any]
     contradicting: Iterable[Any]
     assessor: str
-    claim_role: str = "categorical"
+    claim_role: str = DEFAULT_CLAIM_ROLE
     verification_method: str = "legacy_unknown"
 
 
@@ -369,7 +370,7 @@ class NewReview:
     recovered by reading the summary prose; both stay empty for an agent
     review. ``detail_json`` carries one review type's own structured
     fields beyond summary/critique (e.g. the simulation review's failure
-    points), display-only -- see ``drain_reviews._review_detail_json``.
+    points), display-only -- see ``drain.reviews._review_detail_json``.
     """
 
     run_id: str

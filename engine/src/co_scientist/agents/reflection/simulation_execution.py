@@ -115,7 +115,7 @@ MAX_SIMULATION_TURNS = 14
 # that would have finished, priced out one or two turns from the end.
 # Both halves of that are fixed where they belong rather than by moving
 # this number. The loop now drops the file writes a later write
-# superseded (`llm_tool_transcript.elide_superseded_writes`), which is
+# superseded (`llm.tools.transcript.elide_superseded_writes`), which is
 # most of what a converging simulation re-sends -- 59% of one traced
 # transcript, and 37% off its total spend. And reaching the ceiling
 # anyway now harvests a partial observation instead of raising, so this

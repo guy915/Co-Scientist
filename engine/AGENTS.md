@@ -37,6 +37,20 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
+**The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
+every node's successor -- a fixed node, a `LiteratureGated` pair, or a resolver
+over the committed state -- and both execution paths read it:
+`generator/graph.py` wires the compiled graph from it (streaming path) and
+`task_runtime.next_task_type` resolves through it (durable path, the only one
+production runs). A new node or edge is one entry there, and
+`tests/test_workflow_topology.py` fails if the registry and the table disagree.
+The paths differ only where that module's docstring says, each with a test: the
+literature-review shape (a build-time flag on the graph, `state["mcp_available"]`
+on the durable path), the durable-only `safety_blocked` halt, the graph-only
+START entry branch, the `None`/`END` terminal encoding, and the graph's path
+maps. `plan_portfolio` and `FANNING_NODES` are durable scheduling policy over
+the table, not part of it.
+
 **The simulation review can run what it simulates.** Reflection's
 `simulation` review asks the model to step through a hypothesis's mechanism
 and find where it breaks; its prompt used to say *mentally, in your mind's
@@ -63,14 +77,14 @@ what accumulates in that transcript is re-bought by every turn after it;
 the model writes its program by rewriting the file whole, and a
 transcript traced turn by turn (2026-08-22) was **59% versions of one
 program that no longer existed**, five rewrites of ~8k characters each.
-`llm_tool_transcript.elide_superseded_writes` drops the text of a write a
+`llm.tools.transcript.elide_superseded_writes` drops the text of a write a
 later write to the same path replaced -- the file on disk still holds it
 -- which cut that loop's total prompt spend by 37%, a fraction that grows
 with the turn count. **And reaching a ceiling used to return nothing**: a
 loop that had written a model, run it and read its numbers raised, and
 the review fell back to imagining the mechanism it had just measured. It
 now buys one closing turn with the tools withheld
-(`llm_tool_loop._harvest_partial_answer`), so the ceiling degrades the
+(`llm.tools.loop_run._harvest_partial_answer`), so the ceiling degrades the
 observation instead of deleting it.
 
 With both in place `SIMULATION_TOKEN_BUDGET` could be **measured rather
@@ -126,9 +140,9 @@ search that surfaced it. The app writes both: `retrieval_calls` rows and the
 `evidence.retrieval_call_id` that resolves to them, so a run can say which
 query found a piece of evidence and which question that query was serving.
 Note the channel is a *list* with an accumulating reducer
-(`state_reducers.accumulate_research_ledgers`, mirrored in
-`task_runtime._CHANNEL_REDUCERS` -- a reducer missing from that table falls
-through to last-write-wins in silence on the durable path). Research has two
+(`state_reducers.accumulate_research_ledgers`; the durable path reads it
+off the same annotation through `task_runtime.channel_reducers`, so an
+annotated channel cannot fall through to last-write-wins there). Research has two
 owners, and under a single-ledger channel whichever ran last was the only one
 on record.
 
@@ -195,7 +209,7 @@ here to guard.
 ones that outlive the call that started them
 (`workspace/command_session.py`: `run_command` hands back a session id
 rather than killing a command at its deadline, `poll_command` continues
-it from a cursor, and `llm_tool_transcript.normalize_tool_transcript`
+it from a cursor, and `llm.tools.transcript.normalize_tool_transcript`
 turns a turn cut off mid-call into an explicit aborted result instead of
 a conversation the provider rejects). Reflection's simulation review and
 the drafting skills are what run inside them.
@@ -204,11 +218,13 @@ Shared state flows through `WorkflowState` in `state.py`; note the custom `dedup
 
 Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas/` (JSON-schema package for structured LLM output — one module per prompt family plus `registry.py`), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
-**LLM dispatch and bounds.** Calls go through LiteLLM (`llm.py`). Every completion is bounded twice: `llm_request.llm_timeout_seconds()` (env `COSCIENTIST_LLM_TIMEOUT_SECONDS`, default 600s, `0` disables) is passed to litellm *and* re-imposed as a hard `asyncio.wait_for` ceiling in `llm._acompletion_within_timeout` (+30s grace), raising `LLMTimeoutError`. `call_llm_json` retries up to `max_attempts` (default 5) but treats failure kinds differently in `llm_json_retry.py`: a schema failure retries immediately with validation feedback appended to the prompt, a throttled call backs off a **jittered** exponential (unjittered releases every throttled caller at once and reproduces the burst), and `LLMTimeoutError` is never retried — a stalled provider will not answer the same request faster. Plain `call_llm` carries the same budget-escalation ladder (`llm_text_retry.run_with_budget_escalation`, built on `llm_json_retry`'s own failure classification and logging rather than a second implementation — see the "A floor is not a guarantee" Gotcha in the root `AGENTS.md`), just with a lower default (`max_attempts=3`, the number of attempts that walks the ladder's three rungs; `call_llm_json`'s extra headroom above that is for schema and parse failures, which have no plain-text counterpart). Do not add a second retry loop for a new direct-call site — both public entry points already share this one.
+**LLM dispatch and bounds.** Calls go through LiteLLM, in the `llm/` package (`llm/__init__.py` lists the layers, lowest first, and is the only import surface outside it; `tests/test_llm_layering.py` keeps the imports pointing down). Every completion is bounded twice: `llm.request.completion.llm_timeout_seconds()` (env `COSCIENTIST_LLM_TIMEOUT_SECONDS`, default 600s, `0` disables) is passed to litellm *and* re-imposed as a hard `asyncio.wait_for` ceiling in `llm.request.completion._acompletion_within_timeout` (+30s grace), raising `LLMTimeoutError`. Retrying lives in exactly one place, `llm/attempts/retry.py::run_attempts`: run attempts at escalating rungs, given how to make one attempt and, optionally, a `Judge` of the response (accept it, or reject it with feedback for the next attempt). `call_llm` supplies no judge and defaults to `max_attempts=3`, the number of attempts that walks the ladder's three rungs. `call_llm_json` supplies the parse/repair/validate judge (`llm/attempts/json_attempt.py`) and defaults to 5: its schema and parse failures keep the current rung and are answered by asking again, with the validation error appended to the prompt, which a plain-text call has no counterpart for. The tool turn (`llm/tools/iteration.py`) supplies an attempt that stops before tool execution, so a retry never runs a turn's tools twice. The loop owns what a failed attempt is answered with, so there is one place to read it: the rung sequence (`llm.attempts.escalation.BudgetEscalation`; see the "A floor is not a guarantee" gotcha in `docs/OPERATIONS.md`); the never-retried set (`LLMTimeoutError`, `LLMCallBudgetExceededError`, `ContextWindowExceededError` — a stalled provider will not answer the same request faster) and the `FreeModelEligibilityError` re-raise; the platform rate-limit park (`LLMRateLimitParkError`, classified in `llm/attempts/park.py`); a **jittered** exponential wait for a throttle and a longer schedule for an outage (`llm/attempts/backoff.py`; unjittered releases every throttled caller at once and reproduces the burst); the process-wide throttle counter behind `rate_limited_attempt_count` (a plain int, never an asyncio primitive, because the worker cohorts' event loops share it); retry telemetry; and log severity (a warning, and an error only when it gives up). **The tool turn runs under a narrower policy, `AttemptPlan.escalation_only`, and that is an open product decision, not a design.** It retries only where a rung of the ladder answers the failure, so a 429, an outage or an ordinary provider error ends the turn on the first attempt: no wait, no rate-limit park (the raw 429 propagates, not `LLMRateLimitParkError`) and no retry telemetry. Its rung-to-request mapping is its own too, so at the mandatory-reasoning rung it resends the same reasoning request at a raised budget instead of the minimal-effort one the other two entry points send. `tests/test_llm_attempt_loop_tools.py` pins both as they are. Do not add another retry loop for a new call site: supply an attempt (and a judge) to this one.
+
+**Model facts.** What depends on which model is called is one `ModelProfile` from `llm.profile.model_profile(name)` (also exported by `co_scientist.llm`): whether it reasons and how to ask it to (`reasons`, `thinking`, `reasoning_can_disable`), whether it takes a `json_schema` response format, its temperature floor, its gateway pin and fallback chain, its price, and whether it is an admitted promotional free route. A name resolves through `llm/profile/families.py` (substring/prefix families, e.g. DeepSeek) and then `llm/profile/routes.py` (one entry per exact route, which overrides its family; the only place a price is stated — `constants_pricing.MODEL_PRICING` is derived from it). Add, retire or correct a model by editing that one entry; do not branch on a model-name substring at a call site. `tests/test_model_profile_snapshot.py` records every answer for every named route and fails if a regrouping changes one. `llm/request/gateway_routing.py` is the routing *policy* applied to a profile (price multiple, upstream order, throughput floor, fallback cap); it states no per-model fact.
 
 **MCP and the web.** Literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
 
-**A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: the graph routes around `literature_review` and `reflection` (`task_runtime`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
+**A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: both paths route around `literature_review` and `reflection` (`workflow_topology`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
 
 The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `engine_adapter/opts.py::_resolve_tool_calling_generation_toggle` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/WEB_SEARCH.md`.
 
@@ -296,8 +312,8 @@ wrote up. The ceiling on how often that happens was never the skills.
 Measured on a live drafting pass, `search_pubmed` results were **96% of the
 loop's transcript** (282k of 295k characters over 9 searches) and the skills
 4%, which is why the loop used to stop on its token backstop rather than on
-having finished. Two elisions fixed that, both in `llm_tool_transcript` and
-both applied at `llm_tool_loop._drop_dead_context`, so every tool loop
+having finished. Two elisions fixed that, both in `llm.tools.transcript` and
+both applied at `llm.tools.loop_run._drop_dead_context`, so every tool loop
 inherits them. `elide_repeated_papers` drops a paper an earlier search in
 the same transcript already returned -- 35% of records on that pass, 94
 carrying 61 distinct papers. `elide_aged_evidence` is the one that removes

@@ -54,7 +54,7 @@ supervisor → literature_review → generate → reflection → review
 
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
-- **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`generator/graph.py::_add_review_and_ranking_edges`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
+- **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`workflow_topology.py::WORKFLOW_ROUTES`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
 - **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/verification_freshness.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
@@ -105,7 +105,7 @@ flowchart TD
 
 Key facts:
 
-- Wiring lives in `generator/graph.py`: every work phase converges on `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` — deep verification precedes tournament entry, mirroring `03-reflection.md`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `_TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
+- The topology is declared once in `workflow_topology.py` (`generator/graph.py` wires the graph from it; the durable `task_runtime.next_task_type` resolves through it): every work phase converges on `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` — deep verification precedes tournament entry, mirroring `03-reflection.md`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
 - `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
@@ -145,7 +145,7 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | deep_verification |
 | `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | orchestrator |
 | `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `verification_freshness`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
-| `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `_TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
+| `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
 | `meta_review` | `meta_review.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:382` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (children appended to the pool), `evolution_details` | review (re-review) |
 | `proximity` | `proximity.py:365` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates` (accumulated), `proximity_graph` | orchestrator |
@@ -209,7 +209,7 @@ flowchart TD
   YAML --> TR["ToolRegistry<br/>config/registry.py"]
   TR --> MTC["MCPToolClient<br/>mcp_client.py (langchain_mcp_adapters)"]
   MTC --> MTP["MCPToolProvider<br/>tools/provider.py"]
-  MTP --> CLT["call_llm_with_tools<br/>llm_tool_loop.py, re-exported via llm.py — agentic tool-calling loop"]
+  MTP --> CLT["call_llm_with_tools<br/>llm/tools/loop.py, exported by llm/__init__.py — agentic tool-calling loop"]
   CLT -->|tool call| MTP
   MTP -->|execute| MTC
 
@@ -339,10 +339,11 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budget
 
 | To understand | Read |
 | --- | --- |
-| Graph assembly, edges, routers | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
+| Graph topology, routers | `engine/src/co_scientist/workflow_topology.py` (one declaration, read by both run paths) |
+| Graph assembly | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
 | State definition + its reducers | `engine/src/co_scientist/state.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models_metrics.py`) |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
-| LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm.py` |
+| LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |
 | Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
 | Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |
 | Citation index + key resolution | `engine/src/co_scientist/agents/generation/citations.py` |

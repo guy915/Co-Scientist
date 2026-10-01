@@ -14,19 +14,10 @@ from app.config import settings
 
 # The capability-opts block (the tier-shaped depth toggles plus the two
 # ablation seams) lives in ``opts_capabilities`` to keep this module under
-# the file-length cap. Re-exported so callers and tests importing these
-# names from ``app.engine_adapter.opts`` are unchanged.
+# the file-length cap. Re-exported so the callers and tests that import
+# them from ``app.engine_adapter.opts`` are unchanged.
 from app.engine_adapter.opts_capabilities import (
     _apply_capability_opts as _apply_capability_opts,
-)
-from app.engine_adapter.opts_capabilities import (
-    _resolve_generation_strategy as _resolve_generation_strategy,
-)
-from app.engine_adapter.opts_capabilities import (
-    _resolve_literature_review_toggle as _resolve_literature_review_toggle,
-)
-from app.engine_adapter.opts_capabilities import (
-    _resolve_meta_review_toggle as _resolve_meta_review_toggle,
 )
 from app.engine_adapter.opts_capabilities import (
     _resolve_overview_review_toggle as _resolve_overview_review_toggle,
@@ -201,7 +192,7 @@ def _apply_private_sources(
         }
 
 
-def _build_engine_opts(
+def build_engine_opts(
     cfg: dict[str, Any], run_id: str, db_path: str | None
 ) -> dict[str, Any]:
     """Translate a run's durable config into the engine's `opts` vocabulary.
@@ -360,7 +351,7 @@ def _generator_kwargs(
     }
 
 
-def _build_generator(
+def build_generator(
     generator_cls: Any,
     cfg: dict[str, Any],
     *,

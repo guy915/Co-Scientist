@@ -241,7 +241,7 @@ _UNSTACKABLE_TASKS = frozenset({TaskType.TERMINATE})
 # For each companion, the primaries it is not stacked onto. Two reasons,
 # both about the meta_review node: a primary that already runs a companion's
 # own node would run it twice (META_REVIEW and EVOLVE both enter at
-# meta_review, ``generator.graph._TASK_ROUTES``; SYNTHESIZE *is* the
+# meta_review, ``workflow_topology.TASK_ROUTES``; SYNTHESIZE *is* the
 # research_overview node), and the overview is drafted *from* the critique,
 # so stacking it ahead of a primary that is about to write one would invert
 # the listing's own order on that pass. Deferring it costs nothing: the

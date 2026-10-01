@@ -92,7 +92,7 @@ function directionEntries(
 }
 
 // MO-12: both published exemplars front-load a named preview list ahead of
-// the full per-direction detail that follows (report_markdown_overview's
+// the full per-direction detail that follows (report.markdown.overview's
 // _render_directions_preview). Titles only, no new content -- naming each
 // direction rather than repeating its prose avoids duplicating the
 // paragraphs the full detail below already carries.

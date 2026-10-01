@@ -5,7 +5,7 @@ from typing import Any
 import litellm
 import pytest
 from co_scientist.cache import scoped_cache_override
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import scoped_telemetry
 
 from app.claim_verifier import make_llm_assessor
 from app.claims import EvidencePassage, assess_claim

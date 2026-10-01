@@ -20,7 +20,7 @@ async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
 ):
     """``research_directions`` is sized past the report's preview gate.
 
-    ``report_markdown_overview.py::_render_directions_preview`` renders
+    ``report/markdown/overview.py::_render_directions_preview`` renders
     nothing below two named directions, so a single-item array would make
     the overview's preview list silently vanish on every offline run.
     """

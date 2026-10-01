@@ -9,13 +9,13 @@ import pytest
 import tiktoken
 
 from co_scientist.llm import (
+    CompletionSpec,
     LLMCallOptions,
     ToolLoop,
     call_llm,
     call_llm_json,
     call_llm_with_tools,
 )
-from co_scientist.llm_types import CompletionSpec
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL,
     make_completion,

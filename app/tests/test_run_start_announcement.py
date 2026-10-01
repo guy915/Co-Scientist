@@ -16,10 +16,11 @@ from typing import Any
 
 import pytest
 
-from app import engine_adapter, store
+from app import store
 from app.config import settings
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
+from tests._process_mode_helpers import FakeProcessMode
 
 
 def _started_run_id() -> str:
@@ -88,11 +89,11 @@ def test_offline_announcement_is_marked_as_the_fallback() -> None:
 
 
 def test_live_model_writes_the_announcement(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A reachable provider's own two sentences are what get persisted."""
     rid = _started_run_id()
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
     monkeypatch.setitem(
         sys.modules,
         "litellm",
@@ -109,11 +110,11 @@ def test_live_model_writes_the_announcement(
 
 
 def test_provider_failure_falls_back_without_an_error_frame(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The run did start, so a failed announcement never reads as one."""
     rid = _started_run_id()
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
     monkeypatch.setitem(
         sys.modules,
         "litellm",
@@ -155,11 +156,11 @@ def _thinking_litellm(reasoning: str, prose: str) -> types.SimpleNamespace:
 
 
 def test_reasoning_is_relayed_and_kept_with_the_reply(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The announcement is a turn, so it shows and keeps its thinking."""
     rid = _started_run_id()
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
     monkeypatch.setitem(
         sys.modules,
         "litellm",
@@ -202,7 +203,7 @@ def _thinking_only_then_answered_litellm(
 
 
 def test_thinking_only_announcement_retries_before_the_fallback(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A stream that reasoned and wrote nothing gets a real answer, not copy.
 
@@ -213,7 +214,7 @@ def test_thinking_only_announcement_retries_before_the_fallback(
     thinking-only stream.
     """
     rid = _started_run_id()
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
     calls: list[dict[str, Any]] = []
     monkeypatch.setitem(

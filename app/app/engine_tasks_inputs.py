@@ -273,7 +273,7 @@ def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
     ``detailed_feedback`` because the engine's ``HypothesisReview`` has no
     fields for them -- which is why a human review used to come back out of
     the drain as an anonymous agent review. The drain reads them back (see
-    ``drain_reviews._persist_scientist_review``).
+    ``drain.reviews._persist_scientist_review``).
     """
     from co_scientist.models import SCIENTIST_REVIEWER, HypothesisReview
 

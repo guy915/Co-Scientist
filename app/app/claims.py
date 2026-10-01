@@ -55,45 +55,27 @@ from collections.abc import Sequence
 # Citation metadata and resolvability -- judged apart from claim support --
 # live in app/citation_metadata.py, which owns the one implementation
 # production runs on. Imported back and re-exported (redundant aliases) so
-# every public name stays importable from app.claims exactly as before.
+# the names callers and tests use stay importable from app.claims.
 from app.citation_metadata import (
     CitationMetadata as CitationMetadata,
-)
-from app.citation_metadata import (
-    DateState as DateState,
 )
 from app.citation_metadata import (
     Resolvability as Resolvability,
 )
 from app.citation_metadata import (
-    Resolver as Resolver,
-)
-from app.citation_metadata import (
-    SourceType as SourceType,
-)
-from app.citation_metadata import (
     assess_resolvability as assess_resolvability,
-)
-from app.citation_metadata import (
-    classify_date as classify_date,
-)
-from app.citation_metadata import (
-    classify_source_type as classify_source_type,
-)
-from app.citation_metadata import (
-    offline_resolver as offline_resolver,
 )
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
-    _SENTENCE_SPLIT,
+    SENTENCE_SPLIT,
 )
 
 # --- Retrieval and the deterministic assessor -------------------------------
 # The evidence passage, assessor draft, concept tokenizer, claim-specific
 # retrieval, and the offline deterministic assessor were split into
 # app/claims_assessor.py to keep this module within the size budget. They are
-# imported back and re-exported (redundant aliases) so every public name stays
-# importable from app.claims exactly as before.
+# imported back and re-exported (redundant aliases) so the names callers and
+# tests use stay importable from app.claims.
 from app.claims_assessor import (
     Assessor as Assessor,
 )
@@ -138,9 +120,6 @@ from app.claims_gate import (
 )
 from app.claims_gate import (
     GateResult as GateResult,
-)
-from app.claims_gate import (
-    SupportSpan as SupportSpan,
 )
 from app.claims_gate import (
     publication_gate as publication_gate,
@@ -229,7 +208,7 @@ def extract_atomic_claims(text: str) -> list[str]:
     """
     claims: list[str] = []
     seen: set[str] = set()
-    for raw in _SENTENCE_SPLIT.split(text or ""):
+    for raw in SENTENCE_SPLIT.split(text or ""):
         claim = raw.strip()
         if len(claim.split()) < _MIN_CLAIM_WORDS:
             continue

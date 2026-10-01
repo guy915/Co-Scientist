@@ -304,7 +304,7 @@ async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     with bracketed keys that resolve to nothing.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    await engine_adapter._persist_final_state(
+    await engine_adapter.persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,

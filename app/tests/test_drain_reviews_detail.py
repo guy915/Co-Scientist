@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.engine_adapter.drain_reviews import (
+from app.engine_adapter.drain.reviews import (
     _deep_verification_detail,
     _initial_review_detail,
     _mature_review_detail,
@@ -311,7 +311,7 @@ def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
 def test_review_axes_match_the_engine_score_criteria() -> None:
     """The app's copy of the axis list must not drift from the engine's.
 
-    ``drain_review_detail._REVIEW_AXES`` and the report's own
+    ``drain.review_detail._REVIEW_AXES`` and the report's own
     ``_AXIS_SECTIONS`` name the axes rather than importing them, so a
     drained row can be read without an engine schema import at runtime.
     An axis added or reordered engine-side would otherwise silently stop
@@ -321,8 +321,8 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
     """
     from co_scientist.schemas.review import _SCORE_CRITERIA
 
-    from app.engine_adapter.drain_review_detail import _REVIEW_AXES
-    from app.report_markdown_review_block import _AXIS_SECTIONS
+    from app.engine_adapter.drain.review_detail import _REVIEW_AXES
+    from app.report.markdown.review_block import _AXIS_SECTIONS
 
     assert _REVIEW_AXES == _SCORE_CRITERIA
     assert [axis for axis, _ in _AXIS_SECTIONS] == list(_SCORE_CRITERIA)

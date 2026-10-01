@@ -21,30 +21,18 @@ from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import ScientificTask
 
-# Run-level enqueue moved verbatim to ``task_worker_enqueue``; every moved
+# Run-level enqueue moved verbatim to ``task_worker_enqueue``; the moved
 # name is re-exported so this module's namespace keeps resolving.
-from app.task_worker_enqueue import (
-    _enqueue_resume_task as _enqueue_resume_task,
-)
 from app.task_worker_enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
 )
 
 # The failure taxonomy and outcome recorders moved verbatim to
-# ``task_worker_outcomes``; every moved name is re-exported so this module's
-# namespace (the seam tests and callers patch/import against) keeps
-# resolving.
+# ``task_worker_outcomes``; the moved names tests and callers patch or import
+# through this module are re-exported so its namespace keeps resolving for
+# them.
 from app.task_worker_outcomes import (
     UnsupportedTaskError as UnsupportedTaskError,
-)
-from app.task_worker_outcomes import (
-    _complete_superseded_task as _complete_superseded_task,
-)
-from app.task_worker_outcomes import (
-    _fail_retryable_task as _fail_retryable_task,
-)
-from app.task_worker_outcomes import (
-    _fail_unsupported_task as _fail_unsupported_task,
 )
 from app.task_worker_outcomes import (
     _handle_task_failure as _handle_task_failure,

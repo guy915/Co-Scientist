@@ -240,7 +240,7 @@ def _degraded_meta_review_result() -> dict[str, Any]:
     """The same empty shape, said truthfully for a failed synthesis.
 
     ``summary`` renders into the finished report
-    (``app.report_markdown_meta_review``), and "No reviews available" is
+    (``app.report.markdown.meta_review``), and "No reviews available" is
     a statement about the run: true of the branch above, false of a run
     whose reviews were all present and whose model could not be reached.
     """
@@ -404,7 +404,7 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         # R12-9: the published report's per-idea comparison table and its
         # comparison against existing solutions -- see
         # schemas/meta_review_schema.py for the domain-aware axes/values
-        # shape and report_markdown_meta_review.py for the render.
+        # shape and report/markdown/meta_review.py for the render.
         "candidate_comparison": response.get("candidate_comparison", {}),
         "existing_solutions_comparison": response.get(
             "existing_solutions_comparison", {}

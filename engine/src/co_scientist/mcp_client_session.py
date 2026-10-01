@@ -51,7 +51,7 @@ def mcp_tool_timeout_seconds() -> float | None:
 
     Read from the environment on every call rather than cached, so tests and
     operators can change the ceiling without restarting the process. Mirrors
-    ``llm_request.llm_timeout_seconds``.
+    ``llm.request.completion.llm_timeout_seconds``.
 
     Returns:
         The timeout in seconds, or None when it is disabled (a value of zero
@@ -312,10 +312,10 @@ class MCPToolClient:
         """Execute an MCP tool call.
 
         The returned dict's shape (role/name/tool_call_id/content) matches
-        what call_llm_with_tools (llm.py) appends to its message history
-        after invoking the tool_executor callback passed in by the caller
-        (see tools/provider.py's ToolProvider.execute_tool_call, which wraps
-        this method for tool-call-counting). Content is unwrapped from the
+        what call_llm_with_tools (llm/tools/loop.py) appends to its message
+        history after invoking the tool_executor callback passed in by the
+        caller (see tools/provider.py's ToolProvider.execute_tool_call, which
+        wraps this method for tool-call-counting). Content is unwrapped from the
         MCP content-block list shape exactly like call_tool.
 
         Args:

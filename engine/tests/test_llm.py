@@ -1,4 +1,4 @@
-"""Tests for the pure JSON helpers in ``co_scientist.llm_json``.
+"""Tests for the pure JSON helpers in ``co_scientist.llm.structured.validate``.
 
 These tests lock in the *current* behavior of the network-free helpers:
 ``attempt_json_repair`` (the JSON-repair logic), ``validate_json_schema``,
@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.llm_json import (
-    attempt_json_repair,
+from co_scientist.llm.structured.repair import attempt_json_repair
+from co_scientist.llm.structured.validate import (
     get_fallback_response,
     validate_json_schema,
 )

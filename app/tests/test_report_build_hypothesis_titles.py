@@ -1,4 +1,4 @@
-"""R14-6: report_build resolves the run's hypothesis-title lookup.
+"""R14-6: report.build resolves the run's hypothesis-title lookup.
 
 ``_hypothesis_title_by_id`` builds the id -> title map
 ``ReportMarkdownInputs.hypothesis_title_by_id`` needs to resolve a
@@ -8,7 +8,7 @@ whole published pool, not the 5-item report slice, since the engine's
 synthesis draws examples from up to ``RESEARCH_OVERVIEW_TOP_K`` (10).
 """
 
-from app.report_build import _hypothesis_title_by_id
+from app.report.build import _hypothesis_title_by_id
 
 
 def test_maps_every_hypothesis_with_both_fields() -> None:

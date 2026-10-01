@@ -20,7 +20,7 @@ siblings.
 
 from typing import Any
 
-from co_scientist.llm_json import _truncate_oversized_arrays
+from co_scientist.llm.structured.validate import _truncate_oversized_arrays
 
 _SCHEMA: dict[str, Any] = {
     "type": "object",
