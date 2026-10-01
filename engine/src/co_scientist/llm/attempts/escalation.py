@@ -68,10 +68,16 @@ class BudgetEscalation(enum.Enum):
     MINIMAL_REASONING_REQUIRED = "minimal_reasoning_required"
 
 
+# A rung that maps to itself is a top: budget exhaustion there stops the
+# ladder. MINIMAL_REASONING_REQUIRED is entered only from a refused reasoning
+# instruction, but an answerless attempt made at it still lands here.
 _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
     BudgetEscalation.NONE: BudgetEscalation.RAISED_BUDGET,
     BudgetEscalation.RAISED_BUDGET: BudgetEscalation.NO_THINKING,
     BudgetEscalation.NO_THINKING: BudgetEscalation.NO_THINKING,
+    BudgetEscalation.MINIMAL_REASONING_REQUIRED: (
+        BudgetEscalation.MINIMAL_REASONING_REQUIRED
+    ),
 }
 
 
