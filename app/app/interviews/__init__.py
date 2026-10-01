@@ -24,6 +24,7 @@ from app import credentials, store
 
 # Aliased: the sibling module app.interviews.documents would shadow the name.
 from app import documents as app_documents
+from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
 from app.execution_policy import CAMPAIGN, STANDARD, resolve_execution_policy
 from app.interviews import revision as interviews_revision
@@ -348,7 +349,7 @@ async def create_interview(
     )
 
 
-@router.get("")
+@router.get("", response_model=list[ChatSummary])
 async def list_interviews(request: Request) -> list[dict[str, Any]]:
     """List the caller's chats, newest first, without their transcripts.
 
@@ -361,7 +362,7 @@ async def list_interviews(request: Request) -> list[dict[str, Any]]:
     return store.list_interviews(subject) if subject else []
 
 
-@router.get("/{interview_id}")
+@router.get("/{interview_id}", response_model=Interview)
 async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Resume an owned interview with its full transcript and progress.
 
@@ -431,7 +432,7 @@ async def add_interview_turn(
 router.include_router(interviews_revision.router)
 
 
-@router.put("/{interview_id}/fields")
+@router.put("/{interview_id}/fields", response_model=Interview)
 async def edit_interview_fields(
     interview_id: str, body: InterviewFieldsRequest, request: Request
 ) -> dict[str, Any]:

@@ -42,7 +42,7 @@ const REPORT_LEAD_STAT_CLASSES =
 // new array identity on every render defeated both of those memos for any run
 // without a persisted report -- they recomputed on all 6 of 6 renders instead
 // of 1.
-const NO_LEADERBOARD: ReportPayload['leaderboard'] = [];
+const NO_LEADERBOARD: NonNullable<ReportPayload['leaderboard']> = [];
 
 // Report-backed overview stats, falling back to the live rows while a run is
 // still in flight and has no persisted report yet.
@@ -52,7 +52,7 @@ function overviewReportStats(
   matches: MatchRow[],
 ): {
   overview: ResearchOverview | undefined;
-  leaderboard: ReportPayload['leaderboard'];
+  leaderboard: NonNullable<ReportPayload['leaderboard']>;
   ideaCount: number;
   matchCount: number;
 } {
@@ -67,7 +67,7 @@ function overviewReportStats(
   const {payload} = report;
   return {
     overview: payload.research_overview,
-    leaderboard: payload.leaderboard,
+    leaderboard: payload.leaderboard ?? NO_LEADERBOARD,
     // Every idea explored, not the released subset. `hypothesis_count` is
     // the post-gate count, so reading it here made a run that explored 22
     // ideas and released 2 announce "A total of 2 ideas were explored"
@@ -81,7 +81,7 @@ function overviewReportStats(
 // Top ideas by Elo, normalized to one shape from whichever source is
 // available: the persisted report leaderboard, else the live hypotheses.
 function winningIdeasItems(
-  leaderboard: ReportPayload['leaderboard'],
+  leaderboard: NonNullable<ReportPayload['leaderboard']>,
   hypotheses: Hypothesis[],
 ): {id: string; title: string; elo: number}[] {
   if (leaderboard.length) {
@@ -105,7 +105,7 @@ function useResearchOverviewDerived({
   matchCount,
 }: {
   run: RunWithSummary | null;
-  leaderboard: ReportPayload['leaderboard'];
+  leaderboard: NonNullable<ReportPayload['leaderboard']>;
   hypotheses: Hypothesis[];
   ideaCount: number;
   matchCount: number;

@@ -23,6 +23,8 @@ from app import (
     run_start_announcement,
     store,
 )
+from app.api_contracts.responses import MessagesResponse
+from app.api_contracts.runs import RunMessage
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.qa import run_state as qa_run_state
 from app.runs.models import (
@@ -35,7 +37,7 @@ from app.runs.support import _require_run, _run_or_404
 router = APIRouter()
 
 
-@router.post("/{run_id}/messages")
+@router.post("/{run_id}/messages", response_model=RunMessage)
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue scientist steering and continue a completed engine run."""
     _require_run(run_id)
@@ -56,7 +58,7 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     }
 
 
-@router.get("/{run_id}/messages")
+@router.get("/{run_id}/messages", response_model=MessagesResponse)
 async def list_messages(run_id: str) -> dict[str, Any]:
     """Return all messages for a run in chronological order."""
     _require_run(run_id)

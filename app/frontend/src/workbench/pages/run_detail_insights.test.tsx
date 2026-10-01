@@ -125,3 +125,9 @@ it('shows no degradation notice for a clean run', () => {
     ),
   ).not.toBeInTheDocument();
 });
+
+it('renders saved insights with omitted lists', () => {
+  render(<AgentInsightsSection insights={{key_findings: ['A finding.']}} />);
+  expect(screen.getByText('A finding.')).toBeVisible();
+  expect(screen.queryByText('Uncertainties')).not.toBeInTheDocument();
+});
