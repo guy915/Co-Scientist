@@ -7,7 +7,7 @@ import {PromptBox} from '../shared/PromptBox';
 import {Shape, type ShapeName} from '../shared/Shape';
 import {WordReveal} from '../shared/WordReveal';
 import {accel, emphasized, mix, ramp} from '../shared/motion';
-import {C, FONT, type Tone} from '../shared/tokens';
+import {C, type Tone} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Sfx} from './Sfx';
 
