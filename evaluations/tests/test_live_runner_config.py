@@ -98,7 +98,6 @@ from co_scientist.exceptions import FreeModelEligibilityError
 
 async def check():
     for price in ("0.01", "0"):
-        free_catalog._snapshot = None
         catalog = {"data": [{"id": "campaign/zero:free",
             "pricing": {"prompt": "0", "completion": price},
             "architecture": {"input_modalities": ["text"],
@@ -112,8 +111,11 @@ async def check():
         provider = AsyncMock(return_value=response)
         metadata = httpx.Response(200, json=catalog,
             request=httpx.Request("GET", "https://openrouter.ai/api/v1/models"))
-        with patch.object(httpx, "get", return_value=metadata), \
-             fake_backend(provider):
+        with (
+            free_catalog.using_catalog_reader(free_catalog.CatalogReader()),
+            patch.object(httpx, "get", return_value=metadata),
+            fake_backend(provider),
+        ):
             if price != "0":
                 try:
                     await call_llm(
