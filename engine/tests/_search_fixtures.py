@@ -15,11 +15,11 @@ covered by tests that pass their own.
 import dataclasses
 from typing import Any, cast
 
-from co_scientist.agents.generation.literature_review import search
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.config import SearchSourceConfig, WorkflowConfig
+from co_scientist.evidence import search
+from co_scientist.evidence.helpers import (
     SearchConfig,
 )
-from co_scientist.config import SearchSourceConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
 
 _DEFAULT_SEARCH_CONFIG = SearchConfig(

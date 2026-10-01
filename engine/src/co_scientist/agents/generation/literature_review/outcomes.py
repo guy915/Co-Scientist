@@ -8,10 +8,10 @@ empty-search diagnostics, and the no-papers / no-fulltext failure results.
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.article_support import (
+from co_scientist.evidence.article_support import (
     _has_fulltext,
 )
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.evidence.helpers import (
     build_articles_from_metadata,
     make_failure_result,
 )
@@ -19,33 +19,6 @@ from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
-
-
-def _describe_exc(exc: BaseException) -> str:
-    """Describe an exception by type and message for diagnostic logging.
-
-    Unwraps ``ExceptionGroup`` (raised by the anyio task groups inside the MCP
-    transport) down to its first leaf so the root cause - e.g. a connection
-    error versus a validation error - is visible instead of the opaque group
-    wrapper.
-
-    Args:
-        exc: The caught exception.
-
-    Returns:
-        A "TypeName: message" string describing the underlying cause.
-    """
-    current: BaseException = exc
-    # ExceptionGroup (Python 3.11+) exposes an ``exceptions`` tuple; descend to
-    # the first leaf so the real cause surfaces instead of the group wrapper.
-    while getattr(current, "exceptions", None):
-        current = current.exceptions[0]  # type: ignore[attr-defined]
-    message = str(current).strip()
-    return (
-        f"{type(current).__name__}: {message}"
-        if message
-        else type(current).__name__
-    )
 
 
 async def _emit_search_errors_diagnostic(

@@ -15,7 +15,7 @@ MCP, or network mocking.
 import json
 from typing import Any
 
-from co_scientist.agents.generation.literature_review import helpers
+from co_scientist.evidence import helpers
 
 # =============================================================================
 # count_papers_with_fulltext

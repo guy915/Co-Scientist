@@ -17,20 +17,20 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
+from co_scientist.evidence.errors import (
+    describe_exception,
+)
+from co_scientist.evidence.helpers import (
     SearchConfig,
     normalize_search_response,
 )
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _describe_exc,
-)
-from co_scientist.agents.generation.literature_review.query_broadening import (
+from co_scientist.evidence.query_broadening import (
     broadened_queries,
 )
-from co_scientist.agents.generation.literature_review.search_retry import (
+from co_scientist.evidence.search_retry import (
     _call_search_tool,
 )
-from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.mcp_client import MCPToolClient
 
 if TYPE_CHECKING:
@@ -184,7 +184,7 @@ async def _attempt_query(
         # A failed query is swallowed here (not raised) so the other queries
         # and sources still complete; the caller aggregates errors to
         # distinguish "zero results" from "search broke".
-        detail = _describe_exc(e)
+        detail = describe_exception(e)
         logger.error("Search failed for %s: %s", target.label, detail)
         if ctx.errors is not None:
             ctx.errors.append(f"{target.label}: {detail}")

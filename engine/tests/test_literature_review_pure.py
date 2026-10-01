@@ -1,8 +1,8 @@
 """Tests for the in-file pure helpers of the literature_review package.
 
 Covers the network-free functions defined in the ``literature_review``
-package's ``node`` and ``enrichment`` modules: ``_describe_exc``,
-``_get_search_config``, ``_format_kg_section_with_keys``, and
+package's ``node`` and ``enrichment`` modules: ``describe_exception``,
+``search_config_for``, ``_format_kg_section_with_keys``, and
 ``_parse_enrichment_result``. The node orchestration itself is covered in
 ``test_literature_review_node``.
 """
@@ -21,8 +21,8 @@ from tests._state import make_state
 class _FakeExceptionGroupError(Exception):
     """Duck-typed stand-in for ``ExceptionGroup`` (portable to Python 3.10).
 
-    Exposes the ``exceptions`` tuple that ``_describe_exc`` unwraps, mirroring
-    the real ``ExceptionGroup`` the anyio-based MCP transport raises.
+    Exposes the ``exceptions`` tuple that ``describe_exception`` unwraps,
+    mirroring the real ``ExceptionGroup`` the anyio-based MCP transport raises.
     """
 
     def __init__(self, message: str, exceptions: list[BaseException]) -> None:
@@ -32,7 +32,10 @@ class _FakeExceptionGroupError(Exception):
 
 def test_describe_exc_plain_exception() -> None:
     """A plain exception is rendered as ``Type: message``."""
-    assert lr._describe_exc(ValueError("bad input")) == "ValueError: bad input"
+    assert (
+        lr.describe_exception(ValueError("bad input"))
+        == "ValueError: bad input"
+    )
 
 
 def test_describe_exc_unwraps_exception_group() -> None:
@@ -40,14 +43,14 @@ def test_describe_exc_unwraps_exception_group() -> None:
     leaf = ConnectionError("All connection attempts failed")
     group = _FakeExceptionGroupError("unhandled errors in a TaskGroup", [leaf])
     assert (
-        lr._describe_exc(group)
+        lr.describe_exception(group)
         == "ConnectionError: All connection attempts failed"
     )
 
 
 def test_get_search_config_defaults_single_source() -> None:
     """With no tool registry the config defaults to single-source pubmed."""
-    config = lr._get_search_config(make_state())
+    config = lr.search_config_for(make_state())
     assert config.is_multi_source is False
     assert config.source_name == "pubmed"
     assert config.search_tool_name == "pubmed_search_with_fulltext"
@@ -58,15 +61,13 @@ def test_get_search_config_defaults_single_source() -> None:
 
 def test_get_search_config_honors_run_paper_count() -> None:
     """Per-run literature count overrides the default outside dev mode."""
-    config = lr._get_search_config(
-        make_state(literature_review_papers_count=12)
-    )
+    config = lr.search_config_for(make_state(literature_review_papers_count=12))
     assert config.papers_to_read_count == 12
 
 
 def test_get_search_config_reads_dev_mode_from_state() -> None:
     """Dev mode arrives as run state and shrinks the evidence budget."""
-    config = lr._get_search_config(
+    config = lr.search_config_for(
         make_state(dev_mode=True, literature_review_papers_count=12)
     )
     assert config.is_dev_mode is True
@@ -84,9 +85,7 @@ def test_get_search_config_ignores_the_ambient_dev_mode_env(
     literature size would depend on how the process happened to be started.
     """
     monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
-    config = lr._get_search_config(
-        make_state(literature_review_papers_count=12)
-    )
+    config = lr.search_config_for(make_state(literature_review_papers_count=12))
     assert config.is_dev_mode is False
     assert config.papers_to_read_count == 12
 
@@ -102,10 +101,10 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
         tool_registry=ToolRegistry(skip_user_config=True),
     )
     legacy = lr._literature_cache_params(
-        legacy_state, lr._get_search_config(legacy_state)
+        legacy_state, lr.search_config_for(legacy_state)
     )
     multi_source = lr._literature_cache_params(
-        registry_state, lr._get_search_config(registry_state)
+        registry_state, lr.search_config_for(registry_state)
     )
 
     assert legacy["cache_schema_version"] == 3
@@ -139,8 +138,8 @@ def test_a_tier_that_researches_cannot_replay_one_that_did_not() -> None:
     deep = make_state(model_name="model-a", research_tier="extended")
 
     assert lr._literature_cache_params(
-        shallow, lr._get_search_config(shallow)
-    ) != lr._literature_cache_params(deep, lr._get_search_config(deep))
+        shallow, lr.search_config_for(shallow)
+    ) != lr._literature_cache_params(deep, lr.search_config_for(deep))
 
 
 def test_format_kg_section_empty_returns_empty_string() -> None:

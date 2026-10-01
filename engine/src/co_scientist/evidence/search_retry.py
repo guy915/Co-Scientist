@@ -11,10 +11,10 @@ from typing import Any
 
 from langchain_core.tools import ToolException
 
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _describe_exc,
-)
 from co_scientist.backoff import jittered_backoff_seconds
+from co_scientist.evidence.errors import (
+    describe_exception,
+)
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import CampaignToolUnavailableError
 from co_scientist.tools.response_parser import parse_mcp_result
@@ -124,7 +124,7 @@ async def _call_search_tool(
                 "Search call to %s failed transiently (%s); retrying in "
                 "%.1fs (attempt %s of %s)",
                 tool_name,
-                _describe_exc(exc),
+                describe_exception(exc),
                 delay,
                 attempt,
                 _SEARCH_ATTEMPTS,

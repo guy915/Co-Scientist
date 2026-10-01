@@ -10,10 +10,10 @@ network, LLM, or disk I/O.
 
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.config import SearchSourceConfig
+from co_scientist.evidence.helpers import (
     select_within_budget,
 )
-from co_scientist.config import SearchSourceConfig
 
 
 def _ranked(*ids: str) -> dict[str, dict[str, Any]]:

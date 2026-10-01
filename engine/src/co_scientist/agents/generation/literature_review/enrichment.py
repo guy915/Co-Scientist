@@ -11,12 +11,12 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-)
 from co_scientist.agents.reflection.reflection_helpers import (
     extract_entity_names,
     parse_indra_statement,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState

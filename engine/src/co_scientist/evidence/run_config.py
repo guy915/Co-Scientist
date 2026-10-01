@@ -9,13 +9,13 @@ single-source path.
 import logging
 from typing import TYPE_CHECKING
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-    extract_source_name,
-)
 from co_scientist.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+    extract_source_name,
 )
 from co_scientist.state import WorkflowState
 
@@ -123,7 +123,7 @@ def _resolve_primary_search_source(
     return _resolve_single_source_tool(tool_registry, workflow)
 
 
-def _get_search_config(state: WorkflowState) -> SearchConfig:
+def search_config_for(state: WorkflowState) -> SearchConfig:
     """Extract search configuration from state and tool registry."""
     tool_registry, workflow, is_multi_source = _resolve_literature_workflow(
         state

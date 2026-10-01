@@ -20,11 +20,6 @@ import dataclasses
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-    make_failure_result,
-    make_success_result,
-)
 from co_scientist.agents.generation.literature_review.orchestration import (
     _analyze_and_synthesize as _analyze_and_synthesize,
 )
@@ -56,16 +51,10 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _handle_collection_edge_cases as _handle_collection_edge_cases,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
-    _phase2_collect_papers as _phase2_collect_papers,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewCachePlan as _ReviewCachePlan,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewSynthesis as _ReviewSynthesis,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _describe_exc as _describe_exc,
 )
 from co_scientist.agents.generation.literature_review.outcomes import (
     _emit_empty_search_diagnostics as _emit_empty_search_diagnostics,
@@ -87,26 +76,34 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     ResearchOutcome,
     run_research_phase,
 )
-from co_scientist.agents.generation.literature_review.run_config import (
-    _get_search_config as _get_search_config,
-)
-from co_scientist.agents.generation.literature_review.run_config import (
-    _log_multi_source_config as _log_multi_source_config,
-)
-from co_scientist.agents.generation.literature_review.run_config import (
-    _resolve_literature_workflow as _resolve_literature_workflow,
-)
-from co_scientist.agents.generation.literature_review.run_config import (
-    _resolve_papers_to_read_count as _resolve_papers_to_read_count,
-)
-from co_scientist.agents.generation.literature_review.run_config import (
-    _resolve_primary_search_source as _resolve_primary_search_source,
-)
-from co_scientist.agents.generation.literature_review.run_config import (
-    _resolve_single_source_tool as _resolve_single_source_tool,
-)
 from co_scientist.cache import get_node_cache
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.evidence.errors import (
+    describe_exception as describe_exception,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+    make_failure_result,
+    make_success_result,
+)
+from co_scientist.evidence.run_config import (
+    _log_multi_source_config as _log_multi_source_config,
+)
+from co_scientist.evidence.run_config import (
+    _resolve_literature_workflow as _resolve_literature_workflow,
+)
+from co_scientist.evidence.run_config import (
+    _resolve_papers_to_read_count as _resolve_papers_to_read_count,
+)
+from co_scientist.evidence.run_config import (
+    _resolve_primary_search_source as _resolve_primary_search_source,
+)
+from co_scientist.evidence.run_config import (
+    _resolve_single_source_tool as _resolve_single_source_tool,
+)
+from co_scientist.evidence.run_config import (
+    search_config_for as search_config_for,
+)
 from co_scientist.mcp_client import (
     MCPToolClient,
     check_mcp_available,
@@ -171,7 +168,7 @@ def _initialize_review(
     Returns:
         A (config, cache_plan) tuple.
     """
-    config = _get_search_config(state)
+    config = search_config_for(state)
     logger.info(
         "Literature review config: dev_mode=%s, papers=%s",
         config.is_dev_mode,

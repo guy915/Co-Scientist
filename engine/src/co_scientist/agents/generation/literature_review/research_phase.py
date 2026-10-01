@@ -21,13 +21,13 @@ the review this node always produced.
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.evidence.helpers import (
     SearchConfig,
 )
+from co_scientist.evidence.research_records import records_from_findings
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.progress import emit_progress
 from co_scientist.research import (
-    Finding,
     ResearchBudget,
     ResearchResult,
     conduct_research,
@@ -193,46 +193,6 @@ def _gaps_in(analysis: object) -> list[str]:
         for value in stated
         if isinstance(value, str) and value.strip()
     ]
-
-
-def records_from_findings(
-    result: ResearchResult, retrieval: ResearchRetrieval
-) -> dict[str, dict[str, Any]]:
-    """Turn the papers that produced findings into review-shaped records.
-
-    Public because Reflection researches too and needs the same records,
-    stamped the same way: the shape a paper takes on its way into the
-    pool is the literature review's to define, not each caller's.
-
-    Only documents something was actually drawn from are carried over: a
-    hit the loop searched up but read nothing useful from is already on
-    record in the ledger, and adding it to the paper pool would put a
-    document into every downstream prompt on the strength of having
-    appeared in a result list.
-
-    Each record is stamped with the id of the call that surfaced it,
-    which is what lets a caller persisting the article say which query
-    found it and which question that query was serving.
-    """
-    records: dict[str, dict[str, Any]] = {}
-    for finding in result.findings:
-        if finding.locator in records:
-            continue
-        record = retrieval.record(finding.locator)
-        if record is None:
-            continue
-        record["retrieval_call_id"] = finding.call_id
-        record.setdefault("_source_name", _source_of(result, finding))
-        records[finding.locator] = record
-    return records
-
-
-def _source_of(result: ResearchResult, finding: Finding) -> str:
-    """Name the source whose call surfaced one finding."""
-    for call in result.calls:
-        if call.id == finding.call_id:
-            return call.source
-    return ""
 
 
 def _synthesis_section(result: ResearchResult) -> str:

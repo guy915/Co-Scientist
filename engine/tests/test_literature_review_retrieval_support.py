@@ -18,12 +18,12 @@ LLM, MCP, or network mocking is needed since this module does no I/O.
 import json
 from typing import Any, cast
 
-from co_scientist.agents.generation.literature_review import (
-    retrieval_support as rs,
-)
 from co_scientist.config.schema import (
     SearchSourceConfig,
     WorkflowConfig,
+)
+from co_scientist.evidence import (
+    retrieval_support as rs,
 )
 from tests._mcp import make_tool_lookup_registry as _registry
 from tests._retrieval_config import make_tool_config as _tool

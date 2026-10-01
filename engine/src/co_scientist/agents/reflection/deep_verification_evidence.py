@@ -25,7 +25,7 @@ from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
-    from co_scientist.agents.generation.literature_review.search_support import (  # noqa: E501
+    from co_scientist.evidence.search_support import (
         SearchConfig,
     )
 
@@ -176,7 +176,7 @@ async def _retrieve_probe_evidence(
     if not state.get("mcp_available"):
         return _corpus_probe_evidence(state, queries)
 
-    from co_scientist.agents.generation.literature_review.helpers import (
+    from co_scientist.evidence.helpers import (
         build_articles_from_metadata,
     )
 
@@ -206,12 +206,12 @@ def _probe_search_config(state: WorkflowState) -> "SearchConfig":
     cycle, in each of its three callers. See
     ``SearchConfig.semantic_relevance_enabled``.
     """
-    from co_scientist.agents.generation.literature_review.run_config import (
-        _get_search_config,
+    from co_scientist.evidence.run_config import (
+        search_config_for,
     )
 
     return dataclasses.replace(
-        _get_search_config(state),
+        search_config_for(state),
         papers_to_read_count=_MAX_PROBE_SOURCES,
         semantic_relevance_enabled=False,
     )
@@ -228,15 +228,15 @@ async def _collect_probe_papers(
         articles -- a probe whose search back end is unreachable degrades
         to ungrounded rather than aborting the verification around it.
     """
-    from co_scientist.agents.generation.literature_review.orchestration import (
-        _phase2_collect_papers,
+    from co_scientist.evidence.collection import (
+        collect_papers,
     )
     from co_scientist.mcp_client import get_mcp_client
 
     errors: list[str] = []
     try:
         client = await get_mcp_client(tool_registry=config.tool_registry)
-        metadata, _ = await _phase2_collect_papers(
+        metadata, _ = await collect_papers(
             queries, state, config, client, errors
         )
     except TASK_CONTROL_FLOW_ERRORS:

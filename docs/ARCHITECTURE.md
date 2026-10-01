@@ -178,3 +178,13 @@ still holds: nothing here lets a view render without hitting the API.
     runs either way; only the completion backend's answer for `offline/`
     models differs. This unlocks CI, deterministic tests, and a usable demo
     without provider keys.
+
+## Shared evidence gathering
+
+`co_scientist.evidence` owns search configuration, source fan-out, retries,
+ranking, evidence budgets, article construction and research-record provenance.
+Generation and Reflection call the same `collect_papers` operation; Reflection
+keeps its small probe budget and disables the semantic relevance model pass.
+Agent-specific query planning, synthesis and failure presentation remain in
+`agents/`. The evidence package never imports an agent, enforced by
+`engine/tests/test_evidence_layering.py`.

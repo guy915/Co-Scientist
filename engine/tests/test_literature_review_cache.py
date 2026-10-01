@@ -9,9 +9,9 @@ from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
 from co_scientist.agents.generation.literature_review import node as lr
-from co_scientist.agents.generation.literature_review import search as lr_search
 from co_scientist.cache import NodeCache
 from co_scientist.cache import nodes as cache_nodes
+from co_scientist.evidence import search as lr_search
 from co_scientist.models import Article
 from tests._literature_node import _TWO_PAPERS, _stub_node, _stub_research
 from tests._state import make_state
@@ -81,7 +81,7 @@ async def test_legacy_research_cache_entry_is_refreshed(
     monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
     _stub_research(monkeypatch)
     state = make_state(research_goal="goal", research_tier="extended")
-    config = lr._get_search_config(state)
+    config = lr.search_config_for(state)
     cache.set(
         "literature_review",
         {
@@ -125,7 +125,7 @@ async def test_ordinary_cache_hit_without_research_provenance_is_preserved(
         research_goal="ordinary goal",
         dev_test_lit_tools_isolation=force_cache,
     )
-    config = lr._get_search_config(state)
+    config = lr.search_config_for(state)
     cache.set(
         "literature_review",
         {

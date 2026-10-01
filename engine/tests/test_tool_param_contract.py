@@ -29,9 +29,6 @@ import pytest
 from co_scientist.agents.generation.literature_review.enrichment import (
     _build_enrichment_canonical_params,
 )
-from co_scientist.agents.generation.literature_review.search_query import (
-    _build_query_tool_params,
-)
 from co_scientist.agents.generation.literature_tools.draft_tools import (
     _setup_tool_provider,
 )
@@ -43,6 +40,9 @@ from co_scientist.agents.reflection.reflection_helpers import (
 )
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.tool_schema import ToolConfig
+from co_scientist.evidence.search_query import (
+    _build_query_tool_params,
+)
 
 # The reference MCP server, a sibling package of the engine's own sources.
 # Parsed rather than imported: it declares its own dependencies (fastmcp) and

@@ -45,19 +45,9 @@ from co_scientist.agents.generation.literature_review.enrichment import (
     _format_kg_section_with_keys,
     _phase2_6_fetch_context_enrichment,
 )
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-    build_articles_from_metadata,
-    get_papers_with_content,
-)
 from co_scientist.agents.generation.literature_review.outcomes import (
     _handle_no_fulltext_available,
     _handle_no_papers_found,
-)
-from co_scientist.agents.generation.literature_review.search import (
-    _phase2_collect_papers_multi_source,
-    _phase2_collect_papers_single_source,
-    _SearchRunContext,
 )
 from co_scientist.agents.generation.literature_review.synthesis import (
     _phase4_synthesize,
@@ -65,7 +55,11 @@ from co_scientist.agents.generation.literature_review.synthesis import (
 from co_scientist.cache import NodeCache
 from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
-    corpus_slug,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+    build_articles_from_metadata,
+    get_papers_with_content,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.models import Article
@@ -112,32 +106,6 @@ def _append_kg_evidence_section(
         used_paper_count + 1,
     )
     return synthesis + kg_section
-
-
-async def _phase2_collect_papers(
-    queries: list[str],
-    state: WorkflowState,
-    config: SearchConfig,
-    mcp_client: MCPToolClient,
-    search_errors: list[str],
-) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Phase 2: collect papers from configured sources.
-
-    Dispatches to the multi-source or single-source collection path based on
-    config.is_multi_source. The slug ties this run's searches to the shared
-    on-disk corpus so a warm-started corpus from a prior run/tool-based
-    generation phase is reused rather than re-downloaded.
-    """
-    ctx = _SearchRunContext(
-        slug=corpus_slug(state["research_goal"]),
-        run_id=state["run_id"],
-        mcp_client=mcp_client,
-        errors=search_errors,
-    )
-
-    if config.is_multi_source:
-        return await _phase2_collect_papers_multi_source(queries, config, ctx)
-    return await _phase2_collect_papers_single_source(queries, config, ctx)
 
 
 async def _discover_then_fetch_content(

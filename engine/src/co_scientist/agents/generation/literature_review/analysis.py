@@ -9,14 +9,14 @@ import asyncio
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    get_paper_content_for_analysis,
-    get_papers_with_content,
-    parse_year_from_metadata,
-)
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
+)
+from co_scientist.evidence.helpers import (
+    get_paper_content_for_analysis,
+    get_papers_with_content,
+    parse_year_from_metadata,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (

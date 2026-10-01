@@ -14,14 +14,14 @@ LLM, or disk I/O anywhere in this module.
 
 from typing import Any, cast
 
-from co_scientist.agents.generation.literature_review import search
-from co_scientist.agents.generation.literature_review.query_broadening import (
+from co_scientist.config import ToolConfig
+from co_scientist.evidence import search
+from co_scientist.evidence.query_broadening import (
     broadened_queries,
 )
-from co_scientist.agents.generation.literature_review.search_support import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
-from co_scientist.config import ToolConfig
 from co_scientist.mcp_client import MCPToolClient
 
 _NINE_TERMS = (

@@ -188,7 +188,7 @@ def get_literature_review_paper_analysis_prompt(
 
 
 # Renders prompts/literature_review_relevance_batch.md, called by
-# agents/generation/literature_review/relevance.py once per batch of
+# evidence/relevance.py once per batch of
 # candidate papers in the pre-budget pool (paired there with
 # LITERATURE_RELEVANCE_BATCH_SCHEMA): the semantic half of the hybrid
 # retrieval score (fidelity-audit G5). candidates_block is a

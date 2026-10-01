@@ -1,6 +1,6 @@
 """Tests for literature review search-configuration resolution (run_config.py).
 
-Covers ``_get_search_config``'s multi-source branch (which logs the enabled
+Covers ``search_config_for``'s multi-source branch (which logs the enabled
 search sources and still defaults Phase 1's fallback tool to the legacy
 PubMed values) and its single-source branch when a resolvable
 ``primary_search`` tool is configured. Neither branch is reached by the
@@ -10,13 +10,13 @@ with ``tool_registry=None``.
 
 from typing import cast
 
-from co_scientist.agents.generation.literature_review import run_config
 from co_scientist.config import (
     SearchSourceConfig,
     ToolConfig,
     ToolRegistry,
     WorkflowConfig,
 )
+from co_scientist.evidence import run_config
 from tests._state import make_state
 
 
@@ -64,7 +64,7 @@ def test_get_search_config_multi_source_logs_sources_and_defaults_pubmed() -> (
     registry = _StubRegistry(workflow)
     state = make_state(tool_registry=cast(ToolRegistry, registry))
 
-    config = run_config._get_search_config(state)
+    config = run_config.search_config_for(state)
 
     assert config.is_multi_source is True
     assert config.search_tool_name == "pubmed_search_with_fulltext"
@@ -81,7 +81,7 @@ def test_get_search_config_single_source_resolves_configured_tool() -> None:
     registry = _StubRegistry(workflow, {"pubmed_primary": tool_config})
     state = make_state(tool_registry=cast(ToolRegistry, registry))
 
-    config = run_config._get_search_config(state)
+    config = run_config.search_config_for(state)
 
     assert config.is_multi_source is False
     assert config.search_tool_name == "pubmed_ft"

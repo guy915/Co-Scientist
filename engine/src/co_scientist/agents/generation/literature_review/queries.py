@@ -10,18 +10,18 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-    determine_query_source_type,
-    parse_mcp_query_result,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _describe_exc,
-)
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
     LITERATURE_REVIEW_MAX_QUERIES,
+)
+from co_scientist.evidence.errors import (
+    describe_exception,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+    determine_query_source_type,
+    parse_mcp_query_result,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
@@ -63,7 +63,7 @@ async def _generate_queries_via_mcp(
         # _phase1_generate_queries fall through to the LLM-based generator.
         logger.warning(
             "MCP query generation failed: %s, falling back to LLM",
-            _describe_exc(e),
+            describe_exception(e),
         )
         return []
 

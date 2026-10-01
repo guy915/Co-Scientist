@@ -4,11 +4,11 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import search
-from co_scientist.agents.generation.literature_review.relevance import (
+from co_scientist.evidence import search
+from co_scientist.evidence.relevance import (
     _HYBRID_VERSION,
 )
-from co_scientist.agents.generation.literature_review.search_support import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient

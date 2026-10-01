@@ -8,7 +8,7 @@ attempt, and a cap that only the search path asks for -- so a later
 """
 
 from co_scientist import backoff
-from co_scientist.agents.generation.literature_review import search_retry
+from co_scientist.evidence import search_retry
 from co_scientist.llm.attempts import backoff as llm_backoff
 
 

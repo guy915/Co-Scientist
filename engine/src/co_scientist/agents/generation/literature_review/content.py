@@ -10,7 +10,7 @@ import asyncio
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.evidence.helpers import (
     ContentToolConfig,
     SearchConfig,
     build_content_config,

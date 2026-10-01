@@ -15,14 +15,14 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.literature_review.search_support import (
-    normalize_search_response,
-)
 from co_scientist.agents.generation.literature_tools.validate_search import (
     _NoveltySearchContext,
     _search_papers_via_tool_config,
 )
 from co_scientist.config import ToolConfig, ToolRegistry
+from co_scientist.evidence.search_support import (
+    normalize_search_response,
+)
 from tests._mcp import FakeCallToolClient
 
 

@@ -28,10 +28,10 @@ from __future__ import annotations
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.evidence.helpers import (
     build_articles_from_metadata,
 )
-from co_scientist.agents.generation.literature_review.research_phase import (
+from co_scientist.evidence.research_records import (
     records_from_findings,
 )
 from co_scientist.models import Article, Hypothesis, rank_by_elo

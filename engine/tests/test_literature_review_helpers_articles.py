@@ -14,8 +14,8 @@ mocking.
 
 from typing import Any
 
-from co_scientist.agents.generation.literature_review import helpers
 from co_scientist.config.schema import ResponseFormat, ToolConfig
+from co_scientist.evidence import helpers
 from co_scientist.models import Article
 from tests._retrieval_config import make_tool_config
 

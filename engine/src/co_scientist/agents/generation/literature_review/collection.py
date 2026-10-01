@@ -9,29 +9,24 @@ one call. Split out of ``orchestration.py`` to keep that module under
 the file-length ceiling; ``orchestration.py`` re-exports every name
 defined here for compatibility.
 
-``_collect_papers_with_diagnostics`` and ``_enrich_collected_papers``
-each call one function that stays behind in ``orchestration.py``
-(``_phase2_collect_papers`` and ``_fetch_content_and_enrichment``
-respectively) and import it locally, inside the function body, rather
-than at module load time. A top-level import here would cycle with
-``orchestration.py`` (which imports this module to re-export every name
-defined here): each module would need a name from the other before
-either had finished executing its own body, and Python cannot resolve
-that. The deferred import runs well after both modules are fully
-loaded, so it always resolves the live function -- including one a test
-has monkeypatched on ``orchestration.py``'s namespace.
+Search collection calls the shared ``co_scientist.evidence.collection``
+boundary. Content/enrichment still imports its orchestration helper locally:
+that helper composes agent-specific work and imports this module itself.
+The deferred imports also resolve each collaborator at call time, so a test
+patches the module that owns it.
+
 """
 
 import dataclasses
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-    count_papers_with_fulltext,
-)
 from co_scientist.agents.generation.literature_review.outcomes import (
     _emit_empty_search_diagnostics,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+    count_papers_with_fulltext,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
@@ -108,14 +103,13 @@ async def _collect_papers_with_diagnostics(
     mcp_client: MCPToolClient,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str], list[str]]:
     """Runs Phase 2 collection and emits diagnostics if it found nothing."""
-    # Imported here, not at module load time -- see the module docstring
-    # for why a top-level import would cycle with orchestration.py.
-    from co_scientist.agents.generation.literature_review.orchestration import (
-        _phase2_collect_papers,
+    # Resolve the shared operation at call time, including installed patches.
+    from co_scientist.evidence.collection import (
+        collect_papers,
     )
 
     search_errors: list[str] = []
-    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
+    all_paper_metadata, paper_source_map = await collect_papers(
         queries, state, config, mcp_client, search_errors
     )
     if not all_paper_metadata:
