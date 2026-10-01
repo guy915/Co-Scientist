@@ -1,0 +1,73 @@
+{
+  "status": "ACCEPT_EXACT_OWNED_LAUNCH_LIFECYCLE",
+  "study_version": 7,
+  "reviewer_model": "gemini-3.8-flash-high",
+  "effort": "high",
+  "conversation_id": "5048263c-d8ec-40ba-9ec4-a02e5f507fd8",
+  "reviewed_hashes": {
+    "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study7/live-execution/registered-launcher.py": "75cfe6a43dbea7ad0c07dc68bfe0f6af0bfa3a06503954cb4af60dcf2a846e29",
+    "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study7/live-launch/eligibility-read-only.py": "e462bbc367719172bd7cb78808e6fbe55b885dce98cb92c8fe486aa9be060f5c"
+  },
+  "canonical_inputs": {
+    "protocol7_sha256": "48d466499decc154a7ef58b417f49c6aa792b908355dcce45ddb1f767654cbb4",
+    "bank8_sha256": "80f32742f5d118fef707cb8a9e4c613e0f2eda141623594b51e4910f9d5f1bab"
+  },
+  "review_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study7/live-execution/launch-review.json",
+  "review_sha256": "37cc5f311858269f691f4fc31af43d035a9f9b0c8fe18fc94b327ef81b23cec1",
+  "scope": "Supplied lifecycle/readonly eligibility code; review itself made no requests or credential reads.",
+  "limits": [
+    "OpenRouter public catalog endpoints omit ancillary per-request and reasoning token pricing fields; per-request zero-price caps and free-policy enforcement remain authoritative at the runner engine wire level.",
+    "Single-provider hard constraint: eligibility requires exactly one endpoint provided by 'Stealth' with status == 0; any secondary route or status alteration fails closed.",
+    "Strict 60-second validity window: launcher must be invoked immediately after eligibility-read-only.py executes.",
+    "Permanent admission consumption: once claimed by the runner, admission is committed to the parent worktree and archive, permanently preventing rerun.",
+    "Fail-closed execution: any unexpected process termination, watchdog error, or absence of status 'PILOT_COMPLETE_LABELS_PENDING' halts with non-zero exit code and requires manual audit; auto-replay is strictly prohibited."
+  ],
+  "production_state_observation": {
+    "observed_at_utc": "2026-10-01T03:05:03.564534+00:00",
+    "main_commit": "a77671536360e9a9c34db451f57a3bf387a31b94",
+    "public_reads": {
+      "/health": {
+        "http_status": 200,
+        "projection": {
+          "status": "healthy",
+          "model_name": null
+        }
+      },
+      "/api/status": {
+        "error_type": "HTTPError"
+      },
+      "/status": {
+        "http_status": 200,
+        "projection": {
+          "llm_backend": "real",
+          "model_name": "openrouter/stealth/space-bunny-alpha"
+        },
+        "body_keys": [
+          "byok_enabled",
+          "connectors",
+          "email_notifications_available",
+          "enabled_tools",
+          "engine_importable",
+          "has_provider_key",
+          "literature_review_available",
+          "llm_backend",
+          "mcp_available",
+          "mcp_server_url",
+          "model_name",
+          "probes",
+          "provider",
+          "pubmed_available",
+          "supervisor_model_name",
+          "tools_config",
+          "tools_config_valid",
+          "web_search_available"
+        ]
+      }
+    },
+    "inference": 0,
+    "production_mutation": false,
+    "route_correction": "Initial /api/status path was wrong; maintained prod_smoke uses /status. Health remains200; no product outage inferred."
+  },
+  "scientific_requests_so_far": 0,
+  "admission_so_far": false
+}
