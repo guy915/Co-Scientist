@@ -19,8 +19,8 @@ import pytest
 from langchain_core.tools import ToolException
 
 from co_scientist.agents.generation.literature_review import search
-from co_scientist.mcp_campaign import CampaignToolUnavailableError
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.mcp_client.campaign import CampaignToolUnavailableError
 from co_scientist.tools.response_parser import parse_mcp_result
 
 

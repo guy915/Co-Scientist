@@ -55,12 +55,10 @@ def _patch_mcp_seam(
         StructuredTool,
     )
 
-    from co_scientist import (
-        mcp_client_session as mcp_session_mod,
-    )
     from co_scientist.mcp_client import (
         reset_mcp_client,
     )
+    from co_scientist.mcp_client import session as mcp_session_mod
     from tests._mcp import (
         FakeMultiServerMCPClient,
     )

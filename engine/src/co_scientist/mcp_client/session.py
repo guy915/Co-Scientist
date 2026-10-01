@@ -20,13 +20,13 @@ from langchain_mcp_adapters.sessions import Connection
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.constants import truncate
 from co_scientist.exceptions import MCPToolTimeoutError
-from co_scientist.mcp_campaign import (
+from co_scientist.mcp_client.campaign import (
     PUBLIC_TOOLS,
     CampaignAdmission,
     prepare_admission,
     require_bound_mode,
 )
-from co_scientist.mcp_client_helpers import (
+from co_scientist.mcp_client.helpers import (
     NOT_INITIALIZED_MESSAGE,
     _ensure_tools_initialized,
     _filter_tools_by_whitelist,

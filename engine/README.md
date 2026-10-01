@@ -384,7 +384,7 @@ src/co_scientist/
 ├── state/              # WorkflowState TypedDict + custom reducers
 ├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
-├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
+├── mcp_client/         # MCP server connection (langchain-mcp-adapters)
 ├── cache/              # Disk-based LLM response cache
 ├── constants/          # Elo params, token limits, workflow defaults
 ├── progress.py         # Shared progress-event emission used by agent nodes

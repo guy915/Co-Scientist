@@ -60,7 +60,7 @@ from co_scientist.agents.generation.literature_review.search_retry import (
 from co_scientist.agents.generation.literature_review.search_retry import (
     _search_retry_delay as _search_retry_delay,
 )
-from co_scientist.mcp_campaign import campaign_serves_tool
+from co_scientist.mcp_client.campaign import campaign_serves_tool
 
 if TYPE_CHECKING:
     from co_scientist.config import SearchSourceConfig, ToolConfig, ToolRegistry

@@ -207,7 +207,7 @@ External tools are pulled from MCP servers via a YAML-driven `ToolRegistry`. The
 flowchart TD
   YAML["tools.yaml (or TOOLS_CONFIG URL)<br/>servers · tools · workflows · enrichments · prompts"]
   YAML --> TR["ToolRegistry<br/>config/registry.py"]
-  TR --> MTC["MCPToolClient<br/>mcp_client.py (langchain_mcp_adapters)"]
+  TR --> MTC["MCPToolClient<br/>mcp_client/ (langchain_mcp_adapters)"]
   MTC --> MTP["MCPToolProvider<br/>tools/provider.py"]
   MTP --> CLT["call_llm_with_tools<br/>llm/tools/loop.py, exported by llm/__init__.py — agentic tool-calling loop"]
   CLT -->|tool call| MTP

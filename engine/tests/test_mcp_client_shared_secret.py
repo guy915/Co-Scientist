@@ -11,7 +11,7 @@ the same header, and must do nothing when the variable is unset.
 import pytest
 
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.mcp_client_helpers import (
+from co_scientist.mcp_client.helpers import (
     MCP_AUTH_HEADER,
     MCP_SHARED_SECRET_ENV,
     _resolve_server_configs,

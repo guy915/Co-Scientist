@@ -15,7 +15,7 @@ engine/
 │       ├── models/             # Hypothesis, Article dataclasses (among others)
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
 │       ├── cache/              # LLM response caching
-│       ├── mcp_client.py       # MCP server integration
+│       ├── mcp_client/         # MCP server integration
 │       ├── constants/          # Configuration constants
 │       ├── config/             # YAML-based tool/domain configuration
 │       │   ├── registry.py     # Config loading and merge logic

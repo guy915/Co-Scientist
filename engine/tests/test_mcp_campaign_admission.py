@@ -231,7 +231,7 @@ async def test_global_client_created_outside_campaign_cannot_be_reused(
 async def test_qualified_sdk_transport_has_no_redirect_or_proxy_escape(
     qualified: dict[str, Any], _patch_mcp_seam: Any
 ) -> None:
-    from co_scientist.mcp_campaign import campaign_http_client
+    from co_scientist.mcp_client.campaign import campaign_http_client
 
     client = MCPToolClient(server_url=URL)
     await client.initialize()

@@ -8,7 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from co_scientist.llm import campaign_free_mode
-from co_scientist.mcp_client_helpers import (
+from co_scientist.mcp_client.helpers import (
     MCP_AUTH_HEADER,
     MCP_CAMPAIGN_HEADER,
     MCP_SHARED_SECRET_ENV,
