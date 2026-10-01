@@ -210,7 +210,7 @@ def test_create_route_uses_one_patched_client_scope_for_run_owner(
         return "patched-owner-scope"
 
     def execution_policy(_request: Any, _interview: Any) -> str:
-        return "patched-policy"
+        return "campaign"
 
     @contextmanager
     def scoped_policy(policy: str) -> Iterator[None]:
@@ -231,6 +231,6 @@ def test_create_route_uses_one_patched_client_scope_for_run_owner(
     run = store.get_run(response.json()["id"])
     assert run is not None
     assert run.client_id == "patched-owner-scope"
-    assert run.execution_policy == "patched-policy"
+    assert run.execution_policy == "campaign"
     assert scope_checks == ["checked"]
-    assert policy_scopes == ["patched-policy"]
+    assert policy_scopes == ["campaign"]

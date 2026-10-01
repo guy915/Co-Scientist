@@ -127,7 +127,9 @@ def _install_report_stubs(
     built = report_build._BuiltReport(
         payload={
             "research_goal": "Study cancellation at report publication",
-            "leaderboard": [{"id": hypothesis_id, "title": "IL-6 feedback"}],
+            "leaderboard": [
+                {"id": hypothesis_id, "title": "IL-6 feedback", "elo": 1500}
+            ],
         },
         markdown="# Goal Report\n\nIL-6 feedback.",
         facts=[

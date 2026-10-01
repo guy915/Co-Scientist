@@ -120,7 +120,8 @@ class RunMessage(TypedDict):
 
     id: int
     run_id: str
-    sender: Literal["user"] | Literal["system"]
+    # Manual steering persists the researcher identity as its sender.
+    sender: str
     content: str
     kind: str
     created_at: float

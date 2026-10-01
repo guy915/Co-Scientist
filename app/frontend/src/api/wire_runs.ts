@@ -61,7 +61,7 @@ export interface RunExecutionProgress {
 export interface RunMessage {
   id: number;
   run_id: string;
-  sender: 'user' | 'system';
+  sender: string;
   content: string;
   kind: string;
   created_at: number;
