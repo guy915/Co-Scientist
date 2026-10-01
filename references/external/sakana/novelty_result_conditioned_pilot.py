@@ -40,6 +40,7 @@ PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
 PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
 PILOT_PREREG_V6 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v6.json"
 PILOT_PREREG_V7 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v7.json"
+PILOT_PREREG_V8 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v8.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
@@ -52,6 +53,9 @@ V6_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v
 V6_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SIXTH_STUDY_INPUTS"
 V7_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v8.json"
 V7_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SEVENTH_STUDY_INPUTS"
+V8_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v9.json"
+V8_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_EIGHTH_STUDY_INPUTS"
+STUDY8_SEARCH_PARAMETERS = MappingProxyType({"include_fulltext": False})
 OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
 JSON_QUERY_OUTPUT_FORMAT = "json"
 PLAIN_TEXT_QUERY_OUTPUT_FORMAT = "plain_text"
@@ -226,6 +230,18 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             True,
             PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
         ),
+        8: _StudyRegistration(
+            8,
+            9,
+            V8_FIXTURE_BANK_PATH,
+            V8_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4j3 batch-aware metadata-only result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v8",
+            "cosci-m12-nov-04b4j3-v8-blind",
+            True,
+            PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+        ),
     }
 )
 
@@ -377,6 +393,39 @@ def _query_output_format(protocol: dict[str, Any], study_version: int) -> str:
             f"Study {study_version} protocol selects the wrong query output format"
         )
     return output_format
+
+
+def _validate_search_parameters(protocol: dict[str, Any], study_version: int) -> None:
+    if study_version == 8:
+        parameters = protocol.get("search_parameters")
+        if (
+            not isinstance(parameters, dict)
+            or set(parameters) != set(STUDY8_SEARCH_PARAMETERS)
+            or parameters.get("include_fulltext") is not False
+            or "include_fulltext" in protocol
+        ):
+            raise ValueError(
+                "Study 8 protocol must pin metadata-only search parameters"
+            )
+    elif "search_parameters" in protocol or "include_fulltext" in protocol:
+        raise ValueError("Historical study protocols cannot override search parameters")
+
+
+class _MetadataOnlySearchClient:
+    """Pass the study8 opt-out through the maintained MCP tool call."""
+
+    def __init__(self, recorder: Any) -> None:
+        self.recorder = recorder
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.recorder, name)
+
+    async def call_tool(self, tool_name: str, **params: Any) -> Any:
+        if tool_name != "pubmed_search_with_fulltext":
+            raise ValueError("Study 8 requires the maintained PubMed search tool")
+        parameters = dict(params)
+        parameters.update(STUDY8_SEARCH_PARAMETERS)
+        return await self.recorder.call_tool(tool_name, **parameters)
 
 
 def _telemetry_totals(
@@ -1414,6 +1463,8 @@ async def run_pilot(
         if isinstance(client, fixture._RecordingClient)
         else fixture._RecordingClient(client)
     )
+    if study_version == 8:
+        recorder = _MetadataOnlySearchClient(recorder)
     parser = ResponseParser(tool)
     nonce = uuid.uuid4().hex[:12]
     bank_hash = (
@@ -1760,6 +1811,7 @@ def _protocol_path(study_version: int) -> Path:
         5: PILOT_PREREG_V5,
         6: PILOT_PREREG_V6,
         7: PILOT_PREREG_V7,
+        8: PILOT_PREREG_V8,
     }[study_version]
 
 
@@ -1895,6 +1947,7 @@ def _load_pilot_protocol(
         or protocol.get("fixture_bank_version") != registration.fixture_bank_version
     ):
         raise ValueError("Pilot protocol does not select the prospective study version")
+    _validate_search_parameters(protocol, study_version)
     output_format = _query_output_format(protocol, study_version)
     if study_version == 4 and protocol.get("entrez_recovery_policy") != dict(
         STUDY4_RECOVERY_PROTOCOL
