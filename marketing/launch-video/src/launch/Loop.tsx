@@ -18,6 +18,7 @@ export const VerbShot: React.FC<{word: string; gloss: string; look: number}> = (
   <AbsoluteFill>
     <WordFrame word={word} chip={gloss} look={look} />
     <Sfx at={0} name="shutter" volume={0.55} />
+    <Sfx at={6} name="swish" volume={0.35} />
   </AbsoluteFill>
 );
 
