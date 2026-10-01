@@ -17,7 +17,7 @@ make format / lint / typecheck   # ruff format / ruff check / mypy
 
 Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `app/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
 
-**Source modules** (`app/app/`) — the ones worth knowing; the package holds 45 flat modules plus the `store/`, `engine_adapter/`, `engine_tasks/`, `cli/`, `report/`, `runs/`, `claims/`, `citations/`, `interviews/`, `qa/`, `safety/`, `hypothesis/`, `seed/`, `demo_seed_data/`, `pdf/`, `outcome_refinement/`, `task_worker/` and `run_modes/` subpackages (271 files in all; a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
+**Source modules** (`app/app/`) — the ones worth knowing; the package holds 45 flat modules plus the `store/`, `engine_adapter/`, `engine_tasks/`, `cli/`, `report/`, `runs/`, `claims/`, `citations/`, `interviews/`, `qa/`, `safety/`, `hypothesis/`, `seed/`, `demo_seed_data/`, `pdf/`, `outcome_refinement/`, `task_worker/` and `run_modes/`, `api_contracts/` subpackages (281 files in all; a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
 
 | Module | Purpose |
 |---|---|
