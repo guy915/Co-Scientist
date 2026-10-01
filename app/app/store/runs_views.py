@@ -23,7 +23,7 @@ _TOP_HYPOTHESES_CAP = 3
 # reported stage tracks the linear agent pipeline. The durable engine path
 # never appends one of these -- its live signal is the leased task on
 # ``execution_progress.active_task`` instead. The curated demo-seed path
-# (``seed_scenario.py``) is what actually emits this vocabulary, appending
+# (``seed/scenario.py``) is what actually emits this vocabulary, appending
 # the whole set at once when a run is seeded rather than progressively.
 _STAGE_EVENT_TYPES: tuple[str, ...] = (
     "supervisor.plan",

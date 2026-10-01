@@ -1,6 +1,6 @@
 """What the chat can see about a run's progress and its finished report.
 
-Covers ``app.qa_run_state``: the live-progress facts gathered while a run
+Covers ``app.qa.run_state``: the live-progress facts gathered while a run
 executes, the report synthesis carried once it completes, and the idea
 index that replaces dumping every idea into the prompt.
 """
@@ -11,7 +11,8 @@ import dataclasses
 import time
 from typing import Any
 
-from app import qa_run_state, store
+from app import store
+from app.qa import run_state as qa_run_state
 from app.store.models import RunRow
 
 

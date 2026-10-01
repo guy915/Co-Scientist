@@ -94,7 +94,7 @@ def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
     queued/running was interrupted by a crash or restart and would
     otherwise be stuck forever.
     """
-    from app.outcome_refinement_action import (
+    from app.outcome_refinement.action import (
         materialize_pending_outcome_refinements,
     )
 

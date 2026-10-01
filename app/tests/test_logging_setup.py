@@ -8,15 +8,14 @@ import logging
 
 from app.credentials import ByokCredential, scoped_byok
 from app.litellm_logging import _LITELLM_LOGGER_NAMES
-from app.logging_setup import (
+from app.logging_format import (
     TEXT_FORMAT,
     JsonFormatter,
     RunIdFilter,
     TextRunIdFormatter,
-    configure_logging,
     current_run_id,
-    run_log_context,
 )
+from app.logging_setup import configure_logging, run_log_context
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 

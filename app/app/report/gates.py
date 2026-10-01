@@ -16,11 +16,11 @@ from typing import Any
 
 from app import store
 from app.claims.verdict import is_categorical_contradiction, is_supporting
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
-from app.hypothesis_screening import record_hypothesis_block
+from app.hypothesis.screening import record_hypothesis_block
 
 logger = logging.getLogger(__name__)
 

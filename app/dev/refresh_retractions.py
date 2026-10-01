@@ -15,7 +15,7 @@ Crossref's own Labs page states that endpoint "is no longer running" and
 now serves stale data, and names the GitLab CSV as its replacement.
 
 This is the only place in the app that talks to Crossref for this dataset.
-``citation_resolver`` (via ``app.retraction_set``) only ever reads the
+``citations.resolver`` (via ``app.retraction_set``) only ever reads the
 committed file this script produces -- runtime and CI never reach the
 network for it. Re-run this by hand periodically and commit the result;
 nothing does so automatically.

@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from app import logs_api, notifications
+from app import logs_api, logs_rate_limit, notifications
 from app.config import settings
 from tests._client import make_client
 
@@ -23,7 +23,7 @@ HEADERS = {"X-Client-ID": "reporting-scientist"}
 @pytest.fixture(autouse=True)
 def fresh_report_budget() -> None:
     """Give each test the full per-minute report budget."""
-    logs_api._report_hits.clear()
+    logs_rate_limit._report_hits.clear()
 
 
 def _configure_smtp(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
@@ -105,10 +105,10 @@ def test_reporting_is_rate_limited(
         client.post(
             "/api/logs/report", json={"report": "spam"}, headers=HEADERS
         ).status_code
-        for _ in range(logs_api.REPORTS_PER_MINUTE + 1)
+        for _ in range(logs_rate_limit.REPORTS_PER_MINUTE + 1)
     ]
 
-    assert statuses[:-1] == [202] * logs_api.REPORTS_PER_MINUTE
+    assert statuses[:-1] == [202] * logs_rate_limit.REPORTS_PER_MINUTE
     assert statuses[-1] == 429
 
 

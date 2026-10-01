@@ -35,7 +35,7 @@ module existed, and only a failure with nothing left behind it degrades
 -- the state flag ``durable_retries_remain`` is how the node learns
 which it is, set per attempt by ``app.engine_tasks.restore`` from the
 same ``attempt >= max_attempts`` formula
-``app.task_worker_outcomes._is_terminal_failure`` uses. Its absence
+``app.task_worker.outcomes._is_terminal_failure`` uses. Its absence
 means degrade, which is the whole graph/streaming path (no durable task,
 so no retry to spend) and any caller that does not set it: a blank
 section is a bad outcome, but re-raising where nothing retries is the

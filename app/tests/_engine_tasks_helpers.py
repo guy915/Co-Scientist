@@ -19,7 +19,9 @@ from co_scientist.models import (
 )
 
 from app import engine_tasks, store
+from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 
 
@@ -342,9 +344,9 @@ async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
             f"match-{matches}", run_id=run_id, db_path=db_path
         )
         assert match is not None
-        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
+        if match.task_type != engine_tasks_support.RANKING_MATCH_TASK:
             break
-        result = await engine_tasks.execute_ranking_match(
+        result = await engine_tasks_ranking.execute_ranking_match(
             match, db_path=db_path
         )
         assert store.complete_task(

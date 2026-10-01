@@ -147,7 +147,7 @@ def assert_task_commit_allowed(
         # Import lazily to keep the shared support module below the worker
         # outcome module in the import graph. BEGIN IMMEDIATE makes this
         # read indivisible with the checkpoint and successor writes below.
-        from app.task_worker_outcomes import _LeaseLostError
+        from app.task_worker.outcomes import _LeaseLostError
 
         raise _LeaseLostError(
             f"task {task.id} cannot commit after lease revocation "

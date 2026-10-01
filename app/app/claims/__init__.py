@@ -1,6 +1,6 @@
 """Claim-level grounding, entailment, and publication gating (Milestone 5).
 
-The four-state citation label (``app/citations.py``) is a document-level audit
+The four-state citation label (``app.citations``) is a document-level audit
 signal; it is *not* claim-level verification and must not be the meaning of
 "verified". This module adds the claim-level layer the paper
 requires (SSR §6, §7):
@@ -32,9 +32,9 @@ requires (SSR §6, §7):
 4. **Citation metadata, separately** — whether a citation's source resolves
    (URL/DOI/PMID/retraction), what kind of source it is, and whether it
    carries a usable date are judged independently of whether it supports the
-   claim (``app/citation_metadata.py``), reachability via a swappable
+   claim (``app/citations/metadata.py``), reachability via a swappable
    *resolver* (offline metadata by default; the live URL/DOI/retraction
-   lookup in ``app/citation_resolver.py`` in production).
+   lookup in ``app/citations/resolver.py`` in production).
 5. **Publication gate** — an unsupported or contradicted *fundamental* claim
    cannot let a hypothesis rank/publish; clearly labeled speculation is allowed
    only under an explicit policy flag.
@@ -52,19 +52,6 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-# Citation metadata and resolvability -- judged apart from claim support --
-# live in app/citation_metadata.py, which owns the one implementation
-# production runs on. Imported back and re-exported (redundant aliases) so
-# the names callers and tests use stay importable from app.claims.
-from app.citation_metadata import (
-    CitationMetadata as CitationMetadata,
-)
-from app.citation_metadata import (
-    Resolvability as Resolvability,
-)
-from app.citation_metadata import (
-    assess_resolvability as assess_resolvability,
-)
 from app.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     SENTENCE_SPLIT,
@@ -127,15 +114,11 @@ from app.claims.gate import (
 
 # Locating a cited quote in its passage and the anti-hallucination downgrade
 # were split into app/claims/span.py to keep this module within the size
-# budget; app/claims/batch.py's batched path depends on it too. locate_span
-# is re-exported (public API); the underscore-prefixed helpers are used by
-# assess_claim below.
+# budget; app/claims/batch.py's batched path depends on it too. The helpers
+# below are used by assess_claim.
 from app.claims.span import (
     _downgrade_unproven_label,
     _locate_all,
-)
-from app.claims.span import (
-    locate_span as locate_span,
 )
 
 # --- Atomic claim extraction ------------------------------------------------

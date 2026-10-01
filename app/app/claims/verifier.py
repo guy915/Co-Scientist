@@ -342,7 +342,7 @@ def _call_llm_entailment(
     reset, silently downgrading a run's evidence grounding instead of
     parking the task until the cap does reset (see
     ``co_scientist.exceptions.LLMRateLimitParkError`` and
-    ``task_worker_outcomes._park_rate_limited_task``).
+    ``task_worker.outcomes._park_rate_limited_task``).
     """
     try:
         return run_coroutine_sync(

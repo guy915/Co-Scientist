@@ -191,7 +191,7 @@ async def test_announcement_makes_no_outbound_request(
 async def test_question_repair_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    from app.interviews_question_repair import repair_questions
+    from app.interviews.question_repair import repair_questions
 
     assert await repair_questions("Private scientific question?") == []
     assert attempts == []

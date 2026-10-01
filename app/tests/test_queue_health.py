@@ -28,7 +28,8 @@ import pytest
 from app import diagnostics, store
 from app.config import settings
 from app.diagnostics import HealthCheck
-from app.store.tasks import QueueHealthSnapshot, queue_health_snapshot
+from app.store.tasks import queue_health_snapshot
+from app.store.tasks_probes import QueueHealthSnapshot
 from tests._client import make_client as _client
 from tests._client import make_operator_client as _operator_client
 

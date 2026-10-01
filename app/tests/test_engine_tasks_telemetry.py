@@ -15,6 +15,10 @@ from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis, HypothesisReview
 
 from app import engine_tasks, store
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _install_plain_fake_judge,
@@ -89,10 +93,10 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
     first = store.claim_task("child-a", run_id=run.id, db_path=isolated_db)
     second = store.claim_task("child-b", run_id=run.id, db_path=isolated_db)
     assert first is not None and second is not None
-    first_result = await engine_tasks.execute_review_item(
+    first_result = await engine_tasks_fanout_items.execute_review_item(
         first, db_path=isolated_db
     )
-    second_result = await engine_tasks.execute_review_item(
+    second_result = await engine_tasks_fanout_items.execute_review_item(
         second, db_path=isolated_db
     )
     assert first_result["model_usage"] == {
@@ -111,8 +115,10 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
         "aggregate", run_id=run.id, db_path=isolated_db
     )
     assert aggregate is not None
-    aggregate_result = await engine_tasks.execute_review_aggregate(
-        aggregate, db_path=isolated_db
+    aggregate_result = (
+        await engine_tasks_fanout_aggregates.execute_review_aggregate(
+            aggregate, db_path=isolated_db
+        )
     )
     assert store.complete_task(
         aggregate.id, "aggregate", aggregate_result, db_path=isolated_db
@@ -151,15 +157,19 @@ async def _drain_and_finalize_ranking(run_id: str, db_path: str) -> int:
             f"match-{matches}", run_id=run_id, db_path=db_path
         )
         assert task is not None
-        if task.task_type != engine_tasks.RANKING_MATCH_TASK:
+        if task.task_type != engine_tasks_support.RANKING_MATCH_TASK:
             break
-        result = await engine_tasks.execute_ranking_match(task, db_path=db_path)
+        result = await engine_tasks_ranking.execute_ranking_match(
+            task, db_path=db_path
+        )
         assert store.complete_task(
             task.id, f"match-{matches}", result, db_path=db_path
         )
         matches += 1
-    assert task.task_type == engine_tasks.RANKING_FINALIZE_TASK
-    result = await engine_tasks.execute_ranking_finalize(task, db_path=db_path)
+    assert task.task_type == engine_tasks_support.RANKING_FINALIZE_TASK
+    result = await engine_tasks_ranking.execute_ranking_finalize(
+        task, db_path=db_path
+    )
     assert store.complete_task(
         task.id, f"match-{matches}", result, db_path=db_path
     )

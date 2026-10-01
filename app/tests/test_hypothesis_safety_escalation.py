@@ -1,6 +1,6 @@
 """Tests for the per-hypothesis contextual escalation seam (FINDINGS.md J13).
 
-``hypothesis_safety.escalate_review`` gives a contextual model a chance to
+``hypothesis.safety.escalate_review`` gives a contextual model a chance to
 raise a Tier B verdict the deterministic layer held as UNCERTAIN. It never
 touches a clean allow -- the deterministic layer does not produce one for a
 Tier B match at all (an earlier version of this design did, and it was a
@@ -22,10 +22,10 @@ import pytest
 
 from app import human_input, safety
 from app.config import settings
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     HypothesisSafetyOutcome as SafetyOutcome,
 )
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     HypothesisSafetyReview,
     escalate_review,
     review_hypothesis_safety,

@@ -104,7 +104,7 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
 ) -> None:
     """A late intake verdict cannot overwrite completed cancellation."""
     from app.config import settings
-    from app.safety_types import SafetyDecision
+    from app.safety.types import SafetyDecision
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
@@ -173,7 +173,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
 ) -> None:
     """A late verdict cannot stop a run after an owner-authorized retry."""
     from app.config import settings
-    from app.safety_types import SafetyDecision
+    from app.safety.types import SafetyDecision
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()

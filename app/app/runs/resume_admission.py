@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from app import engine_adapter, engine_tasks, store, task_worker
 from app.runs.support import _run_or_404
 from app.store import RunRow, RunStatus, ScientificTask
-from app.task_worker_enqueue import is_abandoned_spent_bootstrap
+from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 
 # Keep the lifecycle log channel stable across this extraction.
 logger = logging.getLogger("app.runs.lifecycle")

@@ -12,6 +12,7 @@ import pytest
 
 from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
@@ -87,7 +88,7 @@ def _seed_owned_finalize(
     queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
             idempotency_key="cancel-finalize-publication",
         ),
@@ -101,7 +102,7 @@ def _seed_owned_finalize(
         else store.get_task(queued.id, db_path=isolated_db)
     )
     assert task is not None and task.id == queued.id
-    assert task.task_type == engine_tasks.FINALIZE_TASK
+    assert task.task_type == engine_tasks_support.FINALIZE_TASK
     assert task.status == ("leased" if claim else "queued")
     _patch_restore_generator(monkeypatch, _Generator(state))
 
@@ -364,7 +365,7 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
     finalize = next(
         task
         for task in task_rows
-        if task.task_type == engine_tasks.FINALIZE_TASK
+        if task.task_type == engine_tasks_support.FINALIZE_TASK
     )
     assert report is not None
     assert run is not None and run.status == store.RunStatus.COMPLETED.value

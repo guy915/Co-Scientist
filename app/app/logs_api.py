@@ -32,16 +32,10 @@ from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
 from app.logs_rate_limit import (
-    REPORTS_PER_MINUTE as REPORTS_PER_MINUTE,
-)
-from app.logs_rate_limit import (
     _check_ingest_rate as _check_ingest_rate,
 )
 from app.logs_rate_limit import (
     _check_report_rate as _check_report_rate,
-)
-from app.logs_rate_limit import (
-    _report_hits as _report_hits,
 )
 from app.notifications import deliver_email, email_notifications_configured
 

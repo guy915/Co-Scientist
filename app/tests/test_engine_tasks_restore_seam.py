@@ -18,9 +18,17 @@ import co_scientist.checkpoint as engine_checkpoint
 import pytest
 
 from app import engine_tasks, store
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import fanout_reflection as engine_tasks_fanout_reflection
+from app.engine_tasks import (
+    fanout_verification as engine_tasks_fanout_verification,
+)
 from app.engine_tasks import (
     outcome_refinement as engine_tasks_outcome_refinement,
 )
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -76,36 +84,44 @@ def _leased_task(
 
 
 _RESTORING_HANDLERS = [
-    _Case(engine_tasks.FINALIZE_TASK, engine_tasks.execute_finalize, {}),
     _Case(
-        engine_tasks.REVIEW_AGGREGATE_TASK,
-        engine_tasks.execute_review_aggregate,
+        engine_tasks_support.FINALIZE_TASK, engine_tasks.execute_finalize, {}
+    ),
+    _Case(
+        engine_tasks_support.REVIEW_AGGREGATE_TASK,
+        engine_tasks_fanout_aggregates.execute_review_aggregate,
         {"item_task_ids": []},
     ),
     _Case(
-        engine_tasks.GENERATION_AGGREGATE_TASK,
-        engine_tasks.execute_generation_aggregate,
+        engine_tasks_support.GENERATION_AGGREGATE_TASK,
+        engine_tasks_fanout_aggregates.execute_generation_aggregate,
         {"item_task_ids": []},
     ),
     _Case(
-        engine_tasks.MATURE_REFLECTION_AGGREGATE_TASK,
-        engine_tasks.execute_mature_reflection_aggregate,
+        engine_tasks_support.MATURE_REFLECTION_AGGREGATE_TASK,
+        engine_tasks_fanout_reflection.execute_mature_reflection_aggregate,
         {"item_task_ids": []},
     ),
     _Case(
-        engine_tasks.VERIFICATION_AGGREGATE_TASK,
-        engine_tasks.execute_verification_aggregate,
+        engine_tasks_support.VERIFICATION_AGGREGATE_TASK,
+        engine_tasks_fanout_verification.execute_verification_aggregate,
         {"item_task_ids": []},
     ),
     _Case(
-        engine_tasks.RANKING_MATCH_TASK, engine_tasks.execute_ranking_match, {}
-    ),
-    _Case(
-        engine_tasks.RANKING_FINALIZE_TASK,
-        engine_tasks.execute_ranking_finalize,
+        engine_tasks_support.RANKING_MATCH_TASK,
+        engine_tasks_ranking.execute_ranking_match,
         {},
     ),
-    _Case(engine_tasks.REVIEW_ITEM_TASK, engine_tasks.execute_review_item, {}),
+    _Case(
+        engine_tasks_support.RANKING_FINALIZE_TASK,
+        engine_tasks_ranking.execute_ranking_finalize,
+        {},
+    ),
+    _Case(
+        engine_tasks_support.REVIEW_ITEM_TASK,
+        engine_tasks_fanout_items.execute_review_item,
+        {},
+    ),
 ]
 
 

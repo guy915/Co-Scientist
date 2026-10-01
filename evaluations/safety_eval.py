@@ -1,6 +1,6 @@
 """Per-hypothesis safety evaluation.
 
-Runs the per-hypothesis safety reviewer (``app.hypothesis_safety``) over two
+Runs the per-hypothesis safety reviewer (``app.hypothesis.safety``) over two
 versioned sets and reports false-positive rate (safe items wrongly blocked)
 and false-negative rate (unsafe items wrongly allowed), plus per-category and
 per-difficulty breakdowns:
@@ -93,8 +93,8 @@ def _blocked(text: str, *, permissive_assessor: bool) -> bool:
     arm cannot clear anything the shipped code would refuse to put to an
     assessor; only the assessor's answer is assumed.
     """
-    from app.hypothesis_safety import review_hypothesis_safety
-    from app.hypothesis_safety_resolve import is_resolvable_hold
+    from app.hypothesis.safety import review_hypothesis_safety
+    from app.hypothesis.safety_resolve import is_resolvable_hold
 
     review = review_hypothesis_safety(text)
     if permissive_assessor and is_resolvable_hold(review):
@@ -208,7 +208,7 @@ def run() -> dict[str, Any]:
 
 
 def _policy_version() -> str:
-    from app.hypothesis_safety import POLICY_VERSION
+    from app.hypothesis.safety import POLICY_VERSION
 
     return str(POLICY_VERSION)
 

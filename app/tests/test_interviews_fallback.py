@@ -208,7 +208,7 @@ def test_byok_turn_is_not_marked(
         }
 
     monkeypatch.setattr(
-        "app.interviews_model._stream_interview_content", fake_stream
+        "app.interviews.model._stream_interview_content", fake_stream
     )
     with TestClient(app) as client:
         created = client.post(

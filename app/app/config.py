@@ -15,13 +15,7 @@ from app.config_thinking import (
     CONVERSATIONAL_REASONING_EFFORT as CONVERSATIONAL_REASONING_EFFORT,
 )
 from app.config_thinking import (
-    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
-)
-from app.config_thinking import (
     THINKING_FLOOR_TIMEOUT_SECONDS as THINKING_FLOOR_TIMEOUT_SECONDS,
-)
-from app.config_thinking import (
-    deepseek_non_thinking_extra_body as deepseek_non_thinking_extra_body,
 )
 from app.config_thinking import (
     deepseek_thinking_kwargs as deepseek_thinking_kwargs,
@@ -95,7 +89,7 @@ class Settings(BaseSettings):
     # (test_elo_engine_parity guards it against engine drift).
     elo_k_factor: int = 24
 
-    # Safety filter aggressiveness: "standard" or "strict". safety.py coerces
+    # Safety filter aggressiveness: "standard" or "strict". app.safety coerces
     # this into its SafetyMode enum, defaulting to standard on any other value.
     safety_mode: str = "standard"
     # Contextual safety assessment is used for real-provider runs when the
@@ -242,7 +236,7 @@ class Settings(BaseSettings):
 
     # Evidence-identity availability check for the engine drain: "live"
     # dereferences each article's DOI/PMID against the real web
-    # (app/citation_resolver.py); anything else falls back to the offline
+    # (app/citations/resolver.py); anything else falls back to the offline
     # metadata heuristic (a non-empty identifier and no retraction flag).
     # Offline tests explicitly select the fallback; production runs default
     # to a live dereference.

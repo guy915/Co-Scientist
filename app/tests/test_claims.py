@@ -14,19 +14,21 @@ split off when this file passed the module-size budget.
 
 from __future__ import annotations
 
+from app.citations.metadata import (
+    CitationMetadata,
+    Resolvability,
+    assess_resolvability,
+)
 from app.claims import (
     AssessorDraft,
-    CitationMetadata,
     EntailmentLabel,
     EvidencePassage,
-    Resolvability,
     as_passages,
     assess_claim,
-    assess_resolvability,
     extract_atomic_claims,
-    locate_span,
     retrieve_passages,
 )
+from app.claims.span import locate_span
 
 # --- Atomic claim extraction ------------------------------------------------
 

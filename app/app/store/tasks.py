@@ -33,9 +33,6 @@ from app.store.runs_reconcile import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
 )
 from app.store.tasks_attempts import (
-    _MAX_STORED_ATTEMPTS as _MAX_STORED_ATTEMPTS,
-)
-from app.store.tasks_attempts import (
     _persist_failed_attempt as _persist_failed_attempt,
 )
 from app.store.tasks_attempts import complete_task as complete_task
@@ -67,9 +64,6 @@ from app.store.tasks_probes import (
 )
 from app.store.tasks_probes import (
     _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
-)
-from app.store.tasks_probes import (
-    QueueHealthSnapshot as QueueHealthSnapshot,
 )
 from app.store.tasks_probes import (
     _has_claimable_task as _has_claimable_task,

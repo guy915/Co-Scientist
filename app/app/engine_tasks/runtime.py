@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from app import store
     from app.safety import ScreenSubject
-    from app.safety_types import SafetyDecision
+    from app.safety.types import SafetyDecision
     from app.store import ScientificTask
 
 __all__ = [

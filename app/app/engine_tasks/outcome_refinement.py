@@ -10,7 +10,6 @@ from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 
-from app import outcome_refinement_telemetry as refinement_telemetry
 from app import store
 from app.engine_adapter.checkpoints import is_engine_checkpoint
 from app.engine_tasks.portfolio import _enqueue_after
@@ -23,8 +22,9 @@ from app.engine_tasks.support import (
     assert_task_commit_allowed,
     restore_checkpoint_state,
 )
-from app.outcome_refinement_context import targeted_context
-from app.outcome_refinement_lineage import (
+from app.outcome_refinement import telemetry as refinement_telemetry
+from app.outcome_refinement.context import targeted_context
+from app.outcome_refinement.lineage import (
     _checkpointed_child,
     _child_row,
     _result_checkpoint_state,

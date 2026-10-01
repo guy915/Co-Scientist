@@ -16,6 +16,9 @@ from co_scientist.models import (
 )
 
 from app import engine_tasks, safety, store, task_worker
+from app.engine_tasks import inputs as engine_tasks_inputs
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
     _Generator,
@@ -99,8 +102,8 @@ def test_scientist_inputs_merge_into_engine_state_once(
     )
     state = _task_state(run.id)
 
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
 
     merged = state["hypotheses"]
     assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
@@ -306,14 +309,14 @@ async def _drain_ranking_matches(
             f"match-{index}", run_id=run_id, db_path=db_path
         )
         assert match is not None
-        if match.task_type != engine_tasks.RANKING_MATCH_TASK:
+        if match.task_type != engine_tasks_support.RANKING_MATCH_TASK:
             return match, observed_sequences, committed
         observed_sequences.append(int(match.inputs["checkpoint_seq"]))
-        result = await engine_tasks.execute_ranking_match(
+        result = await engine_tasks_ranking.execute_ranking_match(
             match, db_path=db_path
         )
         if index == 0:
-            replay = await engine_tasks.execute_ranking_match(
+            replay = await engine_tasks_ranking.execute_ranking_match(
                 match, db_path=db_path
             )
             assert replay["replayed"] is True
@@ -333,7 +336,7 @@ async def _finalize_and_assert_ranking(
     """Run the ranking finalizer and pin the committed tournament state."""
     from co_scientist.checkpoint import restore_workflow_state
 
-    result = await engine_tasks.execute_ranking_finalize(
+    result = await engine_tasks_ranking.execute_ranking_finalize(
         finalizer, db_path=db_path
     )
     assert store.complete_task(
@@ -349,7 +352,8 @@ async def _finalize_and_assert_ranking(
     assert sum(item.total_matches for item in restored["hypotheses"]) == 6
     tasks = store.list_tasks(run_id, db_path=db_path)
     assert sum(
-        task.task_type == engine_tasks.RANKING_MATCH_TASK for task in tasks
+        task.task_type == engine_tasks_support.RANKING_MATCH_TASK
+        for task in tasks
     ) == len(observed_sequences)
     assert _milestones(run_id, db_path=db_path) == [
         "Tournament complete (iteration 0, 3 matches)"

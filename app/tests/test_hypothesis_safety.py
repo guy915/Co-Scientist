@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,
     HypothesisSafetyOutcome,

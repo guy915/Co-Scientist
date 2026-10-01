@@ -5,7 +5,7 @@ cases must never be able to touch the stub-``pypdf`` trap that the other
 PDF tests rely on (see ``test_document_upload.py``).
 """
 
-from app.pdf_numbering import infer_numbering_levels
+from app.pdf.numbering import infer_numbering_levels
 
 
 def test_dotted_decimal_depth_maps_directly_to_level() -> None:

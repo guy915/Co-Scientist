@@ -125,7 +125,7 @@ def _apply_supervisor_enqueue_actions(
     it and only the first to the committing task, because two rows under
     one predecessor are both claimable at once and the checkpoint chain
     has a single writer per commit. Serial also means the run's rate-limit
-    park (``task_worker_outcomes._park_rate_limited_task``) applies to a
+    park (``task_worker.outcomes._park_rate_limited_task``) applies to a
     stacked task exactly as it does to any other single task: at most one
     of them is ever in flight, so a throttled companion returns to the
     queue without any sibling burning attempts beside it.

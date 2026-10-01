@@ -32,8 +32,8 @@ from app.execution_policy import (
     campaign_model_for_config,
     scoped_execution_policy,
 )
-from app.hypothesis_screening import screen_hypotheses
-from app.outcome_refinement_action import (
+from app.hypothesis.screening import screen_hypotheses
+from app.outcome_refinement.action import (
     OutcomeRefinementContextTooLargeError,
     OutcomeRefinementIneligibleError,
     OutcomeRefinementNotFoundError,

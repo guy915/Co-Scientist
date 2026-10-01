@@ -22,7 +22,7 @@ from __future__ import annotations
 import pathlib
 import re
 
-from app.run_modes import DEFAULT_CRITERIA
+from app.run_modes.criteria import DEFAULT_CRITERIA
 
 _CORPUS_EXTRACTION = (
     pathlib.Path(__file__).resolve().parents[2]

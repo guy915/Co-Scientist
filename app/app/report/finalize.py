@@ -330,7 +330,7 @@ def _readiness_blocked(payload: dict[str, Any]) -> bool:
     reliably survives review -- but rare is not never, and when it does
     happen the run should say so rather than paper over it.) The three
     curated default demos never reach this function at all: they write
-    their report row directly (`seed.py`'s `_seed_curated_scenario`),
+    their report row directly (`seed/__init__.py`'s `_seed_curated_scenario`),
     bypassing `finalize_report` entirely, so this gate cannot affect them
     either way.
     """

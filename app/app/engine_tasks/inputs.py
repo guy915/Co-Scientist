@@ -61,7 +61,7 @@ def _bootstrap_start_status(
         db_path=db_path,
     )
     if status is None:
-        from app.task_worker_outcomes import _LeaseLostError
+        from app.task_worker.outcomes import _LeaseLostError
 
         raise _LeaseLostError(
             f"bootstrap task {task.id} lost its lease before run start"
@@ -210,7 +210,7 @@ def _admitted_hypothesis(row: dict[str, Any]) -> Any:
     Carries the row's own provenance rather than a bare statement: the
     origin the tournament and the drain attribute it by, the author, and
     the outcome the admission screen already wrote (POST time,
-    ``hypothesis_screening.screen_hypotheses``) so engine state agrees
+    ``hypothesis.screening.screen_hypotheses``) so engine state agrees
     with the store instead of re-screening what is already decided -- but
     never the unscreened placeholder, which would suppress the screen
     rather than record one.

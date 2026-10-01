@@ -77,13 +77,15 @@ async def test_dispatcher_binds_the_adapter_it_resolved_once(
         return {}
 
     monkeypatch.setitem(
-        engine_tasks._ENGINE_TASK_DISPATCH, engine_tasks.FINALIZE_TASK, handler
+        engine_tasks._ENGINE_TASK_DISPATCH,
+        engine_tasks_support.FINALIZE_TASK,
+        handler,
     )
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
             idempotency_key="finalize",
         ),

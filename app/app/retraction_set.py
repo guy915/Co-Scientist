@@ -1,6 +1,6 @@
 """Offline retraction check, independent of what a source already flagged.
 
-``citation_resolver`` marks a paper retracted when PubMed or OpenAlex
+``citations.resolver`` marks a paper retracted when PubMed or OpenAlex
 already flagged it. That source-side flag can lag: retraction propagation
 between indexes runs months behind, so a paper retracted at Crossref can
 still read "clean" everywhere else. This module is the second, independent

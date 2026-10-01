@@ -22,10 +22,6 @@ from __future__ import annotations
 from app.engine_adapter.checkpoints import (
     is_engine_checkpoint as is_engine_checkpoint,
 )
-from app.engine_adapter.drain import (
-    persist_final_state as persist_final_state,
-)
-from app.engine_adapter.opts import build_engine_opts as build_engine_opts
 from app.engine_adapter.provider import offline_mode as offline_mode
 from app.engine_adapter.provider import select_provider as select_provider
 from app.engine_adapter.provider import system_status as system_status

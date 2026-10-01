@@ -131,7 +131,7 @@ def test_queued_steering_flags_engine_pending_steering(
     high-priority request to generate anew; the adapter must set it when
     steering is queued (in addition to folding the text into preferences).
     """
-    from app.engine_adapter import build_engine_opts
+    from app.engine_adapter.opts import build_engine_opts
 
     run = store.create_run(
         "rg",
@@ -157,7 +157,7 @@ def test_queued_steering_flags_engine_pending_steering(
 
 
 def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
-    from app.engine_adapter import build_engine_opts
+    from app.engine_adapter.opts import build_engine_opts
 
     run = store.create_run(
         "rg",
@@ -172,7 +172,7 @@ def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
 
 def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
     """A consented attachment becomes engine literature and citation context."""
-    from app.engine_adapter import build_engine_opts
+    from app.engine_adapter.opts import build_engine_opts
 
     run = store.create_run(
         "kinase AML",

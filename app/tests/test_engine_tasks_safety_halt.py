@@ -14,6 +14,7 @@ import pytest
 from co_scientist.models import Hypothesis
 
 from app import engine_tasks, store
+from app.engine_tasks import support as engine_tasks_support
 from app.safety import ScreenSubject
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -59,7 +60,7 @@ def _seed_halted_finalize(
     queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
             idempotency_key="finalize",
         ),

@@ -375,7 +375,7 @@ def test_interview_turn_scopes_the_header_credential(
         )
 
     monkeypatch.setattr(
-        "app.interviews_model._stream_interview_content", fake_stream
+        "app.interviews.model._stream_interview_content", fake_stream
     )
     with TestClient(app) as client:
         response = client.post(

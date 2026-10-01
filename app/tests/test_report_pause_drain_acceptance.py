@@ -9,6 +9,7 @@ import pytest
 
 from app import engine_tasks, store, task_worker
 from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import _install_runtime
 from tests.test_report_cancel_publication import (
     _OWNER,
@@ -113,7 +114,7 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
     assert previous is not None
     resume_state = {
         **previous["state"],
-        "resume_successor": engine_tasks.FINALIZE_TASK,
+        "resume_successor": engine_tasks_support.FINALIZE_TASK,
     }
     store.save_checkpoint(
         run_id,
@@ -235,7 +236,10 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{original_task.id}"
-    assert checkpoint["state"]["resume_successor"] == engine_tasks.FINALIZE_TASK
+    assert (
+        checkpoint["state"]["resume_successor"]
+        == engine_tasks_support.FINALIZE_TASK
+    )
     assert store.get_run_metrics(run_id, db_path=isolated_db) == {
         "llm_calls": 3
     }

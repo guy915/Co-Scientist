@@ -325,7 +325,7 @@ def test_watch_gives_up_after_repeated_failures(
         runs_cmd.handle_watch(
             _watch_args(), _watch_client(handler, monkeypatch)
         )
-    assert attempts == 1 + runs_cmd.WATCH_RECONNECT_ATTEMPTS
+    assert attempts == 1 + runs_stream_cmd.WATCH_RECONNECT_ATTEMPTS
 
 
 def test_broken_pipe_exits_141() -> None:

@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app import store
-from app.hypothesis_safety import POLICY_VERSION, HypothesisSafetyOutcome
+from app.hypothesis.safety import POLICY_VERSION, HypothesisSafetyOutcome
 
 logger = logging.getLogger(__name__)
 

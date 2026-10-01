@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.citation_metadata import (
+from app.citations import CitationRecord, CitationState, classify_citation
+from app.citations.metadata import (
     CitationMetadata,
     DateState,
     Resolvability,
@@ -20,7 +21,6 @@ from app.citation_metadata import (
     classify_source_type,
     offline_resolver,
 )
-from app.citations import CitationRecord, CitationState, classify_citation
 
 # --- Resolvability: retraction and availability ------------------------------
 

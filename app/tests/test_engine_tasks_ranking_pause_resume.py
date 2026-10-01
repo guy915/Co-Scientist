@@ -6,6 +6,8 @@ import pytest
 
 from app import engine_tasks, store
 from app.config import settings
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _install_plain_fake_judge,
@@ -86,8 +88,8 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         "ranking-match", run_id=run_id, db_path=isolated_db
     )
     assert match is not None
-    assert match.task_type == engine_tasks.RANKING_MATCH_TASK
-    result = await engine_tasks.execute_ranking_match(
+    assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    result = await engine_tasks_ranking.execute_ranking_match(
         match, db_path=isolated_db
     )
     assert paused
@@ -114,12 +116,13 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
 
     successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
     assert successor is not None
-    assert successor.task_type == engine_tasks.RANKING_MATCH_TASK
+    assert successor.task_type == engine_tasks_support.RANKING_MATCH_TASK
     assert successor.status == "queued"
     assert successor.inputs["checkpoint_seq"] == checkpoint["seq"]
     assert successor.dependencies == (match.id,)
     assert (
-        successor.provenance["scheduled_by"] == engine_tasks.RANKING_MATCH_TASK
+        successor.provenance["scheduled_by"]
+        == engine_tasks_support.RANKING_MATCH_TASK
     )
     paused_run = store.get_run(run_id, db_path=isolated_db)
     assert paused_run is not None
@@ -151,7 +154,7 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
     claim = store.claim_task("after-resume", run_id=run_id, db_path=isolated_db)
     assert claim is not None
     assert claim.id == successor.id
-    assert claim.task_type == engine_tasks.RANKING_MATCH_TASK
+    assert claim.task_type == engine_tasks_support.RANKING_MATCH_TASK
 
 
 @pytest.mark.asyncio
@@ -179,11 +182,11 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
             "ranking-match", run_id=run_id, db_path=isolated_db
         )
         assert match is not None
-        if match.task_type == engine_tasks.RANKING_FINALIZE_TASK:
+        if match.task_type == engine_tasks_support.RANKING_FINALIZE_TASK:
             finalizer = match
             break
-        assert match.task_type == engine_tasks.RANKING_MATCH_TASK
-        result = await engine_tasks.execute_ranking_match(
+        assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+        result = await engine_tasks_ranking.execute_ranking_match(
             match, db_path=isolated_db
         )
         assert store.complete_task(
@@ -204,7 +207,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     monkeypatch.setattr(
         ranking_module, "_finalize_ranking_result", pause_after_finalize
     )
-    result = await engine_tasks.execute_ranking_finalize(
+    result = await engine_tasks_ranking.execute_ranking_finalize(
         finalizer, db_path=isolated_db
     )
     assert store.complete_task(
@@ -242,7 +245,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     assert successor.dependencies == (finalizer.id,)
     assert (
         successor.provenance["scheduled_by"]
-        == engine_tasks.RANKING_FINALIZE_TASK
+        == engine_tasks_support.RANKING_FINALIZE_TASK
     )
     assert checkpoint["state"]["resume_successor"] == successor.task_type
     paused_run = store.get_run(run_id, db_path=isolated_db)

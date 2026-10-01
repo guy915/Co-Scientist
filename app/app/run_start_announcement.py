@@ -236,7 +236,7 @@ async def _announcement_attempts(
     normally having spent reasoning tokens and written no answer at all --
     not a provider failure, so ``stream_announcement``'s caller-visible
     fallback is reserved for when this really has nothing to show; see
-    ``interviews_model._stream_interview_content`` for the same shape on
+    ``interviews.model._stream_interview_content`` for the same shape on
     the interview's own stream.
     """
     with (

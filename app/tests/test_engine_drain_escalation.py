@@ -1,6 +1,6 @@
 """Engine-drain tests for contextual safety-verdict escalation (J14).
 
-Covers the drain's wiring of ``hypothesis_safety.escalate_held_hypotheses``
+Covers the drain's wiring of ``hypothesis.safety.escalate_held_hypotheses``
 into ``engine_adapter.drain.persist_final_state``: a bulk engine-generated
 hypothesis the deterministic screen holds UNCERTAIN now gets the same
 contextual-escalation chance a scientist-authored hypothesis already had
@@ -20,9 +20,10 @@ from typing import Any
 import pytest
 from co_scientist.llm import campaign_free_mode
 
-from app import engine_adapter, safety, store
+from app import safety, store
+from app.engine_adapter.drain import final_state as drain_final_state
 from app.execution_policy import scoped_execution_policy
-from app.hypothesis_screening import screen_hypotheses
+from app.hypothesis.screening import screen_hypotheses
 from tests._drain_helpers import _engine_hypothesis, _persist
 from tests._process_mode_helpers import FakeProcessMode
 
@@ -129,7 +130,7 @@ def test_campaign_scope_reaches_held_hypothesis_executor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The real held-hypothesis escalation inherits campaign admission."""
-    from app import hypothesis_safety_resolve
+    from app.hypothesis import safety_resolve as hypothesis_safety_resolve
 
     seen: list[bool] = []
 
@@ -342,7 +343,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     install_completion_backend(monkeypatch, _allow)
     run = _real_run("cleared hold audit")
 
-    await engine_adapter.persist_final_state(
+    await drain_final_state.persist_final_state(
         run_id=run.id,
         final_state=_escalation_state(),
         db_path=isolated_db,

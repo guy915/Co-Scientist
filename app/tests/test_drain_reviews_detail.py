@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.engine_adapter.drain.reviews import (
+from app.engine_adapter.drain.review_detail import (
     _deep_verification_detail,
     _initial_review_detail,
     _mature_review_detail,

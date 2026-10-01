@@ -1,7 +1,7 @@
 """The idea search tool, and the one tool round the Q&A stream allows.
 
-Covers ``app.qa_ideas`` (matching, rendering, and reassembling streamed
-tool-call fragments) and ``app.qa_stream``'s loop: a model that answers
+Covers ``app.qa.ideas`` (matching, rendering, and reassembling streamed
+tool-call fragments) and ``app.qa.stream``'s loop: a model that answers
 straight away costs one round, a model that asks for idea text gets it, and
 a model that does both keeps the answer it already started.
 """
@@ -15,7 +15,8 @@ from typing import Any
 
 import pytest
 
-from app import qa, qa_ideas
+from app import qa
+from app.qa import ideas as qa_ideas
 
 
 def _idea(title: str, **fields: Any) -> dict[str, Any]:
@@ -145,7 +146,7 @@ def test_a_delta_carrying_no_tool_calls_changes_nothing() -> None:
 
 
 # ---------------------------------------------------------------------------
-# the streaming tool round (qa_stream)
+# the streaming tool round (qa.stream)
 # ---------------------------------------------------------------------------
 
 

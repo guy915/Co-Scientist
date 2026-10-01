@@ -1,8 +1,8 @@
 """Citation-metadata resolution for the engine drain's retrieved evidence.
 
-Every verdict is computed by ``citation_metadata.assess_resolvability``;
+Every verdict is computed by ``citations.metadata.assess_resolvability``;
 ``settings.evidence_resolver`` chooses only which ``Resolver`` it is handed
--- the live dereference (``app.citation_resolver.live_resolver``, the
+-- the live dereference (``app.citations.resolver.live_resolver``, the
 production default) or the offline metadata reader the test suite pins --
 mirroring how ``settings.claim_assessor`` switches the grounding assessor.
 There is no second implementation of the verdict behind that switch; there
@@ -29,8 +29,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from app import citation_resolver as citation_resolver
-from app.citation_metadata import (
+from app.citations import resolver as citation_resolver
+from app.citations.metadata import (
     CitationMetadata,
     Resolvability,
     Resolver,

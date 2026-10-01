@@ -281,7 +281,7 @@ def update_hypothesis_state(
 
 # Text columns the safety review may redact in place. The hypotheses table is
 # otherwise append-only; redaction is the one sanctioned mutation (safety
-# overrides immutability -- see hypothesis_safety.redact_fields).
+# overrides immutability -- see hypothesis.safety.redact_fields).
 _REDACTABLE_COLUMNS = frozenset({"mechanism", "experimental_context"})
 
 

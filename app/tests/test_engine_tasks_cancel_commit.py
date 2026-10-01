@@ -452,7 +452,7 @@ def test_cancelled_generation_planner_cannot_enqueue_fanout(
             reference_index=SimpleNamespace(text="", sources=[]),
         ),
         aggregate_spec=_AggregateSpec(
-            task_type=engine_tasks.GENERATION_AGGREGATE_TASK,
+            task_type=engine_tasks_support.GENERATION_AGGREGATE_TASK,
             priority=81,
             key_prefix="generation",
         ),

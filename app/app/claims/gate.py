@@ -4,7 +4,7 @@ Split out of :mod:`app.claims`, which had grown past the module-size budget.
 This module holds the lower half of that file: the entailment verdict enum, the
 provenance support span and the claim-assessment record they populate, and the
 publication gate. Citation metadata and resolvability -- a third concern, and
-one no gate here consults -- moved on to :mod:`app.citation_metadata`.
+one no gate here consults -- moved on to :mod:`app.citations.metadata`.
 
 :mod:`app.claims` imports these names back and re-exports the ones callers
 use, so they remain importable from ``app.claims`` as before. This module

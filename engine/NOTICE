@@ -39,7 +39,7 @@ distributed by Crossref.
     extract committed here was generated 2026-09-24.
 
     Used by app/app/retraction_set.py as a second, independent retraction
-    check in app/app/citation_resolver.py, alongside whatever the source
+    check in app/app/citations/resolver.py, alongside whatever the source
     (PubMed/OpenAlex) already flags -- retraction propagation between
     indexes can lag by months.
 
