@@ -207,11 +207,11 @@ def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
 def test_contradictions_name_ideas_the_report_withholds() -> None:
     """A contradiction says its idea is not in the report, and still shows.
 
-    Two facts, and they only make sense together. A contradicted claim is
-    exactly what makes the publication gate withhold its hypothesis, so the
-    released edge list is contradiction-free by construction -- scoping the
-    panel to it, for consistency with the rest of the report, would empty the
-    panel on every run rather than drop a stray entry. The panel therefore
+    Two facts, and they only make sense together. A contradicted categorical
+    claim is exactly what makes the publication gate withhold its hypothesis,
+    so the released edge list carries none -- scoping the panel to it, for
+    consistency with the rest of the report, would drop every withheld idea's
+    entry rather than a stray one. The panel therefore
     keeps the run's whole edge list and each entry says, in itself, that the
     idea behind the claim was withheld; otherwise it reads as a reference to
     an idea the reader cannot find anywhere.
