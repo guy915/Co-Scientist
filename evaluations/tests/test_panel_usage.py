@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
+
 _ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -17,7 +19,9 @@ def test_panel_artifact_records_served_model_and_unknown_price(
     tmp_path: Path,
     panel: str,
 ) -> None:
-    script = """
+    script = (
+        SCRIPT_PRELUDE
+        + """
 from unittest.mock import AsyncMock, patch
 import httpx
 import litellm
@@ -51,7 +55,7 @@ provider = AsyncMock(return_value=response)
 if panel == "citation_failure":
     provider.side_effect = RuntimeError("offline test provider failure")
 with patch.object(httpx, "get", return_value=metadata), \
-     patch.object(litellm, "acompletion", provider):
+     fake_backend(provider):
     if panel == "usefulness":
         report = citation_usefulness_eval.run_llm({"name": "probe",
             "items": [{"id": "one", "question": "Does X inhibit Y?",
@@ -99,6 +103,7 @@ else:
 assert provider.call_args.kwargs["extra_body"]["provider"]["max_price"] == {
     "prompt": 0, "completion": 0, "request": 0}
 """
+    )
     script = script.replace("__PANEL__", repr(panel))
     result = subprocess.run(
         [sys.executable, "-c", script],
