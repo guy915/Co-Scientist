@@ -138,7 +138,7 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
 ) -> None:
     from fastapi import BackgroundTasks
 
-    from app.runs import create_run
+    from app.runs.crud import create_run
     from app.runs.models import CreateRunRequest
 
     class _Request:
