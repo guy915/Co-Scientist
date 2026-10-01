@@ -406,6 +406,45 @@ def _replay_or_supersede(
     return None, checkpoint, current_seq
 
 
+def restore_checkpoint_state(
+    task: ScientificTask, checkpoint: dict[str, Any], db_path: str | None
+) -> dict[str, Any]:
+    """Rebuild the workflow state ``checkpoint`` holds for a leased task.
+
+    The generator exists only to hand its tool registry to the restore, so it
+    is built per call and dropped: nothing it creates outlives the calling
+    cohort's event loop, and steering is not consumed.
+    """
+    from app.engine_adapter.checkpoints import restore_workflow_state
+
+    generator = _generator_for_restore(task, db_path)
+    return restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+
+
+def leased_state(
+    task: ScientificTask, db_path: str | None, *, label: str
+) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
+    """Guard a leased task against replay or supersession, then restore state.
+
+    Returns ``(replay_result, state, current_seq)``. When ``replay_result`` is
+    not ``None`` the caller returns it at once and ``state`` is empty: this
+    task already committed the checkpoint now on record. Raises
+    ``SupersededTaskError`` exactly as ``_replay_or_supersede`` does.
+    """
+    replay, checkpoint, current_seq = _replay_or_supersede(
+        task, db_path, label=label
+    )
+    if replay is not None:
+        return replay, {}, current_seq
+    return (
+        None,
+        restore_checkpoint_state(task, checkpoint, db_path),
+        current_seq,
+    )
+
+
 def _restore_item_checkpoint(
     task: ScientificTask, db_path: str | None, *, superseded: str
 ) -> tuple[dict[str, Any], int]:
@@ -425,14 +464,8 @@ def _restore_item_checkpoint(
     Raises:
         SupersededTaskError: When the leased checkpoint was superseded.
     """
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
         raise SupersededTaskError(f"{superseded} checkpoint was superseded")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return state, expected_seq
+    return restore_checkpoint_state(task, checkpoint, db_path), expected_seq

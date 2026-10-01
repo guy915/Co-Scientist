@@ -29,10 +29,9 @@ from app.engine_tasks_support import (
     RANKING_PROGRESS_EVERY,
     NodeCompletion,
     _emit_node_completion,
-    _generator_for_restore,
-    _replay_or_supersede,
     _save_state_and_enqueue,
     _save_state_and_enqueue_exact,
+    leased_state,
 )
 from app.store import ScientificTask
 from app.store.runs_reconcile import _ACTIVE_RUN_STATUSES
@@ -161,24 +160,6 @@ async def _schedule_ranking_chain(
     }
 
 
-def _restore_ranking_state(
-    task: ScientificTask, db_path: str | None, *, label: str
-) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
-    """Guard a ranking task against replay/supersession, then restore state."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
-        task, db_path, label=label
-    )
-    if replay is not None:
-        return replay, {}, current_seq
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return None, state, current_seq
-
-
 def _ranking_match_successor(
     next_index: int,
     rounds: int,
@@ -303,7 +284,7 @@ async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Judge and commit exactly one Elo matchup before scheduling another."""
-    replay, state, current_seq = _restore_ranking_state(
+    replay, state, current_seq = leased_state(
         task, db_path, label="ranking match"
     )
     if replay is not None:
@@ -423,7 +404,7 @@ async def execute_ranking_finalize(
     from co_scientist.agents.ranking.ranking import _finalize_ranking_result
     from co_scientist.task_runtime import apply_task_update
 
-    replay, state, current_seq = _restore_ranking_state(
+    replay, state, current_seq = leased_state(
         task, db_path, label="ranking finalizer"
     )
     if replay is not None:

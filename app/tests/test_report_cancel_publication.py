@@ -18,6 +18,7 @@ from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -101,11 +102,7 @@ def _seed_owned_finalize(
     assert task is not None and task.id == queued.id
     assert task.task_type == engine_tasks.FINALIZE_TASK
     assert task.status == ("leased" if claim else "queued")
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any

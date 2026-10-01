@@ -12,19 +12,16 @@ from co_scientist.models import Hypothesis
 
 from app import outcome_refinement_telemetry as refinement_telemetry
 from app import store
-from app.engine_adapter.checkpoints import (
-    is_engine_checkpoint,
-    restore_workflow_state,
-)
+from app.engine_adapter.checkpoints import is_engine_checkpoint
 from app.engine_tasks_portfolio import _enqueue_after
 from app.engine_tasks_support import (
     NODE_TASK_PREFIX,
     SupersededTaskError,
     _assert_task_commit_allowed,
-    _generator_for_restore,
     _metrics_snapshot,
     _save_exact_checkpoint,
     _save_node_checkpoint,
+    restore_checkpoint_state,
 )
 from app.outcome_refinement_context import targeted_context
 from app.outcome_refinement_lineage import (
@@ -154,10 +151,7 @@ def _checkpoint_state(
 ) -> tuple[dict[str, Any], int]:
     if not is_engine_checkpoint(checkpoint):
         raise ValueError("outcome refinement requires an engine checkpoint")
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
+    state = restore_checkpoint_state(task, checkpoint, db_path)
     return state, int(checkpoint["seq"])
 
 

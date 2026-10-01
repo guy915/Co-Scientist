@@ -36,9 +36,8 @@ from app.engine_tasks_fanout_verification import (
     execute_verification_aggregate as execute_verification_aggregate,
 )
 from app.engine_tasks_support import (
-    _generator_for_restore,
-    _replay_or_supersede,
     _require_item_task,
+    leased_state,
 )
 from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
@@ -225,17 +224,11 @@ async def execute_review_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit successful review results and preserve isolated failures."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
+    replay, state, current_seq = leased_state(
         task, db_path, label="review aggregate"
     )
     if replay is not None:
         return replay
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     successful, failed, model_usage = _apply_review_items(
         by_id,
@@ -402,17 +395,11 @@ async def execute_generation_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Combine independent generation strategies into one hypothesis append."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
+    replay, state, current_seq = leased_state(
         task, db_path, label="generation aggregate"
     )
     if replay is not None:
         return replay
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
     items = _collect_generation_results(
         task.inputs.get("item_task_ids", []), db_path
     )

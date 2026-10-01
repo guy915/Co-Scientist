@@ -55,7 +55,6 @@ from app.engine_tasks_support import (
     NodeCompletion,
     _assert_task_commit_allowed,
     _emit_node_completion,
-    _generator_for_restore,
     _latest_task_checkpoint,
     _metrics_snapshot,
     _plain_final_state,
@@ -63,6 +62,7 @@ from app.engine_tasks_support import (
     _save_paused_state,
     _save_state_and_enqueue,
     _successor_task_type,
+    restore_checkpoint_state,
 )
 from app.report import ReportRequest, finalize_report
 from app.run_events import make_emitter
@@ -319,14 +319,8 @@ def _restore_finalize_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Restore the workflow state the run's last committed checkpoint holds."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
     checkpoint, _ = _latest_task_checkpoint(task, db_path)
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
-    return checkpoint, state
+    return checkpoint, restore_checkpoint_state(task, checkpoint, db_path)
 
 
 async def _publish_finalize_report(  # noqa: PLR0913

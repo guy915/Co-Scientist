@@ -16,6 +16,7 @@ from app.safety_redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -72,11 +73,7 @@ def _seed_leased_finalize(
     )
     assert task is not None and task.id == queued.id
     assert task.status == "leased"
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any

@@ -15,6 +15,7 @@ from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
 )
@@ -94,11 +95,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         ),
         db_path=isolated_db,
     )
-    monkeypatch.setattr(
-        engine_tasks_node,
-        "_generator_for_restore",
-        lambda *_: _Generator(state),
-    )
+    _patch_restore_generator(monkeypatch, _Generator(state))
 
     async def fake_drain(
         *_: Any, **__: Any

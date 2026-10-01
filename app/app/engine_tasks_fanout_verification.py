@@ -24,9 +24,8 @@ from app.engine_tasks_fanout_reflection import (
     _checkpoint_and_advance,
 )
 from app.engine_tasks_support import (
-    _generator_for_restore,
-    _replay_or_supersede,
     _require_item_task,
+    leased_state,
 )
 from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask
@@ -226,17 +225,11 @@ async def execute_verification_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit independent verification results and continue the tournament."""
-    from app.engine_adapter.checkpoints import restore_workflow_state
-
-    replay, checkpoint, current_seq = _replay_or_supersede(
+    replay, state, current_seq = leased_state(
         task, db_path, label="verification aggregate"
     )
     if replay is not None:
         return replay
-    generator = _generator_for_restore(task, db_path)
-    state = restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     items = _apply_verification_items(
         by_id,
