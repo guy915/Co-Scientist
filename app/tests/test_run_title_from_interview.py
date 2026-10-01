@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import runs_crud
 from app.main import app
+from app.runs import crud as runs_crud
 from tests._process_mode_helpers import FakeProcessMode
 
 from ._interviews_helpers import (

@@ -42,16 +42,16 @@ from app.outcome_refinement_action import (
     get_owner_outcome_refinement_action,
     request_outcome_refinement_action,
 )
-from app.runs_contrib_attachments import (
+from app.runs.contrib_attachments import (
     router as attachments_router,
 )
-from app.runs_contrib_support import _steer_and_continue as _steer_and_continue
-from app.runs_models import (
+from app.runs.contrib_support import _steer_and_continue as _steer_and_continue
+from app.runs.models import (
     HumanHypothesisRequest,
     HumanReviewRequest,
     HypothesisOutcomeRequest,
 )
-from app.runs_support import _require_run, _run_or_404
+from app.runs.support import _require_run, _run_or_404
 from app.store import ScientificTask
 
 router = APIRouter()

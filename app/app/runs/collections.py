@@ -5,7 +5,7 @@ Split out of ``app.runs`` (which re-exports the names callers use and mounts
 per-run collection getters (hypotheses, evidence, matches, proximity,
 reviews, safety, tasks, citations, metrics, logs, claim-evidence) and the
 report payload/Markdown reads. The one write on this router, safety
-adjudication, is implemented in ``runs_lifecycle_adjudication`` and only
+adjudication, is implemented in ``runs.lifecycle_adjudication`` and only
 registered here (see below).
 """
 
@@ -20,8 +20,8 @@ from app import store
 from app.auth import require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
-from app.runs_lifecycle_adjudication import adjudicate_safety
-from app.runs_support import _require_run, _run_or_404
+from app.runs.lifecycle_adjudication import adjudicate_safety
+from app.runs.support import _require_run, _run_or_404
 
 router = APIRouter()
 

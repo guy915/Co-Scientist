@@ -99,7 +99,7 @@ def _drive_demo_run(run_id: str, db_path: str | None) -> None:
 
     Runs a bounded worker cohort on its own event loop, exactly as the
     embedded API worker does for a real ``POST /start`` (see
-    ``runs_lifecycle._enqueue_workflow_and_maybe_launch_worker``). The cohort
+    ``runs.lifecycle._enqueue_workflow_and_maybe_launch_worker``). The cohort
     returns once the run has no ready task left -- i.e. once it has reached a
     terminal state and persisted its report -- so the caller can rely on the
     demo run being complete when this returns.

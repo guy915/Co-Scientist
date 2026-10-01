@@ -1,6 +1,6 @@
 """Server-Sent Events wire format, shared by every streaming endpoint.
 
-The run event stream (``app.runs_events``), the goal interview
+The run event stream (``app.runs.events``), the goal interview
 (``app.interviews``), and grounded Q&A (``app.qa``) all frame their payloads
 the same way; the encoder lives here rather than in any one of them so a
 transport detail is not owned by a domain module. ``app.qa`` re-exports

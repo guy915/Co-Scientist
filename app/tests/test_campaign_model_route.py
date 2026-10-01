@@ -18,7 +18,6 @@ from app import (
     llm_request,
     offline_guard,
     qa_stream,
-    runs_crud_create,
     safety,
     store,
 )
@@ -34,8 +33,9 @@ from app.execution_policy import (
     STANDARD,
     scoped_execution_policy,
 )
-from app.runs_crud_resolve import _ResolvedRunSettings
-from app.runs_models import CreateRunRequest
+from app.runs import crud_create as runs_crud_create
+from app.runs.crud_resolve import _ResolvedRunSettings
+from app.runs.models import CreateRunRequest
 from app.store import RunCreateOptions, ScientificTask
 from tests._process_mode_helpers import FakeProcessMode
 

@@ -3,7 +3,7 @@
 Split out of ``app.interviews`` so the revision router
 (``app.interviews_revision``) can type its own request bodies without
 importing back through ``app.interviews`` -- the same reason
-``app.runs_models`` exists alongside ``app.runs``.
+``app.runs.models`` exists alongside ``app.runs``.
 """
 
 from __future__ import annotations

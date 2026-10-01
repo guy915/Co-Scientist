@@ -9,16 +9,9 @@ import pytest
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm import current_api_key
 
-from app import (
-    auth,
-    credentials,
-    engine_tasks,
-    llm_request,
-    runs_crud,
-    store,
-    task_worker,
-)
+from app import auth, credentials, engine_tasks, llm_request, store, task_worker
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, settings
+from app.runs import crud as runs_crud
 from tests._client import make_client
 
 _PAID_MODEL = "openrouter/campaign/paid"

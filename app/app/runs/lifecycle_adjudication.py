@@ -1,12 +1,12 @@
 """Safety adjudication: a reviewer's verdict on a held decision.
 
-Split out of ``runs_collections`` because, unlike that module's reads,
+Split out of ``runs.collections`` because, unlike that module's reads,
 adjudication changes the run's lifecycle: approving an intake or final hold
-relaunches the run through ``runs_lifecycle._launch_resume``, and rejecting
+relaunches the run through ``runs.lifecycle._launch_resume``, and rejecting
 one blocks it. Both consequences are guarded by the lifecycle revision read
 at admission, so a cancel, pause or resume that lands in between wins.
 
-The handler is a plain function: ``runs_collections`` registers it, in the
+The handler is a plain function: ``runs.collections`` registers it, in the
 slot the served route table has always listed it at.
 """
 
@@ -18,9 +18,9 @@ from fastapi import HTTPException, Request
 
 from app import store
 from app.auth import client_id
-from app.runs_lifecycle import _launch_resume
-from app.runs_models import SafetyAdjudicationRequest
-from app.runs_resume_admission import (
+from app.runs.lifecycle import _launch_resume
+from app.runs.models import SafetyAdjudicationRequest
+from app.runs.resume_admission import (
     lifecycle_revision,
     resume_admission_snapshot,
 )

@@ -237,7 +237,7 @@ same way ``run_start_announcement`` does), so a stalled provider is caught
 by the stall timeout long before this floor matters and a long reasoning
 pass reads as visible progress rather than a quiet chat. Titling is the
 one call with nobody watching at all -- it runs after the create response,
-as a background task (``runs_crud._populate_run_title``), so a four-minute
+as a background task (``runs.crud._populate_run_title``), so a four-minute
 floor costs nothing a caller can see. Before applying this floor to
 another call site, check whether it streams to a live reader or runs
 unwatched in the background -- a blocking request that shows the caller

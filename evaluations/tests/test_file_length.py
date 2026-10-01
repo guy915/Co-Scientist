@@ -10,7 +10,7 @@ the parity ledger), so this ceiling gets a checker too.
 
 Splitting is by concern into sibling modules that re-export the moved
 names, so import paths and monkeypatch seams survive the split; see
-the `engine_tasks/` package and `runs_*` family for the established shape.
+the `engine_tasks/` and `runs/` packages for the established shape.
 
 The tree walk lives in `_source_tree`, shared with the sibling
 function-length gate.

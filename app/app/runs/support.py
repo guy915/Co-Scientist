@@ -1,7 +1,7 @@
 """Shared existence guards for the run endpoint modules.
 
-``app.runs`` and its sibling endpoint modules (``runs_lifecycle``,
-``runs_collections``, ``runs_contrib``) all guard requests on run
+``app.runs`` and its sibling endpoint modules (``runs.lifecycle``,
+``runs.collections``, ``runs.contrib``) all guard requests on run
 existence. The helpers live here, below every router module, so the
 siblings never import ``app.runs`` (which includes their routers) and
 create an import cycle. ``app.runs`` re-exports ``_run_or_404``, so

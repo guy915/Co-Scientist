@@ -91,7 +91,7 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         == 404
     )
 
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     queue_reached = Event()
     release_queue = Event()
@@ -250,7 +250,7 @@ def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
     assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
 
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     first_queue_reached = Event()
     release_first_queue = Event()
@@ -340,7 +340,7 @@ def test_legacy_cleanup_waits_until_resume_status_guard(
     assert checkpoint_seq > 0
     assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
 
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     queue_reached = Event()
     release_queue = Event()
@@ -386,7 +386,7 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
 
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     queue_reached = Event()
     release_queue = Event()

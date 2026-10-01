@@ -113,7 +113,7 @@ def reopen_for_pending_scientist_input(
 
     A contribution (a hypothesis, a review, or a bare steering message --
     every one of them queues a steering message; see
-    ``runs_contrib._steer_and_continue``) posted after a run's last
+    ``runs.contrib._steer_and_continue``) posted after a run's last
     orchestrator boundary -- e.g. while its final nodes are draining and
     publishing the report -- has nowhere left to land: it is persisted
     and screened, but ``enqueue_scientist_continuation`` only reopens an

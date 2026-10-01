@@ -60,7 +60,7 @@ def _score_or_none(value: Any) -> float | None:
 
 
 # Reviewer label for a scientist-authored review, matching the row
-# `runs_contrib.add_human_review` writes. Kept apart from the engine's
+# `runs.contrib.add_human_review` writes. Kept apart from the engine's
 # "review" agent so a human review never reaches a reader as an anonymous
 # agent one.
 _SCIENTIST_REVIEWER = "scientist"

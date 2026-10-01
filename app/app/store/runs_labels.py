@@ -3,7 +3,7 @@
 A run's short session ``title`` and its narrative ``goal_restatement``
 (GOAL-RESTATEMENT-001) are both derived from the goal alone, generated off
 the create critical path, and written back onto the run row once ready. Split
-out of ``runs.py`` to keep that module within the size cap; both are
+out of ``app.runs`` to keep that module within the size cap; both are
 re-exported through ``app.store`` so callers use ``store.set_run_*``.
 """
 

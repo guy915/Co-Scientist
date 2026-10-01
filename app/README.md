@@ -8,7 +8,7 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
-│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_lifecycle/collections/contrib/chat back it
+│   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
 │   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
 │   ├── engine_tasks/      Durable run execution — the production path — plus task_worker.py
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)

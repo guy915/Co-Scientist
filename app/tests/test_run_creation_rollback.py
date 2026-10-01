@@ -32,9 +32,9 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
     monkeypatch.setattr(
         credentials, "validate_byok_credential", accept_credential
     )
-    monkeypatch.setattr("app.runs_crud.generate_run_title", no_model_call)
+    monkeypatch.setattr("app.runs.crud.generate_run_title", no_model_call)
     monkeypatch.setattr(
-        "app.runs_crud.generate_goal_restatement", no_model_call
+        "app.runs.crud.generate_goal_restatement", no_model_call
     )
     client = make_client()
     staged = client.post(

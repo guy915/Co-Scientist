@@ -17,8 +17,9 @@ from typing import Any
 import pytest
 from fastapi import BackgroundTasks
 
-from app import engine_tasks, main, runs_lifecycle, store
+from app import engine_tasks, main, store
 from app.config import Settings, settings
+from app.runs import lifecycle as runs_lifecycle
 
 
 @pytest.mark.parametrize(

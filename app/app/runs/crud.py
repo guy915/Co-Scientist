@@ -4,7 +4,7 @@ The draft-run creation flow (interview merge, config assembly, DRAFT row
 persistence, background title and goal-restatement generation) plus the
 run list and detail
 reads. Split from ``app.runs`` by concern, matching the sibling endpoint
-modules (``runs_lifecycle``, ``runs_collections``, ``runs_contrib``).
+modules (``runs.lifecycle``, ``runs.collections``, ``runs.contrib``).
 Unlike those siblings this module carries no router of its own: FastAPI
 rejects the empty ``""`` create/list paths on a prefix-less sub-router, so
 ``app.runs`` registers these handlers directly on ``runs.router`` (in the
@@ -24,12 +24,7 @@ from fastapi import (
     Request,
 )
 
-from app import (
-    credentials,
-    engine_adapter,
-    runs_crud_create,
-    store,
-)
+from app import credentials, engine_adapter, store
 from app.auth import client_id, require_client_scope
 from app.execution_policy import (
     CAMPAIGN,
@@ -38,27 +33,28 @@ from app.execution_policy import (
     scoped_execution_policy,
 )
 from app.goal_restatement import generate_goal_restatement
-from app.runs_crud_create import (
+from app.runs import crud_create as runs_crud_create
+from app.runs.crud_create import (
     _persist_new_run_for_owner as _persist_new_run_impl,
 )
-from app.runs_crud_create import _run_setup_documents as _run_setup_documents
-from app.runs_crud_resolve import (
+from app.runs.crud_create import _run_setup_documents as _run_setup_documents
+from app.runs.crud_resolve import (
     _resolve_byok as _resolve_byok,
 )
-from app.runs_crud_resolve import (
+from app.runs.crud_resolve import (
     _resolve_run_interview as _resolve_run_interview,
 )
-from app.runs_crud_resolve import (
+from app.runs.crud_resolve import (
     _resolve_run_settings as _resolve_run_settings,
 )
-from app.runs_crud_resolve import (
+from app.runs.crud_resolve import (
     _ResolvedRunSettings as _ResolvedRunSettings,
 )
-from app.runs_models import (
+from app.runs.models import (
     CreateRunRequest,
     RenameRunRequest,
 )
-from app.runs_support import _run_or_404
+from app.runs.support import _run_or_404
 from app.store import RunStatus
 from app.title_gen import generate_run_title
 
@@ -371,7 +367,7 @@ async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
             before this handler runs); 403 for a shared demo run, which
             that middleware deliberately exempts from ownership so every
             caller can read it, and which is therefore no one caller's to
-            rename (the same guard ``app.runs_deletion`` applies).
+            rename (the same guard ``app.runs.deletion`` applies).
     """
     run = _run_or_404(run_id)
     if run.client_id == store.DEMO_CLIENT_ID:

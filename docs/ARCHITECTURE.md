@@ -28,7 +28,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |                                                                    |
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings                               |
-|   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
+|   runs/          — /api/runs/* lifecycle, read, messages, and SSE   |
 |   engine_tasks/   — durable node/fan-out/match executor; the only  |
 |                     way any run advances (no in-process workflow)  |
 |   task_worker.py — leased worker cohort draining scientific_tasks  |

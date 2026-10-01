@@ -102,7 +102,7 @@ def test_cancel_before_capacity_reservation_is_not_a_restart(
     rid = _new_run(start_client, "Cancel before the start reservation")
     start_reached_reservation = Event()
     continue_start = Event()
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     admit_workflow = runs_lifecycle._enqueue_workflow_and_maybe_launch_worker
 

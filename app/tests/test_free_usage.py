@@ -27,7 +27,7 @@ def real_backend(
     async def _no_title(goal: str) -> None:
         return None
 
-    monkeypatch.setattr("app.runs_crud.generate_run_title", _no_title)
+    monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
 
 
 def _create(

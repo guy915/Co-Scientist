@@ -2,7 +2,7 @@
 
 Everything between the request body and the DRAFT row: the
 bring-your-own-key credential, the goal interview it may have come
-from, and the config those produce. Split from ``runs_crud`` so that
+from, and the config those produce. Split from ``runs.crud`` so that
 module stays under the line ceiling; the names callers use are re-exported
 there, which remains their import and monkeypatch surface.
 """
@@ -17,7 +17,7 @@ from app import credentials, engine_adapter, store
 from app.auth import client_id
 from app.config import byok_enabled
 from app.execution_policy import CAMPAIGN
-from app.runs_models import CreateRunRequest, _build_create_run_config
+from app.runs.models import CreateRunRequest, _build_create_run_config
 
 
 def _reject_campaign_byok(

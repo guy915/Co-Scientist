@@ -388,7 +388,7 @@ async def delete_interview(
 ) -> dict[str, Any]:
     """Permanently delete an owned chat and its transcript.
 
-    Unlike a run (see ``app.runs_deletion``) a chat has no worker that
+    Unlike a run (see ``app.runs.deletion``) a chat has no worker that
     could be mid-write, so there is no active state to refuse: an
     interview is only ever advanced by a request the caller makes. A chat
     already carried into a run is still deletable, and deleting it leaves

@@ -150,7 +150,7 @@ def _interview_run_ids(
     """Map interview id to the run started from it, for one client.
 
     The link lives in the run's config blob (``config["interview_id"]``,
-    written by ``app.runs_crud``), so it is resolved in Python rather than
+    written by ``app.runs.crud``), so it is resolved in Python rather than
     with json_extract -- one client's runs are a handful of rows, and this
     keeps the listing free of a JSON1 build dependency.
     """

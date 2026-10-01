@@ -1,8 +1,8 @@
 """Permanent run deletion: ``DELETE /api/runs/{run_id}``.
 
 Split out of ``app.runs`` (which mounts this router, so the
-served route set is unchanged) for the same reason ``runs_lifecycle`` and
-``runs_contrib`` are split out: one concern per module. Addresses N3 (no
+served route set is unchanged) for the same reason ``runs.lifecycle`` and
+``runs.contrib`` are split out: one concern per module. Addresses N3 (no
 run/report/document deletion) for the run/report half; the document half
 is ``DELETE /api/documents/{document_id}`` in ``app.documents``.
 
@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app import store
-from app.runs_support import _run_or_404
+from app.runs.support import _run_or_404
 from app.store import RunRow
 
 router = APIRouter()

@@ -3,7 +3,7 @@
 Scientist steering messages (queued and drained between iterations) and the
 grounded Q&A endpoint with its streamed LLM (or deterministic offline)
 answer. Split from ``app.runs`` by concern, matching the sibling endpoint
-modules (``runs_lifecycle``, ``runs_collections``, ``runs_contrib``); the
+modules (``runs.lifecycle``, ``runs.collections``, ``runs.contrib``); the
 router here is included into ``runs.router``.
 """
 
@@ -25,12 +25,12 @@ from app import (
     store,
 )
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
-from app.runs_models import (
+from app.runs.models import (
     AskRequest,
     SendMessageRequest,
     StartAnnouncementRequest,
 )
-from app.runs_support import _require_run, _run_or_404
+from app.runs.support import _require_run, _run_or_404
 
 router = APIRouter()
 

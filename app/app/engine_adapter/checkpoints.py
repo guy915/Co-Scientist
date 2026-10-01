@@ -1,7 +1,7 @@
 """Engine checkpoint tagging shared across run paths.
 
 Both the durable node executor (``engine_tasks.support``) and the resume
-launcher (``runs_lifecycle``) agree on a single provider tag written onto an
+launcher (``runs.lifecycle``) agree on a single provider tag written onto an
 engine checkpoint's envelope, so a stored ``WorkflowState`` can be told apart
 from any lighter-weight envelope. ``is_engine_checkpoint`` is the reader half,
 re-exported through the ``engine_adapter`` package namespace.

@@ -27,18 +27,18 @@ Endpoints:
 Cancellation revokes queued and leased tasks; pause parks queued work while
 leased tasks may finish, with engine claims held until resume. Streams use
 the persisted event log so they survive client reconnects and full
-backend restarts. Request models live in ``runs_models`` and SSE streaming
-helpers in ``runs_events``.
+backend restarts. Request models live in ``runs.models`` and SSE streaming
+helpers in ``runs.events``.
 
 This module owns the SSE stream and assembles the full route set by
-including the sibling endpoint routers -- ``runs_crud`` (create/list/read),
-``runs_lifecycle`` (start/cancel/pause/resume and the startup auto-resume
+including the sibling endpoint routers -- ``runs.crud`` (create/list/read),
+``runs.lifecycle`` (start/cancel/pause/resume and the startup auto-resume
 launcher; the safety-adjudication handler it drives lives in
-``runs_lifecycle_adjudication``), ``runs_collections`` (read-only collection
+``runs.lifecycle_adjudication``), ``runs.collections`` (read-only collection
 getters and reports, plus the registration of that handler at its historical
-slot), ``runs_contrib`` (scientist-contributed
-hypotheses/reviews/attachments), and ``runs_chat`` (steering messages and
-grounded Q&A), with shared existence guards in ``runs_support``. The
+slot), ``runs.contrib`` (scientist-contributed
+hypotheses/reviews/attachments), and ``runs.chat`` (steering messages and
+grounded Q&A), with shared existence guards in ``runs.support``. The
 moved names that callers and tests use are re-exported here so
 ``app.runs`` remains their import and monkeypatch surface.
 """
@@ -53,36 +53,34 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app import (
-    runs_chat,
-    runs_collections,
-    runs_contrib,
-    runs_crud,
-    runs_deletion,
-    runs_lifecycle,
-    store,
-)
-from app.runs_crud import (
+from app import store
+from app.runs import chat as runs_chat
+from app.runs import collections as runs_collections
+from app.runs import contrib as runs_contrib
+from app.runs import crud as runs_crud
+from app.runs import deletion as runs_deletion
+from app.runs import lifecycle as runs_lifecycle
+from app.runs.crud import (
     create_run as create_run,
 )
-from app.runs_events import _event_stream
-from app.runs_lifecycle import (
+from app.runs.events import _event_stream
+from app.runs.lifecycle import (
     _launch_resume as _launch_resume,
 )
-from app.runs_lifecycle import (
+from app.runs.lifecycle import (
     _resume_tasks as _resume_tasks,
 )
-from app.runs_lifecycle import (
+from app.runs.lifecycle import (
     resume_interrupted_runs as resume_interrupted_runs,
 )
-from app.runs_support import (
+from app.runs.support import (
     _run_or_404 as _run_or_404,
 )
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 
-# Create/list/read endpoints live in runs_crud. They register directly on
+# Create/list/read endpoints live in runs.crud. They register directly on
 # this router (a prefix-less sub-router cannot carry the empty "" paths),
 # in the original order: /demo before /{run_id} so the literal path keeps
 # winning route matching.
@@ -92,10 +90,10 @@ router.get("/demo")(runs_crud.list_demo_runs)
 router.get("/{run_id}")(runs_crud.get_run)
 router.patch("/{run_id}")(runs_crud.rename_run)
 
-# Lifecycle endpoints (start/cancel/pause/resume) live in runs_lifecycle.
+# Lifecycle endpoints (start/cancel/pause/resume) live in runs.lifecycle.
 router.include_router(runs_lifecycle.router)
 
-# Permanent deletion lives in runs_deletion.
+# Permanent deletion lives in runs.deletion.
 router.include_router(runs_deletion.router)
 
 
@@ -145,10 +143,10 @@ async def stream_events(
     )
 
 
-# Read-only collection/report endpoints live in runs_collections; the
+# Read-only collection/report endpoints live in runs.collections; the
 # scientist-contribution endpoints (hypotheses/reviews/attachments) in
-# runs_contrib; the chat/interaction endpoints (steering messages and
-# grounded Q&A) in runs_chat.
+# runs.contrib; the chat/interaction endpoints (steering messages and
+# grounded Q&A) in runs.chat.
 router.include_router(runs_collections.router)
 router.include_router(runs_contrib.router)
 router.include_router(runs_chat.router)
