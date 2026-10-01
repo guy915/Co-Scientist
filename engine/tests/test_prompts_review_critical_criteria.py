@@ -180,7 +180,7 @@ def test_review_prompt_excludes_description_even_when_present() -> None:
     """R12-23b: ``description`` is deliberately report-only, never injected.
 
     ``description`` backs the report's own "Evaluation Criteria" section
-    (``report_markdown_supervisor.py``) -- this call site runs per
+    (``report/markdown/supervisor.py``) -- this call site runs per
     hypothesis, per review, and the prose states the same substance the
     questions already express operationally, so injecting it here would
     roughly double this per-hypothesis guidance block for no reviewer

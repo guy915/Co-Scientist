@@ -4,13 +4,13 @@ Google's published MASH report ends with a flat, 3,259-entry ``References``
 list (docs/CORPUS-EXTRACTION.md R12-12) -- every distinct source the run's
 literature search touched, not just the ones a hypothesis's mechanism text
 cites inline. Our own per-hypothesis ``#### References`` subsections
-(``report_markdown_references.py``, R14-21) resolve only the ``[C*]`` keys a
+(``report/markdown/references.py``, R14-21) resolve only the ``[C*]`` keys a
 hypothesis's mechanism text actually names; this section is the aggregate
 the corpus row asks for -- everything ``store.list_evidence`` persisted for
 the run, deduplicated once, in one place.
 
 Source of truth: the same ``evidence`` rows every other reader already
-gets -- ``store.list_evidence``, read once by ``report_build`` and handed to
+gets -- ``store.list_evidence``, read once by ``report.build`` and handed to
 the markdown document (``ReportMarkdownInputs.evidence``) and the Learning
 tab's own references list (``run_detail_learning_references.tsx``). No new
 store read, no parallel path.
@@ -28,7 +28,7 @@ Placement: last in the document, matching the published MASH report's own
 bibliography span (``research-overviews/mash-....md``, directly after the
 run's Open Questions / Clear Patterns / Unexpected Connections span at
 L746-818, then References at L832; R12-10's own sink is already
-``report_markdown_overview.py``). It is a run-wide list (every source the
+``report/markdown/overview.py``). It is a run-wide list (every source the
 whole run touched), not a per-idea one, so it belongs beside the other
 whole-run sections (Knowledge Base, Data sources) rather than immediately
 after any one hypothesis's own per-idea ``#### References`` subsections
@@ -54,7 +54,7 @@ from app.citation_metadata import (
     classify_date,
     classify_source_type,
 )
-from app.report_markdown_references import _reference_label
+from app.report.markdown.references import _reference_label
 
 
 def _normalized_title(title: str) -> str:

@@ -1,13 +1,10 @@
 """Report section rendering one numbered 'Top hypotheses' entry.
 
-Moved out of ``report_markdown`` to keep this module's own complexity and
-that module's line count under their caps: as more optional subsections
-(scene-setting MO-6, safety-and-toxicity MO-10) were added to one entry,
-its renderer's branch count grew past the mccabe ceiling. Each optional
-subsection now factors into its own low-complexity helper here, and the
-entry point is a straight-line assembly of them -- the entry renderer is
-re-exported from ``report_markdown`` so that module's namespace keeps
-resolving.
+As more optional subsections (scene-setting MO-6, safety-and-toxicity
+MO-10) were added to one entry, its renderer's branch count grew past the
+mccabe ceiling. Each optional subsection now factors into its own
+low-complexity helper here, and the entry point is a straight-line assembly
+of them.
 """
 
 from __future__ import annotations
@@ -16,9 +13,9 @@ import json
 from typing import Any
 
 from app.human_input import SCIENTIST_MANUAL_ORIGIN
-from app.report_markdown_header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
-from app.report_markdown_references import _render_references_markdown
-from app.report_markdown_review_block import (
+from app.report.markdown.header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
+from app.report.markdown.references import _render_references_markdown
+from app.report.markdown.review_block import (
     _render_critiques_rollup,
     _render_deep_verification,
     _render_hypothesis_reviews,
@@ -30,7 +27,7 @@ from app.text_utils import hypothesis_statement, hypothesis_title
 # (docs/CORPUS-EXTRACTION.md R14-13) -- a fixed disclaimer, not derived
 # from the hypothesis, so it carries no field guard and always renders.
 # Shared with the report-level About disclosure (R14-4,
-# ``report_markdown_header._ABOUT_DISCLOSURE``) -- Google's two published
+# ``report.markdown.header._ABOUT_DISCLOSURE``) -- Google's two published
 # instances of this wording are byte-identical, so this re-exports the one
 # constant rather than maintaining a second copy of the string.
 _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
@@ -408,7 +405,7 @@ def _render_hypothesis_entry(
     lines += _render_hypothesis_experiment(hyp)  # R14-20, right after Mechanism
     # Resolves the [C*] keys the mechanism text just cited -- the engine's
     # per-hypothesis reference index, joined back from citations+evidence
-    # (see report_markdown_references). Right after Mechanism/Predicted
+    # (see report.markdown.references). Right after Mechanism/Predicted
     # effect, the text the keys actually appear in.
     #
     # R14-26: Google's canonical hypothesis-document order places

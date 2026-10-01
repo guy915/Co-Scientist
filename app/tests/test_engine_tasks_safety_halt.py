@@ -13,7 +13,8 @@ from typing import Any
 import pytest
 from co_scientist.models import Hypothesis
 
-from app import engine_tasks, report_render, store
+from app import engine_tasks, store
+from app.report import finalize as report_finalize
 from app.safety import ScreenSubject
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -111,7 +112,7 @@ async def test_an_unhalted_run_still_publishes(
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=False)
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", _deterministic_final_screen
+        report_finalize, "screen_with_escalation", _deterministic_final_screen
     )
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)

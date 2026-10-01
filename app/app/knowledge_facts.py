@@ -37,7 +37,7 @@ from app.evidence_chunking import parent_evidence_id
 _KIND_BY_LABEL = {"supports": "fact", "contradicts": "contradiction"}
 
 # Each label's corroborating evidence lives in a different span list on the
-# edge (see app.report_content._claim_evidence_ids for the "supports" half
+# edge (see app.report.content._claim_evidence_ids for the "supports" half
 # of this same reasoning).
 _SPAN_KEY_BY_LABEL = {"supports": "supporting", "contradicts": "contradicting"}
 
@@ -103,7 +103,7 @@ def derive_knowledge_facts(
         claim_edges: A run's *whole* claim-evidence graph (every hypothesis,
             not only the released ones) -- the knowledge base records what
             the run found, independent of what the published report shows,
-            matching how ``report_content._contradicted_claims`` reads the
+            matching how ``report.content._contradicted_claims`` reads the
             same table.
 
     Returns:

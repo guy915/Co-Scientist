@@ -193,7 +193,7 @@ def _claim_counts_by_hypothesis(
 ) -> tuple[dict[str, int], dict[str, int]]:
     """Return (assessed, verified) claim counts keyed by hypothesis id.
 
-    Mirrors ``app.report_content_gates``'s one definition of "verified" (a
+    Mirrors ``app.report.gates``'s one definition of "verified" (a
     ``supports`` or ``partial`` claim-evidence edge) at per-hypothesis
     granularity -- the report's tile and badge share that rule, and these
     drivers must not invent a second one.

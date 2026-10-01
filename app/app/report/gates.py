@@ -1,10 +1,11 @@
-"""Publication-gate filters split out of ``report_content``.
+"""The Goal Report release gate: which ideas the report may publish.
 
 Holds the exclusion filters that decide which hypotheses reach the final
 report: the contradicted/unverified id sets and the safety gate that drops
-prohibited, rejected, or contradicted ideas. ``report_content`` re-exports
-the names callers use from here, and ``report_render`` re-exports those in
-turn, so callers keep a single ``app.report_render`` import surface.
+prohibited, rejected, or contradicted ideas. Two predicates are public
+because callers outside the report apply them: ``exclude_unsafe_hypotheses``
+(public share links) and ``unverified_hypothesis_ids`` (the run's hypotheses
+endpoint).
 """
 
 from __future__ import annotations

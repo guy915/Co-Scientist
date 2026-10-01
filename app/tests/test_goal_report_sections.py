@@ -5,13 +5,10 @@ moved to ``test_goal_report_empty_leaderboard.py`` when this file passed
 the module-size budget.
 """
 
-from app import (
-    report_content,
-    report_content_gates,
-    report_markdown,
-    report_render,
-    store,
-)
+from app import store
+from app.report import content as report_content
+from app.report import gates as report_gates
+from app.report import markdown as report_markdown
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 
@@ -63,13 +60,13 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
         _edge("h2", "The bypass is constitutively active.", "contradicts"),
     ]
 
-    topics = report_render._knowledge_base_topics([released], edges)
-    insights = report_render._agent_insights(
+    topics = report_content._knowledge_base_topics([released], edges)
+    insights = report_content._agent_insights(
         [released],
         edges,
         {"common_weaknesses": ["Cell-type specificity remains uncertain."]},
     )
-    buckets = report_render._idea_buckets(
+    buckets = report_content._idea_buckets(
         [released], [released, rejected], edges
     )
 
@@ -98,7 +95,7 @@ def test_idea_buckets_partition_every_idea() -> None:
     released = [_hypothesis(f"h{i}", f"Released {i}") for i in range(7)]
     excluded = [_hypothesis("x1", "Excluded")]
 
-    buckets = report_render._idea_buckets(released, released + excluded, [])
+    buckets = report_content._idea_buckets(released, released + excluded, [])
 
     assert len(buckets["high_potential"]) == 7
     assert len(buckets["non_viable"]) == 1
@@ -126,7 +123,7 @@ def test_idea_bucket_titles_use_the_shared_title_helper() -> None:
         "status": "rejected",
     }
 
-    buckets = report_render._idea_buckets([released], [released, excluded], [])
+    buckets = report_content._idea_buckets([released], [released, excluded], [])
 
     assert (
         buckets["high_potential"][0]["title"]
@@ -154,7 +151,7 @@ def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
     # no exclusion reason -- the rejection must be explained by the status.
     edges = [_edge("h2", "A speculative claim.", "insufficient", ("ev1",))]
     edges[0]["claim_role"] = "speculative"
-    buckets = report_render._idea_buckets(
+    buckets = report_content._idea_buckets(
         [released], [released, deduped], edges
     )
     reason = buckets["non_viable"][0]["reason"].lower()
@@ -176,7 +173,7 @@ def test_a_duplicate_and_a_rejected_idea_get_different_reasons() -> None:
     rejected = _hypothesis("h3", "Unsound idea")
     rejected["status"] = "rejected"
 
-    buckets = report_render._idea_buckets(
+    buckets = report_content._idea_buckets(
         [released], [released, deduped, rejected], []
     )
 
@@ -199,7 +196,7 @@ def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
         _edge("h1", "Feedback is rate-limiting.", "supports"),
     ]
 
-    insights = report_render._agent_insights([hypothesis], edges, {})
+    insights = report_content._agent_insights([hypothesis], edges, {})
 
     assert len(insights["contradictions"]) == 1
     assert insights["contradictions"][0].startswith(
@@ -226,13 +223,13 @@ def test_contradictions_name_ideas_the_report_withholds() -> None:
         _edge("h2", "The bypass is constitutively active.", "contradicts"),
     ]
 
-    published = report_content_gates.exclude_unsafe_hypotheses(
+    published = report_gates.exclude_unsafe_hypotheses(
         "run-1", [released, contradicted], None, edges
     )
     released_edges = report_content.released_claim_evidence(
         published, edges, []
     )
-    insights = report_render._agent_insights(published, edges, {})
+    insights = report_content._agent_insights(published, edges, {})
 
     assert [hyp["id"] for hyp in published] == ["h1"]
     assert not [e for e in released_edges if e["label"] == "contradicts"]
@@ -261,7 +258,7 @@ def test_insights_and_markdown_show_one_statement_per_idea() -> None:
         ),
     }
 
-    insights = report_render._agent_insights([hypothesis], [], {})
+    insights = report_content._agent_insights([hypothesis], [], {})
     markdown = report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Map the feedback loop.",
@@ -392,7 +389,7 @@ def test_key_findings_omit_an_idea_with_no_proposal_text() -> None:
     with_text = {"id": "h1", "statement": "Blocking the loop raises flux."}
     without_text = {"id": "h2", "title": "A title with no statement."}
 
-    insights = report_render._agent_insights([with_text, without_text], [], {})
+    insights = report_content._agent_insights([with_text, without_text], [], {})
 
     assert insights["key_findings"] == [
         "Proposed hypothesis: Blocking the loop raises flux."
@@ -412,7 +409,7 @@ def test_recommended_directions_keep_their_three_named_fields() -> None:
         ]
     }
 
-    insights = report_render._agent_insights([], [], meta)
+    insights = report_content._agent_insights([], [], meta)
 
     assert insights["recommended_directions"] == [
         {
@@ -450,7 +447,7 @@ def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
             },
         ]
     }
-    topics = report_render._synthesized_knowledge_base_topics(
+    topics = report_content._synthesized_knowledge_base_topics(
         overview, [{"id": "ev-1", "title": "Persisted study"}]
     )
 

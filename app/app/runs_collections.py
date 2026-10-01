@@ -18,7 +18,7 @@ from fastapi.responses import PlainTextResponse
 from app import store
 from app.auth import client_id, require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
-from app.report_content_gates import unverified_hypothesis_ids
+from app.report import unverified_hypothesis_ids
 from app.runs_models import SafetyAdjudicationRequest
 from app.runs_support import _require_run, _run_or_404
 from app.store import RunStatus

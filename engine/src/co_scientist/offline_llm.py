@@ -118,7 +118,7 @@ def _relevance_batch_length(prompt: str) -> dict[str, int]:
 # model freely decides how many major directions a hypothesis pool
 # resolves into. This hook is therefore a fixed count, not a prompt
 # reading: enough to clear the report's directions-preview gate
-# (report_markdown_overview.py::_render_directions_preview renders
+# (report/markdown/overview.py::_render_directions_preview renders
 # nothing below two named directions), so an offline run reads as having
 # found several directions worth pursuing rather than exactly one.
 _RESEARCH_DIRECTIONS_COUNT = 3
@@ -217,7 +217,7 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 # time_to_verdict feed drain_reviews._verdict_detail, which
 # ideas_detail_review_findings.tsx's VerdictLines never renders without
 # them; META_REVIEW_SCHEMA's strategic_recommendations[] time_estimate/
-# phase_label/recommended_idea feed report_markdown_meta_review's
+# phase_label/recommended_idea feed report.markdown.meta_review's
 # _render_recommendation the same way. Both are plain free-text fields --
 # no value needs to reference another part of the response -- so a name
 # list alone is enough; see the ADR for the optional fields left out

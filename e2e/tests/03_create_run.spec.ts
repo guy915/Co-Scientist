@@ -186,7 +186,7 @@ async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
 }
 
 // The overview report's research-directions preview list, gated on 2+ named
-// directions (report_markdown_overview.py::_render_directions_preview,
+// directions (report/markdown/overview.py::_render_directions_preview,
 // mirrored in the frontend's DirectionsPreview) -- proof the offline
 // backend's research_overview call is sized past that gate rather than
 // defaulting to the generic filler's one item per array.

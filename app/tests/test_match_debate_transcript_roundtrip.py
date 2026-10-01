@@ -20,8 +20,9 @@ from co_scientist.agents.ranking.ranking_results import (
     _debate_provenance_fields,
 )
 
-from app import report_markdown, store
+from app import store
 from app.engine_adapter.drain_matches import _persist_engine_matches
+from app.report import markdown as report_markdown
 
 
 def _judged_matchup() -> dict[str, Any]:

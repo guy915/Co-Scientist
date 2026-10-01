@@ -9,7 +9,7 @@ requirements, attributes, and criteria are collected by
 were never rendered. This pins that the header now surfaces them.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(setup: dict[str, object] | None) -> str:

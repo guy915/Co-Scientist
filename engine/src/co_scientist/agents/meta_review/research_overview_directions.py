@@ -2,7 +2,7 @@
 
 ``overview.research_directions`` itself passes from the raw LLM response
 straight through to the report: ``title``/``importance``/
-``suggested_experiments`` have always relied on ``report_markdown_overview``'s
+``suggested_experiments`` have always relied on ``report.markdown.overview``'s
 readable-text flattening for defense, not engine-side validation, and that
 convention is left alone here. The two fields this restores (MO-1's nested
 ``sub_topics`` layer, MO-12's ``recent_findings``) get the same defensive

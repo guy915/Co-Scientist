@@ -106,7 +106,7 @@ def critical_criteria(final_state: dict[str, Any]) -> list[Any]:
     criterion-name string, and the richer ``{name, questions}`` object
     the Supervisor now synthesizes to mirror the published Review
     Summary's rubric (docs/CORPUS-EXTRACTION.md, line 2929) -- the report
-    renderers (``report_markdown_supervisor.py``) handle both. Degrades
+    renderers (``report/markdown/supervisor.py``) handle both. Degrades
     to an empty list, never an error, on an old checkpoint predating this
     field or a malformed one; a list entry that is neither a string nor a
     dict is dropped rather than passed through.

@@ -1,9 +1,8 @@
 """Report section rendering the run's synthesized Knowledge Base.
 
-Split out of ``report_markdown`` to keep that module within the size cap.
-``report_content._knowledge_base_topics`` / ``_synthesized_knowledge_base_
+``report.content._knowledge_base_topics`` / ``_synthesized_knowledge_base_
 topics`` already build this list -- assembled into the report payload by
-``report_build.py`` and rendered in the React UI -- but the markdown export
+``report/build.py`` and rendered in the React UI -- but the markdown export
 never emitted it (R12-6).
 
 Google's published Knowledge Base is a two-level hierarchy of *headings*:

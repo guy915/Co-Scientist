@@ -7,14 +7,10 @@ from typing import Any, cast
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, engine_tasks_node, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision, apply_safety_gate
 from app.safety_redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
@@ -112,7 +108,7 @@ def _install_report(
             }
         ]
     )
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={"idea_count": 1, "leaderboard": leaderboard},
         markdown="# Goal Report with sensitive span",
         facts=[],
@@ -123,7 +119,7 @@ def _install_report(
         return built
 
     monkeypatch.setattr(
-        report_render, "build_report_content", fake_build_report
+        report_finalize, "build_report_content", fake_build_report
     )
 
 
@@ -167,10 +163,10 @@ async def test_cancel_race_does_not_block_run(
         return SafetyDecision(stage="final", decision="allow")
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
+        report_finalize, "screen_with_escalation", allow_final_screen
     )
     cancel_responses: list[dict[str, Any]] = []
-    block_for_empty_leaderboard = report_render._block_for_empty_leaderboard
+    block_for_empty_leaderboard = report_finalize._block_for_empty_leaderboard
 
     async def cancel_before_readiness_write(*args: Any, **kwargs: Any) -> Any:
         response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
@@ -180,7 +176,7 @@ async def test_cancel_race_does_not_block_run(
             yield event
 
     monkeypatch.setattr(
-        report_render,
+        report_finalize,
         "_block_for_empty_leaderboard",
         cancel_before_readiness_write,
     )
@@ -221,7 +217,7 @@ async def test_empty_leaderboard_block_remains_auditable(
         return SafetyDecision(stage="final", decision="allow")
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
+        report_finalize, "screen_with_escalation", allow_final_screen
     )
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
@@ -271,7 +267,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
         )
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", redact_final_screen
+        report_finalize, "screen_with_escalation", redact_final_screen
     )
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
@@ -424,7 +420,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
         return SafetyDecision(stage="final", decision=decision, matches=matches)
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", cancel_then_decide
+        report_finalize, "screen_with_escalation", cancel_then_decide
     )
 
     with pytest.raises(task_worker._LeaseLostError):

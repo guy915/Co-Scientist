@@ -7,7 +7,7 @@ Emitting any of those verbatim leaks raw JSON into the report.
 
 A leaf module (no imports of its own beyond the standard library) so
 every report-markdown module that needs this coercion -- currently
-``report_markdown_overview`` and ``report_markdown_contact_groups`` --
+``report.markdown.overview`` and ``report.markdown.contact_groups`` --
 can import it directly without creating a cross-import cycle between
 those two.
 """

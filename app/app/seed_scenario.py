@@ -28,7 +28,7 @@ from app.demo_seed_data import (
     scenario_hypotheses,
     scenario_key,
 )
-from app.report_build import ReportRequest, build_report_content
+from app.report import ReportRequest, build_report_content
 from app.seed_config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
@@ -360,7 +360,7 @@ def _scenario_report_request(
         setup=setup if isinstance(setup, dict) else None,
         # Supervisor-synthesized guidance (R12-17/R12-18/R12-23): a
         # different, goal-specific field from ``setup`` above -- see
-        # ``report_markdown_supervisor.py``'s vocabulary warning.
+        # ``report/markdown/supervisor.py``'s vocabulary warning.
         attributes=curated_stratification_attributes(key),
         critical_criteria=curated_critical_criteria(key),
         prepared_at=time.time(),

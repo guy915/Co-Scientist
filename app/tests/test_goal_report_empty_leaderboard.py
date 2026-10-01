@@ -8,7 +8,7 @@ how it reads a mix of causes -- gets its own module rather than sharing one
 with the rest of the report-section tests.
 """
 
-from app import report_render
+from app.report import gates as report_gates
 
 
 def test_empty_leaderboard_reason_names_review_rejection_alone() -> None:
@@ -26,7 +26,7 @@ def test_empty_leaderboard_reason_names_review_rejection_alone() -> None:
         "safety": 0,
     }
 
-    reason = report_render._empty_leaderboard_reason(15, tally)
+    reason = report_gates._empty_leaderboard_reason(15, tally)
 
     assert reason == (
         "No hypothesis could be published: of 15 ideas, 15 were rejected "
@@ -46,7 +46,7 @@ def test_empty_leaderboard_reason_keeps_safety_wording() -> None:
         "safety": 5,
     }
 
-    reason = report_render._empty_leaderboard_reason(5, tally)
+    reason = report_gates._empty_leaderboard_reason(5, tally)
 
     assert reason == (
         "No hypothesis could be published: of 5 ideas, 5 were withheld "
@@ -65,7 +65,7 @@ def test_empty_leaderboard_reason_keeps_evidence_wording() -> None:
         "safety": 0,
     }
 
-    reason = report_render._empty_leaderboard_reason(3, tally)
+    reason = report_gates._empty_leaderboard_reason(3, tally)
 
     assert reason == (
         "No hypothesis could be published: of 3 ideas, 3 were "
@@ -84,7 +84,7 @@ def test_empty_leaderboard_reason_names_duplicates_distinctly() -> None:
         "safety": 0,
     }
 
-    reason = report_render._empty_leaderboard_reason(2, tally)
+    reason = report_gates._empty_leaderboard_reason(2, tally)
 
     assert "folded into a higher-ranked idea" in reason
     assert "peer review" not in reason
@@ -100,7 +100,7 @@ def test_empty_leaderboard_reason_reads_a_mix_as_a_mix() -> None:
         "safety": 1,
     }
 
-    reason = report_render._empty_leaderboard_reason(4, tally)
+    reason = report_gates._empty_leaderboard_reason(4, tally)
 
     assert "2 were rejected by peer review" in reason
     assert "1 was contradicted by the evidence" in reason
@@ -110,7 +110,7 @@ def test_empty_leaderboard_reason_reads_a_mix_as_a_mix() -> None:
 
 def test_empty_leaderboard_reason_handles_zero_ideas() -> None:
     """A run that produced no ideas at all is its own case, not "withheld"."""
-    reason = report_render._empty_leaderboard_reason(
+    reason = report_gates._empty_leaderboard_reason(
         0,
         {"review_rejected": 0, "duplicate": 0, "contradicted": 0, "safety": 0},
     )

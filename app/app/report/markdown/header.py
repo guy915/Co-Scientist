@@ -1,6 +1,5 @@
 """Report header rendering: title, the run's configuration, and provenance.
 
-Split out of ``report_markdown`` to keep that module within the size cap.
 Renders, in the published order (MASH report L3-40 then L41): the title and
 provider line, "Research Goal Details" -- goal, requirements, attributes,
 criteria, all collected by ``run_modes.setup_config`` into the run's
@@ -25,13 +24,13 @@ from app.run_modes import attribute_display_strings, criteria_display_strings
 _SYSTEM_NAME = "Co-Scientist"
 
 # R14-4: byte-identical to the per-hypothesis disclaimer (R14-13,
-# ``report_markdown_hypothesis._HYPOTHESIS_DISCLAIMER``, re-exported from
+# ``report.markdown.hypothesis._HYPOTHESIS_DISCLAIMER``, re-exported from
 # here so the two never drift). Google's published research-overview.md
 # carries this same "experimental system ... may be wrong" wording at the
 # report level (line 5), distinct from the short provenance/caution line
 # above -- one names this system and when the report ran, the other states
 # what the system is and cautions that its output may be wrong. Defined
-# here, the lower module in the import chain (``report_markdown_hypothesis``
+# here, the lower module in the import chain (``report.markdown.hypothesis``
 # already imports ``_SYSTEM_NAME`` from this module), so the per-hypothesis
 # copy can import this constant instead of duplicating the string.
 _ABOUT_DISCLOSURE = (

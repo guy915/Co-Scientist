@@ -10,7 +10,7 @@ a single grounded paper (``source_title``/``source_url``), never free
 citation prose.
 """
 
-from app.report_markdown_overview import render_research_overview_markdown
+from app.report.markdown.overview import render_research_overview_markdown
 
 
 def _markdown(contacts: list[dict[str, object]]) -> str:

@@ -10,7 +10,7 @@ research_contact_groups -- an old report, or a response that never
 populated it -- still renders MO-7's flat shape unchanged.
 """
 
-from app.report_markdown_overview import render_research_overview_markdown
+from app.report.markdown.overview import render_research_overview_markdown
 
 
 def _markdown(

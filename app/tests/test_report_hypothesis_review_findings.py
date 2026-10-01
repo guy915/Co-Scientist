@@ -9,7 +9,7 @@ the full end-to-end pin in ``test_report_hypothesis_entry_rendering.py``.
 
 import json
 
-from app.report_markdown_hypothesis import (
+from app.report.markdown.hypothesis import (
     _render_hypothesis_simulation_review,
     _render_hypothesis_verdict,
     _reviews_by_hypothesis,

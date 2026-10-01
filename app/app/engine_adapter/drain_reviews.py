@@ -51,7 +51,7 @@ from app.engine_adapter.drain_review_detail import (
 from app.engine_adapter.drain_review_detail import (
     _verdict_detail as _verdict_detail,
 )
-from app.report_render import format_deep_verification_critique
+from app.report import format_deep_verification_critique
 
 
 def _score_or_none(value: Any) -> float | None:

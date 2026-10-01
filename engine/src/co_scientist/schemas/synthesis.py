@@ -256,7 +256,7 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
             # above (MO-7). A separate, additive array rather than
             # nesting contacts under it: the model already emits flat
             # contacts tagged with research_direction, and the renderer
-            # (report_markdown_overview.py) matches a group to its
+            # (report/markdown/overview.py) matches a group to its
             # contacts by that same free-text tag, so an old report (or
             # one whose response never populates this field) still
             # renders MO-7's flat shape unchanged. Bounded to the same 5

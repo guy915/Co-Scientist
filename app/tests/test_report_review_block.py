@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.report_markdown_review_block import (
+from app.report.markdown.review_block import (
     _render_deep_verification,
     _render_hypothesis_reviews,
     _render_reviews_summary,

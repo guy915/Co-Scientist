@@ -10,7 +10,9 @@ that it says nothing at all for a run that never recorded a search.
 
 from typing import Any
 
-from app import report_markdown, report_render, store
+from app import store
+from app.report import build as report_build
+from app.report import markdown as report_markdown
 
 
 def _markdown(retrieval_calls: list[dict[str, Any]] | None) -> str:
@@ -141,9 +143,9 @@ async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
         db_path=isolated_db,
     )
 
-    built = await report_render.build_report_content(
+    built = await report_build.build_report_content(
         run.id,
-        report_render.ReportRequest(
+        report_build.ReportRequest(
             research_goal=run.research_goal,
             run_mode="standard",
             provider="engine",

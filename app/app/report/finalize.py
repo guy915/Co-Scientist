@@ -1,18 +1,11 @@
-"""Shared report finalization for the workflow provider.
+"""Goal Report finalization: build, final safety gate, publish, emit.
 
-Homed separately from ``engine_adapter`` so building the report payload,
-rendering its markdown, running the final safety gate, and emitting the
-report/completed events stay independently nameable/testable, through one
-implementation.
-
-The report content builders live in ``report_markdown``, the
-content-derivation helpers (topics, insights, buckets, claim filters) in
-``report_content``, the gathering and assembly of the payload/markdown pair
-(``ReportRequest``, ``_BuiltReport``, ``build_report_content``) in
-``report_build``, and the completion-email scheduling in ``report_notify``;
-the names callers use are re-exported here so ``app.report_render`` stays
-their import surface. Run-event emission (``make_emitter`` and the event
-stubs) lives in ``run_events``, outside the report cluster.
+Runs after a run's drain: builds the report (``report.build``), screens it
+with the final safety gate, then persists it and emits the report/completed
+events, or blocks the run and records why. The package interface -- among
+it ``finalize_report`` -- is declared in ``app.report``; completion-email
+scheduling lives in ``report.notify``. Run-event emission (``make_emitter``
+and the event stubs) lives in ``run_events``, outside the report package.
 """
 
 from __future__ import annotations
@@ -22,30 +15,14 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.report_build import ReportRequest as ReportRequest
-from app.report_build import _BuiltReport as _BuiltReport
-from app.report_build import _ReportBuildArgs as _ReportBuildArgs
-from app.report_build import build_report_content as build_report_content
-from app.report_content import _agent_insights as _agent_insights
-from app.report_content import (
-    _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
+from app.report.build import (
+    ReportRequest,
+    _BuiltReport,
+    _ReportBuildArgs,
+    build_report_content,
 )
-from app.report_content import (
-    _empty_leaderboard_reason as _empty_leaderboard_reason,
-)
-from app.report_content import _idea_buckets as _idea_buckets
-from app.report_content import (
-    _knowledge_base_topics as _knowledge_base_topics,
-)
-from app.report_content import (
-    _synthesized_knowledge_base_topics as _synthesized_knowledge_base_topics,
-)
-from app.report_markdown import (
-    format_deep_verification_critique as format_deep_verification_critique,
-)
-from app.report_notify import (
-    _enqueue_completion_notification as _enqueue_completion_notification,
-)
+from app.report.gates import _empty_leaderboard_reason
+from app.report.notify import _enqueue_completion_notification
 from app.run_events import EmitFn
 from app.safety import (
     SafetyDecision,
@@ -254,8 +231,8 @@ def _commit_leased_report_publication(
 ) -> tuple[dict[str, str], int, dict[str, Any], int, dict[str, Any]]:
     """Atomically publish report state after validating the finalize lease."""
     # Function-local: engine_tasks_support imports engine_adapter, whose drain
-    # imports this module (format_deep_verification_critique), so a top-level
-    # import is a cycle whichever module loads first.
+    # imports ``app.report`` (format_deep_verification_critique), so a
+    # top-level import is a cycle whichever module loads first.
     from app.engine_tasks_support import _assert_task_commit_allowed
 
     with store.transaction(db_path) as conn:

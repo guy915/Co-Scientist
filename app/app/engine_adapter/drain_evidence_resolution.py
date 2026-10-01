@@ -19,7 +19,7 @@ publisher-declared ``publication_type`` -- the one signal that separates a
 preprint indexed in PubMed from the journal articles beside it -- and the
 evidence table does not store it. The publication *date* is the opposite
 case: ``evidence.year`` persists the datum itself, so its judgement is
-derived where it is read (``report_markdown_bibliography``) rather than
+derived where it is read (``report.markdown.bibliography``) rather than
 duplicated into a column.
 """
 

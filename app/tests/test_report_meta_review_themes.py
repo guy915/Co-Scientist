@@ -16,7 +16,7 @@ checkpointed before ``sub_themes`` existed still carries, and the
 bare-name ``emerging_themes`` fallback of a demo/seed report.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(meta_review: dict[str, object]) -> str:

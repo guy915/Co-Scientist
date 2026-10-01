@@ -143,7 +143,7 @@ async def test_offline_meta_review_fills_main_research_directions() -> None:
     ``main_research_directions`` is required (unlike the roadmap-step
     fields ``test_offline_optional_fields.py`` hints in), so the generic
     filler must already populate it via one leaf draw -- this is what lets
-    ``report_markdown_meta_review``'s renderer show a populated section on
+    ``report.markdown.meta_review``'s renderer show a populated section on
     every offline run, including every curated demo, with no
     ``_OPTIONAL_FIELD_HINTS`` entry needed.
     """

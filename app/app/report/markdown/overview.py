@@ -2,8 +2,7 @@
 
 Renders the engine's ``research_overview`` payload — the overview summary
 and research directions, the NIH Specific Aims section, and the research
-contacts — as markdown lines. Split from ``report_markdown`` by concern;
-every function here is pure.
+contacts — as markdown lines. Every function here is pure.
 """
 
 from __future__ import annotations
@@ -11,22 +10,15 @@ from __future__ import annotations
 from typing import Any
 
 # R14-6: the research-contacts renderers (flat and grouped-by-direction)
-# live in report_markdown_contact_groups -- split out to keep this module
+# live in report.markdown.contact_groups -- split out to keep this module
 # within the size cap, and a leaf relative to this one (it imports only
-# report_markdown_text, never this module) so the two never form a
-# cross-import cycle. The grouped renderer is re-exported so this module's
-# namespace keeps resolving.
-from app.report_markdown_contact_groups import (
-    _render_research_contacts_section as _render_research_contacts_section,
-)
+# report.markdown.text, never this module) so the two never form a
+# cross-import cycle.
+from app.report.markdown.contact_groups import _render_research_contacts_section
 
 # The malformed-field text coercion is a leaf module shared with
-# report_markdown_contact_groups (R14-6); both names are re-exported so
-# this module's namespace keeps resolving.
-from app.report_markdown_text import _readable_text as _readable_text
-from app.report_markdown_text import (
-    _readable_text_list as _readable_text_list,
-)
+# report.markdown.contact_groups (R14-6).
+from app.report.markdown.text import _readable_text, _readable_text_list
 
 
 def _render_optional_paragraph(text: str | None) -> list[str]:
@@ -171,7 +163,7 @@ def _render_unexpected_direction(direction: Any) -> str:
     Task B: a bolded name plus prose, matching MASH's own published
     ``Unexpected Research Directions`` bullets. Degrades a missing
     description to a bare title bullet, the same contract
-    ``_render_evaluation_criterion`` (report_markdown_supervisor.py)
+    ``_render_evaluation_criterion`` (report/markdown/supervisor.py)
     follows for a missing criterion description.
     """
     if not isinstance(direction, dict):
@@ -229,7 +221,7 @@ def _render_pattern_list(heading: str, items: Any) -> list[str]:
     """Render a heading and its bullet items, or nothing when empty.
 
     Local to this module rather than importing
-    ``report_markdown_meta_review._render_bullet_list``: that module
+    ``report.markdown.meta_review._render_bullet_list``: that module
     already imports from this one (``_render_optional_paragraph``), and
     importing back would be circular.
     """

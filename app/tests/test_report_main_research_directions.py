@@ -11,7 +11,7 @@ persisted before this field existed, or a provider that omits it under
 json_object mode.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(meta_review: dict[str, object] | None) -> str:

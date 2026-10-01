@@ -11,7 +11,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app import engine_adapter, report_render
+from app import engine_adapter
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from tests._client import drain as _drain
 
 
@@ -217,9 +219,9 @@ async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
 
     Returns the payload plus ``built.markdown``, the rendered Goal Report.
     """
-    built = await report_render.build_report_content(
+    built = await report_build.build_report_content(
         run.id,
-        report_render.ReportRequest(
+        report_build.ReportRequest(
             research_goal=run.research_goal,
             run_mode="standard",
             provider="engine",
@@ -249,9 +251,9 @@ def _persist_and_finalize(
         return {"type": type_, "payload": payload}
 
     _drain(
-        report_render.finalize_report(
+        report_finalize.finalize_report(
             run.id,
-            report_render.ReportRequest(
+            report_build.ReportRequest(
                 research_goal=run.research_goal,
                 run_mode="standard",
                 provider="engine",

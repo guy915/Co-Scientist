@@ -1,6 +1,6 @@
 """Report rendering of the meta-review's recurring-critique taxonomy (MO-2).
 
-Split out of ``report_markdown_meta_review`` when the taxonomy regained its
+Split out of ``report.markdown.meta_review`` when the taxonomy regained its
 nesting: that module was at 436 of the 500-line ceiling, and the "Emerging
 themes" section is the one part of it with no shared state.
 

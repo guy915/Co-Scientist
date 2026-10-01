@@ -11,7 +11,7 @@ store-aware wiring the engine drain runs (SSR §6, §7; RGV §4, §5):
    assessor provenance) to the ``claim_evidence`` graph.
 3. Run the publication gate and record its verdict. A *contradicted* claim
    withholds the hypothesis from the report (the contradiction gate in
-   ``report_content_gates``); a merely unsupported one does not, under the
+   ``report.gates``); a merely unsupported one does not, under the
    rank-and-publish policy -- the idea is published carrying an "Unverified"
    badge. This module records the verdict; it does not enforce it.
 
@@ -184,7 +184,7 @@ class GroundingResult:
 
     # Store ids of hypotheses that did not clear the publication gate.
     # Advisory: the report withholds only *contradicted* ideas (see
-    # report_content_gates.exclude_unsafe_hypotheses) and publishes merely
+    # report.gates.exclude_unsafe_hypotheses) and publishes merely
     # unsupported ones with an "Unverified" badge. Nothing reads this set but
     # the count, which the run's citation.grounding event reports.
     blocked_ids: frozenset[str]
@@ -301,7 +301,7 @@ def _has_supported_claim(
     """Whether any claim has a ``supports`` or ``partial`` verdict.
 
     The same rule the report's "Verified" count and "Unverified" badge use
-    (``report_content_gates._supported_hypothesis_ids``). The gate itself is
+    (``report.gates._supported_hypothesis_ids``). The gate itself is
     stricter -- it also fails a hypothesis that has support for some claims
     but not for a categorical one -- so a gate failure alone does not mean
     the idea is published unverified.
@@ -464,7 +464,7 @@ def _record_blocked_hypothesis(
     )
     # The quarantine line (logged by the caller) says what actually happens.
     # Under the rank-and-publish policy (see
-    # report_content_gates.unverified_hypothesis_ids) failing this gate does
+    # report.gates.unverified_hypothesis_ids) failing this gate does
     # not withhold an idea: only a *contradicted* claim does that. An
     # unsupported one is published, and it carries the "Unverified" badge only
     # when it has no supported claim at all. This line used to announce a

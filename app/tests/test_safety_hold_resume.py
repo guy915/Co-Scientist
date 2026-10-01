@@ -176,10 +176,10 @@ def test_final_hold_keeps_claimable_work_and_resumes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
     """A final-report hold parks finalization until a reviewer approves it."""
-    from app import report_render
+    from app.report import finalize as report_finalize
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", hold_until_approved("final")
+        report_finalize, "screen_with_escalation", hold_until_approved("final")
     )
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
@@ -243,10 +243,10 @@ def test_rejected_final_hold_blocks_the_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
     """Rejecting a held report blocks the run instead of releasing it."""
-    from app import report_render
+    from app.report import finalize as report_finalize
 
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", hold_until_approved("final")
+        report_finalize, "screen_with_escalation", hold_until_approved("final")
     )
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)

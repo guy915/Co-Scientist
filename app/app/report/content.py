@@ -1,11 +1,9 @@
-"""Report content derivation split out of ``report_render``.
+"""Report content derivation.
 
 Holds the pure data-shaping helpers the report builder composes: knowledge-
 base topic builders, agent-insight and idea-bucket derivation, and claim-
 evidence enrichment. The exclusion filters (contradicted/unverified/unsafe)
-live in ``report_content_gates`` and are re-exported here. The finalize path
--- ``build_report_content`` and ``finalize_report`` -- stays in
-``report_render``, which re-exports the names callers use from here.
+live in ``report.gates``.
 """
 
 from __future__ import annotations
@@ -15,24 +13,6 @@ from typing import Any
 
 from app.evidence_chunking import parent_evidence_id
 from app.hypothesis_safety import is_blocking_status
-from app.report_content_gates import (
-    _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
-)
-from app.report_content_gates import (
-    _empty_leaderboard_reason as _empty_leaderboard_reason,
-)
-from app.report_content_gates import (
-    _exclusion_tally as _exclusion_tally,
-)
-
-# Re-exported so ``app.report_content`` keeps this name it exposed before
-# the gates split; the redundant-alias form does not fit in 80 columns.
-from app.report_content_gates import (  # noqa: F401
-    _legacy_hypothesis_passes_safety_gate,
-)
-from app.report_content_gates import (
-    _verified_hypothesis_count as _verified_hypothesis_count,
-)
 from app.text_utils import (
     hypothesis_statement,
     hypothesis_title,

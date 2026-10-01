@@ -13,7 +13,8 @@ report's own section headings.
 
 from typing import Any
 
-from app import report_markdown
+from app.report import markdown as report_markdown
+from app.report.markdown import toc as report_markdown_toc
 
 
 def _markdown(**overrides: Any) -> str:
@@ -101,8 +102,8 @@ def test_table_of_contents_still_lists_the_lone_populated_section() -> None:
 
 def test_table_of_contents_omitted_with_nothing_to_navigate() -> None:
     """Zero populated sections renders no nav block at all, not an empty one."""
-    assert report_markdown._render_table_of_contents([]) == []
-    assert report_markdown._render_table_of_contents([[], [], []]) == []
+    assert report_markdown_toc._render_table_of_contents([]) == []
+    assert report_markdown_toc._render_table_of_contents([[], [], []]) == []
 
 
 def test_table_of_contents_ignores_a_bogus_heading_inside_body_prose() -> None:
@@ -119,7 +120,7 @@ def test_table_of_contents_ignores_a_bogus_heading_inside_body_prose() -> None:
         ["## Real heading", "", "some prose", "## Fake heading in the body"],
     ]
 
-    toc = report_markdown._render_table_of_contents(sections)
+    toc = report_markdown_toc._render_table_of_contents(sections)
 
     assert toc == ["#### Table of contents:", "", "- Real heading", ""]
     assert "Fake heading" not in "\n".join(toc)

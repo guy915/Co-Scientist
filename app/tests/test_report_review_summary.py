@@ -17,7 +17,7 @@ crashing, the legacy shape degrading to numbered names with no questions.
 
 from typing import Any
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(critical_criteria: list[Any] | None) -> str:

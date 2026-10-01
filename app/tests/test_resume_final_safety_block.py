@@ -7,14 +7,10 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, engine_tasks_node, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -121,7 +117,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
             reason="Final-stage policy blocked this report.",
         )
 
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={
             "idea_count": 1,
             "leaderboard": [
@@ -140,10 +136,10 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         engine_tasks_node, "_drain_and_persist_final_state", fake_drain
     )
     monkeypatch.setattr(
-        report_render, "build_report_content", fake_build_report
+        report_finalize, "build_report_content", fake_build_report
     )
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", block_final_report
+        report_finalize, "screen_with_escalation", block_final_report
     )
 
     assert await task_worker.run_once(

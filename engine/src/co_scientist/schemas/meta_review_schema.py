@@ -45,7 +45,7 @@ from co_scientist.schemas.builders import obj, str_array
 # *this* run's subject matter, and each idea/row's `values` rates it on
 # those same axes positionally (values[i] answers axes[i]) rather than
 # against a fixed vocabulary -- so the table's shape follows the goal, not
-# the schema. `report_markdown_meta_review.py` on the app side still
+# the schema. `report/markdown/meta_review.py` on the app side still
 # renders the older fixed-field shape a run persisted before this existed;
 # see its module docstring for that fallback.
 _MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
@@ -352,8 +352,8 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
             # report (top-ranking-hypotheses.md:24-28) carries exactly two
             # paragraphs, cross-cutting the run's candidate ideas the way
             # the two comparison fields above already do -- see
-            # report_markdown_meta_review.py for the render and its
-            # placement (report_markdown_documents.py), immediately before
+            # report/markdown/meta_review.py for the render and its
+            # placement (report/markdown/documents.py), immediately before
             # Top hypotheses, matching the published "before Candidate
             # Ideas" order. Required, like meta_review_summary, rather than
             # optional: every run has directions worth naming, so there is

@@ -9,9 +9,9 @@ against zero words on our side. Nothing here calls a model: the three
 renderers read the ``detail_json`` the drain already writes
 (``engine_adapter/drain_review_detail.py``).
 
-Homed apart from ``report_markdown_hypothesis`` because that module is
+Homed apart from ``report.markdown.hypothesis`` because that module is
 the per-entry assembly point and was already near the size ceiling;
-``report_markdown_hypothesis`` imports its names.
+``report.markdown.hypothesis`` imports its names.
 
 Two conventions this file keeps:
 
@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.report_markdown_review_axes import (
+from app.report.markdown.review_axes import (
     Reference,
     feasibility_extras,
     impact_extras,
@@ -97,7 +97,7 @@ def _mature_detail(reviews: list[dict[str, Any]]) -> dict[str, Any]:
     """The freshest of the two reviews sharing the full-review schema.
 
     A recurrent review supersedes an earlier full review, matching
-    ``report_markdown_hypothesis._render_hypothesis_verdict``'s own
+    ``report.markdown.hypothesis._render_hypothesis_verdict``'s own
     precedence for the Go/No-Go framing drained from the same rows.
     """
     return _latest_detail(reviews, "recurrent_review") or _latest_detail(
@@ -221,7 +221,7 @@ _AXIS_EXTRAS = {
 # of the 19 published files use -- the same abstract repeated under all
 # four axes would quadruple the longest block in the entry and tell a
 # reader nothing new. Sourced from the hypothesis's own citations, never
-# from the model (see ``report_markdown_review_axes``).
+# from the model (see ``report.markdown.review_axes``).
 _AXIS_ARTICLES = {
     "scientific_soundness": related_article_abstracts,
     "novelty": related_article_titles,

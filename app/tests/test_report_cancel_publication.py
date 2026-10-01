@@ -10,14 +10,10 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    report_render,
-    store,
-    task_worker,
-)
+from app import engine_tasks, engine_tasks_node, store, task_worker
 from app.config import settings
+from app.report import build as report_build
+from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -131,7 +127,7 @@ def _install_report_stubs(
     hypothesis_id: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Supply fixed report content and an allowing final safety verdict."""
-    built = report_render._BuiltReport(
+    built = report_build._BuiltReport(
         payload={
             "research_goal": "Study cancellation at report publication",
             "leaderboard": [{"id": hypothesis_id, "title": "IL-6 feedback"}],
@@ -157,10 +153,10 @@ def _install_report_stubs(
         return SafetyDecision(stage="final", decision="allow")
 
     monkeypatch.setattr(
-        report_render, "build_report_content", fake_build_report
+        report_finalize, "build_report_content", fake_build_report
     )
     monkeypatch.setattr(
-        report_render, "screen_with_escalation", allow_final_screen
+        report_finalize, "screen_with_escalation", allow_final_screen
     )
 
 
@@ -170,7 +166,7 @@ def _install_cancel_before_publication(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
     """Cancel after final safety commits and before report publication."""
-    gate_readiness_and_publish = report_render._gate_readiness_and_publish
+    gate_readiness_and_publish = report_finalize._gate_readiness_and_publish
     cancel_responses: list[dict[str, Any]] = []
 
     async def cancel_before_publication(*args: Any, **kwargs: Any) -> Any:
@@ -181,7 +177,9 @@ def _install_cancel_before_publication(
             yield event
 
     monkeypatch.setattr(
-        report_render, "_gate_readiness_and_publish", cancel_before_publication
+        report_finalize,
+        "_gate_readiness_and_publish",
+        cancel_before_publication,
     )
     return cancel_responses
 

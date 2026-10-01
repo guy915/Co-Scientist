@@ -11,7 +11,8 @@ checked result is actually present. Silently falling back to definitive
 novelty language when verification did not run is the defect this pins.
 """
 
-from app import report_content, report_markdown
+from app.report import content as report_content
+from app.report import markdown as report_markdown
 
 
 def _hypothesis(

@@ -322,7 +322,7 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
     from co_scientist.schemas.review import _SCORE_CRITERIA
 
     from app.engine_adapter.drain_review_detail import _REVIEW_AXES
-    from app.report_markdown_review_block import _AXIS_SECTIONS
+    from app.report.markdown.review_block import _AXIS_SECTIONS
 
     assert _REVIEW_AXES == _SCORE_CRITERIA
     assert [axis for axis, _ in _AXIS_SECTIONS] == list(_SCORE_CRITERIA)

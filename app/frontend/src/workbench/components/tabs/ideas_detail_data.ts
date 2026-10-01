@@ -224,7 +224,7 @@ export function reviewCritiqueText(review: Review): string {
 // A review row's structured findings (R14-15/R14-22), parsed out of
 // `detail_json`: the simulation review's named failure points and decisive
 // step, or the full/recurrent review's Go/No-Go verdict framing. Mirrors
-// report_markdown_hypothesis._review_detail's tolerance on the Python side
+// report.markdown.hypothesis._review_detail's tolerance on the Python side
 // -- production serves this column from a json_object-mode response with no
 // schema enforcement, so every field is coerced through the same readable-
 // text helpers the research-overview fields use rather than trusted as typed.

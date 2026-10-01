@@ -9,8 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from app import store
 from app.auth import client_id
 from app.evidence_chunking import parent_evidence_id
-from app.report_content import released_claim_evidence
-from app.report_content_gates import exclude_unsafe_hypotheses
+from app.report import exclude_unsafe_hypotheses, released_claim_evidence
 
 router = APIRouter(tags=["shares"])
 

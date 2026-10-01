@@ -8,7 +8,7 @@ flattened into readable text rather than leaking raw JSON into the report.
 
 from typing import Any
 
-from app.report_markdown_overview import render_research_overview_markdown
+from app.report.markdown.overview import render_research_overview_markdown
 
 
 def _markdown(payload: dict[str, Any]) -> str:

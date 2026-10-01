@@ -9,7 +9,7 @@ reuses an English word Google's published documents also use for a
 *different*, user-authored field -- ``config_synthesis.attributes`` vs.
 the run's user-authored setup attributes, and ``workflow_plan.review_phase.
 critical_criteria`` vs. the run's user-authored setup criteria (both
-rendered under "Research Goal Details" in ``report_markdown_header.py``).
+rendered under "Research Goal Details" in ``report/markdown/header.py``).
 Reusing either heading here would present the model's synthesis as the
 user's own setup, so every renderer below picks a heading distinct from
 its user-authored namesake.
@@ -36,9 +36,6 @@ three shapes, or a malformed one -- every renderer below handles all of
 them, degrading a missing description to the older bare-name bullet and a
 malformed field (not a list, or an unnamed entry) to rendering nothing.
 
-Split out of ``report_markdown`` to keep that module within the size cap;
-the names callers use are re-exported so its namespace keeps resolving.
-
 Display only, in every case: never used to gate, filter, rank, or
 disqualify a hypothesis.
 """
@@ -61,7 +58,7 @@ def _render_stratification_attributes_markdown(
 
     Deliberately not titled "Attributes" -- that heading already names the
     run's user-authored setup attributes rendered under
-    "Research Goal Details" (``report_markdown_header.py``). Google's own
+    "Research Goal Details" (``report/markdown/header.py``). Google's own
     published documents use the same word for both a bare list and a
     name-plus-rubric section; reusing it here would conflate the two.
     """
@@ -164,7 +161,7 @@ def _render_evaluation_criteria_markdown(
     Titled to match Google's own published section name ("Evaluation
     Criteria"), and deliberately not "Criteria" -- that heading already
     names the run's user-authored setup criteria rendered under
-    "Research Goal Details" (``report_markdown_header.py``).
+    "Research Goal Details" (``report/markdown/header.py``).
 
     R12-23b: Google's published section is not a flat name list -- each
     criterion is a bolded name plus a prose paragraph stating what it

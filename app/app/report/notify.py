@@ -1,7 +1,6 @@
 """Completion-email scheduling for a released Goal Report.
 
-Split from ``app.report_render``, which re-exports the names callers use so
-they keep a single import surface. Kept separate because deciding whether a
+Kept separate from ``report.finalize`` because deciding whether a
 scientist gets mailed is a distinct concern from building, gating, and
 publishing the report itself -- and the only part of that pipeline that
 depends on the SMTP configuration.

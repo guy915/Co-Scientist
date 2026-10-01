@@ -6,9 +6,9 @@ template. Correctness is the richest at 7-8 parts, Feasibility the
 leanest at 3. Ours had the axis *ordering* already; what a reader never
 saw was any sub-structure below Correctness and Novelty.
 
-Homed apart from ``report_markdown_review_block`` because that module is
+Homed apart from ``report.markdown.review_block`` because that module is
 the per-idea assembly point and was already two thirds of the way to the
-size ceiling; ``report_markdown_review_block`` imports the two halves.
+size ceiling; ``report.markdown.review_block`` imports the two halves.
 
 Two conventions this file keeps, both learned elsewhere in this repo:
 
@@ -22,7 +22,7 @@ Two conventions this file keeps, both learned elsewhere in this repo:
 * **Omit rather than print an empty heading** (R14-23), the same as
   every other block in the review surface.
 
-An article's display label is ``report_markdown_references``'s own
+An article's display label is ``report.markdown.references``'s own
 ``_reference_label``, not a second one: the entry's References section
 and these per-axis lists name the same source from the same row, and two
 label builders would eventually disagree about the same paper in one
@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.report_markdown_references import _reference_label
+from app.report.markdown.references import _reference_label
 
 # How many cited articles one axis lists. The published exemplars print
 # two to five; the cap is what keeps a heavily-cited idea from turning

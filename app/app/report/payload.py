@@ -1,40 +1,18 @@
-"""Report content builders: payload assembly and markdown rendering.
+"""Goal Report payload: the JSON the frontend reads, and the critique text.
 
-Homed separately from ``engine_adapter`` so the report payload and its
-rendered markdown have one implementation, matching the persisted report and
-the frontend ``ReportPayload`` type it reads. Every function here is pure: it
-depends only on the data passed in, never on the store or the safety gate.
+Homed separately from ``engine_adapter`` so the report payload has one
+implementation, matching the persisted report and the frontend
+``ReportPayload`` type it reads (the rendered markdown lives in
+``report.markdown``). Every function here is pure: it depends only on the
+data passed in, never on the store or the safety gate.
+``format_deep_verification_critique`` is the formatter the final-state drain
+uses to persist deep-verification probes as a review.
 """
 
 from __future__ import annotations
 
 import dataclasses
 from typing import Any
-
-# The document assembler and the input bundle it renders from live in
-# their own module to keep this one within the size cap; both are
-# re-exported so this module's namespace keeps resolving.
-from app.report_markdown_documents import (
-    ReportMarkdownInputs as ReportMarkdownInputs,
-)
-from app.report_markdown_documents import (
-    render_report_markdown as render_report_markdown,
-)
-
-# The per-hypothesis 'Top hypotheses' entry renderer (and its exclusive
-# claim-evidence helpers) moved to its own module to keep this one within
-# both the line-count and mccabe-complexity caps; the entry renderer is
-# re-exported so this module's namespace keeps resolving.
-from app.report_markdown_hypothesis import (
-    _render_hypothesis_entry as _render_hypothesis_entry,
-)
-
-# The table-of-contents renderer (R14-1) lives in its own module to keep
-# this one within the size cap; the name is re-exported so this module's
-# namespace keeps resolving.
-from app.report_markdown_toc import (
-    _render_table_of_contents as _render_table_of_contents,
-)
 
 
 def _append_if(lines: list[str], label: str, value: str) -> None:
@@ -88,7 +66,7 @@ class ReportPayloadInputs:
 
     One bundle rather than fifteen parameters: the run's identity, its row
     counts, and each synthesized section travel together from the store
-    reads in ``report_render`` all the way into the persisted payload.
+    reads in ``report.finalize`` all the way into the persisted payload.
     """
 
     research_goal: str

@@ -46,7 +46,7 @@ _MAX_DEBATES: Final = 5
 """Debates rendered, deepest first.
 
 Five, because the report body itself publishes the top five ideas
-(``report_build``): a debate below that depth is between ideas the reader
+(``report.build``): a debate below that depth is between ideas the reader
 never meets in full.
 """
 

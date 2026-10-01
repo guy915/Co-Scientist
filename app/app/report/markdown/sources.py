@@ -1,7 +1,6 @@
 """Report section naming the data sources a run actually consulted.
 
-Split out of ``report_markdown`` to keep that module within the size
-cap. Two independent facts feed one "## Data sources" heading: the
+Two independent facts feed one "## Data sources" heading: the
 science skills the run invoked (``skills_used``, an attribution the
 harness owes -- see the docstring on ``_render_data_source_notice``),
 and the literature searches the deep-research capability made

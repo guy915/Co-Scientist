@@ -11,7 +11,8 @@ generator; None (offline/keyless runs, legacy rows) omits the paragraph.
 
 from __future__ import annotations
 
-from app import report_markdown, store
+from app import store
+from app.report import markdown as report_markdown
 
 
 def _hypothesis() -> dict[str, object]:

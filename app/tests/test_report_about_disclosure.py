@@ -12,8 +12,8 @@ of the same wording (R14-13), unconditionally on every report.
 
 from collections.abc import Callable
 
-from app import report_markdown
-from app.report_markdown_hypothesis import _HYPOTHESIS_DISCLAIMER
+from app.report import markdown as report_markdown
+from app.report.markdown.hypothesis import _HYPOTHESIS_DISCLAIMER
 
 _DocumentFn = Callable[[report_markdown.ReportMarkdownInputs], str]
 

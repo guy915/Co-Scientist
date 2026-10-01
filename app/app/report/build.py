@@ -1,11 +1,9 @@
-"""Report content gathering and assembly, split out of ``report_render``.
+"""Report content gathering and assembly.
 
 Holds the "build" half of report finalization -- loading a run's store
 data and shaping it into the payload/markdown pair -- kept separate from
-the "publish" half (the safety gate, persistence, and event emission) so
-each stays independently sized and testable. The names callers use are
-re-exported from ``app.report_render``, which remains their import and
-monkeypatch surface.
+the "publish" half in ``report.finalize`` (the safety gate, persistence,
+and event emission) so each stays independently sized and testable.
 """
 
 from __future__ import annotations
@@ -15,23 +13,21 @@ from typing import Any, NamedTuple
 from app import store
 from app.elo import live_leaderboard, rank_for_publication
 from app.knowledge_facts import derive_knowledge_facts
-from app.report_content import (
+from app.report.content import (
     _agent_insights,
-    _contradicted_hypothesis_ids,
-    _exclusion_tally,
     _idea_buckets,
     _knowledge_base_topics,
     _synthesized_knowledge_base_topics,
-    _verified_hypothesis_count,
     released_claim_evidence,
 )
-from app.report_content_gates import exclude_unsafe_hypotheses
-from app.report_markdown import (
-    ReportMarkdownInputs,
-    ReportPayloadInputs,
-    build_report_payload,
-    render_report_markdown,
+from app.report.gates import (
+    _contradicted_hypothesis_ids,
+    _exclusion_tally,
+    _verified_hypothesis_count,
+    exclude_unsafe_hypotheses,
 )
+from app.report.markdown import ReportMarkdownInputs, render_report_markdown
+from app.report.payload import ReportPayloadInputs, build_report_payload
 
 
 class ReportRequest(NamedTuple):
@@ -70,13 +66,13 @@ class ReportRequest(NamedTuple):
             attributes (``config_synthesis.attributes``), rendered as the
             report's "Stratification Attributes" section -- a different,
             LLM-synthesized field from ``setup["attributes"]`` above (see
-            ``report_markdown``'s vocabulary warning).
+            ``report.markdown.supervisor``'s vocabulary warning).
         critical_criteria: The Supervisor's synthesized per-goal evaluation
             criteria (``workflow_plan.review_phase.critical_criteria``),
             rendered as both the report's flat "Evaluation Criteria" list
             and its "Review Summary" rubric section -- a different,
             LLM-synthesized field from ``setup["criteria"]`` above (see
-            ``report_markdown``'s vocabulary warning). Each entry is
+            ``report.markdown.supervisor``'s vocabulary warning). Each entry is
             either a legacy bare name (a run persisted before R12-23) or a
             ``{name, questions}`` object; both renderers handle either
             shape.
@@ -155,11 +151,12 @@ class _BuiltReport(NamedTuple):
         markdown: The rendered Goal Report markdown document.
         facts: Durable knowledge-base rows derived from this run's claim-
             evidence graph (audit G14), persisted once the report actually
-            publishes; see ``report_render._publish_report``.
+            publishes; see ``report.finalize._publish_report``.
         exclusion_tally: Why each non-published hypothesis left the ranked
             report (see ``_ReportData.exclusion_tally``), kept off the JSON
             payload since it exists only to compose the empty-leaderboard
-            block reason -- see ``report_render._block_for_empty_leaderboard``.
+            block reason -- see
+            ``report.finalize._block_for_empty_leaderboard``.
     """
 
     payload: dict[str, Any]

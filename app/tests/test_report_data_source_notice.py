@@ -13,7 +13,7 @@ entirely from a run that queried none.
 
 from typing import Any
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(skills_used: dict[str, int] | None) -> str:

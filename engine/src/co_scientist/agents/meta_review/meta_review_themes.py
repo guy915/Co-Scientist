@@ -11,7 +11,7 @@ model can return a bare string where an object is declared, a string where an
 array is, or an integer where a string is. Nothing is dropped for being the
 wrong shape -- an entry that does not parse as a taxonomy node keeps its own
 text and loses only the structure it never had. The uniform shape this returns
-is a cross-module contract: ``report_markdown_meta_review`` on the app side
+is a cross-module contract: ``report.markdown.meta_review`` on the app side
 renders it, and a checkpoint written before ``sub_themes`` existed still reaches
 that renderer unnormalized, so both sides read every nested field with a default
 rather than by indexing.

@@ -15,9 +15,6 @@ established for it: the R14-27 narrative directions synthesis immediately
 before the full hypothesis write-up (its own published "before Candidate
 Ideas" placement), the meta-review's tournament-facing half after that
 write-up, and the run-wide References list last.
-
-Split out of ``report_markdown`` to keep that module within the size cap;
-the names callers use are re-exported so its namespace keeps resolving.
 """
 
 from __future__ import annotations
@@ -25,36 +22,34 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
-from app.report_markdown_bibliography import _render_references_section
-from app.report_markdown_header import (
+from app.report.markdown.bibliography import _render_references_section
+from app.report.markdown.header import (
     _render_about_disclosure,
     _render_provenance_line,
     _render_research_goal_details,
     _render_summary_section,
     _render_title_and_provider,
 )
-from app.report_markdown_hypothesis import (
+from app.report.markdown.hypothesis import (
     _render_hypothesis_entry,
     _reviews_by_hypothesis,
 )
-from app.report_markdown_knowledge_base import _render_knowledge_base_markdown
-from app.report_markdown_meta_review import (
+from app.report.markdown.knowledge_base import _render_knowledge_base_markdown
+from app.report.markdown.meta_review import (
     _render_main_research_directions_markdown,
     _render_meta_review_overview_markdown,
     _render_meta_review_ranking_markdown,
 )
-from app.report_markdown_overview import research_overview_sections
-from app.report_markdown_references import references_by_hypothesis
-from app.report_markdown_sources import _render_data_sources_section
-from app.report_markdown_supervisor import (
+from app.report.markdown.overview import research_overview_sections
+from app.report.markdown.references import references_by_hypothesis
+from app.report.markdown.sources import _render_data_sources_section
+from app.report.markdown.supervisor import (
     _render_evaluation_criteria_markdown,
     _render_review_summary_markdown,
     _render_stratification_attributes_markdown,
 )
-from app.report_markdown_toc import _render_table_of_contents
-from app.report_markdown_tournament import (
-    _render_tournament_debates_markdown,
-)
+from app.report.markdown.toc import _render_table_of_contents
+from app.report.markdown.tournament import _render_tournament_debates_markdown
 
 
 def _claim_evidence_by_hypothesis(
@@ -176,7 +171,7 @@ def _render_citation_audit(
 class ReportMarkdownInputs:
     """Everything the report markdown document renders from.
 
-    The prose counterpart of ``report_markdown.ReportPayloadInputs``: the
+    The prose counterpart of ``report.payload.ReportPayloadInputs``: the
     same run identity plus the already-ranked hypotheses and the sections
     that have a rendered form.
     """
@@ -214,19 +209,19 @@ class ReportMarkdownInputs:
     # not conflate them under one heading. Each entry is the legacy bare
     # criterion-name string, the R12-23 {name, questions} object, or the
     # richer R12-23b {name, description, questions} object; both
-    # renderers in report_markdown_supervisor.py handle every shape.
+    # renderers in report/markdown/supervisor.py handle every shape.
     critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
     # rather than stating a date via the wall clock -- see
-    # report_markdown_header._render_provenance_line.
+    # report.markdown.header._render_provenance_line.
     prepared_at: float | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
     retrieval_calls: list[dict[str, Any]] | None = None
     # Raw citations/evidence rows (store.list_citations / list_evidence),
-    # joined per hypothesis by report_markdown_references to resolve the
+    # joined per hypothesis by report.markdown.references to resolve the
     # [C*] keys the mechanism text cites. None (an old run rendered before
     # this field existed, or a run with no citation data at all) resolves
     # no keys -- the report never fabricates a reference.
@@ -234,12 +229,12 @@ class ReportMarkdownInputs:
     evidence: list[dict[str, Any]] | None = None
     # Every review row the drain persisted (store.list_reviews), joined per
     # hypothesis for the Go/No-Go framing and simulation-review subsections
-    # (R14-15/R14-22, report_markdown_hypothesis.py). None omits both.
+    # (R14-15/R14-22, report/markdown/hypothesis.py). None omits both.
     reviews: list[dict[str, Any]] | None = None
     # This run's hypothesis titles by id, for a contact group's example
-    # hypotheses (R14-6) -- see report_build._hypothesis_title_by_id. Also
+    # hypotheses (R14-6) -- see report.build._hypothesis_title_by_id. Also
     # the published-pool gate the tournament section renders behind (see
-    # report_markdown_tournament).
+    # report.markdown.tournament).
     hypothesis_title_by_id: dict[str, str] | None = None
     # Every tournament match row the drain persisted
     # (store.list_matches), rendered as "Tournament debates" from the
@@ -319,7 +314,7 @@ def _report_sections_ideas_and_sources(
         ),
         _render_citation_audit(inputs.citation_summary),
         # R12-12: the run-wide bibliography, deduplicated -- see
-        # report_markdown_bibliography.py for placement and dedup
+        # report/markdown/bibliography.py for placement and dedup
         # rationale. Sits last, matching the published MASH report's own
         # References span running to the end of the document.
         _render_references_section(inputs.evidence or []),

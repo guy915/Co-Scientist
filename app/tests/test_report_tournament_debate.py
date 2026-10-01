@@ -8,7 +8,7 @@ reader asserted rather than argued. The turns are now persisted on the
 match row (``matches.debate_transcript``) and rendered here.
 
 The section is deliberately bounded -- see the caps in
-``report_markdown_tournament`` -- because a run judges every pairing while
+``report.markdown.tournament`` -- because a run judges every pairing while
 Google publishes one exemplar, and an uncapped transcript dump would be a
 larger document than the report it sits in.
 """
@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 _TITLES = {"h1": "SGLT2 inhibition in fibroblasts", "h2": "NHE1 screening"}
 

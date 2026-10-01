@@ -41,14 +41,14 @@ function VerdictLines({detail}: {detail: ReviewDetail}) {
 }
 
 // The simulation review's numbered failure points and decisive step
-// (R14-22), matching report_markdown_hypothesis's bolded/numbered shape.
+// (R14-22), matching report.markdown.hypothesis's bolded/numbered shape.
 // The reviewer heading above this block already reads "Simulation review"
 // (reviewerLabel), mirroring the markdown's own `#### Simulation review` --
 // no second heading is needed here.
 //
 // This is the one reviewer type whose critique text already carries the
 // same failure-point/decisive-step lines, flattened into that row's prose
-// (report_markdown_hypothesis's critique formatter joins them with the
+// (report.markdown.hypothesis's critique formatter joins them with the
 // row's "Simulated model"/step/robustness lines). The critique stays
 // unedited below rather than having those lines stripped out of it: doing
 // so would couple this component to that prose's exact label format, which

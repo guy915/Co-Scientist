@@ -12,7 +12,7 @@ one and the rest render as a numbered roadmap, matching what the data
 actually carries.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(meta_review: dict[str, object]) -> str:

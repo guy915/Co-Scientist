@@ -175,7 +175,7 @@ def _format_critical_criterion(criterion: Any) -> list[str]:
 
     R12-23b adds a third field, ``description`` (a prose paragraph for
     the report's own "Evaluation Criteria" section --
-    ``report_markdown_supervisor.py``), and it is deliberately NOT read
+    ``report/markdown/supervisor.py``), and it is deliberately NOT read
     here. This function runs per hypothesis, per review; the description
     states the same substance the questions already express
     operationally, so injecting it would roughly double this per-

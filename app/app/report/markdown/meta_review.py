@@ -1,13 +1,12 @@
 """Report section rendering the meta-review's cross-hypothesis synthesis.
 
-Split out of ``report_markdown`` to keep that module within the size cap.
 Renders two sections of the single Goal Report document (the R14-11
 two-document split was reversed 2026-09-04 -- see docs/PARITY.md's
 REPORT-DOCUMENT-SPLIT-001 row): ``_render_meta_review_overview_markdown``
 ("## Meta-review insights", positioned before the research-overview
 sub-sections) covers common strengths and weaknesses as plain bullets,
 recurring themes (the nested MO-2 critique taxonomy, rendered three
-levels deep by ``report_markdown_meta_themes`` and falling back to a
+levels deep by ``report.markdown.meta_themes`` and falling back to a
 bare-name bullet list when only the flattened ``emerging_themes`` shape is
 present), and unexpected connections (R12-7);
 ``_render_meta_review_ranking_markdown`` ("## Comparison and
@@ -32,8 +31,8 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
-from app.report_markdown_meta_themes import render_emerging_themes
-from app.report_markdown_overview import _render_optional_paragraph
+from app.report.markdown.meta_themes import render_emerging_themes
+from app.report.markdown.overview import _render_optional_paragraph
 
 
 class _RecommendationFields(NamedTuple):
@@ -314,7 +313,7 @@ def _render_main_research_directions_markdown(
     here -- two flowing prose paragraphs weaving the run's directions
     together (``top-ranking-hypotheses.md:24-28``), distinct from the
     itemized per-direction array the earlier research-overview sub-sections
-    render (``report_markdown_overview.py::_render_directions_list``). The
+    render (``report/markdown/overview.py::_render_directions_list``). The
     ``meta_review.main_research_directions`` string already carries any
     internal paragraph break the model wrote (schemas/meta_review_schema.py
     asks for two, separated by a blank line), so this renders it verbatim

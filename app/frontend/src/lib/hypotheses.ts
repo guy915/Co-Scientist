@@ -4,7 +4,7 @@ import type {Hypothesis} from '@/api/runs';
  * Statuses whose ideas the run withdrew and does not present as results.
  *
  * Mirrors the report's own exclusion set (``EXCLUDED_HYPOTHESIS_STATUSES``
- * in ``app/report_content_gates.py``): "duplicate" means proximity folded
+ * in ``app/report/gates.py``): "duplicate" means proximity folded
  * the idea into a higher-ranked one making the same proposal, and "rejected"
  * means the reviews ruled it out on the merits. Neither is a result.
  */

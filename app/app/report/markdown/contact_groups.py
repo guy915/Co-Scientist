@@ -13,18 +13,17 @@ direction matches no group -- an old report, or a response that never
 populated ``research_contact_groups`` -- renders exactly as MO-7's flat
 shape always has, via ``_render_contact_entry``'s defaults.
 
-Split out of ``report_markdown_overview`` to keep that module within the
-size cap. Imports only the leaf ``report_markdown_text`` module, never
-``report_markdown_overview`` itself, so the two never form a cross-import
-cycle; ``report_markdown_overview`` re-exports the one public name it
-still uses so its own namespace keeps resolving.
+Split out of ``report.markdown.overview`` to keep that module within the
+size cap. Imports only the leaf ``report.markdown.text`` module, never
+``report.markdown.overview`` itself, so the two never form a cross-import
+cycle; ``report.markdown.overview`` imports the grouped renderer from here.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.report_markdown_text import _readable_text
+from app.report.markdown.text import _readable_text
 
 
 def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:

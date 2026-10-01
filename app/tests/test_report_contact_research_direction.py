@@ -10,7 +10,7 @@ this pins that the renderer surfaces it, and degrades cleanly for a report
 persisted before the field existed.
 """
 
-from app.report_markdown_overview import render_research_overview_markdown
+from app.report.markdown.overview import render_research_overview_markdown
 
 
 def _markdown(contacts: list[dict[str, object]]) -> str:

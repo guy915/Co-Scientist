@@ -15,7 +15,7 @@ the published section name rather than inventing novelty/relevance verdicts
 that were never judged.
 """
 
-from app import report_markdown
+from app.report import markdown as report_markdown
 
 
 def _markdown(meta_review: dict[str, object]) -> str:

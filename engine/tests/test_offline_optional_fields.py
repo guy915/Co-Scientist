@@ -67,7 +67,7 @@ async def test_offline_meta_review_fills_the_roadmap_step_fields() -> None:
     ``time_estimate``/``phase_label``/``recommended_idea`` are optional in
     ``META_REVIEW_SCHEMA``'s ``strategic_recommendations[]`` items, so they
     used to be absent from every offline response --
-    ``report_markdown_meta_review._render_recommendation`` never printed
+    ``report.markdown.meta_review._render_recommendation`` never printed
     the phase prefix, time-estimate suffix, or "Recommended idea:" line on
     an offline run.
     """
