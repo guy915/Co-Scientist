@@ -1,0 +1,23 @@
+{
+  "name": "open-co-scientist-launch-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "node scripts/render.mjs"
+  },
+  "dependencies": {
+    "@fontsource/google-sans": "^5.3.1",
+    "@fontsource/google-sans-code": "^5.3.1",
+    "@remotion/cli": "^4.0.531",
+    "@remotion/fonts": "^4.0.531",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.531"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "playwright": "1.57",
+    "typescript": "^7.0.2"
+  }
+}
