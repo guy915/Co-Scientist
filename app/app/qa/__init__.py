@@ -2,7 +2,7 @@
 
 The run-lifecycle router (``app.runs``) owns HTTP concerns; this module owns the
 Q&A domain logic it delegates to: building the numbered, citation-ranked
-evidence manifest (using the four-state citation model in ``citations.py``),
+evidence manifest (using the four-state citation model in ``app.citations``),
 assembling the system prompt from the run's hypotheses/reviews/matches, and
 streaming the LLM answer while persisting the exchange. The manifest and
 prompt-assembly half lives in ``app.qa.manifest`` and is re-exported here so

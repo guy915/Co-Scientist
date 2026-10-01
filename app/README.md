@@ -15,7 +15,7 @@ app/
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
 │   ├── report/            Goal Report package: payload, markdown, release gate, finalize path
 │   ├── run_events.py      Run-event emission (make_emitter) for engine tasks and the adapter
-│   ├── claims/ (gate, grounding, verifier), citations.py   Citation-grounding pipeline
+│   ├── claims/ (gate, grounding, verifier), citations/   Citation-grounding pipeline
 │   ├── safety/, hypothesis/safety.py, hypothesis/screening.py   Intake/final gates + per-hypothesis policy
 │   ├── qa/, human_input.py    Q&A and scientist-in-the-loop steering
 │   ├── elo.py      Elo rating utilities

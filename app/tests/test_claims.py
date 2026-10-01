@@ -14,7 +14,7 @@ split off when this file passed the module-size budget.
 
 from __future__ import annotations
 
-from app.citation_metadata import (
+from app.citations.metadata import (
     CitationMetadata,
     Resolvability,
     assess_resolvability,

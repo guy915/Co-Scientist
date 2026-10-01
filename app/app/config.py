@@ -236,7 +236,7 @@ class Settings(BaseSettings):
 
     # Evidence-identity availability check for the engine drain: "live"
     # dereferences each article's DOI/PMID against the real web
-    # (app/citation_resolver.py); anything else falls back to the offline
+    # (app/citations/resolver.py); anything else falls back to the offline
     # metadata heuristic (a non-empty identifier and no retraction flag).
     # Offline tests explicitly select the fallback; production runs default
     # to a live dereference.

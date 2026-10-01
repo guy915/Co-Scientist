@@ -210,7 +210,7 @@ def test_build_article_carries_the_declared_publication_type() -> None:
     Only the singular key was read, and no source sends it, so the field
     was always None -- discarding the one signal that separates a preprint
     PubMed indexes from the journal articles beside it (the app classifies
-    a citation's source type from it; see ``app/citation_metadata.py``).
+    a citation's source type from it; see ``app/citations/metadata.py``).
     """
     preprint = helpers.build_article_from_metadata(
         "PMID44", {"publication_types": ["Preprint"]}

@@ -42,7 +42,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |                    engine's ranking agent                          |
 |   safety/        — intake + final gate: deterministic rules first, |
 |                    then an optional contextual model assessment    |
-|   citations.py   — verified|partial|unsupported|unavailable        |
+|   citations/     — verified|partial|unsupported|unavailable        |
 +------------------------------+-------------------------------------+
                                |
                                v

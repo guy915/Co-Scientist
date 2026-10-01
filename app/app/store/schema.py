@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS evidence (
     extraction_tool TEXT,
     doi TEXT,                        -- canonical DOI, when the source has one
     pmid TEXT,                       -- canonical PubMed id, when applicable
-    -- What kind of source this is (app/citation_metadata.py's SourceType):
+    -- What kind of source this is (app/citations/metadata.py's SourceType):
     -- 'peer_reviewed' | 'preprint' | 'database' | 'web' | 'document' |
     -- 'unknown'. Reported, never gated on.
     source_type TEXT,
@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS evidence (
 CREATE INDEX IF NOT EXISTS idx_ev_run ON evidence(run_id);
 
 -- Links one hypothesis claim to one supporting evidence row, classified by
--- the four-state citation model in app/citations.py (verified/partial/
+-- the four-state citation model in app/citations/ (verified/partial/
 -- unsupported/unavailable).
 CREATE TABLE IF NOT EXISTS citations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

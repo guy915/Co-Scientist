@@ -8,7 +8,7 @@ are involved, so no mocking is required.
 
 Note: the four-state citation classifier the UI surfaces
 (verified/partial/unsupported/unavailable) lives in the *app* package
-(``app/app/citations.py``), not in the engine, and is covered by the app's own
+(``app/app/citations/``), not in the engine, and is covered by the app's own
 test suite. The engine's citation module is concerned solely with parsing
 ``[C*]`` keys and building the reference index, which is what these tests cover.
 """

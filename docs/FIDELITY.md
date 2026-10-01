@@ -66,7 +66,7 @@ product *is* or *does* in language that parallels Google's own.
 > **The citation classifier is an audit label, not a verification gate.**
 > Citation classification (`store.citations.state` ∈ {verified, partial,
 > unsupported, unavailable}) is a post-hoc **audit label** computed from
-> document-level lexical overlap (`app/app/citations.py`, coverage
+> document-level lexical overlap (`app/app/citations/__init__.py`, coverage
 > thresholds — intersection over the claim's own tokens, not Jaccard),
 > surfaced in the UI and report. It is **not** a claim-level entailment check.
 > A separate claim-level grounding + publication gate (`app/app/claims/__init__.py`,

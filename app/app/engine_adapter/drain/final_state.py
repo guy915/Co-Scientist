@@ -210,7 +210,7 @@ async def _persist_evidence_hypotheses_and_screen(
     dereferencing a DOI/PMID is network I/O, and this function must never
     hold the write lock across it (see AGENTS.md). It also must not block
     the caller's event loop while it runs -- a run retrieving dozens of
-    articles can spend tens of seconds across ``citation_resolver``'s
+    articles can spend tens of seconds across ``citations.resolver``'s
     bounded concurrency and per-request timeout, and the durable finalize
     task's lease heartbeat renews on this same loop (see
     ``_assess_claims`` for the incident this pattern already fixed for the

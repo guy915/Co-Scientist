@@ -1,6 +1,6 @@
 """Tests for the live evidence-identifier resolver (fidelity-audit G12).
 
-``offline_resolver`` (app/citation_metadata.py) only ever reads back metadata a
+``offline_resolver`` (app/citations/metadata.py) only ever reads back metadata a
 source already claimed. These tests cover ``citation_resolver``'s
 dereference logic in isolation, with the actual HTTP calls stubbed so the
 suite stays hermetic (no network in CI). The PMID path specifically covers
@@ -19,8 +19,9 @@ from typing import Any
 import httpx
 import pytest
 
-from app import citation_resolver, retraction_set
-from app.citation_metadata import (
+from app import retraction_set
+from app.citations import resolver as citation_resolver
+from app.citations.metadata import (
     CitationMetadata,
     Resolvability,
     offline_resolver,

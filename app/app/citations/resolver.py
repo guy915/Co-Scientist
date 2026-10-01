@@ -1,7 +1,7 @@
 """The live ``Resolver``: dereference an identifier against the real web.
 
 :func:`live_resolver` is the production implementation of
-``app.citation_metadata.Resolver``, and the offline default there is its
+``app.citations.metadata.Resolver``, and the offline default there is its
 counterpart: that one reads back the metadata a source already claimed (an
 identifier string, an ``is_retracted`` flag); this one actually dereferences
 the identifier, so "available" means "resolved", not "the string was
@@ -37,8 +37,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
-from app import citation_metadata, retraction_set
-from app.citation_metadata import CitationMetadata, Resolvability, Resolver
+from app import retraction_set
+from app.citations import metadata as citation_metadata
+from app.citations.metadata import CitationMetadata, Resolvability, Resolver
 
 logger = logging.getLogger(__name__)
 

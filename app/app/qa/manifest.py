@@ -4,7 +4,7 @@ Split from ``app.qa`` to keep that module focused on streaming and the
 offline answer path; ``app.qa`` re-exports these names so callers keep
 importing from it. This module owns the pure (no I/O) half of the Q&A
 domain logic: building the numbered, citation-ranked evidence manifest
-(using the four-state citation model in ``citations.py``) and assembling
+(using the four-state citation model in ``app.citations``) and assembling
 the system prompt from the run's hypotheses/reviews/matches.
 """
 

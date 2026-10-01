@@ -1,6 +1,6 @@
 """Claim-level grounding, entailment, and publication gating (Milestone 5).
 
-The four-state citation label (``app/citations.py``) is a document-level audit
+The four-state citation label (``app.citations``) is a document-level audit
 signal; it is *not* claim-level verification and must not be the meaning of
 "verified". This module adds the claim-level layer the paper
 requires (SSR §6, §7):
@@ -32,9 +32,9 @@ requires (SSR §6, §7):
 4. **Citation metadata, separately** — whether a citation's source resolves
    (URL/DOI/PMID/retraction), what kind of source it is, and whether it
    carries a usable date are judged independently of whether it supports the
-   claim (``app/citation_metadata.py``), reachability via a swappable
+   claim (``app/citations/metadata.py``), reachability via a swappable
    *resolver* (offline metadata by default; the live URL/DOI/retraction
-   lookup in ``app/citation_resolver.py`` in production).
+   lookup in ``app/citations/resolver.py`` in production).
 5. **Publication gate** — an unsupported or contradicted *fundamental* claim
    cannot let a hypothesis rank/publish; clearly labeled speculation is allowed
    only under an explicit policy flag.

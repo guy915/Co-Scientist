@@ -21,7 +21,7 @@ The check has two halves, and they differ in where they can run:
 *Resolvability* needs the network to mean anything, so it is reached through
 a swappable :data:`Resolver`. :func:`offline_resolver` reads back the
 metadata a source already claimed (the deterministic default, and what CI
-runs); ``app.citation_resolver.live_resolver`` -- the production default --
+runs); ``app.citations.resolver.live_resolver`` -- the production default --
 actually dereferences the DOI/PMID/URL and checks the DOI against the
 offline Retraction Watch extract (``app.retraction_set``). Before this
 module the two were parallel implementations, and only the live one ran:
@@ -127,7 +127,7 @@ class CitationMetadata:
 
 # A resolver maps citation metadata to a resolvability verdict. The offline
 # default reads the supplied metadata back; the production implementation is
-# ``app.citation_resolver.live_resolver``, which dereferences the identifier.
+# ``app.citations.resolver.live_resolver``, which dereferences the identifier.
 Resolver = Callable[[CitationMetadata], Resolvability]
 
 
