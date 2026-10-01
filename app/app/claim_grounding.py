@@ -43,12 +43,12 @@ from app.claim_grounding_assess import (
 from app.claim_grounding_assess import (
     assess_hypothesis_claims as assess_hypothesis_claims,
 )
+from app.claim_verdict import is_speculative
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
     BatchAssessor,
     ClaimAssessment,
-    EntailmentLabel,
     EvidencePassage,
     GateDecision,
     GateResult,
@@ -57,8 +57,6 @@ from app.claims import (
 )
 
 logger = logging.getLogger(__name__)
-
-_SUPPORTING_LABELS = (EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL)
 
 
 def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
@@ -301,14 +299,13 @@ def _has_supported_claim(
     """Whether any claim has a ``supports`` or ``partial`` verdict.
 
     The same rule the report's "Verified" count and "Unverified" badge use
-    (``report.gates._supported_hypothesis_ids``). The gate itself is
+    (``claim_verdict.is_supporting``). The gate itself is
     stricter -- it also fails a hypothesis that has support for some claims
     but not for a categorical one -- so a gate failure alone does not mean
     the idea is published unverified.
     """
     return any(
-        assessment.label in _SUPPORTING_LABELS
-        for assessment, _role in assessments
+        assessment.label.is_supporting for assessment, _role in assessments
     )
 
 
@@ -375,7 +372,7 @@ def _ground_one_hypothesis(
         explicitly_speculative_claims={
             assessment.claim
             for assessment, role in assessments
-            if role == "speculative"
+            if is_speculative(role)
         },
         require_supported_claim=not allow_speculative,
     )

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.citations import CitationState
+from app.claim_verdict import DEFAULT_CLAIM_ROLE
 from app.store.db import _now, _use_conn
 from app.store.records_matches import NewMatch as NewMatch
 from app.store.records_matches import add_match as add_match
@@ -276,9 +277,10 @@ def list_citations(
 class NewClaimEvidence:
     """One claim-level entailment edge of the claim-evidence graph.
 
-    ``label`` is the entailment verdict ('supports' | 'contradicts' |
-    'insufficient') and ``claim_role`` marks a categorical finding versus
-    a visibly speculative proposal. ``supporting``/``contradicting`` are
+    ``label`` is the entailment verdict (an ``EntailmentLabel`` value) and
+    ``claim_role`` marks a categorical finding versus a visibly speculative
+    proposal (a ``ClaimRole`` value); ``app.claim_verdict`` says what each
+    means to a reader. ``supporting``/``contradicting`` are
     the spans for/against the claim -- JSON-serializable provenance
     objects (``{evidence_id, quote, start, end, source, url}``; legacy
     rows stored bare passage strings). ``assessor`` is the provenance id
@@ -293,7 +295,7 @@ class NewClaimEvidence:
     supporting: Iterable[Any]
     contradicting: Iterable[Any]
     assessor: str
-    claim_role: str = "categorical"
+    claim_role: str = DEFAULT_CLAIM_ROLE
     verification_method: str = "legacy_unknown"
 
 

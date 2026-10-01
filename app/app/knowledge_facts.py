@@ -28,18 +28,22 @@ from co_scientist.agents.reflection.reflection_entities import (
     extract_entity_names,
 )
 
+from app.claim_verdict import (
+    KNOWLEDGE_CONTRADICTION,
+    KNOWLEDGE_FACT,
+    knowledge_kind,
+)
 from app.evidence_chunking import parent_evidence_id
 
-# Only these two labels assert something the knowledge base can hold as
-# settled. "insufficient" means the evidence neither confirmed nor
-# contradicted the claim, so it is not a fact and not a contradiction --
-# there is nothing to carry over.
-_KIND_BY_LABEL = {"supports": "fact", "contradicts": "contradiction"}
-
-# Each label's corroborating evidence lives in a different span list on the
+# Each kind's corroborating evidence lives in a different span list on the
 # edge (see app.report.content._claim_evidence_ids for the "supports" half
-# of this same reasoning).
-_SPAN_KEY_BY_LABEL = {"supports": "supporting", "contradicts": "contradicting"}
+# of this same reasoning). Which edges are a kind at all -- only ``supports``
+# and ``contradicts``, never ``partial`` or ``insufficient``, which assert
+# nothing settled -- is ``claim_verdict.knowledge_kind``.
+_SPAN_KEY_BY_KIND = {
+    KNOWLEDGE_FACT: "supporting",
+    KNOWLEDGE_CONTRADICTION: "contradicting",
+}
 
 # A claim statement is denser than the single hypothesis title
 # reflection_entities.extract_entity_names is tuned for (it typically names
@@ -74,14 +78,13 @@ def _fact_row(edge: dict[str, Any]) -> dict[str, Any] | None:
         A row ready for ``store.replace_knowledge_facts``, or None when the
         edge's label asserts nothing settled or carries no claim text.
     """
-    label = str(edge.get("label") or "")
-    kind = _KIND_BY_LABEL.get(label)
+    kind = knowledge_kind(edge)
     if kind is None:
         return None
     statement = str(edge.get("claim") or "").strip()
     if not statement:
         return None
-    evidence_ids = _span_evidence_ids(edge, _SPAN_KEY_BY_LABEL[label])
+    evidence_ids = _span_evidence_ids(edge, _SPAN_KEY_BY_KIND[kind])
     return {
         "hypothesis_id": str(edge.get("hypothesis_id") or ""),
         "evidence_id": evidence_ids[0] if evidence_ids else None,
@@ -90,7 +93,7 @@ def _fact_row(edge: dict[str, Any]) -> dict[str, Any] | None:
         "entities": extract_entity_names(
             statement, max_entities=_MAX_ENTITIES_PER_FACT
         ),
-        "state": label,
+        "state": str(edge["label"]),
     }
 
 

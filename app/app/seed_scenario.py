@@ -19,6 +19,8 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
+from app.claim_verdict import ClaimRole
+from app.claims_gate import EntailmentLabel
 from app.demo_seed_data import (
     DEMO_SEED_VERSION,
     DemoEvidence,
@@ -201,8 +203,8 @@ def _add_claim_rows(
             run_id=seed.run.id,
             hypothesis_id=hyp_id,
             claim=claim,
-            label="partial",
-            claim_role="speculative",
+            label=EntailmentLabel.PARTIAL.value,
+            claim_role=ClaimRole.SPECULATIVE.value,
             supporting=[
                 {
                     "evidence_id": evidence_id,

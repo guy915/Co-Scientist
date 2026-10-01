@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.claim_verdict import is_contradicting, is_excused, is_supporting
 from app.evidence_chunking import parent_evidence_id
 from app.hypothesis_safety import is_blocking_status
 from app.text_utils import (
@@ -48,7 +49,7 @@ def _knowledge_base_topics(
     """Build named technical topics from released hypotheses and claim links."""
     references_by_hypothesis: dict[str, list[str]] = {}
     for edge in claim_edges:
-        if edge.get("label") not in ("supports", "partial"):
+        if not is_supporting(edge):
             continue
         hypothesis_id = str(edge.get("hypothesis_id") or "")
         references_by_hypothesis.setdefault(hypothesis_id, []).extend(
@@ -178,7 +179,7 @@ def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
     """
     claims: list[str] = []
     for edge in claim_edges:
-        if edge.get("label") != "contradicts":
+        if not is_contradicting(edge):
             continue
         claim = str(edge.get("claim") or "").strip()
         if claim:
@@ -279,10 +280,7 @@ def _claim_edge_reasons(
     """
     edge_reasons: dict[str, set[str]] = {}
     for edge in claim_edges:
-        if edge.get("label") in ("supports", "partial") or (
-            edge.get("label") == "insufficient"
-            and edge.get("claim_role") == "speculative"
-        ):
+        if is_supporting(edge) or is_excused(edge):
             continue
         edge_reasons.setdefault(str(edge.get("hypothesis_id")), set()).add(
             "Evidence verification did not support every material claim."

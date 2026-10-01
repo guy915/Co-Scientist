@@ -23,6 +23,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from app.claim_verdict import ClaimRole
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
@@ -48,9 +49,9 @@ ASSESSMENT_CONCURRENCY = 12
 # and expected effect are visibly proposed idea content; mechanism stores the
 # literature-grounding rationale and must remain categorical/evidence-backed.
 _CLAIM_FIELD_ROLES = (
-    ("statement", "speculative"),
-    ("mechanism", "categorical"),
-    ("expected_effect", "speculative"),
+    ("statement", ClaimRole.SPECULATIVE.value),
+    ("mechanism", ClaimRole.CATEGORICAL.value),
+    ("expected_effect", ClaimRole.SPECULATIVE.value),
 )
 
 
@@ -80,7 +81,7 @@ def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
             if claim not in roles:
                 ordered.append(claim)
                 roles[claim] = role
-            elif role == "categorical":
+            elif role == ClaimRole.CATEGORICAL:
                 # The strict role wins when identical text appears in both
                 # rationale and proposed-idea fields.
                 roles[claim] = role

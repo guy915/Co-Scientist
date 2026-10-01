@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 from app import store
+from app.claim_verdict import is_categorical_contradiction, is_supporting
 from app.hypothesis_safety import (
     is_blocking_status,
     review_hypothesis_safety,
@@ -56,17 +57,17 @@ def _contradicted_hypothesis_ids(
     return {
         str(edge["hypothesis_id"])
         for edge in edges
-        if edge.get("label") == "contradicts"
-        and str(edge.get("claim_role") or "categorical") != "speculative"
+        if is_categorical_contradiction(edge)
     }
 
 
 def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
     """Ids of hypotheses with at least one evidence-supported claim edge.
 
-    The one definition of "supported" the report uses. A ``partial``
-    (near-miss) verdict counts alongside ``supports``: it still means
-    relevant, consistent evidence was found. Shared by
+    The one definition of "supported" the report uses
+    (:func:`app.claim_verdict.is_supporting`): a ``partial`` (near-miss)
+    verdict counts alongside ``supports``, since it still means relevant,
+    consistent evidence was found. Shared by
     :func:`unverified_hypothesis_ids` and :func:`_verified_hypothesis_count`
     because those two are exact complements of each other over the published
     set -- the "Unverified" badge and the "Verified ideas" tile are one fact
@@ -79,11 +80,7 @@ def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
     Returns:
         The set of hypothesis ids carrying a supporting edge.
     """
-    return {
-        str(edge["hypothesis_id"])
-        for edge in edges
-        if edge.get("label") in ("supports", "partial")
-    }
+    return {str(edge["hypothesis_id"]) for edge in edges if is_supporting(edge)}
 
 
 def unverified_hypothesis_ids(

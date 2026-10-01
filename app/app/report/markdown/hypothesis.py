@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.claim_verdict import claim_status, role_of
 from app.human_input import SCIENTIST_MANUAL_ORIGIN
 from app.report.markdown.header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report.markdown.references import _render_references_markdown
@@ -37,21 +38,6 @@ _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
 # shared app constant for it (it is duplicated module-locally wherever the
 # distinction is needed, e.g. ``engine_adapter.drain_reviews``).
 _SCIENTIST_REVIEWER = "scientist"
-
-
-def _claim_status(edge: dict[str, Any]) -> str:
-    """Return the reader-facing scientific status for one claim edge."""
-    label = str(edge.get("label") or "insufficient")
-    role = str(edge.get("claim_role") or "categorical")
-    if label == "supports":
-        return "Supported"
-    if label == "partial":
-        return "Partially supported"
-    if label == "contradicts":
-        return "Contradicted"
-    if role == "speculative":
-        return "Speculative — evidence insufficient"
-    return "Unsupported categorical claim"
 
 
 def _render_evidence_span(span: Any, relation: str) -> str:
@@ -95,9 +81,8 @@ def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
         return []
     lines = ["**Claim evidence:**", ""]
     for edge in edges:
-        role = str(edge.get("claim_role") or "categorical")
         claim = str(edge.get("claim") or "")
-        lines.append(f"- **{_claim_status(edge)} · {role}** — {claim}")
+        lines.append(f"- **{claim_status(edge)} · {role_of(edge)}** — {claim}")
         method = _ASSESSMENT_METHODS.get(
             str(edge.get("verification_method")), "not recorded"
         )
