@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.report_render import make_emitter
+from app.run_events import make_emitter
 
 
 @dataclass(frozen=True)

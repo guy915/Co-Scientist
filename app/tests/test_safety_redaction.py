@@ -14,7 +14,8 @@ from typing import Any
 import pytest
 
 from app import report_render, safety, store
-from app.report_render import ReportRequest, finalize_report, make_emitter
+from app.report_render import ReportRequest, finalize_report
+from app.run_events import make_emitter
 from app.safety import REDACTED_PLACEHOLDER, SafetyDecision
 from app.safety_redaction import redact_matched_spans, redact_payload_text
 

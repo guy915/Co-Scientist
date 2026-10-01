@@ -64,7 +64,8 @@ from app.engine_tasks_support import (
     _save_state_and_enqueue,
     _successor_task_type,
 )
-from app.report_render import ReportRequest, finalize_report, make_emitter
+from app.report_render import ReportRequest, finalize_report
+from app.run_events import make_emitter
 from app.run_modes import normalize_run_tier
 from app.safety import SafetyDecision, apply_safety_gate
 from app.store import RunStatus, ScientificTask

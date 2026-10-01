@@ -1,8 +1,11 @@
-"""Event-payload helpers for the workflow provider.
+"""Run-event emission for the durable engine tasks and the engine adapter.
 
 Homed separately from ``engine_adapter`` so the per-run event emitter and the
 minimal JSON-safe event stubs stay independently nameable/testable, and so
-the streamed SSE payload shapes have one implementation.
+the streamed SSE payload shapes have one implementation. It sits outside
+the report package on purpose: every ``engine_tasks_*`` module and
+``engine_adapter.events`` emit run events, and none of them should pull the
+Goal Report in to do so.
 """
 
 from __future__ import annotations

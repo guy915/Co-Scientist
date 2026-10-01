@@ -5,13 +5,14 @@ rendering its markdown, running the final safety gate, and emitting the
 report/completed events stay independently nameable/testable, through one
 implementation.
 
-The report content builders live in ``report_markdown``, the event-payload
-helpers in ``report_events``, the content-derivation helpers (topics,
-insights, buckets, claim filters) in ``report_content``, the gathering and
-assembly of the payload/markdown pair (``ReportRequest``, ``_BuiltReport``,
-``_build_report_content``) in ``report_build``, and the completion-email
-scheduling in ``report_notify``; the names callers use are re-exported here
-so ``app.report_render`` stays their import surface.
+The report content builders live in ``report_markdown``, the
+content-derivation helpers (topics, insights, buckets, claim filters) in
+``report_content``, the gathering and assembly of the payload/markdown pair
+(``ReportRequest``, ``_BuiltReport``, ``_build_report_content``) in
+``report_build``, and the completion-email scheduling in ``report_notify``;
+the names callers use are re-exported here so ``app.report_render`` stays
+their import surface. Run-event emission (``make_emitter`` and the event
+stubs) lives in ``run_events``, outside the report cluster.
 """
 
 from __future__ import annotations
@@ -48,17 +49,13 @@ from app.report_content import (
 from app.report_content import (
     _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
-from app.report_events import EmitFn as EmitFn
-from app.report_events import article_stub as article_stub
-from app.report_events import hypothesis_stub as hypothesis_stub
-from app.report_events import make_emitter as make_emitter
-from app.report_events import match_stub as match_stub
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
 )
 from app.report_notify import (
     _enqueue_completion_notification as _enqueue_completion_notification,
 )
+from app.run_events import EmitFn
 from app.safety import (
     SafetyDecision,
     ScreenSubject,
@@ -265,6 +262,9 @@ def _commit_leased_report_publication(
     db_path: str | None,
 ) -> tuple[dict[str, str], int, dict[str, Any], int, dict[str, Any]]:
     """Atomically publish report state after validating the finalize lease."""
+    # Function-local: engine_tasks_support imports engine_adapter, whose drain
+    # imports this module (format_deep_verification_critique), so a top-level
+    # import is a cycle whichever module loads first.
     from app.engine_tasks_support import _assert_task_commit_allowed
 
     with store.transaction(db_path) as conn:
@@ -409,6 +409,7 @@ def _commit_empty_leaderboard_block(
     db_path: str | None,
 ) -> int:
     """Atomically persist a readiness block while the finalize lease is live."""
+    # Function-local, for the cycle explained in the publish function above.
     from app.engine_tasks_support import _assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}

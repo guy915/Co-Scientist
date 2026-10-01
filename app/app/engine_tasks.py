@@ -187,7 +187,7 @@ from app.execution_policy import (
     campaign_model_for_config,
     scoped_execution_policy,
 )
-from app.report_render import make_emitter
+from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import apply_safety_gate, screen_intake, screen_with_escalation
 from app.store import RunStatus, ScientificTask

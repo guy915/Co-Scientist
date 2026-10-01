@@ -13,7 +13,7 @@ from typing import Any
 from co_scientist.agents.proximity.proximity_graph import is_judged_edge
 
 from app import store
-from app.report_render import article_stub, hypothesis_stub, match_stub
+from app.run_events import article_stub, hypothesis_stub, match_stub
 
 
 def _canonical_event_type(node_name: str) -> str:
