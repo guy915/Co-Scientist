@@ -1,47 +1,69 @@
 import React from 'react';
 import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {SEEDS} from '../data/demo_run';
 import {Caption} from '../glide/Run';
 import {FloatCard} from '../shared/FloatCard';
-import {ProofList} from '../shared/ProofList';
 import {WordReveal} from '../shared/WordReveal';
 import {type Pose, accel, emphasized, mix, posed, ramp} from '../shared/motion';
 import {C, FONT, MONO} from '../shared/tokens';
 import {Cuts, useBeats} from './Beat';
 import {Sfx} from './Sfx';
 
-// The whole ideas screen less the app's left icon rail, which reads as a stray sliver once pushed in.
-const NO_RAIL = {x: 0.05, y: 0, w: 0.95, h: 1};
+// The app's left icon rail reads as a stray sliver once a screen is floated.
+const NO_RAIL = {x: 0.03, y: 0, w: 0.97, h: 1};
+// The ideas screen's #1 card, in px of the 1500-wide card from its centre, and its size.
+const TOP = {x: -520, y: -199, w: 374, h: 135};
 
-/** B's glide: the whole ranked-ideas screen rises flat, then the camera pushes into the list. */
-const Glide: React.FC<{len: number}> = ({len}) => {
+/**
+ * Beats 41-47: three real screens fan out in depth around the ranked list,
+ * then the camera pushes into the #1 idea, landing on the 28.7 s stab (beat 4)
+ * where its ring and rating pop.
+ */
+export const Ranked: React.FC = () => {
   const f = useCurrentFrame();
-  // The list's centre in the 1500-wide card: (0.14, 0.44) of the crop.
-  const keys: Pose[] = [
-    {f: 0, y: 420, rx: 24, scale: 0.86, opacity: 0},
-    {f: 16, y: 80, rx: 0, scale: 1, opacity: 1},
-    {f: len - 4, x: 1090, y: 180, scale: 2.0, glow: 0.2},
+  const {fps} = useVideoConfig();
+  const b = useBeats();
+  const push = b(2.5);
+  const land = b(4);
+  const side = (dir: number, at: number): Pose[] => [
+    {f: at, x: 0, ry: 0, scale: 0.7, opacity: 0},
+    {f: at + 14, x: dir * 560, ry: dir * -26, scale: 0.66, opacity: 1, glow: 0.5},
+    {f: push, x: dir * 600, scale: 0.68},
+    {f: push + 16, x: dir * 1500, opacity: 0},
   ];
+  // x and y stay proportional to scale through the push, so the #1 card ends centred and stays there.
+  const center: Pose[] = [
+    {f: 0, y: 380, rx: 22, scale: 0.56, opacity: 0},
+    {f: 16, y: 0, rx: 0, scale: 0.6, opacity: 1},
+    {f: push, scale: 0.64},
+    {f: land, x: -TOP.x * 2.2, y: -TOP.y * 2.2, scale: 2.2, glow: 0.2},
+    {f: b(6), x: -TOP.x * 2.3, y: -TOP.y * 2.3, scale: 2.3},
+  ];
+  const cam = posed(f, center);
+  const pop = spring({frame: f - land, fps, config: {damping: 12, stiffness: 170}});
+  const ringW = TOP.w * cam.scale + 36;
   return (
     <AbsoluteFill>
-      <FloatCard src="ui/light-ideas.png" width={1500} crop={NO_RAIL} {...posed(f, keys)} />
-      <Caption text="Every idea ranked in a head-to-head tournament." start={4} end={len + 20} />
-      <Sfx at={8} name="whoosh" volume={0.45} />
+      <FloatCard src="ui/light-details.png" width={1100} crop={NO_RAIL} blur={2} {...posed(f, side(-1, b(0.5)))} />
+      <FloatCard src="ui/light-overview.png" width={1100} crop={NO_RAIL} blur={2} {...posed(f, side(1, b(1)))} />
+      <FloatCard src="ui/light-ideas.png" width={1500} crop={NO_RAIL} {...cam} />
+      {/* The ring's spread shadow is a white scrim with the #1 card cut out of it: a spotlight the chip can sit on. */}
+      {f >= land && (
+        <>
+          <div style={{position: 'absolute', left: 960 - ringW / 2, top: 540 - (TOP.h * cam.scale + 36) / 2, width: ringW, height: TOP.h * cam.scale + 36, boxSizing: 'border-box', borderRadius: 34, border: `7px solid ${C.teal}`, boxShadow: `0 0 0 3000px rgba(255,255,255,${0.72 * Math.min(1, pop * 1.5)})`, transform: `scale(${mix(1.12, 1, pop)})`}} />
+          <div style={{position: 'absolute', left: 960 + ringW / 2 + 34, top: 540 - 38, fontFamily: MONO, fontSize: 42, fontWeight: 500, color: '#fff', background: C.teal, padding: '14px 32px', borderRadius: 999, whiteSpace: 'nowrap', transform: `scale(${pop})`, transformOrigin: 'left center'}}>
+            #1 · Elo {SEEDS[0].elo}
+          </div>
+        </>
+      )}
+      <Caption text="Every idea ranked in a head-to-head tournament." start={4} end={push} />
+      <Sfx at={2} name="whoosh" volume={0.45} />
+      <Sfx at={b(0.5)} name="pop1" volume={0.4} />
+      <Sfx at={b(1)} name="pop2" volume={0.4} />
+      <Sfx at={push} name="swish" volume={0.45} />
+      <Sfx at={land} name="ding" volume={0.55} />
+      <Sfx at={land + 3} name="pop6" volume={0.45} />
     </AbsoluteFill>
-  );
-};
-
-/** Beats 41-47: the real app's ranked list; the cut to the ringed winner lands on the 28.7 s stab. */
-export const Ranked: React.FC = () => {
-  const b = useBeats();
-  return (
-    <Cuts at={[0, b(4)]}>
-      <Glide len={b(4)} />
-      <AbsoluteFill>
-        <ProofList start={-40} width={780} x={-160} y={-10} ringAt={0} chip="right" />
-        <Sfx at={0} name="ding" volume={0.55} />
-        <Sfx at={3} name="pop6" volume={0.45} />
-      </AbsoluteFill>
-    </Cuts>
   );
 };
 

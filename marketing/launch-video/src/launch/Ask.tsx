@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Img, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Img, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {StatusPill} from '../glide/Run';
 import {Cursor} from '../shared/Cursor';
 import {flaskSrc} from '../shared/HeroFlask';
@@ -11,17 +11,16 @@ import {C, type Tone} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Sfx} from './Sfx';
 
-type TileArt = {flask: Tone} | {shape: ShapeName; tone: Tone} | {ui: string; x: number; y: number; zoom: number};
+type TileArt = {flask: Tone} | {shape: ShapeName; tone: Tone};
 
-// What a question becomes in this app: the glass flask, the agents' shapes,
-// and crops of the real screens.
+// What a question becomes in this app: the glass flask and the agents' shapes.
 const TILES: TileArt[] = [
   {flask: 'teal'},
   {shape: 'cookie12', tone: 'teal'},
-  {ui: 'ui/light-ideas.png', x: 0.09, y: 0.2, zoom: 4.2},
+  {shape: 'sunny', tone: 'yellow'},
   {shape: 'flower', tone: 'blue'},
   {flask: 'yellow'},
-  {ui: 'ui/light-overview.png', x: 0.18, y: 0.27, zoom: 4.6},
+  {shape: 'clover', tone: 'green'},
   {shape: 'gem', tone: 'red'},
   {flask: 'blue'},
 ];
@@ -35,7 +34,6 @@ const Tile: React.FC<{art: TileArt; size: number; f: number}> = ({art, size, f})
         <Shape from={art.shape} size={size * 0.84} fill={C.container[art.tone]} fill2={C.deep[art.tone]} rotate={f * 0.8} />
       </div>
     )}
-    {'ui' in art && <Img src={staticFile(art.ui)} style={{position: 'absolute', width: size * art.zoom, left: -art.x * size * art.zoom, top: -art.y * size * art.zoom * 0.625}} />}
   </div>
 );
 

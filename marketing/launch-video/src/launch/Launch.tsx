@@ -31,13 +31,13 @@ export const Launch: React.FC = () => (
     <AtBeat from={15} to={21}><Team /></AtBeat>
     <AtBeat from={21} to={25}><Working /></AtBeat>
     <AtBeat from={25} to={27}><VerbShot word="Generate." gloss="Hypotheses drafted from the literature" look={1} /></AtBeat>
-    <AtBeat from={27} to={29}><Cards /></AtBeat>
+    <AtBeat from={27} to={29}><Cards look={1} /></AtBeat>
     <AtBeat from={29} to={31}><VerbShot word="Debate." gloss="Ideas argue head to head" look={4} /></AtBeat>
-    <AtBeat from={31} to={33}><Clash /></AtBeat>
+    <AtBeat from={31} to={33}><Clash look={4} /></AtBeat>
     <AtBeat from={33} to={35}><VerbShot word="Evolve." gloss="The strongest are refined" look={3} /></AtBeat>
-    <AtBeat from={35} to={37}><Child /></AtBeat>
+    <AtBeat from={35} to={37}><Child look={3} /></AtBeat>
     <AtBeat from={37} to={39}><VerbShot word="Rank." gloss="A tournament decides which ideas lead" look={2} /></AtBeat>
-    <AtBeat from={39} to={41}><Chart /></AtBeat>
+    <AtBeat from={39} to={41}><Chart look={2} /></AtBeat>
     <AtBeat from={41} to={47}><Ranked /></AtBeat>
     <AtBeat from={47} to={53}><Evidence /></AtBeat>
     <AtBeat from={53} to={57}><Report /></AtBeat>
