@@ -1,5 +1,6 @@
 """Isolated OpenRouter catalog fixtures for free-route admission tests."""
 
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -7,11 +8,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    with free_catalog.using_catalog_reader(free_catalog.CatalogReader()):
+        yield
 
 
 def _catalog(pricing: Any) -> dict[str, Any]:

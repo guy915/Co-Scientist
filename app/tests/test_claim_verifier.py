@@ -410,8 +410,9 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         for model, price in MODEL_PRICING.items()
         if model.startswith("openrouter/")
     }
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(free_catalog, "_fetch_catalog", lambda: catalog)
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(lambda: catalog)
+    )
     assessor, _ = make_llm_assessor("openrouter/minimax/minimax-m3:free")
     assessor("some claim", [_PASSAGE])
 

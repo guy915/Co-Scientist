@@ -67,19 +67,18 @@ def captured(
     import litellm
     from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "campaign/chat:free": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(
+            lambda: {
+                "campaign/chat:free": {
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
             }
-        },
+        )
     )
     monkeypatch.setattr(settings, "chat_model_name", MODEL)
     calls: list[dict[str, Any]] = []
@@ -259,8 +258,9 @@ async def test_interview_reasoning_retry_rechecks_admission(
                 ]
             )
             # The catalog expires between the reasoning-only reply and re-ask.
-            monkeypatch.setattr(free_catalog, "_snapshot", None)
-            monkeypatch.setattr(free_catalog, "_fetch_catalog", lambda: {})
+            free_catalog.install_catalog_reader(
+                free_catalog.CatalogReader(lambda: {})
+            )
 
         return chunks()
 

@@ -41,19 +41,18 @@ def _install_replies(
 def _mock_zero_price_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
     from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "stealth/space-bunny-alpha": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(
+            lambda: {
+                "stealth/space-bunny-alpha": {
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
             }
-        },
+        )
     )
 
 
