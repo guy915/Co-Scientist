@@ -52,9 +52,7 @@ def test_rejected_and_contradicted_idea_agrees_across_both_surfaces() -> None:
     hyp = _hypothesis("h1", "rejected")
     edges = [_contradicting_edge("h1")]
 
-    contradicted = report_gates._contradicted_hypothesis_ids(
-        "run1", None, edges
-    )
+    contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
     assert "h1" in contradicted  # sanity: the idea really is both
 
     buckets = report_content._idea_buckets([], [hyp], edges)
@@ -74,9 +72,7 @@ def test_duplicate_and_contradicted_idea_agrees_across_both_surfaces() -> None:
     hyp = _hypothesis("h2", "duplicate")
     edges = [_contradicting_edge("h2")]
 
-    contradicted = report_gates._contradicted_hypothesis_ids(
-        "run1", None, edges
-    )
+    contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
     assert "h2" in contradicted  # sanity: the idea really is both
 
     buckets = report_content._idea_buckets([], [hyp], edges)

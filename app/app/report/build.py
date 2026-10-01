@@ -21,9 +21,9 @@ from app.report.content import (
     released_claim_evidence,
 )
 from app.report.gates import (
-    _contradicted_hypothesis_ids,
     _exclusion_tally,
     _verified_hypothesis_count,
+    contradicted_hypothesis_ids,
     exclude_unsafe_hypotheses,
 )
 from app.report.markdown import ReportMarkdownInputs, render_report_markdown
@@ -315,7 +315,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     # Derived here from the same inputs the gate above just used, rather
     # than by re-running it: its legacy fallback path writes an audit row
     # as a side effect, so calling it twice would double that row.
-    contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
+    contradicted = contradicted_hypothesis_ids(run_id, db_path, claim_edges)
     # ``summary_counts`` exists to avoid materializing tables the caller
     # has; asking it here would re-count evidence beside tables the report
     # never reads it through.

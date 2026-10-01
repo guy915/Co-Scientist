@@ -32,7 +32,7 @@ Status: implemented and verified locally; release pending. Classification: **loc
 live publication predicate. No external source code involved.
 
 The evaluator's `_contradicted_ids` treats every contradicting claim as blocking;
-`app.report.gates._contradicted_hypothesis_ids` exempts speculative proposals.
+`app.report.gates.contradicted_hypothesis_ids` exempts speculative proposals.
 Acceptance: evaluator releases an otherwise eligible idea with only a speculative
 contradiction; categorical/legacy contradictions and safety holds still withhold.
 Boundary: report publication (`scientific_release_gate` and live report finalization).
