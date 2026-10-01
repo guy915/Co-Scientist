@@ -1,7 +1,7 @@
 """Tests for the content-fetch config helpers.
 
 Covers the content-fetch half of the tool-resolution and paper-eligibility
-functions in ``literature_review.retrieval_support``: resolving a source's
+functions in ``evidence.retrieval_support``: resolving a source's
 (or the workflow default's) content tool config (including content_params
 merging), building the per-source config maps, looking a paper's config up
 by its originating source, and filtering collected papers down to the ones
