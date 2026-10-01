@@ -1,0 +1,123 @@
+{
+  "purpose": "Closing-readiness observations; not final campaign acceptance or a scientific rerun.",
+  "status": "VERIFIED_REUSED_PRODUCT_CHECKS_AND_CURRENT_AVAILABILITY_FINAL_REVIEW_MERGE_OPEN",
+  "observed_at_utc": "2026-10-01T07:33:14.634659+00:00",
+  "branch": "eval/m12-space-bunny-corrected-20260929",
+  "source_head": "c98379978c2c37dc0cf73d265ee3ccd86f2241c0",
+  "current_main": "bcdd6f79439286c28c778f9ea35075f215a1e29d",
+  "last_full_check_source": "2eb6718294db3fddeba8a3ca958f05e7504878b1",
+  "product_objects": {
+    "app": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "27f8911318bdc9970ebe9fa05be0450570e5a219",
+      "HEAD": "27f8911318bdc9970ebe9fa05be0450570e5a219",
+      "origin/main": "27f8911318bdc9970ebe9fa05be0450570e5a219"
+    },
+    "engine": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "ae4216073b0846ad2b199d0cf3a97a509a0d172b",
+      "HEAD": "ae4216073b0846ad2b199d0cf3a97a509a0d172b",
+      "origin/main": "ae4216073b0846ad2b199d0cf3a97a509a0d172b"
+    },
+    "evaluations": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+      "HEAD": "2fa283133e57189ad4c65712b355964ac5c15a8c",
+      "origin/main": "2fa283133e57189ad4c65712b355964ac5c15a8c"
+    },
+    "e2e": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+      "HEAD": "be214eda1e630f21de58603fa7d18869bd8b2f3c",
+      "origin/main": "be214eda1e630f21de58603fa7d18869bd8b2f3c"
+    },
+    "vendor": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d",
+      "HEAD": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d",
+      "origin/main": "7899e3ce20bb8e65b1fcbf89db81ddd630df997d"
+    },
+    "Makefile": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "4e4f8566d90f3ecc908dc872e340746345e3081b",
+      "HEAD": "4e4f8566d90f3ecc908dc872e340746345e3081b",
+      "origin/main": "4e4f8566d90f3ecc908dc872e340746345e3081b"
+    },
+    "Dockerfile.api": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "805cc8c1d551cc9e81ea4b80c479fb1bbf6e0021",
+      "HEAD": "805cc8c1d551cc9e81ea4b80c479fb1bbf6e0021",
+      "origin/main": "805cc8c1d551cc9e81ea4b80c479fb1bbf6e0021"
+    },
+    "Dockerfile.mcp": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "493d4f8a4206845139bf9b281a0a185dad137e2c",
+      "HEAD": "493d4f8a4206845139bf9b281a0a185dad137e2c",
+      "origin/main": "493d4f8a4206845139bf9b281a0a185dad137e2c"
+    },
+    ".github": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "1eb74a4ab52fffe43aed1407de8f997711545e5a",
+      "HEAD": "1eb74a4ab52fffe43aed1407de8f997711545e5a",
+      "origin/main": "1eb74a4ab52fffe43aed1407de8f997711545e5a"
+    },
+    ".ruff.toml": {
+      "2eb6718294db3fddeba8a3ca958f05e7504878b1": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b",
+      "HEAD": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b",
+      "origin/main": "499b43cbf02ecbb2d3cbb107382442ac4ecd2b3b"
+    }
+  },
+  "required_check_receipt": "references/external/sakana/novelty-fulltext-optout-release-checks-2026-10-01.json",
+  "required_check_log_hashes_verified": [
+    "build",
+    "lint",
+    "eval-smoke",
+    "typecheck",
+    "frontend-test",
+    "e2e",
+    "test-all"
+  ],
+  "required_check_reuse_reason": "Maintained code, dependencies, configuration and evaluation inputs unchanged; seven retained successful logs match their recorded SHA256.",
+  "reference_source_sha256_verified": {
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "b73d05b026177b503dca795184aa3b5648dafdefd4af3507b696e05de4e1c6d0",
+    "references/external/sakana/test_novelty_result_conditioned_compact_query.py": "608aa7235f74ef3c87513632dc738786c2dbbcfd4026b4442117949b000c4216",
+    "references/external/sakana/test_novelty_result_conditioned_batch_preflight.py": "e8f38d805e93f95dd6bb300975c31e7cdb8233460bf18070118a9a932e3aa95c"
+  },
+  "affected_reference_checks": {
+    "coordinator_command": "PYTHONPATH=references/external/sakana:engine/src:engine .venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned*.py -q",
+    "tests_passed": 172,
+    "duration_seconds": 4.42,
+    "sibling_tests_passed": 11,
+    "ruff_scoped": "PASS",
+    "new_and_preflight_test_format": "PASS",
+    "git_diff_check": "PASS",
+    "runner_whole_file_format": "Existing untouched formatting left unchanged; no broad sweep."
+  },
+  "production_observation": {
+    "railway_api": {
+      "deployment": "c2a405e4-80c7-4812-b51e-a2fece078431",
+      "status": "SUCCESS"
+    },
+    "railway_mcp": {
+      "deployment": "650a4405-a8d0-40d8-8e41-d37816b650e9",
+      "status": "SUCCESS"
+    },
+    "railway_api_volume_mount": "/app/data",
+    "railway_replica_count_from_status": null,
+    "replica_limit_note": "Connector count unavailable; existing release invariant proof retained separately.",
+    "vercel": {
+      "deployment": "dpl_8T2dV8uJNJH9RFdy4BhzTUwR8wfB",
+      "readyState": "READY",
+      "target": "production",
+      "commit": "bcdd6f79439286c28c778f9ea35075f215a1e29d",
+      "alias": "ai-co-scientist.com"
+    },
+    "keyless_smoke": {
+      "command": ".venv/bin/python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com",
+      "exit_code": 0,
+      "checks_passed": 5,
+      "evidence": "Current coordinator tool transcript, execsession35435 terminaloutput",
+      "model_calls": 0
+    }
+  },
+  "temporary_reference_checkouts": [],
+  "product_or_configuration_mutations": false,
+  "coordinator_projection_correction": "Initial receipt generator assumed a root pyproject.toml existed; it stopped before writing. Root file is absent in all compared revisions; per-package dependency files are covered by their unchanged trees.",
+  "remaining": [
+    "Complete candidate reconciliation documentation",
+    "Exact-current-diff pre-PR and security review",
+    "Merge current reference-runner/evidence/documentation changes through attached PR under hosted-CI waiver",
+    "Verify integrated closing records and all final acceptance criteria; M12-04b8 remains open"
+  ]
+}

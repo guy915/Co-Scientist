@@ -1,0 +1,172 @@
+{
+  "purpose": "Source preparation acceptance only; private proposal is not registered bank9/protocol8 or permission to admit a study.",
+  "status": "ACCEPT_SOURCE_PREPARATION_ONLY",
+  "proposal_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/proposal.json",
+  "proposal_sha256": "febb46991a1cd35f9087f1257fb12c3b84a78df3dfdd406f1371472c3fee3e66",
+  "sampling": "First four complete non-review records per fixed broad 2020-2023 topic query in response order, selected before drafting or performance queries. Retmax40 declared before intake because all previous first20 pools were exposed; no outcome-based replacement.",
+  "discovery": {
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/discovery.json",
+    "sha256": "d9cb9e14ab2c991ef505907f1f925930d7aa8a1f32693394cccf700ea53dc940",
+    "queries": 3,
+    "unique_candidates": 60,
+    "metadata_returned": 60,
+    "selected": 12,
+    "selection_rule_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/first-suitable-selected-ids.json",
+    "query_results": [
+      {
+        "topic": "immunology",
+        "returned": 40,
+        "prior_collisions": 20,
+        "selected_ids": [
+          "37129119",
+          "37880982",
+          "37811774",
+          "37798927"
+        ]
+      },
+      {
+        "topic": "plants",
+        "returned": 40,
+        "prior_collisions": 20,
+        "selected_ids": [
+          "37712397",
+          "37606013",
+          "37462829",
+          "36946428"
+        ]
+      },
+      {
+        "topic": "biomaterials",
+        "returned": 40,
+        "prior_collisions": 20,
+        "selected_ids": [
+          "37871142",
+          "37903285",
+          "38112317",
+          "36960883"
+        ]
+      }
+    ],
+    "http_requests": 5,
+    "all_http_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "timeout_seconds": 30,
+    "retries": 0,
+    "credentials": "none; subprocess environment cleared"
+  },
+  "finite_exposure": {
+    "prior_count": 2229,
+    "prior_manifest": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/prior-exposure.json",
+    "sha256": "1b327626b0c1a829c8cae80cfc577960ad016050342602e9598a752b0bb4f08c",
+    "selected_collisions": 0,
+    "scope": "All retained historical banks/study records plus whole prior60 candidate pool and nine operational opt-out PMIDs, conservatively including seven/eight-digit non-PMID tokens. Not universal freshness."
+  },
+  "official_identity_verification": {
+    "status": "EXACT12_METADATA_MATCH",
+    "http_status": 200,
+    "source_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=37129119%2C37880982%2C37811774%2C37798927%2C37712397%2C37606013%2C37462829%2C36946428%2C37871142%2C37903285%2C38112317%2C36960883&retmode=xml",
+    "sha256": "5a40a45b555efbdee2801c61f1b6093bb9c837dd1abc570017312a506b3d157f",
+    "bytes": 150616,
+    "ids_in_order": [
+      "37129119",
+      "37880982",
+      "37811774",
+      "37798927",
+      "37712397",
+      "37606013",
+      "37462829",
+      "36946428",
+      "37871142",
+      "37903285",
+      "38112317",
+      "36960883"
+    ],
+    "comparison": "Full PubmedArticle elements match after ElementTree C14N with strip_text=True; includes names, affiliations, DOI/journal/dates/types and abstract. Not raw response-byte equality.",
+    "scope": "Official identity and source consistency only, not scientific/retrieval comparison."
+  },
+  "source_xml": {
+    "candidate_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/candidate-metadata.xml",
+    "candidate_sha256": "52f4f07464742a93473716f17d1838b4a8592954769407fcbc5cdaed29507473",
+    "exact12_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/selected-exact12.xml"
+  },
+  "independent_semantic_review": {
+    "peer": "Antigravity Gemini 3.8 Flash High",
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "conversation_id": "f6dd7793-1640-4c47-883a-e5aed1c1e46a",
+    "result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/independent-review-result.json",
+    "result_sha256": "aa20f52347453dab8bd59ac00f8873893fcdfd32df4bbcfe75cfd6bfda1290bb",
+    "delta_result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/independent-review-delta-result.json",
+    "delta_result_sha256": "3c142a883ec8a80af2f50f843381a8899c953857bdf21fc2b2a5aa26c584fc03",
+    "verdict": "ACCEPT_SOURCE_PREPARATION_ONLY on supplied title/abstract drafts and final conservative wording delta.",
+    "limits": "No raw XML or fetch/exposure pipeline independently inspected by peer. Coordinator found and removed unsupported seedling stage accepted by first review; negative claims narrowed to source-reported future validation. Agent judgment does not supersede actual sources."
+  },
+  "deterministic_bounds": {
+    "max_draft_characters": 188,
+    "max_quoted_words_per_source": 11,
+    "quoted_fragments_exact_substrings": true,
+    "unique_selected_ids": 12,
+    "full_official_xml_elements_match_initial_batch": true,
+    "validation_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/deterministic-draft-validation.json",
+    "validation_sha256": "bd6d40dcdd89661cf5f7bf75667ccf576f4afa380d6162543dfb4ac1687ee3b0"
+  },
+  "fixed_pairs": [
+    {
+      "id": "monkeypox-vs-tuberculosis-in-silico-vaccine",
+      "positive_pmid": "37129119",
+      "control_pmid": "37880982"
+    },
+    {
+      "id": "upec-vs-mrsa-bacterial-vaccine-models",
+      "positive_pmid": "37811774",
+      "control_pmid": "37798927"
+    },
+    {
+      "id": "paratecoma-propagation-vs-schinus-canker-biocontrol",
+      "positive_pmid": "37712397",
+      "control_pmid": "37606013"
+    },
+    {
+      "id": "bacillus-albus-blb-vs-bacillus-subtilis-clubroot",
+      "positive_pmid": "37462829",
+      "control_pmid": "36946428"
+    },
+    {
+      "id": "gold-nanoparticle-scaffold-vs-wearable-sweat-sensor",
+      "positive_pmid": "37871142",
+      "control_pmid": "37903285"
+    },
+    {
+      "id": "alginate-sericin-scaffold-vs-rotational-atherectomy",
+      "positive_pmid": "38112317",
+      "control_pmid": "36960883"
+    }
+  ],
+  "failed_operations": [
+    {
+      "operation": "Antigravity initial file-based source task",
+      "result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/peer-source-result.json",
+      "result_sha256": "02d0c64ed2c436a05647a6f1a04ffb6a9c019890cdac19ac02be6b4552b58522",
+      "stderr_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-metadata-only-source-proposal-20261001/peer-source-stderr.log",
+      "actual_result": "Empty output: headless read_file permission auto-denied. No sources/drafts produced. Changed to credential-free coordinator intake and supplied-text drafting; no permission bypass."
+    },
+    {
+      "operation": "Native Luna fresh source audit dispatch",
+      "actual_result": "Agent thread-limit rejection before dispatch; no worker or model substitution. Fresh independent supplied-text Antigravity review completed instead."
+    }
+  ],
+  "not_established": [
+    "native fresh-context source review",
+    "representative or confirmatory sampling",
+    "universal novelty",
+    "retrieval/scientific performance",
+    "model reliability",
+    "canonical bank/protocol/admission",
+    "new provider inference"
+  ]
+}

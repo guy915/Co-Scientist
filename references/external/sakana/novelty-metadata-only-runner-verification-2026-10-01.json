@@ -1,0 +1,104 @@
+{
+  "item": "M12-04b4j1",
+  "status": "LOCALLY_VERIFIED_PROSPECTIVE_METADATA_ONLY_SELECTOR",
+  "starting_commit": "df877535",
+  "source_sha256": {
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "e89eb2263f449f13dda3fa0c5db1e0a63119ab1e7d28ae2ccaa75b631685b667",
+    "references/external/sakana/test_novelty_result_conditioned_metadata_only.py": "6fcd7bee9150444cf398ae905bddccd430900805757764ac771e6ec7808df225",
+    "references/external/sakana/test_novelty_result_conditioned_batch_preflight.py": "c17183c25ce25f715b40b8e88c9025379392df9134e57d594c34e8fee58a63a3"
+  },
+  "behavior": {
+    "study8_search_parameters": {
+      "include_fulltext": false
+    },
+    "protocol_parameter_must_be_explicit_before_runtime_or_admission": true,
+    "historical_studies_1_through_7_parameter_shape": [
+      "query",
+      "max_papers",
+      "slug",
+      "run_id"
+    ],
+    "study8_recorded_parameter_shape": [
+      "query",
+      "max_papers",
+      "slug",
+      "run_id",
+      "include_fulltext"
+    ],
+    "query_output_format": "plain_text",
+    "six_pairs_24_model_36_outer_caps_unchanged": true,
+    "historical_protocols_do_not_accept_new_parameter_overrides": true,
+    "strict_trace_error_provenance_source_blinding_admission_gates": "unchanged"
+  },
+  "tests": {
+    "worker_red": "Clean intended1fail/7historicalpass before implementation; earlier missing system pytest and fixture mistakes corrected, not counted as behavioral red.",
+    "coordinator_baseline_red": {
+      "baseline_commit": "df877535",
+      "baseline_runner_sha256": "80bd43e1bd02ac6b68081bdd959a28c21c0cf60de62dc49abdb0ea6229d31fb4",
+      "log_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-baseline-red.log",
+      "log_sha256": "6b7a7faeb3a0c7d425545d3c79a21b5d7569d541ae7c708f7f187181abc03040",
+      "result": "1failed/7passed/22deselected",
+      "chronology": "Independent reproduction afterward against byte-exact pre-change runner export, ROOT reset to managed checkout; does not claim coordinator red preceded worker implementation."
+    },
+    "worker_final": {
+      "result": "151passed",
+      "log_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/pytest-focused.log",
+      "log_sha256": "027b598781d2441bb665a8f196da02a6e7db0c37d3a81d1d4114b46143bc2586"
+    },
+    "coordinator_combined_initial": {
+      "command": ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned*.py -q",
+      "result": "1failed/160passed",
+      "log_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-all-reference-tests.log",
+      "log_sha256": "7ebaa0c4bf7612789a7938385d9179de44128acc32ba634490265e79eb5e6fee",
+      "cause": "Existing preflight helper used permanent setattr for PILOT_PREREG_V6; alphabetical combined order leaked missing-path state into later hash-boundary test.",
+      "correction": "Use monkeypatch.setattr so teardown restores module state; no reorder, exclusion, assertion/threshold change or skip."
+    },
+    "coordinator_final": {
+      "command": ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned*.py -q",
+      "result": "161passed",
+      "seconds": 4.15,
+      "log_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-all-reference-tests-final.log",
+      "log_sha256": "3266e7036ccb5ed29f2aff68f1f0c9120a31ff6e8c233ee08efb2c345c9aafc2"
+    },
+    "lint": "Ruff check all three changed Python files PASS; format check two test modules PASS; git diff --check PASS. Whole historical runner formatting intentionally preserved outside changed blocks."
+  },
+  "independent_review": {
+    "peer": "Antigravity Gemini3.8Flash High",
+    "model": "gemini-3.8-flash-high",
+    "conversation_id": "2651ed3a-8f37-416f-aa94-c8362387019a",
+    "initial_result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-peer-review-result.json",
+    "initial_result_sha256": "37dfca4dd8aac04d101f5d0a85c4f222407c6ef24d269459d51cc55af720e110",
+    "final_delta_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-peer-final-delta-result.json",
+    "final_delta_sha256": "c4075be571abe8da9939d1784ae61df5f8924767876df7dc1f4405e3f4f9ae01",
+    "verdict": "ACCEPT supplied exact change and final fixture-isolation delta.",
+    "formatter_rollback_proof": {
+      "status": "SEMANTICALLY_IDENTICAL",
+      "reviewed_sha256": "0e2536ef27a418d34896944a92b0984dc8944e67a94eaffbc55c6a1f4343331f",
+      "current_sha256": "e89eb2263f449f13dda3fa0c5db1e0a63119ab1e7d28ae2ccaa75b631685b667",
+      "ast_comparison": "Full module ast.dump(include_attributes=False), exact equality",
+      "difference": "Reverted unrelated preexisting formatting changes; functional diff unchanged",
+      "delta_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/runner-verification/coordinator-final-diff-delta.txt"
+    },
+    "scope": "Static supplied-diff/context review only; no peer tool/test/live execution. Root ran recorded checks."
+  },
+  "parser_limit": "Existing fulltext_available report metadata can be true from abstract fallback. Newly invented false-availability assertion removed as mistaken expectation; all36 actual kwargs remain asserted. Conditioned prompt still consumes only titles/abstracts; report flag is not physical-download evidence.",
+  "cleanup": {
+    "removed": "Unrelated historical formatter churn; redundant Boolean type test already enforced by False identity.",
+    "preserved": "Purposeful raw failure/baseline/peer/source proof archives; all strict gates and scientific criteria.",
+    "ui_scan": "Not applicable; no UI changes."
+  },
+  "boundary": {
+    "actual_campaign_provider_calls": 0,
+    "live_retrieval_calls": 0,
+    "canonical_protocol_or_bank_registered": false,
+    "campaign_admission_claimed": false,
+    "scientific_scores_or_labels": false,
+    "production_source_or_configuration_changed": false,
+    "canonical_registration_absence_paths": [
+      "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-result-conditioned-pilot-prereg-v8.json",
+      "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-fixture-bank-prereg-v9.json",
+      "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-result-conditioned-pilot-prereg-v8.admission.json"
+    ]
+  },
+  "remaining": "j3 actual isolated nonexecuting preflight, exact committed protocol8/bank9 pins and normal-loader acceptance; original b4/b5/b7/b8 unchanged."
+}

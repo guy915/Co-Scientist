@@ -1,0 +1,39 @@
+{
+  "status": "ACCEPT_EXACT_PROSPECTIVE_STUDY9_LIFECYCLE",
+  "peer": "Antigravity Gemini3.8FlashHigh",
+  "model": "gemini-3.8-flash-high",
+  "conversation_id": "757fa797-76d9-423e-9374-8658e2c6299a",
+  "private_review_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-launch/launch-review.json",
+  "private_review_sha256": "eec5a667bee8bef0efb548bb20a5180caeb1d699d57f05775daea3cd471ba56e",
+  "source_pins": {
+    "protocol_sha256": "8e5407cd1ef1b342ac63161230e39eff9f1f9a8b2fce975a0111d4a02f33c5e0",
+    "bank_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+    "mcp_build_id": "c1bcd65d16a6220426b99ae9c44aac9ed971fcae",
+    "launcher_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/registered-launcher.py",
+    "launcher_sha256": "f2638ba6068f1104afc8414c07fd958e5d551dc37b72cc6913b99d42fcbe8e48",
+    "eligibility_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-launch/eligibility-read-only.py",
+    "eligibility_sha256": "11755b432fab966a4d650a11fc97722fc0a27053305189bece5cad590e47e218",
+    "eligibility_max_age_seconds": 60,
+    "scientific_call_limits": {
+      "max_model_calls": 24,
+      "max_outer_mcp_calls": 36
+    }
+  },
+  "defects": [],
+  "limits": [
+    "Review is based strictly on the provided script text and pins; no independent runtime, process, filesystem, or network measurements are made or implied.",
+    "Actual runtime eligibility verification (<= 60s freshness, zero usage increment, zero price) and successful clone checkout of commit 98ad4f80 remain root responsibility.",
+    "This review validates lifecycle mechanics, credential boundaries, and admission safety; it does not evaluate or predict scientific retrieval effectiveness."
+  ],
+  "coordinator_runtime_observation": {
+    "checkout_commit": "98ad4f8078bc6c29c3ae3d891bfc5b0413d33070",
+    "protocol_sha256": "8e5407cd1ef1b342ac63161230e39eff9f1f9a8b2fce975a0111d4a02f33c5e0",
+    "bank9_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+    "runner_sha256": "b73d05b026177b503dca795184aa3b5648dafdefd4af3507b696e05de4e1c6d0",
+    "mcp_tree": "c1bcd65d16a6220426b99ae9c44aac9ed971fcae",
+    "dotenv_absent": true,
+    "normal_committed_loaders_pass": true,
+    "admission_absent_before_launch": true
+  },
+  "scientific_acceptance": false
+}

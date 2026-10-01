@@ -2,9 +2,15 @@
 
 ## Current execution state
 
-Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #89](https://github.com/guy915/Co-Scientist/pull/89) is the verified product release (`11b72791`), with [release and real metadata-only retrieval evidence](m12-fulltext-optout-release-2026-10-01.json). The optional fulltext switch preserves default behavior and passed strict provenance through a real local MCP call on the identical deployed source. Production batching and recovery remain disabled. All seven consumed novelty comparisons are incomplete and unscored; the four original scientific/final acceptance gates remain open. No new comparison registration, replay or model qualification follows from this operational release.
+Current state — 1 October 2026: verified product PR #89 (`11b72791`) is in `main` (`bcdd6f79`); its [release receipt](m12-fulltext-optout-release-2026-10-01.json) records the real metadata-only retrieval check. Production batching and recovery remain disabled. The separate Study 9 reference runner and records are not yet merged.
 
-### Historical preparation record through studies5–6
+Study 9 completed one committed, one-shot six-pair comparison with 24 scientific OpenRouter responses, 36 MCP calls and 72 blinded labels. `PILOT_COMPLETE_LABELS_PENDING` is the runner’s acquisition-result status; the terminal record is `COMPLETE_ONE_SHOT_EXECUTION_SCORED`. On the exposed bank9 inputs, positive target coverage was 3/6 in both arms (one gain, one loss); control-anchor coverage fell from 4/6 static to 3/6 candidate, with two individual losses. The scientific disposition is `COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION`; no three-pair confirmation is triggered. Scope is limited to this exact adaptation, not every iterative-search method, model or paper. The [assessment](sakana/novelty-pilot-v9-scientific-assessment-2026-10-01.json) and [terminal evidence](sakana/novelty-pilot-v9-terminal-2026-10-01.json) retain the result and limits.
+
+Studies 1–8 remain consumed, immutable, incomplete and unscored; no replay or automatic replacement bank is authorized. Original `M12-04b4` and conditional `b5` are resolved for this completed exact-configuration rejection; `b7` candidate reconciliation is complete; `b8` final integration and acceptance remain open in [PLAN.md](../../PLAN.md). The product and workflow evidence does not establish general model quality, expert validation or wet-lab results.
+
+### Historical preparation record through studies5–6 (before Study 6 execution)
+
+This is a dated preparation snapshot; its pre-admission Study 6 statements are superseded by the [Study 6 terminal record](sakana/novelty-pilot-v6-terminal-2026-10-01.json). The underlying preparation and interruption evidence remains immutable.
 
 As of 1 October local time, all nine required source investigations are closed. The
 [corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md),
@@ -532,6 +538,8 @@ were recorded before merge. The merged API's three additive columns are present,
 and post-merge production smoke passed. Continue using the exact free route only
 while its current catalog price and availability are verified.
 
-### Operational retrieval exposure — 1 October 2026
+### Historical operational retrieval exposure — 1 October 2026 (before Study 9)
+
+This is the pre-Study 9 exposure snapshot. The later Study 9 assessment and final acceptance state are linked at the top of this document.
 
 The single fulltext-opt-out acceptance call exposed PMIDs42473009,42629436,42627243,41923451,41749333,41740236,41628905,41663958,41353907. Include this release receipt with all previous study/source evidence when deriving any future fresh-bank exclusion set. The public query, response identities and manifest are operational evidence only; no comparison labels or scores were generated.

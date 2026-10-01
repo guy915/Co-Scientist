@@ -1,8 +1,16 @@
 # External source campaign — evidence and acceptance status
 
-Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #89](https://github.com/guy915/Co-Scientist/pull/89) is the verified product release (`11b72791`), with [release and real metadata-only retrieval evidence](m12-fulltext-optout-release-2026-10-01.json). The optional fulltext switch preserves default behavior and passed strict provenance through a real local MCP call on the identical deployed source. Production batching and recovery remain disabled. All seven consumed novelty comparisons are incomplete and unscored; the four original scientific/final acceptance gates remain open. No new comparison registration, replay or model qualification follows from this operational release.
+## Current status — 1 October 2026
 
-## Current update — 30 September 2026
+Product PR #89 (`11b72791`) is included in current `main` (`bcdd6f79`); its [release receipt](m12-fulltext-optout-release-2026-10-01.json) records a real metadata-only retrieval check with strict provenance. Production batching and recovery remain disabled. The separate Study 9 reference runner and result records are not yet merged to `main`.
+
+The bounded corrected Space Bunny screen passed its frozen gates across 200 physical responses at reported $0. A separate public flow completed 71/71 tasks with 178 observed responses and 29 recovered API errors; 21 citation rows remained unsupported and four unavailable, so this is not a claim of citation completeness or general model quality. The distinct Robin continuation completed 17 further tasks and retained its served-model/cost evidence; its child was weakened by deep verification and blocked at a claim gate. These are workflow results, not expert or wet-lab validation. See the [screen](m12-space-bunny-corrected-result-2026-09-30.md), [public-flow receipt](m12-free-default-public-acceptance-2026-09-30.json) and [Robin receipt](m12-robin-continuation-acceptance-2026-09-30.json).
+
+The one-shot Study 9 comparison completed six pairs, 24 scientific OpenRouter responses, 36 MCP calls and 72 blinded labels. The runner acquisition artifact reports `PILOT_COMPLETE_LABELS_PENDING`; after labels and scoring, the whole terminal record is `COMPLETE_ONE_SHOT_EXECUTION_SCORED`. Positive coverage was 3/6 in both arms (one gain and one loss); control-anchor coverage fell from 4/6 static to 3/6 candidate, with two individual anchor losses. The frozen assessment is `COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION`; the exact adaptation is rejected and its conditional three-pair confirmation is not triggered. This does not reject all iterative search or establish a general provider/paper-quality claim. The six pairs reuse exposed bank9 inputs. See the [scientific assessment](sakana/novelty-pilot-v9-scientific-assessment-2026-10-01.json), [terminal record](sakana/novelty-pilot-v9-terminal-2026-10-01.json), [protocol](sakana/novelty-result-conditioned-pilot-prereg-v9.json) and [bank](sakana/novelty-fixture-bank-prereg-v9.json).
+
+Studies 1–8 remain consumed, immutable, incomplete and unscored. The b4 comparison and b5 conditional disposition are closed for this exact configuration; b7 candidate reconciliation is complete; b8 final integration and acceptance remain open in [PLAN.md](../../PLAN.md). No replay, automatic new bank, partial scoring, expert validation or wet-lab result is claimed.
+
+## Historical update — 30 September 2026
 
 All nine source assessments and accepted releases are retained; the dated sections below preserve their original evidence. The campaign is **not complete**.
 

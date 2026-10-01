@@ -1,0 +1,93 @@
+{
+  "status": "VERIFIED_EXACT_COMMITTED_STUDY8_REGISTRATION_NOT_ADMITTED",
+  "item": "M12-04b4j3",
+  "observed_at_utc": "2026-10-01T05:39:25.679387+00:00",
+  "registration_commit": "0bdf64f3a64bf092492804a07f3de12eac77352a",
+  "registration_committed_at": "2026-10-01T07:38:33+02:00",
+  "protocol_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v8.json",
+  "protocol_sha256": "6921c90e33fe394f478f559198dc76b6eeac00cca12675bf9411f79e160d9e4d",
+  "bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v9.json",
+  "bank_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+  "normal_committed_loaders": "passed",
+  "normal_loader_scope": "Reference comparison loaders only; not a production inference flow. Clean env and dotenv disabled, no client/admission/transport initialized.",
+  "private_protocol_sha256": "8922f37d5b061ded2600fc5f1cce6f80d7f8bbff6179f43e9ed4044b7034a62c",
+  "private_bank_sha256": "9dd7f27695f852d4fe729dc7ed28a1a09e3b0d91f3a013186e86f9c34c182be3",
+  "query_output_format": "plain_text",
+  "search_parameters": {
+    "include_fulltext": false
+  },
+  "pairs": 6,
+  "drafts": 12,
+  "source_ids_scorer_only": [
+    "36946428",
+    "36960883",
+    "37129119",
+    "37462829",
+    "37606013",
+    "37712397",
+    "37798927",
+    "37811774",
+    "37871142",
+    "37880982",
+    "37903285",
+    "38112317"
+  ],
+  "one_shot_admission_marker_exists": false,
+  "model_client_initialized": false,
+  "scientific_transport_initialized": false,
+  "model_calls": 0,
+  "scientific_mcp_calls": 0,
+  "source_review_path": "references/external/sakana/novelty-metadata-only-source-preparation-2026-10-01.json",
+  "source_review_sha256": "904cd08294e6f59b43d7d2c11f0cd25f7f201aa43dd30a9fc04318d64e7d35cd",
+  "input_review_path": "references/external/sakana/novelty-metadata-only-input-review-2026-10-01.json",
+  "input_review_sha256": "be9bc071847784223c7475f71275eb1a13c36f6ef76cbdd0c3bc51e714a5db05",
+  "process_readiness_path": "references/external/sakana/novelty-pilot-v8-process-readiness-2026-10-01.json",
+  "process_readiness_sha256": "c206392097d24d53071a040d747da42702841edd1085bc77cea293658c031407",
+  "canonical_conversion": {
+    "status": "CANONICAL_BYTES_WRITTEN_COMMIT_AND_NORMAL_LOADERS_PENDING",
+    "private_protocol_sha256": "8922f37d5b061ded2600fc5f1cce6f80d7f8bbff6179f43e9ed4044b7034a62c",
+    "private_bank_sha256": "9dd7f27695f852d4fe729dc7ed28a1a09e3b0d91f3a013186e86f9c34c182be3",
+    "canonical_protocol_sha256": "6921c90e33fe394f478f559198dc76b6eeac00cca12675bf9411f79e160d9e4d",
+    "canonical_bank_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+    "permitted_bank_changes": [
+      "status",
+      "registration_note",
+      "preparation_verification"
+    ],
+    "permitted_protocol_changes": [
+      "fixture_bank_sha256",
+      "status",
+      "candidate_calls_authorized",
+      "source_evidence",
+      "preparation_verification"
+    ],
+    "source_model_scientific_core_unchanged": true,
+    "admission_absent": true
+  },
+  "independent_canonical_delta": {
+    "peer": "Antigravity Gemini 3.8 Flash High",
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "conversation_id": "b474347b-a27c-409a-8a9f-6d8e6728d94c",
+    "verdict": "ACCEPT_CANONICAL_CONVERSION",
+    "prompt_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/independent-canonical-delta-prompt.json",
+    "prompt_sha256": "01c073d6f1ade486eb43e8d5550494d1574d8b99108ed26886b8b55a445775c8",
+    "result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/independent-canonical-delta-result.json",
+    "result_sha256": "a4e818c683ed8c4c3d2fac4ce77b16749303402d1b39543e8981c8a9020d2897",
+    "scope": "Supplied exact administrative conversion delta/hashed core equality/process receipt; no tool access or independently observed loader or process. Coordinator performed actual byte/loader/process checks."
+  },
+  "targeted_checks": {
+    "command": "PYTHONPATH=references/external/sakana:engine/src:engine .venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned*.py -q",
+    "result": "161 passed in3.73s",
+    "log_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/canonical-reference-tests.log",
+    "log_sha256": "4c8674e76377f178fb70d8bcacf89227142fc89a1e746b6807584b821da3d551"
+  },
+  "historical_immutability": {
+    "records_checked": 28,
+    "all_equal_starting_committed_bytes": true,
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/historical-byte-preservation.json",
+    "sha256": "d95e2847e6c4eacb7bd06de3b53898c702f8df006a5e0f362d74200447f06134"
+  },
+  "production_mutation": false,
+  "next": "Fresh exact official zero-price route/account check plus fresh isolated MCP/process/cache, then original b4 one-shot study8. No scientific outcome or historical replay from registration."
+}

@@ -1,10 +1,22 @@
 # External reference campaign
 
-Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #89](https://github.com/guy915/Co-Scientist/pull/89) is the verified product release (`11b72791`), with [release and real metadata-only retrieval evidence](m12-fulltext-optout-release-2026-10-01.json). The optional fulltext switch preserves default behavior and passed strict provenance through a real local MCP call on the identical deployed source. Production batching and recovery remain disabled. All seven consumed novelty comparisons are incomplete and unscored; the four original scientific/final acceptance gates remain open. No new comparison registration, replay or model qualification follows from this operational release.
+## Current state — 1 October 2026
+
+All nine source assessments are closed. The verified product release [PR #89](https://github.com/guy915/Co-Scientist/pull/89), commit `11b72791`, is included in current `main` (`bcdd6f79`); its [release receipt](m12-fulltext-optout-release-2026-10-01.json) records a real metadata-only retrieval check with strict provenance. Production batching and recovery remain disabled. The Study 9 records and reference runner described below are not yet merged to `main`.
+
+The one-shot Study 9 comparison completed all six pairs, 24 scientific OpenRouter responses, 36 MCP calls and 72 blinded labels. The runner’s acquisition result is `PILOT_COMPLETE_LABELS_PENDING`; the full terminal record is `COMPLETE_ONE_SHOT_EXECUTION_SCORED`. On the exposed fixed bank9 inputs, positive coverage was 3/6 in both arms (one gain and one loss); control-anchor coverage fell from 4/6 to 3/6, with two individual anchor losses. The assessment is `COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION`: it rejects this exact adaptation, so confirmation is not triggered. It does not reject all iterative search, providers or papers, and does not establish expert or wet-lab validity. See the [scientific assessment](sakana/novelty-pilot-v9-scientific-assessment-2026-10-01.json), [terminal receipt](sakana/novelty-pilot-v9-terminal-2026-10-01.json), [protocol](sakana/novelty-result-conditioned-pilot-prereg-v9.json) and [bank](sakana/novelty-fixture-bank-prereg-v9.json).
+
+Studies 1–8 remain consumed, immutable, incomplete and unscored; see their dated receipts in [campaign history](campaign.md). The original pilot and its conditional disposition are resolved for this exact configuration (`M12-04b4`/`b5`); candidate reconciliation (`b7`) is complete; final integration and the zero-open-item closing record (`b8`) remain open in [PLAN.md](../../PLAN.md). No consumed study is replayed or replaced automatically.
+
+The bounded corrected Space Bunny screen reported $0 across 200 physical responses. Its separate public flow completed 71/71 tasks with 178 observed responses and 29 recovered API errors; citation limitations remain. The distinct Robin continuation completed 17 more tasks, but its child was weakened by deep verification and blocked at a claim gate. These workflow and model-screen receipts do not establish general model quality or scientific validation. See the [corrected screen](m12-space-bunny-corrected-result-2026-09-30.md), [public-flow receipt](m12-free-default-public-acceptance-2026-09-30.json) and [Robin receipt](m12-robin-continuation-acceptance-2026-09-30.json).
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
+
+### Historical evidence through 30 September 2026
+
+The following dated snapshots preserve earlier campaign states; the current novelty and acceptance decisions are summarized above.
 
 Sources are acquired sequentially in ignored `references/work/<slug>/`.
 All nine required source investigations are closed. The OpenScience timeout and
@@ -16,7 +28,8 @@ The [distinct Robin continuation](m12-robin-continuation-acceptance-2026-09-30.j
 completed 17 further tasks with lineage, ownership, model/cost telemetry and
 browser refresh. Its weakened and blocked scientific dispositions are retained;
 these workflow results do not establish expert or experimental validation.
-Sakana's result-conditioned search remains unresolved. The separately registered
+At that 30 September snapshot, Sakana's result-conditioned search remained
+unresolved. The separately registered
 [third study](sakana/novelty-result-conditioned-pilot-prereg-v3.json)
 [stopped on a PubMed metadata-fetch error](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
 after one model response and one retrieval call at reported $0. All three study
@@ -24,7 +37,7 @@ admissions are consumed and incomplete; none may be replayed. No scientific
 adoption or rejection follows from an interrupted comparison.
 [PR #80](m12-reference-evidence-release-2026-09-30.json) preserves the reference
 repair and study evidence; its unchanged product is healthy in existing services.
-Four original M12 gates remain open in [PLAN.md](../../PLAN.md). The prospective
+The four original M12 gates remained open at that snapshot in [PLAN.md](../../PLAN.md). The prospective
 fourth-study preparation passed actual isolated process/CLI gates, then its
 [sole admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json)
 after 13 model responses and 19 outer searches at reported $0. Two EFetch 429 recoveries
@@ -73,4 +86,4 @@ reuse route, acceptance criteria, test boundary, costs/results, and disposition.
 Only adopted, already covered, evidence-backed rejection, and out-of-scope decisions
 close a candidate; promising inconclusive findings stay open.
 
-Latest support release: [PubMed batching and study evidence, 1 October 2026](m12-pubmed-batching-release-2026-10-01.json), PR87/`0b642a97`; all existing services verified healthy. Default-off support and incomplete scientific comparisons are separate outcomes; four original M12 acceptance gates remain open.
+Latest verified product release: [PR #89](https://github.com/guy915/Co-Scientist/pull/89), commit `11b72791` on `main` (`bcdd6f79`), with the [metadata-only release receipt](m12-fulltext-optout-release-2026-10-01.json). The separate Study 9 reference runner and its terminal/scoring records remain unmerged. Candidate reconciliation is complete; final integration and acceptance remain open under `b8`.
