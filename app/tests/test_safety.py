@@ -13,6 +13,8 @@ from app import process_mode
 from app.safety import screen_contextual, screen_final, screen_intake
 from tests._process_mode_helpers import FakeProcessMode
 
+from ._llm_fake_backend import install_completion_backend
+
 
 def test_allow_benign_research_goal() -> None:
     d = screen_intake(
@@ -104,7 +106,6 @@ async def test_contextual_screen_holds_ambiguous_risk(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """Semantic uncertainty pauses release and preserves provenance."""
-    import litellm
 
     async def fake_completion(**_: object) -> SimpleNamespace:
         return SimpleNamespace(
@@ -123,7 +124,7 @@ async def test_contextual_screen_holds_ambiguous_risk(
     # The suite process is offline-pinned, which is its own deliberate
     # carve-out; these exercise a configured deployment's contextual screen.
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", fake_completion)
+    install_completion_backend(monkeypatch, fake_completion)
     decision = await screen_contextual(
         "Optimize a sensitive biological protocol.", "intake"
     )
@@ -138,7 +139,6 @@ async def test_contextual_failure_fails_closed(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """An unavailable semantic assessor cannot silently allow publication."""
-    import litellm
 
     async def failed_completion(**_: object) -> None:
         raise RuntimeError("provider unavailable")
@@ -146,7 +146,7 @@ async def test_contextual_failure_fails_closed(
     # The suite process is offline-pinned, which is its own deliberate
     # carve-out; these exercise a configured deployment's contextual screen.
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", failed_completion)
+    install_completion_backend(monkeypatch, failed_completion)
     decision = await screen_contextual("Ambiguous protocol", "final")
 
     assert decision.decision == "hold"

@@ -1,14 +1,14 @@
 """Tests for the LLM (NLI) entailment assessor (app/claim_verifier.py).
 
 The assessor is exercised end-to-end against a real provider by the golden run;
-here the litellm boundary is faked so the prompt/parse/guard behavior is proven
-offline: a valid verdict with a real quote yields a located support span, a
-hallucinated quote is downgraded, and any provider/parse failure falls back to
-the deterministic assessor rather than breaking grounding. The unfounded-
-CONTRADICTS guard (subject overlap + negation-marker check) moved to
-``test_claim_verifier_contradiction.py`` when this file passed the
-module-size budget, and the cite-by-passage-number tests to
-``test_claim_verifier_citations.py`` for the same reason.
+here the engine's completion backend is faked so the prompt/parse/guard
+behavior is proven offline: a valid verdict with a real quote yields a located
+support span, a hallucinated quote is downgraded, and any provider/parse
+failure falls back to the deterministic assessor rather than breaking
+grounding. The unfounded-CONTRADICTS guard (subject overlap +
+negation-marker check) moved to ``test_claim_verifier_contradiction.py``
+when this file passed the module-size budget, and the cite-by-passage-number
+tests to ``test_claim_verifier_citations.py`` for the same reason.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ import pytest
 
 from app.claim_verifier import _entailment_prompt, make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
+
+from ._llm_fake_backend import install_completion_backend
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +42,7 @@ def _disable_llm_response_cache() -> Any:
 
 
 def _fake_completion(content: str) -> Any:
-    """Return a stand-in for litellm.acompletion yielding ``content``."""
+    """Return a fake provider answer yielding ``content``."""
 
     async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
@@ -51,15 +53,13 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    """Patch the engine's completion boundary (``litellm.acompletion``).
+    """Install the fake completion backend.
 
     ``app.claim_verifier`` routes through ``co_scientist.llm.call_llm_json``
     now (see the module docstring), so the boundary to fake is the
-    engine's own -- exactly what every other engine LLM test patches.
+    engine's own -- the completion backend every engine LLM test installs.
     """
-    import litellm
-
-    monkeypatch.setattr(litellm, "acompletion", completion)
+    install_completion_backend(monkeypatch, completion)
 
 
 _PASSAGE = EvidencePassage(
@@ -227,7 +227,7 @@ def test_no_passages_is_insufficient_without_calling_llm(
     """With no candidate passages the assessor short-circuits."""
 
     async def _should_not_be_called(**_kwargs: Any) -> Any:
-        raise AssertionError("litellm.acompletion must not be called")
+        raise AssertionError("the provider must not be called")
 
     _install(monkeypatch, _should_not_be_called)
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
