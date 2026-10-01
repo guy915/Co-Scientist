@@ -4,10 +4,10 @@ Unlike ``test_published_plan_config_criteria.py`` (R12-4), this does not
 assert our default equals the published content -- the MASH plan config's
 ``## Attributes`` section (docs/CORPUS-EXTRACTION.md line 1930) is specific
 to that one run's goal, so copying its text would hardcode one study's
-rubric as every run's default (see ``run_modes_attributes``'s module
+rubric as every run's default (see ``run_modes.attributes``'s module
 docstring). What this pins instead is the published *structure* -- four
 axes on an explicit 1-5 scale with anchor text, one categorical with an
-enumerated value set -- and that ``run_modes_attributes``'s shape can
+enumerated value set -- and that ``run_modes.attributes``'s shape can
 represent every published item exactly, anchor omissions included.
 
 Reads ``docs/CORPUS-EXTRACTION.md`` at test time rather than retranscribing
@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 
 from app.run_modes import attribute_display_strings
-from app.run_modes_attributes import clean_attributes_list
+from app.run_modes.attributes import clean_attributes_list
 
 _CORPUS_EXTRACTION = (
     pathlib.Path(__file__).resolve().parents[2]

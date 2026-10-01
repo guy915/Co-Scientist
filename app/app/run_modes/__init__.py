@@ -7,23 +7,23 @@ from collections.abc import Callable
 from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
-from app.run_modes_attributes import (
+from app.run_modes.attributes import (
     _default_attributes as _default_attributes,
 )
-from app.run_modes_attributes import (
+from app.run_modes.attributes import (
     attribute_display_strings as attribute_display_strings,
 )
-from app.run_modes_attributes import (
+from app.run_modes.attributes import (
     attribute_names as attribute_names,
 )
-from app.run_modes_attributes import clean_attributes_list
-from app.run_modes_criteria import (
+from app.run_modes.attributes import clean_attributes_list
+from app.run_modes.criteria import (
     _default_criteria as _default_criteria,
 )
-from app.run_modes_criteria import (
+from app.run_modes.criteria import (
     clean_criteria_list as clean_criteria_list,
 )
-from app.run_modes_criteria import (
+from app.run_modes.criteria import (
     criteria_display_strings as criteria_display_strings,
 )
 
@@ -51,11 +51,11 @@ DEFAULT_REQUIREMENTS: tuple[str, ...] = (
     "Use tournament ranking and evolution before final synthesis.",
 )
 # DEFAULT_ATTRIBUTES, clean_attributes_list, attribute_display_strings, and
-# attribute_names live in run_modes_attributes (R12-5: the attributes
+# attribute_names live in run_modes.attributes (R12-5: the attributes
 # field's structured axis shape and back-compat), imported above and
 # re-exported for existing importers.
 # DEFAULT_CRITERIA, clean_criteria_list, and criteria_display_strings live in
-# run_modes_criteria (R12-4: the criteria field's named-setting shape and
+# run_modes.criteria (R12-4: the criteria field's named-setting shape and
 # back-compat), imported above and re-exported for existing importers.
 
 # Reconstructed compute envelopes; every knob scales up together from express

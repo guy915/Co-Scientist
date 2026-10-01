@@ -1,7 +1,7 @@
 """R12-5: the run-level Attributes field's structured shape and back-compat.
 
 Split out of ``run_modes`` to keep that module within the size cap, mirroring
-the sibling ``run_modes_criteria`` module R12-4 added. Google's published run
+the sibling ``run_modes.criteria`` module R12-4 added. Google's published run
 plan renders Attributes as five named scoring axes
 (docs/CORPUS-EXTRACTION.md line 1930): four on an explicit 1-5 scale with
 anchor text at points 1, 3, and 5 (Mechanism Novelty, Human Relevance,

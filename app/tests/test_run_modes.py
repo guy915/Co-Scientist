@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from app import run_modes, run_modes_criteria
-from app import run_modes_attributes as run_modes_attributes_mod
+from app import run_modes
+from app.run_modes import attributes as run_modes_attributes_mod
+from app.run_modes import criteria as run_modes_criteria
 
 
 def test_every_tier_caps_its_llm_call_spend() -> None:
@@ -41,7 +42,7 @@ def test_default_attributes_are_goal_agnostic_scaled_axes() -> None:
 
     No categorical default exists -- the published block's own categorical
     axis (Target Area) is goal-derived, so nothing goal-agnostic to put
-    here (see ``run_modes_attributes``'s module docstring). The categorical
+    here (see ``run_modes.attributes``'s module docstring). The categorical
     shape itself is still fully supported; pinned on stored producer input
     by ``test_setup_config_keeps_accepting_a_categorical_attribute`` below.
     """

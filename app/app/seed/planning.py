@@ -9,7 +9,7 @@ meant that renaming a demo, or adding one matching no substring, silently
 handed the run another scenario's lists instead of failing.
 
 Attributes use the structured 1-5-scale-plus-categorical shape
-(``run_modes_attributes.py``, R12-5) rather than free prose: each scenario
+(``run_modes/attributes.py``, R12-5) rather than free prose: each scenario
 supplies four scaled axes, goal-specific but mirroring
 ``DEFAULT_ATTRIBUTES``'s anchored-rubric shape, plus one categorical axis
 whose value set is genuinely goal-derived (drawn from that scenario's own
