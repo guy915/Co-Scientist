@@ -26,6 +26,8 @@ from app.hypothesis_screening import screen_hypotheses
 from tests._drain_helpers import _engine_hypothesis, _persist
 from tests._process_mode_helpers import FakeProcessMode
 
+from ._llm_fake_backend import install_completion_backend
+
 # A control-arm hard-split item the deterministic layer holds as UNCERTAIN
 # via the benign-context marker check ("triage"/"disaster"), carrying
 # needs_context=True -- the only shape escalation acts on. Matches the
@@ -101,13 +103,12 @@ def test_drain_escalates_and_raises_a_held_verdict(
     the unpatched tree: without wiring escalation into the drain, ``held-1``
     settles at ``uncertain`` no matter what the model would have said.
     """
-    import litellm
 
     async def block_completion(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("prohibited")
 
     _stub_eligible(monkeypatch, fake_process_mode)
-    monkeypatch.setattr(litellm, "acompletion", block_completion)
+    install_completion_backend(monkeypatch, block_completion)
     run = _real_run("drain escalation raise")
 
     _persist(
@@ -161,13 +162,12 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
     ``held-1``'s unchanged text and, without ``_STICKY_STATUSES`` covering
     the escalation-raised outcome, silently clear the block back down.
     """
-    import litellm
 
     async def block_completion(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("prohibited")
 
     _stub_eligible(monkeypatch, fake_process_mode)
-    monkeypatch.setattr(litellm, "acompletion", block_completion)
+    install_completion_backend(monkeypatch, block_completion)
     run = _real_run("drain escalation rescreen")
 
     _persist(
@@ -215,13 +215,12 @@ def test_drain_escalation_fails_closed_on_provider_error(
     fake_process_mode: FakeProcessMode,
 ) -> None:
     """A provider failure mid-call leaves the hold in place, not a block."""
-    import litellm
 
     async def raise_completion(**_: object) -> None:
         raise RuntimeError("provider unavailable")
 
     _stub_eligible(monkeypatch, fake_process_mode)
-    monkeypatch.setattr(litellm, "acompletion", raise_completion)
+    install_completion_backend(monkeypatch, raise_completion)
     run = _real_run("drain escalation provider error")
 
     _persist(
@@ -242,12 +241,13 @@ def test_drain_skips_escalation_cleanly_when_offline(
     call is patched to raise if it is ever reached at all, since a real
     offline run must never attempt one.
     """
-    import litellm
 
     async def fail_if_called(**_: object) -> None:
-        raise AssertionError("an offline-backed run must never call litellm")
+        raise AssertionError(
+            "an offline-backed run must never call the provider"
+        )
 
-    monkeypatch.setattr(litellm, "acompletion", fail_if_called)
+    install_completion_backend(monkeypatch, fail_if_called)
     run = store.create_run(
         "drain escalation offline",
         "standard",
@@ -277,8 +277,6 @@ def test_escalation_does_not_hold_the_write_lock(
     across it, the concurrent ``create_run`` below would block for the
     busy-timeout instead of returning immediately.
     """
-    import litellm
-
     call_started = threading.Event()
     release_call = threading.Event()
 
@@ -288,7 +286,7 @@ def test_escalation_does_not_hold_the_write_lock(
         return _fake_semantic_response("allowed")
 
     _stub_eligible(monkeypatch, fake_process_mode)
-    monkeypatch.setattr(litellm, "acompletion", slow_completion)
+    install_completion_backend(monkeypatch, slow_completion)
     run = _real_run("drain escalation lock check")
 
     errors: list[BaseException] = []
@@ -336,14 +334,12 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     reads these rows, so it would show a reviewer a block that never
     happened.
     """
-    import litellm
-
     _stub_eligible(monkeypatch, fake_process_mode)
 
     async def _allow(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("allowed")
 
-    monkeypatch.setattr(litellm, "acompletion", _allow)
+    install_completion_backend(monkeypatch, _allow)
     run = _real_run("cleared hold audit")
 
     await engine_adapter.persist_final_state(
