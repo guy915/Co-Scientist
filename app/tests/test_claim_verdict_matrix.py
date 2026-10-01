@@ -30,7 +30,7 @@ from app.claims_span import _downgrade_unproven_label
 from app.knowledge_facts import derive_knowledge_facts
 from app.report import content as report_content
 from app.report import gates as report_gates
-from app.report.markdown.hypothesis import _claim_status
+from app.report.markdown.hypothesis import _render_claim_evidence
 from app.store import NewClaimEvidence
 
 _LABELS = ("supports", "partial", "contradicts", "insufficient", None)
@@ -115,7 +115,10 @@ def test_reader_facing_status_text(label: Any, role: Any) -> None:
         expected = _EXCUSED_STATUS
     else:
         expected = _UNEXCUSED_STATUS
-    assert _claim_status(_edge(label, role)) == expected
+    line = _render_claim_evidence([_edge(label, role)])[2]
+    # The role is printed as persisted; a missing one reads as categorical.
+    shown_role = role or "categorical"
+    assert line.startswith(f"- **{expected} · {shown_role}** — ")
 
 
 @pytest.mark.parametrize(("label", "role"), _cases())
