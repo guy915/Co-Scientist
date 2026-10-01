@@ -7,19 +7,22 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, free_usage
+from app import free_usage
 from app.config import settings
 from app.execution_policy import CAMPAIGN
 from app.main import app
 from app.store.db import connect
+from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}
 
 
 @pytest.fixture
-def real_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+def real_backend(
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
+) -> None:
     """Make a keyless run real-backed, i.e. free usage."""
-    monkeypatch.setattr(engine_adapter, "offline_mode", lambda: False)
+    fake_process_mode.online()
 
     async def _no_title(goal: str) -> None:
         return None

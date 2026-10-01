@@ -3,8 +3,7 @@
 Split from ``app.safety`` so the deterministic policy, the model assessment,
 and the run-level effects stay independently readable while each module stays
 under the repository's file-length ceiling. ``app.safety`` keeps
-``screen_contextual`` and ``_semantic_credential_available`` -- both are
-established monkeypatch seams -- and calls into the helpers here.
+``screen_contextual`` and calls into the helpers here.
 """
 
 from __future__ import annotations

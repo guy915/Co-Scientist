@@ -32,7 +32,10 @@ import pytest
 _CACHE_DIR = tempfile.mkdtemp(prefix="coscientist-test-cache-")
 os.environ.setdefault("COSCIENTIST_CACHE_DIR", _CACHE_DIR)
 
+from app import process_mode  # noqa: E402
 from app.config import PROVIDER_CREDENTIAL_ENV  # noqa: E402
+
+from ._process_mode_helpers import FakeProcessMode  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -173,6 +176,24 @@ def reachable_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-placeholder-for-shape-tests")
+
+
+@pytest.fixture
+def fake_process_mode() -> Iterator[FakeProcessMode]:
+    """Install the test adapter for the process-mode seam.
+
+    The one place a test states "this process is online" or "this model has
+    (no) credential", in place of patching ``offline_mode`` or a safety
+    wrapper in whichever module reads it. It starts as the suite's own
+    posture (offline, no credential); call ``.online(credential=...)`` to
+    lift it. Opt-in: the env-derived adapter stays the default, so tests that
+    state the mode through ``COSCIENTIST_FORCE_OFFLINE`` and the credential
+    variables (``reachable_provider``) keep exercising production's logic.
+    """
+    fake = FakeProcessMode()
+    previous = process_mode.install(fake)
+    yield fake
+    process_mode.install(previous)
 
 
 @pytest.fixture(autouse=True)

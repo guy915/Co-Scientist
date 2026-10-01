@@ -26,8 +26,8 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
-from app import store
-from app.config import has_provider_credential, settings
+from app import process_mode, store
+from app.config import settings
 from app.execution_policy import effective_execution_model
 from app.safety_gate import apply_safety_gate as apply_safety_gate
 from app.safety_redaction import REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER
@@ -179,42 +179,6 @@ def screen_final(report_markdown: str) -> SafetyDecision:
     return _decision_from_review("final", review)
 
 
-def _semantic_credential_available(model: str) -> bool:
-    """Return whether the configured provider has a usable credential.
-
-    Delegates to ``config.PROVIDER_CREDENTIAL_ENV`` rather than carrying its
-    own provider table. This module's copy had drifted apart from the
-    offline-mode probe's, and a provider missing here does not raise, so a
-    drifted table read as a semantic layer that was configured and never
-    won. It is now visible either way: the screen refuses and logs rather
-    than falling back to the deterministic rules alone. A scoped
-    bring-your-own-key credential also satisfies the gate: a BYOK run
-    screens on its own key even when the deployment has none.
-    """
-    from app import credentials
-
-    return credentials.current_byok() is not None or has_provider_credential(
-        model
-    )
-
-
-def _offline_pinned_process() -> bool:
-    """Return whether every model call in this process is offline-routed.
-
-    A forced-offline or keyless process pins the engine to the deterministic
-    offline backend, so no contextual screen is expected to run: that is a
-    deployment mode, not a safety control that failed, and it must not hold
-    every run for review. It is the carve-out the escalation check already
-    makes for an offline-backed run, at process rather than run scope.
-    A *partially* configured deployment -- one holding a provider
-    credential but not the safety model's -- is the opposite case and still
-    refuses, which is the failure this guard must not swallow.
-    """
-    from app.engine_adapter.provider import offline_mode
-
-    return offline_mode()
-
-
 async def screen_contextual(
     text: str,
     stage: str,
@@ -227,6 +191,15 @@ async def screen_contextual(
     cannot describe and its verdict is what the caller gates on. The rules run
     first and bound it from below -- a rule-level block short-circuits before
     any call, and nothing the model returns can lower a rule-level verdict.
+
+    A forced-offline or keyless process pins every model call to the offline
+    backend, so no contextual screen is expected to run: that is a deployment
+    mode, not a safety control that failed, and it must not hold every run
+    for review. It is the carve-out ``_should_escalate_to_semantic`` already
+    makes for an offline-backed run, at process rather than run scope. A
+    *partially* configured deployment -- one holding a provider credential but
+    not the safety model's -- is the opposite case and still refuses, which is
+    the failure this guard must not swallow.
     """
     baseline = deterministic or (
         screen_intake(text) if stage == "intake" else screen_final(text)
@@ -239,9 +212,9 @@ async def screen_contextual(
         or settings.model_name
     )
     assert model is not None
-    if not settings.semantic_safety_enabled or _offline_pinned_process():
+    if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return baseline
-    if not _semantic_credential_available(model):
+    if not process_mode.credential_available(model):
         return semantic_credential_missing_decision(stage, model, baseline)
     try:
         assessment = await run_semantic_safety_model(text, stage, model)
@@ -321,9 +294,9 @@ async def assess_hold_contextually(
         or settings.model_name
     )
     assert model is not None
-    if not settings.semantic_safety_enabled or _offline_pinned_process():
+    if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return None
-    if not _semantic_credential_available(model):
+    if not process_mode.credential_available(model):
         return None
     try:
         return await run_semantic_safety_model(text, stage, model)

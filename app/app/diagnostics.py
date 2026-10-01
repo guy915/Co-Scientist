@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import store
-from app.config import settings
-from app.engine_adapter.provider import _engine_importable, _has_provider_key
+from app.config import any_provider_credential, settings
+from app.engine_adapter.provider import _engine_importable
 from app.store.db import default_db_path
 from app.store.tasks import queue_health_snapshot
 
@@ -99,7 +99,7 @@ def derive_health_status(
     """
     if not store_check.ok:
         return UNHEALTHY
-    if _has_provider_key() and not engine_check.ok:
+    if any_provider_credential() and not engine_check.ok:
         return DEGRADED
     return HEALTHY
 

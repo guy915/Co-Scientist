@@ -15,8 +15,8 @@ import sys
 
 import pytest
 
-from app import safety
-from app.config import PROVIDER_CREDENTIAL_ENV
+from app import process_mode
+from app.config import PROVIDER_CREDENTIAL_ENV, any_provider_credential
 from app.engine_adapter import provider
 
 _ALL_CREDENTIAL_ENV = tuple(
@@ -41,10 +41,10 @@ def test_a_non_default_provider_key_counts_as_a_credential(
     backend.
     """
     _clear_credentials(monkeypatch)
-    assert provider._has_provider_key() is False
+    assert any_provider_credential() is False
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    assert provider._has_provider_key() is True
+    assert any_provider_credential() is True
 
 
 @pytest.mark.parametrize("credential", _ALL_CREDENTIAL_ENV)
@@ -66,7 +66,7 @@ def test_every_known_credential_keeps_the_run_on_a_real_provider(
     assert provider.offline_mode() is True
 
     monkeypatch.setenv(credential, "sk-test")
-    assert provider._has_provider_key() is True
+    assert any_provider_credential() is True
     assert provider.offline_mode() is False
 
 
@@ -85,9 +85,10 @@ def test_credential_lookup_has_one_owner(
         PROVIDER_CREDENTIAL_ENV, "fictional", ("FICTIONAL_KEY",)
     )
     monkeypatch.setenv("FICTIONAL_KEY", "sk-test")
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
 
-    assert provider._has_provider_key() is True
-    assert safety._semantic_credential_available("fictional/model-x") is True
+    assert provider.offline_mode() is False
+    assert process_mode.credential_available("fictional/model-x") is True
 
 
 def test_engine_importable_returns_false_on_exception(
@@ -105,7 +106,8 @@ def test_select_provider_is_always_engine(
     monkeypatch: pytest.MonkeyPatch, has_key: bool
 ) -> None:
     """The mock is retired: selection is engine regardless of key presence."""
-    monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
+    if has_key:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setattr(provider, "_engine_importable", lambda: True)
     assert provider.select_provider() == "engine"
 
@@ -148,7 +150,9 @@ def test_offline_mode(
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
     if force_mock is not None:
         monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
-    monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
+    _clear_credentials(monkeypatch)
+    if has_key:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert provider.offline_mode() is expected
 
 

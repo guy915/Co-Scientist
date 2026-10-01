@@ -22,6 +22,7 @@ import pytest
 
 from app import safety
 from app.safety import screen_contextual
+from tests._process_mode_helpers import FakeProcessMode
 
 
 @pytest.fixture(autouse=True)
@@ -60,13 +61,10 @@ def _install(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
 
 
 async def test_missing_credential_refuses_and_warns(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    caplog: pytest.LogCaptureFixture, fake_process_mode: FakeProcessMode
 ) -> None:
     """No credential for the configured screen holds instead of allowing."""
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: False
-    )
+    fake_process_mode.online(credential=False)
     with caplog.at_level(logging.WARNING, logger="app.safety_semantic"):
         decision = await screen_contextual("A benign research goal.", "intake")
 
@@ -80,15 +78,13 @@ async def test_missing_credential_refuses_and_warns(
 
 
 async def test_disabled_screen_still_returns_the_baseline(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """Turning the screen off is configuration, not a broken safety control."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: False
-    )
+    fake_process_mode.online(credential=False)
     decision = await screen_contextual("A benign research goal.", "intake")
 
     assert decision.decision == "allow"
@@ -96,13 +92,10 @@ async def test_disabled_screen_still_returns_the_baseline(
 
 
 async def test_model_cannot_downgrade_a_deterministic_redaction(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The deterministic rules are pre-blocks the model may raise, not clear."""
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     _install(monkeypatch, '{"category":"allowed","reason":"t"}')
     markdown = "# Report\nThis programme is explicitly dual-use."
     baseline = safety.screen_final(markdown)
@@ -116,13 +109,10 @@ async def test_model_cannot_downgrade_a_deterministic_redaction(
 
 
 async def test_model_may_raise_the_deterministic_verdict(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The model stays primary wherever it is stricter than the rules."""
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     _install(monkeypatch, '{"category":"prohibited","reason":"t"}')
     decision = await screen_contextual("Ordinary looking text.", "final")
 
@@ -131,7 +121,7 @@ async def test_model_may_raise_the_deterministic_verdict(
 
 
 async def test_a_markdown_fenced_answer_still_allows(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A json_object reply wrapped in a Markdown fence must not hold the run.
 
@@ -144,10 +134,7 @@ async def test_a_markdown_fenced_answer_still_allows(
     review. The engine's ``call_llm_json`` seam strips the fence before
     parsing, so the same answer must now resolve to a clean allow.
     """
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     _install(
         monkeypatch,
         '```json\n{"category":"allowed","reason":"benign"}\n```',
@@ -160,7 +147,7 @@ async def test_a_markdown_fenced_answer_still_allows(
 
 
 async def test_a_persistently_bad_reply_still_falls_back_to_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """Unparseable-forever must still hold for review, not raise to the caller.
 
@@ -169,10 +156,7 @@ async def test_a_persistently_bad_reply_still_falls_back_to_unavailable(
     existing ``except Exception`` in ``screen_contextual`` must still catch
     that and produce the same refusal it always has.
     """
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", lambda _: True
-    )
+    fake_process_mode.online()
     _install(monkeypatch, "not json at all, and no fence to strip either")
 
     decision = await screen_contextual("A benign research goal.", "intake")

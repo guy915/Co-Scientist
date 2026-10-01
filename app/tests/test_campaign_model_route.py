@@ -37,6 +37,7 @@ from app.execution_policy import (
 from app.runs_crud_resolve import _ResolvedRunSettings
 from app.runs_models import CreateRunRequest
 from app.store import RunCreateOptions, ScientificTask
+from tests._process_mode_helpers import FakeProcessMode
 
 
 def _cfg() -> dict[str, Any]:
@@ -244,7 +245,7 @@ def test_generator_uses_campaign_worker_and_supervisor_and_isolates_standard(
 
 
 async def test_semantic_safety_selects_campaign_before_credential_check(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     models: list[tuple[str, str]] = []
     monkeypatch.setattr(settings, "semantic_safety_enabled", True)
@@ -253,7 +254,6 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
         settings, "supervisor_model_name", "configured/supervisor"
     )
     monkeypatch.setattr(settings, "model_name", "configured/worker")
-    monkeypatch.setattr(safety, "_offline_pinned_process", lambda: False)
 
     def credential_available(model: str) -> bool:
         models.append(("credential", model))
@@ -263,9 +263,7 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
         models.append(("request", model))
         return safety.screen_intake(text)
 
-    monkeypatch.setattr(
-        safety, "_semantic_credential_available", credential_available
-    )
+    fake_process_mode.online(credential=credential_available)
     monkeypatch.setattr(safety, "run_semantic_safety_model", assess)
 
     with scoped_execution_policy(
