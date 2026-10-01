@@ -4,11 +4,11 @@ Holds the state an attempt runs against, and the mechanics of running
 one: parse (and, if needed, repair) the raw response text, validate it
 against the schema (applying the json_object provider-capability backfill
 shim first), and cache a validated result. The raw LLM call itself is
-injected by ``co_scientist.llm.call_llm_json`` as the ``call_for_json``
-callable, so this module stays free of network wiring and the ``call_llm``
-seam keeps resolving through ``co_scientist.llm``. What happens between
-attempts -- failure classification, throttling backoff, escalation -- is
-``llm.attempts.retry``'s, and it re-exports every name here.
+injected by ``llm.call.call_llm_json`` as the ``call_for_json``
+callable, so this module stays free of network wiring and the raw-call seam
+keeps resolving through ``llm.call``. What happens between attempts --
+failure classification, throttling backoff, escalation -- is
+``llm.attempts.retry``'s.
 """
 
 import json
@@ -20,10 +20,7 @@ from typing import Any
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
-from co_scientist.llm.attempts.escalation import (
-    BudgetEscalation,
-    _JsonCallSpec,
-)
+from co_scientist.llm.attempts.escalation import BudgetEscalation, _JsonCallSpec
 from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )

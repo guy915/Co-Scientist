@@ -1,15 +1,16 @@
 """Response-format selection and the json_object provider-capability shim.
 
-Split out of ``co_scientist.llm.request.completion`` on size; every name here is
-re-exported there, so callers and tests keep speaking to that module's
-namespace. The cluster belongs together because it is one thing: what to
-send when a model cannot be handed a JSON schema server-side.
+Split out of ``llm.request.completion`` on size. The cluster belongs
+together because it is one thing: what to send when a model cannot be handed
+a JSON schema server-side.
 
 ``_supports_json_schema_response_format`` deliberately stayed behind in
 ``llm.request.completion``. It is a monkeypatch seam -- ``offline_llm`` and
-three test helpers rebind it on that module -- and moving a patched name is
-silent: the re-export alias keeps every *reader* working while every
-*patcher* rebinds an alias nothing consults.
+three test helpers rebind it on that module -- and the lookup below reads it
+off the module at call time so those patches reach it. The validation side
+(``llm.attempts.json_attempt._backfill_and_validate``) binds its own name
+instead, so a patch on ``completion`` decides the request format and not
+whether a response is reshaped; a test that needs both patches both.
 """
 
 import json

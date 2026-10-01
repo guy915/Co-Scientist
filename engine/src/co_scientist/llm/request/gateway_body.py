@@ -1,13 +1,10 @@
 """Gateway ``extra_body`` construction for LiteLLM completion calls.
 
-Split from ``co_scientist.llm.request.thinking`` on the same grounds that module
-was split from ``co_scientist.llm.request.completion``: this holds the routes
-and functions that build the actual ``extra_body``/``reasoning`` payload a
-gateway call carries -- distinct from ``llm.request.thinking``'s own concern of
-deciding *whether* a call will effectively reason and what budget that funds.
-Every name here is re-exported from ``co_scientist.llm.request.thinking`` (and,
-from there, ``co_scientist.llm.request.completion``) so existing importers are
-unaffected.
+Split from ``llm.request.thinking`` on the same grounds that module was
+split from ``llm.request.completion``: this holds the routes and functions
+that build the actual ``extra_body``/``reasoning`` payload a gateway call
+carries -- distinct from ``llm.request.thinking``'s own concern of deciding
+*whether* a call will effectively reason and what budget that funds.
 """
 
 import contextlib

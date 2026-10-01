@@ -1,15 +1,15 @@
 """Naming and reporting a failed completion call.
 
-Split out of ``co_scientist.llm`` on size; both names are re-exported
-there. They belong together because they answer one question -- who
-writes a failure down, and under which name -- which is the distinction
-that made a recovered call read as four separate production errors.
+The two names here belong together because they answer one question --
+who writes a failure down, and under which name -- which is the
+distinction that made a recovered call read as four separate production
+errors.
 """
 
 import logging
 
 from co_scientist.exceptions import short_error_text
-from co_scientist.llm.request.completion import (
+from co_scientist.llm.request.thinking import (
     annotate_failure_context,
     effective_max_tokens,
 )

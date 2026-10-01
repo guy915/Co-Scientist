@@ -4,10 +4,10 @@ Provides schema validation, fallback responses for non-critical nodes, and
 the json_object-only provider-capability shims (backfilling missing
 required fields, pruning invented properties, truncating over-long
 arrays), plus validation feedback for retry prompts. The extraction/repair
-helpers live in ``co_scientist.llm.structured.repair`` and are re-exported here
-so historical import paths keep working; a fourth shim (string
-truncation) lives in ``co_scientist.llm.structured.truncate_strings`` instead,
-since ``llm.attempts.json_attempt`` is its only caller. These helpers are pure
+helpers live in ``llm.structured.repair`` and the list coercion in
+``llm.structured.lists``; a fourth shim (string truncation) lives in
+``llm.structured.truncate_strings`` instead, since
+``llm.attempts.json_attempt`` is its only caller. These helpers are pure
 (no network access), shared by ``co_scientist.llm`` and the tool-based phases.
 """
 
@@ -20,57 +20,12 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.exceptions import ResponseParseError
-from co_scientist.llm.structured.lists import (
-    coerce_json_list as coerce_json_list,
-)
+from co_scientist.llm.structured.lists import coerce_json_list
 from co_scientist.llm.structured.repair import (
-    _MAJOR_JSON_REPAIR_STRATEGIES as _MAJOR_JSON_REPAIR_STRATEGIES,
+    attempt_json_repair,
+    extract_response_json,
 )
-from co_scientist.llm.structured.repair import (
-    _MINOR_JSON_REPAIR_STRATEGIES as _MINOR_JSON_REPAIR_STRATEGIES,
-)
-from co_scientist.llm.structured.repair import (
-    _UNTERMINATED_STRING_REPAIRS as _UNTERMINATED_STRING_REPAIRS,
-)
-from co_scientist.llm.structured.repair import (
-    _close_truncated_json as _close_truncated_json,
-)
-from co_scientist.llm.structured.repair import (
-    _fix_invalid_escapes as _fix_invalid_escapes,
-)
-from co_scientist.llm.structured.repair import (
-    _looks_like_truncated_array_entry as _looks_like_truncated_array_entry,
-)
-from co_scientist.llm.structured.repair import (
-    _repair_string_after_colon_or_comma as _repair_string_after_colon_or_comma,
-)
-from co_scientist.llm.structured.repair import (
-    _repair_unterminated_array_string as _repair_unterminated_array_string,
-)
-from co_scientist.llm.structured.repair import (
-    _repair_unterminated_field_name as _repair_unterminated_field_name,
-)
-from co_scientist.llm.structured.repair import (
-    _repair_unterminated_string as _repair_unterminated_string,
-)
-from co_scientist.llm.structured.repair import (
-    _try_direct_parse as _try_direct_parse,
-)
-from co_scientist.llm.structured.repair import (
-    _try_major_repairs as _try_major_repairs,
-)
-from co_scientist.llm.structured.repair import (
-    _try_minor_repairs as _try_minor_repairs,
-)
-from co_scientist.llm.structured.repair import (
-    attempt_json_repair as attempt_json_repair,
-)
-from co_scientist.llm.structured.repair import (
-    extract_response_json as extract_response_json,
-)
-from co_scientist.progress import (
-    record_schema_degradation as record_schema_degradation,
-)
+from co_scientist.progress import record_schema_degradation
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,7 @@
 """OpenRouter gateway routing: provider order, throughput floor, price cap.
 
-Split out of ``llm.request.thinking`` to keep that module under the repo's file-
-length ceiling. Every public and private name here is re-exported from
-``co_scientist.llm.request.thinking`` so nothing importing from there (including
-tests that patch ``llm.request.thinking.<name>``) needs to change.
+Split out of ``llm.request.thinking`` to keep that module under the repo's
+file-length ceiling.
 """
 
 from dataclasses import dataclass

@@ -1,9 +1,7 @@
 """Truncation of over-long strings for the json_object downgrade.
 
-Split out of ``co_scientist.llm.structured.validate`` at the file-size cap,
-alongside its existing ``llm.structured.lists``/``llm.structured.repair``
-siblings; every name here is re-exported from ``llm.structured.validate`` so
-existing import paths keep working.
+Split out of ``llm.structured.validate`` at the file-size cap, alongside its
+``llm.structured.lists``/``llm.structured.repair`` siblings.
 
 Provider-capability shim for json_object-only models (see
 ``co_scientist.llm.request.completion._supports_json_schema_response_format``),
@@ -28,6 +26,8 @@ the "Trim the schema, never the input" gotcha (root ``AGENTS.md``).
 import logging
 from typing import Any, Final
 
+from co_scientist.llm.structured.validate import _is_backfillable
+
 logger = logging.getLogger(__name__)
 
 # A cut within this fraction of maxLength (measured back from the limit) is
@@ -35,16 +35,6 @@ logger = logging.getLogger(__name__)
 # slicing mid-word; a boundary found earlier than that is too much of the
 # string to give up and a hard cut is used instead.
 _STRING_TRUNCATION_BOUNDARY_FRACTION: Final = 0.2
-
-
-def _is_backfillable(obj: Any, schema: Any) -> bool:
-    """Checks whether both obj and schema are dicts worth walking.
-
-    Duplicated from ``llm.structured.validate`` rather than imported, to avoid a
-    circular import (``llm.structured.validate`` imports this module to
-    re-export its names).
-    """
-    return isinstance(obj, dict) and isinstance(schema, dict)
 
 
 def _truncate_oversized_strings(obj: Any, schema: Any, _path: str = "") -> None:

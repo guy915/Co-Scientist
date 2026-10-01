@@ -1,12 +1,11 @@
 """The raw one-attempt completion primitive shared by both entry points.
 
-Split out of ``co_scientist.llm`` on size. ``_call_llm_single_attempt`` is
+``_call_llm_single_attempt`` is
 what a single completion attempt actually does -- no retry, no escalation --
 and both public entry points are built on it: ``call_llm``'s own retry loop
 runs it once per escalation rung, and ``call_llm_json``'s per-attempt raw
 call (``_call_llm_for_json``) runs it once per JSON attempt. Sharing it is
 what keeps "what one attempt does" from drifting between the two callers.
-Re-exported from ``co_scientist.llm``, which is where callers import it from.
 """
 
 import logging
@@ -23,8 +22,8 @@ from co_scientist.llm.request.completion import (
     _acompletion_within_timeout,
     _apply_api_key,
     _build_completion_args,
-    _extract_completion_content,
 )
+from co_scientist.llm.request.response import _extract_completion_content
 from co_scientist.llm.tools.loop import _prepare_llm_call
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 

@@ -271,11 +271,9 @@ def _fail_retryable_task(
     retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
     retry_at = None
     if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
-        from co_scientist.llm.attempts.backoff import (
-            _provider_outage_backoff_seconds,
-        )
+        from co_scientist.llm import provider_outage_backoff_seconds
 
-        retry_at = time.time() + _provider_outage_backoff_seconds(task.attempt)
+        retry_at = time.time() + provider_outage_backoff_seconds(task.attempt)
     unknown_provider_outcome = (
         isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted
     )

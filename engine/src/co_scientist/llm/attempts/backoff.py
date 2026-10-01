@@ -42,7 +42,7 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
     )
 
 
-def _provider_outage_backoff_seconds(attempt: int) -> float:
+def provider_outage_backoff_seconds(attempt: int) -> float:
     """Return the jittered wait before retrying an outage-failed attempt.
 
     Longer than the throttled schedule because it answers a different

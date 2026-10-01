@@ -3,8 +3,7 @@
 Provides extraction of JSON payloads from raw LLM output (markdown fence
 stripping) and repair of common syntax errors, from safe minor fixes to
 truncation-oriented major repairs. These helpers are pure (no network
-access); they are re-exported by ``co_scientist.llm.structured.validate``
-alongside the schema-validation utilities that consume them.
+access).
 """
 
 import json

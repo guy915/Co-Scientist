@@ -2,9 +2,7 @@
 
 Split from ``co_scientist.llm.request.completion``: selects the thinking knob
 (DeepSeek's native ``thinking`` object), the reasoning tier, and the
-``max_tokens`` floor a thinking call needs. Every name here is re-exported
-from ``co_scientist.llm.request.completion`` so that module's namespace is
-unchanged.
+``max_tokens`` floor a thinking call needs.
 """
 
 import logging
@@ -12,65 +10,11 @@ from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm.request.gateway_body import (
-    _MINIMAL_REASONING_EFFORT as _MINIMAL_REASONING_EFFORT,
+    _is_gateway_route,
+    deepseek_thinking_extra_body,
+    effective_thinking_enabled,
 )
-from co_scientist.llm.request.gateway_body import (
-    _REASONING_EFFORT as _REASONING_EFFORT,
-)
-from co_scientist.llm.request.gateway_body import (
-    _REASONING_PARAM_ROUTES as _REASONING_PARAM_ROUTES,
-)
-from co_scientist.llm.request.gateway_body import (
-    _declared_gateway_body as _declared_gateway_body,
-)
-from co_scientist.llm.request.gateway_body import (
-    _is_gateway_route as _is_gateway_route,
-)
-from co_scientist.llm.request.gateway_body import (
-    _minimal_reasoning_forced as _minimal_reasoning_forced,
-)
-from co_scientist.llm.request.gateway_body import (
-    _undeclared_deepseek_gateway_body as _undeclared_deepseek_gateway_body,
-)
-from co_scientist.llm.request.gateway_body import (
-    deepseek_thinking_extra_body as deepseek_thinking_extra_body,
-)
-from co_scientist.llm.request.gateway_body import (
-    effective_thinking_enabled as effective_thinking_enabled,
-)
-from co_scientist.llm.request.gateway_body import (
-    scoped_minimal_reasoning as scoped_minimal_reasoning,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _DEFAULT_UPSTREAM_ORDER as _DEFAULT_UPSTREAM_ORDER,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _GATEWAY_MAX_FALLBACKS as _GATEWAY_MAX_FALLBACKS,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _GATEWAY_MODELS as _GATEWAY_MODELS,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _GATEWAY_PROVIDER as _GATEWAY_PROVIDER,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _MAX_PRICE_MULTIPLE as _MAX_PRICE_MULTIPLE,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _MIN_THROUGHPUT_TOKENS_PER_SEC as _MIN_THROUGHPUT_TOKENS_PER_SEC,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _UPSTREAM_ORDER_ENV as _UPSTREAM_ORDER_ENV,
-)
-from co_scientist.llm.request.gateway_routing import (
-    GatewayModel as GatewayModel,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _gateway_provider as _gateway_provider,
-)
-from co_scientist.llm.request.gateway_routing import (
-    _upstream_order as _upstream_order,
-)
+from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
 
 logger = logging.getLogger(__name__)
 

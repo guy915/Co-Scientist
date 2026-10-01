@@ -1,15 +1,15 @@
 """Request preparation and shaping for LiteLLM completion calls.
 
 Builds the keyword arguments for ``litellm.acompletion`` calls made by the
-wrappers in ``co_scientist.llm``: response-format selection (including the
-json_object provider-capability shim), temperature clamping, prompt
-debug-artifact saving, and extraction of the text content from completion
-responses.
+wrappers in ``co_scientist.llm``, and owns the one await every completion goes
+through (``_acompletion_within_timeout``: admission, call budget, timeout
+ceiling, telemetry): temperature clamping, prompt debug-artifact saving and
+the per-call credential.
 
-Two pieces live in sibling modules and are re-exported here so this
-module's namespace stays the one every caller and test speaks to:
-thinking/reasoning argument shaping (``co_scientist.llm.request.thinking``) and
-response-content extraction (``co_scientist.llm.request.response``).
+The rest of a request lives in sibling modules: response-format selection and
+the json_object provider-capability shim (``llm.request.schema``),
+thinking/reasoning argument shaping (``llm.request.thinking``) and
+response-content extraction (``llm.request.response``).
 """
 
 import asyncio
@@ -25,63 +25,15 @@ from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
-
-# Re-exported: the thinking token floor moved out with _apply_thinking_args,
-# but it was importable from this module before the split.
-from co_scientist.constants import (
-    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
-)
 from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.credentials import current_api_key
 from co_scientist.llm.admission.free_policy import enforce_free_request
-from co_scientist.llm.request.response import (
-    _empty_content_diagnosis as _empty_content_diagnosis,
-)
-from co_scientist.llm.request.response import (
-    _extract_completion_content as _extract_completion_content,
-)
-from co_scientist.llm.request.schema import (
-    _ANSWER_DISCIPLINE as _ANSWER_DISCIPLINE,
-)
-from co_scientist.llm.request.schema import (
-    _apply_response_format as _apply_response_format,
-)
-from co_scientist.llm.request.schema import (
-    _apply_schema_response_format as _apply_schema_response_format,
-)
-from co_scientist.llm.request.schema import (
-    _inject_schema_into_prompt as _inject_schema_into_prompt,
-)
+from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
+from co_scientist.llm.request.schema import _apply_response_format
 from co_scientist.llm.request.thinking import (
-    _GATEWAY_MODELS as _GATEWAY_MODELS,
-)
-from co_scientist.llm.request.thinking import (
-    _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
-)
-from co_scientist.llm.request.thinking import (
-    _apply_thinking_args as _apply_thinking_args,
-)
-from co_scientist.llm.request.thinking import (
-    annotate_failure_context as annotate_failure_context,
-)
-from co_scientist.llm.request.thinking import (
-    deepseek_thinking_extra_body as deepseek_thinking_extra_body,
-)
-from co_scientist.llm.request.thinking import (
-    effective_max_tokens as effective_max_tokens,
-)
-from co_scientist.llm.request.thinking import (
-    failure_context_text as failure_context_text,
-)
-from co_scientist.llm.request.thinking import (
-    model_reasons as model_reasons,
-)
-from co_scientist.llm.request.thinking import (
-    reasoning_effort_args as reasoning_effort_args,
-)
-from co_scientist.llm.request.thinking import (
-    scoped_minimal_reasoning as scoped_minimal_reasoning,
+    _JSON_OBJECT_ONLY_MODEL_FAMILIES,
+    _apply_thinking_args,
 )
 from co_scientist.llm.telemetry import (
     record_completion_failure as _record_completion_failure,

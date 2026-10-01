@@ -4,9 +4,7 @@ The retry policy lives here: whether a failure is terminal, whether it is
 the provider throttling (and how long to wait before the next attempt),
 and which rung of ``BudgetEscalation`` that attempt is made at. The
 mechanics of running a single attempt live in ``llm.attempts.json_attempt`` and
-the escalation ladder in ``llm.attempts.escalation``; both are re-exported here
-so ``co_scientist.llm.attempts.retry`` stays one import path for the whole retry
-surface, which ``co_scientist.llm`` re-exports from in turn.
+the escalation ladder in ``llm.attempts.escalation``.
 """
 
 import asyncio
@@ -24,62 +22,20 @@ from co_scientist.exceptions import (
     short_error_text,
 )
 from co_scientist.llm.attempts.backoff import (
-    _provider_outage_backoff_seconds,
     _rate_limit_backoff_seconds,
+    provider_outage_backoff_seconds,
 )
 from co_scientist.llm.attempts.escalation import (
-    _ESCALATION_LADDER as _ESCALATION_LADDER,
-)
-from co_scientist.llm.attempts.escalation import (
-    BudgetEscalation as BudgetEscalation,
-)
-from co_scientist.llm.attempts.escalation import (
-    _JsonCallSpec as _JsonCallSpec,
-)
-from co_scientist.llm.attempts.escalation import (
-    escalated_spec as escalated_spec,
-)
-from co_scientist.llm.attempts.escalation import (
-    escalation_for_error as escalation_for_error,
-)
-from co_scientist.llm.attempts.escalation import (
+    BudgetEscalation,
+    escalation_for_error,
     is_transient_provider_error,
-)
-from co_scientist.llm.attempts.escalation import (
-    log_escalation as log_escalation,
+    log_escalation,
 )
 from co_scientist.llm.attempts.json_attempt import (
-    _attempt_call_llm_json as _attempt_call_llm_json,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _backfill_and_validate as _backfill_and_validate,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _cache_validated_result as _cache_validated_result,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _finalize_validated_result as _finalize_validated_result,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _json_validation_failure_outcome as _json_validation_failure_outcome,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _JsonAttempt as _JsonAttempt,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _JsonAttemptOutcome as _JsonAttemptOutcome,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _JsonRetryContext as _JsonRetryContext,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _non_validating_repair_outcome as _non_validating_repair_outcome,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _parse_or_repair_json as _parse_or_repair_json,
-)
-from co_scientist.llm.attempts.json_attempt import (
-    _ParsedResponse as _ParsedResponse,
+    _attempt_call_llm_json,
+    _JsonAttempt,
+    _JsonAttemptOutcome,
+    _JsonRetryContext,
 )
 from co_scientist.llm.request.thinking import failure_context_text
 
@@ -416,7 +372,7 @@ async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
         delay = _rate_limit_backoff_seconds(attempt.number)
     elif is_transient_provider_error(error):
         reason = "Transient provider failure"
-        delay = _provider_outage_backoff_seconds(attempt.number)
+        delay = provider_outage_backoff_seconds(attempt.number)
     else:
         return
     logger.warning(

@@ -19,8 +19,7 @@ happened to the call rather than omit it.
 
 Building one belongs here too: what an assistant message has to carry
 to be replayable is the same knowledge as what a valid pairing looks
-like, and `llm.tools.loop` imports the name back so it stays patchable
-where it always was.
+like.
 
 **Synthesized, not dropped.** Removing the assistant's message instead
 would be tidier and worse: the model asked for something, and a

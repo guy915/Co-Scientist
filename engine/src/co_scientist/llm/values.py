@@ -1,10 +1,8 @@
 """Shared public value objects for the LLM entry points.
 
-Defined in this leaf module (it imports only ``constants``) so both
-``llm`` and ``llm.tools.loop`` can use them without an import cycle:
-``llm`` imports helpers from ``llm.tools.loop``, so ``llm.tools.loop`` cannot
-import back from ``llm``. Both are re-exported from ``co_scientist.llm`` for
-the public import path.
+Defined in this leaf module (it imports only ``constants``) so every layer
+of the package can name them without an import cycle. Outside the package they
+are imported from ``co_scientist.llm``.
 """
 
 from dataclasses import dataclass

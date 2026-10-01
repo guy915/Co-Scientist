@@ -5,10 +5,6 @@ turn: this module sends one completion, dispatches whatever tools it
 asked for, and decides what a turn that answered nothing needs *changed*
 before being sent again. The loop above it decides how many turns there
 are and what to do when they run out.
-
-``llm.tools.loop`` re-exports every name here under its original private
-spelling, so that module stays the single import path and the seam tests
-patch.
 """
 
 from __future__ import annotations
@@ -34,10 +30,10 @@ from co_scientist.llm.attempts.escalation import (
 from co_scientist.llm.request.completion import (
     _acompletion_within_timeout,
     _apply_api_key,
-    _apply_thinking_args,
     _apply_timeout,
 )
 from co_scientist.llm.request.response import _extract_completion_content
+from co_scientist.llm.request.thinking import _apply_thinking_args
 from co_scientist.llm.tools.policy import closing_message
 from co_scientist.llm.tools.transcript import (
     _message_to_history_dict,

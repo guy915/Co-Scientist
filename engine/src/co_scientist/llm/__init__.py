@@ -51,6 +51,9 @@ if TYPE_CHECKING:
         enforce_free_request,
         scoped_campaign_mode,
     )
+    from co_scientist.llm.attempts.backoff import (
+        provider_outage_backoff_seconds,
+    )
     from co_scientist.llm.attempts.retry import rate_limited_attempt_count
     from co_scientist.llm.call import call_llm, call_llm_json
     from co_scientist.llm.request.gateway_body import (
@@ -95,6 +98,7 @@ __all__ = [
     "indexed_prompt_name",
     "model_reasons",
     "parse_tool_loop_json",
+    "provider_outage_backoff_seconds",
     "rate_limited_attempt_count",
     "reasoning_effort_args",
     "record_call",
@@ -128,6 +132,7 @@ _EXPORTS: dict[str, str] = {
     "indexed_prompt_name": "co_scientist.llm.values",
     "model_reasons": "co_scientist.llm.request.thinking",
     "parse_tool_loop_json": "co_scientist.llm.structured.validate",
+    "provider_outage_backoff_seconds": "co_scientist.llm.attempts.backoff",
     "rate_limited_attempt_count": "co_scientist.llm.attempts.retry",
     "reasoning_effort_args": "co_scientist.llm.request.thinking",
     "record_call": "co_scientist.llm.telemetry",

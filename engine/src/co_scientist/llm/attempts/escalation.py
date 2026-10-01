@@ -3,9 +3,7 @@
 What a retry *changes about the request* after an attempt came back with
 no answer: the ladder of rungs, and the call spec each rung sends. Which
 failures escalate, and how far, is the retry loop's own decision and stays
-in ``llm.attempts.retry`` -- which re-exports every name here, so
-``co_scientist.llm.attempts.retry`` remains one import path for the whole
-retry surface.
+in ``llm.attempts.retry``.
 """
 
 import dataclasses
@@ -23,7 +21,7 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm.request.thinking import effective_thinking_enabled
+from co_scientist.llm.request.gateway_body import effective_thinking_enabled
 
 logger = logging.getLogger(__name__)
 

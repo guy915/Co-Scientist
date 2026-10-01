@@ -406,8 +406,8 @@ async def test_throttle_keeps_its_own_shorter_schedule(
 
 def test_provider_outage_backoff_grows_between_attempts() -> None:
     """A later attempt always waits longer than an earlier one can."""
-    first = max(backoff._provider_outage_backoff_seconds(1) for _ in range(50))
-    fourth = min(backoff._provider_outage_backoff_seconds(4) for _ in range(50))
+    first = max(backoff.provider_outage_backoff_seconds(1) for _ in range(50))
+    fourth = min(backoff.provider_outage_backoff_seconds(4) for _ in range(50))
 
     assert fourth > first
 
@@ -415,6 +415,6 @@ def test_provider_outage_backoff_grows_between_attempts() -> None:
 def test_provider_outage_backoff_is_capped() -> None:
     """No single wait grows without bound, however many attempts precede it."""
     assert (
-        backoff._provider_outage_backoff_seconds(10)
+        backoff.provider_outage_backoff_seconds(10)
         <= backoff._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
     )

@@ -1,11 +1,9 @@
-"""LLM calling utilities using litellm.
+"""The ``call_llm`` and ``call_llm_json`` entry points.
 
-Keeps the public entry points ``call_llm`` and ``call_llm_json``.
-Supporting pieces live in the ``llm.request.completion``,
-``llm.structured.validate``, ``llm.attempts.retry``, ``llm.structured.errors``,
-and ``llm.tools.loop`` sibling modules — the latter also holds
-``call_llm_with_tools`` and the shared pre-call sequence ``_prepare_llm_call`` —
-and are re-exported here so historical import paths keep working.
+The raw one-attempt completion both are built on is ``llm.attempts.single``,
+the failure policy of their retry loops is ``llm.attempts.retry``, and
+``call_llm_with_tools`` lives in ``llm.tools.loop``. Outside the package, all
+three entry points are imported from ``co_scientist.llm``.
 """
 
 import dataclasses
@@ -13,174 +11,33 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-# Kept as a module attribute: tests patch the completion boundary via
-# "co_scientist.llm.litellm.acompletion".
-import litellm as litellm
-from jsonschema.exceptions import ValidationError as ValidationError
-
-from co_scientist import prompts as prompts
-from co_scientist.cache import LLMCache as LLMCache
 from co_scientist.cache import LLMCacheRequest
-from co_scientist.cache import NullCache as NullCache
-from co_scientist.cache import (
-    cache_enabled_override as cache_enabled_override,
-)
-
-# get_cache is a pure re-export: the consumer (_prepare_llm_call) lives in
-# llm.tools.loop, so stubbing the cache means patching get_cache there.
-from co_scientist.cache import get_cache as get_cache
-from co_scientist.constants import (
-    EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
-)
-from co_scientist.llm.admission.credentials import (
-    current_api_key as current_api_key,
-)
-from co_scientist.llm.admission.credentials import (
-    scoped_api_key as scoped_api_key,
-)
+from co_scientist.llm.admission.credentials import scoped_api_key
 from co_scientist.llm.attempts.escalation import (
-    escalated_max_tokens as escalated_max_tokens,
+    BudgetEscalation,
+    _JsonCallSpec,
+    escalated_max_tokens,
+    escalated_spec,
 )
-from co_scientist.llm.attempts.failure import (
-    _failure_call_site as _failure_call_site,
-)
-from co_scientist.llm.attempts.failure import (
-    _report_call_llm_failure as _report_call_llm_failure,
-)
-from co_scientist.llm.attempts.retry import (
-    BudgetEscalation as BudgetEscalation,
+from co_scientist.llm.attempts.json_attempt import (
+    _JsonAttempt,
+    _JsonRetryContext,
 )
 from co_scientist.llm.attempts.retry import (
     _apply_json_attempt_outcome,
-    _JsonAttempt,
-    _JsonCallSpec,
-    _JsonRetryContext,
     _run_json_attempt,
-    escalated_spec,
+    escalation_after,
 )
-from co_scientist.llm.attempts.retry import (
-    _attempt_call_llm_json as _attempt_call_llm_json,
-)
-from co_scientist.llm.attempts.retry import (
-    _backfill_and_validate as _backfill_and_validate,
-)
-from co_scientist.llm.attempts.retry import (
-    _json_validation_failure_outcome as _json_validation_failure_outcome,
-)
-from co_scientist.llm.attempts.retry import (
-    _JsonAttemptOutcome as _JsonAttemptOutcome,
-)
-from co_scientist.llm.attempts.retry import (
-    _non_validating_repair_outcome as _non_validating_repair_outcome,
-)
-from co_scientist.llm.attempts.retry import (
-    _parse_or_repair_json as _parse_or_repair_json,
-)
-from co_scientist.llm.attempts.retry import (
-    escalation_after as escalation_after,
-)
-from co_scientist.llm.attempts.single import (
-    _call_llm_and_cache as _call_llm_and_cache,
-)
-from co_scientist.llm.attempts.single import (
-    _call_llm_single_attempt as _call_llm_single_attempt,
-)
-from co_scientist.llm.attempts.text_retry import (
-    run_with_budget_escalation as run_with_budget_escalation,
-)
-from co_scientist.llm.request import completion
-from co_scientist.llm.request.completion import (
-    _JSON_OBJECT_ONLY_MODEL_FAMILIES as _JSON_OBJECT_ONLY_MODEL_FAMILIES,
-)
-from co_scientist.llm.request.completion import (
-    _apply_response_format as _apply_response_format,
-)
-from co_scientist.llm.request.completion import (
-    _clamp_temperature as _clamp_temperature,
-)
-from co_scientist.llm.request.completion import (
-    _inject_schema_into_prompt as _inject_schema_into_prompt,
-)
-from co_scientist.llm.request.completion import (
-    _save_prompt_if_named as _save_prompt_if_named,
-)
-from co_scientist.llm.request.completion import (
-    annotate_failure_context as annotate_failure_context,
-)
-from co_scientist.llm.request.completion import (
-    effective_max_tokens as effective_max_tokens,
-)
-from co_scientist.llm.request.completion import (
-    scoped_minimal_reasoning as scoped_minimal_reasoning,
-)
+from co_scientist.llm.attempts.single import _call_llm_single_attempt
+from co_scientist.llm.attempts.text_retry import run_with_budget_escalation
+from co_scientist.llm.request.gateway_body import scoped_minimal_reasoning
 from co_scientist.llm.structured.errors import _handle_json_retries_exhausted
-from co_scientist.llm.structured.errors import (
-    _json_decode_error_pos as _json_decode_error_pos,
-)
-from co_scientist.llm.structured.errors import (
-    _log_first_json_error_position as _log_first_json_error_position,
-)
-from co_scientist.llm.structured.errors import (
-    _log_json_parse_failure_diagnostics as _log_json_parse_failure_diagnostics,
-)
-from co_scientist.llm.structured.errors import (
-    _raise_json_decode_error as _raise_json_decode_error,
-)
-from co_scientist.llm.structured.errors import (
-    _raise_json_parse_error as _raise_json_parse_error,
-)
-from co_scientist.llm.structured.errors import (
-    _raise_validation_error as _raise_validation_error,
-)
-from co_scientist.llm.structured.validate import (
-    _backfill_required_fields as _backfill_required_fields,
-)
-from co_scientist.llm.structured.validate import (
-    _validation_feedback as _validation_feedback,
-)
-from co_scientist.llm.structured.validate import (
-    attempt_json_repair as attempt_json_repair,
-)
-from co_scientist.llm.structured.validate import extract_response_json
-from co_scientist.llm.structured.validate import (
-    get_fallback_response as get_fallback_response,
-)
-from co_scientist.llm.structured.validate import (
-    validate_json_schema as validate_json_schema,
-)
+from co_scientist.llm.structured.repair import extract_response_json
 from co_scientist.llm.telemetry import record_retry as _record_retry
-from co_scientist.llm.tools.loop import (
-    ToolLoop as ToolLoop,
-)
-from co_scientist.llm.tools.loop import (
-    _cache_tool_call_result as _cache_tool_call_result,
-)
-from co_scientist.llm.tools.loop import (
-    _execute_tool_calls as _execute_tool_calls,
-)
-from co_scientist.llm.tools.loop import (
-    _message_to_history_dict as _message_to_history_dict,
-)
 from co_scientist.llm.tools.loop import _prepare_llm_call
-from co_scientist.llm.tools.loop import (
-    _run_tool_call_iteration as _run_tool_call_iteration,
-)
-from co_scientist.llm.tools.loop import (
-    call_llm_with_tools as call_llm_with_tools,
-)
-from co_scientist.llm.values import CompletionSpec as CompletionSpec
-from co_scientist.llm.values import LLMCallOptions as LLMCallOptions
-from co_scientist.llm.values import (
-    indexed_prompt_name as indexed_prompt_name,
-)
+from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
-
-# Re-exported by assignment: the alias re-export form exceeds 80 columns.
-# Read off request.completion, which is where the monkeypatch seam lives.
-_supports_json_schema_response_format = (
-    completion._supports_json_schema_response_format
-)
 
 
 def _call_for_attempt(

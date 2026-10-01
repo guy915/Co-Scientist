@@ -2,8 +2,7 @@
 
 Split from ``co_scientist.llm.request.completion``: pulls the text content out
 of a completion response and, when there is none, summarizes why in one short
-line. Every name here is re-exported from
-``co_scientist.llm.request.completion`` so that module's namespace is unchanged.
+line.
 """
 
 import contextlib

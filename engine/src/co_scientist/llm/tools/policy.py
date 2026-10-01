@@ -1,9 +1,6 @@
 """Two policies the tool loop applies around its iterations.
 
-Split out of ``llm.tools.loop`` for length, and re-exported there so the
-names keep their original module namespace -- tests patch them on the
-loop, and a split that silently moves a monkeypatch seam breaks suites
-that still pass.
+Split out of ``llm.tools.loop`` for length.
 
 Both are about what the loop does *besides* calling the model: warning it
 before its budget runs out, and refusing to cache a transcript that cannot
