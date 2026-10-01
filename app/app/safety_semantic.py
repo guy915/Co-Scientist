@@ -75,7 +75,7 @@ _SEMANTIC_CATEGORY_SCHEMA = {
     ],
 }
 
-# Bare-string tolerant, exactly like claim_verifier's citation list: under
+# Bare-string tolerant, exactly like claims.verifier's citation list: under
 # the json_object downgrade a model can plausibly write one domain
 # unwrapped rather than as a one-element array, and ``coerce_json_list``
 # (below, in ``_merge_risk_domains``) is what recovers that shape -- a
@@ -191,7 +191,7 @@ async def _call_semantic_safety_model(
     """Call the semantic safety model and return its parsed JSON response.
 
     Routed through the engine's ``call_llm_json`` seam rather than calling
-    ``litellm`` directly (the shape ``claim_verifier`` moved off of in
+    ``litellm`` directly (the shape ``claims.verifier`` moved off of in
     113218e9): a gateway model that answers a json_object request with the
     JSON wrapped in a Markdown fence -- reproduced against
     ``minimax/minimax-m3:free``, the free fallback chain's first rung --

@@ -324,7 +324,7 @@ def test_re_finalize_replaces_rather_than_accumulates(
 async def test_supervisor_plan_endpoint_returns_persisted_rows(
     isolated_db: str,
 ) -> None:
-    from app.runs_collections import get_supervisor_plan
+    from app.runs.collections import get_supervisor_plan
 
     run = store.create_run("sp goal", "standard", "mock", {})
     store.save_supervisor_plan(

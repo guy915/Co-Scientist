@@ -17,7 +17,10 @@ from typing import Any, NamedTuple
 import co_scientist.checkpoint as engine_checkpoint
 import pytest
 
-from app import engine_tasks, engine_tasks_outcome_refinement, store
+from app import engine_tasks, store
+from app.engine_tasks import (
+    outcome_refinement as engine_tasks_outcome_refinement,
+)
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,

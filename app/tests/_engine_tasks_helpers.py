@@ -18,8 +18,9 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, engine_tasks_runtime, store
-from app.engine_tasks_runtime import ProductionEngineTaskRuntime
+from app import engine_tasks, store
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 
 
 def _task_state(run_id: str) -> dict[str, Any]:
@@ -89,7 +90,7 @@ async def _deterministic_screen(
 
 
 class FakeEngineTaskRuntime:
-    """Test adapter for ``app.engine_tasks_runtime``.
+    """Test adapter for ``app.engine_tasks.runtime``.
 
     Every slot starts as the production adapter's own, so a test replaces
     only the collaborators it states. ``screen`` serves both the intake gate
@@ -185,7 +186,7 @@ def _task_events(
 def _add_fixture_review(hypothesis: Hypothesis) -> Hypothesis:
     """Attach one agent-authored review so the hypothesis has peer review.
 
-    ``_ranking_eligible`` (app.engine_tasks_ranking) requires
+    ``_ranking_eligible`` (app.engine_tasks.ranking) requires
     ``has_peer_review`` alongside ``is_rankable`` (HITL-MANUAL-HYP-001's
     RANK-retry closure), so any fixture pool calling itself "viable" and
     ready to rank needs one, matching every real pool: nothing reaches

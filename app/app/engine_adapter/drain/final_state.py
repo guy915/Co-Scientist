@@ -15,8 +15,8 @@ from typing import Any, NamedTuple
 
 from app import store
 from app.citations import empty_citation_summary
-from app.claim_grounding import evidence_passages, persist_grounding
 from app.claims import EvidencePassage
+from app.claims.grounding import evidence_passages, persist_grounding
 from app.engine_adapter.drain import escalation
 from app.engine_adapter.drain.claim_grounding import (
     _assess_claims,

@@ -139,7 +139,7 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
     from fastapi import BackgroundTasks
 
     from app.runs import create_run
-    from app.runs_models import CreateRunRequest
+    from app.runs.models import CreateRunRequest
 
     class _Request:
         headers: ClassVar[dict[str, str]] = {"X-Client-ID": "direct-call-test"}

@@ -15,7 +15,7 @@ from co_scientist.models_metrics import (
 )
 
 from app import store
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _metrics_snapshot,
     assert_task_commit_allowed,
 )

@@ -157,7 +157,7 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
 ) -> None:
     """A later whole-pool re-screen must not undo an escalation's raise.
 
-    ``runs_contrib`` re-screens the whole pool whenever a scientist adds
+    ``runs.contrib`` re-screens the whole pool whenever a scientist adds
     input. The deterministic layer alone would re-derive UNCERTAIN from
     ``held-1``'s unchanged text and, without ``_STICKY_STATUSES`` covering
     the escalation-raised outcome, silently clear the block back down.

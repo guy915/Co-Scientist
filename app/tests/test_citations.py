@@ -120,7 +120,7 @@ def test_stating_the_claim_outscores_sharing_its_subject() -> None:
     # nouns. What must hold is the ordering: an abstract that states the
     # claim scores strictly above one that merely shares its subject matter.
     # Sharpening that gap further is the LLM claim assessor's job
-    # (app.claim_verifier), not this deterministic fallback's.
+    # (app.claims.verifier), not this deterministic fallback's.
     subject_only = _token_overlap(_CLAIM, _ABSTRACT_BODY)
     stated = _token_overlap(_CLAIM, f"{_CLAIM}. {_ABSTRACT_BODY}")
     assert stated > subject_only

@@ -16,12 +16,12 @@ from app import (
     interviews_stream,
     qa,
     run_start_announcement,
-    runs_chat,
-    runs_contrib,
-    runs_crud,
     store,
 )
-from app.runs_models import HumanHypothesisRequest
+from app.runs import chat as runs_chat
+from app.runs import contrib as runs_contrib
+from app.runs import crud as runs_crud
+from app.runs.models import HumanHypothesisRequest
 
 
 def _run(policy: str, *, owner: str = "owner") -> store.RunRow:

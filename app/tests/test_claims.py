@@ -97,7 +97,7 @@ def test_extraction_drops_the_gap_phrasings_production_actually_used() -> None:
 
 
 # A full-length title+abstract -- the shape an EvidencePassage carries in a run
-# (claim_grounding.evidence_passages joins an evidence row's title and
+# (claims.grounding.evidence_passages joins an evidence row's title and
 # abstract). The length is the point: a one-sentence claim against a passage
 # many times its size is the asymmetry a union-denominated metric caps, and at
 # claim size Jaccard and coverage agree, so no assertion below could tell a

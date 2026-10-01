@@ -53,7 +53,7 @@ class TerminationReason(str, enum.Enum):
     safety block (Milestone 6 hook).
 
     There is deliberately no ``CANCELLED`` member: the durable executor
-    (``app/app/engine_tasks_node.py``) enforces cancellation by never
+    (``app/app/engine_tasks/node.py``) enforces cancellation by never
     dispatching another node once a run is marked cancelled, so a
     graph-internal predicate for it would be a second, weaker enforcement
     point rather than a real signal -- no writer anywhere in this codebase

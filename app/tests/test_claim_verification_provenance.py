@@ -8,14 +8,14 @@ from collections.abc import Sequence
 import pytest
 
 from app import store
-from app.claim_grounding import ground_hypotheses
-from app.claim_grounding_assess import AssessorSpec
 from app.claims import (
     AssessorDraft,
     EntailmentLabel,
     EvidencePassage,
     as_passages,
 )
+from app.claims.grounding import ground_hypotheses
+from app.claims.grounding_assess import AssessorSpec
 from app.store import db
 from tests._client import make_client
 from tests._drain_helpers import _build_report

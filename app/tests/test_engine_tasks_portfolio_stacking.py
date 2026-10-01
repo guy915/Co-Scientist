@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import pytest
 
-from app import engine_tasks_support, store
-from app.engine_tasks_context import TaskCommit
+from app import store
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.context import TaskCommit
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
 _ORCHESTRATOR = "engine.node.orchestrator"

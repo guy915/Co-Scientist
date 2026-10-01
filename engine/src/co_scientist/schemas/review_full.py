@@ -47,7 +47,7 @@ ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
 # ``review_summary`` (which the audit proposed promoting to an object):
 # that field travels as ``HypothesisReview.review_summary: str`` and is
 # read as a string by the ranking/evolution prompt projections and by
-# app.engine_tasks_inputs's scientist-review marker test, so widening it
+# app.engine_tasks.inputs's scientist-review marker test, so widening it
 # is a typed change across several agents. A full review's whole raw
 # response reaches the report drain verbatim through
 # ``hypothesis.enrichments[review_type.value]``, so declaring the block

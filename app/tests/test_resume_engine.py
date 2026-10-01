@@ -2,7 +2,7 @@
 
 The streaming resume surface (``run_workflow`` with ``resume=True``) has been
 retired; every real run now resumes through the durable node executor. These
-tests cover the app's resume *launcher* (``runs_lifecycle._launch_resume`` and
+tests cover the app's resume *launcher* (``runs.lifecycle._launch_resume`` and
 its ``_prepare_resume_state`` decision): an engine checkpoint is a true resume
 that preserves derived data, a legacy mock envelope re-bootstraps a fresh
 offline run, and neither drives blocking run work on the API event loop. The
@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 
 from app import engine_adapter, store
-from app.runs_lifecycle import _prepare_resume_state
+from app.runs.lifecycle import _prepare_resume_state
 from tests._resume_engine_helpers import _install_fake_engine_llm
 
 

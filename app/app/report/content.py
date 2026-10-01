@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.claim_verdict import (
+from app.claims.verdict import (
     is_categorical_contradiction,
     is_contradicting,
     is_excused,
@@ -184,7 +184,7 @@ def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
     reference. Each such entry carries ``_WITHHELD_CONTRADICTION_NOTE``, which
     says so: the evidence against an idea is the run's finding and worth
     reporting, and the idea's absence is a fact about it, not an omission. A
-    contradicted *proposal* is listed too (``claim_verdict.is_contradicting``
+    contradicted *proposal* is listed too (``claims.verdict.is_contradicting``
     ignores the role) but its idea is not withheld for it, so it carries
     ``_PROPOSAL_CONTRADICTION_NOTE`` instead of claiming a withholding.
 

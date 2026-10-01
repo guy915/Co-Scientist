@@ -19,8 +19,8 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
-from app.claim_verdict import ClaimRole
-from app.claims_gate import EntailmentLabel
+from app.claims.gate import EntailmentLabel
+from app.claims.verdict import ClaimRole
 from app.demo_seed_data import (
     DEMO_SEED_VERSION,
     DemoEvidence,

@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.claim_freshness import (
+from app.claims import AssessorDraft, EntailmentLabel, as_passages
+from app.claims.freshness import (
     ClaimRecord,
     claim_fingerprint,
     reusable_assessments,
 )
-from app.claim_grounding_assess import AssessorSpec, assess_hypothesis_claims
-from app.claims import AssessorDraft, EntailmentLabel, as_passages
+from app.claims.grounding_assess import AssessorSpec, assess_hypothesis_claims
 
 _CLAIM = "Inhibiting kinase X reduces melanoma tumor growth in mouse models."
 _OTHER = "A dietary change improves cardiovascular outcomes in adults."
@@ -192,14 +192,14 @@ def test_gate_telemetry_is_folded_into_the_run_metrics() -> None:
     """Grounding's provider calls must count against a run's telemetry.
 
     Entailment calls route through the engine's ``call_llm_json`` seam
-    (``app.claim_verifier``), so ``scoped_telemetry`` already captures
+    (``app.claims.verifier``), so ``scoped_telemetry`` already captures
     their tokens/cost/call count per (phase, model); this only has to fold
     that snapshot into the run's live metrics, the same reducer every
     engine node commit uses.
     """
     from co_scientist.models import ExecutionMetrics
 
-    from app import engine_tasks_gate
+    from app.engine_tasks import gate as engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
     usage = {"claim_gate::llm:test-model": {"calls": 25, "prompt_tokens": 100}}
@@ -216,7 +216,7 @@ def test_a_gate_pass_that_made_no_calls_charges_nothing() -> None:
     """A fully-reused gate pass must not manufacture a metrics key."""
     from co_scientist.models import ExecutionMetrics
 
-    from app import engine_tasks_gate
+    from app.engine_tasks import gate as engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
 

@@ -1,6 +1,6 @@
 """Grounded Q&A over a run: evidence manifest, prompt assembly, streaming.
 
-The run-lifecycle router (``runs.py``) owns HTTP concerns; this module owns the
+The run-lifecycle router (``app.runs``) owns HTTP concerns; this module owns the
 Q&A domain logic it delegates to: building the numbered, citation-ranked
 evidence manifest (using the four-state citation model in ``citations.py``),
 assembling the system prompt from the run's hypotheses/reviews/matches, and
@@ -52,7 +52,7 @@ class QaAnswerInputs:
 
     Bundled rather than passed one by one: the prompt, the manifest the
     answer cites against and the ideas its tool searches are three views of
-    the same gathered context (see ``runs_chat._gather_qa_context``), and
+    the same gathered context (see ``runs.chat._gather_qa_context``), and
     they are only ever assembled together.
 
     Attributes:

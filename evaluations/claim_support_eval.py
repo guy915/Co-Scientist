@@ -4,7 +4,7 @@ The unsupported-claim rate is the blunt end of the deep-research work: if
 going back for what a first search left open is worth its cost, this is
 the number it has to move. It is deliberately computed from verdicts the
 run already recorded rather than re-judged here -- ``claim_evidence``
-rows are written by the production assessor (``app.claim_verifier``), and
+rows are written by the production assessor (``app.claims.verifier``), and
 a second, lexical opinion invented inside an eval is how a metric comes
 to disagree with the product it is measuring. That failure has a name in
 this repo: the Jaccard incident, where a short claim scored against a

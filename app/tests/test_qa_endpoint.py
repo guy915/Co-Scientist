@@ -86,7 +86,8 @@ def test_ask_uses_real_llm_when_provider_key_present(
 
 def _prompt_for(rid: str) -> str:
     """Return the system prompt the Q&A endpoint would send for ``rid``."""
-    from app import qa, runs_chat
+    from app import qa
+    from app.runs import chat as runs_chat
 
     run = store.get_run(rid)
     assert run is not None

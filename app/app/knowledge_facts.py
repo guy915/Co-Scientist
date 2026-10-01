@@ -28,7 +28,7 @@ from co_scientist.agents.reflection.reflection_entities import (
     extract_entity_names,
 )
 
-from app.claim_verdict import (
+from app.claims.verdict import (
     KNOWLEDGE_CONTRADICTION,
     KNOWLEDGE_FACT,
     knowledge_kind,
@@ -39,7 +39,7 @@ from app.evidence_chunking import parent_evidence_id
 # edge (see app.report.content._claim_evidence_ids for the "supports" half
 # of this same reasoning). Which edges are a kind at all -- only ``supports``
 # and ``contradicts``, never ``partial`` or ``insufficient``, which assert
-# nothing settled -- is ``claim_verdict.knowledge_kind``.
+# nothing settled -- is ``claims.verdict.knowledge_kind``.
 _SPAN_KEY_BY_KIND = {
     KNOWLEDGE_FACT: "supporting",
     KNOWLEDGE_CONTRADICTION: "contradicting",

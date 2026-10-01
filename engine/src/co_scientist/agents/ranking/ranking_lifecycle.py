@@ -272,7 +272,7 @@ async def _prepare_ranking_round(
 
     Every hypothesis is admitted through ``add_to_tournament`` first --
     listing 04's own entry step -- so entry has a named place on both the
-    LangGraph and the durable path (``app/app/engine_tasks_ranking.py``
+    LangGraph and the durable path (``app/app/engine_tasks/ranking.py``
     prepares its waves through this same function).
 
     Args:

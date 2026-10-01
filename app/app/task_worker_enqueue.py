@@ -94,12 +94,12 @@ def _enqueue_resume_task(
     """Re-enqueue the task a checkpoint recorded as its own resume point.
 
     A checkpoint whose stage names a real predecessor task is keyed and
-    anchored exactly as ``app.engine_tasks_portfolio`` would key the same
+    anchored exactly as ``app.engine_tasks.portfolio`` would key the same
     edge had the committing task's own worker lived to enqueue it
     (predecessor id, not checkpoint sequence): the same logical successor
     enqueued through two different formats would create two claimable
     rows for one node instead of colliding on ``ON CONFLICT DO NOTHING``,
-    and ``app.engine_tasks_node._check_node_task_checkpoint`` validates a
+    and ``app.engine_tasks.node._check_node_task_checkpoint`` validates a
     dependency-anchored row against the checkpoint's recorded successor.
 
     Every other checkpoint -- one that recorded no ``resume_successor``

@@ -23,7 +23,7 @@ from co_scientist.exceptions import (
 from co_scientist.models import Hypothesis
 
 from app import engine_tasks, store
-from app.engine_tasks_support import MATURE_REFLECTION_ITEM_TASK
+from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -136,7 +136,7 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
     matchups it was budgeted -- the same trade the reviews lost eleven
     items to.
     """
-    from app.engine_tasks_ranking_wave import _surviving_judgements
+    from app.engine_tasks.ranking_wave import _surviving_judgements
 
     verdict = ("a", {"decision_summary": "A is stronger"})
 
@@ -146,7 +146,7 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
 
 def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
     """Per-matchup isolation is unchanged for an ordinary failure."""
-    from app.engine_tasks_ranking_wave import _surviving_judgements
+    from app.engine_tasks.ranking_wave import _surviving_judgements
 
     verdict = ("a", {"decision_summary": "A is stronger"})
 

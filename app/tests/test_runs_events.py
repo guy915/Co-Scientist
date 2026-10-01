@@ -1,4 +1,4 @@
-"""Tests for the SSE streaming helpers in ``app.runs_events``.
+"""Tests for the SSE streaming helpers in ``app.runs.events``.
 
 Covers the pure per-tick helpers directly (terminal-status detection, frame
 draining) plus the two async generators (``_stream_live_tail`` and
@@ -12,7 +12,8 @@ import asyncio
 
 import pytest
 
-from app import runs_events, store
+from app import store
+from app.runs import events as runs_events
 from app.store import RunStatus
 from tests._client import drain as _drain
 

@@ -336,7 +336,7 @@ def test_evidence_passages_uses_stored_passage_text(
     Not a live reconstruction, so a span's offsets always index the
     exact stored text.
     """
-    from app.claim_grounding import evidence_passages
+    from app.claims.grounding import evidence_passages
 
     run = store.create_run("identity goal", "standard", "engine", {})
     article = {

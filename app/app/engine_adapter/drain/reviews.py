@@ -60,7 +60,7 @@ def _score_or_none(value: Any) -> float | None:
 
 
 # Reviewer label for a scientist-authored review, matching the row
-# `runs_contrib.add_human_review` writes. Kept apart from the engine's
+# `runs.contrib.add_human_review` writes. Kept apart from the engine's
 # "review" agent so a human review never reaches a reader as an anonymous
 # agent one.
 _SCIENTIST_REVIEWER = "scientist"
@@ -85,7 +85,7 @@ def _persist_scientist_review(
     """Restore a merged scientist review, or report that it needs no row.
 
     A scientist review reaches the drain because the merge carried it into
-    engine state (``engine_tasks_inputs._scientist_hypothesis_review``),
+    engine state (``engine_tasks.inputs._scientist_hypothesis_review``),
     which is also where its author and verdict ride. Its own row usually
     survived the run's resets untouched -- scientist rows are deliberately
     retained -- so the drain must not write a second, differently-attributed

@@ -66,7 +66,7 @@ def test_legacy_cleanup_preserves_lifecycle_revision_for_stale_resume(
     later_resumer = make_client()
     run_id, old_high_water = _paused_legacy_run(isolated_db)
 
-    from app import runs_lifecycle
+    from app.runs import lifecycle as runs_lifecycle
 
     queue_reached = Event()
     release_queue = Event()

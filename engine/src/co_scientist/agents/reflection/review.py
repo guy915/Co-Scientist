@@ -313,7 +313,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     independently, and ``03-reflection.md`` L12 then fetches that one
     hypothesis by id. The
     canonical mirror of that chaining is the durable path
-    (``app/app/engine_tasks_fanout.py::_enqueue_review_fanout``), which
+    (``app/app/engine_tasks/fanout.py::_enqueue_review_fanout``), which
     materializes one leasable task per unreviewed hypothesis and is what
     production runs. This node reviews a batch behind one synchronous
     barrier instead: for a pool of ≤5 that is a single comparative call

@@ -27,7 +27,7 @@ def test_scientist_hypothesis_admitted_with_authorship(
 ) -> None:
     """A submitting caller's own identity attributes their contribution.
 
-    ``author`` in the body is a required field, but ``runs_contrib.py``
+    ``author`` in the body is a required field, but ``runs/contrib.py``
     prefers the caller's own ``X-Client-ID`` over it whenever the caller
     has one -- which every owner of a real run now does, run creation
     itself refusing an identity-less caller (see
@@ -251,7 +251,7 @@ def test_pasted_and_uploaded_attachments_emit_same_audit_event(
     """A pasted-text attachment must audit identically to an uploaded file.
 
     Both endpoints persist evidence and steer the run with the same
-    contribution kind (see runs_contrib.py); the event log must not treat
+    contribution kind (see runs/contrib.py); the event log must not treat
     one as invisible while recording the other.
     """
     client = _client()

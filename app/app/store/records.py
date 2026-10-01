@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.citations import CitationState
-from app.claim_verdict import DEFAULT_CLAIM_ROLE
+from app.claims.verdict import DEFAULT_CLAIM_ROLE
 from app.store.db import _now, _use_conn
 from app.store.records_matches import NewMatch as NewMatch
 from app.store.records_matches import add_match as add_match
@@ -122,7 +122,7 @@ class NewEvidence:
 def _evidence_passage_text(f: NewEvidence) -> str:
     """Materialize the exact passage a claim-evidence span indexes.
 
-    Mirrors ``app.claim_grounding.evidence_passages``' text formula so the
+    Mirrors ``app.claims.grounding.evidence_passages``' text formula so the
     stored column and the text a span was located in never drift apart.
     """
     return " ".join(str(part or "") for part in (f.title, f.abstract)).strip()
@@ -279,7 +279,7 @@ class NewClaimEvidence:
 
     ``label`` is the entailment verdict (an ``EntailmentLabel`` value) and
     ``claim_role`` marks a categorical finding versus a visibly speculative
-    proposal (a ``ClaimRole`` value); ``app.claim_verdict`` says what each
+    proposal (a ``ClaimRole`` value); ``app.claims.verdict`` says what each
     means to a reader. ``supporting``/``contradicting`` are
     the spans for/against the claim -- JSON-serializable provenance
     objects (``{evidence_id, quote, start, end, source, url}``; legacy

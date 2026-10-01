@@ -14,8 +14,8 @@ import logging
 import pytest
 
 from app import store
-from app.claim_grounding import persist_grounding
 from app.claims import ClaimAssessment, EntailmentLabel
+from app.claims.grounding import persist_grounding
 from tests._store_helpers import _add
 
 
@@ -35,7 +35,7 @@ def test_partly_supported_failure_is_not_logged_as_unverified(
     run = store.create_run("gate wording", "standard", "engine", {})
     partly = _add(run.id, "Partly supported", "A causes B.", isolated_db)
     bare = _add(run.id, "Unsupported", "C causes D.", isolated_db)
-    caplog.set_level(logging.INFO, logger="app.claim_grounding")
+    caplog.set_level(logging.INFO, logger="app.claims.grounding")
 
     result = persist_grounding(
         run.id,

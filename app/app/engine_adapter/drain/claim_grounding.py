@@ -17,13 +17,13 @@ import functools
 from collections.abc import Mapping
 from typing import Any
 
-from app.claim_grounding import (
+from app.claims import EvidencePassage
+from app.claims.grounding import (
     AssessorSpec,
     assess_hypothesis_claims,
     build_assessor,
     build_batch_assessor,
 )
-from app.claims import EvidencePassage
 from app.config import settings
 from app.engine_adapter.drain.inputs import FinalStateInputs
 from app.execution_policy import effective_execution_model
@@ -45,7 +45,7 @@ async def _assess_claims(
 
     The wave itself runs off this coroutine's event loop
     (``async_bridge.run_off_loop``), the same way the pre-ranking gate
-    (``engine_tasks_gate._assess_gate_claims``) runs its own wave -- see
+    (``engine_tasks.gate._assess_gate_claims``) runs its own wave -- see
     the module docstring. ``scoped_telemetry("claim_grounding")``
     attributes this pass's LLM calls in the run's metrics separately from
     the pre-ranking gate's own ``"claim_gate"`` phase.
@@ -107,7 +107,7 @@ def _reusable_by_hypothesis(
     gate_records: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     """Index every hypothesis's reusable gate verdicts by fingerprint."""
-    from app.claim_freshness import reusable_assessments
+    from app.claims.freshness import reusable_assessments
 
     indexed = {
         store_id: reusable_assessments(record)

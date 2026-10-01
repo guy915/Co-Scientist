@@ -1,7 +1,7 @@
 """The persistence inputs the drain derives once from an engine final state.
 
 Kept apart from the orchestrator (``final_state``): the phase modules that
-consume these inputs (``claim_grounding``) import the type from here, so no
+consume these inputs (``claims.grounding``) import the type from here, so no
 phase has to import back into the orchestrator that imports it.
 """
 

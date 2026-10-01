@@ -25,7 +25,7 @@ from co_scientist.exceptions import (
 )
 
 from app import engine_tasks, store
-from app.engine_tasks_portfolio import cancel_downstream_portfolio_chain
+from app.engine_tasks.portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
 from app.store.tasks_model import UNKNOWN_PROVIDER_OUTCOME_ERROR
 

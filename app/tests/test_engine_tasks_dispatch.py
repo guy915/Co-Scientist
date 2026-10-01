@@ -195,7 +195,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     # (`research_overview`) to exercise independent task leasing without
     # the full real graph, which supersedes that lookahead guess -- cancelled
     # in the same transaction as the real "research_overview" successor
-    # (`app.engine_tasks_portfolio._cancel_stale_planned_row`), not removed
+    # (`app.engine_tasks.portfolio._cancel_stale_planned_row`), not removed
     # from the row history `list_tasks` returns.
     assert [task.task_type for task in tasks] == [
         "engine.bootstrap",

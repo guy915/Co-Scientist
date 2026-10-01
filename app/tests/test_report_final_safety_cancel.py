@@ -7,8 +7,9 @@ from typing import Any, cast
 
 import pytest
 
-from app import engine_tasks, engine_tasks_node, store, task_worker
+from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.engine_tasks import node as engine_tasks_node
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision, apply_safety_gate

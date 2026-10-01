@@ -15,7 +15,7 @@ nothing (the completing turn, or a reply to small talk that closes on a
 statement) yields no usable question and keeps its empty options, which is
 what the scientist sees today anyway.
 
-Best-effort throughout, in the shape ``title_gen`` and ``claim_verifier``
+Best-effort throughout, in the shape ``title_gen`` and ``claims.verifier``
 established: any provider, parse, or schema failure logs and returns
 nothing, because a turn that lost its buttons is a turn the scientist can
 still answer by typing, while a turn that failed is one they cannot.

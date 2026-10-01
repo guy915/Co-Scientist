@@ -13,14 +13,14 @@ from __future__ import annotations
 from typing import Any
 
 from app import store
-from app.claim_grounding import (
+from app.claims import AssessorDraft, EntailmentLabel, as_passages
+from app.claims.grounding import (
     AssessorSpec,
     GroundingTarget,
     build_assessor,
     evidence_passages,
     ground_hypotheses,
 )
-from app.claims import AssessorDraft, EntailmentLabel, as_passages
 from tests._store_helpers import _add
 
 from ._llm_fake_backend import install_completion_backend
@@ -78,7 +78,7 @@ def _ev_completion(ev_id: str) -> Any:
     Cites the legacy id form under the new ``passage`` field (a model
     citing an id rather than the number it was shown is still a
     supported fallback, not the primary contract -- see
-    ``claim_verifier._CITATION_ITEM``) to prove the persisted span still
+    ``claims.verifier._CITATION_ITEM``) to prove the persisted span still
     resolves end to end.
     """
     import types
@@ -198,7 +198,7 @@ def test_claim_assessment_holds_no_database_connection(
     """
     import sqlite3
 
-    from app.claim_grounding import assess_hypothesis_claims
+    from app.claims.grounding import assess_hypothesis_claims
 
     hyp = {"id": "h1", "title": "Kinase X inhibition", "statement": _SUPPORTED}
 
@@ -229,7 +229,7 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
     import threading
     import time as _time
 
-    from app.claim_grounding import assess_hypothesis_claims
+    from app.claims.grounding import assess_hypothesis_claims
 
     active = 0
     peak = 0
@@ -249,7 +249,7 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
         {"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED}
         for i in range(8)
     ]
-    from app.claim_grounding_assess import AssessorSpec
+    from app.claims.grounding_assess import AssessorSpec
 
     assess_hypothesis_claims(
         hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor)
@@ -268,7 +268,7 @@ def test_batch_assessor_costs_one_call_per_hypothesis(isolated_db: str) -> None:
     """
     calls = {"n": 0}
 
-    from app.claim_grounding import assess_hypothesis_claims
+    from app.claims.grounding import assess_hypothesis_claims
 
     def _batch(claims: Any, passages: Any) -> Any:
         calls["n"] += 1
@@ -300,7 +300,7 @@ def test_batch_assessor_splits_a_claim_dense_hypothesis(
     """One hypothesis with 25 claims costs two calls, not one giant call."""
     calls = {"n": 0}
 
-    from app.claim_grounding import assess_hypothesis_claims
+    from app.claims.grounding import assess_hypothesis_claims
 
     def _batch(claims: Any, passages: Any) -> Any:
         calls["n"] += 1

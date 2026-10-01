@@ -12,7 +12,7 @@ The deterministic assessor tested the contradiction marker against the whole
 passage and then cited ``_best_sentence`` -- the sentence stating the most of
 the claim, i.e. the one *least* likely to be the negation. Measured over
 those 11 edges: zero cited quotes contained any
-``claims_assessor._CONTRADICTION_MARKERS`` entry, and 10 of 11 also fell
+``claims.assessor._CONTRADICTION_MARKERS`` entry, and 10 of 11 also fell
 below the 0.25 subject-coverage bar (max 0.30).
 
 The three claim/quote pairs below are verbatim from that run.
@@ -35,7 +35,7 @@ from app.claims import (
     assess_claims_batch,
     deterministic_assessor,
 )
-from app.claims_assessor import _CONTRADICTION_MARKERS
+from app.claims.assessor import _CONTRADICTION_MARKERS
 
 # A negation elsewhere in the same abstract -- routine reporting boilerplate,
 # and what used to make the whole passage read as contradicting whatever
@@ -200,7 +200,7 @@ def test_llm_assessor_fallback_cannot_yield_an_unfounded_contradiction(
     which is why the run's edges looked like LLM verdicts. That fallback
     draft must be founded too.
     """
-    from app import claim_verifier
+    from app.claims import verifier as claim_verifier
 
     monkeypatch.setattr(
         claim_verifier, "_call_llm_entailment", lambda *a, **k: None
@@ -220,9 +220,9 @@ def test_batch_fallback_cannot_yield_an_unfounded_contradiction() -> None:
     """The route run e47a3ba1 actually took: the batched assessor.
 
     Its provider failures are what the run logged
-    (``app.claim_verifier_batch``); a batch that returns no usable draft
+    (``app.claims.verifier_batch``); a batch that returns no usable draft
     for a claim falls that claim back to the deterministic assessor
-    (``claims_batch._fallback_assessment``), again under the batch's own
+    (``claims.batch._fallback_assessment``), again under the batch's own
     ``llm:<model>`` provenance.
     """
     passage = _passage(

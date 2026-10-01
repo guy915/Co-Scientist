@@ -2,8 +2,8 @@
 
 Split out of ``test_claim_verifier.py`` when this file passed the
 module-size budget. The prompt no longer shows an evidence id to cite
-(see ``claim_verifier._render_passages``); the judge instead cites a
-passage's bracketed position in the rendered list, and ``claims_span``
+(see ``claims.verifier._render_passages``); the judge instead cites a
+passage's bracketed position in the rendered list, and ``claims.span``
 resolves that number back to the passage it names -- these tests pin
 both the successful resolution and the drop-and-log path for a number
 naming a passage that was never shown.
@@ -17,9 +17,9 @@ from typing import Any
 
 import pytest
 
-from app.claim_verifier import make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
-from app.claims_span import _locate_all
+from app.claims.span import _locate_all
+from app.claims.verifier import make_llm_assessor
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -67,7 +67,7 @@ def test_citation_by_passage_number_resolves_to_that_passage(
 
     The prompt no longer shows an evidence id to cite (see
     ``_render_passages``); the judge cites the passage's bracketed
-    number instead, exactly as ``claims_span`` already resolves.
+    number instead, exactly as ``claims.span`` already resolves.
     """
     _install(
         monkeypatch,
@@ -111,7 +111,7 @@ def test_out_of_range_passage_number_is_dropped_and_logged(
         ),
     )
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
-    with caplog.at_level(logging.WARNING, logger="app.claims_span"):
+    with caplog.at_level(logging.WARNING, logger="app.claims.span"):
         result = assess_claim(
             "Kinase X inhibition reduces tumor growth.",
             [_PASSAGE],
