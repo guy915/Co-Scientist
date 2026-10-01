@@ -114,7 +114,7 @@ def _assert_bootstrap_intake_lease(
         conn, run_id, task.id, task.lease_owner, task.attempt
     ):
         return
-    from app.task_worker_outcomes import _LeaseLostError
+    from app.task_worker.outcomes import _LeaseLostError
 
     raise _LeaseLostError(
         f"bootstrap task {task.id} lost its lease before intake commit"

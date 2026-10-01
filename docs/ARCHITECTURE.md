@@ -31,7 +31,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   runs/          — /api/runs/* lifecycle, read, messages, and SSE   |
 |   engine_tasks/   — durable node/fan-out/match executor; the only  |
 |                     way any run advances (no in-process workflow)  |
-|   task_worker.py — leased worker cohort draining scientific_tasks  |
+|   task_worker/   — leased worker cohort draining scientific_tasks  |
 |   engine_adapter/ — provider selection + offline/real LLM backend  |
 |                     switch; bridges to the engine                  |
 |   store/         — SQLite store (runs/events/hypotheses/evidence/  |

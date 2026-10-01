@@ -58,7 +58,7 @@ def _seed_resume_checkpoint(
 
     ``resume_successor`` lives beside ``provider`` at the checkpoint's own
     top level, alongside (not inside) the serialized workflow-state
-    payload -- the shape ``app.task_worker_enqueue._enqueue_resume_task``
+    payload -- the shape ``app.task_worker.enqueue._enqueue_resume_task``
     reads.
     """
     from co_scientist.checkpoint import (

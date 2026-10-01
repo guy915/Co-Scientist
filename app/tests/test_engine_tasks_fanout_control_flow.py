@@ -7,7 +7,7 @@ per-day cap. The ranking node parked as designed, while eleven
 reported that as a plain ``RuntimeError``, which the worker treats as a
 transient hiccup worth three attempts against a cap that had not reset.
 
-``task_worker_outcomes`` is what decides both outcomes; these tests pin
+``task_worker.outcomes`` is what decides both outcomes; these tests pin
 that the exception types it dispatches on actually arrive there.
 """
 
@@ -98,7 +98,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
 ) -> None:
     """Its own type has to survive the executor, not become a RuntimeError.
 
-    ``task_worker_outcomes`` dispatches on the type: a park returns the
+    ``task_worker.outcomes`` dispatches on the type: a park returns the
     row to ``queued`` with its attempt undone, and the call-budget
     ceiling terminates the run. A ``RuntimeError`` gets neither.
     """

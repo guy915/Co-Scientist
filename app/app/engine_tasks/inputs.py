@@ -61,7 +61,7 @@ def _bootstrap_start_status(
         db_path=db_path,
     )
     if status is None:
-        from app.task_worker_outcomes import _LeaseLostError
+        from app.task_worker.outcomes import _LeaseLostError
 
         raise _LeaseLostError(
             f"bootstrap task {task.id} lost its lease before run start"

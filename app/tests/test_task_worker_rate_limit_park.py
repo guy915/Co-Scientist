@@ -11,8 +11,9 @@ from __future__ import annotations
 import pytest
 from co_scientist.exceptions import LLMRateLimitParkError
 
-from app import store, task_worker, task_worker_outcomes
+from app import store, task_worker
 from app.store import db as store_db
+from app.task_worker import outcomes as task_worker_outcomes
 
 
 def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:

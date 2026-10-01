@@ -209,7 +209,7 @@ def cancel_downstream_portfolio_chain(
     lookahead rows a portfolio chained behind it would otherwise stay
     ``queued`` forever with a dependency that can now never reach
     ``completed``. Call this from the worker's own failure path
-    (``app.task_worker_outcomes``) *before* the task's own failure is
+    (``app.task_worker.outcomes``) *before* the task's own failure is
     recorded, in its own transaction, so the run's "settle when nothing
     claimable remains" check (``app.store.tasks.fail_task`` /
     ``app.store.runs_reconcile``, not this module's to change) sees the

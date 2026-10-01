@@ -3,7 +3,7 @@
 Production run bc77950f (2026-09-07, extended tier): the free model chain
 hit its per-day cap. The ranking node handled it exactly as designed --
 ``platform rate limit hit (message_per_day)``, the row back to ``queued``
-with its attempt undone by ``task_worker_outcomes._park_rate_limited_task``
+with its attempt undone by ``task_worker.outcomes._park_rate_limited_task``
 -- while eleven ``engine.fanout.reflection.item`` tasks died permanently at
 attempt 3/3. The reviews inside them caught the park in a bare
 ``except Exception``, degraded to "no review", and the fan-out reported

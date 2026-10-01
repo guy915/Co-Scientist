@@ -183,7 +183,7 @@ def test_the_restored_state_names_the_task_s_last_attempt(
 ) -> None:
     """The flag the node reads is the worker's own retry-left formula.
 
-    Mirrors ``task_worker_outcomes._is_terminal_failure``: an attempt at
+    Mirrors ``task_worker.outcomes._is_terminal_failure``: an attempt at
     the ceiling is the one whose failure settles the task, so it is the
     one that must degrade rather than raise.
     """

@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import pytest
 
-from app import store, task_worker_outcomes
+from app import store
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.checkpoint_guard import _check_portfolio_predecessor
 from app.engine_tasks.context import TaskCommit
 from app.engine_tasks.support import SupersededTaskError
+from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,

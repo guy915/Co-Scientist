@@ -80,7 +80,7 @@ def _restore_node_task_state(
     while the same error on the last attempt degrades the node rather than
     failing the task -- which, at the terminal node, settles the run and
     loses the report. The formula mirrors
-    ``app.task_worker_outcomes._is_terminal_failure``, which mirrors
+    ``app.task_worker.outcomes._is_terminal_failure``, which mirrors
     ``app.store.tasks_attempts._persist_failed_attempt``'s own
     retry-left test; it assumes the failure is retryable, which holds
     because the two failures the worker refuses to retry

@@ -21,26 +21,26 @@ from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import ScientificTask
 
-# Run-level enqueue moved verbatim to ``task_worker_enqueue``; the moved
+# Run-level enqueue moved verbatim to ``task_worker.enqueue``; the moved
 # name is re-exported so this module's namespace keeps resolving.
-from app.task_worker_enqueue import (
+from app.task_worker.enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
 )
 
 # The failure taxonomy and outcome recorders moved verbatim to
-# ``task_worker_outcomes``; the moved names tests and callers patch or import
+# ``task_worker.outcomes``; the moved names tests and callers patch or import
 # through this module are re-exported so its namespace keeps resolving for
 # them.
-from app.task_worker_outcomes import (
+from app.task_worker.outcomes import (
     UnsupportedTaskError as UnsupportedTaskError,
 )
-from app.task_worker_outcomes import (
+from app.task_worker.outcomes import (
     _handle_task_failure as _handle_task_failure,
 )
-from app.task_worker_outcomes import (
+from app.task_worker.outcomes import (
     _LeaseLostError as _LeaseLostError,
 )
-from app.task_worker_outcomes import (
+from app.task_worker.outcomes import (
     _record_success as _record_success,
 )
 
@@ -442,7 +442,3 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_forever(args.worker_id, poll_seconds=args.poll_seconds)
     )
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
