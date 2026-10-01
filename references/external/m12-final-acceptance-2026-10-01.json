@@ -1,0 +1,293 @@
+{
+  "purpose": "Successful campaign closing record at the verified PR91 release; commit and merge these closing records through the reviewed PR workflow before completing the native goal.",
+  "item": "M12-04b8",
+  "status": "CAMPAIGN_ACCEPTANCE_VERIFIED_AT_INTEGRATED_RELEASE",
+  "integrated_release": {
+    "pr": "https://github.com/guy915/Co-Scientist/pull/91",
+    "reviewed_head": "a8b99913932a34c49b21e9af88a1644294d3d8cc",
+    "base": "bcdd6f79439286c28c778f9ea35075f215a1e29d",
+    "merge_commit": "9039c48c560c21dd98ece12769ec22778d5db75c",
+    "merged_at": "2026-10-01T07:57:48Z",
+    "exact_pre_pr_hook": "Accepted after review-context mismatch repaired through the same hook; no bypass.",
+    "hosted_ci": "Owner waiver used; not claimed passing."
+  },
+  "security_review": {
+    "scan_id": "b93be830-8098-4b97-8e04-4f4146f66bf6",
+    "status": "COMPLETE",
+    "findings": 0,
+    "changed_paths": 38,
+    "coverage": "complete",
+    "deferred": [],
+    "inventory_note": "Typed inventory returned0; canonical coordinator coverage records all38 actual Git changed paths.",
+    "usage": {
+      "cacheWriteInputTokens": 0,
+      "cachedInputTokens": 3288832,
+      "coverage": "partial",
+      "inputTokens": 3410513,
+      "missingThreadCount": 101,
+      "outputTokens": 13324,
+      "reasoningOutputTokens": 5597,
+      "source": "codex_rollout",
+      "threadCount": 1,
+      "totalTokens": 3423837,
+      "warnings": [
+        "rollout_unavailable"
+      ]
+    }
+  },
+  "independent_source_review": {
+    "provider": "Antigravity",
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "conversation": "64ce8eaa-b3d1-4648-8db3-2890dc154005",
+    "verdict": "ACCEPT",
+    "boundary": "Supplied-text source review; no peer filesystem/runtime inspection."
+  },
+  "deployments": {
+    "api": {
+      "id": "66790a21-bf70-481c-8b34-57cf4efd7db5",
+      "status": "SUCCESS",
+      "commit": "9039c48c560c21dd98ece12769ec22778d5db75c"
+    },
+    "mcp": {
+      "id": "9539cb9c-a9ac-430a-b3a5-bdeb45b5a3b1",
+      "status": "SUCCESS",
+      "commit": "9039c48c560c21dd98ece12769ec22778d5db75c"
+    },
+    "frontend": {
+      "id": "dpl_CNSd3QEXG19qHiRz7LtsTGLPdL5o",
+      "status": "READY",
+      "target": "production",
+      "commit": "9039c48c560c21dd98ece12769ec22778d5db75c",
+      "production_alias": "ai-co-scientist.com"
+    }
+  },
+  "serving_nonsecret_readback": {
+    "api_commit": "9039c48c560c21dd98ece12769ec22778d5db75c",
+    "system_models": {
+      "MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "SUPERVISOR_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "CHAT_MODEL_NAME": "openrouter/stealth/space-bunny-alpha",
+      "SEMANTIC_SAFETY_MODEL": "openrouter/stealth/space-bunny-alpha"
+    },
+    "uid": "0",
+    "database": "/app/data/coscientist.db",
+    "cache": "/tmp/coscientist-cache",
+    "embedded_worker": "1",
+    "api_replicas": 1,
+    "volume_mount": "/app/data",
+    "method": "Allowlisted printenv through serving-container SSH plus Railway service configuration; no credentials read or printed."
+  },
+  "post_merge_smoke": {
+    "command": ".venv/bin/python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com",
+    "exit_code": 0,
+    "checks_passed": 5,
+    "model_calls": 0,
+    "private_log": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/final-integration-20261001/post-pr91-keyless-smoke.json"
+  },
+  "verification_basis": {
+    "full_checks": "sakana/novelty-fulltext-optout-release-checks-2026-10-01.json",
+    "check_reuse_proof": "m12-closing-readiness-2026-10-01.json",
+    "reference_cases_passed": 172,
+    "sibling_cases_passed": 11,
+    "source_verification": "sakana/novelty-compact-query-implementation-verification-2026-10-01.json",
+    "required_check_families": 7,
+    "maintained_trees_identical": 10,
+    "no_container_or_confinement_change": true,
+    "zero_new_model_or_research_calls_in_closing_cycle": true
+  },
+  "scientific_dispositions": {
+    "selected_route": "Corrected frozen Space Bunny screen passes200responses; public71-task flow and17-task Robin continuation accepted within recorded reliability/citation/scientific limits.",
+    "route_screen": "m12-space-bunny-corrected-result-2026-09-30.md",
+    "public_workflow": "m12-free-default-public-acceptance-2026-09-30.json",
+    "robin_workflow": "m12-robin-continuation-acceptance-2026-09-30.json",
+    "novelty": "COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION",
+    "novelty_assessment": "sakana/novelty-pilot-v9-scientific-assessment-2026-10-01.json",
+    "novelty_terminal": "sakana/novelty-pilot-v9-terminal-2026-10-01.json",
+    "historical_studies_1_to_8": "Consumed, incomplete and unscored; immutable and never replayed.",
+    "novelty_confirmation": "Conditional on pilot PASS; not triggered by the completed FAIL.",
+    "alternatives": "Ling Sante rejected only under pinned completed-failure rule; untested/unselected Cloudflare variant remains unqualified, not scientifically rejected and not a required route."
+  },
+  "source_reconciliation": "m12-current-source-reconciliation-2026-10-01.json",
+  "additional_repositories_selected": 0,
+  "temporary_reference_checkouts": [],
+  "rollback": {
+    "last_verified_release": "9039c48c560c21dd98ece12769ec22778d5db75c",
+    "previous_healthy_release": "bcdd6f79439286c28c778f9ea35075f215a1e29d",
+    "procedure": "Restore verified source only while retaining exact free routing, one API replica, UID0, volume/database and cache placement. No migration or configuration change in this integration."
+  },
+  "limits": [
+    "Scientific model judgments are not expert or wet-lab validation.",
+    "Space Bunny public run recovered29 API errors and retained citation gaps; no universal-reliability claim.",
+    "Study9 uses exposed development bank9; exact negative result is not a general iterative-search verdict.",
+    "Hosted CI waived and external provider alternatives unselected; no false passing claims."
+  ],
+  "cleanup": "Scoped inline cleanup/deslop retains maintained code and intentional immutable/public/private forensic records; F401/F841 and diff checks pass. No UI edits in closing slice; user-owned primary AGENTS.md untouched.",
+  "observed_at_utc": "2026-10-01T08:04:46.878067+00:00",
+  "independent_acceptance_audit": {
+    "worker": "Luna6/xhigh novelty_plain_query_boundary",
+    "result": "Nine source investigations and zero additional-source selection complete; no promising repository candidate remains. Remaining stale current-summary wording corrected in this closing record commit.",
+    "k_dense_coordinator_resolution": "PR28 actual merge5f08dbef9d9fd20795f069d8c5e1885e32d26cfb is a local commit and ancestor of9039c48c; direct git merge-base --is-ancestor exited0."
+  },
+  "sources": [
+    {
+      "order": 1,
+      "dossier": "kaimen-inc-co-scientist.md",
+      "pinned_commit": "cef5bcfec8820865855593b437a941005a9f961a",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 2,
+      "dossier": "conradry-open-coscientist-agents.md",
+      "pinned_commit": "a20b018300da57a26578f8e7442b890193950afa",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 3,
+      "dossier": "llnl-open-ai-co-scientist.md",
+      "pinned_commit": "c8342c0e28474d134f80caa6b9668470ebf55258",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 4,
+      "dossier": "raktim-mondol-co-scientist.md",
+      "pinned_commit": "10aa84a3c5a774c6fe5de050000c3f5e0996eb45",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 5,
+      "dossier": "k-dense-scientific-agent-skills.md",
+      "pinned_commit": "49c6e97775eaa18ba791bebe23162a70ae601c18",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 6,
+      "dossier": "sakana-ai-scientist.md",
+      "pinned_commit": "1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 7,
+      "dossier": "synthetic-sciences-openscience.md",
+      "pinned_commit": "4e060d6c3670e3704f34b5cb6fe49ef8fafb29f5",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 8,
+      "dossier": "mims-harvard-tooluniverse.md",
+      "pinned_commit": "78883724c46a94ec1d1bfdc984efb25ba1b76aed",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    },
+    {
+      "order": 9,
+      "dossier": "future-house-robin.md",
+      "pinned_commit": "4a5cce310f3bc7663a67117db88af43b84733ffe",
+      "pin_in_current_dossier": true,
+      "license_discussion_retained": true,
+      "assessment_closed": true
+    }
+  ],
+  "unresolved_promising_repository_candidates": [],
+  "unverified_required_acceptance_gates": [],
+  "closing_records_integration": "These closing documentation/checklist changes must be merged after exact-diff review; no product redeployment is required for documentation-only content.",
+  "checklist": {
+    "open_items": 0,
+    "milestones": {
+      "M1 \u2014 Free-model walking skeleton and trustworthy baseline": {
+        "done": 47,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M2 \u2014 Kaimen-Inc/Co-Scientist": {
+        "done": 13,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M3 \u2014 conradry/open-coscientist-agents": {
+        "done": 6,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M4 \u2014 LLNL/open-ai-co-scientist": {
+        "done": 7,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M5 \u2014 raktim-mondol/co-scientist": {
+        "done": 8,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M6 \u2014 K-Dense-AI/scientific-agent-skills": {
+        "done": 6,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M7 \u2014 SakanaAI/AI-Scientist": {
+        "done": 7,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M8 \u2014 synthetic-sciences/openscience": {
+        "done": 29,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M9 \u2014 mims-harvard/ToolUniverse": {
+        "done": 12,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M10 \u2014 Future-House/robin": {
+        "done": 6,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M11 \u2014 Resolve follow-ups and select justified additional references": {
+        "done": 78,
+        "open": 0,
+        "done_when_verified": true
+      },
+      "M12 \u2014 Final integration and campaign acceptance": {
+        "done": 70,
+        "open": 0,
+        "done_when_verified": true
+      }
+    }
+  },
+  "current_summary_sha256": {
+    "README.md": "b36ed3699bf7c8b56b528ec5d47813929eb5fd830299a06f9ae12a625c712f48",
+    "campaign.md": "764df7ec69d9222a2f729ac24dec2ebbcfaf5f1835bfbe26a6b02b3ad3a76aaa",
+    "campaign-final-report.md": "04b68181ce149702962226ac4edea8d75d3ac07c2d8fd598168d91c28f76a564",
+    "m11-follow-up-register.md": "3cc5583bc235fece41beac122bc372f1d20fd79113216c27c415c48b06c3fd04",
+    "m12-acceptance-gaps-2026-09-27.md": "9279b2f85e9724f93f486b5e63ab98154a2039e709fc9e2a4931d9b221e5c0ca",
+    "baseline/model-qualification/model-route-reconciliation-2026-09-30.md": "2e307118bfb87625739042fbb0922601a421ab156a2659c5b3cbc963cbf5353b",
+    "sakana-ai-scientist.md": "33acacd5929bbb5207780a625549a9a8fc1461f363fb30f5bf3d818138fb938b"
+  },
+  "closing_record_verification": {
+    "full_check_logs_sha256_verified": 7,
+    "maintained_product_objects_identical": 10,
+    "reference_source_hashes_verified": 3,
+    "resolving_local_links": 447,
+    "missing_links": 0,
+    "open_items": 0,
+    "milestones_verified": 12,
+    "validation_boundary": "Current summary sections and actual checklist; preserved PLAN log and dated historical snapshots are not rewritten to current outcomes."
+  }
+}
