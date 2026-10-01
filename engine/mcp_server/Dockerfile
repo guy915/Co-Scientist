@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # copy dependency files
-COPY mcp_server/pyproject.toml ./mcp_server/
+COPY mcp_server/pyproject.toml mcp_server/README.md mcp_server/LICENSE mcp_server/NOTICE ./mcp_server/
 
 # The editable build maps the `mcp_server` package onto this directory
 # (pyproject.toml's `package-dir`) and lists its subpackages explicitly, so
@@ -45,7 +45,7 @@ ENV PYTHONUNBUFFERED=1
 
 # health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8888', timeout=5.0)" || exit 1
+    CMD python -c "import httpx; httpx.get('http://localhost:8888', timeout=5.0, trust_env=False).raise_for_status()" || exit 1
 
 # run server
 CMD ["uvicorn", "mcp_server.server:app", "--host", "0.0.0.0", "--port", "8888"]

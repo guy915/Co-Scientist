@@ -6,8 +6,9 @@ live in ``app.config_thinking`` and are re-exported below, so callers and
 """
 
 import os
+from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config_thinking import (
@@ -199,14 +200,15 @@ class Settings(BaseSettings):
 
     # Researcher access. ``required`` rejects unauthenticated private API
     # requests; ``compatibility`` retains browser-local IDs for local demos.
-    auth_mode: str = "compatibility"
+    auth_mode: Literal["compatibility", "required"] = "compatibility"
     auth_secret: str = ""
     # JSON object mapping researcher ids to invite/access codes.
     researcher_access_codes: str = "{}"
     # Verified bearer subjects assigned to the server-funded campaign.
     # Compatibility X-Client-ID values never qualify (see execution_policy).
     campaign_researcher_ids: set[str] = Field(default_factory=set)
-    auth_session_hours: int = 12
+    auth_session_hours: int = Field(default=12, gt=0)
+    auth_exchange_per_minute: int = Field(default=20, gt=0)
 
     # Bring-your-own-key (BYOK) support. A scientist may send a provider
     # API key on run creation (X-LLM-API-Key / X-LLM-Provider headers);
@@ -253,6 +255,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     @field_validator("campaign_researcher_ids")
@@ -263,6 +266,13 @@ class Settings(BaseSettings):
         if "" in cleaned:
             raise ValueError("campaign researcher ids must be non-empty")
         return cleaned
+
+    @model_validator(mode="after")
+    def _validate_auth_configuration(self) -> "Settings":
+        """Refuse required authentication without a signing secret."""
+        if self.auth_mode == "required" and not self.auth_secret.strip():
+            raise ValueError("AUTH_SECRET is required for AUTH_MODE=required")
+        return self
 
     @property
     def effective_chat_model(self) -> str:

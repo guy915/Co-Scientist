@@ -1,12 +1,14 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all parity eval-smoke e2e lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps parity eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
-ROOT := $(shell pwd)
+ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
 APP    := $(ROOT)/app
 FRONTEND := $(APP)/frontend
 VENV  := $(ROOT)/.venv
 PY    := $(VENV)/bin/python
 PIP   := $(VENV)/bin/pip
+BUN ?= bun
+BUN_VERSION := 1.3.14
 # The reference MCP server pins Python 3.12, and Homebrew pythons are
 # PEP 668 externally-managed, so it gets its own venv.
 MCP_VENV := $(ROOT)/.venv-mcp
@@ -28,8 +30,13 @@ help:
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-mcp     Run reference MCP server pytest + mypy (needs Python 3.12)"
-	@echo "  make test-all     Run backend pytest suites (engine + app + MCP server) + parity gate"
+	@echo "  make test-all     Run backend + frontend suites and the parity gate"
+	@echo "  make check        Run lint, types, all suites, eval smoke, build, and browser tests"
+	@echo "  make docker-build Build both production images (never deploys)"
+	@echo "  make audit-deps   Audit dependency locks online (see docs/DEPENDENCY-SECURITY.md)"
+	@echo "  make test-frontend Run frontend unit tests"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
+	@echo "  make e2e-production Test built frontend assets with required researcher authentication"
 	@echo "  make parity       Check the docs/PARITY.md evidence gate + its tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
 	@echo "  make lint         Lint backend (ruff) + frontend (gts)"
@@ -41,22 +48,17 @@ help:
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
-setup: $(VENV)/bin/activate
+setup: check-tools $(VENV)/bin/activate
 	@echo ">> Installing engine (editable)"
 	@$(PIP) install -e "$(ENGINE)[dev]"
 	@echo ">> Installing app (editable, dev extras)"
 	@# Skip the PyPI co-scientist-engine pin (we have it editable already from $(ENGINE))
-	@$(PIP) install -e "$(APP)" --no-deps
+	@$(PIP) install -e "$(APP)[dev]" --no-deps
 	@# App runtime deps are single-sourced from pyproject via requirements-app.txt.
 	@$(PIP) install -r "$(APP)/requirements-app.txt"
-	@$(PIP) install pytest pytest-asyncio ruff mypy
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
-	@echo ">> Installing frontend (bun preferred, npm fallback)"
-	@# --frozen-lockfile matches CI (ci.yml) exactly: install precisely what
-	@# bun.lock records rather than letting a local resolve drift from what
-	@# CI and production actually build against (N18). A dependency bump
-	@# still needs an explicit `bun install` to update the committed lock.
-	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install --frozen-lockfile; else echo "bun not found; using npm"; npm install --no-audit --no-fund --silent; fi
+	@echo ">> Installing frontend from bun.lock"
+	@cd "$(FRONTEND)" && "$(BUN)" install --frozen-lockfile
 	@test -f "$(ROOT)/.env" || cp "$(ROOT)/.env.example" "$(ROOT)/.env"
 	@# dev-api runs with cwd=app/, and Settings loads ".env" relative to cwd
 	@# (app/app/config.py), so a root-only .env is invisible to it. Symlink
@@ -98,7 +100,7 @@ preflight:
 	@$(MAKE) ensure-deps
 	@$(MAKE) stop
 
-ensure-deps:
+ensure-deps: check-tools
 	@test -f "$(ROOT)/.env" || { echo ">> No .env found — copying .env.example"; cp "$(ROOT)/.env.example" "$(ROOT)/.env"; }
 	@# See the matching comment in `setup` -- one env file, symlinked so
 	@# dev-api's cwd=app/ Settings load actually sees it.
@@ -108,7 +110,7 @@ ensure-deps:
 		$(MAKE) setup; \
 	elif [ ! -d "$(FRONTEND)/node_modules" ]; then \
 		echo ">> Frontend deps missing — installing"; \
-		cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun install --frozen-lockfile; else npm install --no-audit --no-fund; fi; \
+		cd "$(FRONTEND)" && "$(BUN)" install --frozen-lockfile; \
 	fi
 
 dev-all:
@@ -161,9 +163,9 @@ dev-api:
 	@echo ">> Starting FastAPI on $(API_URL)"
 	@cd "$(APP)" && COSCIENTIST_DB_PATH="$(ROOT)/coscientist.db" "$(PY)" -m uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8008
 
-dev-ui:
+dev-ui: check-tools
 	@echo ">> Starting Vite UI on $(UI_URL)"
-	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi
+	@cd "$(FRONTEND)" && "$(BUN)" run dev
 
 dev-mcp:
 	@# Single shell block on purpose: each make recipe line runs in its own
@@ -251,6 +253,7 @@ test-all:
 	@$(MAKE) test-app
 	@$(MAKE) test-mcp
 	@$(MAKE) parity
+	@$(MAKE) test-frontend
 
 # Browser-level end-to-end suite (Playwright). Self-contained: it installs the
 # harness deps and the Chromium browser if missing, then Playwright launches
@@ -259,19 +262,22 @@ test-all:
 # runs headless. Requires `make setup` first (the backend venv + frontend
 # node_modules the launched servers depend on).
 E2E := $(ROOT)/e2e
-e2e:
+e2e: check-tools
 	@test -x "$(PY)" || { echo ">> Backend venv missing — run 'make setup' first"; exit 1; }
 	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
 	@echo ">> Running browser e2e suite (headless)"
-	@cd "$(E2E)" && if command -v bun >/dev/null 2>&1; then \
-		test -d node_modules || bun install; \
-		bunx playwright install chromium; \
-		bunx playwright test; \
+	@cd "$(E2E)" && "$(BUN)" install --frozen-lockfile
+	@"$(FRONTEND)/node_modules/.bin/tsc" --noEmit --project "$(E2E)/tsconfig.json"
+	@if [ -n "$$COSCI_E2E_CHROMIUM_EXECUTABLE" ]; then \
+		test -x "$$COSCI_E2E_CHROMIUM_EXECUTABLE" || { echo "COSCI_E2E_CHROMIUM_EXECUTABLE must name an executable browser"; exit 1; }; \
 	else \
-		test -d node_modules || npm install; \
-		npx playwright install chromium; \
-		npx playwright test; \
+		cd "$(E2E)" && "$(BUN)" x playwright install chromium; \
 	fi
+	@cd "$(E2E)" && "$(BUN)" x playwright test
+
+# Real bundled assets and launch authentication, with a fresh offline API.
+e2e-production:
+	@COSCI_E2E_PRODUCTION=1 $(MAKE) e2e
 
 # Parity ledger gate: fail if any `verified` row in docs/PARITY.md cites no
 # test/eval evidence or cites evidence files that do not exist on disk, plus
@@ -292,7 +298,7 @@ eval-smoke:
 # formatting or gts-only failure cannot stay invisible until CI. Assumes
 # `make setup` has already installed the frontend's node_modules, same as
 # `make typecheck`/`test-app` assume the backend venv exists.
-lint:
+lint: check-tools
 	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
 	@cd "$(APP)" && "$(PY)" -m ruff format --check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff format --check evaluations
@@ -301,7 +307,7 @@ lint:
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
 	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
 	@echo ">> Linting frontend (gts)"
-	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run lint; else npx gts lint; fi
+	@cd "$(FRONTEND)" && "$(BUN)" run lint
 
 # Mirrors the CI typecheck job, which covers engine/ as well as app/ and
 # evaluations/.
@@ -310,8 +316,8 @@ typecheck:
 	@cd "$(ENGINE)" && "$(PY)" -m mypy .
 	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
 
-build:
-	@cd "$(FRONTEND)" && if command -v bun >/dev/null 2>&1; then bun run build; else npm run build; fi
+build: check-tools
+	@cd "$(FRONTEND)" && "$(BUN)" run build
 
 clean:
 	rm -rf "$(VENV)" "$(MCP_VENV)" "$(FRONTEND)/dist" "$(FRONTEND)/node_modules" "$(APP)"/.coscientist_cache "$(APP)"/cache
@@ -319,3 +325,41 @@ clean:
 reset-db:
 	rm -f "$(ROOT)/coscientist.db"
 	@echo ">> Removed $(ROOT)/coscientist.db"
+
+# One local launch-validation command. Provider-backed evaluations and
+# production deployment remain separate, explicit operations.
+check:
+	@$(MAKE) lint
+	@$(MAKE) typecheck
+	@$(MAKE) test-all
+	@$(MAKE) eval-smoke
+	@$(MAKE) build
+	@$(MAKE) e2e
+	@$(MAKE) e2e-production
+
+test-frontend: check-tools
+	@cd "$(FRONTEND)" && "$(BUN)" run test
+
+check-tools:
+	@command -v "$(BUN)" >/dev/null 2>&1 || { echo "Bun $(BUN_VERSION) is required; see docs/RUNNING-LOCALLY.md"; exit 1; }
+	@test "$$($(BUN) --version)" = "$(BUN_VERSION)" || { echo "Use Bun $(BUN_VERSION) to match bun.lock and CI"; exit 1; }
+	@command -v node >/dev/null 2>&1 || { echo "Node.js 22.13+ is required for frontend tooling"; exit 1; }
+	@node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error("Node.js 22.13+ is required"); process.exit(1); }'
+
+docker-build:
+	@docker build -f Dockerfile.api -t coscientist-api-local .
+	@docker build -f Dockerfile.mcp -t coscientist-mcp-local .
+
+# Online advisory data is separate from offline implementation checks. Keep
+# every finding visible and finish all audits even when an earlier one fails.
+audit-deps: check-tools
+	@command -v uv >/dev/null 2>&1 || { echo "uv is required; see docs/DEPENDENCY-SECURITY.md"; exit 1; }
+	@status=0; \
+	for lock in api mcp skills; do \
+		uv tool run --from pip-audit==2.10.1 pip-audit \
+			-r "$(ROOT)/requirements/$$lock.txt" --disable-pip --no-deps \
+			--progress-spinner off || status=1; \
+	done; \
+	(cd "$(FRONTEND)" && "$(BUN)" audit) || status=1; \
+	(cd "$(E2E)" && "$(BUN)" audit) || status=1; \
+	exit $$status

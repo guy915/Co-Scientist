@@ -144,9 +144,14 @@ Vite reads `VITE_API_BASE_URL`; when it is unset the api client falls back to **
 
 **HTTP clients** live under `src/api/`: `runs.ts` (run lifecycle, SSE, steering; fetch/auth primitives in `runs_http.ts`, interview calls in `runs_interviews.ts`, collection/report/share getters in `runs_collections.ts` — all re-exported from `runs.ts`, incl. `exchangeAccessCode`), `system.ts` (`/status`, incl. the composer's connector list), and `logs.ts`. SSE/streaming also runs through `src/hooks/use_run_stream.ts`. `src/lib/client_id.ts` holds two identities with different lifetimes: a localStorage client id and a sessionStorage researcher token set by `pages/researcher_access.tsx`. `clientHeaders()` sends one or the other — `Authorization: Bearer <token>` when a researcher session exists, else `X-Client-ID` — so an authenticated tab is not scoped by client id, and the session dies with the tab.
 
+All HTTP response paths use `runs_http.fetchWithSession`, including downloads
+and SSE. A 401 clears a session only when the failed request sent the same
+Bearer token that is currently stored. An anonymous request or an older token
+returning after login must never erase the new session. Keep JSON parsing and
+stream framing separate from credential invalidation.
+
 ## Docker workflow
 
 `app/docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `COSCIENTIST_ENGINE_REPO` at ref `COSCIENTIST_ENGINE_REF` — that ref is deliberately floating (`main`) for this opt-in clone-a-fork workflow; pin a commit SHA there for a reproducible build. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere. `TOOLS_CONFIG` defaults to the `indra_cancer.yaml` reference example but reads `${TOOLS_CONFIG:-...}` from the top-level `.env` compose itself reads for variable substitution (the same file `app/.env` is symlinked to — see the root `Makefile`), so setting `TOOLS_CONFIG=` there now overrides the default instead of being silently outranked by it. The api service also mounts `./data:/app/data` and sets `COSCIENTIST_DB_PATH=/app/data/coscientist.db`, so the SQLite store survives `docker compose up --build` instead of living in the container's discarded writable layer. Both the api entrypoint (`app/docker/entrypoint.sh`) and the mcp service run with `--reload`, a deliberate dev-only trade-off that mirrors `make dev-api`'s own `--reload` and carries the same risk documented in the root AGENTS.md Gotchas (a mid-run edit can drop the embedded worker cohort or an in-flight literature-review call) — never carried into either production Dockerfile.
 
 Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.sh` — **a different file** from the repo-root `Dockerfile.api` that Railway builds, and the two diverge (compose installs the engine at startup from the mount; Railway bakes it into the image), so container changes usually need applying to both.
-

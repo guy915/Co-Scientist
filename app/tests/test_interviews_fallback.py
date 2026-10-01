@@ -191,6 +191,20 @@ def test_byok_turn_is_not_marked(
             "focus_area": [],
             "preferences": [],
             "completed": False,
+            "questions": [
+                {
+                    "header": "Focus",
+                    "question": "Which focus area matters most?",
+                    "multi_select": False,
+                    "options": [
+                        {
+                            "label": "Mechanisms",
+                            "description": "Find mechanisms",
+                        },
+                        {"label": "Evidence", "description": "Review evidence"},
+                    ],
+                }
+            ],
         }
 
     monkeypatch.setattr(

@@ -67,6 +67,15 @@ def test_configured_secret_rejects_wrong_header() -> None:
     assert response.status_code == 401
 
 
+@pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
+def test_host_path_cannot_exempt_an_unauthenticated_tool_call(
+    host: str,
+) -> None:
+    client = TestClient(_make_app(secret="s3cret"))
+    response = client.post("/mcp", headers={"Host": host})
+    assert response.status_code in {400, 401}
+
+
 def test_configured_secret_accepts_matching_header() -> None:
     client = TestClient(_make_app(secret="s3cret"))
 

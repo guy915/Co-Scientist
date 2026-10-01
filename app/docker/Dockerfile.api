@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
 # mounted checkout, so skip the local engine package dependency at build time
 # (--no-deps) and install the runtime deps from the single-sourced
 # requirements-app.txt (mirrors pyproject minus the engine pin).
-COPY pyproject.toml requirements-app.txt ./
+COPY pyproject.toml requirements-app.txt LICENSE NOTICE ./
 RUN pip install --no-cache-dir -e . --no-deps \
     && pip install --no-cache-dir -r requirements-app.txt
 

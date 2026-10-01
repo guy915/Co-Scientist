@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,9 +7,12 @@ name = "co-scientist-viewer"
 version = "0.1.0"
 description = "Web application for running and monitoring the AI Co-Scientist multi-agent research system. Provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 
 dependencies = [
-    "fastapi>=0.104.0",
+    "fastapi>=0.142.2,<1",
+    "starlette>=1.3.1,<2",
     "uvicorn>=0.24.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
@@ -84,7 +87,7 @@ target-version = "py310"
 # carries published abstracts as verbatim string literals, which cannot be
 # wrapped without corrupting the text they exist to preserve. The engine
 # excludes its own dev/ for the same reason.
-exclude = ["dev"]
+extend-exclude = ["dev"]
 
 [tool.ruff.lint]
 select = [
@@ -143,7 +146,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 # Developer utility scripts are not type-checked, matching the ruff `exclude`
 # above and the engine's own mypy config.
-exclude = ["^dev/"]
+exclude = ["^(dev|build|dist)/"]
 
 [[tool.mypy.overrides]]
 module = ["co_scientist", "co_scientist.*"]

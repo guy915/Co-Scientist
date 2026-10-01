@@ -1,4 +1,5 @@
 node_modules
+**/.cache
 dist
 build
 .cache
@@ -8,4 +9,6 @@ build
 coverage
 .nyc_output
 storybook-static
-
+.env
+.env.*
+!.env.example

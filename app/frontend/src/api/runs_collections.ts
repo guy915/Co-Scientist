@@ -24,6 +24,7 @@ import {
   fetchJson,
   jsonRequest,
   parseJson,
+  fetchWithSession,
 } from './runs_http';
 
 /** A durable owner-authorized request to refine one outcome's parent. */
@@ -273,7 +274,7 @@ export function uploadRunDocument(
  * @returns The report, or null when not yet generated.
  */
 export async function getReport(id: string): Promise<Report | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`, {
+  const res = await fetchWithSession(`${API_BASE_URL}/api/runs/${id}/report`, {
     headers: clientHeaders(),
   });
   if (res.status === 404) return null; // no report yet, not an error
@@ -291,9 +292,12 @@ export async function getReport(id: string): Promise<Report | null> {
  * @returns The report Markdown, or null when no report exists yet (404).
  */
 export async function fetchReportMarkdown(id: string): Promise<string | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report.md`, {
-    headers: clientHeaders(),
-  });
+  const res = await fetchWithSession(
+    `${API_BASE_URL}/api/runs/${id}/report.md`,
+    {
+      headers: clientHeaders(),
+    },
+  );
   if (res.status === 404) return null; // no report yet, not an error
   await assertOk(res);
   return res.text();
@@ -314,7 +318,7 @@ export async function revokeReportShare(
   runId: string,
   shareId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await fetchWithSession(
     `${API_BASE_URL}/api/runs/${runId}/shares/${shareId}`,
     {method: 'DELETE', headers: clientHeaders()},
   );

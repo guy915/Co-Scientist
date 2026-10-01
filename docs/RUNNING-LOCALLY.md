@@ -1,80 +1,119 @@
-# Running the app locally
+# Running locally
 
-**TL;DR — from the repo root: `make start`.** It starts everything (API + UI + MCP)
-and is fully configured. Everything below is context for when you're *not* in a
-clean main checkout (e.g. a git worktree) or need to run a piece by hand.
+## Prerequisites
 
-## The one command
+- Python 3.12 for the complete application and MCP service. The standalone
+  engine supports Python 3.10+.
+- Node.js 22.13+ for frontend tooling and Bun 1.3.14 for the committed locks.
+  Install Bun from [the official instructions](https://bun.sh/docs/installation)
+  and select `bun upgrade --version 1.3.14` if necessary.
+- Optional provider credentials for real model responses. No key is needed
+  to exercise the deterministic offline pipeline.
+- Optional Tesseract for image OCR and scanned-document extraction.
+  The production API image includes it.
+
+## Start a checkout
+
+From the repository root:
 
 ```bash
-make start        # API :8008 + UI :5173 + MCP :8888, all wired
-make stop         # stop them
+make setup
+make start
 ```
 
-`make start` runs `dev-all`, which launches:
+`make setup` installs the local engine and viewer into `.venv`, installs
+frontend dependencies from `bun.lock`, copies `.env.example` when `.env` is
+missing, and links `app/.env` to that root file. Existing `.env` files are
+preserved. Edit the root file for API settings. The MCP service uses the
+separate `engine/mcp_server/.env`; its provider keys do not come from the
+API's environment file.
 
-| Service | Port | Notes |
-|---|---|---|
-| API (FastAPI) | 8008 | seeds 3 demo runs on startup; served at `/api/runs/demo` |
-| UI (Vite/React) | 5173 | with `VITE_API_BASE_URL` unset the client calls same-origin paths, which the Vite dev server proxies (`/api`, `/status`, `/health`) to `http://localhost:8008` |
-| MCP (PubMed lit-review) | 8888 | Python **3.12** only; `make dev-mcp` auto-creates its venv |
+`make start` installs missing dependencies, frees the three development
+ports, launches the services, and opens the workbench once it is ready.
+It stops existing listeners on those ports; reserve them for this checkout.
 
-Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
+| Service | Address | Notes |
+| --- | --- | --- |
+| Workbench | http://localhost:5173 | Vite proxies API requests to port 8008 |
+| API | http://localhost:8008 | Local operator docs at `/docs` |
+| MCP | http://localhost:8888 | Literature/database tools; Python 3.12 required |
 
-## Configuration (already set up — don't recreate it)
+Use `make stop` to stop the development services. Run individual services
+with `make dev-api`, `make dev-ui`, and `make dev-mcp` in separate terminals.
+The API uses hot reload; an edit can interrupt an active task. For a stable
+backend during a run:
 
-- **Env:** the repo-root `.env` holds everything — model keys, `MODEL_NAME`,
-  `COSCIENTIST_DB_PATH` (`./coscientist.db`, relative), `ALLOWED_ORIGINS`
-  (CORS allowlist for the UI origin), `MCP_SERVER_URL`
-  (`http://localhost:8888/mcp`). The API loads `.env` **relative to its cwd**
-  (`app/`), which `make start` handles.
-- **Demo data:** seeded on API startup; no LLM/keys needed to view it. Demo
-  runs are **not** in `/api/runs` (that's owned runs, empty for a fresh
-  client) — they come from `/api/runs/demo`, which the home page uses.
-- **CLI (`cosci`):** the operator CLI drives the API over HTTP. It reads
-  `COSCIENTIST_API_URL` (default `http://localhost:8008`),
-  `COSCIENTIST_CLIENT_ID` (the `X-Client-ID` runs are scoped by — keep it
-  consistent), `COSCIENTIST_LOGS_TOKEN` (matches `LOGS_ADMIN_TOKEN` for the
-  app-wide log view), and `COSCIENTIST_TIMEOUT` — each also has an equivalent
-  flag (`--api-url`/`--client-id`/`--logs-token`/`--timeout`).
-- **MCP / PubMed:** the server lives at `engine/mcp_server/` (a flat package,
-  run from `engine/` so `mcp_server.server:app` resolves). `make dev-mcp`
-  creates a 3.12 venv and starts it. `ENTREZ_EMAIL` in
-  `engine/mcp_server/.env` is an optional NCBI courtesy identifier, not
-  authentication. Anonymous PubMed retrieval is supported, with potentially
-  stricter rate limits. Availability is determined by a real reachability probe,
-  not by whether an email is configured.
-  Check status: `curl -s localhost:8008/status` → `mcp_available`,
-  `pubmed_available`, `literature_review_available`.
+```bash
+cd app
+COSCIENTIST_DB_PATH=../coscientist.db ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8008
+```
 
-## Running from a git worktree (the gotcha)
+Do not expose the development stack publicly. See [SECURITY.md](../SECURITY.md)
+and [DEPLOYMENT.md](DEPLOYMENT.md) for authenticated hosting.
 
-Git worktrees **do not carry gitignored files** — no
-`.env`, no `.venv`, no `node_modules`. That is why `make start` won't "just work"
-there. Options, cheapest first:
+## Model and retrieval configuration
 
-1. **Run `make start` from the main checkout** (`~/Code/Co-Scientist`). The
-   backend code is identical across branches; only the frontend differs, and
-   `bun run dev` in the worktree serves the worktree's frontend. This is almost
-   always what you want for a UI change.
-2. **If you must run the backend from the worktree:** copy the env and reuse the
-   main venv (don't rebuild it):
-   ```bash
-   cp ~/Code/Co-Scientist/.env app/.env
-   # backend: run from the worktree's app/ with the main venv
-   (cd app && source ~/Code/Co-Scientist/.venv/bin/activate && uvicorn app.main:app --port 8008)
-   # frontend:
-   (cd app/frontend && bun install && bun run dev)   # or --port 5183 if 5173 is busy
-   ```
-   If the UI is on a non-default port (e.g. 5183), add it to `ALLOWED_ORIGINS`
-   in `app/.env` or the API will CORS-block the browser.
-3. **MCP from a worktree:** `python3.12 -m venv engine/mcp_server/.venv &&
-   engine/mcp_server/.venv/bin/pip install -e engine/mcp_server/`, then
-   `(cd engine && PYTHONPATH=. mcp_server/.venv/bin/python -m uvicorn
-   mcp_server.server:app --port 8888)`. Restart the API afterward so it wires
-   the MCP at startup.
+The default system model is `openrouter/stealth/space-bunny-alpha` and needs
+`OPENROUTER_API_KEY`. Setting only another provider's key does not select its
+model: set the appropriate `MODEL_NAME` and role overrides too.
+Inspect `/status` for the selected backend and retrieval availability.
 
-## Don't repeat these mistakes
+`COSCIENTIST_FORCE_OFFLINE=1` withholds deployment-funded model calls.
+An explicit BYOK request can still use the scientist's own credential.
+Offline mode applies to model calls; MCP retrieval may still contact public
+scientific services. The test harnesses isolate their state and mock or
+withhold external calls.
 
-- Reach for **`make start`** before hand-rolling `uvicorn`/`vite` commands.
-- A worktree's missing `.env`/`.venv` is expected, not a broken setup.
+MCP configuration is documented in
+[`engine/mcp_server/.env.example`](../engine/mcp_server/.env.example).
+PubMed can retrieve anonymously; `ENTREZ_EMAIL` is an optional courtesy
+identifier and a valid API key can raise source rate limits. Live literature
+availability is determined by reachability, not the presence of an email.
+
+## Validate changes
+
+```bash
+make check         # lint, types, suites, parity, smoke, build, browser tests
+make docker-build  # production image builds; no deployment
+```
+
+`make test-all` includes backend and frontend unit tests and the parity gate.
+`make e2e` runs Playwright with a fresh temporary SQLite store, offline model
+responses, API port 8108, and UI port 5273. `make e2e-production` builds the
+frontend and serves its bundled assets with required researcher authentication.
+It checks login, report retrieval after a reload, and ownership isolation.
+Both targets typecheck the browser harness, disable local dotenv loading,
+and explicitly select offline evidence/claim checks. Chromium is normally
+installed
+through Playwright. To use an already installed browser when downloads are
+unavailable:
+
+```bash
+COSCI_E2E_CHROMIUM_EXECUTABLE=/usr/bin/chromium make e2e
+```
+
+That override can differ from the Chromium revision used in CI. CI uses the
+Playwright-managed browser. Port overrides are `COSCI_E2E_API_PORT` and
+`COSCI_E2E_UI_PORT`. Run the targets sequentially when using the same ports.
+The production browser target builds into its temporary state directory and
+leaves the normal frontend `dist/` artifact untouched. Vite preview tests built
+assets and browser flows; it does not verify Vercel or Railway routing and
+configuration.
+
+## Worktrees
+
+Each worktree needs its own dependencies and environment because Git does not
+copy ignored `.env`, `.venv`, databases, or `node_modules` directories.
+Run `make setup` inside the worktree. Copy an existing `.env` only when you
+intend to reuse those credentials. Keep its SQLite store separate.
+Do not reuse an editable engine install from another checkout: it imports
+that checkout's source and can make a test exercise the wrong branch.
+Only one development stack can use the default ports at a time.
+
+## Local data
+
+The root development database is `coscientist.db`; reports and caches are
+ignored. Deleting these is separate from dependency cleanup. Before a reset,
+make a backup using [the backup procedure](LAUNCH.md#backup-and-restore).
+`make reset-db` deletes the local store, and `make clean` removes development
+virtual environments, frontend dependencies/build output, and local caches.

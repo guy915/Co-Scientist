@@ -103,7 +103,7 @@ services:
       --reload-dir mcp_server
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8888', timeout=5.0)"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8888', timeout=5.0, trust_env=False).raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3

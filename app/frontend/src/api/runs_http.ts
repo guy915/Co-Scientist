@@ -116,14 +116,26 @@ function responseErrorMessage(
 }
 
 /**
- * Drop the stored researcher session on a 401. The token is expired or invalid,
- * so keeping it makes `clientHeaders` re-send a dead Bearer on every request —
- * each one 401s and the tab is bricked until sessionStorage is cleared by hand.
- * Dropping it lets the next request fall back to X-Client-ID. Called from every
- * response path that inspects status (plain JSON, SSE streams, raw requests).
+ * Fetch with session expiry tied to the credentials actually sent. A delayed
+ * anonymous request or a request using an older token must never erase a
+ * session established while it was in flight. JSON, downloads, and streams
+ * share this transport so they apply the same rule.
  */
-export function forgetSessionIfUnauthorized(res: Response): void {
-  if (res.status === 401) clearAccessToken();
+export async function fetchWithSession(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const authorization = new Headers(init?.headers).get('Authorization');
+  const res = await fetch(url, init);
+  const currentToken = getAccessToken();
+  if (
+    res.status === 401 &&
+    currentToken &&
+    authorization === `Bearer ${currentToken}`
+  ) {
+    clearAccessToken();
+  }
+  return res;
 }
 
 /**
@@ -135,7 +147,6 @@ export async function parseJson<T>(
   errorPrefix?: string,
 ): Promise<T> {
   if (!res.ok) {
-    forgetSessionIfUnauthorized(res);
     const text = await res.text().catch(() => res.statusText);
     throw new HttpError(
       responseErrorMessage(res.status, res.statusText, text, errorPrefix),
@@ -156,7 +167,6 @@ export async function assertOk(
   errorPrefix?: string,
 ): Promise<void> {
   if (res.ok) return;
-  forgetSessionIfUnauthorized(res);
   const text = await res.text().catch(() => res.statusText);
   throw new HttpError(
     responseErrorMessage(res.status, res.statusText, text, errorPrefix),
@@ -174,7 +184,7 @@ export async function fetchJson<T>(
   init?: RequestInit,
   errorPrefix?: string,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, init);
+  const res = await fetchWithSession(`${API_BASE_URL}${path}`, init);
   return parseJson<T>(res, errorPrefix);
 }
 
@@ -225,7 +235,6 @@ async function getSseBody(
   errorPrefix?: string,
 ): Promise<ReadableStream<Uint8Array>> {
   if (res.ok && res.body) return res.body;
-  forgetSessionIfUnauthorized(res);
   const text = await res.text().catch(() => res.statusText);
   throw new Error(
     responseErrorMessage(res.status, res.statusText, text, errorPrefix),

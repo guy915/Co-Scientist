@@ -1,7 +1,7 @@
 {
   "buildCommand": "cd app/frontend && bun run build",
   "outputDirectory": "app/frontend/dist",
-  "installCommand": "cd app/frontend && bun install",
+  "installCommand": "cd app/frontend && bun install --frozen-lockfile",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]

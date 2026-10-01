@@ -31,6 +31,7 @@ export const UI_URL = `http://127.0.0.1:${UI_PORT}`;
 // Deterministic credentials for the isolated browser-test API only.
 export const E2E_RESEARCHER_ID = 'e2e-client';
 export const E2E_RESEARCHER_ACCESS_CODE = 'e2e-researcher-access-code';
+export const E2E_OTHER_RESEARCHER_ACCESS_CODE = 'e2e-other-access-code';
 export const E2E_AUTH_SECRET = 'e2e-only-signing-secret';
 
 /**

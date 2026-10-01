@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const dist = path.join(root, "dist");
+const dist = path.resolve(root, process.env.COSCI_FRONTEND_DIST || "dist");
 const baseHtml = await readFile(path.join(dist, "index.html"), "utf8");
 const origin = "https://ai-co-scientist.com";
 
