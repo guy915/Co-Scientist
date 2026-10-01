@@ -77,7 +77,7 @@ async def test_title_call_thinks_and_its_budget_assumes_that(
     """
     import litellm
 
-    from app.config import THINKING_FLOOR_MAX_TOKENS
+    from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
 

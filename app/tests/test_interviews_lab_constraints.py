@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import interviews, store
-from app.engine_adapter import build_engine_opts
+from app.engine_adapter.opts import build_engine_opts
 from app.interviews_prompts import _normalized_fields
 from app.main import app
 

@@ -13,7 +13,9 @@ from typing import Any
 
 import pytest
 
-from app.engine_adapter.opts import _resolve_tool_calling_generation_toggle
+from app.engine_adapter.opts_capabilities import (
+    _resolve_tool_calling_generation_toggle,
+)
 
 
 def _cfg(tier: str | None) -> dict[str, Any]:

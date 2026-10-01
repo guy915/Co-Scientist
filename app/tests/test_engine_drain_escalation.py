@@ -20,7 +20,8 @@ from typing import Any
 import pytest
 from co_scientist.llm import campaign_free_mode
 
-from app import engine_adapter, safety, store
+from app import safety, store
+from app.engine_adapter.drain import final_state as drain_final_state
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis_screening import screen_hypotheses
 from tests._drain_helpers import _engine_hypothesis, _persist
@@ -346,7 +347,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     monkeypatch.setattr(litellm, "acompletion", _allow)
     run = _real_run("cleared hold audit")
 
-    await engine_adapter.persist_final_state(
+    await drain_final_state.persist_final_state(
         run_id=run.id,
         final_state=_escalation_state(),
         db_path=isolated_db,

@@ -15,13 +15,7 @@ from app.config_thinking import (
     CONVERSATIONAL_REASONING_EFFORT as CONVERSATIONAL_REASONING_EFFORT,
 )
 from app.config_thinking import (
-    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
-)
-from app.config_thinking import (
     THINKING_FLOOR_TIMEOUT_SECONDS as THINKING_FLOOR_TIMEOUT_SECONDS,
-)
-from app.config_thinking import (
-    deepseek_non_thinking_extra_body as deepseek_non_thinking_extra_body,
 )
 from app.config_thinking import (
     deepseek_thinking_kwargs as deepseek_thinking_kwargs,

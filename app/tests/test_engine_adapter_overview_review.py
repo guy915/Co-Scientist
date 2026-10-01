@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from app.engine_adapter.opts import _resolve_overview_review_toggle
+from app.engine_adapter.opts_capabilities import _resolve_overview_review_toggle
 
 
 def _cfg(tier: str | None) -> dict[str, Any]:

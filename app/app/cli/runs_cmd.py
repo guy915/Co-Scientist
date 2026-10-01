@@ -37,19 +37,7 @@ from app.cli.runs_collections_cmd import (
     COLLECTION_HANDLERS as COLLECTION_HANDLERS,
 )
 from app.cli.runs_collections_cmd import (
-    handle_claim_evidence as handle_claim_evidence,
-)
-from app.cli.runs_collections_cmd import (
-    handle_matches as handle_matches,
-)
-from app.cli.runs_collections_cmd import (
     handle_metrics as handle_metrics,
-)
-from app.cli.runs_collections_cmd import (
-    handle_proximity as handle_proximity,
-)
-from app.cli.runs_stream_cmd import (
-    WATCH_RECONNECT_ATTEMPTS as WATCH_RECONNECT_ATTEMPTS,
 )
 from app.cli.runs_stream_cmd import (
     _run_path,
