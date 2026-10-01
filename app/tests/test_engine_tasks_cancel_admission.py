@@ -9,6 +9,7 @@ import pytest
 
 from app import engine_tasks, store, task_worker
 from tests._client import make_client
+from tests._engine_tasks_helpers import _install_runtime
 
 
 def _cancel_after_second_run_read(run_id: str, client: Any) -> Any:
@@ -128,7 +129,7 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
         await release_screening.wait()
         return verdict
 
-    monkeypatch.setattr(engine_tasks, "screen_with_escalation", delayed_screen)
+    _install_runtime(monkeypatch).screen = delayed_screen
     bootstrap = asyncio.create_task(
         engine_tasks.execute_bootstrap(task, db_path=isolated_db)
     )
@@ -192,7 +193,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
         await release_screening.wait()
         return SafetyDecision(stage="intake", decision=decision, reason="late")
 
-    monkeypatch.setattr(engine_tasks, "screen_with_escalation", delayed_screen)
+    _install_runtime(monkeypatch).screen = delayed_screen
     bootstrap = asyncio.create_task(
         engine_tasks.execute_bootstrap(original, db_path=isolated_db)
     )

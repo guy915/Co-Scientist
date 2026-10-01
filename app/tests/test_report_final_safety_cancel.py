@@ -16,6 +16,7 @@ from app.safety_redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
@@ -85,9 +86,7 @@ def _seed_leased_finalize(
         )
         return drained, 1.0, {}
 
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = fake_drain
     return owner, headers, run_id, task
 
 
@@ -159,9 +158,7 @@ async def test_cancel_race_does_not_block_run(
     async def allow_final_screen(*_: Any, **__: Any) -> Any:
         return SafetyDecision(stage="final", decision="allow")
 
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
     cancel_responses: list[dict[str, Any]] = []
     block_for_empty_leaderboard = report_finalize._block_for_empty_leaderboard
 
@@ -213,9 +210,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     async def allow_final_screen(*_: Any, **__: Any) -> Any:
         return SafetyDecision(stage="final", decision="allow")
 
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -263,9 +258,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
             matches=["sensitive span"],
         )
 
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", redact_final_screen
-    )
+    _install_runtime(monkeypatch).screen = redact_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -416,9 +409,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
         matches = ["sensitive span"] if decision == "redact" else []
         return SafetyDecision(stage="final", decision=decision, matches=matches)
 
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", cancel_then_decide
-    )
+    _install_runtime(monkeypatch).screen = cancel_then_decide
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)

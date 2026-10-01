@@ -18,7 +18,6 @@ from co_scientist.models import (
 from app import engine_tasks, safety, store, task_worker
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
-    _deterministic_screen,
     _Generator,
     _install_plain_fake_judge,
     _milestones,
@@ -148,12 +147,7 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == bootstrap.id
     generator = _Generator(_task_state(run.id))
-    monkeypatch.setattr(
-        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
-    )
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", _deterministic_screen
-    )
+    _patch_generator(monkeypatch, generator, screen=True)
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
     assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)

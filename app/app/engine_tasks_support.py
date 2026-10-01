@@ -13,7 +13,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from app import store
+from app import engine_tasks_runtime, store
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
 from app.engine_tasks_context import (
@@ -417,7 +417,9 @@ def restore_checkpoint_state(
     """
     from app.engine_adapter.checkpoints import restore_workflow_state
 
-    generator = _generator_for_restore(task, db_path)
+    generator = engine_tasks_runtime.active().generator_for_restore(
+        task, db_path
+    )
     return restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )

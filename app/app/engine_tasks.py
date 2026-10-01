@@ -10,7 +10,10 @@ durable vocabulary lives in sibling modules -- ``engine_tasks_support``
 ``engine_tasks_ranking`` (tournament chain), and ``engine_tasks_node``
 (node/finalize commit helpers) -- and the moved names that callers and
 tests use are re-exported here so ``app.engine_tasks`` remains their
-import and monkeypatch surface.
+import surface. The collaborators a task builds or calls outside the store
+(generators, the safety screen, the final-state drain) resolve through
+``app.engine_tasks_runtime``, which this dispatcher binds once per task, not
+through a patch on any module that looks one up.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from app import store
+from app import engine_tasks_runtime, store
 from app.engine_adapter.provider import sync_engine_llm_backend
 from app.engine_tasks_context import (
     TaskCommit as TaskCommit,
@@ -168,9 +171,6 @@ from app.engine_tasks_support import (
     SupersededTaskError as SupersededTaskError,
 )
 from app.engine_tasks_support import (
-    _generator_and_opts as _generator_and_opts,
-)
-from app.engine_tasks_support import (
     _latest_task_checkpoint as _latest_task_checkpoint,
 )
 from app.engine_tasks_support import (
@@ -186,7 +186,7 @@ from app.execution_policy import (
 )
 from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
-from app.safety import apply_safety_gate, screen_intake, screen_with_escalation
+from app.safety import apply_safety_gate, screen_intake
 from app.store import RunStatus, ScientificTask
 
 
@@ -201,7 +201,11 @@ async def _screen_bootstrap_intake(
         emit,
         db_path,
         task=task,
-        screening=(screen_with_escalation, screen_intake, apply_safety_gate),
+        screening=(
+            engine_tasks_runtime.active().screen,
+            screen_intake,
+            apply_safety_gate,
+        ),
     )
 
 
@@ -218,7 +222,9 @@ async def _prepare_bootstrap_state(
     for scheduling -- rather than being acknowledged here where nothing acts
     on it.
     """
-    generator, opts = _generator_and_opts(task, db_path)
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(
+        task, db_path
+    )
     state = await generator.prepare_task_state(
         run.research_goal,
         opts=opts,
@@ -382,6 +388,7 @@ async def execute_engine_task(
         campaign_model = None
     ceiling = _llm_call_ceiling_for_run(task.run_id, db_path)
     with (
+        engine_tasks_runtime.bound(engine_tasks_runtime.active()),
         scoped_byok(credential),
         scoped_api_key(credential.api_key if credential else None),
         scoped_llm_call_budget(task.run_id, ceiling),

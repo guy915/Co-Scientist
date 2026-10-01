@@ -14,7 +14,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app import store
+from app import engine_tasks_runtime, store
 from app.report.build import (
     ReportRequest,
     _BuiltReport,
@@ -31,7 +31,6 @@ from app.safety import (
     redact_matched_spans,
     redact_payload_text,
     screen_final,
-    screen_with_escalation,
 )
 from app.store import RunStatus
 from app.store.tasks_model import ScientificTask
@@ -214,7 +213,7 @@ async def _screen_final_report(
     db_path: str | None,
 ) -> SafetyDecision:
     """Run the final safety screen (with escalation) over the report."""
-    return await screen_with_escalation(
+    return await engine_tasks_runtime.active().screen(
         run_id,
         ScreenSubject("final", markdown, screen_final(markdown)),
         provider=provider,

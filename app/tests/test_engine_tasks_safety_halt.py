@@ -14,10 +14,10 @@ import pytest
 from co_scientist.models import Hypothesis
 
 from app import engine_tasks, store
-from app.report import finalize as report_finalize
 from app.safety import ScreenSubject
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
@@ -110,9 +110,7 @@ async def test_an_unhalted_run_still_publishes(
     """The halt check is the only thing that withholds the report."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=False)
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", _deterministic_final_screen
-    )
+    _install_runtime(monkeypatch).screen = _deterministic_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 

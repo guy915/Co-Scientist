@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from app import store
+from app import engine_tasks_runtime, store
 from app.engine_adapter.drain import _persist_final_state
 from app.engine_tasks_checkpoint_guard import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
@@ -368,9 +368,8 @@ async def execute_finalize(
     halted = await _halt_finalize_if_blocked(run, state, task, db_path)
     if halted is not None:
         return halted
-    drained, execution_time, metrics = await _drain_and_persist_final_state(
-        run, state, db_path
-    )
+    drain = engine_tasks_runtime.active().drain_final_state
+    drained, execution_time, metrics = await drain(run, state, db_path)
     paused = _commit_finalize_drain(commit, state, drained, metrics)
     if paused is not None:
         return paused

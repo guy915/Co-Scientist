@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, engine_tasks_node, store, task_worker
+from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.report import build as report_build
 from app.report import finalize as report_finalize
@@ -18,6 +18,7 @@ from app.safety import SafetyDecision
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
+    _install_runtime,
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
@@ -114,9 +115,7 @@ def _seed_owned_finalize(
         )
         return drained, 1.25, {}
 
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", fake_drain
-    )
+    _install_runtime(monkeypatch).drain_final_state = fake_drain
     return owner, run_id, task, hypothesis_id
 
 
@@ -152,9 +151,7 @@ def _install_report_stubs(
     monkeypatch.setattr(
         report_finalize, "build_report_content", fake_build_report
     )
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", allow_final_screen
-    )
+    _install_runtime(monkeypatch).screen = allow_final_screen
 
 
 def _install_cancel_before_publication(

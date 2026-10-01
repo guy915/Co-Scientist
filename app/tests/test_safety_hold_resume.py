@@ -25,6 +25,7 @@ from app import store, task_worker
 from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
 from app.store import RunStatus
 from tests._client import make_client
+from tests._engine_tasks_helpers import _install_runtime
 
 CLIENT_ID = "hold-e2e"
 HEADERS = {"X-Client-ID": CLIENT_ID}
@@ -149,11 +150,7 @@ def test_intake_hold_keeps_claimable_work_and_resumes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
     """An intake hold parks the bootstrap; approval runs it to a report."""
-    from app import engine_tasks
-
-    monkeypatch.setattr(
-        engine_tasks, "screen_with_escalation", hold_until_approved("intake")
-    )
+    _install_runtime(monkeypatch).screen = hold_until_approved("intake")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
 
@@ -176,11 +173,7 @@ def test_final_hold_keeps_claimable_work_and_resumes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
     """A final-report hold parks finalization until a reviewer approves it."""
-    from app.report import finalize as report_finalize
-
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", hold_until_approved("final")
-    )
+    _install_runtime(monkeypatch).screen = hold_until_approved("final")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
 
@@ -243,11 +236,7 @@ def test_rejected_final_hold_blocks_the_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
     """Rejecting a held report blocks the run instead of releasing it."""
-    from app.report import finalize as report_finalize
-
-    monkeypatch.setattr(
-        report_finalize, "screen_with_escalation", hold_until_approved("final")
-    )
+    _install_runtime(monkeypatch).screen = hold_until_approved("final")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
 
