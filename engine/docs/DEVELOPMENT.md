@@ -13,7 +13,7 @@ engine/
 │       ├── state.py            # WorkflowState TypedDict
 │       ├── schemas/            # JSON schemas for LLM responses
 │       ├── models.py           # Hypothesis, Article dataclasses (among others)
-│       ├── llm.py              # LLM calling utilities
+│       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
 │       ├── cache.py            # LLM response caching
 │       ├── mcp_client.py       # MCP server integration
 │       ├── constants.py        # Configuration constants

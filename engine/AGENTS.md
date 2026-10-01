@@ -63,14 +63,14 @@ what accumulates in that transcript is re-bought by every turn after it;
 the model writes its program by rewriting the file whole, and a
 transcript traced turn by turn (2026-08-22) was **59% versions of one
 program that no longer existed**, five rewrites of ~8k characters each.
-`llm_tool_transcript.elide_superseded_writes` drops the text of a write a
+`llm.tools.transcript.elide_superseded_writes` drops the text of a write a
 later write to the same path replaced -- the file on disk still holds it
 -- which cut that loop's total prompt spend by 37%, a fraction that grows
 with the turn count. **And reaching a ceiling used to return nothing**: a
 loop that had written a model, run it and read its numbers raised, and
 the review fell back to imagining the mechanism it had just measured. It
 now buys one closing turn with the tools withheld
-(`llm_tool_loop._harvest_partial_answer`), so the ceiling degrades the
+(`llm.tools.loop_run._harvest_partial_answer`), so the ceiling degrades the
 observation instead of deleting it.
 
 With both in place `SIMULATION_TOKEN_BUDGET` could be **measured rather
@@ -195,7 +195,7 @@ here to guard.
 ones that outlive the call that started them
 (`workspace/command_session.py`: `run_command` hands back a session id
 rather than killing a command at its deadline, `poll_command` continues
-it from a cursor, and `llm_tool_transcript.normalize_tool_transcript`
+it from a cursor, and `llm.tools.transcript.normalize_tool_transcript`
 turns a turn cut off mid-call into an explicit aborted result instead of
 a conversation the provider rejects). Reflection's simulation review and
 the drafting skills are what run inside them.
@@ -204,7 +204,7 @@ Shared state flows through `WorkflowState` in `state.py`; note the custom `dedup
 
 Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas/` (JSON-schema package for structured LLM output — one module per prompt family plus `registry.py`), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
-**LLM dispatch and bounds.** Calls go through LiteLLM (`llm.py`). Every completion is bounded twice: `llm_request.llm_timeout_seconds()` (env `COSCIENTIST_LLM_TIMEOUT_SECONDS`, default 600s, `0` disables) is passed to litellm *and* re-imposed as a hard `asyncio.wait_for` ceiling in `llm._acompletion_within_timeout` (+30s grace), raising `LLMTimeoutError`. `call_llm_json` retries up to `max_attempts` (default 5) but treats failure kinds differently in `llm_json_retry.py`: a schema failure retries immediately with validation feedback appended to the prompt, a throttled call backs off a **jittered** exponential (unjittered releases every throttled caller at once and reproduces the burst), and `LLMTimeoutError` is never retried — a stalled provider will not answer the same request faster. Plain `call_llm` carries the same budget-escalation ladder (`llm_text_retry.run_with_budget_escalation`, built on `llm_json_retry`'s own failure classification and logging rather than a second implementation — see the "A floor is not a guarantee" Gotcha in the root `AGENTS.md`), just with a lower default (`max_attempts=3`, the number of attempts that walks the ladder's three rungs; `call_llm_json`'s extra headroom above that is for schema and parse failures, which have no plain-text counterpart). Do not add a second retry loop for a new direct-call site — both public entry points already share this one.
+**LLM dispatch and bounds.** Calls go through LiteLLM, in the `llm/` package (`llm/__init__.py` lists the layers, lowest first, and is the only import surface outside it; `tests/test_llm_layering.py` keeps the imports pointing down). Every completion is bounded twice: `llm.request.completion.llm_timeout_seconds()` (env `COSCIENTIST_LLM_TIMEOUT_SECONDS`, default 600s, `0` disables) is passed to litellm *and* re-imposed as a hard `asyncio.wait_for` ceiling in `llm.request.completion._acompletion_within_timeout` (+30s grace), raising `LLMTimeoutError`. `call_llm_json` retries up to `max_attempts` (default 5) but treats failure kinds differently in `llm/attempts/retry.py`: a schema failure retries immediately with validation feedback appended to the prompt, a throttled call backs off a **jittered** exponential (unjittered releases every throttled caller at once and reproduces the burst), and `LLMTimeoutError` is never retried — a stalled provider will not answer the same request faster. Plain `call_llm` carries the same budget-escalation ladder (`llm.attempts.text_retry.run_with_budget_escalation`, built on `llm.attempts.retry`'s own failure classification and logging rather than a second implementation — see the "A floor is not a guarantee" Gotcha in the root `AGENTS.md`), just with a lower default (`max_attempts=3`, the number of attempts that walks the ladder's three rungs; `call_llm_json`'s extra headroom above that is for schema and parse failures, which have no plain-text counterpart). Do not add a second retry loop for a new direct-call site — both public entry points already share this one.
 
 **MCP and the web.** Literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
 
@@ -296,8 +296,8 @@ wrote up. The ceiling on how often that happens was never the skills.
 Measured on a live drafting pass, `search_pubmed` results were **96% of the
 loop's transcript** (282k of 295k characters over 9 searches) and the skills
 4%, which is why the loop used to stop on its token backstop rather than on
-having finished. Two elisions fixed that, both in `llm_tool_transcript` and
-both applied at `llm_tool_loop._drop_dead_context`, so every tool loop
+having finished. Two elisions fixed that, both in `llm.tools.transcript` and
+both applied at `llm.tools.loop_run._drop_dead_context`, so every tool loop
 inherits them. `elide_repeated_papers` drops a paper an earlier search in
 the same transcript already returned -- 35% of records on that pass, 94
 carrying 61 distinct papers. `elide_aged_evidence` is the one that removes

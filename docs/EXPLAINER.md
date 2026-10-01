@@ -209,7 +209,7 @@ flowchart TD
   YAML --> TR["ToolRegistry<br/>config/registry.py"]
   TR --> MTC["MCPToolClient<br/>mcp_client.py (langchain_mcp_adapters)"]
   MTC --> MTP["MCPToolProvider<br/>tools/provider.py"]
-  MTP --> CLT["call_llm_with_tools<br/>llm_tool_loop.py, re-exported via llm.py — agentic tool-calling loop"]
+  MTP --> CLT["call_llm_with_tools<br/>llm/tools/loop.py, exported by llm/__init__.py — agentic tool-calling loop"]
   CLT -->|tool call| MTP
   MTP -->|execute| MTC
 
@@ -342,7 +342,7 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budget
 | Graph assembly, edges, routers | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
 | State definition + its reducers | `engine/src/co_scientist/state.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models_metrics.py`) |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
-| LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm.py` |
+| LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |
 | Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
 | Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |
 | Citation index + key resolution | `engine/src/co_scientist/agents/generation/citations.py` |

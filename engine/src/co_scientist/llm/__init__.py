@@ -7,15 +7,19 @@ interface: three entry points (``call_llm``, ``call_llm_json``,
 ``call_llm_with_tools``), the value objects they take, and the run-scoped
 contexts and counters their callers establish and read.
 
-Layout, lowest layer first. Each layer imports only from those above it in
-this list, at the module that defines the name:
+Layout, lowest layer first. Each layer imports only from itself and the
+layers before it in this list, at the module that defines the name
+(``tests/test_llm_layering.py`` enforces it):
 
 * ``values``: ``CompletionSpec``, ``LLMCallOptions``.
 * ``admission``: credentials, per-run call budget, free-model policy.
-* ``telemetry``: in-memory per-call usage capture.
+* ``structured``: parse, repair, validate and reshape structured output.
+* ``telemetry``: in-memory per-call usage capture. It reads token counts
+  off ``request.response``, the one import that points up the list.
 * ``request``: one provider request and its response (completion
   arguments, timeout ceiling, response format, thinking, gateway routing).
-* ``structured``: parse, repair, validate and reshape structured output.
+* ``precall``: the prompt-save, temperature clamp and cache lookup every
+  entry point runs first.
 * ``attempts``: one attempt, and the retry loops built on it.
 * ``tools``: the tool-calling loop.
 * ``call``: ``call_llm`` and ``call_llm_json``.

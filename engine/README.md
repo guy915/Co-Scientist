@@ -383,7 +383,7 @@ src/co_scientist/
 ├── generator/          # HypothesisGenerator — public entry point, builds/runs LangGraph
 ├── state.py            # WorkflowState TypedDict + custom reducers
 ├── models.py           # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
-├── llm.py              # LiteLLM wrapper
+├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
 ├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
 ├── cache.py            # Disk-based LLM response cache
 ├── constants.py        # Elo params, token limits, workflow defaults
