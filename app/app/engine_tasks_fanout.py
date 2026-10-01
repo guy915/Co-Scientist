@@ -54,7 +54,7 @@ from app.engine_tasks_support import (
     REVIEW_ITEM_TASK,
     VERIFICATION_AGGREGATE_TASK,
     VERIFICATION_ITEM_TASK,
-    _assert_task_commit_allowed,
+    assert_task_commit_allowed,
 )
 from app.store import ScientificTask
 
@@ -116,7 +116,7 @@ def _create_fanout_tasks(
         A tuple of (item tasks, aggregate task).
     """
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         items = enqueue_items(conn)
         aggregate = _enqueue_aggregate_task(
             task, items, checkpoint_seq, conn, spec

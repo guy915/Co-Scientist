@@ -16,8 +16,8 @@ from co_scientist.models_metrics import (
 
 from app import store
 from app.engine_tasks_support import (
-    _assert_task_commit_allowed,
     _metrics_snapshot,
+    assert_task_commit_allowed,
 )
 from app.store import ScientificTask
 
@@ -58,7 +58,7 @@ def mark_retryable_with_usage(
 ) -> None:
     """Keep a failed attempt's usage alongside its retryable action state."""
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         store.update_outcome_refinement_action(
             action["action_id"], status="retryable", conn=conn
         )

@@ -23,8 +23,8 @@ from app.engine_tasks_support import (
     _CHECKPOINT_PROVIDER,
     GENERATION_AGGREGATE_TASK,
     GENERATION_STRATEGY_TASK,
-    _assert_task_commit_allowed,
     _restore_item_checkpoint,
+    assert_task_commit_allowed,
 )
 from app.store import ScientificTask
 
@@ -235,7 +235,7 @@ def _commit_generation_fanout(
         order, and the aggregate task.
     """
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         planned_seq = _save_generation_plan_checkpoint(
             task, checkpoint_seq, envelope, conn
         )

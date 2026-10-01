@@ -233,10 +233,10 @@ def _commit_leased_report_publication(
     # Function-local: engine_tasks_support imports engine_adapter, whose drain
     # imports ``app.report`` (format_deep_verification_critique), so a
     # top-level import is a cycle whichever module loads first.
-    from app.engine_tasks_support import _assert_task_commit_allowed
+    from app.engine_tasks_support import assert_task_commit_allowed
 
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         saved = store.save_report(
             run_id,
             built.payload,
@@ -378,11 +378,11 @@ def _commit_empty_leaderboard_block(
 ) -> int:
     """Atomically persist a readiness block while the finalize lease is live."""
     # Function-local, for the cycle explained in the publish function above.
-    from app.engine_tasks_support import _assert_task_commit_allowed
+    from app.engine_tasks_support import assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         store.add_safety_decision(decision, conn=conn)
         store.update_run_status(
             run_id, RunStatus.BLOCKED, error=decision.reason, conn=conn

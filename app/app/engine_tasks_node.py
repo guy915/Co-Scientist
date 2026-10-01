@@ -53,7 +53,6 @@ from app.engine_tasks_restore import (
 from app.engine_tasks_support import (
     FINALIZE_TASK,
     NodeCompletion,
-    _assert_task_commit_allowed,
     _emit_node_completion,
     _latest_task_checkpoint,
     _metrics_snapshot,
@@ -62,6 +61,7 @@ from app.engine_tasks_support import (
     _save_paused_state,
     _save_state_and_enqueue,
     _successor_task_type,
+    assert_task_commit_allowed,
     restore_checkpoint_state,
 )
 from app.report import ReportRequest, finalize_report
@@ -199,7 +199,7 @@ def _commit_finalize_drain(
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         status = conn.execute(
             "SELECT status FROM runs WHERE id=?", (task.run_id,)
         ).fetchone()["status"]

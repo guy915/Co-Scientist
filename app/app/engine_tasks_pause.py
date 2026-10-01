@@ -80,7 +80,7 @@ def _save_paused_state(
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
-    from app.engine_tasks_support import _assert_task_commit_allowed
+    from app.engine_tasks_support import assert_task_commit_allowed
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
@@ -88,7 +88,7 @@ def _save_paused_state(
         last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
     )
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         envelope["last_event_seq"] = store.latest_event_seq(
             task.run_id, conn=conn
         )
@@ -105,12 +105,12 @@ def _save_paused_state_if_requested(
     """Serialize outside the lock, then atomically check pause and save."""
     from co_scientist.checkpoint import serialize_workflow_state
 
-    from app.engine_tasks_support import _assert_task_commit_allowed
+    from app.engine_tasks_support import assert_task_commit_allowed
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         paused = _save_paused_if_requested(
             commit, state, resume_successor, envelope, conn
         )

@@ -121,7 +121,7 @@ def _successor_task_type(successor: str | None) -> str:
     return f"{NODE_TASK_PREFIX}{successor}"
 
 
-def _assert_task_commit_allowed(
+def assert_task_commit_allowed(
     task: ScientificTask, conn: sqlite3.Connection
 ) -> None:
     """Require the task's lease and run to remain live inside its commit."""
@@ -261,7 +261,7 @@ def _save_state_and_enqueue(
     )
     successor_type = _successor_task_type(successor)
     with store.transaction(db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         if pause_if_requested:
             paused = _save_paused_if_requested(
                 commit, state, successor_type, envelope, conn
@@ -353,7 +353,7 @@ def _save_state_and_enqueue_exact(
         ),
     )
     with store.transaction(commit.db_path) as conn:
-        _assert_task_commit_allowed(task, conn)
+        assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_exact_checkpoint(
             task, envelope, commit.current_seq, conn
         )
