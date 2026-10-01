@@ -82,7 +82,7 @@ def test_supported_means_supports_or_partial(label: Any, role: Any) -> None:
 def test_a_contradiction_withholds_only_when_categorical(
     label: Any, role: Any
 ) -> None:
-    ids = report_gates._contradicted_hypothesis_ids(
+    ids = report_gates.contradicted_hypothesis_ids(
         "", None, claim_edges=[_edge(label, role)]
     )
     expected = label == "contradicts" and not _speculative(role)

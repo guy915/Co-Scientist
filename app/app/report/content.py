@@ -11,7 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.claim_verdict import is_contradicting, is_excused, is_supporting
+from app.claim_verdict import (
+    is_categorical_contradiction,
+    is_contradicting,
+    is_excused,
+    is_supporting,
+)
 from app.evidence_chunking import parent_evidence_id
 from app.hypothesis_safety import is_blocking_status
 from app.text_utils import (
@@ -148,12 +153,19 @@ def _synthesized_knowledge_base_topics(
     return topics
 
 
-# Every contradiction the panel can show belongs to an idea the report does
-# not carry, so each entry states that rather than leaving the reader hunting
-# for an idea that is not there. See :func:`_contradicted_claims`.
+# What each contradiction entry says about its idea, chosen by the same
+# predicate the release gate withholds on (``is_categorical_contradiction``),
+# so the panel cannot claim a withholding the gate did not perform. A
+# contradicted established-fact claim withholds its idea, which would
+# otherwise read as a reference to an idea the reader cannot find; a
+# contradicted proposal is a verdict on the idea and does not.
 _WITHHELD_CONTRADICTION_NOTE = (
     "Contradicted by the evidence, so the idea proposing it was withheld "
     "from the ranked report."
+)
+_PROPOSAL_CONTRADICTION_NOTE = (
+    "Contradicted by the evidence; this is the idea's own proposal, so the "
+    "contradiction alone does not remove the idea from the report."
 )
 
 
@@ -161,17 +173,20 @@ def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
     """Readable claim text for every edge the evidence contradicts.
 
     Deliberately reads the run's *whole* edge list, not the released subset
-    the rest of the report is scoped to. A contradicted claim is exactly what
-    makes ``_hypothesis_passes_safety_gate`` withhold its hypothesis, so the
-    released edges are contradiction-free by construction: scoping this to
-    them would not remove a stray entry, it would empty the panel on every
-    run forever while looking like a consistency fix.
+    the rest of the report is scoped to. A contradicted categorical claim is
+    exactly what makes ``_hypothesis_passes_safety_gate`` withhold its
+    hypothesis, so the released edges carry none: scoping this to them would
+    drop every withheld idea's entry, emptying the panel of its main content
+    while looking like a consistency fix.
 
-    Keeping the edges therefore means the claim named here belongs to an idea
-    the reader will not find in the report, which read as a dangling
-    reference. Each entry now carries ``_WITHHELD_CONTRADICTION_NOTE``, which
+    Keeping the edges therefore means a categorical entry names a claim of an
+    idea the reader will not find in the report, which read as a dangling
+    reference. Each such entry carries ``_WITHHELD_CONTRADICTION_NOTE``, which
     says so: the evidence against an idea is the run's finding and worth
-    reporting, and the idea's absence is a fact about it, not an omission.
+    reporting, and the idea's absence is a fact about it, not an omission. A
+    contradicted *proposal* is listed too (``claim_verdict.is_contradicting``
+    ignores the role) but its idea is not withheld for it, so it carries
+    ``_PROPOSAL_CONTRADICTION_NOTE`` instead of claiming a withholding.
 
     Textless edges are dropped rather than emitted blank: the Goal Report
     shows a section header whenever the list is non-empty, so a blank entry
@@ -183,7 +198,12 @@ def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
             continue
         claim = str(edge.get("claim") or "").strip()
         if claim:
-            claims.append(f"{claim} ({_WITHHELD_CONTRADICTION_NOTE})")
+            note = (
+                _WITHHELD_CONTRADICTION_NOTE
+                if is_categorical_contradiction(edge)
+                else _PROPOSAL_CONTRADICTION_NOTE
+            )
+            claims.append(f"{claim} ({note})")
     return claims
 
 
@@ -243,8 +263,8 @@ def _agent_insights(
     ``hypotheses`` is the released set, so findings and experiments describe
     only ideas the report carries. ``claim_edges`` is the run's whole edge
     list on purpose -- see :func:`_contradicted_claims` for why scoping it to
-    the released edges would empty the contradictions panel rather than
-    tidy it.
+    the released edges would drop the withheld ideas' contradictions rather
+    than tidy the panel.
     """
     meta = meta_review or {}
     return {

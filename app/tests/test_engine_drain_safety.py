@@ -106,9 +106,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
         run, isolated_db
     )
 
-    contradicted = report_gates._contradicted_hypothesis_ids(
-        run.id, isolated_db
-    )
+    contradicted = report_gates.contradicted_hypothesis_ids(run.id, isolated_db)
     unverified = report_gates.unverified_hypothesis_ids(run.id, isolated_db)
     assert contradicted == {contradicted_id}
     # Only the supported idea has a ``supports`` edge; the other two lack one.

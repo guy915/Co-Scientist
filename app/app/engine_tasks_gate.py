@@ -15,6 +15,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from app.claim_verdict import ClaimRole, is_speculative
 from app.config import settings
 from app.execution_policy import effective_execution_model
 
@@ -139,16 +140,17 @@ def _harvest_hypothesis_claims(
     claim_roles: dict[str, str] = {}
     ordered_claims: list[str] = []
     for source_text, role in (
-        (hypothesis.text, "speculative"),
-        (hypothesis.literature_grounding, "categorical"),
-        (hypothesis.explanation, "speculative"),
-        (hypothesis.experiment, "speculative"),
+        (hypothesis.text, ClaimRole.SPECULATIVE.value),
+        (hypothesis.literature_grounding, ClaimRole.CATEGORICAL.value),
+        (hypothesis.explanation, ClaimRole.SPECULATIVE.value),
+        (hypothesis.experiment, ClaimRole.SPECULATIVE.value),
     ):
         for claim in extract_atomic_claims(source_text or ""):
             if claim not in claim_roles:
                 ordered_claims.append(claim)
                 claim_roles[claim] = role
-            elif role == "categorical":
+            elif not is_speculative(role):
+                # The strict role wins when one sentence appears under both.
                 claim_roles[claim] = role
     return ordered_claims, claim_roles
 
@@ -314,7 +316,7 @@ def _apply_gate_verdict(
         assessments,
         allow_speculative=True,
         explicitly_speculative_claims={
-            claim for claim, role in plan.roles.items() if role == "speculative"
+            claim for claim, role in plan.roles.items() if is_speculative(role)
         },
         require_supported_claim=False,
     )

@@ -15,7 +15,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
-from app.store import RunStatus
 from app.text_utils import hypothesis_id, hypothesis_title
 
 # The durable engine tasks build one of these per run: records an event and
@@ -76,21 +75,3 @@ def article_stub(a: dict[str, Any]) -> dict[str, str]:
 def match_stub(m: dict[str, Any]) -> dict[str, str]:
     """Project a tournament matchup to a minimal JSON-safe stub."""
     return {"winner": str(m.get("winner") or "")}
-
-
-async def emit_cancel_or_pause(
-    run_id: str, db_path: str | None, emit: EmitFn
-) -> dict[str, Any]:
-    """Persist and emit the terminal status for a stopped run.
-
-    The stop signal covers both cancel and pause (the pause endpoint marks
-    the run PAUSED durably before the workflow observes the signal), so the
-    run's persisted status decides which terminal event a stopped stream
-    emits: a paused run stays ``paused`` (resumable) rather than being
-    overwritten as ``cancelled``.
-    """
-    run = store.get_run(run_id, db_path=db_path)
-    if run is not None and run.status == RunStatus.PAUSED.value:
-        return await emit("status", {"status": "paused"})
-    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
-    return await emit("status", {"status": "cancelled"})

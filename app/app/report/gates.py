@@ -2,10 +2,11 @@
 
 Holds the exclusion filters that decide which hypotheses reach the final
 report: the contradicted/unverified id sets and the safety gate that drops
-prohibited, rejected, or contradicted ideas. Two predicates are public
+prohibited, rejected, or contradicted ideas. Three predicates are public
 because callers outside the report apply them: ``exclude_unsafe_hypotheses``
-(public share links) and ``unverified_hypothesis_ids`` (the run's hypotheses
-endpoint).
+(public share links), ``unverified_hypothesis_ids`` (the run's hypotheses
+endpoint) and ``contradicted_hypothesis_ids`` (the offline release gate, which
+must withhold exactly the ideas the report does).
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 EXCLUDED_HYPOTHESIS_STATUSES = frozenset({"rejected", "duplicate"})
 
 
-def _contradicted_hypothesis_ids(
+def contradicted_hypothesis_ids(
     run_id: str,
     db_path: str | None,
     claim_edges: list[dict[str, Any]] | None = None,
@@ -169,7 +170,7 @@ def exclude_unsafe_hypotheses(
     Returns:
         The hypotheses safe to synthesize, in the original order.
     """
-    contradicted = _contradicted_hypothesis_ids(run_id, db_path, claim_edges)
+    contradicted = contradicted_hypothesis_ids(run_id, db_path, claim_edges)
     kept = [
         hyp
         for hyp in hyps

@@ -41,7 +41,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
 from app.hypothesis_safety import is_blocking_status, review_hypothesis_safety
 from app.report.gates import (
     EXCLUDED_HYPOTHESIS_STATUSES,
-    _contradicted_hypothesis_ids,
+    contradicted_hypothesis_ids,
 )
 
 _REQUIRED_PROVENANCE = ("model", "policy_version", "retrieval_sources")
@@ -127,7 +127,7 @@ def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
         reported rather than enforced.
     """
     claims = artifact.get("claims") or []
-    contradicted = _contradicted_hypothesis_ids("", None, claim_edges=claims)
+    contradicted = contradicted_hypothesis_ids("", None, claim_edges=claims)
     releasable = _releasable(artifact.get("hypotheses") or [], contradicted)
 
     reasons = _safety_reasons(artifact.get("safety") or [])
