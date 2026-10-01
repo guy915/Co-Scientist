@@ -32,6 +32,8 @@ from app.hypothesis.safety import (
 )
 from tests._process_mode_helpers import FakeProcessMode
 
+from ._llm_fake_backend import install_completion_backend
+
 _MODEL = "openrouter/test/safety:free"
 
 
@@ -160,8 +162,6 @@ async def test_provider_error_holds_rather_than_allows(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """A provider failure mid-call must not clear the hold either."""
-    import litellm
-
     calls: list[dict[str, Any]] = []
 
     async def raise_completion(**kwargs: Any) -> None:
@@ -172,7 +172,7 @@ async def test_provider_error_holds_rather_than_allows(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", raise_completion)
+    install_completion_backend(monkeypatch, raise_completion)
     review = _held_review()
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
@@ -199,7 +199,6 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
     ``test_hypothesis_safety_resolve.py`` proves by running the whole
     adversarial set past an assessor that approves everything.
     """
-    import litellm
 
     async def allow_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -209,7 +208,7 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", allow_completion)
+    install_completion_backend(monkeypatch, allow_completion)
     review = _held_review()
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
@@ -222,7 +221,6 @@ async def test_model_raises_a_held_verdict(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """When the model disagrees with the hold, it may raise it to block."""
-    import litellm
 
     async def block_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -232,7 +230,7 @@ async def test_model_raises_a_held_verdict(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", block_completion)
+    install_completion_backend(monkeypatch, block_completion)
     review = _held_review()
 
     result = await escalate_review(review, _HELD_TEXT, run_id="r1")
@@ -246,7 +244,6 @@ async def test_admission_endpoint_path_blocks_on_model_raise(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     """The scientist-admission wrapper reflects an escalated block too."""
-    import litellm
 
     async def block_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -256,7 +253,7 @@ async def test_admission_endpoint_path_blocks_on_model_raise(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
     fake_process_mode.online()
-    monkeypatch.setattr(litellm, "acompletion", block_completion)
+    install_completion_backend(monkeypatch, block_completion)
 
     admission = await human_input.admit_human_hypothesis_with_escalation(
         text=_HELD_TEXT, author="scientist-1", run_id="r1"

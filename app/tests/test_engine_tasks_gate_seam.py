@@ -20,6 +20,8 @@ from co_scientist.models import Article, Hypothesis
 from app.config import settings
 from app.engine_tasks import gate as engine_tasks_gate
 
+from ._llm_fake_backend import install_completion_backend
+
 
 def _install_counting_assessor(
     monkeypatch: pytest.MonkeyPatch,
@@ -136,7 +138,7 @@ async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
 
 
 def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch the engine's completion boundary with a fake batch reply.
+    """Install a fake engine completion backend that replies with a batch.
 
     An empty ``verdicts`` array is a valid (if uninformative) batch reply --
     every claim falls back to the deterministic assessor for want of a
@@ -150,9 +152,7 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
             choices=[types.SimpleNamespace(message=message)]
         )
 
-    import litellm
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "claim_assessor", "llm")
     # build_assessor takes the deterministic assessor whatever the mode
     # says while the process looks offline -- put it in the state where a

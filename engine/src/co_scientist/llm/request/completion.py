@@ -8,19 +8,18 @@ the per-call credential.
 
 The rest of a request lives in sibling modules: response-format selection and
 the json_object provider-capability shim (``llm.request.schema``),
-thinking/reasoning argument shaping (``llm.request.thinking``) and
-response-content extraction (``llm.request.response``).
+thinking/reasoning argument shaping (``llm.request.thinking``),
+response-content extraction (``llm.request.response``) and the backend that
+answers the call (``llm.request.backend``).
 """
 
 import asyncio
-import functools
 import logging
 import time
 import warnings
 from dataclasses import dataclass
 from typing import Any
 
-import litellm
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist import prompts
@@ -30,6 +29,10 @@ from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.credentials import current_api_key
 from co_scientist.llm.admission.free_policy import enforce_free_request
 from co_scientist.llm.profile import model_profile
+from co_scientist.llm.request.backend import (
+    active_backend,
+    litellm_supports_json_schema,
+)
 from co_scientist.llm.request.schema import _apply_response_format
 from co_scientist.llm.request.thinking import _apply_thinking_args
 from co_scientist.llm.telemetry import (
@@ -173,11 +176,12 @@ async def _run_completion(
         LLMTimeoutError: If the call exceeds the configured ceiling.
     """
     timeout = llm_timeout_seconds()
+    backend = active_backend()
     if timeout is None:
-        return await litellm.acompletion(**completion_args)
+        return await backend.complete(**completion_args)
     try:
         return await asyncio.wait_for(
-            litellm.acompletion(**completion_args),
+            backend.complete(**completion_args),
             timeout=timeout + _TIMEOUT_GRACE_SECONDS,
         )
     except asyncio.TimeoutError as exc:
@@ -258,34 +262,10 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
     return temperature
 
 
-@functools.cache
-def _supports_json_schema_response_format(model_name: str) -> bool:
-    """Checks whether a model accepts the json_schema response format.
-
-    The result is a process-static property of the model, so it is cached to
-    avoid re-running litellm's registry lookup on every LLM call and retry.
-    A profile that states the answer (``ModelProfile.json_schema``) decides
-    before the registry does; see that field for why the registry cannot be
-    trusted for the models that state one.
-
-    Args:
-        model_name: Model name in litellm format.
-
-    Returns:
-        The profile's stated answer when it has one -- False for a
-        json_object-only family or a declared OpenRouter gateway model
-        without a proven native-schema endpoint, True for an exact route
-        with one -- else whether litellm's capability registry reports
-        json_schema support. True when the registry lookup itself raises,
-        so the default json_schema path is preserved for unknown models.
-    """
-    stated = model_profile(model_name).json_schema
-    if stated is not None:
-        return stated
-    try:
-        return bool(litellm.supports_response_schema(model=model_name))
-    except Exception:
-        return True
+# The default backend's capability answer under its old name. ``json_attempt``
+# binds it at import (deliberately not the installed backend's answer; see
+# ``llm.request.backend``) and tests clear its cache.
+_supports_json_schema_response_format = litellm_supports_json_schema
 
 
 def _base_completion_args(

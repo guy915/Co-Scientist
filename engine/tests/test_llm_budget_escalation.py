@@ -46,6 +46,7 @@ from co_scientist.llm.attempts.escalation import (
     escalated_max_tokens,
 )
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
 )
@@ -113,9 +114,7 @@ def _record_acompletion(
         index = min(len(calls) - 1, len(responses) - 1)
         return responses[index]
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
     return calls
 
 

@@ -1,8 +1,8 @@
 """Litellm-shaped response fakes shared by the LLM-wrapper test files.
 
-The wrapper tests (``test_llm_wrappers*.py``) all monkeypatch
-``litellm.acompletion`` -- the single seam every ``co_scientist.llm`` entry
-point funnels through -- with an async fake returning a litellm-shaped
+The wrapper tests (``test_llm_wrappers*.py``) all install a fake completion
+backend -- the single seam every ``co_scientist.llm`` entry point funnels
+through (``tests/_llm_fake.py``) -- that answers with a litellm-shaped
 response object (a ``SimpleNamespace`` tree mirroring
 ``response.choices[0].message.{role,content,tool_calls}``). These builders
 construct those response trees and install the queued fake; no network is
@@ -13,6 +13,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+
+from tests._llm_fake import install_fake_backend
 
 
 def make_message(
@@ -109,7 +111,7 @@ def patch_acompletion(
     responses: list[SimpleNamespace],
     recorder: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
-    """Patch ``litellm.acompletion`` to return queued responses in order.
+    """Install a fake backend that returns queued responses in order.
 
     Args:
         monkeypatch: The pytest monkeypatch fixture.
@@ -124,15 +126,11 @@ def patch_acompletion(
     state = {"calls": 0}
     queue = iter(responses)
 
-    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+    async def fake_acompletion(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
         state["calls"] += 1
-        if recorder is not None:
-            recorder.append(kwargs)
         return next(queue)
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion, requests=recorder)
     return state
 
 

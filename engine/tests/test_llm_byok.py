@@ -24,6 +24,7 @@ from co_scientist.llm import (
     current_api_key,
     scoped_api_key,
 )
+from tests._llm_fake import install_fake_backend
 
 # These tests assert on the completion kwargs, so every call must reach
 # the patched acompletion rather than a cache entry.
@@ -57,10 +58,7 @@ async def test_call_llm_passes_spec_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        _capturing_acompletion(captured),
-    )
+    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
     await call_llm(
         "prompt",
         CompletionSpec(model_name="openai/gpt-x", api_key="sk-byok-123"),
@@ -73,10 +71,7 @@ async def test_call_llm_passes_scoped_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        _capturing_acompletion(captured),
-    )
+    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
     with scoped_api_key("sk-byok-scoped"):
         await call_llm(
             "prompt scoped",
@@ -90,10 +85,7 @@ async def test_call_llm_omits_api_key_when_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        _capturing_acompletion(captured),
-    )
+    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
     await call_llm(
         "prompt bare",
         CompletionSpec(model_name="openai/gpt-x"),
@@ -112,7 +104,7 @@ async def test_call_llm_json_passes_api_key(
         captured.update(kwargs)
         return _response('{"answer": 1}')
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", acompletion)
+    install_fake_backend(monkeypatch, acompletion)
     result = await call_llm_json(
         "prompt",
         CompletionSpec(
@@ -138,7 +130,7 @@ async def test_call_llm_with_tools_passes_api_key(
             choices=[SimpleNamespace(message=_message("final"))]
         )
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", acompletion)
+    install_fake_backend(monkeypatch, acompletion)
 
     async def executor(tool_call: Any) -> dict[str, Any]:
         return {}

@@ -10,6 +10,8 @@ import pytest
 from app.claims import EntailmentLabel, EvidencePassage, assess_claims_batch
 from app.claims.verifier_batch import make_llm_batch_assessor
 
+from ._llm_fake_backend import install_completion_backend
+
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
@@ -23,8 +25,6 @@ def _install_replies(
     monkeypatch: pytest.MonkeyPatch, contents: list[str]
 ) -> list[dict[str, Any]]:
     """Mock physical completions and retain their request arguments."""
-    import litellm
-
     requests: list[dict[str, Any]] = []
 
     async def _completion(**kwargs: Any) -> Any:
@@ -34,7 +34,7 @@ def _install_replies(
             choices=[types.SimpleNamespace(message=message)]
         )
 
-    monkeypatch.setattr(litellm, "acompletion", _completion)
+    install_completion_backend(monkeypatch, _completion)
     return requests
 
 

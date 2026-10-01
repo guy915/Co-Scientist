@@ -7,9 +7,9 @@ clean one. It now refuses and says why.
 
 ``_call_semantic_safety_model`` is routed through the engine's
 ``call_llm_json`` seam (see its docstring), so every test here faking the
-model's answer patches the engine's own completion boundary
-(``litellm.acompletion``) rather than ``app.safety.semantic``'s -- that
-module no longer calls litellm directly at all.
+model's answer installs the engine's own completion backend
+rather than patching ``app.safety.semantic``'s -- that module no longer
+calls litellm directly at all.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ import pytest
 from app import safety
 from app.safety import screen_contextual
 from tests._process_mode_helpers import FakeProcessMode
+
+from ._llm_fake_backend import install_completion_backend
 
 
 @pytest.fixture(autouse=True)
@@ -53,11 +55,7 @@ def _fake_semantic_response(content: str) -> Any:
 
 def _install(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
     """Patch the engine's completion boundary with a fixed reply."""
-    import litellm
-
-    monkeypatch.setattr(
-        litellm, "acompletion", _fake_semantic_response(content)
-    )
+    install_completion_backend(monkeypatch, _fake_semantic_response(content))
 
 
 async def test_missing_credential_refuses_and_warns(

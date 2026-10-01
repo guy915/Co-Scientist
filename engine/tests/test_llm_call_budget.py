@@ -34,6 +34,7 @@ from co_scientist.llm.admission.call_budget import (
 )
 from co_scientist.state import WorkflowState
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import make_completion as _completion
 from tests._llm_wrapper_fakes import make_message as _message
 
@@ -64,7 +65,7 @@ def _record(
             raise item
         return item
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", fake)
+    install_fake_backend(monkeypatch, fake)
     return calls
 
 

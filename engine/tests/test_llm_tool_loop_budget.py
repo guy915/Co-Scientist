@@ -24,6 +24,7 @@ from co_scientist.constants import BUDGET_ESCALATION_MAX_TOKENS
 from co_scientist.exceptions import LLMBudgetExhaustedError
 from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
 )
@@ -56,7 +57,7 @@ def _record(
         calls.append(kwargs)
         return next(queue)
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", fake)
+    install_fake_backend(monkeypatch, fake)
     return calls
 
 

@@ -24,6 +24,8 @@ import pytest
 from app import credentials, safety
 from app.config import settings
 
+from ._llm_fake_backend import install_completion_backend
+
 _MODEL = "openrouter/test-safety-model"
 _OTHER_PROVIDER_KEY = "ANTHROPIC_API_KEY"
 _MODEL_PROVIDER_KEY = "OPENROUTER_API_KEY"
@@ -60,7 +62,7 @@ def _online_with(monkeypatch: pytest.MonkeyPatch, *keys: str) -> None:
 
 
 class _Provider:
-    """A stand-in for ``litellm.acompletion`` that records every request."""
+    """A provider stand-in that records every request."""
 
     def __init__(self, category: str = "allowed") -> None:
         self.calls: list[dict[str, Any]] = []
@@ -78,10 +80,8 @@ class _Provider:
 @pytest.fixture
 def provider(monkeypatch: pytest.MonkeyPatch) -> _Provider:
     """Install a recording provider at the engine's completion boundary."""
-    import litellm
-
     fake = _Provider()
-    monkeypatch.setattr(litellm, "acompletion", fake)
+    install_completion_backend(monkeypatch, fake)
     return fake
 
 
@@ -240,12 +240,11 @@ async def test_a_hold_is_not_assessed_when_the_provider_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An outage is not a verdict: the hold stays rather than clearing."""
-    import litellm
 
     async def _down(**_kwargs: Any) -> None:
         raise RuntimeError("provider unavailable")
 
-    monkeypatch.setattr(litellm, "acompletion", _down)
+    install_completion_backend(monkeypatch, _down)
     _online_with(monkeypatch, _MODEL_PROVIDER_KEY)
 
     verdict = await safety.assess_hold_contextually(

@@ -23,6 +23,8 @@ from app.claims.grounding import (
 )
 from tests._store_helpers import _add
 
+from ._llm_fake_backend import install_completion_backend
+
 # A claim the seeded pubmed abstract supports, so a run's verdict turns on
 # which assessor produced it rather than on whether the evidence bears out.
 _SUPPORTED = "A dietary change improves cardiovascular outcomes in adults."
@@ -71,7 +73,7 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 
 
 def _ev_completion(ev_id: str) -> Any:
-    """A faked litellm.acompletion citing ``ev_id`` so its span locates.
+    """A faked provider answer citing ``ev_id`` so its span locates.
 
     Cites the legacy id form under the new ``passage`` field (a model
     citing an id rather than the number it was shown is still a
@@ -124,13 +126,12 @@ def test_ground_with_llm_assessor_persists_provenance(
     isolated_db: str, monkeypatch: Any
 ) -> None:
     """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
-    import litellm
     from co_scientist.cache import scoped_cache_override
 
     _may_call_out(monkeypatch)
     run, hyp_id, ev_id = _seed_llm_assessor(isolated_db)
     # The faked model cites the real evidence id so the span locates.
-    monkeypatch.setattr(litellm, "acompletion", _ev_completion(ev_id))
+    install_completion_backend(monkeypatch, _ev_completion(ev_id))
 
     assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
     with scoped_cache_override(False):

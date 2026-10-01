@@ -9,6 +9,7 @@ from co_scientist.llm import (
     scoped_telemetry,
 )
 from co_scientist.models_metrics import ExecutionMetrics, merge_metrics
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     make_completion,
     make_message,
@@ -84,9 +85,8 @@ async def test_failed_attempt_does_not_claim_observed_model_or_known_cost(
 ) -> None:
     from unittest.mock import AsyncMock
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        AsyncMock(side_effect=ValueError("provider failed")),
+    install_fake_backend(
+        monkeypatch, AsyncMock(side_effect=ValueError("provider failed"))
     )
     with (
         scoped_telemetry("probe") as telemetry,

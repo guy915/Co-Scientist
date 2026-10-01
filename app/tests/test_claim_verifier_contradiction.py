@@ -20,6 +20,8 @@ import pytest
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
 from app.claims.verifier import make_llm_assessor
 
+from ._llm_fake_backend import install_completion_backend
+
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
@@ -34,7 +36,7 @@ def _disable_llm_response_cache() -> Any:
 
 
 def _fake_completion(content: str) -> Any:
-    """Return a stand-in for litellm.acompletion yielding ``content``."""
+    """Return a fake provider answer yielding ``content``."""
 
     async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
@@ -45,10 +47,8 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    """Patch the engine's completion boundary (``litellm.acompletion``)."""
-    import litellm
-
-    monkeypatch.setattr(litellm, "acompletion", completion)
+    """Install the fake engine completion backend."""
+    install_completion_backend(monkeypatch, completion)
 
 
 def test_offtarget_quote_does_not_yield_contradiction(

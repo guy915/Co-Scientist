@@ -62,8 +62,8 @@ def _offline_router() -> None:
 
     Every workflow-driving test runs the real engine graph pinned to the
     ``offline/`` model backend (the mock provider has been retired), so the
-    router must intercept ``litellm.acompletion`` for the entire session. It is
-    idempotent and a harmless passthrough for any non-offline model.
+    router must be the engine's completion backend for the entire session. It
+    is idempotent and a harmless passthrough for any non-offline model.
     """
     from co_scientist.offline_llm import install_offline_router
 

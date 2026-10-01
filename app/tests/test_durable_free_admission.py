@@ -11,6 +11,8 @@ from co_scientist.llm import current_api_key
 from app import async_bridge, credentials, engine_tasks, store, task_worker
 from app.config import settings
 
+from ._llm_fake_backend import install_completion_backend
+
 
 @pytest.mark.parametrize("mode", ["blocked_paid", "campaign_free", "user_byok"])
 @pytest.mark.parametrize("recovered", [False, True])
@@ -22,7 +24,6 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     auxiliary: str,
     mode: str,
 ) -> None:
-    import litellm
     from co_scientist.llm.admission import free_catalog
 
     from app.claims import verifier as claim_verifier
@@ -90,7 +91,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
         sent.append(kwargs)
         raise FreeModelEligibilityError("test transport reached")
 
-    monkeypatch.setattr(litellm, "acompletion", transport)
+    install_completion_backend(monkeypatch, transport)
 
     calls = {
         "claim": partial(
