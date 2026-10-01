@@ -40,7 +40,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   elo.py         — app-side leaderboard projection (initial=1200,  |
 |                    configurable K); the Elo math lives in the      |
 |                    engine's ranking agent                          |
-|   safety.py      — intake + final gate: deterministic rules first, |
+|   safety/        — intake + final gate: deterministic rules first, |
 |                    then an optional contextual model assessment    |
 |   citations.py   — verified|partial|unsupported|unavailable        |
 +------------------------------+-------------------------------------+

@@ -8,7 +8,7 @@ clean one. It now refuses and says why.
 ``_call_semantic_safety_model`` is routed through the engine's
 ``call_llm_json`` seam (see its docstring), so every test here faking the
 model's answer patches the engine's own completion boundary
-(``litellm.acompletion``) rather than ``app.safety_semantic``'s -- that
+(``litellm.acompletion``) rather than ``app.safety.semantic``'s -- that
 module no longer calls litellm directly at all.
 """
 
@@ -65,7 +65,7 @@ async def test_missing_credential_refuses_and_warns(
 ) -> None:
     """No credential for the configured screen holds instead of allowing."""
     fake_process_mode.online(credential=False)
-    with caplog.at_level(logging.WARNING, logger="app.safety_semantic"):
+    with caplog.at_level(logging.WARNING, logger="app.safety.semantic"):
         decision = await screen_contextual("A benign research goal.", "intake")
 
     assert decision.decision == "hold"

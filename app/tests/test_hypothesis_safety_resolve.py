@@ -25,7 +25,7 @@ from co_scientist.safety import (
 from app import safety as app_safety
 from app.hypothesis_safety import escalate_review
 from app.hypothesis_safety_resolve import resolve_hold
-from app.safety_types import SafetyDecision
+from app.safety.types import SafetyDecision
 
 _DATASETS = (
     pathlib.Path(__file__).resolve().parents[2] / "evaluations" / "datasets"

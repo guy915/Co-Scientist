@@ -14,7 +14,7 @@ from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision, apply_safety_gate
-from app.safety_redaction import REDACTED_PLACEHOLDER
+from app.safety.redaction import REDACTED_PLACEHOLDER
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,

@@ -48,7 +48,7 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
     passed to ``store.create_run`` only pins *that run's generator model* --
     a real key present in the process environment still leaves
     ``app.engine_adapter.offline_mode()`` (the process-level predicate
-    ``app/app/safety.py``'s semantic escalation and other call sites read)
+    ``app/app/safety/``'s semantic escalation and other call sites read)
     reporting "real", which sent a genuine provider call from a run this
     driver believed was fully offline. Forcing it removes that ambiguity.
 

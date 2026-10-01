@@ -4,12 +4,12 @@ Goals:
 - Block obviously hazardous CBRN / weaponization asks at intake, on the same
   policy the per-hypothesis gate applies to generated ideas.
 - Redact dual-use scientific content at the final-output stage, and make the
-  redaction real (``safety_redaction`` removes the matched spans).
+  redaction real (``safety.redaction`` removes the matched spans).
 - Determinism: the rule layer always yields the same decision for the same
   input, and bounds the contextual model from below rather than replacing it.
 
-Recording a decision and gating the run on it lives in ``safety_gate``; the
-text-scrubbing helpers live in ``safety_redaction``. Both are re-exported
+Recording a decision and gating the run on it lives in ``safety.gate``; the
+text-scrubbing helpers live in ``safety.redaction``. Both are re-exported
 here, which stays the import surface for callers.
 """
 
@@ -29,16 +29,16 @@ from co_scientist.safety import (
 from app import process_mode, store
 from app.config import settings
 from app.execution_policy import effective_execution_model
-from app.safety_gate import apply_safety_gate as apply_safety_gate
-from app.safety_redaction import redact_matched_spans as redact_matched_spans
-from app.safety_redaction import redact_payload_text as redact_payload_text
-from app.safety_semantic import (
+from app.safety.gate import apply_safety_gate as apply_safety_gate
+from app.safety.redaction import redact_matched_spans as redact_matched_spans
+from app.safety.redaction import redact_payload_text as redact_payload_text
+from app.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,
     semantic_safety_error_decision,
 )
-from app.safety_types import SafetyDecision as SafetyDecision
-from app.safety_types import SafetyMode as SafetyMode
+from app.safety.types import SafetyDecision as SafetyDecision
+from app.safety.types import SafetyMode as SafetyMode
 
 logger = logging.getLogger(__name__)
 

@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS matches (
 CREATE INDEX IF NOT EXISTS idx_match_run ON matches(run_id);
 
 -- Safety-gate outcomes at the intake and final-output checkpoints (see
--- app/safety.py); one row per gate invocation, kept for audit purposes.
+-- app/safety/); one row per gate invocation, kept for audit purposes.
 CREATE TABLE IF NOT EXISTS safety_decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,

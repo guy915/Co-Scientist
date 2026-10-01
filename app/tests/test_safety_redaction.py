@@ -18,7 +18,7 @@ from app.report import ReportRequest, finalize_report
 from app.report import finalize as report_finalize
 from app.run_events import make_emitter
 from app.safety import SafetyDecision
-from app.safety_redaction import (
+from app.safety.redaction import (
     REDACTED_PLACEHOLDER,
     redact_matched_spans,
     redact_payload_text,

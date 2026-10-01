@@ -19,7 +19,7 @@ from co_scientist.llm import (
 )
 from co_scientist.schemas.builders import obj
 
-from app.safety_types import SafetyDecision
+from app.safety.types import SafetyDecision
 
 logger = logging.getLogger(__name__)
 

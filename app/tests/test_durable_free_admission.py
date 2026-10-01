@@ -25,9 +25,9 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     import litellm
     from co_scientist.llm.admission import free_catalog
 
-    from app import safety_semantic
     from app.claims import verifier as claim_verifier
     from app.claims import verifier_batch as claim_verifier_batch
+    from app.safety import semantic as safety_semantic
 
     monkeypatch.setattr(settings, "byok_encryption_key", "campaign-test-secret")
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)

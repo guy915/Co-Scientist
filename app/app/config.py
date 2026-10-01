@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     # (test_elo_engine_parity guards it against engine drift).
     elo_k_factor: int = 24
 
-    # Safety filter aggressiveness: "standard" or "strict". safety.py coerces
+    # Safety filter aggressiveness: "standard" or "strict". app.safety coerces
     # this into its SafetyMode enum, defaulting to standard on any other value.
     safety_mode: str = "standard"
     # Contextual safety assessment is used for real-provider runs when the

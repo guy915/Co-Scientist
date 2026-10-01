@@ -14,8 +14,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from app import store
-from app.safety_redaction import redact_matched_spans
-from app.safety_types import SafetyDecision
+from app.safety.redaction import redact_matched_spans
+from app.safety.types import SafetyDecision
 from app.store import RunStatus
 from app.store.tasks_model import ScientificTask
 
