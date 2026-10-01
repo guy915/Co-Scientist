@@ -4,17 +4,17 @@ R14-27: the published ranking report's own "Main Research Directions"
 section -- two flowing prose paragraphs weaving a run's directions
 together (bolded direction names inline, why each matters, closing on a
 cross-direction observation), distinct from the itemized per-direction
-array ``seed_overview.py`` already renders on the Research Overview
+array ``seed/overview.py`` already renders on the Research Overview
 document. A real run's meta-review call produces this narrative; a
 curated demo has no such call, so this module hand-authors the same shape
 -- grounded in each scenario's own top-3 hypotheses
 (``demo_seed_data_scenarios.py``), mechanistic prose only, no invented
 citations, PMIDs, or attributed findings.
 
-Split out of ``seed_overview`` so that module stays within the line-count
+Split out of ``seed.overview`` so that module stays within the line-count
 cap; keyed by ``scenario_key`` exactly as the other curated content
-modules (``seed_overview_directions``, ``seed_config_synthesis``,
-``seed_evidence``) are.
+modules (``seed.overview_directions``, ``seed.config_synthesis``,
+``seed.evidence``) are.
 """
 
 from __future__ import annotations

@@ -159,7 +159,7 @@ async def lifespan(
     reconciled = _reconcile_and_log_interrupted_runs()
     recovery, recovery_workers = _start_recovery_task(reconciled)
 
-    # No-op after the first successful startup; see seed.py for the
+    # No-op after the first successful startup; see seed/__init__.py for the
     # per-goal skip/re-seed logic.
     await seed_demo_runs()
 

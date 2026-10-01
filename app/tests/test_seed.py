@@ -20,7 +20,7 @@ from app.demo_seed_data import (
     scenario_hypotheses,
     scenario_key,
 )
-from app.seed_review_detail import full_review_count, simulation_review_count
+from app.seed.review_detail import full_review_count, simulation_review_count
 from app.store import DEMO_CLIENT_ID, RunRow
 
 
@@ -59,7 +59,7 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         key = scenario_key(scenario)
         # Every idea carries reflection + deep_verification; only the
         # highest-ranked ideas additionally carry a curated full/simulation
-        # review row (see app.seed_review_detail).
+        # review row (see app.seed.review_detail).
         expected_reviews = (
             expected_ideas * 2
             + full_review_count(key)
@@ -106,7 +106,7 @@ def test_seed_demo_runs_render_criteria_and_unexpected_directions(
     A report is stored, frozen ``reports.markdown_text``; nothing
     re-renders it, so a demo only shows a new section once it is re-seeded
     with curated data that supplies it. This pins that the curated
-    ``critical_criteria`` (``seed_config_synthesis.py``) fill the report's
+    ``critical_criteria`` (``seed/config_synthesis.py``) fill the report's
     prose "Evaluation Criteria" section (``_render_evaluation_criteria_
     markdown``) and that the curated ``unexpected_research_directions``
     fill the "Unexpected research directions" bullets
@@ -156,7 +156,7 @@ def test_seed_demo_runs_render_main_research_directions(
     """R14-27: all three demos show the report's own narrative directions.
 
     Pins that the curated ``main_research_directions``
-    (``seed_meta_review_directions.py``) fills the report's "## Main
+    (``seed/meta_review_directions.py``) fills the report's "## Main
     Research Directions" section, sitting immediately before Top
     hypotheses (R14-27's own published "before Candidate Ideas"
     placement), with two genuinely populated paragraphs -- not a bare

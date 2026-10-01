@@ -31,13 +31,13 @@ from app.demo_seed_data import (
     scenario_key,
 )
 from app.report import ReportRequest, build_report_content
-from app.seed_config_synthesis import (
+from app.seed.config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
 )
-from app.seed_evidence import insert_scenario_evidence
-from app.seed_overview import _curated_meta_review, _curated_research_overview
-from app.seed_review_detail import mature_review_rows
+from app.seed.evidence import insert_scenario_evidence
+from app.seed.overview import _curated_meta_review, _curated_research_overview
+from app.seed.review_detail import mature_review_rows
 from app.store import RunRow
 
 

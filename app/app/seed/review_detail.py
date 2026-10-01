@@ -10,7 +10,7 @@ review, the more expensive review type a real run reserves for fewer
 candidates), grounded in that idea's own mechanism and limitation already
 authored in ``demo_seed_data_scenarios``/``demo_seed_data_proposals``.
 
-Split out of ``seed_scenario`` so that module stays within the line-count
+Split out of ``seed.scenario`` so that module stays within the line-count
 cap; content and row-shaping only, keyed by ``scenario_key`` and hypothesis
 rank exactly as the other curated content modules are.
 """

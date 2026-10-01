@@ -1,10 +1,10 @@
 """Evidence-row seeding for one curated demo scenario.
 
-Split out of ``seed_scenario`` to keep that module within the size cap;
-mirrors the sibling split modules (``seed_config_synthesis``,
-``seed_overview``, ``seed_review_detail``), which likewise take the
+Split out of ``seed.scenario`` to keep that module within the size cap;
+mirrors the sibling split modules (``seed.config_synthesis``,
+``seed.overview``, ``seed.review_detail``), which likewise take the
 lower-level curated values directly rather than the ``_CuratedSeed``
-bundle, avoiding a circular import back into ``seed_scenario``.
+bundle, avoiding a circular import back into ``seed.scenario``.
 """
 
 from __future__ import annotations

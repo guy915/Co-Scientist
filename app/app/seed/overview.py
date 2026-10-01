@@ -20,8 +20,8 @@ from app.demo_seed_data import (
     DemoScenario,
     scenario_key,
 )
-from app.seed_meta_review import _curated_meta_review as _curated_meta_review
-from app.seed_overview_directions import curated_unexpected_directions
+from app.seed.meta_review import _curated_meta_review as _curated_meta_review
+from app.seed.overview_directions import curated_unexpected_directions
 
 
 def _overview_directions(

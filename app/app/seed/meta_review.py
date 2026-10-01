@@ -1,8 +1,8 @@
 """Curated ``meta_review`` payload for a curated demo run.
 
-Split out of ``seed_overview`` once R14-27's narrative-directions field
+Split out of ``seed.overview`` once R14-27's narrative-directions field
 pushed ``_curated_meta_review`` past the repo's 40-code-line function
-ceiling (and ``seed_overview.py`` itself to within one line of the
+ceiling (and ``seed/overview.py`` itself to within one line of the
 500-line file cap): the Idea Comparison Table content, the existing-
 solutions comparison, and the generic strengths/weaknesses/themes/
 recommendations boilerplate that together build a demo's full meta-
@@ -10,10 +10,10 @@ review payload, mirroring the shape a real run's meta-review call
 produces (see ``report/markdown/meta_review.py`` on the app side,
 ``schemas/meta_review_schema.py`` on the engine side).
 
-Re-exported from ``app.seed_overview`` so its two importers
-(``seed.py``, ``seed_scenario.py``) need no change -- the split-module
-convention this repo follows elsewhere (see ``seed_overview_directions``,
-``seed_meta_review_directions``).
+Re-exported from ``app.seed.overview`` so its two importers
+(``seed/__init__.py``, ``seed/scenario.py``) need no change -- the split-module
+convention this repo follows elsewhere (see ``seed.overview_directions``,
+``seed.meta_review_directions``).
 """
 
 # The curated payload below is reader-facing scientific prose; keeping each
@@ -30,7 +30,7 @@ from app.demo_seed_data import (
     DemoScenario,
     scenario_key,
 )
-from app.seed_meta_review_directions import curated_main_research_directions
+from app.seed.meta_review_directions import curated_main_research_directions
 
 
 class _ComparisonTable(NamedTuple):
@@ -290,7 +290,7 @@ def _curated_meta_review(
     return {
         "summary": scenario.meta_review,
         # R14-27: the report's "Main Research Directions" narrative -- see
-        # seed_meta_review_directions.py.
+        # seed/meta_review_directions.py.
         "main_research_directions": curated_main_research_directions(
             scenario_key(scenario)
         ),

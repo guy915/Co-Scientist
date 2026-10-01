@@ -6,11 +6,11 @@ R12-23, rendered as "Evaluation Criteria" and "Review Summary") are fields
 a real run's Supervisor synthesizes once, per goal, before any hypothesis
 exists. A curated demo has no Supervisor call to draw them from, so this
 module hand-authors the same shape -- goal-specific, not the user-authored
-setup attributes/criteria ``seed_planning.py`` owns (see
+setup attributes/criteria ``seed/planning.py`` owns (see
 ``report/markdown/supervisor.py``'s vocabulary warning: same English words,
 two different published sections).
 
-Split out of ``seed_overview``/``seed_scenario`` so each stays within the
+Split out of ``seed.overview``/``seed.scenario`` so each stays within the
 line-count cap; content only, keyed by ``scenario_key`` exactly as the
 other curated content modules are.
 """

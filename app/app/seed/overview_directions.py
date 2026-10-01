@@ -10,9 +10,9 @@ produces these; a curated demo has no such call, so this module hand-authors
 the same shape -- one direction per bullet, each genuinely unanticipated by
 the scenario's own top-3 hypotheses rather than a restatement of one.
 
-Split out of ``seed_overview`` so that module stays within the line-count
+Split out of ``seed.overview`` so that module stays within the line-count
 cap; keyed by ``scenario_key`` exactly as the other curated content modules
-(``seed_config_synthesis``, ``seed_evidence``) are.
+(``seed.config_synthesis``, ``seed.evidence``) are.
 """
 
 # The curated payload below is reader-facing scientific prose; keeping each

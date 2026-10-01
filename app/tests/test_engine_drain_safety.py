@@ -355,7 +355,7 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     empty leaderboard there means the same "nothing survived review" outcome
     as a real run's -- publishing anyway would understate the failure. Only
     the three curated default demos are exempt, and they bypass this gate
-    entirely by writing their report row directly (see ``seed.py``); an
+    entirely by writing their report row directly (see ``seed/__init__.py``); an
     ad-hoc offline run reaches the same ``finalize_report`` path a real run
     does.
 
