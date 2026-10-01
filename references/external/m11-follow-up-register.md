@@ -1,8 +1,18 @@
 # M11 follow-up register and additional-source decision
 
-## Current update — 30 September 2026
+## Current update — 1 October 2026
 
 This update supersedes the dated snapshots below; `PLAN.md` remains authoritative.
+
+- **Selected route:** retain `openrouter/stealth/space-bunny-alpha` as the selected, released free route. Its corrected frozen screen passed three batch trials and three citation panels in 200 responses at reported $0; the deployed public flow completed 71/71 tasks with 178 observed/priced responses at reported $0 and unchanged account usage. The 29 recovered API-error attempts and citation limitations remain visible. These bounded results do not establish expert validation, intrinsic model quality, or general reliability.
+- **Ling Sante:** reject only the pinned Novita/model/request configuration under its frozen repeated-completed-failure rule. Two completed primary judgments missed the frozen `partial` label; trial 3's separate verifier remains incomplete and does not erase those completed judgments. Other configurations are unassessed. See the [configuration-specific disposition](baseline/model-qualification/ling-sante-disposition-2026-09-30.md).
+- **Cloudflare larger-output variant:** remains untested, unqualified, and deliberately unselected, not scientifically rejected. The frozen 1,024-output-token closing turn truncated; no larger-budget result exists. The retention waiver does not establish unattended free-plan admission, completed tool behavior, or scientific quality. It may remain unqualified without blocking the selected-route release; no new probe is authorized here.
+- **Novelty (`M11-NOV-01`):** studies 1–5 each consumed their one-shot admission but ended incomplete or interrupted, with no complete paired comparison and no scientific scoring, rejection, or adoption. The retained records show v1's missing maintained PubMed trace, v2's PubMed HTTP 502, v3's metadata-fetch HTTP 429, v4's incomplete unscored terminal state, and v5's incomplete error after 14 model/21 outer MCP calls at the valid-empty-search returned-link guard. The v5 boundary was repaired and verified offline. Study6's protocol6/bank7 registration is committed and loader-verified in the [registration receipt](sakana/novelty-pilot-v6-registration-verification-2026-10-01.json). Its one-shot g3 launch ended `INCOMPLETE_ERROR` at 00:38:40 UTC after malformed model JSON with an unterminated string, following 10 model/13 outer MCP calls; the [result](sakana/novelty-result-conditioned-pilot-v6-72a34afbe4b3.json) and [terminal receipt](sakana/novelty-pilot-v6-terminal-2026-10-01.json) record the stop. It is incomplete and inconclusive, not a scientific rejection; no scoring, replay, or additional bank is authorized. Keep the scientific candidate open.
+- **Robin:** the [distinct public continuation](m12-robin-continuation-acceptance-2026-09-30.json) remains the latest receipt: 17/17 new tasks completed at reported $0, with deep verification weakening the child. This operational observation does not establish experimental validity. Final campaign acceptance remains open.
+
+## Historical update — 30 September 2026
+
+At the time, this update superseded earlier dated snapshots; current status is above and `PLAN.md` remains authoritative.
 
 - **Selected route:** [the corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md) passed its frozen gates with 200 responses. [The released public flow](m12-free-default-public-acceptance-2026-09-30.json) completed 71/71 tasks with 178 observed/priced responses, reported $0 and unchanged account usage. Its 29 recovered API-error attempts and citation limitations remain visible; this is not expert validation or superiority over untested models.
 - **Ling Sante:** [the configuration-specific disposition](baseline/model-qualification/ling-sante-disposition-2026-09-30.md) rejects the pinned Novita/model/request configuration under its existing repeated-completed-failure rule. Two completed primary judgments missed the frozen partial-support label; the third trial's separate incomplete verifier does not erase those results. Other configurations are not assessed.
@@ -22,7 +32,7 @@ campaign work. That skips requests, not the acceptance evidence: the route-depen
 items below remain unverified, and no scientific candidate is rejected by deferral.
 `PLAN.md` owns completion. On 27 September, the owner removed the five live-model-dependent gates from active campaign acceptance; the [deferred register](deferred-followups-2026-09-25.md) and the preserved original requirements in `PLAN.md` retain them as unverified. This is a scope decision, not model qualification or candidate rejection. A [keyless endpoint refresh](baseline/model-qualification/m11-free-route-readonly-2026-09-27.json) found the same three exact-zero ZDR tool-capable text endpoints; the newly listed free Space Bunny endpoint was absent from the ZDR inventory. No inference was sent.
 
-## Current disposition register
+## Historical disposition register — as recorded 30 September 2026
 
 | ID | Gap or disposition | Existing evidence and local boundary | Next acceptance evidence |
 |---|---|---|---|

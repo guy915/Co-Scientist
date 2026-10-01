@@ -1,8 +1,18 @@
 # M12 acceptance-gap disposition after PR #60
 
-## Current update — 30 September 2026
+## Current update — 1 October 2026
 
 This update supersedes the dated snapshots below; `PLAN.md` remains authoritative.
+
+- **Selected route:** retain `openrouter/stealth/space-bunny-alpha` as the selected, released free route. Its corrected frozen screen passed three batch trials and three citation panels in 200 responses at reported $0; the deployed public flow completed 71/71 tasks with 178 observed/priced responses at reported $0 and unchanged account usage. The 29 recovered API-error attempts and citation limitations remain visible; this does not establish expert validation, intrinsic model quality, or general reliability.
+- **Ling Sante:** reject only the pinned Novita/model/request configuration under its existing repeated-completed-failure rule. Two completed primary judgments missed the frozen `partial` label; trial 3's separate verifier remains incomplete and does not erase those judgments. Other configurations are unassessed. See the [configuration-specific disposition](baseline/model-qualification/ling-sante-disposition-2026-09-30.md).
+- **Cloudflare larger-output variant:** remains untested, unqualified, and unselected, not scientifically rejected. The frozen 1,024-output-token closing turn truncated; no larger-budget result exists. The owner’s retention waiver does not prove free-plan admission, completed tool behavior, or scientific quality. This unselected alternative may remain unqualified without blocking the selected route; no new probe is authorized here.
+- **Novelty (`M11-NOV-01`):** studies 1–5 each consumed their one-shot admission but ended incomplete or interrupted; none supplies a complete paired comparison or a basis for partial scoring or scientific rejection. Study6's protocol6/bank7 registration is committed and loader-verified in the [registration receipt](sakana/novelty-pilot-v6-registration-verification-2026-10-01.json). Its one-shot g3 launch ended `INCOMPLETE_ERROR` at 00:38:40 UTC after malformed model JSON with an unterminated string, following 10 model/13 outer MCP calls; the [result](sakana/novelty-result-conditioned-pilot-v6-72a34afbe4b3.json) and [terminal receipt](sakana/novelty-pilot-v6-terminal-2026-10-01.json) record the first-error stop. The result is incomplete and inconclusive, not a scientific rejection. Keep novelty, M12-04b4, M12-04b5, and M12-04b7 open; do not replay, score partial evidence, or launch another bank.
+- **Robin:** the [distinct public continuation](m12-robin-continuation-acceptance-2026-09-30.json) remains the latest receipt. Its operational acceptance does not establish experimental validity; final campaign acceptance remains open.
+
+## Historical update — 30 September 2026
+
+At the time, this update superseded earlier dated snapshots; current status is above and `PLAN.md` remains authoritative.
 
 - **Selected route:** [the corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md) passed its frozen gates with 200 responses. [The released public flow](m12-free-default-public-acceptance-2026-09-30.json) completed 71/71 tasks with 178 observed/priced responses, reported $0 and unchanged account usage. Its 29 recovered API-error attempts and citation limitations remain visible; this is not expert validation or superiority over untested models.
 - **Ling Sante:** [the configuration-specific disposition](baseline/model-qualification/ling-sante-disposition-2026-09-30.md) rejects the pinned Novita/model/request configuration under its existing repeated-completed-failure rule. Two completed primary judgments missed the frozen partial-support label; the third trial's separate incomplete verifier does not erase those results. Other configurations are not assessed.
