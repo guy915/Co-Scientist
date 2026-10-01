@@ -6,15 +6,11 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    engine_tasks_runtime,
-    engine_tasks_support,
-    safety,
-    store,
-)
-from app.engine_tasks_runtime import ProductionEngineTaskRuntime
+from app import engine_tasks, safety, store
+from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 from tests._engine_tasks_helpers import FakeEngineTaskRuntime, _install_runtime
 
 
@@ -81,13 +77,15 @@ async def test_dispatcher_binds_the_adapter_it_resolved_once(
         return {}
 
     monkeypatch.setitem(
-        engine_tasks._ENGINE_TASK_DISPATCH, engine_tasks.FINALIZE_TASK, handler
+        engine_tasks._ENGINE_TASK_DISPATCH,
+        engine_tasks_support.FINALIZE_TASK,
+        handler,
     )
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
             idempotency_key="finalize",
         ),

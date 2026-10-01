@@ -15,7 +15,7 @@ def test_steering_outranks_budget_exhaustion() -> None:
 
     HITL-STEERING-001 / HITL-MANUAL-HYP-001: a scientist contribution
     admitted the same cycle the budget runs out (an admission also queues
-    a steering message; see app.runs_contrib._steer_and_continue) must not
+    a steering message; see app.runs.contrib._steer_and_continue) must not
     be silently dropped by an immediate termination -- _check_steering
     (step 2) outranks _budget_termination (step 4), so the message still
     gets its one GENERATE cycle before the run may stop. Note this closes

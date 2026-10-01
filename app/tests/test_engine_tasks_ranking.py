@@ -2,7 +2,10 @@
 
 import pytest
 
-from app import engine_tasks, store
+from app import store
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import ranking_wave as engine_tasks_ranking_wave
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _drain_ranking_matches,
     _install_concurrency_tracking_judge,
@@ -44,7 +47,7 @@ async def test_long_tournament_reports_progress_between_its_matches(
 
     scheduled = await _run_ranking_node(run.id, isolated_db)
     rounds = int(scheduled["tournament_rounds"])
-    assert rounds > engine_tasks.RANKING_PROGRESS_EVERY
+    assert rounds > engine_tasks_support.RANKING_PROGRESS_EVERY
 
     matches = await _drain_ranking_matches(run.id, isolated_db)
 
@@ -53,8 +56,9 @@ async def test_long_tournament_reports_progress_between_its_matches(
     assert progress, "a long tournament emitted no progress at all"
     # ...but it does not drown the feed either.
     assert len(progress) < matches
+    every = engine_tasks_support.RANKING_PROGRESS_EVERY
     assert progress[0]["payload"]["message"] == (
-        f"Tournament match {engine_tasks.RANKING_PROGRESS_EVERY} of {rounds}"
+        f"Tournament match {every} of {rounds}"
     )
 
 
@@ -88,8 +92,8 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
 
     match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert match is not None
-    assert match.task_type == engine_tasks.RANKING_MATCH_TASK
-    result = await engine_tasks.execute_ranking_match(
+    assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    result = await engine_tasks_ranking.execute_ranking_match(
         match, db_path=isolated_db
     )
 
@@ -125,15 +129,21 @@ async def test_tournament_wave_fills_to_the_configured_size(
     _install_plain_fake_judge(monkeypatch)
 
     scheduled = await _run_ranking_node(run.id, isolated_db)
-    assert int(scheduled["tournament_rounds"]) >= engine_tasks.RANKING_WAVE_SIZE
+    assert (
+        int(scheduled["tournament_rounds"])
+        >= engine_tasks_ranking_wave.RANKING_WAVE_SIZE
+    )
 
     match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert match is not None
-    result = await engine_tasks.execute_ranking_match(
+    result = await engine_tasks_ranking.execute_ranking_match(
         match, db_path=isolated_db
     )
 
-    assert result["matches_committed"] == engine_tasks.RANKING_WAVE_SIZE
+    assert (
+        result["matches_committed"]
+        == engine_tasks_ranking_wave.RANKING_WAVE_SIZE
+    )
 
 
 def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
@@ -144,7 +154,7 @@ def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
     a whole tournament once emitted nothing: the strides simply never landed
     on a multiple. The cadence is now defined by the boundary crossed.
     """
-    every = engine_tasks.RANKING_PROGRESS_EVERY
+    every = engine_tasks_support.RANKING_PROGRESS_EVERY
 
     def reports(index: int, next_index: int) -> int | None:
         """Return the milestone announced for one wave, or None."""
@@ -203,7 +213,7 @@ async def test_spent_budget_schedules_no_tournament(
     # The node still advances the run; it just opens no tournament.
     successor = store.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert successor is not None
-    assert successor.task_type != engine_tasks.RANKING_MATCH_TASK
+    assert successor.task_type != engine_tasks_support.RANKING_MATCH_TASK
 
 
 @pytest.mark.asyncio
@@ -247,7 +257,7 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     """
     from co_scientist.models import Hypothesis
 
-    from app.engine_tasks_ranking_wave import _apply_wave_elo
+    from app.engine_tasks.ranking_wave import _apply_wave_elo
 
     hyp_a = Hypothesis(text="shared A")
     hyp_b = Hypothesis(text="opponent B")

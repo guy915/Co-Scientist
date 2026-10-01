@@ -1,7 +1,7 @@
 """Scientific release gate over a completed run artifact.
 
 Publication decisions reuse the live predicates in ``app.report.gates``
-and ``app.hypothesis_safety``. Artifact admission is deliberately stricter:
+and ``app.hypothesis.safety``. Artifact admission is deliberately stricter:
 missing final-screen evidence or a statement needed to reconstruct a legacy
 hypothesis decision prevents this evaluator from proving publication readiness.
 Those completeness prerequisites are not additional live publication rules.
@@ -38,7 +38,7 @@ from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "app"))
 
-from app.hypothesis_safety import is_blocking_status, review_hypothesis_safety
+from app.hypothesis.safety import is_blocking_status, review_hypothesis_safety
 from app.report.gates import (
     EXCLUDED_HYPOTHESIS_STATUSES,
     contradicted_hypothesis_ids,

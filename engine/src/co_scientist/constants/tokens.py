@@ -267,7 +267,7 @@ large enough and the request has to carry the bound.
 label -- not tasks a long chain of thought earns its keep on, and
 because the bound is spent before a single answer token is written: it
 must fit well inside the smallest such caller's own budget
-(``app.claim_verifier`` sizes its per-claim call at 6000) so the answer
+(``app.claims.verifier`` sizes its per-claim call at 6000) so the answer
 still has room on a host that applies no floor at all. Above 1024
 because Anthropic-style upstreams reject a smaller reasoning budget
 outright.

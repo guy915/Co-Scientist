@@ -11,8 +11,8 @@ renders the document from its section modules.
 
 This ``__init__`` is the interface; the submodules are package-private.
 ``engine_adapter`` imports ``format_deep_verification_critique`` from here
-while ``finalize`` reaches ``engine_tasks_support`` (and through it
-``engine_adapter``), so ``finalize`` imports ``engine_tasks_support`` inside
+while ``finalize`` reaches ``engine_tasks.support`` (and through it
+``engine_adapter``), so ``finalize`` imports ``engine_tasks.support`` inside
 the functions that need it -- hoisting that import is an import cycle.
 """
 

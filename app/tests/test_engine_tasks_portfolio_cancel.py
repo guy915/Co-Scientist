@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import pytest
 
-from app import (
-    engine_tasks_support,
-    store,
-    task_worker_outcomes,
-)
-from app.engine_tasks_context import TaskCommit
-from app.engine_tasks_node import _check_portfolio_predecessor
-from app.engine_tasks_support import SupersededTaskError
+from app import store
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.checkpoint_guard import _check_portfolio_predecessor
+from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.support import SupersededTaskError
+from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,
@@ -280,7 +278,7 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
 
     # Belt and braces: even an already-claimed review row would refuse to
     # run rather than redo work finalize has already been scheduled over
-    # (app.engine_tasks_node._check_portfolio_predecessor).
+    # (app.engine_tasks.node._check_portfolio_predecessor).
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     with pytest.raises(SupersededTaskError):

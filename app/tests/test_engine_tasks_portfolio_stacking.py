@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import pytest
 
-from app import engine_tasks_support, store
-from app.engine_tasks_context import TaskCommit
+from app import store
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.context import TaskCommit
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
 _ORCHESTRATOR = "engine.node.orchestrator"
@@ -159,7 +160,7 @@ async def test_two_companions_chain_rather_than_fork(
     two rows under the same predecessor, both claimable at once against a
     single-writer checkpoint chain. Each stacked row is anchored to the
     one before it instead, so exactly one task is ever in flight and the
-    rate-limit park (``task_worker_outcomes._park_rate_limited_task``)
+    rate-limit park (``task_worker.outcomes._park_rate_limited_task``)
     applies to it as it would to any single task.
     """
     run = store.create_run("Two companions", "extended", "engine", {})

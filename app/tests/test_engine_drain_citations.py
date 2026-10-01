@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_adapter, store
+from app import store
+from app.engine_adapter.drain import final_state as drain_final_state
 from tests._drain_helpers import (
     _build_report,
     _engine_hypothesis,
@@ -304,7 +305,7 @@ async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     with bracketed keys that resolve to nothing.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    await engine_adapter.persist_final_state(
+    await drain_final_state.persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,

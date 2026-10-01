@@ -13,7 +13,7 @@ from typing import Any
 
 from co_scientist.models import Hypothesis
 
-from app.engine_tasks_fanout import _maturity_specs
+from app.engine_tasks.fanout import _maturity_specs
 
 
 def _hypothesis(**enrichments: Any) -> Hypothesis:

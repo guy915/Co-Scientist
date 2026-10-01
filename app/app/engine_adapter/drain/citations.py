@@ -18,7 +18,7 @@ from typing import Any
 
 from app import store
 from app.citations import CitationRecord, classify_citation
-from app.claims_assessor import SENTENCE_SPLIT
+from app.claims.assessor import SENTENCE_SPLIT
 
 # Bracketed citation groups inside a grounding sentence: "[C1]", "[C1, C3]".
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")

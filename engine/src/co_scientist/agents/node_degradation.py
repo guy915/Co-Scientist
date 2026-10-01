@@ -33,9 +33,9 @@ published a full overview on its third durable attempt. So a provider
 failure with a retry left propagates, exactly as it did before this
 module existed, and only a failure with nothing left behind it degrades
 -- the state flag ``durable_retries_remain`` is how the node learns
-which it is, set per attempt by ``app.engine_tasks_restore`` from the
+which it is, set per attempt by ``app.engine_tasks.restore`` from the
 same ``attempt >= max_attempts`` formula
-``app.task_worker_outcomes._is_terminal_failure`` uses. Its absence
+``app.task_worker.outcomes._is_terminal_failure`` uses. Its absence
 means degrade, which is the whole graph/streaming path (no durable task,
 so no retry to spend) and any caller that does not set it: a blank
 section is a bad outcome, but re-raising where nothing retries is the
@@ -57,7 +57,7 @@ def durable_retries_remain(state: WorkflowState) -> bool:
     """Whether the durable task running this node can still retry it.
 
     Read, not computed: the flag is set per attempt on the durable path
-    (``app.engine_tasks_restore``) and is absent everywhere else, so the
+    (``app.engine_tasks.restore``) and is absent everywhere else, so the
     falsy answer -- degrade -- is the one an unset state gets. It assumes
     the failure is retryable, which holds because the two failures the
     worker refuses to retry are ``TASK_CONTROL_FLOW_ERRORS``, re-raised

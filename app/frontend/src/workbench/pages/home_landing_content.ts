@@ -1,6 +1,6 @@
 // Static copy and product facts for the landing page under the chat home
 // (see home_landing.tsx). Every number here is the product's own: the tier
-// table mirrors RUN_TIER_DEFAULTS in app/app/run_modes.py, and the starting
+// table mirrors RUN_TIER_DEFAULTS in app/app/run_modes/, and the starting
 // Elo mirrors INITIAL_ELO_RATING in the engine's constants/tournament.py.
 // Keep them in step when either source changes.
 

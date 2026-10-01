@@ -138,8 +138,8 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
 ) -> None:
     from fastapi import BackgroundTasks
 
-    from app.runs import create_run
-    from app.runs_models import CreateRunRequest
+    from app.runs.crud import create_run
+    from app.runs.models import CreateRunRequest
 
     class _Request:
         headers: ClassVar[dict[str, str]] = {"X-Client-ID": "direct-call-test"}
@@ -202,11 +202,9 @@ def test_create_run_without_spec_gets_baseline_planning(
     isolated_db: str,
 ) -> None:
     """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
-    from app.run_modes import (
-        DEFAULT_ATTRIBUTES,
-        DEFAULT_CRITERIA,
-        DEFAULT_REQUIREMENTS,
-    )
+    from app.run_modes import DEFAULT_REQUIREMENTS
+    from app.run_modes.attributes import DEFAULT_ATTRIBUTES
+    from app.run_modes.criteria import DEFAULT_CRITERIA
 
     client = _client()
     res = client.post(

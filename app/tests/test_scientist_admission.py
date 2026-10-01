@@ -20,10 +20,13 @@ from typing import Any
 import pytest
 from co_scientist.models import SCIENTIST_REVIEWER
 
-from app import engine_tasks, engine_tasks_inputs, store, task_worker
+from app import store, task_worker
 from app.config import settings
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
-from app.engine_tasks_support import NODE_TASK_PREFIX
+from app.engine_tasks import fanout as engine_tasks_fanout
+from app.engine_tasks import inputs as engine_tasks_inputs
+from app.engine_tasks import restore as engine_tasks_restore
+from app.engine_tasks.support import NODE_TASK_PREFIX
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -56,7 +59,7 @@ def _restored_at(run_id: str, node: str, db_path: str) -> dict[str, Any]:
     task = _node_task(run_id, node, seq, db_path)
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
-    return engine_tasks._restore_node_task_state(
+    return engine_tasks_restore._restore_node_task_state(
         task, checkpoint, _Generator(state), {}, db_path
     )
 
@@ -152,7 +155,7 @@ def test_the_admitted_idea_enters_the_durable_review_fanout(
     )
     task = _node_task(run.id, "review", seq, isolated_db)
 
-    result = engine_tasks._enqueue_review_fanout(
+    result = engine_tasks_fanout._enqueue_review_fanout(
         task, state, seq, db_path=isolated_db
     )
 
@@ -192,7 +195,7 @@ def test_authorship_and_screen_survive_a_checkpoint_round_trip(
     run = store.create_run("Provenance", "express", "engine", {})
     _seed_hypothesis(run.id, isolated_db)
     state = {**_task_state(run.id)}
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
 
     envelope = serialize_workflow_state(state, last_event_seq=0)
     restored = restore_workflow_state(envelope, tool_registry=None)
@@ -279,7 +282,7 @@ def test_the_drain_reattributes_an_idea_whose_row_is_gone(
     run = store.create_run("Reattribute", "express", "engine", {})
     _seed_hypothesis(run.id, isolated_db)
     state: dict[str, Any] = {"hypotheses": []}
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
     payload = [h.to_dict() for h in state["hypotheses"]]
     payload[0]["id"] = "unseen-engine-id"
     other = store.create_run("Fresh store", "express", "engine", {})
@@ -311,8 +314,8 @@ def test_admitting_the_same_idea_twice_creates_one_pool_member(
     _seed_review(run.id, hypothesis_id, "revise", isolated_db)
     state = {**_task_state(run.id)}
 
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
 
     assert [h.id for h in state["hypotheses"]] == [hypothesis_id]
     assert len(state["hypotheses"][0].reviews) == 1

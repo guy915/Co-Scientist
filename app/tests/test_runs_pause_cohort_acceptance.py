@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import engine_tasks, store
 from app.config import settings
-from app.engine_tasks_context import TaskCommit
+from app.engine_tasks.context import TaskCommit
 from tests._client import make_client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 

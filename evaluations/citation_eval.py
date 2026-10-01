@@ -211,7 +211,7 @@ def _build_llm_assessor() -> tuple[Any, str]:
     from evaluations._live_config import configure_live_environment
 
     model = configure_live_environment()
-    from app.claim_verifier import make_llm_assessor
+    from app.claims.verifier import make_llm_assessor
 
     assessor, assessor_id = make_llm_assessor(model)
     return assessor, str(assessor_id)

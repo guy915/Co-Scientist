@@ -307,7 +307,7 @@ async def test_knowledge_facts_endpoint_returns_persisted_rows(
     isolated_db: str,
 ) -> None:
     """``GET /runs/{id}/knowledge-facts`` reads back the persisted rows."""
-    from app.runs_collections import get_knowledge_facts
+    from app.runs.collections import get_knowledge_facts
 
     run = store.create_run("kf goal", "standard", "mock", {})
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)

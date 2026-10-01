@@ -2,7 +2,7 @@
 
 The streaming resume surface (``run_workflow`` with ``resume=True``) has been
 retired; every real run now resumes through the durable node executor. These
-tests cover the app's resume *launcher* (``runs_lifecycle._launch_resume`` and
+tests cover the app's resume *launcher* (``runs.lifecycle._launch_resume`` and
 its ``_prepare_resume_state`` decision): an engine checkpoint is a true resume
 that preserves derived data, a legacy mock envelope re-bootstraps a fresh
 offline run, and neither drives blocking run work on the API event loop. The
@@ -18,7 +18,8 @@ from typing import Any
 import pytest
 
 from app import engine_adapter, store
-from app.runs_lifecycle import _prepare_resume_state
+from app.runs import lifecycle as runs_lifecycle
+from app.runs.resume_admission import _prepare_resume_state
 from tests._resume_engine_helpers import _install_fake_engine_llm
 
 
@@ -176,17 +177,16 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
 ) -> None:
     """A legacy mock-envelope resume re-runs fresh through the durable path.
 
-    Covers ``runs._launch_resume``'s non-engine-checkpoint fallback -- the
-    exact path a production resume of an old ``provider="mock"`` run takes
-    after the mock's retirement. There is no persisted engine WorkflowState to
-    restore, so the launcher clears the run's stale derived data and
-    re-bootstraps it through the durable worker as a fresh offline engine run,
-    rather than the old in-process re-derive. Proves (1) the stale mock-era
-    artifacts are cleared, (2) the durable bootstrap task drives the run, and
+    Covers ``runs.lifecycle._launch_resume``'s non-engine-checkpoint fallback
+    -- the exact path a production resume of an old ``provider="mock"`` run
+    takes after the mock's retirement. There is no persisted engine
+    WorkflowState to restore, so the launcher clears the run's stale derived
+    data and re-bootstraps it through the durable worker as a fresh offline
+    engine run, rather than the old in-process re-derive. Proves (1) the
+    stale mock-era artifacts are cleared, (2) the durable bootstrap task
+    drives the run, and
     (3) it completes with a ranked, published report.
     """
-    import app.runs as runs_mod
-
     _install_fake_engine_llm(monkeypatch)
     run = store.create_run(
         "Legacy mock resume", "express", "mock", {"tier": "express"}
@@ -202,8 +202,8 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
     # An interrupted run is left non-terminal; the launcher requires that.
     store.update_run_status(run.id, store.RunStatus.PAUSED)
 
-    await runs_mod._launch_resume(run.id)
-    await asyncio.gather(*list(runs_mod._resume_tasks))
+    await runs_lifecycle._launch_resume(run.id)
+    await asyncio.gather(*list(runs_lifecycle._resume_tasks))
 
     # Legacy checkpoint => stale data cleared; re-bootstrapped run completes.
     _assert_rebootstrapped_completed(run.id, stale_id)
@@ -222,16 +222,14 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
     next boot inherited one more interrupted run -- a spiral in which runs
     only advanced during the doomed startup window.
     """
-    import app.runs as runs_mod
-
     run = store.create_run("loop freedom", "standard", "engine", {})
     _enqueue_paused_blocking_task(run.id, isolated_db)
     _install_blocking_execute(monkeypatch)
 
     stop = asyncio.Event()
     probe = asyncio.create_task(_worst_loop_stall(stop))
-    await runs_mod._launch_resume(run.id)
-    await asyncio.gather(*list(runs_mod._resume_tasks))
+    await runs_lifecycle._launch_resume(run.id)
+    await asyncio.gather(*list(runs_lifecycle._resume_tasks))
     stop.set()
     worst_stall = await probe
 

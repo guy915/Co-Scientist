@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_tasks, store
+from app import store
+from app.engine_tasks import inputs as engine_tasks_inputs
 from tests._drain_helpers import _persist
 
 
@@ -51,7 +52,7 @@ def _seed_scientist_review(
 def _merged_final_state(run_id: str, db_path: str) -> dict[str, Any]:
     """Merge the run's scientist input and shape it as a drained final state."""
     state: dict[str, Any] = {"hypotheses": []}
-    engine_tasks._merge_scientist_inputs(state, run_id, db_path)
+    engine_tasks_inputs._merge_scientist_inputs(state, run_id, db_path)
     return {
         "hypotheses": [h.to_dict() for h in state["hypotheses"]],
         "articles": [],
@@ -143,7 +144,7 @@ def test_scientist_review_score_uses_the_engine_review_rubric(
     _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     state: dict[str, Any] = {"hypotheses": []}
 
-    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
 
     review = state["hypotheses"][0].reviews[0]
     assert review.overall_score == NOT_VIABLE_SCORE

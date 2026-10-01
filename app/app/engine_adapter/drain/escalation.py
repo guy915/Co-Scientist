@@ -4,7 +4,7 @@ This is phases 2 and 3 of the drain's safety handling (see
 ``drain.final_state.persist_final_state`` for the full three-phase split):
 
 1. Deterministic screening and persistence already happened, inside the
-   drain's *first* transaction (``hypothesis_screening.screen_hypotheses``,
+   drain's *first* transaction (``hypothesis.screening.screen_hypotheses``,
    called from ``drain.final_state._screen_and_collect_grounding_inputs``).
 2. ``_escalate_screened_hypotheses`` below runs every hypothesis the screen
    held as UNCERTAIN (``ScreeningResult.escalatable``) through contextual
@@ -20,12 +20,12 @@ from __future__ import annotations
 import functools
 import sqlite3
 
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
     escalate_held_hypotheses,
 )
-from app.hypothesis_screening import persist_escalated_verdicts
+from app.hypothesis.screening import persist_escalated_verdicts
 
 
 def _escalate_screened_hypotheses(
@@ -47,7 +47,7 @@ def _escalate_screened_hypotheses(
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        One :class:`~app.hypothesis_safety.EscalatedVerdict` per input.
+        One :class:`~app.hypothesis.safety.EscalatedVerdict` per input.
     """
     return escalate_held_hypotheses(run_id, escalatable, db_path=db_path)
 

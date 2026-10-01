@@ -27,7 +27,7 @@ def _checkpoint_state(
 ) -> dict[str, Any]:
     """Build a ``NewCheckpoint.state`` envelope shaped like the real one.
 
-    Mirrors ``engine_tasks_support.py``'s ``{"provider": ..., **envelope}``
+    Mirrors ``engine_tasks/support.py``'s ``{"provider": ..., **envelope}``
     shape, where ``envelope["state"]`` holds the plain ``WorkflowState``
     fields (see ``co_scientist.checkpoint.serialize_workflow_state``).
     """

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.claim_verdict import claim_status, role_of
+from app.claims.verdict import claim_status, role_of
 from app.human_input import SCIENTIST_MANUAL_ORIGIN
 from app.report.markdown.header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report.markdown.references import _render_references_markdown

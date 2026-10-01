@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import interviews, store
-from app.interviews_questions import normalized_questions
+from app.interviews.questions import normalized_questions
 from app.main import app
 
 from ._interviews_helpers import (

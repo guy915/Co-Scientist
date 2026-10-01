@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 AGENT_REVIEWER = "agent"
 
 # A scientist-contributed review, merged into the pool by the app's durable
-# input path (``app.engine_tasks_inputs``). Kept as a typed field rather
+# input path (``app.engine_tasks.inputs``). Kept as a typed field rather
 # than recovered from the summary prose or from the presence of one score
 # key: three separate places have to tell the two apart (the review node's
 # own selection, the durable review fan-out's, and the scheduler's

@@ -7,8 +7,8 @@ import pytest
 from co_scientist.cache import scoped_cache_override
 from co_scientist.llm import scoped_telemetry
 
-from app.claim_verifier import make_llm_assessor
 from app.claims import EvidencePassage, assess_claim
+from app.claims.verifier import make_llm_assessor
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -67,8 +67,8 @@ def test_batch_fallback_counts_claims_only_after_judging(
     monkeypatch: pytest.MonkeyPatch,
     has_evidence: bool,
 ) -> None:
-    from app.claim_verifier_batch import make_llm_batch_assessor
     from app.claims import assess_claims_batch
+    from app.claims.verifier_batch import make_llm_batch_assessor
 
     async def unavailable(**kwargs: Any) -> Any:
         raise RuntimeError("offline test provider failure")

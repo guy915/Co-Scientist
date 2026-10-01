@@ -160,10 +160,10 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     assert store.list_messages(run_id)
     # The refusal has to come from the answer path itself, so pin that the
     # router still dispatches into the module the guard lives in. Read
-    # through sys.modules: app.runs_chat imports qa for its own use and does
+    # through sys.modules: app.runs.chat imports qa for its own use and does
     # not re-export it, so reaching for the attribute directly is a private
     # access the typechecker is right to reject.
-    assert sys.modules["app.runs_chat"].qa is qa
+    assert sys.modules["app.runs.chat"].qa is qa
 
 
 @pytest.mark.asyncio
@@ -191,7 +191,7 @@ async def test_announcement_makes_no_outbound_request(
 async def test_question_repair_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    from app.interviews_question_repair import repair_questions
+    from app.interviews.question_repair import repair_questions
 
     assert await repair_questions("Private scientific question?") == []
     assert attempts == []

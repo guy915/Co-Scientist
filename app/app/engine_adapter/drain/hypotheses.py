@@ -56,7 +56,7 @@ class _HypIdentity(NamedTuple):
     the explicit lineage (generation, creating agent, engine id, parent id,
     and the full multi-parent list), plus the author a scientist-
     contributed hypothesis carries through the checkpoint (see
-    ``engine_tasks_inputs.SCIENTIST_AUTHOR_MARK``).
+    ``engine_tasks.inputs.SCIENTIST_AUTHOR_MARK``).
     """
 
     text: str
@@ -223,7 +223,7 @@ def _payload_author(h: dict[str, Any]) -> str:
     Only a contributed hypothesis carries one, stamped on the engine
     payload's ``enrichments`` by the durable merge so the attribution
     survives the checkpoint rather than living only in the store row the
-    endpoint wrote (``engine_tasks_inputs.SCIENTIST_AUTHOR_MARK``).
+    endpoint wrote (``engine_tasks.inputs.SCIENTIST_AUTHOR_MARK``).
     """
     enrichments = h.get("enrichments")
     if not isinstance(enrichments, dict):

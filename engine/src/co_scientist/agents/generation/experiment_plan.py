@@ -6,7 +6,7 @@ generation/evolution LLM calls now ask for that structure
 (schemas/generation.py's ``_EXPERIMENT_FIELD``: ``steps`` +
 ``go_criterion``/``no_go_criterion``), but ``Hypothesis.experiment``
 itself stays a plain string -- the app's ``experimental_context`` TEXT
-column, safety redaction (``hypothesis_safety.py``), and evolution's
+column, safety redaction (``hypothesis/safety.py``), and evolution's
 prompt-context interpolation (``evolve_context.py``) all already treat
 it as prose, and none of that needed to change. This module is the one
 place that turns the structured response into that string; everything

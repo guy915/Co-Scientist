@@ -11,7 +11,8 @@ from typing import Any
 
 import pytest
 
-from app.claim_verdict import (
+from app.claims.gate import EntailmentLabel
+from app.claims.verdict import (
     DEFAULT_CLAIM_ROLE,
     ClaimRole,
     claim_status,
@@ -24,7 +25,6 @@ from app.claim_verdict import (
     label_of,
     role_of,
 )
-from app.claims_gate import EntailmentLabel
 
 
 def _edge(**fields: Any) -> dict[str, Any]:

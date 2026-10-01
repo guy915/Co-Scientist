@@ -5,7 +5,7 @@ size budget. Covers two things the sibling file does not: which
 hypotheses the gate skips assessing before spending a single provider
 call (unrankable-forever vs. its own reversible ``evidence_blocked``),
 and that its entailment calls -- now routed through the engine's
-``call_llm_json`` seam (``app.claim_verifier``) -- are visible to the
+``call_llm_json`` seam (``app.claims.verifier``) -- are visible to the
 run's LLM-call budget and telemetry the way any other engine call is.
 """
 
@@ -17,8 +17,8 @@ from typing import Any
 import pytest
 from co_scientist.models import Article, Hypothesis
 
-from app import engine_tasks
 from app.config import settings
+from app.engine_tasks import gate as engine_tasks_gate
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -27,8 +27,8 @@ def _install_counting_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
     """Patch build_assessor with a call-counting deterministic assessor."""
-    from app import claim_grounding
     from app.claims import deterministic_assessor
+    from app.claims import grounding as claim_grounding
 
     calls = {"n": 0}
 
@@ -87,7 +87,7 @@ async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
     rejected.review_disposition = "inaccurate"
     state = {"hypotheses": [rejected], "articles": []}
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert calls["n"] == 0
     assert "claim_gate" not in rejected.enrichments
@@ -131,7 +131,7 @@ async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert calls["n"] > 0
     assert hypothesis.review_disposition == "viable"
@@ -188,7 +188,7 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
         scoped_cache_override(False),
         scoped_llm_call_budget("gate-budget-test-run", 0),
     ):
-        await engine_tasks._apply_pre_ranking_evidence_gate(state)
+        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
 
 @pytest.mark.asyncio
@@ -209,7 +209,7 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
     state = _multi_claim_state()
 
     with scoped_cache_override(False):
-        await engine_tasks._apply_pre_ranking_evidence_gate(state)
+        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     metrics = state["metrics"]
     gate_usage = {

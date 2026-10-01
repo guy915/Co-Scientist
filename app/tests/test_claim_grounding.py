@@ -1,6 +1,6 @@
 """Claim-level grounding pipeline wiring (Milestone 5 / M9).
 
-Covers ``app.claim_grounding.ground_hypotheses``: it must persist the
+Covers ``app.claims.grounding.ground_hypotheses``: it must persist the
 claim-evidence graph, block a hypothesis whose claim is contradicted by the
 evidence, leave a supported/insufficient hypothesis eligible, and drive the
 report's publication-gate exclusion end-to-end.
@@ -11,13 +11,13 @@ from __future__ import annotations
 from typing import Any
 
 from app import store
-from app.claim_grounding import (
+from app.claims import as_passages
+from app.claims.grounding import (
     GroundingResult,
     GroundingTarget,
     evidence_passages,
     ground_hypotheses,
 )
-from app.claims import as_passages
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 

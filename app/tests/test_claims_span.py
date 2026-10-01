@@ -16,7 +16,7 @@ That is the signature of citations being *discarded* rather than never
 made: a verdict whose cited spans cannot be located is downgraded to
 INSUFFICIENT, and the resolution step required the assessor to echo a
 36-character ``evidence_id`` back exactly -- the very "schemas must not
-echo input back" anti-pattern ``claims_batch`` documents for claim text
+echo input back" anti-pattern ``claims.batch`` documents for claim text
 but not for the evidence id. These tests pin the resolution being
 tolerant of how a model actually cites (the prompt's own passage number
 or an id stripped of its chunk suffix)
@@ -39,7 +39,7 @@ from app.claims import (
     assess_claim,
     assess_claims_batch,
 )
-from app.claims_span import _locate_all
+from app.claims.span import _locate_all
 
 _PASSAGES = (
     EvidencePassage(
@@ -69,7 +69,7 @@ _CLAIM = "Fasudil reduces collagen I expression in cardiac fibroblasts."
 def test_citation_by_passage_number_resolves() -> None:
     """A cited "1" is the passage number the prompt itself printed.
 
-    ``claim_verifier._render_passages`` renders every passage as
+    ``claims.verifier._render_passages`` renders every passage as
     ``[1] evidence_id=<uuid>``, so a model citing the bracketed number it
     was shown is citing the passage correctly, not hallucinating.
     """
@@ -243,7 +243,7 @@ def test_dropped_citations_are_logged(
     The run this module documents could not be diagnosed from its own
     artifacts precisely because this loss left no trace.
     """
-    with caplog.at_level(logging.WARNING, logger="app.claims_span"):
+    with caplog.at_level(logging.WARNING, logger="app.claims.span"):
         _locate_all(
             (
                 (_PASSAGES[0].evidence_id, "quote that is nowhere"),

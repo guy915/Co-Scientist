@@ -17,8 +17,9 @@ from typing import Any
 import pytest
 from co_scientist.models import Article, Hypothesis
 
-from app import engine_tasks, store, task_worker
+from app import store, task_worker
 from app.engine_adapter.drain import claim_grounding as drain_claim_grounding
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_restore_generator,
@@ -50,7 +51,7 @@ def _seed_finalize_task(
     task = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
             idempotency_key="finalize",
         ),

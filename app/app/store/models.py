@@ -41,7 +41,7 @@ TERMINAL_STATUSES: tuple[RunStatus, ...] = (
 )
 
 # Client identifier for the seeded demo runs newcomers can browse. Owns the
-# single source of truth for the sentinel; seed.py and runs.py import it.
+# single source of truth for the sentinel; app.seed and app.runs import it.
 DEMO_CLIENT_ID = "__demo__"
 
 

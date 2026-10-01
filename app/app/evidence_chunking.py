@@ -1,15 +1,15 @@
 """Chunk long evidence into passage-sized units for entailment.
 
 Closes a production finding (run 44e848fb): the pre-ranking claim gate
-built one :class:`~app.claims_assessor.EvidencePassage` per article --
+built one :class:`~app.claims.assessor.EvidencePassage` per article --
 title + abstract + full text, up to ``PROMPT_PAPER_MAX_CHARS`` (200,000
 chars) -- and called that a "passage". Retrieving the top 5 of those per
-claim (``app.claims_assessor.retrieve_passages``) meant every entailment
+claim (``app.claims.assessor.retrieve_passages``) meant every entailment
 call carried up to five whole papers: ~600 gate calls averaged 34-46k
 prompt tokens each for ~250 tokens of answer, 28M of the run's 29M total
 tokens. Worse, because the claim (which changes every call) was rendered
 before the evidence (which recurs across calls, see
-``app.claim_verifier``), the recurring papers never formed a stable
+``app.claims.verifier``), the recurring papers never formed a stable
 prompt prefix for provider-side prompt caching -- a 6.9% cache hit rate
 on text that should have been near-static across a run (the engine's own
 response cache is unaffected by ordering; it keys on the full prompt).
@@ -32,7 +32,7 @@ import itertools
 import re
 from collections.abc import Sequence
 
-from app.claims_assessor import SENTENCE_SPLIT, EvidencePassage
+from app.claims.assessor import SENTENCE_SPLIT, EvidencePassage
 
 # Passage-sized chunk target (paragraph/sentence-window units are packed up
 # to this many characters). Chosen so five retrieved chunks -- the retrieval

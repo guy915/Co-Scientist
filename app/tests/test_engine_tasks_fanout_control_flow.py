@@ -7,7 +7,7 @@ per-day cap. The ranking node parked as designed, while eleven
 reported that as a plain ``RuntimeError``, which the worker treats as a
 transient hiccup worth three attempts against a cap that had not reset.
 
-``task_worker_outcomes`` is what decides both outcomes; these tests pin
+``task_worker.outcomes`` is what decides both outcomes; these tests pin
 that the exception types it dispatches on actually arrive there.
 """
 
@@ -22,8 +22,9 @@ from co_scientist.exceptions import (
 )
 from co_scientist.models import Hypothesis
 
-from app import engine_tasks, store
-from app.engine_tasks_support import MATURE_REFLECTION_ITEM_TASK
+from app import store
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -97,7 +98,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
 ) -> None:
     """Its own type has to survive the executor, not become a RuntimeError.
 
-    ``task_worker_outcomes`` dispatches on the type: a park returns the
+    ``task_worker.outcomes`` dispatches on the type: a park returns the
     row to ``queued`` with its attempt undone, and the call-budget
     ceiling terminates the run. A ``RuntimeError`` gets neither.
     """
@@ -106,7 +107,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
     _install_failing_review(monkeypatch, error)
 
     with pytest.raises(type(error)):
-        await engine_tasks.execute_mature_reflection_item(
+        await engine_tasks_fanout_items.execute_mature_reflection_item(
             leased, db_path=isolated_db
         )
 
@@ -120,7 +121,7 @@ async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
 
     with pytest.raises(RuntimeError):
-        await engine_tasks.execute_mature_reflection_item(
+        await engine_tasks_fanout_items.execute_mature_reflection_item(
             leased, db_path=isolated_db
         )
 
@@ -136,7 +137,7 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
     matchups it was budgeted -- the same trade the reviews lost eleven
     items to.
     """
-    from app.engine_tasks_ranking_wave import _surviving_judgements
+    from app.engine_tasks.ranking_wave import _surviving_judgements
 
     verdict = ("a", {"decision_summary": "A is stronger"})
 
@@ -146,7 +147,7 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
 
 def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
     """Per-matchup isolation is unchanged for an ordinary failure."""
-    from app.engine_tasks_ranking_wave import _surviving_judgements
+    from app.engine_tasks.ranking_wave import _surviving_judgements
 
     verdict = ("a", {"decision_summary": "A is stronger"})
 

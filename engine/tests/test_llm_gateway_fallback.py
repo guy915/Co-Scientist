@@ -200,7 +200,7 @@ def test_a_disable_request_gets_capped_reasoning_when_mandatory() -> None:
 def test_the_reasoning_cap_leaves_room_for_the_answer() -> None:
     """The cap must fit inside the smallest entailment caller's budget.
 
-    ``app.claim_verifier`` sizes its per-claim call at 6000, and the cap
+    ``app.claims.verifier`` sizes its per-claim call at 6000, and the cap
     is spent before a single answer token is written, so a cap anywhere
     near that budget reproduces the answerless completion it exists to
     prevent -- on a provider that does not apply the thinking floor at

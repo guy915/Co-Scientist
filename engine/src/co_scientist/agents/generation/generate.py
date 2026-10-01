@@ -22,7 +22,7 @@ reported none at all, so ``max_llm_calls`` never saw its spend).
 ``skills_used`` is additive too, and is scoped here rather than returned
 through the coordinator because the invocation happens inside a
 workspace tool handler while the count is wanted at this node boundary.
-The durable path scopes its own in ``engine_tasks_fanout_generation``,
+The durable path scopes its own in ``engine_tasks.fanout_generation``,
 since it runs each strategy as a separate task and never enters here.
 """
 

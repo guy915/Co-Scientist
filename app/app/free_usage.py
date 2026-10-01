@@ -32,7 +32,7 @@ from app import credentials, engine_adapter
 from app.auth import client_id
 from app.config import settings
 from app.execution_policy import CAMPAIGN
-from app.runs_models import CreateRunRequest
+from app.runs.models import CreateRunRequest
 
 FREE_TIER = "express"
 

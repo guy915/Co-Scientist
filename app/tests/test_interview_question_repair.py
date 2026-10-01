@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from app import interviews_question_repair as repair
+from app.interviews import question_repair as repair
 
 _ANSWER = {
     "header": "Model system",

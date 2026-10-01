@@ -19,15 +19,6 @@ from app.config import settings
 from app.engine_adapter.opts_capabilities import (
     _apply_capability_opts as _apply_capability_opts,
 )
-from app.engine_adapter.opts_capabilities import (
-    _resolve_overview_review_toggle as _resolve_overview_review_toggle,
-)
-from app.engine_adapter.opts_capabilities import (
-    _resolve_simulation_execution_toggle as _resolve_simulation_execution_toggle,  # noqa: E501
-)
-from app.engine_adapter.opts_capabilities import (
-    _resolve_tool_calling_generation_toggle as _resolve_tool_calling_generation_toggle,  # noqa: E501
-)
 from app.execution_policy import effective_execution_model
 from app.run_modes import (
     attribute_names,

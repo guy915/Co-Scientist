@@ -17,8 +17,9 @@ from typing import Any
 import pytest
 from fastapi import BackgroundTasks
 
-from app import engine_tasks, main, runs_lifecycle, store
+from app import engine_tasks, main_lifespan, store
 from app.config import Settings, settings
+from app.runs import lifecycle as runs_lifecycle
 
 
 @pytest.mark.parametrize(
@@ -96,6 +97,6 @@ async def test_recovery_launches_no_embedded_workers_when_disabled(
     )
     workers: list[asyncio.Task[Any]] = []
 
-    main._launch_embedded_recovery_workers(workers)
+    main_lifespan._launch_embedded_recovery_workers(workers)
 
     assert workers == []

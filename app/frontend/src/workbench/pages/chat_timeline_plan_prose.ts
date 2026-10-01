@@ -8,7 +8,7 @@
  * everything twice on one screen.
  *
  * The prompt is where that is settled -- the "# Completion" section of
- * `app/app/interviews_prompts.py` used to ask the completing turn to
+ * `app/app/interviews/prompts.py` used to ask the completing turn to
  * "present the finalized scope as a structured summary" with a heading per
  * part, and now tells it not to restate the fields at all. This module is
  * the belt to that braces: a model asked not to do something still
@@ -26,7 +26,7 @@
  */
 
 // The headings the summary opens each part with, as the five fields are
-// named to the model (`interviews_prompts.py`, "# The five fields") and as
+// named to the model (`interviews/prompts.py`, "# The five fields") and as
 // the plan document labels them. Near-misses are listed because the model
 // paraphrases: it is asked for a heading per part, never for these exact
 // words.

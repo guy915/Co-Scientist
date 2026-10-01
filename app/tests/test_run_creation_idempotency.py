@@ -11,8 +11,9 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 
-from app import credentials, runs_crud, store
+from app import credentials, store
 from app.config import settings
+from app.runs import crud as runs_crud
 from tests._client import make_client
 
 _OWNER = "idempotency-owner"
@@ -156,9 +157,9 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
     monkeypatch.setattr(
         credentials, "validate_byok_credential", accept_credential
     )
-    monkeypatch.setattr("app.runs_crud.generate_run_title", no_model_call)
+    monkeypatch.setattr("app.runs.crud.generate_run_title", no_model_call)
     monkeypatch.setattr(
-        "app.runs_crud.generate_goal_restatement", no_model_call
+        "app.runs.crud.generate_goal_restatement", no_model_call
     )
 
     client = make_client()

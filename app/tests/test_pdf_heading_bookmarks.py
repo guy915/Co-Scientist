@@ -6,7 +6,7 @@ outline walk is exercised only through a real PDF, in
 ``test_document_ingest_pdf.py``.
 """
 
-from app.pdf_heading_bookmarks import match_bookmark_levels
+from app.pdf.heading_bookmarks import match_bookmark_levels
 
 
 def test_exact_title_match_takes_the_bookmark_depth() -> None:

@@ -129,7 +129,7 @@ function messageTimelineItems({
 // Interview-only: once a run has started, `isAwaitingAgent` covers a run
 // Q&A turn instead (see qaAnswerTimelineItems below), which renders its own
 // live reasoning disclosure the same way -- the run's Q&A stream carries a
-// `reasoning` frame too (qa.py::stream_answer), it just arrives into a
+// `reasoning` frame too (qa/__init__.py::stream_answer), it just arrives into a
 // differently-gated timeline item since a Q&A turn has no plan or session
 // card riding along with it.
 function thinkingTimelineItems({

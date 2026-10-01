@@ -19,7 +19,8 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, engine_tasks_support, store
+from app import engine_tasks, store
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_task_node,

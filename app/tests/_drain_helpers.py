@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app import engine_adapter
+from app.engine_adapter.drain import final_state as drain_final_state
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from tests._client import drain as _drain
@@ -25,7 +25,7 @@ def _persist(**kwargs: Any) -> Any:
     call site needs an event loop; this is the one-line wrapper the whole
     drain test suite shares instead of repeating ``asyncio.run(...)``.
     """
-    return asyncio.run(engine_adapter.persist_final_state(**kwargs))
+    return asyncio.run(drain_final_state.persist_final_state(**kwargs))
 
 
 def _engine_hypothesis(

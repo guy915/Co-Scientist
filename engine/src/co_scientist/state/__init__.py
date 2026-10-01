@@ -145,7 +145,7 @@ class WorkflowState(TypedDict):
 
     durable_retries_remain: bool | None
     """True while the durable task running this node still holds a retry.
-    Set per attempt by ``app.engine_tasks_restore``; absent off that path,
+    Set per attempt by ``app.engine_tasks.restore``; absent off that path,
     where degrading is the safe reading (``agents.node_degradation``)."""
 
     supervisor_guidance: dict[str, Any]

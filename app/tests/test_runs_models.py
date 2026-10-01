@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.runs_models import CreateRunRequest
+from app.runs.models import CreateRunRequest
 
 
 def test_stray_audience_field_is_ignored() -> None:

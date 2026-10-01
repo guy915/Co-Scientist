@@ -15,6 +15,8 @@ from co_scientist.models import (
 )
 
 from app import engine_tasks, store, task_worker
+from app.engine_tasks import context as engine_tasks_context
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,
@@ -86,7 +88,7 @@ def test_orchestrator_priority_reaches_durable_successor(
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
 
     engine_tasks._save_state_and_enqueue(
-        engine_tasks.TaskCommit(task, 1, isolated_db),
+        engine_tasks_context.TaskCommit(task, 1, isolated_db),
         _priority_state(run.id, deferred.id),
         "generate",
     )
@@ -116,7 +118,7 @@ def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
     assert store.get_run_metrics(run.id, db_path=isolated_db) is None
 
     engine_tasks._save_state_and_enqueue(
-        engine_tasks.TaskCommit(task, 1, isolated_db),
+        engine_tasks_context.TaskCommit(task, 1, isolated_db),
         state,
         "generate",
     )
@@ -151,7 +153,7 @@ def test_node_commit_persists_supervisor_performance_assessment(
     }
 
     engine_tasks._save_state_and_enqueue(
-        engine_tasks.TaskCommit(task, 1, isolated_db),
+        engine_tasks_context.TaskCommit(task, 1, isolated_db),
         state,
         "generate",
     )
@@ -195,7 +197,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     # (`research_overview`) to exercise independent task leasing without
     # the full real graph, which supersedes that lookahead guess -- cancelled
     # in the same transaction as the real "research_overview" successor
-    # (`app.engine_tasks_portfolio._cancel_stale_planned_row`), not removed
+    # (`app.engine_tasks.portfolio._cancel_stale_planned_row`), not removed
     # from the row history `list_tasks` returns.
     assert [task.task_type for task in tasks] == [
         "engine.bootstrap",
@@ -240,7 +242,7 @@ def _seed_finalize_task(
     queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
             idempotency_key="finalize",
         ),

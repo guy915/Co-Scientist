@@ -11,17 +11,13 @@ from typing import Any
 import pytest
 from co_scientist.models import Hypothesis
 
-from app import (
-    engine_tasks,
-    engine_tasks_fanout_generation,
-    engine_tasks_support,
-    store,
-    task_worker,
-)
+from app import engine_tasks, store, task_worker
 from app.config import settings
-from app.engine_tasks_context import ExactSuccessor, TaskCommit
-from app.engine_tasks_fanout_aggregates import _AggregateSpec
-from app.engine_tasks_fanout_generation import _GenerationPlan, _StrategyInputs
+from app.engine_tasks import fanout_generation as engine_tasks_fanout_generation
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.context import ExactSuccessor, TaskCommit
+from app.engine_tasks.fanout_aggregates import _AggregateSpec
+from app.engine_tasks.fanout_generation import _GenerationPlan, _StrategyInputs
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _seed_checkpoint,
@@ -456,7 +452,7 @@ def test_cancelled_generation_planner_cannot_enqueue_fanout(
             reference_index=SimpleNamespace(text="", sources=[]),
         ),
         aggregate_spec=_AggregateSpec(
-            task_type=engine_tasks.GENERATION_AGGREGATE_TASK,
+            task_type=engine_tasks_support.GENERATION_AGGREGATE_TASK,
             priority=81,
             key_prefix="generation",
         ),

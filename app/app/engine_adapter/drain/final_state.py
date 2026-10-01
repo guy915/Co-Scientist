@@ -15,8 +15,8 @@ from typing import Any, NamedTuple
 
 from app import store
 from app.citations import empty_citation_summary
-from app.claim_grounding import evidence_passages, persist_grounding
 from app.claims import EvidencePassage
+from app.claims.grounding import evidence_passages, persist_grounding
 from app.engine_adapter.drain import escalation
 from app.engine_adapter.drain.claim_grounding import (
     _assess_claims,
@@ -48,7 +48,7 @@ from app.engine_adapter.drain.reviews import _CitationSink
 from app.engine_adapter.drain.safety import _persist_held_for_review
 from app.engine_adapter.drain.supervisor_plan import _persist_supervisor_plan
 from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
-from app.hypothesis_screening import screen_hypotheses
+from app.hypothesis.screening import screen_hypotheses
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ async def _persist_evidence_hypotheses_and_screen(
     dereferencing a DOI/PMID is network I/O, and this function must never
     hold the write lock across it (see AGENTS.md). It also must not block
     the caller's event loop while it runs -- a run retrieving dozens of
-    articles can spend tens of seconds across ``citation_resolver``'s
+    articles can spend tens of seconds across ``citations.resolver``'s
     bounded concurrency and per-request timeout, and the durable finalize
     task's lease heartbeat renews on this same loop (see
     ``_assess_claims`` for the incident this pattern already fixed for the

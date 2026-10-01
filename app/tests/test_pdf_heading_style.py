@@ -5,7 +5,7 @@ records, kept separate from the pypdf-driven visitor pass that produces
 them from a real page (see ``test_document_ingest_pdf.py``).
 """
 
-from app.pdf_heading_style import LineStyle, rank_heading_styles
+from app.pdf.heading_style import LineStyle, rank_heading_styles
 
 
 def test_larger_size_ranks_above_smaller_size() -> None:

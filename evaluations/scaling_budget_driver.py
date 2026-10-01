@@ -1,7 +1,7 @@
 """Controlled multi-budget scaling-curve driver (L9).
 
 Runs the SAME research goal across the run tiers (express / standard /
-extended / ultra, see ``app/app/run_modes.py::RUN_TIER_DEFAULTS``) through
+extended / ultra, see ``app.run_modes.RUN_TIER_DEFAULTS``) through
 the real durable path, differing only in tier -- no numeric overrides, since
 a request-body override may only *raise* a tier baseline, never lower it,
 and a raised knob would stop an arm from differing by budget alone. Emits

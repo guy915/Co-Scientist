@@ -10,11 +10,8 @@ covered here as a tested seam -- see its docstring.
 
 from __future__ import annotations
 
-from app.config import (
-    deepseek_non_thinking_extra_body,
-    deepseek_thinking_kwargs,
-    thinking_off_kwargs,
-)
+from app.config import deepseek_thinking_kwargs, thinking_off_kwargs
+from app.config_thinking import deepseek_non_thinking_extra_body
 
 
 def test_thinking_kwargs_native_deepseek() -> None:
@@ -55,7 +52,8 @@ def test_thinking_floor_raises_an_answer_sized_budget() -> None:
     full, and for the claim verifier indistinguishable from "the LLM
     assessor never wins".
     """
-    from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
+    from app.config import thinking_safe_max_tokens
+    from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
 
     assert (
         thinking_safe_max_tokens("deepseek/deepseek-v4-flash", 3_000)
@@ -65,7 +63,8 @@ def test_thinking_floor_raises_an_answer_sized_budget() -> None:
 
 def test_thinking_floor_never_lowers_a_larger_budget() -> None:
     """The floor only raises; a call site asking for more keeps its number."""
-    from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
+    from app.config import thinking_safe_max_tokens
+    from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
 
     above = THINKING_FLOOR_MAX_TOKENS + 5_000
 
@@ -120,10 +119,8 @@ def test_thinking_timeout_floor_admits_the_token_floor() -> None:
     here is what stops a later tightening of the deadline from silently
     re-breaking every call the token floor was raised to fix.
     """
-    from app.config import (
-        THINKING_FLOOR_MAX_TOKENS,
-        THINKING_FLOOR_TIMEOUT_SECONDS,
-    )
+    from app.config import THINKING_FLOOR_TIMEOUT_SECONDS
+    from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
 
     pessimistic_tokens_per_second = 75.0
 
@@ -143,10 +140,8 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     gets forgotten sends a disable that reads as an enable -- which
     costs a whole token budget and returns nothing.
     """
-    from app.config import (
-        deepseek_non_thinking_extra_body,
-        deepseek_thinking_kwargs,
-    )
+    from app.config import deepseek_thinking_kwargs
+    from app.config_thinking import deepseek_non_thinking_extra_body
 
     routed = "openrouter/deepseek/deepseek-v4-flash"
     direct = "deepseek/deepseek-v4-flash"

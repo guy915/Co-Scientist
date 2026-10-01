@@ -11,16 +11,17 @@ from co_scientist.models import (
     Hypothesis,
 )
 
-from app import claim_grounding, engine_tasks
 from app.claims import (
     AssessorDraft,
     ClaimAssessment,
     EntailmentLabel,
     deterministic_assessor,
 )
-from app.claims_gate import SupportSpan
+from app.claims import grounding as claim_grounding
+from app.claims.gate import SupportSpan
 from app.config import settings
-from app.engine_tasks_gate import (
+from app.engine_tasks import gate as engine_tasks_gate
+from app.engine_tasks.gate import (
     _apply_gate_verdict,
     _GatePlan,
     _GateWave,
@@ -165,7 +166,7 @@ async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
     gate = hypothesis.enrichments["claim_gate"]
@@ -194,11 +195,11 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
     )
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
     assert hypothesis.review_disposition == "viable"
 
     state["context_enrichment_sources"] = [_private_corpus_source()]
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
     assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
@@ -226,9 +227,9 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
     first_call_count = calls["n"]
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert first_call_count > 0
     assert calls["n"] == first_call_count
@@ -257,7 +258,7 @@ async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
     claims = hypothesis.enrichments["claim_gate"]["claims"]
@@ -288,7 +289,7 @@ async def test_pre_ranking_gate_assesses_claims_concurrently(
     probe = _install_peak_assessor(monkeypatch)
     state = _multi_claim_state()
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     claims = state["hypotheses"][0].enrichments["claim_gate"]["claims"]
     assert len(claims) > 1
@@ -327,7 +328,7 @@ async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
         hypothesis.review_disposition = "viable"
     state = {"hypotheses": [first, second], "articles": []}
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert first.enrichments["claim_gate"]["claims"]
     assert second.enrichments["claim_gate"]["claims"]
@@ -356,7 +357,7 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     anything even when the evidence disagrees with it outright.
 
     The final, report-facing grounding pass
-    (``claim_grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
+    (``claims.grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
     independent guarantee: it never reads ``experiment`` at all, so this
     threshold text never reaches a persisted ``claim_evidence`` row or the
     "Unverified" badge either. This test covers the one path that does read
@@ -386,7 +387,7 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
     gate = hypothesis.enrichments["claim_gate"]
@@ -425,7 +426,7 @@ def test_log_gate_wave_reports_entailment_calls(
         plans=[plan], considered=1, skipped_unrankable=0, skipped_unchanged=0
     )
 
-    with caplog.at_level(logging.INFO, logger="app.engine_tasks_gate"):
+    with caplog.at_level(logging.INFO, logger="app.engine_tasks.gate"):
         _log_gate_wave(wave, 7)
 
     assert "claims_assessed=2" in caplog.text

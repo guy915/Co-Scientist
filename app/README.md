@@ -8,16 +8,16 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
-│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_lifecycle/collections/contrib/chat back it
+│   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
 │   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
-│   ├── engine_tasks.py    Durable run execution — the production path — plus task_worker.py
+│   ├── engine_tasks/      Durable run execution — the production path — plus task_worker/
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
 │   ├── report/            Goal Report package: payload, markdown, release gate, finalize path
 │   ├── run_events.py      Run-event emission (make_emitter) for engine tasks and the adapter
-│   ├── claims.py, claim_grounding.py, claim_verifier.py, citations.py   Citation-grounding pipeline
-│   ├── safety.py, hypothesis_safety.py, hypothesis_screening.py   Intake/final gates + per-hypothesis policy
-│   ├── qa.py, human_input.py    Q&A and scientist-in-the-loop steering
+│   ├── claims/ (gate, grounding, verifier), citations/   Citation-grounding pipeline
+│   ├── safety/, hypothesis/safety.py, hypothesis/screening.py   Intake/final gates + per-hypothesis policy
+│   ├── qa/, human_input.py    Q&A and scientist-in-the-loop steering
 │   ├── elo.py      Elo rating utilities
 │   ├── cli/        `cosci` operator CLI (see below)
 │   └── config.py   Pydantic-settings config (loads .env)

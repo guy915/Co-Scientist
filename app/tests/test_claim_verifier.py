@@ -1,4 +1,4 @@
-"""Tests for the LLM (NLI) entailment assessor (app/claim_verifier.py).
+"""Tests for the LLM (NLI) entailment assessor (app/claims/verifier.py).
 
 The assessor is exercised end-to-end against a real provider by the golden run;
 here the engine's completion backend is faked so the prompt/parse/guard
@@ -18,8 +18,8 @@ from typing import Any
 
 import pytest
 
-from app.claim_verifier import _entailment_prompt, make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
+from app.claims.verifier import _entailment_prompt, make_llm_assessor
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -28,7 +28,7 @@ from ._llm_fake_backend import install_completion_backend
 def _disable_llm_response_cache() -> Any:
     """Force every call in this file to miss the engine's response cache.
 
-    ``claim_verifier`` now routes through ``call_llm_json`` with caching
+    ``claims.verifier`` now routes through ``call_llm_json`` with caching
     on (by design -- see its module docstring), and several tests here
     reuse the exact same claim/passage pair with a *different* faked
     reply to prove a different code path. Without this, the second such
@@ -55,7 +55,7 @@ def _fake_completion(content: str) -> Any:
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
     """Install the fake completion backend.
 
-    ``app.claim_verifier`` routes through ``co_scientist.llm.call_llm_json``
+    ``app.claims.verifier`` routes through ``co_scientist.llm.call_llm_json``
     now (see the module docstring), so the boundary to fake is the
     engine's own -- the completion backend every engine LLM test installs.
     """
@@ -259,7 +259,7 @@ def test_prompt_size_is_bounded_by_the_retrieved_passages() -> None:
     overlap), so the evidence block is bounded by ``k * (max + overlap)``
     regardless of how long the source articles are.
     """
-    from app.claims_assessor import _DEFAULT_RETRIEVAL_TOP_K
+    from app.claims.assessor import _DEFAULT_RETRIEVAL_TOP_K
     from app.evidence_chunking import (
         CHUNK_MAX_CHARS,
         CHUNK_OVERLAP_CHARS,

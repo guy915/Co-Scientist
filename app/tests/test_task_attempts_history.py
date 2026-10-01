@@ -19,6 +19,7 @@ import pytest
 from app import store
 from app.store import db as store_db
 from app.store import tasks as store_tasks
+from app.store import tasks_attempts as store_tasks_attempts
 from tests._client import make_client
 
 
@@ -98,7 +99,7 @@ def test_two_failures_record_distinct_attempts_in_order(
 def test_attempts_history_is_capped(isolated_db: str) -> None:
     """The stored history never exceeds the bounded cap."""
     run_id = _running_run(isolated_db)
-    over_cap = store_tasks._MAX_STORED_ATTEMPTS + 3
+    over_cap = store_tasks_attempts._MAX_STORED_ATTEMPTS + 3
     task_id = _enqueue(run_id, "k", isolated_db, max_attempts=over_cap + 1)
 
     for i in range(over_cap):
@@ -110,10 +111,10 @@ def test_attempts_history_is_capped(isolated_db: str) -> None:
 
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None
-    assert len(saved.attempts) == store_tasks._MAX_STORED_ATTEMPTS
+    assert len(saved.attempts) == store_tasks_attempts._MAX_STORED_ATTEMPTS
     # The oldest failures are dropped, the most recent kept.
     assert saved.attempts[-1]["error"] == f"failure {over_cap - 1}"
-    first_kept = over_cap - store_tasks._MAX_STORED_ATTEMPTS
+    first_kept = over_cap - store_tasks_attempts._MAX_STORED_ATTEMPTS
     assert saved.attempts[0]["error"] == f"failure {first_kept}"
 
 

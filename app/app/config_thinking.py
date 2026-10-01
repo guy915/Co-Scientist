@@ -192,8 +192,8 @@ every node whose budget predated thinking being switched on
 the app's *streaming* calls bypass that layer by invoking
 ``litellm.acompletion`` directly, so they need the floor applied at their
 own call sites. A one-shot call that parses JSON belongs on the engine's
-``call_llm_json`` seam instead (see ``safety_semantic.py`` and
-``claim_verifier.py``), which applies this same floor on its own -- these
+``call_llm_json`` seam instead (see ``safety/semantic.py`` and
+``claims/verifier.py``), which applies this same floor on its own -- these
 functions are for the call sites that must stream and so cannot use it.
 
 A ceiling is not a spend -- raising it costs nothing on calls that answer
@@ -232,12 +232,12 @@ pessimistic 75 tok/s, well under what the provider sustains in practice.
 A long deadline is only acceptable where nobody is watching a blank screen
 for the length of it. The interview, the post-run Q&A chat, and the session
 announcement all relay their chain of thought to the scientist as it
-arrives (``qa_stream.stream_llm_deltas`` yields ``reasoning`` fragments the
+arrives (``qa.stream.stream_llm_deltas`` yields ``reasoning`` fragments the
 same way ``run_start_announcement`` does), so a stalled provider is caught
 by the stall timeout long before this floor matters and a long reasoning
 pass reads as visible progress rather than a quiet chat. Titling is the
 one call with nobody watching at all -- it runs after the create response,
-as a background task (``runs_crud._populate_run_title``), so a four-minute
+as a background task (``runs.crud._populate_run_title``), so a four-minute
 floor costs nothing a caller can see. Before applying this floor to
 another call site, check whether it streams to a live reader or runs
 unwatched in the background -- a blocking request that shows the caller

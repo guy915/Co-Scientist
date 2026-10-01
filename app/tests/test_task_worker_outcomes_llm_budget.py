@@ -15,7 +15,8 @@ from co_scientist.exceptions import LLMCallBudgetExceededError
 from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
 from co_scientist.llm.admission.call_budget import record_provider_request
 
-from app import store, task_worker_outcomes
+from app import store
+from app.task_worker import outcomes as task_worker_outcomes
 
 
 def test_ceiling_exceeded_fails_permanently_and_settles_the_run(

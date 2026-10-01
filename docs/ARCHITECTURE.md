@@ -28,10 +28,10 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |                                                                    |
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings                               |
-|   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
-|   engine_tasks.py — durable node/fan-out/match executor; the only  |
+|   runs/          — /api/runs/* lifecycle, read, messages, and SSE   |
+|   engine_tasks/   — durable node/fan-out/match executor; the only  |
 |                     way any run advances (no in-process workflow)  |
-|   task_worker.py — leased worker cohort draining scientific_tasks  |
+|   task_worker/   — leased worker cohort draining scientific_tasks  |
 |   engine_adapter/ — provider selection + offline/real LLM backend  |
 |                     switch; bridges to the engine                  |
 |   store/         — SQLite store (runs/events/hypotheses/evidence/  |
@@ -40,9 +40,9 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   elo.py         — app-side leaderboard projection (initial=1200,  |
 |                    configurable K); the Elo math lives in the      |
 |                    engine's ranking agent                          |
-|   safety.py      — intake + final gate: deterministic rules first, |
+|   safety/        — intake + final gate: deterministic rules first, |
 |                    then an optional contextual model assessment    |
-|   citations.py   — verified|partial|unsupported|unavailable        |
+|   citations/     — verified|partial|unsupported|unavailable        |
 +------------------------------+-------------------------------------+
                                |
                                v
@@ -81,9 +81,9 @@ Every run executes through the durable task queue, and the same event-log table 
 11. status             (completed)
 ```
 
-Events 1-2 come from the HTTP layer. Events 3-5 come from the worker: `safety.intake` is the `engine.bootstrap` task's first act (`engine_tasks.py::_screen_bootstrap_intake`, which is also where the run flips to `running`), then one `scientific_task` per node commit. Events 6-11 come from the terminal `engine.finalize` task (`report.finalize.finalize_report`), which is why the citation audit lands *after* `research_overview` rather than before it. There is no `status (running)` event — the transition into `running` is a `runs` row update, not an event.
+Events 1-2 come from the HTTP layer. Events 3-5 come from the worker: `safety.intake` is the `engine.bootstrap` task's first act (`engine_tasks/inputs.py::_screen_bootstrap_intake`, which is also where the run flips to `running`), then one `scientific_task` per node commit. Events 6-11 come from the terminal `engine.finalize` task (`report.finalize.finalize_report`), which is why the citation audit lands *after* `research_overview` rather than before it. There is no `status (running)` event — the transition into `running` is a `runs` row update, not an event.
 
-Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks_emit.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
+Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks/emit.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
 
 Which nodes appear, and how often, is the orchestrator's decision rather than a fixed script: `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` recurs once per cycle, `meta_review → evolve` precedes a re-review, `proximity` runs only when the pool grew since the previous pass, and `literature_review`/`reflection` are absent entirely when no MCP server is reachable (they are excluded from the graph, not skipped at runtime).
 

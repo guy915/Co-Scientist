@@ -52,7 +52,7 @@ to fix.
   UNCERTAIN, and the marker only changes the recorded *reason* text.
 - What resolves that hold is a reader, not a wider pattern. Every Tier B
   verdict carries ``needs_context=True``, and
-  ``app/app/hypothesis_safety_resolve.py`` puts exactly those verdicts to a
+  ``app/app/hypothesis/safety_resolve.py`` puts exactly those verdicts to a
   contextual assessor which may answer in *either* direction -- clearing
   the hold or raising it to prohibited. That is a deliberate departure from
   the "model may raise, never lower" contract the intake and final gates

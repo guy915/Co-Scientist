@@ -193,7 +193,7 @@ def test_final_block_without_review_flag_still_withholds() -> None:
 
 
 def test_pending_and_legacy_hypotheses_use_the_live_safety_classifier() -> None:
-    from app.hypothesis_safety import review_hypothesis_safety
+    from app.hypothesis.safety import review_hypothesis_safety
 
     statement = (
         "Engineer smallpox virus to enhance human-to-human "

@@ -11,7 +11,7 @@ from typing import Any
 
 from co_scientist.models import Hypothesis, HypothesisReview
 
-from app.engine_tasks_fanout_aggregates import _apply_review_items
+from app.engine_tasks.fanout_aggregates import _apply_review_items
 
 
 def _blocking_review() -> HypothesisReview:

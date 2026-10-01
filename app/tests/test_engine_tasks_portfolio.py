@@ -2,7 +2,7 @@
 
 Execution used to enqueue exactly one successor node task per commit,
 reactively. These tests drive the shared commit path
-(``app.engine_tasks_support._save_state_and_enqueue``) directly to prove
+(``app.engine_tasks.support._save_state_and_enqueue``) directly to prove
 a commit now also chains however much of the deterministic tail
 ``co_scientist.task_runtime.plan_portfolio`` can already resolve, that a
 plan superseded by a real outcome (a mid-run safety halt) is cancelled
@@ -16,13 +16,9 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_support,
-    store,
-    task_worker,
-)
-from app.engine_tasks_context import TaskCommit
+from app import engine_tasks, store, task_worker
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.context import TaskCommit
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -62,7 +58,7 @@ def _seed_resume_checkpoint(
 
     ``resume_successor`` lives beside ``provider`` at the checkpoint's own
     top level, alongside (not inside) the serialized workflow-state
-    payload -- the shape ``app.task_worker_enqueue._enqueue_resume_task``
+    payload -- the shape ``app.task_worker.enqueue._enqueue_resume_task``
     reads.
     """
     from co_scientist.checkpoint import (
@@ -222,7 +218,7 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
     # this module.
     monkeypatch.setitem(
         engine_tasks._ENGINE_TASK_DISPATCH,
-        engine_tasks.FINALIZE_TASK,
+        engine_tasks_support.FINALIZE_TASK,
         finalize,
     )
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)

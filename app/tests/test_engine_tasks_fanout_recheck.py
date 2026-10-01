@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from co_scientist.models import Hypothesis, HypothesisReview
 
-from app import engine_tasks_fanout_reflection as reflection
-from app.engine_tasks_fanout import _mature_reflection_specs
+from app.engine_tasks import fanout_reflection as reflection
+from app.engine_tasks.fanout import _mature_reflection_specs
 
 
 def _patch_item(

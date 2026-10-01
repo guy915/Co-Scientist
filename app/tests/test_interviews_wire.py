@@ -11,7 +11,7 @@ from typing import Any, NamedTuple
 
 import pytest
 
-from app.interviews_wire import (
+from app.interviews.wire import (
     CLOSE_MARKER,
     OPEN_MARKER,
     TurnSplitter,

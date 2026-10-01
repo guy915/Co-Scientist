@@ -14,17 +14,16 @@ from typing import Any
 
 import pytest
 
-from app import citation_metadata, citation_resolver, store
-from app.citation_metadata import (
+from app import store
+from app.citations import metadata as citation_metadata
+from app.citations import resolver as citation_resolver
+from app.citations.metadata import (
     CitationMetadata,
     Resolvability,
     Resolver,
     offline_resolver,
 )
 from app.config import settings
-from app.engine_adapter.drain import (
-    evidence_resolution as drain_evidence_resolution,
-)
 from tests._drain_helpers import _persist_and_finalize
 
 
@@ -165,7 +164,7 @@ def test_live_resolver_dereferences_rather_than_inspecting_the_string(
         ]
 
     monkeypatch.setattr(
-        drain_evidence_resolution.citation_resolver,
+        citation_resolver,
         "resolve_many",
         fake_resolve_many,
     )
@@ -236,7 +235,7 @@ def test_live_resolver_persists_retraction_from_either_source(
         return [first_verdict, Resolvability.RETRACTED]
 
     monkeypatch.setattr(
-        drain_evidence_resolution.citation_resolver,
+        citation_resolver,
         "resolve_many",
         fake_resolve_many,
     )
@@ -336,7 +335,7 @@ def test_evidence_passages_uses_stored_passage_text(
     Not a live reconstruction, so a span's offsets always index the
     exact stored text.
     """
-    from app.claim_grounding import evidence_passages
+    from app.claims.grounding import evidence_passages
 
     run = store.create_run("identity goal", "standard", "engine", {})
     article = {

@@ -47,7 +47,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.citation_metadata import (
+from app.citations.metadata import (
     CitationMetadata,
     DateState,
     SourceType,

@@ -436,7 +436,7 @@ export interface SharedRun {
 
 /**
  * One cited source in a Q&A answer's evidence manifest (see
- * `app/qa_manifest.py::build_evidence_manifest`). `n` is the 1-based number
+ * `app/qa/manifest.py::build_evidence_manifest`). `n` is the 1-based number
  * the answer's own `[n]` markers refer to.
  */
 export interface QaSource {
@@ -465,7 +465,7 @@ export interface RunMessage {
   created_at: number;
   applied: boolean;
   // Present on a Q&A answer row when it cited any sources (see
-  // qa.py::_citation_meta), and on a `start` announcement carrying the
+  // qa/__init__.py::_citation_meta), and on a `start` announcement carrying the
   // thinking behind it or the marker that the deterministic copy stood in
   // (see run_start_announcement.py::_persist_announcement); absent
   // otherwise, including on either kind's paired question row.

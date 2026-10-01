@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from app.cli import runs_cmd, status_cmd
+from app.cli import runs_collections_cmd as cli_runs_collections_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from tests._cli_helpers import api_client
 
@@ -45,7 +46,12 @@ def test_matches_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
             },
         )
 
-    assert runs_cmd.handle_matches(_read_args(), api_client(handler)) == 0
+    assert (
+        cli_runs_collections_cmd.handle_matches(
+            _read_args(), api_client(handler)
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert "h1" in out
     assert "h2" in out
@@ -69,7 +75,12 @@ def test_proximity_lists_edges(capsys: pytest.CaptureFixture[str]) -> None:
             },
         )
 
-    assert runs_cmd.handle_proximity(_read_args(), api_client(handler)) == 0
+    assert (
+        cli_runs_collections_cmd.handle_proximity(
+            _read_args(), api_client(handler)
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert "h1" in out
     assert "0.83" in out
@@ -95,7 +106,10 @@ def test_claim_evidence_lists_edges(
         )
 
     assert (
-        runs_cmd.handle_claim_evidence(_read_args(), api_client(handler)) == 0
+        cli_runs_collections_cmd.handle_claim_evidence(
+            _read_args(), api_client(handler)
+        )
+        == 0
     )
     out = capsys.readouterr().out
     assert "supports" in out
@@ -395,10 +409,16 @@ def test_parser_wires_new_commands() -> None:
     create_args = parser.parse_args(["runs", "create", "goal", "--start"])
     assert create_args.start is True
     for command, handler in (
-        (["runs", "matches", "r1"], runs_cmd.handle_matches),
-        (["runs", "proximity", "r1"], runs_cmd.handle_proximity),
+        (["runs", "matches", "r1"], cli_runs_collections_cmd.handle_matches),
+        (
+            ["runs", "proximity", "r1"],
+            cli_runs_collections_cmd.handle_proximity,
+        ),
         (["runs", "metrics", "r1"], runs_cmd.handle_metrics),
-        (["runs", "claim-evidence", "r1"], runs_cmd.handle_claim_evidence),
+        (
+            ["runs", "claim-evidence", "r1"],
+            cli_runs_collections_cmd.handle_claim_evidence,
+        ),
         (["runs", "demo"], runs_cmd.handle_demo),
         (["config"], status_cmd.handle_config),
     ):

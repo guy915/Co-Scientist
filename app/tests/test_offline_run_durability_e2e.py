@@ -18,13 +18,9 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_node,
-    engine_tasks_support,
-    store,
-    task_worker,
-)
+from app import engine_tasks, store, task_worker
+from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import support as engine_tasks_support
 from app.store import RunStatus
 
 _STEER = "Prioritise chaperone co-expression over temperature shifts"

@@ -181,9 +181,9 @@ def test_post_run_adds_receipts_to_a_persisted_pre_receipt_database(
 
     monkeypatch.setattr(settings, "byok_encryption_key", "receipt-test-key")
     monkeypatch.setattr(credentials, "validate_byok_credential", accept_byok)
-    monkeypatch.setattr("app.runs_crud.generate_run_title", mock_title)
+    monkeypatch.setattr("app.runs.crud.generate_run_title", mock_title)
     monkeypatch.setattr(
-        "app.runs_crud.generate_goal_restatement", mock_restatement
+        "app.runs.crud.generate_goal_restatement", mock_restatement
     )
 
     byok_payload = {**_PAYLOAD, "document_ids": [document["id"]]}

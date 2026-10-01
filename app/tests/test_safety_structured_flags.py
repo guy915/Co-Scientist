@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.safety_semantic import _build_semantic_decision
+from app.safety.semantic import _build_semantic_decision
 
 
 def _decision(stage: str = "intake", **fields: Any) -> Any:
@@ -160,7 +160,7 @@ def test_the_screen_asks_for_the_structured_fields() -> None:
     a prompt that stopped asking for them would silently stop screening for
     them, with every test above still passing.
     """
-    from app.safety_semantic import _semantic_prompt
+    from app.safety.semantic import _semantic_prompt
 
     prompt = _semantic_prompt("a goal", "intake")
 

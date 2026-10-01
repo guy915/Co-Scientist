@@ -6,7 +6,7 @@
 // the chat timeline can show the answer as it is written, but the frame
 // handling stays out of the caller's way. A `reasoning` frame precedes the
 // answer's `chunk` frames exactly as an interview turn's does -- see
-// qa.py::stream_answer -- so QaSinks carries the same two live channels as
+// qa/__init__.py::stream_answer -- so QaSinks carries the same two live channels as
 // InterviewSinks.
 
 import type {QaSource, RunMessage} from './run_types';
@@ -67,7 +67,7 @@ function relayAskFrame(frame: AskFrame, sinks: QaSinks): void {
  * Applies one streamed ask frame: relays a sources/chunk fragment to its
  * sink, or throws on an error frame (the run's Q&A stream persists a
  * fallback answer before emitting this, so the caller only needs to surface
- * it -- see qa.py::_handle_qa_stream_error). Returns the persisted
+ * it -- see qa/__init__.py::_handle_qa_stream_error). Returns the persisted
  * question's message id once `done` arrives, else `questionId` unchanged.
  */
 function applyAskFrame(
@@ -90,7 +90,7 @@ function applyAskFrame(
  * @param signal Aborts the turn -- the fetch itself if not yet sent, or the
  *   read loop if the stream is already open; see the composer's Stop
  *   control. The partial answer is never persisted server-side on abort
- *   (qa.py persists only after the full stream completes), so a caller
+ *   (qa/__init__.py persists only after the full stream completes), so a caller
  *   simply drops what it has -- there is nothing to resync.
  * @returns The persisted question's message id, once the stream completes.
  */

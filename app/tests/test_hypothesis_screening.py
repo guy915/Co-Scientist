@@ -1,6 +1,6 @@
 """Pre-tournament per-hypothesis safety screening (Milestone 6 / M9 wiring).
 
-Covers ``app.hypothesis_screening.screen_hypotheses``: it must persist every
+Covers ``app.hypothesis.screening.screen_hypotheses``: it must persist every
 hypothesis's ``safety_status``, flag the blocking ones, record an audit row for
 each block, and leave benign hypotheses eligible.
 """
@@ -8,7 +8,7 @@ each block, and leave benign hypotheses eligible.
 from __future__ import annotations
 
 from app import store
-from app.hypothesis_screening import (
+from app.hypothesis.screening import (
     ScreeningResult,
     hypothesis_text,
     screen_hypotheses,
@@ -77,7 +77,7 @@ def test_screen_redacts_detail_fields_of_redact_outcome(
     isolated_db: str,
 ) -> None:
     """A REDACT hypothesis stays rankable but its detail fields are redacted."""
-    from app.hypothesis_safety import REDACTED_PLACEHOLDER
+    from app.hypothesis.safety import REDACTED_PLACEHOLDER
 
     run = store.create_run("safety goal", "standard", "mock", {})
     hyp_id = store.add_hypothesis(
