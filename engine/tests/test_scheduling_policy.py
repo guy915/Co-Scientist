@@ -474,9 +474,9 @@ def test_stale_cancelled_termination_reason_string_is_inert_data() -> None:
     that genuinely terminated with that reason before this change has it
     sitting in persisted ``task_history``/``termination_reason`` state as a
     plain string -- never reconstructed back into the enum anywhere in the
-    engine (state.py types both as ``str``). Resuming such a run must not
-    raise; this pins that the enum's remaining members are unaffected by an
-    unrelated stale string coexisting in state.
+    engine (the state package types both as ``str``). Resuming such a run
+    must not raise; this pins that the enum's remaining members are unaffected
+    by an unrelated stale string coexisting in state.
     """
     stale_history_entry = {
         "task_type": "generate",

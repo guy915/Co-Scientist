@@ -217,7 +217,7 @@ def _mature_reflection_update(
         "articles": state["articles"],
         # Accumulated by the state's own reducer, so a reviewed
         # hypothesis's searches join the literature review's rather than
-        # replacing them (``state_reducers``).
+        # replacing them (``state.reducers``).
         "research_ledgers": items.research_ledgers,
         "metrics": create_metrics_update(
             deltas=MetricDeltas(llm_calls=items.llm_calls),

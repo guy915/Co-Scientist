@@ -381,7 +381,7 @@ logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 ```
 src/co_scientist/
 ├── generator/          # HypothesisGenerator — public entry point, builds/runs LangGraph
-├── state.py            # WorkflowState TypedDict + custom reducers
+├── state/              # WorkflowState TypedDict + custom reducers
 ├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
 ├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)

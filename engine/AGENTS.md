@@ -140,7 +140,7 @@ search that surfaced it. The app writes both: `retrieval_calls` rows and the
 `evidence.retrieval_call_id` that resolves to them, so a run can say which
 query found a piece of evidence and which question that query was serving.
 Note the channel is a *list* with an accumulating reducer
-(`state_reducers.accumulate_research_ledgers`; the durable path reads it
+(`state.reducers.accumulate_research_ledgers`; the durable path reads it
 off the same annotation through `task_runtime.channel_reducers`, so an
 annotated channel cannot fall through to last-write-wins there). Research has two
 owners, and under a single-ledger channel whichever ran last was the only one
@@ -214,7 +214,7 @@ turns a turn cut off mid-call into an explicit aborted result instead of
 a conversation the provider rejects). Reflection's simulation review and
 the drafting skills are what run inside them.
 
-Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/web-research/etc.).
+Shared state flows through `WorkflowState` in `state/__init__.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/web-research/etc.).
 
 Key supporting modules: `models/` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas/` (JSON-schema package for structured LLM output — one module per prompt family plus `registry.py`), `constants/__init__.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
 

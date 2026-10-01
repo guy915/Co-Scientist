@@ -207,7 +207,7 @@ def test_an_empty_ranking_update_never_wipes_the_history() -> None:
 
 def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
     """Ledgers are content, not events: the same one twice is once."""
-    from co_scientist.state_reducers import accumulate_research_ledgers
+    from co_scientist.state.reducers import accumulate_research_ledgers
 
     ledger = {"goal": "reverse fibrosis", "calls": []}
 
@@ -216,7 +216,7 @@ def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
 
 def test_a_node_that_researched_nothing_keeps_what_came_before() -> None:
     """Most nodes return no ledger; none of them may clear the list."""
-    from co_scientist.state_reducers import accumulate_research_ledgers
+    from co_scientist.state.reducers import accumulate_research_ledgers
 
     existing = [{"goal": "reverse fibrosis"}]
 

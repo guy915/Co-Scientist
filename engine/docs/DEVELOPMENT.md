@@ -10,7 +10,7 @@ engine/
 │   └── co_scientist/
 │       ├── __init__.py
 │       ├── generator/          # HypothesisGenerator package (core, graph, streaming)
-│       ├── state.py            # WorkflowState TypedDict
+│       ├── state/              # WorkflowState TypedDict
 │       ├── schemas/            # JSON schemas for LLM responses
 │       ├── models/             # Hypothesis, Article dataclasses (among others)
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
@@ -155,7 +155,7 @@ idempotency keys, so an existing key must never change value.
 
 ### 4. Update State Type (if needed)
 
-If your node adds new state fields, update `src/co_scientist/state.py`:
+If your node adds new state fields, update `src/co_scientist/state/__init__.py`:
 
 ```python
 class WorkflowState(TypedDict, total=False):
@@ -176,7 +176,7 @@ class WorkflowState(TypedDict, total=False):
 | `articles` | `list[Article] \| None` | Retrieved papers (literature review) |
 | `metrics` | `ExecutionMetrics` | Performance tracking |
 
-There are many other fields. Inspect state as each node completed or view state.py for other captured state.
+There are many other fields. Inspect state as each node completed or view state/__init__.py for other captured state.
 
 ### Hypothesis Structure
 

@@ -318,7 +318,7 @@ def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
 
     hypotheses is the same list of objects fetched from state, mutated in
     place by _apply_reflection_results; returning it back through the
-    "hypotheses" key hits the deduplicate_hypotheses reducer (state.py)
+    "hypotheses" key hits the deduplicate_hypotheses reducer (state package)
     with 100% text overlap, so it is treated as a same-set replacement
     rather than an addition.
 

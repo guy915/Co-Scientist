@@ -453,8 +453,8 @@ def _build_research_overview_result(
     # Only the delta is passed here; merge_metrics (models/metrics.py) adds it
     # to the existing cumulative totals in state.
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
-    # research_overview has no reducer annotation in state.py, so this is a
-    # plain overwrite -- appropriate since this node runs once, terminally.
+    # research_overview has no reducer annotation in the state package, so this
+    # is a plain overwrite -- appropriate since this node runs once, terminally.
     return {
         "research_overview": research_overview,
         "metrics": metrics,

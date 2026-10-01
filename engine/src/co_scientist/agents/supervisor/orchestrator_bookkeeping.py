@@ -245,7 +245,7 @@ def _owed_review_override_marks(
     ``_check_owed_review`` on every remaining cycle.
 
     Returns ``[]`` -- "no update" under
-    ``state_reducers.deduplicate_hypotheses`` -- when the check did not
+    ``state.reducers.deduplicate_hypotheses`` -- when the check did not
     fire this cycle, so a caller may include this in every decision's
     state delta unconditionally. Returns the *full* pool (mutated in
     place), never a subset, when it did: the reducer's bare-list form

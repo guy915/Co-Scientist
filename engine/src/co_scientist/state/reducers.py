@@ -204,8 +204,8 @@ def _append_hypotheses(
 
 # This is the LangGraph reducer wired to WorkflowState.hypotheses (see
 # `Annotated[list[Hypothesis], deduplicate_hypotheses]` on that channel in
-# state.py): every node that returns a "hypotheses" key in its state update
-# triggers this function, with `existing` the current cumulative pool and
+# the state package): every node that returns a "hypotheses" key in its state
+# update triggers this function, with `existing` the current cumulative pool and
 # `new` the value just returned by that node. `new` is either a bare list
 # (REPLACE the pool with exactly that list) or an AppendHypotheses op
 # (APPEND to the pool).
