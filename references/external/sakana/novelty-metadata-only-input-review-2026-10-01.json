@@ -1,0 +1,56 @@
+{
+  "item": "M12-04b4j3",
+  "status": "ACCEPT_PRIVATE_INPUTS_NOT_REGISTERED_OR_ADMITTED",
+  "observed_at_utc": "2026-10-01T05:36:05.555849+00:00",
+  "private_protocol_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/draft-protocol-v8.json",
+  "private_protocol_sha256": "8922f37d5b061ded2600fc5f1cce6f80d7f8bbff6179f43e9ed4044b7034a62c",
+  "private_bank_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/draft-bank-v9.json",
+  "private_bank_sha256": "9dd7f27695f852d4fe729dc7ed28a1a09e3b0d91f3a013186e86f9c34c182be3",
+  "source_preparation_path": "references/external/sakana/novelty-metadata-only-source-preparation-2026-10-01.json",
+  "source_preparation_sha256": "904cd08294e6f59b43d7d2c11f0cd25f7f201aa43dd30a9fc04318d64e7d35cd",
+  "runner_verification_path": "references/external/sakana/novelty-metadata-only-runner-verification-2026-10-01.json",
+  "runner_verification_sha256": "7f1ff6dffe9b7cd487926ede296db68bf6b31bec1b19c5c7b70ac87156513514",
+  "coordinator_verification": {
+    "all_case_drafts_fragments_metadata_and_source_ids_equal_accepted_proposal": true,
+    "fixed_order_six_pairs_twelve_drafts": true,
+    "unchanged_scientific_fields": [
+      "outcome_criteria",
+      "request_config",
+      "prompts",
+      "stop_rules",
+      "blinding",
+      "launch_requirements",
+      "search_design.first_search",
+      "search_design.followups",
+      "search_design.internal_mcp_bounds_per_outer_call",
+      "search_design.pair_count",
+      "search_design.draft_count",
+      "search_design.all_cases_required_in_order"
+    ],
+    "private_loader_passed": true,
+    "include_fulltext_exact_boolean_false": true,
+    "draft_conversion_notes_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/draft-conversion-notes.json",
+    "draft_conversion_notes_sha256": "34939d9c58d6546ad3f2e266faf36b15d3aa1364e39a5cfdba1a38838e0d0034"
+  },
+  "independent_review": {
+    "peer": "Antigravity Gemini 3.8 Flash High",
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "conversation_id": "b474347b-a27c-409a-8a9f-6d8e6728d94c",
+    "verdict": "ACCEPT_PRIVATE_PREPARATION",
+    "prompt_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/independent-input-review-prompt.json",
+    "prompt_sha256": "eba822e9fc068beb0990a02cd7fc21fbb946f80418c3b4c0c284be1d17d4dc87",
+    "result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study8/preflight/independent-input-review-result.json",
+    "result_sha256": "9fd591361d0420d1d2923613de2cea5eacde3fbdeae2ed13799263e153ff7027",
+    "scope": "Supplied complete private protocol, bank administrative/source-proof projection and all case drafts/IDs/fragments; no tools or independent file/source fetch. Full bank source metadata equality is coordinator evidence.",
+    "correction": "Peer incorrectly conflates actual CLI preflight with running161 tests; the existing161-case result is separate offline runner evidence. Its listed admission/blind/scoring prerequisites apply only to future execution, not private-input acceptance."
+  },
+  "worker_handoff": "Two inline Luna transforms failed before any owned writes (literal validator_path FileNotFoundError; unidentified key equality AssertionError). Root explicitly reclaimed ownership and performed bounded template/source conversion; no repeated transform or hidden benchmark.",
+  "model_requests": 0,
+  "scientific_mcp_calls": 0,
+  "admission_marker_exists": false,
+  "limits": [
+    "No scientific quality or live model eligibility established.",
+    "Canonical registration and actual isolated process preflight remain required."
+  ]
+}
