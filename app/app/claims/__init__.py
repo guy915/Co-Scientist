@@ -52,19 +52,6 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-# Citation metadata and resolvability -- judged apart from claim support --
-# live in app/citation_metadata.py, which owns the one implementation
-# production runs on. Imported back and re-exported (redundant aliases) so
-# the names callers and tests use stay importable from app.claims.
-from app.citation_metadata import (
-    CitationMetadata as CitationMetadata,
-)
-from app.citation_metadata import (
-    Resolvability as Resolvability,
-)
-from app.citation_metadata import (
-    assess_resolvability as assess_resolvability,
-)
 from app.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     SENTENCE_SPLIT,
@@ -127,15 +114,11 @@ from app.claims.gate import (
 
 # Locating a cited quote in its passage and the anti-hallucination downgrade
 # were split into app/claims/span.py to keep this module within the size
-# budget; app/claims/batch.py's batched path depends on it too. locate_span
-# is re-exported (public API); the underscore-prefixed helpers are used by
-# assess_claim below.
+# budget; app/claims/batch.py's batched path depends on it too. The helpers
+# below are used by assess_claim.
 from app.claims.span import (
     _downgrade_unproven_label,
     _locate_all,
-)
-from app.claims.span import (
-    locate_span as locate_span,
 )
 
 # --- Atomic claim extraction ------------------------------------------------
