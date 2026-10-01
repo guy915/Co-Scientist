@@ -85,3 +85,5 @@ Each records the gap, upstream evidence, local counterpart, fidelity classificat
 reuse route, acceptance criteria, test boundary, costs/results, and disposition.
 Only adopted, already covered, evidence-backed rejection, and out-of-scope decisions
 close a candidate; promising inconclusive findings stay open.
+
+Latest support release: [PubMed batching and study evidence, 1 October 2026](m12-pubmed-batching-release-2026-10-01.json), PR87/`0b642a97`; all existing services verified healthy. Default-off support and incomplete scientific comparisons are separate outcomes; four original M12 acceptance gates remain open.
