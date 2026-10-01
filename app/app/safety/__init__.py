@@ -263,7 +263,7 @@ async def assess_hold_contextually(
     caller that needs to act on "the model said this is fine" cannot.
     Tier B of the hypothesis policy is that caller: its hold means "a
     category term matched and the rules cannot tell what the sentence
-    asks for" (see ``app.hypothesis_safety_resolve``, the only caller,
+    asks for" (see ``app.hypothesis.safety_resolve``, the only caller,
     which is also where the guards that make acting on this safe live).
 
     Returning ``None`` rather than a decision for every non-answer keeps

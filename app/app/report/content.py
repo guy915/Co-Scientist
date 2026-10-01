@@ -18,7 +18,7 @@ from app.claims.verdict import (
     is_supporting,
 )
 from app.evidence_chunking import parent_evidence_id
-from app.hypothesis_safety import is_blocking_status
+from app.hypothesis.safety import is_blocking_status
 from app.text_utils import (
     hypothesis_statement,
     hypothesis_title,

@@ -6,9 +6,9 @@ hypothesis's ``safety_status``, and any blocking outcome removes it from
 ranking and synthesis. A REDACT/DUAL_USE outcome keeps the hypothesis rankable
 but rewrites its operational-detail fields with the redaction placeholder
 first, with an audit row. Uncertainty routes to safe abstention (see
-``hypothesis_safety``), never optimistic inclusion.
+``hypothesis.safety``), never optimistic inclusion.
 
-The review *logic* lives in :mod:`app.hypothesis_safety` (pure, no store). This
+The review *logic* lives in :mod:`app.hypothesis.safety` (pure, no store). This
 module is the store-aware wiring: the engine drain calls it after persisting
 hypotheses so their status is recorded and the report path excludes the
 blocked ones, and a scientist-authored hypothesis re-runs the same screen
@@ -24,7 +24,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app import store
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
     HypothesisSafetyOutcome,
@@ -47,7 +47,7 @@ _SCREENED_FIELDS = (
 )
 
 # Outcomes whose hypotheses stay in the tournament but must have their
-# operational-detail fields redacted first (see hypothesis_safety).
+# operational-detail fields redacted first (see hypothesis.safety).
 _REDACTING_OUTCOMES = frozenset(
     {HypothesisSafetyOutcome.REDACT, HypothesisSafetyOutcome.DUAL_USE}
 )
@@ -57,7 +57,7 @@ _REDACTING_OUTCOMES = frozenset(
 # redacted) text would misread it as ALLOW and silently downgrade the
 # recorded status. A certain block (prohibited/ethical_concern) can also
 # carry a contextual resolution's raise -- resolution moves a held UNCERTAIN
-# up to prohibited (see hypothesis_safety.escalate_review), but the
+# up to prohibited (see hypothesis.safety.escalate_review), but the
 # hypothesis's underlying text is unchanged, so a fresh deterministic pass
 # would re-derive the same Tier B UNCERTAIN it started from and silently
 # undo the raise. A resolution in the *other* direction (a hold cleared to
@@ -153,7 +153,7 @@ def _hypothesis_decision_row(
 
     ``decision`` is a parameter rather than always ``"block"`` because a
     contextual assessment can now resolve a held verdict *downward* as
-    well as upward (``app.hypothesis_safety_resolve``). Writing a clear
+    well as upward (``app.hypothesis.safety_resolve``). Writing a clear
     through a hardcoded ``"block"`` would put a block row in the audit
     trail for a hypothesis that was published -- the adjudication UI reads
     these rows, so that is a lie about what happened, not a label
@@ -201,7 +201,7 @@ class ScreeningResult:
     # Store id -> persisted safety_status (outcome value) for every hypothesis.
     status_by_id: Mapping[str, str]
     # Held UNCERTAIN hypotheses a contextual model may still raise; see
-    # ``app.hypothesis_safety.escalate_held_hypotheses``. Populated
+    # ``app.hypothesis.safety.escalate_held_hypotheses``. Populated
     # regardless of whether any escalation actually runs afterwards -- an
     # offline or keyless caller simply never consumes it.
     escalatable: tuple[HeldHypothesis, ...] = ()
@@ -271,7 +271,7 @@ def _held_for_escalation(
     """Return the escalation candidate for a fresh held review, or None.
 
     Only a Tier B category-only match reaches UNCERTAIN with
-    ``needs_context=True`` -- see ``hypothesis_safety.escalate_review`` --
+    ``needs_context=True`` -- see ``hypothesis.safety.escalate_review`` --
     so that is the sole shape worth handing to the drain's escalation
     phase; every other outcome is either already at the ceiling escalation
     could report or was never held in the first place.
@@ -343,7 +343,7 @@ def persist_escalated_verdicts(
 
     Pure database work -- the escalation itself (an async model call per
     held hypothesis) has already run, outside any transaction; see
-    ``app.hypothesis_safety.escalate_held_hypotheses`` and
+    ``app.hypothesis.safety.escalate_held_hypotheses`` and
     ``app.engine_adapter.drain.persist_final_state`` for the transaction
     boundaries this must stay inside of. A verdict the model did not raise
     is skipped: the deterministic ``hold`` status and its audit row are

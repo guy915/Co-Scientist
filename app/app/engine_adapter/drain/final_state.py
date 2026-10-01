@@ -48,7 +48,7 @@ from app.engine_adapter.drain.reviews import _CitationSink
 from app.engine_adapter.drain.safety import _persist_held_for_review
 from app.engine_adapter.drain.supervisor_plan import _persist_supervisor_plan
 from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
-from app.hypothesis_screening import screen_hypotheses
+from app.hypothesis.screening import screen_hypotheses
 
 logger = logging.getLogger(__name__)
 

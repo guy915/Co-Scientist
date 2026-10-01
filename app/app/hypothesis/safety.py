@@ -56,7 +56,7 @@ async def escalate_review(
     certain verdict never carries that flag and is refused here, which is
     the property that keeps this from becoming the bypass an earlier
     version of the policy shipped -- see
-    ``app.hypothesis_safety_resolve``, which owns the resolution and the
+    ``app.hypothesis.safety_resolve``, which owns the resolution and the
     reasoning. Every other review passes through unchanged if called
     anyway.
 
@@ -96,7 +96,7 @@ async def escalate_review(
     """
     if not review.needs_context or review.outcome != SafetyOutcome.UNCERTAIN:
         return review
-    from app.hypothesis_safety_resolve import resolve_hold
+    from app.hypothesis.safety_resolve import resolve_hold
 
     return await resolve_hold(review, text, run_id=run_id, db_path=db_path)
 
@@ -142,7 +142,7 @@ class EscalatedVerdict:
 # verdicts ever reach here -- the common case is zero or a handful per run,
 # never the whole pool, since a clean allow and a Tier A certain block both
 # skip escalation entirely (see ``_held_for_escalation`` in
-# ``app.hypothesis_screening``).
+# ``app.hypothesis.screening``).
 _ESCALATION_CONCURRENCY = 8
 
 

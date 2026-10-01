@@ -7,7 +7,7 @@ review, proximity, and tournament-entry path as a generated one, and retains
 authorship provenance.
 
 This module is the admission boundary: it runs the per-hypothesis safety review
-(the same `hypothesis_safety.review_hypothesis_safety` every generated
+(the same `hypothesis.safety.review_hypothesis_safety` every generated
 hypothesis passes) and, when admitted, stamps `origin="scientist_manual"` and
 the author so the tournament and reports can attribute it. It does not itself
 persist or rank — it produces the admitted hypothesis payload the normal
@@ -20,7 +20,7 @@ import dataclasses
 
 from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 
-from app.hypothesis_safety import (
+from app.hypothesis.safety import (
     HypothesisSafetyReview,
     escalate_review,
     review_hypothesis_safety,
@@ -132,7 +132,7 @@ async def admit_human_hypothesis_with_escalation(
     configured and reachable for this run, then gets a chance to raise that
     hold to a certain block; it cannot clear it, and an offline-backed run,
     a missing credential, or a provider error all leave the held verdict
-    unchanged (see ``hypothesis_safety.escalate_review``). No store write
+    unchanged (see ``hypothesis.safety.escalate_review``). No store write
     happens here, so this never holds the SQLite write lock across the
     model call. This does not change whether the hypothesis is admitted --
     UNCERTAIN already blocks admission the same as a raised PROHIBITED --

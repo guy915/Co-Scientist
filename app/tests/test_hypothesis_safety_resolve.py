@@ -23,8 +23,8 @@ from co_scientist.safety import (
 )
 
 from app import safety as app_safety
-from app.hypothesis_safety import escalate_review
-from app.hypothesis_safety_resolve import resolve_hold
+from app.hypothesis.safety import escalate_review
+from app.hypothesis.safety_resolve import resolve_hold
 from app.safety.types import SafetyDecision
 
 _DATASETS = (

@@ -108,7 +108,7 @@ ideas be built around?", "multi_select": false, "options": [{"label":
 # and its extra Config fields -- reviewer instructions, stratification
 # attributes, and model-derived safety flags -- which would be a schema and
 # backend change, not a prompt change. This app screens safety separately
-# (app.safety, app.hypothesis_safety) and its reviewer prompts are fixed.
+# (app.safety, app.hypothesis.safety) and its reviewer prompts are fixed.
 _GUIDE = r"""# Role
 
 You are the Agent conducting Google Hypothesis Generation's research-goal
