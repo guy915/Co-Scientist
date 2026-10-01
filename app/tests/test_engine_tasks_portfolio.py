@@ -2,7 +2,7 @@
 
 Execution used to enqueue exactly one successor node task per commit,
 reactively. These tests drive the shared commit path
-(``app.engine_tasks_support._save_state_and_enqueue``) directly to prove
+(``app.engine_tasks.support._save_state_and_enqueue``) directly to prove
 a commit now also chains however much of the deterministic tail
 ``co_scientist.task_runtime.plan_portfolio`` can already resolve, that a
 plan superseded by a real outcome (a mid-run safety halt) is cancelled
@@ -16,13 +16,9 @@ from typing import Any
 
 import pytest
 
-from app import (
-    engine_tasks,
-    engine_tasks_support,
-    store,
-    task_worker,
-)
-from app.engine_tasks_context import TaskCommit
+from app import engine_tasks, store, task_worker
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.context import TaskCommit
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,

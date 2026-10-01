@@ -2,9 +2,9 @@
 
 The aggregate task that commits per-hypothesis deep-verification results
 into the run's checkpoint and advances it into the tournament. Split from
-``app.engine_tasks_fanout_reflection``, whose ``_AppliedItems`` tally and
+``app.engine_tasks.fanout_reflection``, whose ``_AppliedItems`` tally and
 ``_checkpoint_and_advance`` helper it shares;
-``app.engine_tasks_fanout_aggregates`` re-exports the names callers use so
+``app.engine_tasks.fanout_aggregates`` re-exports the names callers use so
 ``app.engine_tasks`` remains their import and monkeypatch surface.
 
 Two marks are written here rather than by the items themselves, because
@@ -18,16 +18,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from app.engine_tasks_context import TaskCommit
-from app.engine_tasks_fanout_reflection import (
+from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.fanout_reflection import (
     _AppliedItems,
     _checkpoint_and_advance,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _require_item_task,
     leased_state,
 )
-from app.engine_tasks_telemetry import merge_usage_snapshots
+from app.engine_tasks.telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 

@@ -211,7 +211,7 @@ def _assess_flat_claims(
 
         # ``ThreadPoolExecutor`` does not copy this thread's contextvars
         # into its workers -- the caller's run-scoped LLM-call budget and
-        # telemetry phase (see engine_tasks_gate/drain) would otherwise
+        # telemetry phase (see engine_tasks.gate/drain) would otherwise
         # silently vanish for every claim an LLM assessor assesses here.
         # ``map`` preserves input order.
         with ThreadPoolExecutor(

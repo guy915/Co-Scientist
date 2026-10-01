@@ -1,11 +1,11 @@
 """Shared plumbing for the durable engine-task modules.
 
 The task-type vocabulary and the checkpoint save/enqueue/restore
-helpers used by every ``engine_tasks_*`` module. Split from
+helpers used by every ``app.engine_tasks`` module. Split from
 ``app.engine_tasks``, which re-exports the names callers use, so the
 fan-out/ranking/gate modules can share them without an import cycle
 back into the dispatcher. The node-completion emitters moved on to
-``app.engine_tasks_emit``; the ones still in use are re-exported below.
+``app.engine_tasks.emit``; the ones still in use are re-exported below.
 """
 
 from __future__ import annotations
@@ -13,36 +13,37 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from app import engine_tasks_runtime, store
+from app import store
 from app.engine_adapter.opts import build_engine_opts, build_generator
 from app.engine_adapter.provider import import_hypothesis_generator
-from app.engine_tasks_context import (
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.context import (
     ExactSuccessor,
     TaskCommit,
     _ack_consumed_steering,
 )
-from app.engine_tasks_emit import (
+from app.engine_tasks.emit import (
     NodeCompletion as NodeCompletion,
 )
-from app.engine_tasks_emit import (
+from app.engine_tasks.emit import (
     _emit_node_completion as _emit_node_completion,
 )
-from app.engine_tasks_emit import (
+from app.engine_tasks.emit import (
     _plain_final_state as _plain_final_state,
 )
-from app.engine_tasks_metrics import (
+from app.engine_tasks.metrics import (
     _metrics_snapshot as _metrics_snapshot,
 )
-from app.engine_tasks_pause import (
+from app.engine_tasks.pause import (
     _save_paused_if_requested as _save_paused_if_requested,
 )
-from app.engine_tasks_pause import (
+from app.engine_tasks.pause import (
     _save_paused_state as _save_paused_state,
 )
-from app.engine_tasks_portfolio import (
+from app.engine_tasks.portfolio import (
     _enqueue_node_portfolio as _enqueue_node_portfolio,
 )
-from app.engine_tasks_queue_actions import (
+from app.engine_tasks.queue_actions import (
     _durable_queue_snapshot as _durable_queue_snapshot,
 )
 from app.run_modes import resolved_run_config
@@ -197,7 +198,7 @@ def _save_node_checkpoint(
     rather than the orchestrator default in
     ``task_worker.enqueue_run_workflow``. Its own resume-side enqueue
     derives the same predecessor-anchored idempotency key
-    (``app.engine_tasks_portfolio``) from this checkpoint's ``stage``, so
+    (``app.engine_tasks.portfolio``) from this checkpoint's ``stage``, so
     resume resolves to the exact already-queued task instead of creating
     a second one. Without it, a run interrupted right after bootstrap
     resumed at the orchestrator with no supervisor_guidance in state and
@@ -243,7 +244,7 @@ def _save_state_and_enqueue(
     single hook here gives a running run's ``GET /api/runs/{id}/metrics``
     live numbers without a second transaction or a poll-driven write.
 
-    The successor enqueue (``app.engine_tasks_portfolio``) also chains
+    The successor enqueue (``app.engine_tasks.portfolio``) also chains
     however much further of the deterministic node run
     ``co_scientist.task_runtime.plan_portfolio`` can already resolve from
     ``state`` (finding F4): a bounded portfolio rather than one task at a

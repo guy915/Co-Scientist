@@ -1,8 +1,8 @@
 """The bounded queue view and mutations the Supervisor may drive.
 
-Split out of ``engine_tasks_support`` to keep that module on the task
+Split out of ``engine_tasks.support`` to keep that module on the task
 vocabulary and checkpoint plumbing; the names callers use stay importable
-from ``app.engine_tasks_support`` via re-export, so existing import sites and
+from ``app.engine_tasks.support`` via re-export, so existing import sites and
 monkeypatch seams are unaffected.
 
 Both halves are deliberately bounded. The snapshot the Supervisor reads is
@@ -33,11 +33,11 @@ def _cascade_cancel_downstream(
     ``queued`` forever with a dependency that can now never reach
     ``completed`` -- unclaimable, yet still reading as claimable work to
     the run's worker cohort. Mirrors
-    ``app.engine_tasks_portfolio._cancel_stale_planned_chain``; a no-op
+    ``app.engine_tasks.portfolio._cancel_stale_planned_chain``; a no-op
     for a task type nothing is ever portfolio-chained behind.
     """
-    from app.engine_tasks_portfolio import _cancel_downstream
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.portfolio import _cancel_downstream
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     _cancel_downstream(candidates, {task_id}, None, NODE_TASK_PREFIX, conn)
 
@@ -149,8 +149,8 @@ def _apply_supervisor_enqueue_actions(
     from co_scientist.scheduling import stacked_task_values
     from co_scientist.workflow_topology import TASK_ROUTES
 
-    from app.engine_tasks_portfolio import _enqueue_after
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.portfolio import _enqueue_after
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     for value in stacked_task_values(actions)[:_MAX_STACKED_TASKS]:
         node = TASK_ROUTES.get(value)

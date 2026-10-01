@@ -14,7 +14,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app import engine_tasks_runtime, store
+from app import store
 from app.report.build import (
     ReportRequest,
     _BuiltReport,
@@ -213,6 +213,10 @@ async def _screen_final_report(
     db_path: str | None,
 ) -> SafetyDecision:
     """Run the final safety screen (with escalation) over the report."""
+    # Function-local, for the cycle explained in the publish function below:
+    # importing any ``app.engine_tasks`` submodule loads the package first.
+    from app.engine_tasks import runtime as engine_tasks_runtime
+
     return await engine_tasks_runtime.active().screen(
         run_id,
         ScreenSubject("final", markdown, screen_final(markdown)),
@@ -229,10 +233,10 @@ def _commit_leased_report_publication(
     db_path: str | None,
 ) -> tuple[dict[str, str], int, dict[str, Any], int, dict[str, Any]]:
     """Atomically publish report state after validating the finalize lease."""
-    # Function-local: engine_tasks_support imports engine_adapter, whose drain
+    # Function-local: engine_tasks.support imports engine_adapter, whose drain
     # imports ``app.report`` (format_deep_verification_critique), so a
     # top-level import is a cycle whichever module loads first.
-    from app.engine_tasks_support import assert_task_commit_allowed
+    from app.engine_tasks.support import assert_task_commit_allowed
 
     with store.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
@@ -377,7 +381,7 @@ def _commit_empty_leaderboard_block(
 ) -> int:
     """Atomically persist a readiness block while the finalize lease is live."""
     # Function-local, for the cycle explained in the publish function above.
-    from app.engine_tasks_support import assert_task_commit_allowed
+    from app.engine_tasks.support import assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}
     with store.transaction(db_path) as conn:

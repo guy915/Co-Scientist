@@ -13,8 +13,8 @@ from co_scientist.models import Hypothesis
 from app import outcome_refinement_telemetry as refinement_telemetry
 from app import store
 from app.engine_adapter.checkpoints import is_engine_checkpoint
-from app.engine_tasks_portfolio import _enqueue_after
-from app.engine_tasks_support import (
+from app.engine_tasks.portfolio import _enqueue_after
+from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
     SupersededTaskError,
     _metrics_snapshot,

@@ -20,7 +20,7 @@ from app.claims import (
 )
 from app.claims_gate import SupportSpan
 from app.config import settings
-from app.engine_tasks_gate import (
+from app.engine_tasks.gate import (
     _apply_gate_verdict,
     _GatePlan,
     _GateWave,
@@ -425,7 +425,7 @@ def test_log_gate_wave_reports_entailment_calls(
         plans=[plan], considered=1, skipped_unrankable=0, skipped_unchanged=0
     )
 
-    with caplog.at_level(logging.INFO, logger="app.engine_tasks_gate"):
+    with caplog.at_level(logging.INFO, logger="app.engine_tasks.gate"):
         _log_gate_wave(wave, 7)
 
     assert "claims_assessed=2" in caplog.text

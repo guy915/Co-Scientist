@@ -27,7 +27,7 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 | Layer | Lives in | Role |
 | --- | --- | --- |
 | Workbench UI | `app/frontend/src/workbench/` | React 19 + Vite 7 + Tailwind v4 + MD3. Renders the four run-detail tabs (details, learning, overview, ideas) plus the chat workspace. Caches no *run or hypothesis* content — rebuilds from API + SSE on mount; it does persist a handful of small identity/preference keys (client id, theme, BYOK key) to `localStorage`/`sessionStorage`, see `docs/ARCHITECTURE.md`'s "Frontend state". |
-| FastAPI | `app/app/` | `/api/runs/*` lifecycle, SSE event stream, SQLite persistence, provider selection. No generator is held across requests — every durable task (`engine_tasks.py`) builds its own `HypothesisGenerator`. |
+| FastAPI | `app/app/` | `/api/runs/*` lifecycle, SSE event stream, SQLite persistence, provider selection. No generator is held across requests — every durable task (`engine_tasks/__init__.py`) builds its own `HypothesisGenerator`. |
 | Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 14 registered nodes (12 when MCP is unavailable — `literature_review`/`reflection` are excluded from the graph, not skipped at runtime). Selected by `engine_adapter.select_provider()`. |
 | MCP server | `engine/mcp_server/` | FastMCP + Biopython. 26 tools (24 without a web-search provider key): PubMed search/fulltext, OpenAlex, ChEMBL/UniProt, `search_web`/`read_url`, and 8 INDRA CoGex queries. Python 3.12 only. |
 
@@ -278,7 +278,7 @@ Canonical event timeline (see "Pipeline events" in [`docs/ARCHITECTURE.md`](ARCH
 
 Events 1-2 are written by the HTTP layer; 3-5 by the worker (`safety.intake` is
 the `engine.bootstrap` task's first act, then one `scientific_task` per node
-commit — `engine_tasks_emit.py::_emit_node_completion`); and 6-11 by the
+commit — `engine_tasks/emit.py::_emit_node_completion`); and 6-11 by the
 terminal `engine.finalize` task — so the citation audit follows
 `research_overview` rather than preceding it, and there is no
 `status (running)` event at all. The

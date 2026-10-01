@@ -14,7 +14,6 @@ from app import (
     claim_grounding,
     credentials,
     engine_tasks,
-    engine_tasks_gate,
     execution_policy,
     interviews_model,
     llm_request,
@@ -28,6 +27,7 @@ from app.config import settings
 from app.engine_adapter.checkpoints import restore_workflow_state
 from app.engine_adapter.drain import claim_grounding as drain_claim_grounding
 from app.engine_adapter.opts import build_generator
+from app.engine_tasks import gate as engine_tasks_gate
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_NAME,

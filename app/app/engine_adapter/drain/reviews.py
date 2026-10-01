@@ -85,7 +85,7 @@ def _persist_scientist_review(
     """Restore a merged scientist review, or report that it needs no row.
 
     A scientist review reaches the drain because the merge carried it into
-    engine state (``engine_tasks_inputs._scientist_hypothesis_review``),
+    engine state (``engine_tasks.inputs._scientist_hypothesis_review``),
     which is also where its author and verdict ride. Its own row usually
     survived the run's resets untouched -- scientist rows are deliberately
     retained -- so the drain must not write a second, differently-attributed

@@ -2,7 +2,7 @@
 
 The generation node's fan-out scheduling (one durable task per enabled
 strategy plus the aggregate) and the per-strategy executor. Split from
-``app.engine_tasks_fanout``, which re-exports the names callers use so
+``app.engine_tasks.fanout``, which re-exports the names callers use so
 ``app.engine_tasks`` remains their import and monkeypatch surface.
 """
 
@@ -15,11 +15,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import store
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     _AggregateSpec,
     _enqueue_aggregate_task,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _CHECKPOINT_PROVIDER,
     GENERATION_AGGREGATE_TASK,
     GENERATION_STRATEGY_TASK,

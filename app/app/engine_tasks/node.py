@@ -14,43 +14,44 @@ import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from app import engine_tasks_runtime, store
+from app import store
 from app.engine_adapter.drain import persist_final_state
-from app.engine_tasks_checkpoint_guard import (
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.checkpoint_guard import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
-from app.engine_tasks_checkpoint_guard import (
+from app.engine_tasks.checkpoint_guard import (
     _check_portfolio_predecessor as _check_portfolio_predecessor,
 )
-from app.engine_tasks_context import TaskCommit
-from app.engine_tasks_fanout import (
+from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.fanout import (
     _enqueue_generation_fanout,
     _enqueue_mature_reflection_fanout,
     _enqueue_review_fanout,
     _enqueue_verification_fanout,
 )
-from app.engine_tasks_finalize_outcomes import (
+from app.engine_tasks.finalize_outcomes import (
     _finalize_replay_or_none as _finalize_replay_or_none,
 )
-from app.engine_tasks_finalize_outcomes import (
+from app.engine_tasks.finalize_outcomes import (
     _settle_finalize_outcome as _settle_finalize_outcome,
 )
-from app.engine_tasks_gate import _apply_pre_ranking_evidence_gate
-from app.engine_tasks_inputs import (
+from app.engine_tasks.gate import _apply_pre_ranking_evidence_gate
+from app.engine_tasks.inputs import (
     reopen_for_pending_scientist_input as reopen_for_pending_scientist_input,
 )
-from app.engine_tasks_pause import (
+from app.engine_tasks.pause import (
     _pause_node_task_if_requested as _pause_node_task_if_requested,
 )
-from app.engine_tasks_pause import (
+from app.engine_tasks.pause import (
     _save_paused_checkpoint,
     _save_paused_state_if_requested,
 )
-from app.engine_tasks_ranking import _schedule_ranking_chain
-from app.engine_tasks_restore import (
+from app.engine_tasks.ranking import _schedule_ranking_chain
+from app.engine_tasks.restore import (
     _restore_node_task_state as _restore_node_task_state,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     FINALIZE_TASK,
     NodeCompletion,
     _emit_node_completion,
@@ -129,7 +130,7 @@ async def _commit_node_result(
     """
     task, db_path = commit.task, commit.db_path
     if node_name == "ranking" and successor == "orchestrator":
-        from app.engine_tasks_ranking import _consume_outcome_refinement_gate
+        from app.engine_tasks.ranking import _consume_outcome_refinement_gate
 
         if _consume_outcome_refinement_gate(
             task.run_id, committed, db_path=db_path

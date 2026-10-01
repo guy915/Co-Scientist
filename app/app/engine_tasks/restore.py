@@ -1,6 +1,6 @@
 """The state one durable node task starts from, and what it is told.
 
-Split from ``app.engine_tasks_node`` at that module's 500-line ceiling.
+Split from ``app.engine_tasks.node`` at that module's 500-line ceiling.
 What it owns is the difference between a checkpoint and the state a node
 actually runs on: the checkpoint is the run's committed science, while
 the overlays below are facts about *this* attempt -- steering waiting in
@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import engine_tasks_runtime
-from app.engine_tasks_context import TaskCommit, _task_commit
-from app.engine_tasks_inputs import _merge_scientist_inputs
-from app.engine_tasks_support import (
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.context import TaskCommit, _task_commit
+from app.engine_tasks.inputs import _merge_scientist_inputs
+from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
     _durable_queue_snapshot,
 )

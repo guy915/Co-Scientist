@@ -2,7 +2,7 @@
 
 Each executor runs one hypothesis-scoped unit of work against a
 read-only checkpoint, returning its result for the family's aggregate
-to commit. Split from ``app.engine_tasks_fanout``, which re-exports
+to commit. Split from ``app.engine_tasks.fanout``, which re-exports
 the names callers use so ``app.engine_tasks`` remains their import and
 monkeypatch surface.
 """
@@ -13,7 +13,7 @@ import asyncio
 import dataclasses
 from typing import Any
 
-from app.engine_tasks_support import _restore_item_checkpoint
+from app.engine_tasks.support import _restore_item_checkpoint
 from app.store import ScientificTask
 
 

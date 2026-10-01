@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any
 
 from app import store
-from app.engine_tasks_context import TaskCommit, _ack_consumed_steering
+from app.engine_tasks.context import TaskCommit, _ack_consumed_steering
 
 
 def _save_paused_checkpoint(
@@ -19,8 +19,8 @@ def _save_paused_checkpoint(
     """Save paused state inside the task's already-open commit transaction."""
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
-    from app.engine_tasks_metrics import _metrics_snapshot
-    from app.engine_tasks_support import _CHECKPOINT_PROVIDER
+    from app.engine_tasks.metrics import _metrics_snapshot
+    from app.engine_tasks.support import _CHECKPOINT_PROVIDER
 
     task = commit.task
     latest = store.get_latest_checkpoint(task.run_id, conn=conn)
@@ -80,7 +80,7 @@ def _save_paused_state(
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
-    from app.engine_tasks_support import assert_task_commit_allowed
+    from app.engine_tasks.support import assert_task_commit_allowed
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
@@ -105,7 +105,7 @@ def _save_paused_state_if_requested(
     """Serialize outside the lock, then atomically check pause and save."""
     from co_scientist.checkpoint import serialize_workflow_state
 
-    from app.engine_tasks_support import assert_task_commit_allowed
+    from app.engine_tasks.support import assert_task_commit_allowed
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)

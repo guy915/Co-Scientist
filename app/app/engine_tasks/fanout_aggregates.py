@@ -3,17 +3,17 @@
 Each fan-out family (review, generation, mature reflection, deep
 verification) ends in one aggregate task that folds successful item
 results into the workflow checkpoint while preserving per-item failures.
-Split from ``app.engine_tasks_fanout``, which re-exports the names callers
+Split from ``app.engine_tasks.fanout``, which re-exports the names callers
 use so ``app.engine_tasks`` remains their import and monkeypatch surface.
 The mature-reflection aggregate, plus the shared ``_AppliedItems`` tally
 and checkpoint-and-advance helper, live in
-``app.engine_tasks_fanout_reflection``; the deep-verification aggregate
-lives in ``app.engine_tasks_fanout_verification``. The names callers use
+``app.engine_tasks.fanout_reflection``; the deep-verification aggregate
+lives in ``app.engine_tasks.fanout_verification``. The names callers use
 are re-exported below.
 
 The one shape every family's aggregate *task* shares -- the enqueue --
 lives here too, since both fan-out schedulers
-(``app.engine_tasks_fanout`` and ``app.engine_tasks_fanout_generation``)
+(``app.engine_tasks.fanout`` and ``app.engine_tasks.fanout_generation``)
 import this module and neither can import the other without a cycle.
 """
 
@@ -25,21 +25,21 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app import store
-from app.engine_tasks_context import TaskCommit
-from app.engine_tasks_fanout_reflection import (
+from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.fanout_reflection import (
     _checkpoint_and_advance as _checkpoint_and_advance,
 )
-from app.engine_tasks_fanout_reflection import (
+from app.engine_tasks.fanout_reflection import (
     execute_mature_reflection_aggregate as execute_mature_reflection_aggregate,
 )
-from app.engine_tasks_fanout_verification import (
+from app.engine_tasks.fanout_verification import (
     execute_verification_aggregate as execute_verification_aggregate,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _require_item_task,
     leased_state,
 )
-from app.engine_tasks_telemetry import merge_usage_snapshots
+from app.engine_tasks.telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 
@@ -321,7 +321,7 @@ async def _generation_aggregate_update(
     """Finalize the combined generation strategies into a state update.
 
     Finding L3: every completed strategy item already reports its real
-    ``llm_calls`` (``engine_tasks_fanout_generation``); a failed and
+    ``llm_calls`` (``engine_tasks.fanout_generation``); a failed and
     isolated item contributes none, which under-reports by exactly the
     calls that item spent before failing -- the same convention the
     engine side uses for a count that is real but not exhaustive.

@@ -21,7 +21,7 @@ distinguished by that field's absence rather than by status code.
 
 Runs on a small bounded thread pool rather than an event loop. The drain
 calls ``resolve_many`` from inside a running asyncio loop
-(``engine_tasks_node.execute_finalize``), where ``asyncio.run`` would raise;
+(``engine_tasks.node.execute_finalize``), where ``asyncio.run`` would raise;
 a blocking thread pool sidesteps that the same way
 ``app.claim_grounding_assess`` already does for its own provider calls, and
 each thread opens its own short-lived client rather than sharing one, since

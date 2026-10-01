@@ -22,8 +22,10 @@ scoped beside it, so every helper the task reaches sees the same adapter.
 The adapter is plain callables: it holds no generator and no asyncio primitive,
 so nothing built on one worker cohort's event loop can reach another. Each
 generator is still built inside the handler call that uses it. The module is a
-leaf (standard library only at import) so ``app.report`` and the
-``engine_tasks_*`` modules can all import it eagerly.
+leaf (standard library only at import) so the
+``app.engine_tasks`` modules can all import it eagerly. ``app.report`` imports
+it inside the function that needs it: any submodule import loads the package
+first, and the package reaches ``engine_adapter``, which imports ``app.report``.
 """
 
 from __future__ import annotations
@@ -87,7 +89,7 @@ class ProductionEngineTaskRuntime:
     """Production adapter: each slot reaches the real collaborator.
 
     Imports are function-local because the collaborators sit above this
-    module in the import graph (``engine_tasks_support`` imports the engine
+    module in the import graph (``engine_tasks.support`` imports the engine
     adapter, whose drain imports ``app.report``).
     """
 
@@ -95,7 +97,7 @@ class ProductionEngineTaskRuntime:
         self, task: ScientificTask, db_path: str | None
     ) -> tuple[Any, dict[str, Any]]:
         """Build the generator and engine options for a run's next task."""
-        from app.engine_tasks_support import _generator_and_opts
+        from app.engine_tasks.support import _generator_and_opts
 
         return _generator_and_opts(task, db_path)
 
@@ -103,7 +105,7 @@ class ProductionEngineTaskRuntime:
         self, task: ScientificTask, db_path: str | None
     ) -> Any:
         """Build a registry-compatible generator without consuming steering."""
-        from app.engine_tasks_support import _generator_for_restore
+        from app.engine_tasks.support import _generator_for_restore
 
         return _generator_for_restore(task, db_path)
 
@@ -129,7 +131,7 @@ class ProductionEngineTaskRuntime:
         db_path: str | None,
     ) -> tuple[Any, float, dict[str, Any]]:
         """Persist replayable final artifacts outside a database lock."""
-        from app.engine_tasks_node import _drain_and_persist_final_state
+        from app.engine_tasks.node import _drain_and_persist_final_state
 
         return await _drain_and_persist_final_state(run, state, db_path)
 

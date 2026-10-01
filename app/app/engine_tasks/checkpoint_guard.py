@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.engine_tasks_support import SupersededTaskError
+from app.engine_tasks.support import SupersededTaskError
 from app.store import ScientificTask
 
 

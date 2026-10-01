@@ -7,7 +7,7 @@ the deterministic tail the engine's ``co_scientist.task_runtime.
 plan_portfolio`` can already resolve from committed state -- chained by
 the durable queue's existing ``dependencies`` gate, so the checkpoint
 chain stays exactly as serial as it is today (see
-``app.engine_tasks_support._save_state_and_enqueue``, the module's only
+``app.engine_tasks.support._save_state_and_enqueue``, the module's only
 caller).
 
 Every row this module creates is keyed ``{task_type}:after:{predecessor
@@ -35,7 +35,7 @@ mere existence, dependency-blind by design, so an orphan like that never
 lets a run's worker cohort conclude there is nothing left to do. That
 is a hang, not a slow settle: this is the regression this module
 shipped with the first time.
-``app.engine_tasks_node._check_node_task_checkpoint`` is the backstop if
+``app.engine_tasks.node._check_node_task_checkpoint`` is the backstop if
 a stale row is ever claimed anyway (it cannot be, once cancelled, but a
 row that slips past cancellation for some other reason still cannot
 run): it verifies not just that the predecessor committed, but that the
@@ -50,7 +50,7 @@ import sqlite3
 from typing import Any
 
 from app import store
-from app.engine_tasks_queue_actions import (
+from app.engine_tasks.queue_actions import (
     _apply_supervisor_enqueue_actions,
     _apply_supervisor_queue_actions,
 )
@@ -192,7 +192,7 @@ def _cancel_stale_planned_chain(
             stale guess.
         conn: Open connection of the caller's transaction.
     """
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     candidates = store.list_tasks(task.run_id, conn=conn)
     _cancel_downstream(candidates, {task.id}, keep_type, NODE_TASK_PREFIX, conn)
@@ -222,7 +222,7 @@ def cancel_downstream_portfolio_chain(
     ordinary retry would strand the chain a *successful* retry still
     needs to reuse.
     """
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     with store.transaction(db_path) as conn:
         candidates = store.list_tasks(task.run_id, conn=conn)
@@ -244,7 +244,7 @@ def _enqueue_lookahead_tail(
     """
     from co_scientist.task_runtime import plan_portfolio
 
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     predecessor = head
     for hop in plan_portfolio(successor, state)[1:]:
@@ -279,7 +279,7 @@ def _enqueue_node_portfolio(
     Returns:
         The enqueued (or reused) head task.
     """
-    from app.engine_tasks_support import NODE_TASK_PREFIX
+    from app.engine_tasks.support import NODE_TASK_PREFIX
 
     is_orchestrator = task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
     if is_orchestrator:

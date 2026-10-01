@@ -3,8 +3,8 @@
 Every durable fan-out item and ranking-match wave captures its own LLM
 usage via ``co_scientist.llm.telemetry.scoped_telemetry`` and carries the
 snapshot home in its own task result or successor inputs -- an item task
-never commits workflow state itself (see ``app.engine_tasks_fanout_items``
-and ``app.engine_tasks_ranking_wave``). The family's aggregate (or, for
+never commits workflow state itself (see ``app.engine_tasks.fanout_items``
+and ``app.engine_tasks.ranking_wave``). The family's aggregate (or, for
 ranking, the next wave/finalize task) folds those snapshots back into one
 ``ExecutionMetrics.model_usage`` delta here, so every family reuses the
 identical additive merge instead of re-deriving it per family.

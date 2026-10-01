@@ -247,7 +247,7 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     """
     from co_scientist.models import Hypothesis
 
-    from app.engine_tasks_ranking_wave import _apply_wave_elo
+    from app.engine_tasks.ranking_wave import _apply_wave_elo
 
     hyp_a = Hypothesis(text="shared A")
     hyp_b = Hypothesis(text="opponent B")

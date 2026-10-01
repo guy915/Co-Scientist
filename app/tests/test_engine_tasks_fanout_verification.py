@@ -4,8 +4,8 @@ Who is fanned out (every idea still owed its one verification, and only
 those), that the family commits through a single aggregate, and that a
 pool with nothing left to verify still hands the run into the tournament.
 Split from ``test_engine_tasks_fanout``, mirroring the source split
-between ``engine_tasks_fanout_reflection`` and
-``engine_tasks_fanout_verification``.
+between ``engine_tasks.fanout_reflection`` and
+``engine_tasks.fanout_verification``.
 """
 
 import asyncio

@@ -3,7 +3,7 @@
 One durable ranking task judges a bounded *wave* of Elo matchups: this
 module owns the value objects describing a wave, the pairing selection, the
 concurrent judging, and the Elo application that folds a judged wave back
-into the running totals. Split from ``app.engine_tasks_ranking``, which
+into the running totals. Split from ``app.engine_tasks.ranking``, which
 re-exports the names callers use so its namespace keeps resolving.
 """
 
@@ -23,7 +23,7 @@ from co_scientist.constants import (
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import scoped_telemetry
 
-from app.engine_tasks_telemetry import merge_usage_snapshots
+from app.engine_tasks.telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ class _WaveResult:
             judged so far this tournament (finding L3's cost-accounting
             counterpart), carried through the sequential match chain since
             only the finalize task's checkpoint commits it (see
-            ``_commit_ranking_match`` in ``app.engine_tasks_ranking``).
+            ``_commit_ranking_match`` in ``app.engine_tasks.ranking``).
     """
 
     details: list[dict[str, Any]]

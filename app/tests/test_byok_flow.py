@@ -209,7 +209,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
 def test_generator_for_a_byok_run_uses_the_runs_key(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.engine_tasks_support import _generator_and_opts
+    from app.engine_tasks.support import _generator_and_opts
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
@@ -258,7 +258,7 @@ async def test_byok_key_absent_from_serialized_checkpoint(
     """The checkpointed workflow state must never contain the key."""
     from co_scientist.checkpoint import serialize_workflow_state
 
-    from app.engine_tasks_support import _generator_and_opts
+    from app.engine_tasks.support import _generator_and_opts
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:

@@ -199,7 +199,7 @@ def test_gate_telemetry_is_folded_into_the_run_metrics() -> None:
     """
     from co_scientist.models import ExecutionMetrics
 
-    from app import engine_tasks_gate
+    from app.engine_tasks import gate as engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
     usage = {"claim_gate::llm:test-model": {"calls": 25, "prompt_tokens": 100}}
@@ -216,7 +216,7 @@ def test_a_gate_pass_that_made_no_calls_charges_nothing() -> None:
     """A fully-reused gate pass must not manufacture a metrics key."""
     from co_scientist.models import ExecutionMetrics
 
-    from app import engine_tasks_gate
+    from app.engine_tasks import gate as engine_tasks_gate
 
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
 

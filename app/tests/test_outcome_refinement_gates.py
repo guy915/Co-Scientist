@@ -111,7 +111,7 @@ def _install_deterministic_gate_stubs(
     )
     from co_scientist.agents.reflection import review as review_module
 
-    from app import engine_tasks_ranking_wave
+    from app.engine_tasks import ranking_wave as engine_tasks_ranking_wave
 
     stubs = _OfflineGateStubs(parent_id, sibling_id)
     monkeypatch.setattr(

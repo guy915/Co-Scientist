@@ -10,7 +10,7 @@ app/
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel); runs_lifecycle/collections/contrib/chat back it
 │   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
-│   ├── engine_tasks.py    Durable run execution — the production path — plus task_worker.py
+│   ├── engine_tasks/      Durable run execution — the production path — plus task_worker.py
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
 │   ├── report/            Goal Report package: payload, markdown, release gate, finalize path

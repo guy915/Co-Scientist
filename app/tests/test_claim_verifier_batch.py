@@ -174,7 +174,7 @@ def test_batch_call_counter_increments_once_per_actual_call(
 
     A group whose claims retrieve no evidence never reaches the provider,
     so the counter must not tick for it -- this is what lets
-    ``engine_tasks_gate``'s ``entailment_calls=`` log line report actual
+    ``engine_tasks.gate``'s ``entailment_calls=`` log line report actual
     spend rather than an upper bound.
     """
     _install(

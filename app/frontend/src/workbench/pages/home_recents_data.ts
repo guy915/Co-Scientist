@@ -102,7 +102,7 @@ export function homeRunScore(
 // tournament. `null` means "carries no phase signal" (see homeRunStepIndex).
 //
 // Keyed by the distinguishing segment of a durable task type, which the engine
-// provider mints in `app/engine_tasks.py` as `engine.node.<graph node>`,
+// provider mints in `app/engine_tasks/__init__.py` as `engine.node.<graph node>`,
 // `engine.fanout.<workflow>.<step>`, `engine.ranking.<step>`, or a bare
 // `engine.<step>`. Keying on that segment rather than the whole string means
 // one entry covers a node and its fan-out siblings alike (`engine.node.ranking`

@@ -2,7 +2,7 @@
 
 The milestone/``scientific_task`` emitters every durable node commit
 fires, plus the final-state shaping helper they share. Split from
-``app.engine_tasks_support``, which re-exports these names so
+``app.engine_tasks.support``, which re-exports these names so
 ``app.engine_tasks`` remains the stable import and monkeypatch surface.
 """
 

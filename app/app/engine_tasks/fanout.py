@@ -1,10 +1,10 @@
 """Durable fan-out scheduling for review, verification, and reflection.
 
 Split from ``app.engine_tasks``, which re-exports the names callers use. The
-generation fan-out lives in ``app.engine_tasks_fanout_generation``, the
-per-item executors in ``app.engine_tasks_fanout_items``, and the
+generation fan-out lives in ``app.engine_tasks.fanout_generation``, the
+per-item executors in ``app.engine_tasks.fanout_items``, and the
 aggregates that commit fan-out results in
-``app.engine_tasks_fanout_aggregates``; the names callers use are
+``app.engine_tasks.fanout_aggregates``; the names callers use are
 re-exported below.
 """
 
@@ -16,38 +16,38 @@ from functools import partial
 from typing import Any, NamedTuple
 
 from app import store
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     _AggregateSpec,
     _enqueue_aggregate_task,
 )
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     execute_generation_aggregate as execute_generation_aggregate,
 )
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     execute_mature_reflection_aggregate as execute_mature_reflection_aggregate,
 )
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     execute_review_aggregate as execute_review_aggregate,
 )
-from app.engine_tasks_fanout_aggregates import (
+from app.engine_tasks.fanout_aggregates import (
     execute_verification_aggregate as execute_verification_aggregate,
 )
-from app.engine_tasks_fanout_generation import (
+from app.engine_tasks.fanout_generation import (
     _enqueue_generation_fanout as _enqueue_generation_fanout,
 )
-from app.engine_tasks_fanout_generation import (
+from app.engine_tasks.fanout_generation import (
     execute_generation_strategy as execute_generation_strategy,
 )
-from app.engine_tasks_fanout_items import (
+from app.engine_tasks.fanout_items import (
     execute_mature_reflection_item as execute_mature_reflection_item,
 )
-from app.engine_tasks_fanout_items import (
+from app.engine_tasks.fanout_items import (
     execute_review_item as execute_review_item,
 )
-from app.engine_tasks_fanout_items import (
+from app.engine_tasks.fanout_items import (
     execute_verification_item as execute_verification_item,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     MATURE_REFLECTION_AGGREGATE_TASK,
     MATURE_REFLECTION_ITEM_TASK,
     REVIEW_AGGREGATE_TASK,

@@ -14,7 +14,7 @@ from typing import Any
 
 from app import store
 from app.elo import INITIAL_ELO
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     BOOTSTRAP_TASK,
     NODE_TASK_PREFIX,
     SafetyHoldError,
@@ -341,7 +341,7 @@ def _merge_scientist_inputs(
     dispositions from it costs no LLM call.
 
     A *hypothesis* is a new competitor, so it is admitted at one boundary
-    (``admit_hypotheses``; see ``engine_tasks_restore``) rather than
+    (``admit_hypotheses``; see ``engine_tasks.restore``) rather than
     wherever the run happens to be. The pool may not grow inside a ranking
     wave, where the newcomer's Elo would mean nothing, nor between a
     fan-out's items and its aggregate, where the aggregate restores the

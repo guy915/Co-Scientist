@@ -45,7 +45,7 @@ async def _assess_claims(
 
     The wave itself runs off this coroutine's event loop
     (``async_bridge.run_off_loop``), the same way the pre-ranking gate
-    (``engine_tasks_gate._assess_gate_claims``) runs its own wave -- see
+    (``engine_tasks.gate._assess_gate_claims``) runs its own wave -- see
     the module docstring. ``scoped_telemetry("claim_grounding")``
     attributes this pass's LLM calls in the run's metrics separately from
     the pre-ranking gate's own ``"claim_gate"`` phase.

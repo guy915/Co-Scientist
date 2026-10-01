@@ -1,7 +1,7 @@
 """Tests for the engine adapter's canonical event vocabulary.
 
 The engine node -> canonical event mapping in ``engine_adapter.events`` is
-what the durable node executor (``engine_tasks_emit``) emits through: every
+what the durable node executor (``engine_tasks.emit``) emits through: every
 engine node is normalized into the canonical event type + payload shape the
 frontend reads, and the milestone side-messages are derived from that same
 payload. CI only exercises the offline path, so these tests are the sole
@@ -148,7 +148,7 @@ def _engine_streaming_state() -> dict[str, Any]:
 def _payloads_by_type() -> dict[str, dict[str, Any]]:
     """Map every engine node through the shared adapter into canonical events.
 
-    Mirrors what ``engine_tasks_emit`` does per node: resolve the canonical
+    Mirrors what ``engine_tasks.emit`` does per node: resolve the canonical
     type, then project the snapshot into the frontend-facing payload.
     """
     state = _engine_streaming_state()

@@ -2,17 +2,17 @@
 
 This module owns the run-level executors (bootstrap, node dispatch,
 finalize) and the ``execute_engine_task`` dispatcher. The rest of the
-durable vocabulary lives in sibling modules -- ``engine_tasks_support``
-(task types, checkpoint plumbing, emitters), ``engine_tasks_inputs``
+durable vocabulary lives in sibling modules -- ``engine_tasks.support``
+(task types, checkpoint plumbing, emitters), ``engine_tasks.inputs``
 (bootstrap/continuation enqueueing, scientist-input merge),
-``engine_tasks_gate`` (pre-ranking evidence gate), ``engine_tasks_fanout``
+``engine_tasks.gate`` (pre-ranking evidence gate), ``engine_tasks.fanout``
 (review/verification/generation/reflection fan-out),
-``engine_tasks_ranking`` (tournament chain), and ``engine_tasks_node``
+``engine_tasks.ranking`` (tournament chain), and ``engine_tasks.node``
 (node/finalize commit helpers) -- and the moved names that callers and
 tests use are re-exported here so ``app.engine_tasks`` remains their
 import surface. The collaborators a task builds or calls outside the store
 (generators, the safety screen, the final-state drain) resolve through
-``app.engine_tasks_runtime``, which this dispatcher binds once per task, not
+``app.engine_tasks.runtime``, which this dispatcher binds once per task, not
 through a patch on any module that looks one up.
 """
 
@@ -21,162 +21,163 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from app import engine_tasks_runtime, store
+from app import store
 from app.engine_adapter.provider import sync_engine_llm_backend
-from app.engine_tasks_context import (
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.context import (
     TaskCommit as TaskCommit,
 )
-from app.engine_tasks_context import (
+from app.engine_tasks.context import (
     _task_commit as _task_commit,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     _enqueue_review_fanout as _enqueue_review_fanout,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     _enqueue_verification_fanout as _enqueue_verification_fanout,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_generation_aggregate as execute_generation_aggregate,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_generation_strategy as execute_generation_strategy,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_mature_reflection_aggregate as execute_mature_reflection_aggregate,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_mature_reflection_item as execute_mature_reflection_item,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_review_aggregate as execute_review_aggregate,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_review_item as execute_review_item,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_verification_aggregate as execute_verification_aggregate,
 )
-from app.engine_tasks_fanout import (
+from app.engine_tasks.fanout import (
     execute_verification_item as execute_verification_item,
 )
-from app.engine_tasks_gate import (
+from app.engine_tasks.gate import (
     _apply_pre_ranking_evidence_gate as _apply_pre_ranking_evidence_gate,
 )
-from app.engine_tasks_inputs import (
+from app.engine_tasks.inputs import (
     _bootstrap_start_status as _bootstrap_start_status,
 )
-from app.engine_tasks_inputs import (
+from app.engine_tasks.inputs import (
     _merge_scientist_inputs as _merge_scientist_inputs,
 )
-from app.engine_tasks_inputs import (
+from app.engine_tasks.inputs import (
     _screen_bootstrap_intake as _screen_bootstrap_intake_impl,
 )
-from app.engine_tasks_inputs import (
+from app.engine_tasks.inputs import (
     enqueue_bootstrap as enqueue_bootstrap,
 )
-from app.engine_tasks_inputs import (
+from app.engine_tasks.inputs import (
     enqueue_scientist_continuation as enqueue_scientist_continuation,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _commit_node_result as _commit_node_result,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _dispatch_node_fanout as _dispatch_node_fanout,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _pause_node_task_if_requested as _pause_node_task_if_requested,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _require_active_run as _require_active_run,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     _restore_node_task_state as _restore_node_task_state,
 )
-from app.engine_tasks_node import (
+from app.engine_tasks.node import (
     execute_finalize as execute_finalize,
 )
-from app.engine_tasks_outcome_refinement import (
+from app.engine_tasks.outcome_refinement import (
     execute_outcome_refinement as execute_outcome_refinement,
 )
-from app.engine_tasks_ranking import (
+from app.engine_tasks.ranking import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
-from app.engine_tasks_ranking import (
+from app.engine_tasks.ranking import (
     _ranking_eligible as _ranking_eligible,
 )
-from app.engine_tasks_ranking import (
+from app.engine_tasks.ranking import (
     execute_ranking_finalize as execute_ranking_finalize,
 )
-from app.engine_tasks_ranking import (
+from app.engine_tasks.ranking import (
     execute_ranking_match as execute_ranking_match,
 )
-from app.engine_tasks_restore import (
+from app.engine_tasks.restore import (
     _prepare_node_task as _prepare_node_task,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     BOOTSTRAP_TASK as BOOTSTRAP_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     ENGINE_TASK_PREFIX as ENGINE_TASK_PREFIX,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     FINALIZE_TASK as FINALIZE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     GENERATION_AGGREGATE_TASK as GENERATION_AGGREGATE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     GENERATION_STRATEGY_TASK as GENERATION_STRATEGY_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     MATURE_REFLECTION_AGGREGATE_TASK as MATURE_REFLECTION_AGGREGATE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     MATURE_REFLECTION_ITEM_TASK as MATURE_REFLECTION_ITEM_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     NODE_TASK_PREFIX as NODE_TASK_PREFIX,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     OUTCOME_REFINEMENT_TASK as OUTCOME_REFINEMENT_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     RANKING_FINALIZE_TASK as RANKING_FINALIZE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     RANKING_MATCH_TASK as RANKING_MATCH_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     RANKING_PROGRESS_EVERY as RANKING_PROGRESS_EVERY,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     REVIEW_AGGREGATE_TASK as REVIEW_AGGREGATE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     REVIEW_ITEM_TASK as REVIEW_ITEM_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     VERIFICATION_AGGREGATE_TASK as VERIFICATION_AGGREGATE_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     VERIFICATION_ITEM_TASK as VERIFICATION_ITEM_TASK,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     SafetyHoldError as SafetyHoldError,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     SupersededTaskError as SupersededTaskError,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _latest_task_checkpoint as _latest_task_checkpoint,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _require_run as _require_run,
 )
-from app.engine_tasks_support import (
+from app.engine_tasks.support import (
     _save_state_and_enqueue as _save_state_and_enqueue,
 )
 from app.execution_policy import (

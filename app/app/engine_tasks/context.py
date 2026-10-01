@@ -1,9 +1,9 @@
 """Value bundles threaded through the durable engine-task modules.
 
-Two small frozen records the ``engine_tasks_*`` commit helpers share:
+Two small frozen records the ``app.engine_tasks`` commit helpers share:
 where a task commits (``TaskCommit``) and what it enqueues next when the
 successor is not a graph node (``ExactSuccessor``). They live in their own
-module so ``engine_tasks_support`` and the fan-out/ranking modules can
+module so ``engine_tasks.support`` and the fan-out/ranking modules can
 import them without an import cycle. The two helpers that build a commit
 target and settle what it owes at commit time live here with it.
 """

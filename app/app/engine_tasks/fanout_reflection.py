@@ -3,12 +3,12 @@
 The aggregate task that commits mature-reflection fan-out results, plus
 the ``_AppliedItems`` tally and the checkpoint-and-advance commit helper
 every fan-out aggregate shares. Split from
-``app.engine_tasks_fanout_aggregates``, which imports the shared helper
+``app.engine_tasks.fanout_aggregates``, which imports the shared helper
 and re-exports the names callers use so ``app.engine_tasks`` remains their
 import and monkeypatch surface.
 
 The deep-verification aggregate is the sibling
-``app.engine_tasks_fanout_verification``, which imports both shared names
+``app.engine_tasks.fanout_verification``, which imports both shared names
 from here.
 """
 
@@ -18,15 +18,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.engine_tasks_context import TaskCommit
-from app.engine_tasks_support import (
+from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.support import (
     NodeCompletion,
     _emit_node_completion,
     _require_item_task,
     _save_state_and_enqueue,
     leased_state,
 )
-from app.engine_tasks_telemetry import merge_usage_snapshots
+from app.engine_tasks.telemetry import merge_usage_snapshots
 from app.store import ScientificTask
 
 

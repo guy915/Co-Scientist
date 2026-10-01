@@ -7,9 +7,6 @@ from typing import Any
 from co_scientist.models import Hypothesis
 
 from app import store
-from app.engine_tasks_support import NODE_TASK_PREFIX
-
-_REVIEW_TASK = f"{NODE_TASK_PREFIX}review"
 
 
 def _child_row(run_id: str, child: Hypothesis) -> store.NewHypothesis:
@@ -82,7 +79,12 @@ def _result_checkpoint_state(
         "parent_hypothesis_id": parent.id,
     }
     updated_state = {**state, "hypotheses": [*state["hypotheses"], child]}
-    updated_state["resume_successor"] = _REVIEW_TASK
+    # Function-local: importing any ``app.engine_tasks`` submodule loads the
+    # package, whose ``outcome_refinement`` imports this module, so a
+    # top-level import is a cycle when this module loads first.
+    from app.engine_tasks.support import NODE_TASK_PREFIX
+
+    updated_state["resume_successor"] = f"{NODE_TASK_PREFIX}review"
     return updated_state, {
         "kind": "child",
         "action_id": action["action_id"],
