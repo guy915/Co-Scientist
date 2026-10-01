@@ -1,4 +1,4 @@
-"""Tests for the interview turn's SSE transport (interviews_stream.py).
+"""Tests for the interview turn's SSE transport (interviews/stream.py).
 
 Covers the defect where a disconnected client -- or any cancellation of
 the coroutine iterating ``_advance_stream`` -- left the turn's model call
@@ -14,9 +14,10 @@ from typing import Any
 
 import pytest
 
-from app import interviews_stream, store
+from app import store
 from app.config import settings
 from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
+from app.interviews import stream as interviews_stream
 
 
 class _HangingStream:

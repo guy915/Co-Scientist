@@ -14,7 +14,6 @@ from app import (
     credentials,
     engine_tasks,
     execution_policy,
-    interviews_model,
     llm_request,
     offline_guard,
     qa_stream,
@@ -33,6 +32,7 @@ from app.execution_policy import (
     STANDARD,
     scoped_execution_policy,
 )
+from app.interviews import model as interviews_model
 from app.runs import crud_create as runs_crud_create
 from app.runs.crud_resolve import _ResolvedRunSettings
 from app.runs.models import CreateRunRequest

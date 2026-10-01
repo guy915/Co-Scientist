@@ -3,7 +3,7 @@
 Split out of ``app.interviews`` (which re-exports both names, so they stay
 reachable as ``interviews._attach_documents`` /
 ``interviews._with_documents``). The interview reads its attachments on
-every turn -- see ``interviews_prompts._attached_documents`` -- so a
+every turn -- see ``interviews.prompts._attached_documents`` -- so a
 document attached in the composer scopes the goal it was attached to,
 rather than reaching the work only once a run exists.
 """

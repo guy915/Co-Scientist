@@ -187,7 +187,7 @@ async def generate_run_title(goal: str) -> str | None:
     if not content.strip() and _reasoned_with_no_answer(response):
         # The call spent its budget reasoning and wrote nothing -- not a
         # provider failure, so one retry with thinking off, exactly as a
-        # streamed turn is retried; see interviews_model._stream_interview_
+        # streamed turn is retried; see interviews.model._stream_interview_
         # content and the AGENTS.md gotcha on LLMThinkingOnlyError.
         logger.warning(
             "Run title call reasoned and wrote no answer; retrying once "

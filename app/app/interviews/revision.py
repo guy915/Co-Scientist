@@ -19,8 +19,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app import store
-from app.interviews_models import InterviewTurnRequest
-from app.interviews_stream import (
+from app.interviews.models import InterviewTurnRequest
+from app.interviews.stream import (
     _interview_stream,
 )
 

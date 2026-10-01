@@ -1,10 +1,10 @@
 """Model-driven, durable research-goal interview API.
 
 This module owns the durable turn lifecycle and the HTTP surface. The
-provider call and its deterministic fallback live in ``interviews_model``,
+provider call and its deterministic fallback live in ``interviews.model``,
 the request-shaping half (schema, prompts, field normalization) in
-``interviews_prompts``, the SSE transport for one turn's advancement in
-``interviews_stream``, the request bodies in ``interviews_models``, and
+``interviews.prompts``, the SSE transport for one turn's advancement in
+``interviews.stream``, the request bodies in ``interviews.models``, and
 the rewind/retry revision endpoints in ``interviews_revision`` (mounted
 via ``router.include_router`` so they keep their original paths); the
 names callers and tests use are re-exported here, so ``app.interviews``
@@ -20,60 +20,59 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app import (
-    credentials,
-    documents,
-    interviews_revision,
-    store,
-)
+from app import credentials, store
+
+# Aliased: the sibling module app.interviews.documents would shadow the name.
+from app import documents as app_documents
 from app.auth import client_id, require_client_scope
 from app.execution_policy import CAMPAIGN, STANDARD, resolve_execution_policy
-from app.interviews_documents import (
+from app.interviews import revision as interviews_revision
+from app.interviews.documents import (
     _attach_documents as _attach_documents,
 )
-from app.interviews_documents import (
+from app.interviews.documents import (
     _with_documents as _with_documents,
 )
-from app.interviews_model import (
+from app.interviews.model import (
     ProseSink as ProseSink,
 )
-from app.interviews_model import (
+from app.interviews.model import (
     ReasoningSink as ReasoningSink,
 )
-from app.interviews_model import (
+from app.interviews.model import (
     _call_interview_model as _call_interview_model,
 )
-from app.interviews_model import (
+from app.interviews.model import (
     _fallback_interview_response as _fallback_interview_response,
 )
-from app.interviews_models import (
+from app.interviews.models import (
     CreateInterviewRequest as CreateInterviewRequest,
 )
-from app.interviews_models import (
+from app.interviews.models import (
     InterviewFieldsRequest as InterviewFieldsRequest,
 )
-from app.interviews_models import (
+from app.interviews.models import (
     InterviewTurnRequest as InterviewTurnRequest,
 )
-from app.interviews_prompts import (
+from app.interviews.prompts import (
     _clean_list as _clean_list,
 )
-from app.interviews_prompts import (
+from app.interviews.prompts import (
     _essentials_ready as _essentials_ready,
 )
-from app.interviews_prompts import (
+from app.interviews.prompts import (
     _normalized_fields as _normalized_fields,
 )
-from app.interviews_prompts import (
+from app.interviews.prompts import (
     _ready as _ready,
 )
-from app.interviews_question_repair import (
+from app.interviews.question_repair import (
     repair_questions as repair_questions,
 )
-from app.interviews_questions import (
+from app.interviews.questions import (
     normalized_questions as normalized_questions,
 )
-from app.interviews_stream import (
+from app.interviews.stream import (
     _interview_stream as _interview_stream,
 )
 
@@ -215,11 +214,11 @@ async def _with_repaired_questions(turn: _ResolvedTurn) -> _ResolvedTurn:
     """Return ``turn`` with the clickable answers its question was missing.
 
     A turn that asks a question is supposed to carry that question's options
-    (see ``app.interviews_prompts``); the block is last in the reply, so it
+    (see ``app.interviews.prompts``); the block is last in the reply, so it
     is what a truncated turn loses, and a model that ignores the instruction
     loses it too. Either way the prose already asked correctly, so the
     question is read back out of it rather than the turn being retried --
-    see ``app.interviews_question_repair``, which returns nothing for a turn
+    see ``app.interviews.question_repair``, which returns nothing for a turn
     whose prose asks nothing and never invents a question.
 
     Skipped for a completing turn, which asks nothing by contract, and for a
@@ -337,7 +336,7 @@ async def create_interview(
     execution_policy = resolve_execution_policy(request)
     byok = _request_byok(request, execution_policy)
     # Refused before the interview row exists, so a bad id leaves nothing.
-    documents.resolve_owned_documents(body.document_ids, owner)
+    app_documents.resolve_owned_documents(body.document_ids, owner)
     interview = store.create_interview(
         owner,
         body.research_challenge,
@@ -426,7 +425,7 @@ async def add_interview_turn(
 
 
 # The rewind/retry revision endpoints (PUT .../turns/{turn_id} and POST
-# .../turns/{turn_id}/retry) live in app.interviews_revision and are
+# .../turns/{turn_id}/retry) live in app.interviews.revision and are
 # mounted here so they keep their original paths under this router's
 # "/api/interviews" prefix.
 router.include_router(interviews_revision.router)

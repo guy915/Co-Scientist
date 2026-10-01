@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS interview_turns (
     -- change marks only the turns it affects.
     fallback INTEGER NOT NULL DEFAULT 0,
     -- JSON array of the structured multiple-choice questions this Agent turn
-    -- offered the scientist (see interviews_questions.py). NULL for user
+    -- offered the scientist (see interviews/questions.py). NULL for user
     -- turns and for any turn that asked nothing choosable. Per turn, never
     -- cumulative: a question belongs to the turn that asked it, so a reopened
     -- chat re-offers only the one still awaiting an answer.

@@ -17,7 +17,7 @@ from co_scientist.llm import coerce_json_list
 
 from app import store
 from app.config import settings
-from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
+from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
 
 # The turn's shape, restated for the model. The five fields are unchanged
 # from the JSON-object format this replaced; what changed is where they

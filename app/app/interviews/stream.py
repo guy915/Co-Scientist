@@ -6,7 +6,7 @@ this module owns turning one Agent turn into an SSE stream -- the live
 reasoning relay, the closing interview/error frame, and the BYOK scoping
 the turn's model call runs under. The durable turn lifecycle and the HTTP
 surface stay in ``app.interviews``; the provider call itself in
-``app.interviews_model``.
+``app.interviews.model``.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from app.execution_policy import (
     CAMPAIGN_MODEL_NAME,
     scoped_execution_policy,
 )
-from app.interviews_model import ProseSink, ReasoningSink
+from app.interviews.model import ProseSink, ReasoningSink
 from app.sse import sse_frame
 
 logger = logging.getLogger(__name__)

@@ -84,7 +84,7 @@ export function beginTurnAbort(
 }
 
 // Recovers from a stopped turn: the streamed draft never persisted (see
-// interviews_stream._advance_stream), so it is dropped, then the session
+// interviews.stream._advance_stream), so it is dropped, then the session
 // resyncs from the server -- the sole source of truth for what a stopped
 // call actually wrote, and how the client learns the id of the scientist's
 // own turn the route persisted before the stream opened. `interviewId` is

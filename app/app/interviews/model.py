@@ -25,8 +25,8 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from app.interviews_prompts import _interview_request, _ready
-from app.interviews_wire import TurnSplitter
+from app.interviews.prompts import _interview_request, _ready
+from app.interviews.wire import TurnSplitter
 from app.llm_stream import stream_chunks
 
 # Receives each chain-of-thought fragment as the model emits it.
@@ -99,7 +99,7 @@ async def _stream_interview_content(
     before the first ``content`` delta, so reasoning surfaces live while the
     answer is still being written. Content deltas are the answer's prose and
     are relayed as they arrive, up to the trailing spec block, which is
-    withheld and parsed at the end (see ``app.interviews_wire``).
+    withheld and parsed at the end (see ``app.interviews.wire``).
 
     A turn that spends its whole reply reasoning and writes no answer at
     all is not a provider failure -- the stream ends clean, just empty --

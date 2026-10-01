@@ -2,9 +2,9 @@
 
 An interview turn that ends on a question is supposed to carry that
 question's clickable answers in its trailing spec block (see
-``app.interviews_prompts``' "Offering answers to click"). Sometimes it does
+``app.interviews.prompts``' "Offering answers to click"). Sometimes it does
 not: the model writes the question in prose and omits the array, or writes
-an array that ``app.interviews_questions`` cannot use, or its budget runs
+an array that ``app.interviews.questions`` cannot use, or its budget runs
 out on the block -- which is last in the reply and so the first thing lost.
 
 The prose is already correct in every one of those cases, so the turn is
@@ -31,7 +31,7 @@ from co_scientist.schemas.builders import obj
 
 from app import credentials, offline_guard
 from app.config import settings
-from app.interviews_questions import (
+from app.interviews.questions import (
     MAX_OPTIONS,
     MIN_OPTIONS,
     normalized_questions,

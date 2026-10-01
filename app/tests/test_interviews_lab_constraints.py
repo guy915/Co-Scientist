@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from app import interviews, store
 from app.engine_adapter.opts import build_engine_opts
-from app.interviews_prompts import _normalized_fields
+from app.interviews.prompts import _normalized_fields
 from app.main import app
 
 from ._interviews_helpers import InterviewFields, _interview_payload, _response

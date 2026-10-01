@@ -12,9 +12,10 @@ from typing import Any
 
 import pytest
 
-from app import interviews, interviews_prompts
+from app import interviews
 from app.config import settings
-from app.interviews_wire import CLOSE_MARKER, OPEN_MARKER
+from app.interviews import prompts as interviews_prompts
+from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
 
 from ._interviews_helpers import _fake_stream, _response, _wire_turn
 
@@ -50,7 +51,7 @@ async def test_interview_asks_for_prose_and_a_spec_block(
     a json_schema request for providers that support it and a json_object
     downgrade for those that do not. The answer is prose plus a trailing
     block now, which no provider-side format can describe, so the shape is
-    stated in the prompt and taken apart by ``interviews_wire``.
+    stated in the prompt and taken apart by ``interviews.wire``.
     """
     import litellm
 
@@ -170,7 +171,7 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
 def test_prompt_tolerates_two_consecutive_scientist_turns() -> None:
     """The prompt builder accepts the shape a stopped turn leaves behind.
 
-    A cancelled turn (see interviews_stream._advance_stream) persists
+    A cancelled turn (see interviews.stream._advance_stream) persists
     nothing for the reply it never finished, so the transcript carries two
     consecutive "user" turns once the scientist sends the next message.
     The builder must not assume strict user/agent alternation.

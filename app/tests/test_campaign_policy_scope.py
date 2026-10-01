@@ -13,11 +13,11 @@ from app import (
     engine_tasks,
     human_input,
     interviews,
-    interviews_stream,
     qa,
     run_start_announcement,
     store,
 )
+from app.interviews import stream as interviews_stream
 from app.runs import chat as runs_chat
 from app.runs import contrib as runs_contrib
 from app.runs import crud as runs_crud

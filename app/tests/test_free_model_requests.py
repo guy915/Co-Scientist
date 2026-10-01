@@ -10,7 +10,6 @@ import pytest
 from app import (
     credentials,
     goal_restatement,
-    interviews_model,
     qa_stream,
     run_start_announcement,
     store,
@@ -18,6 +17,7 @@ from app import (
 )
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
+from app.interviews import model as interviews_model
 
 MODEL = "openrouter/campaign/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]

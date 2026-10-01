@@ -1,7 +1,7 @@
 """Request bodies for the ``/api/interviews`` endpoints.
 
 Split out of ``app.interviews`` so the revision router
-(``app.interviews_revision``) can type its own request bodies without
+(``app.interviews.revision``) can type its own request bodies without
 importing back through ``app.interviews`` -- the same reason
 ``app.runs.models`` exists alongside ``app.runs``.
 """

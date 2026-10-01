@@ -15,8 +15,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import interviews, interviews_prompts
+from app import interviews
 from app.config import settings
+from app.interviews import prompts as interviews_prompts
 from app.main import app
 
 from ._interviews_helpers import (

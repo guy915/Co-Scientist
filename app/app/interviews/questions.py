@@ -1,10 +1,10 @@
 """Structured multiple-choice questions one interview turn may offer.
 
 An Agent turn is markdown prose ending on a question (see
-``app.interviews_prompts``). When that question has a small, known set of
+``app.interviews.prompts``). When that question has a small, known set of
 sensible answers, the turn also carries them as structured options, in the
 same trailing spec block its five fields already ride in
-(``app.interviews_wire``). The scientist then clicks an answer instead of
+(``app.interviews.wire``). The scientist then clicks an answer instead of
 typing one; the click is posted as an ordinary scientist turn, so the model
 sees the conversation it would have seen anyway.
 
@@ -111,7 +111,7 @@ def normalized_questions(raw: Any) -> list[dict[str, Any]]:
     if raw and not questions:
         # A turn that tried to offer a choice and lost it to normalization
         # is invisible otherwise: the scientist just sees prose. The repair
-        # pass (app.interviews_question_repair) recovers the click, but the
+        # pass (app.interviews.question_repair) recovers the click, but the
         # count of these is how a malformed-block regression is noticed.
         logger.warning(
             "Interview turn offered %d question(s), none usable", len(raw)
