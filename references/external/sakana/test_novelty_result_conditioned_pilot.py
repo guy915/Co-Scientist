@@ -518,6 +518,315 @@ def test_target_or_anchor_identifier_in_generated_query_stops_before_pubmed(
     assert client.calls == []
 
 
+def test_plain_text_query_uses_the_unstructured_single_attempt_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _qualified_model(monkeypatch)
+    import litellm
+
+    query = '"TP53 AND )" AND neurons[Title/Abstract]'
+    raw_query = f" \t{query} \n"
+    requests: list[dict[str, Any]] = []
+
+    async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
+        requests.append(kwargs)
+        return _model_completion(raw_query)
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    event: dict[str, Any] = {}
+    prompt = pilot._prompt("static", "TDP-43 in motor neurons", output_format="plain_text")
+
+    actual = asyncio.run(
+        pilot._generate_query(
+            prompt,
+            model_name=MODEL,
+            model_api_key="offline-test-key",
+            run_id="plain-query-test",
+            expected_source_ids=set(),
+            event=event,
+            output_format="plain_text",
+        )
+    )
+
+    assert actual == query
+    assert event["raw_query_response"] == raw_query
+    assert len(requests) == 1
+    assert "response_format" not in requests[0]
+    assert event["provider_calls"] == event["observed_model_calls"] == 1
+    assert event["retries"] == event["cache_hits"] == 0
+    assert litellm.acompletion is fake_acompletion
+    assert event["completion_finish_reasons"] == ["stop"]
+    assert event["completion_response_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "error", "source_ids"),
+    [
+        ("", "empty", set()),
+        ("query line one\nquery line two", "exactly one line", set()),
+        ("```\nquery\n```", "exactly one line", set()),
+        ("Query: TP53 motor neuron", "wrapper prose", set()),
+        ("TP53 AND \\\"motor neuron\\\"", "JSON-escaped quote marks", set()),
+        ('{"query":"TP53 motor neuron"}', "JSON wrapper", set()),
+        (
+            'TP53 AND {"term":"motor"}[Title/Abstract]',
+            "unquoted JSON braces",
+            set(),
+        ),
+        ("TP53 motor neuron Hope this helps.", "wrapper prose", set()),
+        ("x" * 201, "empty or exceeds 200 characters", set()),
+        ("TP53 12345678", "frozen target or anchor PMID", {"12345678"}),
+    ],
+)
+def test_plain_text_query_rejects_wrappers_without_repairing(
+    monkeypatch: pytest.MonkeyPatch,
+    response: str,
+    error: str,
+    source_ids: set[str],
+) -> None:
+    _qualified_model(monkeypatch)
+    import litellm
+
+    requests: list[dict[str, Any]] = []
+
+    async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
+        requests.append(kwargs)
+        return _model_completion(response)
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    event: dict[str, Any] = {}
+    prompt = pilot._prompt("static", "TP53 in motor neurons", output_format="plain_text")
+
+    with pytest.raises(ValueError, match=error):
+        asyncio.run(
+            pilot._generate_query(
+                prompt,
+                model_name=MODEL,
+                model_api_key="offline-test-key",
+                run_id="plain-query-invalid-test",
+                expected_source_ids=source_ids,
+                event=event,
+                output_format="plain_text",
+            )
+        )
+
+    assert len(requests) == 1
+    assert event["telemetry"]
+    _, calls, observed, retries = pilot._telemetry_totals(event["telemetry"])
+    assert calls == observed == 1
+    assert retries == 0
+    assert event["completion_response_count"] == 1
+
+
+def test_plain_text_prompts_share_wrapper_removal_instructions() -> None:
+    static = pilot._prompt("static", "draft", output_format="plain_text")
+    conditioned = pilot._prompt(
+        "conditioned",
+        "draft",
+        [{"title": "title", "abstract": "abstract"}],
+        output_format="plain_text",
+    )
+
+    assert pilot.PLAIN_TEXT_OUTPUT_INSTRUCTION in static
+    assert pilot.PLAIN_TEXT_OUTPUT_INSTRUCTION in conditioned
+    assert "Return JSON" not in static
+    assert "Return JSON" not in conditioned
+
+
+@pytest.mark.parametrize("finish_reason", [None, "length", "error", "content_filter"])
+def test_plain_text_requires_a_captured_stop_finish_reason(
+    monkeypatch: pytest.MonkeyPatch, finish_reason: str | None
+) -> None:
+    _qualified_model(monkeypatch)
+    import litellm
+
+    response = _model_completion('"TP53" AND motor neurons[Title/Abstract]')
+    response.choices[0].finish_reason = finish_reason
+
+    async def fake_acompletion(**_: Any) -> SimpleNamespace:
+        return response
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    event: dict[str, Any] = {}
+    prompt = pilot._prompt("static", "TP53 in motor neurons", output_format="plain_text")
+
+    with pytest.raises(ValueError):
+        asyncio.run(
+            pilot._generate_query(
+                prompt,
+                model_name=MODEL,
+                model_api_key="offline-test-key",
+                run_id="plain-query-finish-test",
+                expected_source_ids=set(),
+                event=event,
+                output_format="plain_text",
+            )
+        )
+
+    assert event["completion_finish_reasons"] == [finish_reason]
+    assert event["completion_response_count"] == 1
+    assert litellm.acompletion is fake_acompletion
+
+
+def test_plain_text_transport_failure_keeps_one_failed_call_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _qualified_model(monkeypatch)
+    import litellm
+
+    call_count = 0
+
+    async def failed_acompletion(**_: Any) -> SimpleNamespace:
+        nonlocal call_count
+        call_count += 1
+        raise RuntimeError("offline provider failure")
+
+    monkeypatch.setattr(litellm, "acompletion", failed_acompletion)
+    event: dict[str, Any] = {}
+    prompt = pilot._prompt("static", "TP53 in motor neurons", output_format="plain_text")
+
+    with pytest.raises(RuntimeError, match="offline provider failure"):
+        asyncio.run(
+            pilot._generate_query(
+                prompt,
+                model_name=MODEL,
+                model_api_key="offline-test-key",
+                run_id="plain-query-provider-error-test",
+                expected_source_ids=set(),
+                event=event,
+                output_format="plain_text",
+            )
+        )
+
+    _, calls, observed, retries = pilot._telemetry_totals(event["telemetry"])
+    assert call_count == calls == 1
+    assert observed == retries == 0
+    assert event["completion_finish_reasons"] == []
+    assert event["completion_response_count"] == 0
+    assert litellm.acompletion is failed_acompletion
+
+
+@pytest.mark.parametrize(
+    ("query", "error"),
+    [
+        ('"TP53 AND motor neurons[Title/Abstract]', "unbalanced quote"),
+        ('TP53 AND (motor neurons[Title/Abstract]', "unbalanced delimiter"),
+        ("TP53 AND motor neurons[Title/Abstract])", "unbalanced delimiter"),
+        ("TP53 AND", "incomplete boolean expression"),
+        ("AND TP53", "incomplete boolean expression"),
+        ("(TP53 AND )", "incomplete boolean expression"),
+        ("(TP53 OR NOT )", "incomplete boolean expression"),
+    ],
+)
+def test_plain_text_query_rejects_unbalanced_pubmed_syntax(
+    monkeypatch: pytest.MonkeyPatch, query: str, error: str
+) -> None:
+    _qualified_model(monkeypatch)
+    import litellm
+
+    async def fake_acompletion(**_: Any) -> SimpleNamespace:
+        return _model_completion(query)
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    event: dict[str, Any] = {}
+    prompt = pilot._prompt("static", "TP53 in motor neurons", output_format="plain_text")
+
+    with pytest.raises(ValueError, match=error):
+        asyncio.run(
+            pilot._generate_query(
+                prompt,
+                model_name=MODEL,
+                model_api_key="offline-test-key",
+                run_id="plain-query-delimiter-test",
+                expected_source_ids=set(),
+                event=event,
+                output_format="plain_text",
+            )
+        )
+
+
+def test_model_boundary_hash_extension_is_version_bound() -> None:
+    legacy_protocol = json.loads(pilot.PILOT_PREREG_V6.read_text(encoding="utf-8"))
+    legacy_files = set(legacy_protocol["model_boundary_sha256"])
+    text_retry_file = "engine/src/co_scientist/llm_text_retry.py"
+
+    assert legacy_files == set(pilot._model_boundary_hashes(6))
+    assert text_retry_file not in legacy_files
+    assert set(pilot._model_boundary_hashes(7)) == legacy_files | {text_retry_file}
+
+
+def test_plain_text_scanner_preserves_quoted_boolean_and_brace_literals() -> None:
+    pilot._validate_plain_text_query('"AND {OR}" AND TP53')
+
+
+def test_query_output_format_is_version_bound_and_future_study_stays_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V7", tmp_path / "missing-protocol.json")
+    assert pilot._query_output_format({}, 1) == pilot.JSON_QUERY_OUTPUT_FORMAT
+    assert pilot._query_output_format(
+        {"query_output_format": "plain_text"}, 7
+    ) == pilot.PLAIN_TEXT_QUERY_OUTPUT_FORMAT
+    with pytest.raises(ValueError, match="must pin its query output format"):
+        pilot._query_output_format({}, 7)
+    with pytest.raises(ValueError, match="Unsupported query output format"):
+        pilot._query_output_format({"query_output_format": "xml"}, 7)
+    with pytest.raises(ValueError, match="wrong query output format"):
+        pilot._query_output_format({"query_output_format": "plain_text"}, 6)
+
+    assert pilot._parse_args(["--study-version", "7"]).study_version == 7
+    with pytest.raises(ValueError, match="disabled until its protocol is preregistered"):
+        pilot._load_pilot_protocol(7)
+    assert not pilot._protocol_path(7).exists()
+    assert not pilot._protocol_path(7).with_suffix(".admission.json").exists()
+
+
+def test_future_plain_text_protocol_pins_its_prompt_and_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol_path = tmp_path / "future-protocol.json"
+    protocol: dict[str, Any] = {
+        "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
+        "study_version": 7,
+        "protocol_version": 7,
+        "fixture_bank_version": 8,
+        "fixture_bank_path": pilot.V7_FIXTURE_BANK_PATH,
+        "query_output_format": pilot.PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+        "runner_sha256": hashlib.sha256(Path(pilot.__file__).read_bytes()).hexdigest(),
+        "static_prompt_sha256": hashlib.sha256(
+            pilot.PLAIN_TEXT_STATIC_PROMPT.encode()
+        ).hexdigest(),
+        "conditioned_prompt_sha256": hashlib.sha256(
+            pilot.PLAIN_TEXT_CONDITIONED_PROMPT.encode()
+        ).hexdigest(),
+        "request_config": pilot.MODEL_REQUEST_CONFIG,
+        "max_outer_mcp_calls": pilot.OUTER_MCP_CALL_LIMIT,
+        "max_model_calls": pilot.MODEL_CALL_LIMIT,
+        "model_name": MODEL,
+        "model_boundary_sha256": {},
+        "batch_trace_source_sha256": {},
+    }
+
+    def write_protocol() -> bytes:
+        protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+        return protocol_path.read_bytes()
+
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V7", protocol_path)
+    monkeypatch.setattr(pilot, "_committed_protocol_bytes", lambda _path: write_protocol())
+    monkeypatch.setattr(pilot, "_model_boundary_hashes", lambda _version=None: {})
+    monkeypatch.setattr(pilot, "_batch_trace_source_hashes", lambda: {})
+    monkeypatch.setattr(pilot, "_load_fixture_bank", lambda *_args, **_kwargs: {})
+    write_protocol()
+
+    assert pilot._load_pilot_protocol(7) == protocol
+    protocol["conditioned_prompt_sha256"] = hashlib.sha256(
+        pilot.CONDITIONED_PROMPT.encode()
+    ).hexdigest()
+    write_protocol()
+    with pytest.raises(ValueError, match="Conditioned prompt changed"):
+        pilot._load_pilot_protocol(7)
+
+
 def test_nonzero_catalog_price_stops_before_provider_or_pubmed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1218,7 +1527,9 @@ def test_versioned_protocol_binds_committed_bank_path_and_hash(
     monkeypatch.setattr(pilot, "ROOT", repository)
     monkeypatch.setattr(pilot, protocol_constant, protocol_path)
     monkeypatch.setattr(
-        pilot, "_model_boundary_hashes", lambda: {"offline": "source-hash"}
+        pilot,
+        "_model_boundary_hashes",
+        lambda _version=None: {"offline": "source-hash"},
     )
 
     loaded = pilot._load_pilot_protocol(study_version)
@@ -1268,7 +1579,7 @@ def _study4_loader_protocol(
     monkeypatch.setattr(
         pilot, "_committed_protocol_bytes", lambda path: path.read_bytes()
     )
-    monkeypatch.setattr(pilot, "_model_boundary_hashes", lambda: {})
+    monkeypatch.setattr(pilot, "_model_boundary_hashes", lambda _version=None: {})
     monkeypatch.setattr(pilot, "_load_fixture_bank", lambda *_args: {})
 
 
@@ -1539,6 +1850,7 @@ def _study3_runtime_inputs(
     protocol["runner_sha256"] = hashlib.sha256(
         Path(pilot.__file__).read_bytes()
     ).hexdigest()
+    protocol["model_boundary_sha256"] = pilot._model_boundary_hashes()
     test_protocol_path = tmp_path / "study3-protocol.json"
     test_protocol_path.write_text(
         json.dumps(protocol, sort_keys=True, indent=2) + "\n", encoding="utf-8"

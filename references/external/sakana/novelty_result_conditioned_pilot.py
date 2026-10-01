@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import contextmanager
 import email.utils
 import hashlib
 import json
@@ -14,16 +15,17 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple, cast
+from typing import Any, Iterator, Mapping, NamedTuple, cast
 from urllib.parse import urlsplit
 
+import litellm
 import novelty_fixture_bank_screen as fixture
 import novelty_batch_trace as batch_trace_reader
 from co_scientist.agents.generation.literature_tools.validate_search import (
     _find_search_tool,
 )
 from co_scientist.config.registry import ToolRegistry
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
+from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm, call_llm_json
 from co_scientist.llm_free_policy import scoped_campaign_mode
 from co_scientist.llm_telemetry import scoped_telemetry
 from co_scientist.mcp_client import MCPToolClient
@@ -37,6 +39,7 @@ PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
 PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
 PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
 PILOT_PREREG_V6 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v6.json"
+PILOT_PREREG_V7 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v7.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
@@ -47,7 +50,11 @@ V5_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v
 V5_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_FIFTH_STUDY_INPUTS"
 V6_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v7.json"
 V6_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SIXTH_STUDY_INPUTS"
+V7_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v8.json"
+V7_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SEVENTH_STUDY_INPUTS"
 OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
+JSON_QUERY_OUTPUT_FORMAT = "json"
+PLAIN_TEXT_QUERY_OUTPUT_FORMAT = "plain_text"
 STUDY4_IDENTITY = "M12-04b4-study4-20260930"
 STUDY4_RECOVERY_ENV = "COSCIENTIST_PUBMED_STUDY4_RECOVERY"
 STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
@@ -112,6 +119,9 @@ MODEL_BOUNDARY_FILES = (
     "engine/src/co_scientist/llm_telemetry.py",
     "engine/src/co_scientist/llm_gateway_routing.py",
 )
+PLAIN_TEXT_MODEL_BOUNDARY_FILES = (
+    "engine/src/co_scientist/llm_text_retry.py",
+)
 BATCH_TRACE_SOURCE_FILES = (
     "references/external/sakana/novelty_batch_trace.py",
     "engine/mcp_server/entrez_rate_limit.py",
@@ -133,6 +143,7 @@ class _StudyRegistration(NamedTuple):
     result_prefix: str
     blind_prefix: str
     requires_batch_metadata: bool
+    query_output_format: str = JSON_QUERY_OUTPUT_FORMAT
 
 
 _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
@@ -203,6 +214,18 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "cosci-m12-nov-04b4g1-v6-blind",
             True,
         ),
+        7: _StudyRegistration(
+            7,
+            8,
+            V7_FIXTURE_BANK_PATH,
+            V7_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4h1 batch-aware result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v7",
+            "cosci-m12-nov-04b4h1-v7-blind",
+            True,
+            PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+        ),
     }
 )
 
@@ -226,6 +249,25 @@ CONDITIONED_PROMPT = (
     "choose useful terminology. Do not add or infer publication identifiers. "
     "Return JSON with one string field named query, at most 200 characters."
     "\n\nDraft:\n{draft}\n\nFirst-search titles and abstracts:\n{evidence}"
+)
+PLAIN_TEXT_OUTPUT_INSTRUCTION = (
+    "Return only the PubMed query itself as one line of plain text, at most 200 "
+    "characters. Do not wrap it in JSON, markdown fences, outer quotation marks, "
+    "a label, or explanatory prose. Keep PubMed phrase quotes only where the "
+    "query syntax needs them; do not JSON-escape those quotes."
+)
+PLAIN_TEXT_STATIC_PROMPT = (
+    "Generate one concise PubMed search query for the scientific draft below. "
+    "Use the draft alone. Do not add identifiers. "
+    + PLAIN_TEXT_OUTPUT_INSTRUCTION
+    + "\n\nDraft:\n{draft}"
+)
+PLAIN_TEXT_CONDITIONED_PROMPT = (
+    "Generate one concise PubMed search query for the scientific draft below. "
+    "Use only the draft and the supplied first-search titles and abstracts to "
+    "choose useful terminology. Do not add or infer publication identifiers. "
+    + PLAIN_TEXT_OUTPUT_INSTRUCTION
+    + "\n\nDraft:\n{draft}\n\nFirst-search titles and abstracts:\n{evidence}"
 )
 _CREDENTIAL_SUFFIXES = (
     "_API_KEY",
@@ -289,10 +331,15 @@ def _pilot_search_tool(registry: ToolRegistry) -> Any:
 
 
 def _prompt(
-    variant: str, draft: str, papers: list[dict[str, Any]] | None = None
+    variant: str,
+    draft: str,
+    papers: list[dict[str, Any]] | None = None,
+    *,
+    output_format: str = JSON_QUERY_OUTPUT_FORMAT,
 ) -> str:
+    static_template, conditioned_template = _query_prompt_templates(output_format)
     if variant == "static":
-        return STATIC_PROMPT.format(draft=draft)
+        return static_template.format(draft=draft)
     evidence = "\n\n".join(
         "Title: "
         + str(paper["title"] or "")
@@ -300,7 +347,36 @@ def _prompt(
         + str(paper["abstract"] or "")
         for paper in papers or []
     )
-    return CONDITIONED_PROMPT.format(draft=draft, evidence=evidence)
+    return conditioned_template.format(draft=draft, evidence=evidence)
+
+
+def _query_prompt_templates(output_format: str) -> tuple[str, str]:
+    if output_format == JSON_QUERY_OUTPUT_FORMAT:
+        return STATIC_PROMPT, CONDITIONED_PROMPT
+    if output_format == PLAIN_TEXT_QUERY_OUTPUT_FORMAT:
+        return PLAIN_TEXT_STATIC_PROMPT, PLAIN_TEXT_CONDITIONED_PROMPT
+    raise ValueError(f"Unsupported query output format: {output_format}")
+
+
+def _query_output_format(protocol: dict[str, Any], study_version: int) -> str:
+    registration = _study_registration(study_version)
+    if "query_output_format" not in protocol:
+        if registration.query_output_format == PLAIN_TEXT_QUERY_OUTPUT_FORMAT:
+            raise ValueError(
+                f"Study {study_version} protocol must pin its query output format"
+            )
+        return registration.query_output_format
+    output_format = protocol["query_output_format"]
+    if not isinstance(output_format, str) or output_format not in {
+        JSON_QUERY_OUTPUT_FORMAT,
+        PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+    }:
+        raise ValueError(f"Unsupported query output format: {output_format}")
+    if output_format != registration.query_output_format:
+        raise ValueError(
+            f"Study {study_version} protocol selects the wrong query output format"
+        )
+    return output_format
 
 
 def _telemetry_totals(
@@ -316,6 +392,30 @@ def _telemetry_totals(
     return served, calls, observed, retries
 
 
+@contextmanager
+def _capture_completion_finish_reasons() -> Iterator[list[str | None]]:
+    """Observe raw finish reasons around one serialized reference-runner call."""
+    original_acompletion = litellm.acompletion
+    finish_reasons: list[str | None] = []
+
+    async def observed_acompletion(**kwargs: Any) -> Any:
+        response = await original_acompletion(**kwargs)
+        choices = getattr(response, "choices", None)
+        finish_reason = getattr(choices[0], "finish_reason", None) if choices else None
+        finish_reasons.append(
+            finish_reason if isinstance(finish_reason, str) else None
+        )
+        return response
+
+    # call_llm returns text only; this temporary serial observer retains the
+    # provider completion status without changing the shared engine boundary.
+    litellm.acompletion = observed_acompletion
+    try:
+        yield finish_reasons
+    finally:
+        litellm.acompletion = original_acompletion
+
+
 async def _generate_query(
     prompt: str,
     *,
@@ -324,28 +424,63 @@ async def _generate_query(
     run_id: str,
     expected_source_ids: set[str],
     event: dict[str, Any],
+    output_format: str = JSON_QUERY_OUTPUT_FORMAT,
 ) -> str:
+    if output_format not in (
+        JSON_QUERY_OUTPUT_FORMAT,
+        PLAIN_TEXT_QUERY_OUTPUT_FORMAT,
+    ):
+        raise ValueError(f"Unsupported query output format: {output_format}")
     event["started_at_utc"] = _now()
     event["request_config"] = MODEL_REQUEST_CONFIG
+    event["query_output_format"] = output_format
     with scoped_telemetry("m11_nov_01a3b3_query") as telemetry:
         try:
             with scoped_campaign_mode(True):
-                result = await call_llm_json(
-                    prompt,
-                    CompletionSpec(
-                        model_name=model_name,
-                        max_tokens=MODEL_MAX_TOKENS,
-                        temperature=MODEL_TEMPERATURE,
-                        json_schema=QUERY_SCHEMA,
-                        api_key=model_api_key,
+                spec = CompletionSpec(
+                    model_name=model_name,
+                    max_tokens=MODEL_MAX_TOKENS,
+                    temperature=MODEL_TEMPERATURE,
+                    json_schema=(
+                        QUERY_SCHEMA
+                        if output_format == JSON_QUERY_OUTPUT_FORMAT
+                        else None
                     ),
-                    max_attempts=MAX_ATTEMPTS,
-                    options=LLMCallOptions(
-                        use_cache=False,
-                        run_id=run_id,
-                        enable_thinking=False,
-                    ),
+                    force_json=output_format == JSON_QUERY_OUTPUT_FORMAT,
+                    api_key=model_api_key,
                 )
+                options = LLMCallOptions(
+                    use_cache=False,
+                    run_id=run_id,
+                    enable_thinking=False,
+                )
+                if output_format == JSON_QUERY_OUTPUT_FORMAT:
+                    result = await call_llm_json(
+                        prompt,
+                        spec,
+                        max_attempts=MAX_ATTEMPTS,
+                        options=options,
+                    )
+                    query = result.get("query")
+                else:
+                    finish_reasons: list[str | None] = []
+                    try:
+                        with _capture_completion_finish_reasons() as finish_reasons:
+                            raw_query = await call_llm(
+                                prompt,
+                                spec,
+                                options=options,
+                                max_attempts=MAX_ATTEMPTS,
+                            )
+                    finally:
+                        event["completion_finish_reasons"] = list(finish_reasons)
+                        event["completion_response_count"] = len(finish_reasons)
+                    event["raw_query_response"] = raw_query
+                    if finish_reasons != ["stop"]:
+                        raise ValueError(
+                            "Plain-text completion did not end with finish_reason=stop"
+                        )
+                    query = raw_query.strip()
         finally:
             event["telemetry"] = telemetry.snapshot()
     served_model, calls, observed, retries = _telemetry_totals(event["telemetry"])
@@ -365,12 +500,62 @@ async def _generate_query(
         raise ValueError("Model call lacks one observed uncached provider response")
     if served_model != model_name:
         raise ValueError("Served model differs from the selected zero-price model")
-    query = result.get("query")
     if not isinstance(query, str) or not query.strip() or len(query) > MAX_QUERY_CHARS:
         raise ValueError("Generated query is empty or exceeds 200 characters")
+    if output_format == PLAIN_TEXT_QUERY_OUTPUT_FORMAT:
+        _validate_plain_text_query(query)
     if _contains_source_id(query, expected_source_ids):
         raise ValueError("Generated query contains a frozen target or anchor PMID")
     return query
+
+
+_PLAIN_TEXT_WRAPPER_PREFIX = re.compile(
+    r"(?i)^(?:here(?: is|'s)\s+(?:the\s+)?(?:pubmed\s+)?query\s*:|"
+    r"(?:pubmed\s+)?query\s*:|the\s+query\s+is\s*:|search\s+query\s*:)"
+)
+_PLAIN_TEXT_WRAPPER_SUFFIX = re.compile(
+    r"(?i)(?:\s+(?:hope this helps|let me know if you need anything else)[.!]?)$"
+)
+_PLAIN_TEXT_INCOMPLETE_BOOLEAN = re.compile(
+    r"(?i)(?:^(?:AND|OR|NOT)\b|\b(?:AND|OR|NOT)\b(?=\s*(?:\)+|$)))"
+)
+
+
+def _validate_plain_text_query(query: str) -> None:
+    if len(query.splitlines()) != 1:
+        raise ValueError("Plain-text query must contain exactly one line")
+    if "`" in query or query.startswith("{") or query.endswith("}"):
+        raise ValueError("Plain-text query contains a markdown or JSON wrapper")
+    if r"\"" in query:
+        raise ValueError("Plain-text query contains JSON-escaped quote marks")
+    if _PLAIN_TEXT_WRAPPER_PREFIX.search(query) or _PLAIN_TEXT_WRAPPER_SUFFIX.search(
+        query
+    ):
+        raise ValueError("Plain-text query contains wrapper prose")
+    quoted = False
+    delimiters: list[str] = []
+    unquoted_chars: list[str] = []
+    closing = {")": "(", "]": "["}
+    for char in query:
+        if char == '"':
+            if not quoted:
+                unquoted_chars.append(" QUOTED_PHRASE ")
+            quoted = not quoted
+        elif not quoted:
+            unquoted_chars.append(char)
+            if char in "{}":
+                raise ValueError("Plain-text query contains unquoted JSON braces")
+            if char in "([":
+                delimiters.append(char)
+            elif char in ")]":
+                if not delimiters or delimiters.pop() != closing[char]:
+                    raise ValueError("Plain-text query contains an unbalanced delimiter")
+    if quoted:
+        raise ValueError("Plain-text query contains an unbalanced quote")
+    if delimiters:
+        raise ValueError("Plain-text query contains an unbalanced delimiter")
+    if _PLAIN_TEXT_INCOMPLETE_BOOLEAN.search("".join(unquoted_chars)):
+        raise ValueError("Plain-text query ends in an incomplete boolean expression")
 
 
 def _validate_batch_returned_links(
@@ -1194,6 +1379,7 @@ async def run_pilot(
         if study_version == 1
         else _load_pilot_protocol(study_version)
     )
+    query_output_format = _query_output_format(protocol, study_version)
     if model_name != protocol["model_name"]:
         raise ValueError("Selected model differs from the committed pilot protocol")
     if expected_build_id != protocol.get("mcp_build_id"):
@@ -1248,6 +1434,7 @@ async def run_pilot(
         "max_outer_mcp_calls": OUTER_MCP_CALL_LIMIT,
         "max_papers_per_search": MAX_PAPERS,
         "model_request_config": MODEL_REQUEST_CONFIG,
+        "query_output_format": query_output_format,
         "campaign_admission": str(admission_path),
         "mcp_serving_process": serving_process,
         "events": [],
@@ -1310,7 +1497,9 @@ async def run_pilot(
         report["model_call_count"] += 1
         fixture._write_json(result_path, report, private=True)
         try:
-            prompt = _prompt(variant, draft, papers)
+            prompt = _prompt(
+                variant, draft, papers, output_format=query_output_format
+            )
             if _contains_source_id(prompt, source_ids):
                 raise ValueError("Model prompt contains a frozen target or anchor PMID")
             if registration.requires_batch_metadata:
@@ -1332,6 +1521,7 @@ async def run_pilot(
                 ),
                 expected_source_ids=source_ids,
                 event=event,
+                output_format=query_output_format,
             )
             if registration.requires_batch_metadata:
                 _require_same_serving_process(
@@ -1569,6 +1759,7 @@ def _protocol_path(study_version: int) -> Path:
         4: PILOT_PREREG_V4,
         5: PILOT_PREREG_V5,
         6: PILOT_PREREG_V6,
+        7: PILOT_PREREG_V7,
     }[study_version]
 
 
@@ -1638,9 +1829,16 @@ def _load_fixture_bank(
     return bank
 
 
-def _model_boundary_hashes() -> dict[str, str]:
+def _model_boundary_hashes(study_version: int | None = None) -> dict[str, str]:
+    files = MODEL_BOUNDARY_FILES
+    if (
+        study_version is not None
+        and _study_registration(study_version).query_output_format
+        == PLAIN_TEXT_QUERY_OUTPUT_FORMAT
+    ):
+        files += PLAIN_TEXT_MODEL_BOUNDARY_FILES
     return {
-        relative: fixture._sha256(ROOT / relative) for relative in MODEL_BOUNDARY_FILES
+        relative: fixture._sha256(ROOT / relative) for relative in files
     }
 
 
@@ -1697,6 +1895,7 @@ def _load_pilot_protocol(
         or protocol.get("fixture_bank_version") != registration.fixture_bank_version
     ):
         raise ValueError("Pilot protocol does not select the prospective study version")
+    output_format = _query_output_format(protocol, study_version)
     if study_version == 4 and protocol.get("entrez_recovery_policy") != dict(
         STUDY4_RECOVERY_PROTOCOL
     ):
@@ -1706,19 +1905,18 @@ def _load_pilot_protocol(
         != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     ):
         raise ValueError("Pilot runner changed after preregistration")
-    if (
-        protocol.get("static_prompt_sha256")
-        != hashlib.sha256(STATIC_PROMPT.encode()).hexdigest()
-    ):
+    static_prompt, conditioned_prompt = _query_prompt_templates(output_format)
+    if protocol.get("static_prompt_sha256") != hashlib.sha256(
+        static_prompt.encode()
+    ).hexdigest():
         raise ValueError("Static prompt changed after preregistration")
-    if (
-        protocol.get("conditioned_prompt_sha256")
-        != hashlib.sha256(CONDITIONED_PROMPT.encode()).hexdigest()
-    ):
+    if protocol.get("conditioned_prompt_sha256") != hashlib.sha256(
+        conditioned_prompt.encode()
+    ).hexdigest():
         raise ValueError("Conditioned prompt changed after preregistration")
     if protocol.get("request_config") != MODEL_REQUEST_CONFIG:
         raise ValueError("Pilot request settings differ from preregistration")
-    if protocol.get("model_boundary_sha256") != _model_boundary_hashes():
+    if protocol.get("model_boundary_sha256") != _model_boundary_hashes(study_version):
         raise ValueError(
             "Pilot model admission/dispatch sources changed or are unpinned"
         )

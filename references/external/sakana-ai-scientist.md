@@ -1,17 +1,10 @@
 # SakanaAI/AI-Scientist — pinned source assessment
 
-Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
-[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
-[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
-close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
-closes f5: six exploratory pairs, twelve independently verified primary sources,
-exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
-The normal loader accepted the committed bytes; no admission or scientific call occurred.
-The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
-Next is the sole f6 comparison after fresh free-route and serving-process checks,
-with the unchanged 24-model/36-outer-call caps and scientific gates. All four
-historical admissions remain consumed, immutable and unscored. Four original
-scientific/final gates remain open; no further model qualification is authorized.
+Current status: all seven admitted novelty comparisons are incomplete and unscored; the result-conditioned search adaptation remains unadopted and unresolved. The [optional retrieval support release](m12-pubmed-batching-release-2026-10-01.json) is deployed, with production batching and recovery flags unset. Historical preparation notes below describe their dated state; they do not authorize replay.
+
+The [plain-text query boundary](sakana/novelty-plain-query-boundary-verification-2026-10-01.json) passes 123 targeted offline tests and independent exact-diff review. Both comparison arms use the same output contract, one uncached request, observed normal completion and unchanged scientific gates. A [fixed private source proposal](sakana/novelty-plain-query-source-preparation-2026-10-01.json) has source-identity and supplied-abstract acceptance only. The [study7 registration](sakana/novelty-pilot-v7-registration-verification-2026-10-01.json) now binds exact committed bank8/protocol7 after accepted input review and actual nonexecuting process verification. The [seventh terminal receipt](sakana/novelty-pilot-v7-terminal-2026-10-01.json) records16 completed model calls,23 successful retrieval events and one fulltext HTTP400 stopped by strict provenance validation, after three complete pairs. All raw records and consumed admission are retained; no blind scoring or scientific disposition is inferred. Owned processes were reaped and the temporary checkout removed. No further model qualification or automatic next bank is planned.
+
+The [local fulltext opt-out correction](sakana/novelty-fulltext-optout-verification-2026-10-01.json) preserves default downloads and paper selection while allowing titles/abstracts-only callers to avoid unused PMC I/O. Matched fixture,372 MCP tests, strict typing and independent exact-hash review pass. Release and a real tool response remain i2; no scientific acceptance is inferred.
 
 **Source:** https://github.com/SakanaAI/AI-Scientist at [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) (committed 2025-12-19). The ignored checkout at `references/work/sakana-ai-scientist/` was removed after release; it was never a runtime dependency. This is an external technique source, not evidence of Google's Co-Scientist implementation.
 

@@ -1,0 +1,70 @@
+{
+  "purpose": "Prospective next-action decision after six interrupted novelty studies; no scientific acceptance or launch authorization.",
+  "starting_commit": "a77671536360e9a9c34db451f57a3bf387a31b94",
+  "authority": "Original campaign autonomous continued investigation and discovered-scope recording; consumed per-study contracts remain binding for historical admissions.",
+  "independent_review": {
+    "agent": "/root/novelty_next_action_audit",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "scope": "Fresh-context read-only semantic audit; no inference or source edits.",
+    "conclusion": "A distinct prospectively registered comparison remains justified after causal operational correction; no replay, retrospective scoring, or automatic registration.",
+    "correction": "Model alternatives already reconciled: Ling Sante tested-config rejection; Cloudflare larger-output deliberately unselected and untested. b7 remains open for novelty only."
+  },
+  "study_failures": [
+    {
+      "study": 1,
+      "failure": "Missing maintained PubMed trace writer"
+    },
+    {
+      "study": 2,
+      "failure": "PubMed ESearch HTTP502"
+    },
+    {
+      "study": 3,
+      "failure": "PubMed metadata EFetch HTTP429"
+    },
+    {
+      "study": 4,
+      "failure": "Bounded ELink recovery exhausted after HTTP429"
+    },
+    {
+      "study": 5,
+      "failure": "Local returned-link verifier falsely rejected valid empty search; corrected offline"
+    },
+    {
+      "study": 6,
+      "failure": "Missing closing outer string quote in model JSON; internal quoted search terms are correctly escaped"
+    }
+  ],
+  "alternatives": [
+    {
+      "option": "Replay or repair consumed result",
+      "decision": "Excluded; historical admissions and unscored results remain immutable."
+    },
+    {
+      "option": "Canonical heuristic JSON repair",
+      "decision": "Excluded for this correction; risks accepting incomplete substantive text."
+    },
+    {
+      "option": "Prospective plain-text query serialization",
+      "decision": "Prepare and verify offline at the existing LLM seam for both arms identically; future registration must pin exact prompt/request/source changes."
+    }
+  ],
+  "unchanged_scientific_gates": "Complete six positive/distinct-control pairs; target gain and no loss, controls, cross-pair and unrelated-fraction criteria, provenance, blind labels. Passing pilot still requires separate independent three-pair confirmation.",
+  "operational_preparation": "h1 only: one physical model call, no retry, exact selected served model, cache disabled, zero-cost routing, bounded validated query. No admission or inference.",
+  "future_recovery_policy": "If introduced, must be prospectively frozen, finite, identical across arms, fully counted and retain all attempts. No historical mutation and no unbounded resume.",
+  "public_support": [
+    {
+      "url": "https://openrouter.ai/docs/guides/features/structured-outputs",
+      "accessed_utc_date": "2026-10-01",
+      "claim": "Structured output support and strict enforcement vary per endpoint/provider; local JSON mode is not a guarantee."
+    }
+  ],
+  "not_established": [
+    "plain-text live reliability",
+    "scientific candidate superiority",
+    "new study registration or admission",
+    "new model qualification",
+    "campaign completion"
+  ]
+}

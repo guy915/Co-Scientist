@@ -2,6 +2,10 @@
 
 ## Current execution state
 
+Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #88](https://github.com/guy915/Co-Scientist/pull/88) is the current verified release (`a7767153`), with [existing-service release evidence](m12-pubmed-batching-release-2026-10-01.json). Metadata batching and bounded recovery remain disabled by default in production. The [seventh novelty comparison](sakana/novelty-pilot-v7-terminal-2026-10-01.json) stopped on PMC fulltext HTTP400 after16 valid model responses and24 retrieval events; three of six pairs completed. All seven consumed comparisons are incomplete and unscored. The four original scientific/final gates remain open, with a bounded default-preserving fulltext opt-out correction and its release observation now recorded as preparatory items i1/i2 in PLAN. No further model qualification, replay or new comparison registration is authorized by this update.
+
+### Historical preparation record through studies5–6
+
 As of 1 October local time, all nine required source investigations are closed. The
 [corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md),
 [71-task public flow](m12-free-default-public-acceptance-2026-09-30.json) and
@@ -83,7 +87,7 @@ separately. Preparation establishes no scientific gain and authorizes no histori
 replay. Study6 requires fresh free-route/account/process checks before its one
 admission; all five interrupted studies remain unscored.
 
-The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
+The release recorded before studies6–7 was [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
 deployments and 5/5 keyless smoke. Its reference-only changes preserve PR #79
 product content. See the

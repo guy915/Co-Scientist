@@ -1,0 +1,109 @@
+{
+  "purpose": "Source preparation acceptance only; private proposal is not a registered bank or permission to admit a study.",
+  "status": "ACCEPT_SOURCE_PREPARATION_ONLY",
+  "proposal_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/proposal.json",
+  "proposal_sha256": "264fe990132152555083dd154ee57004eb39e77eae6432a62a978767a50409c5",
+  "sampling": "First four complete non-review records in each of three fixed broad 2020\u20132023 topic search response orders, selected before drafting/model/validator/performance queries.",
+  "discovery": {
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/discovery.json",
+    "sha256": "a306cb956e5d3be8e3583dd28c4620c6b8155dbf56aa49a7e5e8371ff6b7fcb2",
+    "queries": 3,
+    "unique_candidates": 60,
+    "metadata_returned": 60,
+    "selected": 12,
+    "selection_rule_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/first-suitable-selected-ids.json"
+  },
+  "finite_exposure": {
+    "prior_count": 1063,
+    "prior_manifest": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/prior-exposure.json",
+    "sha256": "47ed1cfd958db036a1040d784ba519814b175374c36ec9c4d920864de8ddc3a0",
+    "selected_collisions": 0,
+    "scope": "Prior retained 958 IDs plus conservative seven/eight-digit study6 result tokens. This overincludes non-PMID values and is not a universal-freshness claim."
+  },
+  "official_identity_verification": {
+    "status": "EXACT12_METADATA_MATCH",
+    "http_status": 200,
+    "source_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38112302%2C38116749%2C37655736%2C37774751%2C36729847%2C36200515%2C41069742%2C38031802%2C38018529%2C38146867%2C38140721%2C38084379&retmode=xml",
+    "sha256": "3c85011dd7ae4c5c986433ec411b25cefcb25a42e1bc63071d31335bbde4b89d",
+    "bytes": 170403,
+    "ids_in_order": [
+      "38112302",
+      "38116749",
+      "37655736",
+      "37774751",
+      "36729847",
+      "36200515",
+      "41069742",
+      "38031802",
+      "38018529",
+      "38146867",
+      "38140721",
+      "38084379"
+    ],
+    "comparison": "Every full PubmedArticle XML element is byte-identical after canonical ElementTree serialization to its original discovery-batch element, including all names, affiliations, DOI/journal/dates/types and abstract.",
+    "scope": "Official identity/source consistency only, not scientific or retrieval comparison."
+  },
+  "source_xml": {
+    "candidate_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/candidate-metadata.xml",
+    "candidate_sha256": "8b71d5b92a6c68b24d010fcdcabc589f4b6adb0e64573958aa553e939b867114",
+    "exact12_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/selected-exact12.xml"
+  },
+  "independent_semantic_review": {
+    "peer": "Antigravity Gemini 3.8 Flash High",
+    "model": "gemini-3.8-flash-high",
+    "effort": "high",
+    "conversation_id": "6fc5c4b9-3a57-45f7-b4ba-e28e8b063e93",
+    "result_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-plain-query-source-proposal-20261001/peer-review.json",
+    "result_sha256": "306f8df1cc82b833fe2a9927eeae1d6b441a60bc5f3fee0a7b07a1dda536984c",
+    "verdict": "ACCEPT supplied-source factual scope; no tools or scientific comparison requested.",
+    "numerical_limit": "Peer estimated maximum169chars and excerpt ranges9\u201320 incorrectly; independent deterministic counts below govern, and all actual bounds pass."
+  },
+  "deterministic_bounds": {
+    "max_draft_characters": 170,
+    "max_quoted_words_per_source": 19,
+    "quoted_fragments_exact_substrings": true,
+    "unique_selected_ids": 12,
+    "full_official_xml_elements_match_initial_batch": true
+  },
+  "fixed_pairs": [
+    {
+      "id": "vibrio-gastric-vaccines",
+      "positive_pmid": "38112302",
+      "control_pmid": "38116749"
+    },
+    {
+      "id": "protozoan-chlamydia-vaccines",
+      "positive_pmid": "37655736",
+      "control_pmid": "37774751"
+    },
+    {
+      "id": "wheat-biochar-genome-editing",
+      "positive_pmid": "36729847",
+      "control_pmid": "36200515"
+    },
+    {
+      "id": "pea-starch-leaf-segmentation",
+      "positive_pmid": "41069742",
+      "control_pmid": "38031802"
+    },
+    {
+      "id": "bone-fusion-vascular-atherectomy",
+      "positive_pmid": "38018529",
+      "control_pmid": "38146867"
+    },
+    {
+      "id": "vascular-stent-balloon",
+      "positive_pmid": "38140721",
+      "control_pmid": "38084379"
+    }
+  ],
+  "not_established": [
+    "native fresh-context source review",
+    "representative or confirmatory sampling",
+    "universal novelty",
+    "retrieval/scientific performance",
+    "model reliability",
+    "canonical bank/protocol/admission",
+    "new provider inference"
+  ]
+}
